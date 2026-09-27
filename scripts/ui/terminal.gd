@@ -27,6 +27,7 @@ var asset_kind: Label
 var price_lbl: Label
 var chg_lbl: Label
 var size_lbl: Label
+var fee_lbl: Label
 var lev_btn: Button
 var open_tab: Button
 var closed_tab: Button
@@ -50,8 +51,8 @@ func _ready() -> void:
 	var glass := UI.panel_box(Color(0.06, 0.1, 0.16), Color(0.06, 0.1, 0.16), 0, 0)
 	glass.content_margin_left = 26
 	glass.content_margin_right = 26
-	glass.content_margin_top = 18
-	glass.content_margin_bottom = 16
+	glass.content_margin_top = 12
+	glass.content_margin_bottom = 12
 	add_theme_stylebox_override("panel", glass)
 	var hole: Rect2 = CrtFrame.HOLE
 	anchor_left = hole.position.x
@@ -149,7 +150,7 @@ func _ready() -> void:
 	for d in preload("res://scripts/sim/market.gd").ASSET_DEFS:
 		var b := Button.new()
 		b.flat = true
-		b.custom_minimum_size.y = 29
+		b.custom_minimum_size.y = 26
 		var hb := HBoxContainer.new()
 		hb.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 		hb.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -204,6 +205,9 @@ func _ready() -> void:
 	var plus := UI.btn(" + ", UI.NAVY_2, 26)
 	plus.pressed.connect(func(): _step_size(1))
 	sz.add_child(plus)
+	fee_lbl = UI.lbl("", 16, UI.DIM)
+	fee_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	cv.add_child(fee_lbl)
 	var orders := HBoxContainer.new()
 	cv.add_child(orders)
 	var buy := UI.btn("BUY", UI.GREEN.darkened(0.15), 26)
@@ -279,6 +283,11 @@ func _update_size_labels() -> void:
 	var v: float = Rules.SIZE_STEPS[size_idx]
 	size_lbl.text = Rules.money(v).replace(".00", "")
 	lev_btn.text = "x%d" % Ledger.LEVERAGES[lev_idx]
+	var lev: int = Ledger.LEVERAGES[lev_idx]
+	var cigar: bool = match_node != null and match_node.effect_left(Net.my_id(), "cigar") > 0.0
+	var move := 1.0 / lev * 100.0
+	fee_lbl.text = ("no fee (cigar)" if cigar else "-%s fee" % Rules.money(v * lev * Ledger.FEE_RATE)) \
+			+ "  ·  liq at %s%.2f%%" % ["-", move]
 
 
 func _order(side: int) -> void:

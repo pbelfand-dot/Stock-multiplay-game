@@ -11,7 +11,8 @@ extends RefCounted
 
 const REACTION_DELAY := 1.5   # seconds between headline and the market reacting
 
-const SYMS := ["BTC", "GOLD", "OIL", "BNN", "REX", "WAGMI"]
+const SYMS := ["BTC", "GOLD", "OIL", "SPX", "BNN", "REX", "WAGMI"]
+const TRAMP_MULT := 1.7   # "you're one post away from getting rich... or losing it all"
 
 var rng: RandomNumberGenerator
 
@@ -74,12 +75,15 @@ func _tramp() -> Dictionary:
 		["REX MOTORS, BEAUTIFUL CARS. I DROVE ONE. PERFECT", [["REX", 0.04]]],
 		["GOLD IS FOR LOSERS. I HAVE THE MOST GOLD", [["GOLD", -0.02]]],
 		["WE'RE BUYING GREENLAND WITH WAGMI COIN", [["WAGMI", 0.25]]],
-		["NOBODY KNOWS MORE ABOUT MARKETS THAN ME", [["BTC", -0.01], ["REX", -0.012], ["BNN", -0.012]]],
+		["NOBODY KNOWS MORE ABOUT MARKETS THAN ME", [["BTC", -0.01], ["REX", -0.012], ["BNN", -0.012], ["SPX", -0.01]]],
+		["WE ARE IN WAR!", [["OIL", 0.05], ["GOLD", 0.025], ["SPX", -0.03], ["BTC", -0.03]]],
+		["THE S&P IS AT ALL TIME HIGHS BECAUSE OF ME", [["SPX", 0.025]]],
+		["BANANA COIN IS A SCAM. TOTAL SCAM", [["BNN", -0.07]]],
 	]
 	var l: Array = _pick(lines)
 	var effects: Array = []
 	for pair in l[1]:
-		effects.append({"sym": pair[0], "pct": pair[1] * rng.randf_range(0.8, 1.25), "dur": rng.randf_range(4.0, 8.0), "delay": 0.0})
+		effects.append({"sym": pair[0], "pct": pair[1] * TRAMP_MULT * rng.randf_range(0.8, 1.25), "dur": rng.randf_range(3.0, 6.0), "delay": 0.0})
 	return _ev("TRAMP", "PRESIDENT", "TRAMP: " + l[0], effects)
 
 
@@ -160,8 +164,10 @@ func _breaking() -> Dictionary:
 	var items := [
 		["REX MOTORS CEO ARRESTED FOR TWEETING", "REX", -0.06],
 		["REX MOTORS UNVEILS FLYING CYBERVAN", "REX", 0.05],
-		["BANANA CORP DISCOVERS BANANA THAT IS ALSO A PHONE", "BNN", 0.06],
-		["BANANA CORP RECALLS 40M BANANAS: 'TOO CURVED'", "BNN", -0.05],
+		["BANANA COIN LISTED ON EVERY EXCHANGE AT ONCE", "BNN", 0.07],
+		["BANANA COIN DEV WALLET MOVES 40M COINS: 'JUST TESTING'", "BNN", -0.06],
+		["S&P 500 FUTURES LIMIT DOWN OVERNIGHT", "SPX", -0.03],
+		["JOBS REPORT CRUSHES EXPECTATIONS", "SPX", 0.02],
 		["TANKER STUCK SIDEWAYS IN CANAL AGAIN", "OIL", 0.04],
 		["OPEC SAYS 'WE HAVE TOO MUCH OIL LOL'", "OIL", -0.035],
 		["MAJOR EXCHANGE 'MISPLACES' 90K BITCOIN", "BTC", -0.045],

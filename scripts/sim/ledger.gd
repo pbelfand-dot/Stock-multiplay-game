@@ -11,8 +11,8 @@ extends RefCounted
 ## Co-op: every player trades from account 0 (the shared fund).
 ## PvP:   every player has their own account keyed by peer id.
 
-const FEE_RATE := 0.0005   # 0.05% of notional per open
-const LEVERAGES := [1, 5, 10, 25, 50, 100]
+const FEE_RATE := 0.0015   # 0.15% of notional per open (clip: $400 x125 -> $75 fee)
+const LEVERAGES := [1, 5, 10, 25, 50, 100, 125]
 
 var accounts := {}   # id -> {id, name, balance, positions: [], closed: int, day_start: float}
 var _next_pid := 1
@@ -37,7 +37,7 @@ static func pnl_of(pos: Dictionary, price: float) -> float:
 
 ## Returns {ok, error, pos}
 func open_position(acct_id: int, sym: String, side: int, margin: float, lev: int,
-		price: float, trader: String, fee_rate: float = FEE_RATE) -> Dictionary:
+		price: float, trader: String, fee_rate: float = FEE_RATE, spread: float = 0.0) -> Dictionary:
 	if not accounts.has(acct_id):
 		return {"ok": false, "error": "No account"}
 	var a: Dictionary = accounts[acct_id]
@@ -54,6 +54,7 @@ func open_position(acct_id: int, sym: String, side: int, margin: float, lev: int
 	if margin + fee > a.balance + 0.001:
 		return {"ok": false, "error": "Not enough cash"}
 	a.balance -= margin + fee
+	price *= 1.0 + side * spread * 0.5   # you buy the ask / sell the bid
 	var pos := {"pid": _next_pid, "sym": sym, "side": side, "margin": margin, "lev": lev,
 		"entry": price, "units": notional / price, "fee": fee, "trader": trader, "tp": 0.0, "sl": 0.0}
 	_next_pid += 1

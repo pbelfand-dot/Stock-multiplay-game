@@ -10,15 +10,20 @@ extends RefCounted
 const CANDLE_SECONDS := 5.0
 const MAX_CANDLES := 120
 
-## sym, name, kind, start price, per-second volatility
+## sym, name, kind, start price, per-second volatility, bid/ask spread (fraction)
+## (same watchlist as the newer clips: BTC, GOLD, OIL, SPX, BNN, REX + our memecoin)
 const ASSET_DEFS := [
-	{"sym": "BTC", "name": "Bitcoin", "kind": "Crypto", "price": 1000.0, "vol": 0.0012},
-	{"sym": "GOLD", "name": "Gold", "kind": "Commodity", "price": 1500.0, "vol": 0.0005},
-	{"sym": "OIL", "name": "Crude Oil", "kind": "Commodity", "price": 1500.0, "vol": 0.0008},
-	{"sym": "BNN", "name": "Banana Corp", "kind": "Stock", "price": 100.0, "vol": 0.0009},
-	{"sym": "REX", "name": "Rex Motors", "kind": "Stock", "price": 1500.0, "vol": 0.0007},
-	{"sym": "WAGMI", "name": "WAGMI Coin", "kind": "Memecoin", "price": 0.42, "vol": 0.0035},
+	{"sym": "BTC", "name": "Bitcoin", "kind": "Crypto", "price": 1000.0, "vol": 0.0014, "spread": 0.0006},
+	{"sym": "GOLD", "name": "Gold", "kind": "Commodity", "price": 1500.0, "vol": 0.0006, "spread": 0.0003},
+	{"sym": "OIL", "name": "Crude Oil", "kind": "Commodity", "price": 1500.0, "vol": 0.0009, "spread": 0.0004},
+	{"sym": "SPX", "name": "S&P 500", "kind": "Index", "price": 2200.0, "vol": 0.0006, "spread": 0.0002},
+	{"sym": "BNN", "name": "Banana Coin", "kind": "Crypto", "price": 100.0, "vol": 0.0016, "spread": 0.0008},
+	{"sym": "REX", "name": "Rex Motors", "kind": "Stock", "price": 1500.0, "vol": 0.0008, "spread": 0.0004},
+	{"sym": "WAGMI", "name": "WAGMI Coin", "kind": "Memecoin", "price": 0.42, "vol": 0.0038, "spread": 0.003},
 ]
+## Fat tails: random stop-hunt wicks that knock out tight stops and high leverage.
+const JUMP_CHANCE := 0.012     # per asset per second
+const JUMP_SIZE := 9.0         # in units of per-second vol
 
 var assets: Array = []          # Array[Dictionary]
 var time := 0.0                 # seconds since market open (monotonic across days)
@@ -35,7 +40,7 @@ func _init(seed_value: int = 0) -> void:
 		var a := {
 			"sym": d.sym, "name": d.name, "kind": d.kind,
 			"price": d.price, "base": d.price, "open_day": d.price,
-			"vol": d.vol, "trend": 0.0, "trend_timer": 0.0,
+			"vol": d.vol, "spread": d.spread, "trend": 0.0, "trend_timer": 0.0,
 			"impulses": [],       # [{delay, dur, rate}] rate = log-return per second
 			"candles": [],        # completed: [o, h, l, c, v]
 			"cur": [d.price, d.price, d.price, d.price, 0.0],
@@ -52,6 +57,11 @@ func index_of(sym: String) -> int:
 
 func price(i: int) -> float:
 	return assets[i].price
+
+
+func spread_of(sym: String) -> float:
+	var i := index_of(sym)
+	return assets[i].spread if i >= 0 else 0.0
 
 
 func price_of(sym: String) -> float:
@@ -107,6 +117,10 @@ func _step_asset(a: Dictionary, dt: float) -> void:
 			still.append(imp)
 	a.impulses = still
 	var r: float = (a.trend + mr + impulse) * dt + a.vol * sqrt(dt) * _gauss()
+	if rng.randf() < JUMP_CHANCE * dt:   # a wick: spike one way, the drift pulls it back
+		var j: float = (1.0 if rng.randf() < 0.5 else -1.0) * a.vol * JUMP_SIZE * rng.randf_range(0.6, 1.4)
+		r += j
+		a.impulses.append({"delay": 0.3, "dur": 2.5, "rate": -j * 0.7 / 2.5})
 	a.price = maxf(a.price * exp(r), 0.0001)
 	var c: Array = a.cur
 	c[1] = maxf(c[1], a.price)

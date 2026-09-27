@@ -188,7 +188,7 @@ func _req_open(sym: String, side: int, margin: float, lev: int) -> void:
 		_s_error.rpc_id(id, "FAT FINGER! Your hands are shaking. Go relieve the pressure.")
 	var fee_rate := 0.0 if effect_left(id, "cigar") > 0.0 else Ledger.FEE_RATE
 	var r: Dictionary = ledger.open_position(acct_for(id), sym, side, margin, lev,
-		market.price_of(sym), Net.player_name(id), fee_rate)
+		market.price_of(sym), Net.player_name(id), fee_rate, market.spread_of(sym))
 	if not r.ok:
 		_s_error.rpc_id(id, r.error)
 		return
