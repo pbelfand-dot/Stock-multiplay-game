@@ -676,26 +676,84 @@ func npc(pos: Vector3, rot_y: float, preset: String, title: String, pose: String
 	return n
 
 
-## Streamer corner: TJZ at his stream desk, KIMCHEE and ROARING KITTEH.
+## KWIK LIVE studio: its own room off-map (reach it from the phone's KWIK app).
+## TJZ at his battle station, KIMCHEE on the couch set, ROARING KITTEH's cam.
+const STUDIO := Vector3(70, 0, 0)
+var studio_cam_pos := STUDIO + Vector3(0, 1.7, 1.2)
+var studio_spawn := STUDIO + Vector3(-2.8, 0.1, 2.6)
+var studio_exit_to := Vector3(15.5, 0.1, 10.5)
+
+
 func _streamer_corner() -> void:
-	var base := Vector3(16.5, 0, 12.0)
-	solid(Vector3(2.2, 0.06, 0.9), base + Vector3(0, 0.75, 0))
-	prop("StreamDesk", base)
-	prop("RingLight", base + Vector3(0, 0, -1.1))
-	prop("NeonBoard", base + Vector3(0, 2.5, 1.83), PI)
-	var live_sign := label("KWIK LIVE", base + Vector3(0, 2.5, 1.78), 90, Color(0.75, 0.5, 1), PI)
+	var c := STUDIO
+	var studio := Node3D.new()
+	studio.name = "Studio"
+	root.add_child(studio)
+	var wall := Color(0.16, 0.12, 0.26)
+	box(Vector3(12, 0.2, 9), c + Vector3(0, -0.1, 0), Color(0.12, 0.1, 0.16), true, studio)
+	box(Vector3(12, 0.2, 9), c + Vector3(0, 3.1, 0), Color(0.08, 0.07, 0.1), false, studio)
+	box(Vector3(12, 3.2, 0.2), c + Vector3(0, 1.5, -4.5), wall, true, studio)
+	box(Vector3(12, 3.2, 0.2), c + Vector3(0, 1.5, 4.5), wall, true, studio)
+	box(Vector3(0.2, 3.2, 9), c + Vector3(-6, 1.5, 0), wall, true, studio)
+	box(Vector3(0.2, 3.2, 9), c + Vector3(6, 1.5, 0), wall, true, studio)
+	# acoustic foam panels + purple/cyan LED strips
+	for x in [-4.5, -2.5, 2.5, 4.5]:
+		for y in [1.3, 2.2]:
+			box(Vector3(0.8, 0.8, 0.08), c + Vector3(x, y, -4.37), Color(0.1, 0.08, 0.14), false, studio)
+	for z in [-4.35, 4.35]:
+		box(Vector3(11.8, 0.05, 0.05), c + Vector3(0, 3.0, z), Color(0.7, 0.3, 1.0), false, studio, 3.0)
+	for x in [-5.85, 5.85]:
+		box(Vector3(0.05, 0.05, 8.8), c + Vector3(x, 3.0, 0), Color(0.2, 0.9, 1.0), false, studio, 3.0)
+	for p in [Vector3(-3, 2.6, 0), Vector3(3, 2.6, 0), Vector3(0, 2.6, -2.2), Vector3(0, 2.4, 2.8)]:
+		var o := OmniLight3D.new()
+		o.position = c + p
+		o.omni_range = 8.0
+		o.light_energy = 1.3
+		o.light_color = Color(0.85, 0.75, 1.0)
+		studio.add_child(o)
+	prop("NeonBoard", c + Vector3(0, 2.4, -4.38), 0.0, studio)
+	var live_sign := label("KWIK LIVE", c + Vector3(0, 2.4, -4.33), 90, Color(0.8, 0.55, 1), 0.0, studio)
 	live_sign.outline_size = 16
 	live_sign.outline_modulate = Color(0.3, 0.05, 0.6)
-	prop("GamingChair", base + Vector3(0, 0, 0.95), PI)
-	var tj := npc(base + Vector3(0, 0, 0.9), PI, "tjz", "TJZ  (LIVE)", "type")
+	# TJZ's battle station (faces the room / the camera)
+	var tjd := c + Vector3(0, 0, -2.6)
+	solid(Vector3(2.2, 0.06, 0.9), tjd + Vector3(0, 0.75, 0), studio)
+	prop("StreamDesk", tjd, 0.0, studio)
+	prop("RingLight", tjd + Vector3(0.9, 0, 1.4), 0.0, studio)
+	prop("GamingChair", tjd + Vector3(0, 0, 0.95), PI, studio)
+	var tj := npc(tjd + Vector3(0, 0, 0.9), PI, "tjz", "TJZ  (LIVE)", "type")
 	npcs["TJZ"] = tj
-	var kc := npc(base + Vector3(-2.6, 0, -1.4), PI * 0.8, "kimchee", "KIMCHEE", "hold")
+	# KIMCHEE on the couch set
+	solid(Vector3(2.4, 0.45, 0.9), c + Vector3(-3.9, 0.225, 1.2), studio, PI / 2)
+	prop("Couch", c + Vector3(-4.5, 0, 1.2), PI / 2, studio)
+	prop("Plant", c + Vector3(-5.3, 0, -3.6), 0.0, studio)
+	prop("RingLight", c + Vector3(-2.2, 0, 2.6), 0.0, studio)
+	var kc := npc(c + Vector3(-3.2, 0, 0.6), PI * 0.55, "kimchee", "KIMCHEE", "hold")
 	kc.get_node("Model").prop_right.add_child(Props.phone())
 	npcs["KIMCHEE"] = kc
-	var rk := npc(base + Vector3(-4.4, 0, -0.6), PI * 1.15, "kitteh", "ROARING KITTEH")
+	# ROARING KITTEH's corner
+	prop("Beanbag", c + Vector3(3.8, 0, 1.4), -0.6, studio)
+	prop("Armchair", c + Vector3(4.6, 0, -2.2), -0.9, studio)
+	var rk := npc(c + Vector3(3.4, 0, 0.2), -PI * 0.6, "kitteh", "ROARING KITTEH")
 	npcs["ROARING KITTEH"] = rk
+	# the way back: a door to the office
+	var door := prop("DoorFrame", c + Vector3(-5.9, 0, 3.2), PI / 2, studio)
+	prop("DoorLeaf", Vector3(-0.49, 0, -0.06), 0.0, door)
+	var ex := solid(Vector3(0.3, 2.2, 1.0), c + Vector3(-5.8, 1.1, 3.2), studio)
+	add_interact(ex, "studio_exit", 0, "[E] Back to the office")
+	var el := label("EXIT", Vector3(0, 2.35, 0.02), 40, Color(0.3, 1, 0.4), 0.0, door)
+	el.pixel_size = 0.004
+	# Jim Crammer stays on the trading floor (he's a TV guy)
 	var jc := npc(Vector3(W / 2 - 1.5, 0, 1.6), -PI / 2, "crammer", "JIM CRAMMER", "cheer")
 	npcs["JIM CRAMMER"] = jc
+	# the old streamer corner becomes a KWIK LIVE ad + seating
+	var ad := label("KWIK LIVE\nwatch on your phone [P]", Vector3(16.5, 2.4, D / 2 - 0.32), 40, Color(0.8, 0.55, 1), PI)
+	ad.line_spacing = -6
+	ad.outline_modulate = Color(0.3, 0.05, 0.6)
+	prop("NeonBoard", Vector3(16.5, 2.4, D / 2 - 0.25), PI)
+	for x in [15.2, 17.8]:
+		solid(Vector3(0.8, 0.8, 0.75), Vector3(x, 0.4, 12.3), null, PI)
+		prop("Armchair", Vector3(x, 0, 12.3), PI)
 
 
 func bake_nav() -> void:

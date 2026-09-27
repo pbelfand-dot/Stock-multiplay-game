@@ -26,6 +26,7 @@ var _idle_t := 8.0
 var _ticker_offset := 0.0
 var _screen_acc := 0.0
 var _marquee_t := {}
+const UI_RED := Color(1, 0.3, 0.3)
 var _trophy_sig := {}           # desk id -> signature of what's on it
 
 
@@ -95,6 +96,33 @@ func ui_blocking() -> bool:
 	return hud != null and (hud.is_modal_open() or hud.busy())
 
 
+# ---------------------------------------------------------------- KWIK studio
+
+func in_studio(node: Node3D) -> bool:
+	return node != null and node.global_position.distance_to(builder.STUDIO) < 12.0
+
+
+func go_to_studio() -> void:
+	if local_player and not match_node.is_jailed(Net.my_id()):
+		local_player.teleport(builder.studio_spawn)
+		local_player.rotation.y = -PI / 2 - 0.3
+		hud.show_toast("You pulled up to the KWIK LIVE studio. Chat is going crazy.", Color(0.8, 0.55, 1))
+
+
+func leave_studio() -> void:
+	if local_player:
+		local_player.teleport(builder.studio_exit_to)
+
+
+## Cops can't path into the studio: if they come for you there, the stream
+## gets swatted and you're dumped back on the trading floor.
+func _check_studio_raid() -> void:
+	if local_player and not match_node.raid.is_empty() and match_node.raid.get("target", 0) == Net.my_id() \
+			and in_studio(local_player):
+		leave_studio()
+		hud.show_toast("SWATTED ON STREAM. The cops are on the trading floor. RUN.", UI_RED)
+
+
 ## Server check for the restroom: is this player standing by the toilet?
 func near_toilet(peer: int) -> bool:
 	var pn := player_node(peer)
@@ -108,6 +136,7 @@ func _process(delta: float) -> void:
 		hud.set_prompt(local_player.look_target() if not ui_blocking() else {})
 	_tick_bubbles(delta)
 	_tick_marquees(delta)
+	_check_studio_raid()
 	_ticker_offset += delta
 	if builder.ticker_label:
 		builder.ticker_label.position.x = fposmod(-_ticker_offset * 2.2, 36.0) - 18.0 + 9.0
@@ -120,6 +149,8 @@ func _unhandled_input(event: InputEvent) -> void:
 			ball.request_grab()
 		elif t.get("type", "") == "relieve":
 			match_node.request_relieve()
+		elif t.get("type", "") == "studio_exit":
+			leave_studio()
 		elif not t.is_empty():
 			hud.open_interact(t)
 			get_viewport().set_input_as_handled()

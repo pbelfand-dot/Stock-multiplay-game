@@ -66,7 +66,8 @@ func _run() -> void:
 		["05_lounge_tony", Vector3(-12, 0.1, 5), 0.9, -0.1],
 		["06_west_wall", Vector3(-14, 0.1, -4), 1.3, 0.05],
 		["07_windows", Vector3(3, 0.1, -6), 0.3, 0.12],
-		["16_streamer_corner", Vector3(11.5, 0.1, 6.5), -2.45, 0.02],
+		["16_streamer_corner", Vector3(72.5, 0.1, 3.4), 0.55, 0.0],
+		["16b_kwik_ad", Vector3(16.5, 0.1, 7.5), PI, 0.1],
 		["18_teammates", Vector3(2.0, 0.1, 9.0), 0.0, -0.1],
 		["19_tony_close", Vector3(-14.2, 0.1, 6.6), 2.75, -0.05],
 		["17_hoop_ball", Vector3(-15.0, 0.1, -9.0), PI / 2 - 0.1, 0.25],
@@ -180,6 +181,9 @@ func _run() -> void:
 	await get_tree().create_timer(0.8).timeout
 	await _snap("32_phone_feed")
 	hud.phone.toggle()
+	await get_tree().create_timer(2.5).timeout
+	await _snap("33_phone_kwik")
+	hud.phone.toggle()
 	hud.mugshot.play(4298, "Trader", world.local_player.look)
 	await get_tree().create_timer(1.0).timeout
 	await _snap("13_mugshot")
@@ -211,7 +215,7 @@ func _quick(world, m, hud) -> void:
 		d.rotation.y = PI + 0.3
 	world._say("TJZ", "OH MY GOD, TRADE! LONG BTC RIGHT NOW!", 30.0)
 	world._say("KIMCHEE", "APING MY WHOLE BAG INTO $WAGMI. NFA", 30.0)
-	for v in [["q1_streamers", Vector3(12.5, 0.1, 7.5), -2.3, 0.0], ["q2_teammates", Vector3(2.0, 0.1, 8.6), 0.0, -0.1],
+	for v in [["q1_streamers", Vector3(72.5, 0.1, 3.4), 0.55, 0.0], ["q2_teammates", Vector3(2.0, 0.1, 8.6), 0.0, -0.1],
 			["q3_tony", Vector3(-14.2, 0.1, 6.6), 2.75, -0.05], ["q4_crammer", Vector3(15.5, 0.1, 1.6), -PI / 2, 0.0]]:
 		p.teleport(v[1])
 		p.rotation.y = v[2]

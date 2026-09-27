@@ -1,5 +1,5 @@
 extends Control
-## Your phone (P): the FEED from the newer clips. Donny J. Tramp posts land here
+## Your phone (P cycles FEED -> KWIK LIVE -> off): the FEED from the newer clips. Donny J. Tramp posts land here
 ## a few seconds BEFORE the TV picks them up ("you're one post away from getting
 ## rich"), plus streamers, the Fed and @TradingMemes filler. Doesn't block
 ## movement; slides up in the bottom-right corner.
@@ -32,8 +32,25 @@ const MEMES := [
 const MAX_POSTS := 7
 
 var open := false
+var app := "feed"          # feed | kwik
 var frame: PanelContainer
 var list: VBoxContainer
+var title: Label
+var kwik: VBoxContainer
+var cam_vp: SubViewport
+var cam: Camera3D
+var chat_box: VBoxContainer
+var viewers_lbl: Label
+var world                  # World (for the studio camera + travel)
+var _chat_t := 0.0
+var _cam_t := 0.0
+const CHAT := ["OH MY GOD TRADE", "W", "L", "ratio", "first", "wagmi", "ngmi", "LONG IT", "SHORT IT",
+	"is this financial advice", "KEKW", "chat is this real", "rug incoming", "sir this is a casino",
+	"who's buying the top", "bro is cooked", "BASED", "send it", "diamond hands", "paper hands",
+	"liquidated again lmao", "trust the process", "pump it", "mods??", "Tramp just posted!!",
+	"GG", "rip my portfolio", "buy the dip", "which dip", "all of them"]
+const CHATTERS := ["degen420", "wsb_andy", "bagholder99", "moonboi", "papertrader", "lambo_soon",
+	"sec_intern", "tonys_cousin", "averagedown", "margin_call_mike", "hodl_harold", "fomo_fiona"]
 var badge: Label
 var _slide := 0.0
 var _meme_t := 25.0
@@ -58,7 +75,7 @@ func _ready() -> void:
 	v.add_child(notch)
 	var head := HBoxContainer.new()
 	v.add_child(head)
-	var title := UI.lbl("FEED", 32, UI.TEXT, true)
+	title = UI.lbl("FEED", 32, UI.TEXT, true)
 	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	head.add_child(title)
@@ -71,6 +88,7 @@ func _ready() -> void:
 	list.add_theme_constant_override("separation", 10)
 	list.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	v.add_child(list)
+	_build_kwik(v)
 	badge = UI.lbl("", 20, UI.GOLD, true)
 	badge.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_RIGHT)
 	badge.position = Vector2(-330, -150)
@@ -80,11 +98,84 @@ func _ready() -> void:
 	post("MEMES", MEMES[0], false)
 
 
+## P: off -> FEED -> KWIK LIVE -> off
 func toggle() -> void:
-	open = not open
-	if open:
+	if not open:
+		open = true
+		app = "feed"
 		_unread = 0
-		Sfx.play("click")
+	elif app == "feed":
+		app = "kwik"
+	else:
+		open = false
+	_show_app()
+	Sfx.play("click")
+
+
+func _show_app() -> void:
+	list.visible = app == "feed"
+	kwik.visible = app == "kwik"
+	title.text = "FEED" if app == "feed" else "KWIK LIVE"
+	title.add_theme_color_override("font_color", UI.TEXT if app == "feed" else Color(0.8, 0.55, 1))
+	cam_vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS if open and app == "kwik" else SubViewport.UPDATE_DISABLED
+
+
+func _build_kwik(v: VBoxContainer) -> void:
+	kwik = VBoxContainer.new()
+	kwik.add_theme_constant_override("separation", 6)
+	kwik.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	kwik.visible = false
+	v.add_child(kwik)
+	# live camera in the studio (shares the game world)
+	cam_vp = SubViewport.new()
+	cam_vp.size = Vector2i(352, 220)
+	cam_vp.render_target_update_mode = SubViewport.UPDATE_DISABLED
+	add_child(cam_vp)
+	cam = Camera3D.new()
+	cam.fov = 62
+	cam_vp.add_child(cam)
+	var stream := TextureRect.new()
+	stream.texture = cam_vp.get_texture()
+	stream.custom_minimum_size = Vector2(352, 220)
+	stream.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	stream.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	kwik.add_child(stream)
+	var live := HBoxContainer.new()
+	live.add_theme_constant_override("separation", 8)
+	kwik.add_child(live)
+	var tag := PanelContainer.new()
+	tag.add_theme_stylebox_override("panel", UI.panel_box(Color(0.9, 0.1, 0.15), Color(0.9, 0.1, 0.15), 4, 0))
+	tag.add_child(UI.lbl("LIVE", 16, Color.WHITE, true))
+	live.add_child(tag)
+	viewers_lbl = UI.lbl("", 17, UI.TEXT, true)
+	live.add_child(viewers_lbl)
+	kwik.add_child(UI.lbl("TJZ · KIMCHEE · ROARING KITTEH", 16, UI.DIM))
+	chat_box = VBoxContainer.new()
+	chat_box.add_theme_constant_override("separation", 1)
+	chat_box.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	kwik.add_child(chat_box)
+	kwik.add_child(UI.lbl("[G] Pull up to the studio", 18, UI.GOLD, true))
+
+
+func _tick_kwik(delta: float) -> void:
+	if world == null or cam == null:
+		return
+	# slow pan across the studio set, like an unattended stream cam
+	_cam_t += delta
+	var b: Vector3 = world.builder.studio_cam_pos
+	cam.global_position = b + Vector3(sin(_cam_t * 0.15) * 1.6, 0.0, 0.0)
+	cam.look_at(world.builder.STUDIO + Vector3(sin(_cam_t * 0.15) * 0.8, 1.0, -1.8))
+	viewers_lbl.text = "%s watching" % ("%.1fK" % (12.0 + sin(_cam_t * 0.05) * 3.0 + randf() * 0.05))
+	_chat_t -= delta
+	if _chat_t <= 0.0:
+		_chat_t = randf_range(0.3, 1.1)
+		var who: String = CHATTERS[randi() % CHATTERS.size()]
+		var l := UI.lbl("%s: %s" % [who, CHAT[randi() % CHAT.size()]], 15, Color.from_hsv(float(who.hash() % 360) / 360.0, 0.45, 1.0))
+		chat_box.add_child(l)
+		while chat_box.get_child_count() > 9:
+			var o := chat_box.get_child(0)
+			chat_box.remove_child(o)
+			o.queue_free()
 
 
 ## Add a post to the top of the feed. `speaker` is a news speaker (see WHO).
@@ -167,6 +258,8 @@ func _process(delta: float) -> void:
 	var hud = get_parent().get_parent() if get_parent() else null
 	var hidden: bool = hud != null and hud.has_method("is_modal_open") and hud.is_modal_open()
 	badge.text = "[P] PHONE  •  %d new" % _unread if _unread > 0 and not open and not hidden else ""
+	if open and app == "kwik":
+		_tick_kwik(delta)
 	_meme_t -= delta
 	if _meme_t <= 0.0:
 		_meme_t = randf_range(35.0, 60.0)

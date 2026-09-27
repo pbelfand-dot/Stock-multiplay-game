@@ -307,6 +307,7 @@ func _build_modals() -> void:
 	unbox = Overlays.Unbox.new()
 	root.add_child(unbox)
 	phone = PhoneScript.new()
+	phone.world = world
 	root.add_child(phone)
 	# blood pressure: red, pulsing vignette + the restroom fade
 	bp_vignette = ColorRect.new()
@@ -446,6 +447,10 @@ func _unhandled_input(event: InputEvent) -> void:
 			pause_menu.visible = true
 		get_viewport().set_input_as_handled()
 	elif event.is_action_pressed("phone") and not is_modal_open():
+		phone.toggle()
+		get_viewport().set_input_as_handled()
+	elif event.is_action_pressed("phone_action") and phone.open and phone.app == "kwik" and not is_modal_open():
+		world.go_to_studio()
 		phone.toggle()
 		get_viewport().set_input_as_handled()
 	elif event.is_action_pressed("chat") and not is_modal_open():
