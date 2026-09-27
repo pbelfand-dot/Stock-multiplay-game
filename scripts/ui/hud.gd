@@ -22,6 +22,9 @@ var time_lbl: Label
 var phase_lbl: Label
 var heat_bar: ProgressBar
 var bp_bar: ProgressBar
+var rank_lbl: Label
+var rank_banner: Label
+var _rank_t := 0.0
 var bp_lbl: Label
 var bp_vignette: ColorRect
 var relief_panel: ColorRect
@@ -95,6 +98,7 @@ func setup(w, m) -> void:
 	m.chat.connect(_on_chat)
 	m.luxury_bought.connect(_on_luxury)
 	m.relieved.connect(_on_relieved)
+	m.ranked_up.connect(_on_rank_up)
 	m.posted.connect(_on_posted)
 	_on_state()
 
@@ -117,6 +121,19 @@ func _build_top_bar() -> void:
 	h.add_child(day_lbl)
 	time_lbl = UI.lbl("5:00", 30, UI.TEXT, true)
 	h.add_child(time_lbl)
+	rank_lbl = UI.lbl("INTERN", 22, Color(0.8, 0.7, 1.0), true)
+	h.add_child(rank_lbl)
+	rank_banner = UI.lbl("", 54, UI.GOLD, true)
+	rank_banner.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
+	rank_banner.offset_left = -500
+	rank_banner.offset_right = 500
+	rank_banner.offset_top = -260
+	rank_banner.offset_bottom = -60
+	rank_banner.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	rank_banner.add_theme_color_override("font_outline_color", Color.BLACK)
+	rank_banner.add_theme_constant_override("outline_size", 14)
+	rank_banner.modulate.a = 0.0
+	root.add_child(rank_banner)
 
 	phase_lbl = UI.lbl("", 24, UI.GOLD, true)
 	phase_lbl.position = Vector2(20, 72)
@@ -434,6 +451,11 @@ func _process(delta: float) -> void:
 	else:
 		raid_flash.color.a = 0.0
 	_update_pressure_fx(delta)
+	_rank_t = maxf(_rank_t - delta, 0.0)
+	rank_banner.modulate.a = clampf(_rank_t, 0.0, 1.0)
+	var xp: float = match_node.xp_of(Net.my_id())
+	var ri := Rules.rank_of(xp)
+	rank_lbl.text = "%s  %d/%s XP" % [Rules.RANKS[ri].name, int(xp), str(Rules.RANKS[ri + 1].xp) if ri + 1 < Rules.RANKS.size() else "MAX"]
 	var jl: float = match_node.jail.get(Net.my_id(), 0.0)
 	jail_lbl.text = "IN JAIL %ds" % ceili(jl) if jl > 0.0 else ""
 	jail_lbl.visible = jl > 0.0
@@ -559,8 +581,8 @@ func _refresh_scoreboard() -> void:
 	score_body.add_child(UI.lbl("THE DESK", 36, UI.GOLD, true))
 	for id in Net.players:
 		var st: Dictionary = match_node.stats.get(id, {})
-		var line := "%s   heat %d   P&L today %s   trades %d   arrests %d" % [
-			Net.player_name(id), int(match_node.heat.get(id, 0.0)), Rules.money(st.get("pnl_day", 0.0)),
+		var line := "%s [%s]   heat %d   P&L today %s   trades %d   arrests %d" % [
+			Net.player_name(id), Rules.rank_name(match_node.xp_of(id)), int(match_node.heat.get(id, 0.0)), Rules.money(st.get("pnl_day", 0.0)),
 			st.get("trades", 0), st.get("arrests", 0)]
 		if Net.mode == "pvp":
 			line += "   equity %s" % Rules.money(match_node.equity_of(id))
@@ -683,6 +705,17 @@ func _update_pressure_fx(delta: float) -> void:
 		var a := clampf(minf(relief_t, Rules.RELIEF_SECONDS - relief_t) * 3.0, 0.0, 1.0)
 		relief_panel.color.a = a
 		relief_lbl.modulate.a = a
+
+
+func _on_rank_up(peer: int, rank: int) -> void:
+	var r: Dictionary = Rules.RANKS[rank]
+	if peer == Net.my_id():
+		Sfx.play("jackpot")
+		rank_banner.text = "RANK UP\n%s\n%s" % [r.name, r.unlock]
+		rank_banner.modulate.a = 1.0
+		_rank_t = 5.0
+	else:
+		show_toast("%s ranked up to %s" % [Net.player_name(peer), r.name], UI.GOLD)
 
 
 func _on_relieved(peer: int, line: String) -> void:

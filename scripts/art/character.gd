@@ -515,11 +515,12 @@ func _process(delta: float) -> void:
 			t.elR = Vector3(1.2 - pump * 0.9, 0, 0)
 			t.shL = Vector3(0.3, 0, -0.1)
 			t.spine_rx -= 0.1
-		"watch":    # left wrist up to the face, admire it
-			t.shL = Vector3(1.1, -0.9, -0.1)
-			t.elL = Vector3(1.9, 0, 0)
-			t.head_rx = 0.35
-			t.head_ry = 0.35
+		"watch":    # left forearm across the chest, wrist turned up, admire it
+			t.shL = Vector3(1.05, -0.55, 0.15)
+			t.elL = Vector3(1.35, 0, 0)
+			t.shR = Vector3(0.25, 0.1, 0.05)
+			t.head_rx = 0.45
+			t.head_ry = 0.3
 		"point":
 			t.shR = Vector3(1.5, 0.05, 0.05)
 			t.elR = Vector3(0.05, 0, 0)

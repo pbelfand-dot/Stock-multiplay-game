@@ -28,6 +28,7 @@ func _init() -> void:
 	test_ledger()
 	test_tpsl()
 	test_spread_and_fees()
+	test_ranks()
 	test_liquidation()
 	test_news()
 	test_slots()
@@ -93,6 +94,20 @@ func test_ledger() -> void:
 	check(not l.open_position(0, "BTC", 0, 100.0, 1, 1000.0, "x").ok, "side must be +-1")
 	check(not l.open_position(0, "BTC", 1, -5.0, 1, 1000.0, "x").ok, "positive size")
 	check(not l.open_position(99, "BTC", 1, 5.0, 1, 1000.0, "x").ok, "account must exist")
+
+
+func test_ranks() -> void:
+	check(Rules.rank_name(0.0) == "INTERN", "start as an intern")
+	check(Rules.rank_name(59.9) == "INTERN" and Rules.rank_name(60.0) == "ANALYST", "analyst at 60 XP")
+	check(Rules.rank_name(1_000_000.0) == "WOLF", "wolf caps the ladder")
+	var last := -1.0
+	var ok := true
+	for r in Rules.RANKS:
+		ok = ok and r.xp > last
+		last = r.xp
+	check(ok, "rank thresholds strictly increase")
+	for g in Rules.RANK_GATES:
+		check(Rules.RANK_GATES[g] < Rules.RANKS.size(), "gate %s points at a real rank" % g)
 
 
 func test_spread_and_fees() -> void:

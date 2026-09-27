@@ -56,6 +56,35 @@ static func quota_for_day(day: int, start: float = START_FUND) -> float:
 
 # ---------------- slots ----------------
 
+## Career ranks (persisted by the host per player name). XP comes from green
+## days: 1 XP per $1K of profit + 25 for every day the desk makes quota.
+const RANKS := [
+	{"name": "INTERN", "xp": 0, "unlock": "Welcome to the desk. Get coffee. Lose money."},
+	{"name": "ANALYST", "xp": 60, "unlock": "KWIK LIVE studio access (phone → G)."},
+	{"name": "TRADER", "xp": 180, "unlock": "ROFLEX Datejust at the FLEX SHOP."},
+	{"name": "DEGEN", "xp": 450, "unlock": "x125 leverage + ROFLEX Iced Out."},
+	{"name": "WHALE", "xp": 1000, "unlock": "Your name on the TV when you close big."},
+	{"name": "MARKET MAKER", "xp": 2200, "unlock": "Tramp follows you back."},
+	{"name": "WOLF", "xp": 5000, "unlock": "You are the Wolf of Wall Street. Chest thump."},
+]
+const XP_PER_1K := 1.0
+const XP_QUOTA_DAY := 25.0
+## What each rank gates (item/feature -> minimum rank index)
+const RANK_GATES := {"studio": 1, "roflex": 2, "lev_125": 3, "roflex_iced": 3}
+
+
+static func rank_of(xp: float) -> int:
+	var r := 0
+	for i in RANKS.size():
+		if xp >= RANKS[i].xp:
+			r = i
+	return r
+
+
+static func rank_name(xp: float) -> String:
+	return RANKS[rank_of(xp)].name
+
+
 ## Blood pressure (Mark Hanna's lunch prescription): rises while the market is
 ## open; relieve it in the restroom 2-3 times a trading day or it wrecks you.
 const PRESSURE_MAX := 100.0

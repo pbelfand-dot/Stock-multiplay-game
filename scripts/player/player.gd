@@ -59,6 +59,8 @@ var zippo: Node3D
 var _zippo_t := 0.0
 var _cigar_was := 0.0
 var _fp_rest := Vector3(0.3, -0.28, -0.42)
+var cash_stack: Node3D
+var _cash_t := 0.0
 
 
 func setup(id: int, pname: String, player_look: Dictionary, local: bool, w) -> void:
@@ -400,7 +402,21 @@ func _set_seat(id: int) -> void:
 		carried_chair = PropKit.place("Chair", self, Vector3(0, 0, 0.12), PI)
 
 
+## First-person: hold a fat cash stack out in front (money counter).
+func show_cash_stack(secs: float) -> void:
+	if cash_stack == null:
+		cash_stack = PropKit.place("Cash", cam, Vector3(0.0, -0.3, -0.42), PI / 2)
+		cash_stack.rotation.x = 0.5
+	cash_stack.visible = true
+	_cash_t = secs
+
+
 func _update_fp_emote(delta: float) -> void:
+	if cash_stack:
+		_cash_t = maxf(_cash_t - delta, 0.0)
+		cash_stack.visible = _cash_t > 0.0
+		if cash_stack.visible:   # riffle the stack toward the counter
+			cash_stack.position = Vector3(0.0, -0.3 + sin(_cash_t * 20.0) * 0.006, -0.42 - (2.6 - _cash_t) * 0.04)
 	var m = world.match_node
 	# the Zippo: flick it open and light up whenever a fresh cigar starts
 	var cig: float = m.effect_left(peer_id, "cigar") if m else 0.0
