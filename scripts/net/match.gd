@@ -30,6 +30,7 @@ signal game_over(summary: Dictionary)
 signal toast(msg: String)
 signal luxury_bought(peer: int, key: String)
 signal relieved(peer: int, line: String)
+signal posted(ev: Dictionary)
 signal chat(from_name: String, msg: String)
 signal error_msg(msg: String)
 
@@ -62,6 +63,7 @@ var _cop_acc := 0.0
 var _next_event: Dictionary = {}
 var _next_event_in := 0.0
 var _early_sent := false
+var _post_sent := false
 var _booking_no := 4298
 var _dirty := false
 
@@ -470,6 +472,10 @@ func _step_news(dt: float) -> void:
 		for id in effects.keys():
 			if effect_left(id, "powder") > 0.0:
 				_s_news_early.rpc_id(id, _public(_next_event))
+	# Tramp posts before the TV covers it: phone-watchers get a head start
+	if not _post_sent and _next_event_in <= 4.0 and _next_event.speaker == "TRAMP":
+		_post_sent = true
+		_s_post.rpc(_public(_next_event))
 	if _next_event_in <= 0.0:
 		newsdeck.apply(market, _next_event)
 		last_news = _public(_next_event)
@@ -481,6 +487,7 @@ func _roll_next_event() -> void:
 	_next_event = newsdeck.roll()
 	_next_event_in = rng.randf_range(22.0, 40.0)
 	_early_sent = false
+	_post_sent = false
 
 
 func _public(ev: Dictionary) -> Dictionary:
@@ -831,6 +838,11 @@ func _s_day_ended(summary: Dictionary) -> void:
 @rpc("authority", "call_local", "reliable")
 func _s_game_over(summary: Dictionary) -> void:
 	game_over.emit(summary)
+
+
+@rpc("authority", "call_local", "reliable")
+func _s_post(ev: Dictionary) -> void:
+	posted.emit(ev)
 
 
 @rpc("authority", "call_local", "reliable")

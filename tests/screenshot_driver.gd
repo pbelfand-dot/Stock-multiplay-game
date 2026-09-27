@@ -166,6 +166,14 @@ func _run() -> void:
 	await get_tree().create_timer(1.4).timeout
 	await _snap("31_relief")
 	await get_tree().create_timer(3.0).timeout
+	# the phone feed with a Tramp post dropping before the TV has it
+	p.teleport(Vector3(0, 0.1, 6))
+	p.rotation.y = 0.0
+	hud.phone.toggle()
+	m._s_post({"speaker": "TRAMP", "role": "PRESIDENT", "headline": "TRAMP: WE ARE IN WAR", "day": 1})
+	await get_tree().create_timer(0.8).timeout
+	await _snap("32_phone_feed")
+	hud.phone.toggle()
 	hud.mugshot.play(4298, "Trader", world.local_player.look)
 	await get_tree().create_timer(1.0).timeout
 	await _snap("13_mugshot")

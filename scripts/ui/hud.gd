@@ -8,6 +8,7 @@ const SlotsScript = preload("res://scripts/ui/slots_ui.gd")
 const ShopScript = preload("res://scripts/ui/shop_ui.gd")
 const PopupScript = preload("res://scripts/ui/trade_popup.gd")
 const Overlays = preload("res://scripts/ui/overlays.gd")
+const PhoneScript = preload("res://scripts/ui/phone.gd")
 
 var world
 var match_node
@@ -48,6 +49,8 @@ var terminal
 var slots
 var shop
 var lux_shop
+var phone
+var _last_post := ""
 var unbox
 var popup
 var mugshot
@@ -90,6 +93,7 @@ func setup(w, m) -> void:
 	m.chat.connect(_on_chat)
 	m.luxury_bought.connect(_on_luxury)
 	m.relieved.connect(_on_relieved)
+	m.posted.connect(_on_posted)
 	_on_state()
 
 
@@ -296,6 +300,8 @@ func _build_modals() -> void:
 	root.add_child(lux_shop)
 	unbox = Overlays.Unbox.new()
 	root.add_child(unbox)
+	phone = PhoneScript.new()
+	root.add_child(phone)
 	# blood pressure: red, pulsing vignette + the restroom fade
 	bp_vignette = ColorRect.new()
 	bp_vignette.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -351,7 +357,7 @@ void fragment() {
 		Config.mouse_sensitivity = val
 		Config.save_settings())
 	sens_row.add_child(sens)
-	v.add_child(UI.lbl("WASD move · SHIFT sprint · E interact · 1-6 items\nTAB scoreboard · T chat · ENTER (host) opening bell\nIn terminal: B buy · S sell · Q/E size · L leverage · C close all", 16, UI.DIM))
+	v.add_child(UI.lbl("WASD move · SHIFT sprint · E interact · 1-6 items\nTAB scoreboard · T chat · ENTER (host) opening bell\nP phone · In terminal: B buy · S sell · Q/E size · L leverage · C close all", 16, UI.DIM))
 	var leave := UI.btn("LEAVE OFFICE", UI.RED.darkened(0.2), 24)
 	leave.pressed.connect(func(): get_tree().root.get_node("Main").leave_game())
 	v.add_child(leave)
@@ -429,6 +435,9 @@ func _unhandled_input(event: InputEvent) -> void:
 			close_modals()
 		else:
 			pause_menu.visible = true
+		get_viewport().set_input_as_handled()
+	elif event.is_action_pressed("phone") and not is_modal_open():
+		phone.toggle()
 		get_viewport().set_input_as_handled()
 	elif event.is_action_pressed("chat") and not is_modal_open():
 		_chat_open = true
@@ -560,7 +569,16 @@ func show_toast(msg: String, color: Color = UI.TEXT) -> void:
 			o.queue_free())
 
 
+func _on_posted(ev: Dictionary) -> void:
+	_last_post = ev.headline
+	phone.post_news(ev)
+	if not phone.open:
+		show_toast("NEW POST — @realDonnyTramp   [P] check your phone", UI.GOLD)
+
+
 func _on_news(ev: Dictionary) -> void:
+	if ev.headline != _last_post:
+		phone.post_news(ev)
 	Sfx.play("news", -2.0)
 	chyron_speaker.text = " %s " % ev.role
 	chyron_text.text = ev.headline

@@ -57,6 +57,7 @@ func _setup_inputs() -> void:
 	_key("start_day", [KEY_ENTER, KEY_KP_ENTER])
 	_key("chat", [KEY_T])
 	_key("emote_flex", [KEY_F])
+	_key("phone", [KEY_P])
 	_key("dive", [KEY_C, KEY_CTRL])
 	for i in 6:
 		_key("item_%d" % (i + 1), [KEY_1 + i])
