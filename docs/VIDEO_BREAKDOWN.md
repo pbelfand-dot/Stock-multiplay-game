@@ -170,3 +170,39 @@ around it (items, heat/cops, slots) and pick our twist. Then decide whether it's
 | Streamers | Added as parodies: **TJZ** (TJR-style day trader, "OH MY GOD, TRADE!"), **KIMCHEE** (memecoin whale who pumps and rugs), **ROARING KITTEH**, **JIM CRAMMER** (inverse him) |
 
 See the main [README](../README.md) for how the game plays.
+
+---
+
+## Round 2 — three newer dev clips ("Larping in our Trading Game", "Getting rich with bro", "We added worst nightmare")
+
+Frames: `docs/reference/20-…` to `31-…`.
+
+**The office changed color.** In the newer clips the floor is **blue-grey carpet**, the walls are **grey-blue** with a darker grey band near the ceiling, and the red trim is gone. The Steam-page trailer (red carpet, beige walls, dark-red trim) looks like an older build. New wall decor: a green cork **bulletin board** with notes, framed certificates, a **wall clock**, a real **door** (with a bathroom and toilet behind it), and lounge armchairs with wood legs.
+
+**Luxury "larping" items** (you buy them with trading profits, then flex them):
+- A **ROFLEX** watch in a green presentation box. You open the box in first person, and the other player shows off a gold or iced-out watch on their wrist.
+- A **LOUIE BATON** orange shopping bag and a red **"Supreme"** brick.
+- A **cash-counting machine** on the desk, with stacks of cash.
+- Bought items **pile up on your desk** as trophies: watch boxes, bags, cash bricks.
+
+**Gestures and physical fun:**
+- Middle-finger and fist-pump emotes, and showing off your watch.
+- **Sitting in office chairs and rolling around** in them.
+- **Dunking** on the hoop by jump-throwing.
+- Lighting the cigar with a **Zippo lighter**, shown in first person.
+- Bills and trash **scattered on the floor**.
+
+**DEGEN SLOTS v2:**
+- The cabinet is charcoal, with a purple reel frame and red side panels.
+- A gold marquee with light bulbs shows the **win amount** ($145, $3.75K).
+- There are red −/green + bet buttons and a $300 bet readout.
+- The lever is gold with a blue ball.
+- A win makes a gold **coin explosion** plus confetti.
+
+**Phone FEED (the "worst nightmare" update):**
+- Your phone shows a Twitter-style feed. **Donny J. Tramp @realDonnyTramp** posts things like "WE ARE IN WAR!" with a NEW! badge and like/reply/share counts, mixed in with **@TradingMemes** memes.
+- One post moves the market: in the clip, the same trade closes at +$22K → +$246K → +$666K → +$746K, or BTC dumps with a vertical red candle ("…or more likely going completely [to zero]").
+- The TV then cuts to "TRAMP: YOU'LL BE TIRED OF WINNING" at a podium with two US flags.
+- The clip's caption says "Check the news".
+
+**Terminal:** the same layout as ours: chart, asset list, BUY/x50/SELL, NY SESSION, OPEN/CLOSED tabs. Theirs adds a "Free Mode" draw tool (we have PEN/CLEAR) and size steps up to $1M with x100 leverage. We already match this closely.
