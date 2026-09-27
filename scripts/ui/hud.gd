@@ -39,6 +39,8 @@ var raid_flash: ColorRect
 var terminal
 var slots
 var shop
+var lux_shop
+var unbox
 var popup
 var mugshot
 var summary
@@ -78,6 +80,7 @@ func setup(w, m) -> void:
 	m.toast.connect(show_toast)
 	m.error_msg.connect(func(e): show_toast(e, UI.RED))
 	m.chat.connect(_on_chat)
+	m.luxury_bought.connect(_on_luxury)
 	_on_state()
 
 
@@ -264,6 +267,13 @@ func _build_modals() -> void:
 	shop.visible = false
 	shop.closed.connect(close_modals)
 	root.add_child(shop)
+	lux_shop = ShopScript.new()
+	lux_shop.setup(match_node, "luxury")
+	lux_shop.visible = false
+	lux_shop.closed.connect(close_modals)
+	root.add_child(lux_shop)
+	unbox = Overlays.Unbox.new()
+	root.add_child(unbox)
 	summary = Overlays.Summary.new()
 	root.add_child(summary)
 	mugshot = Overlays.Mugshot.new()
@@ -305,13 +315,14 @@ func _build_modals() -> void:
 # ---------------------------------------------------------------- modals
 
 func is_modal_open() -> bool:
-	return terminal.visible or slots.visible or shop.visible or pause_menu.visible or _chat_open
+	return terminal.visible or slots.visible or shop.visible or lux_shop.visible or pause_menu.visible or _chat_open
 
 
 func close_modals() -> void:
 	terminal.visible = false
 	slots.visible = false
 	shop.visible = false
+	lux_shop.visible = false
 	pause_menu.visible = false
 	_close_chat()
 
@@ -327,6 +338,9 @@ func open_interact(t: Dictionary) -> void:
 		"shop":
 			shop.visible = true
 			shop._refresh()
+		"luxury":
+			lux_shop.visible = true
+			lux_shop._refresh()
 
 
 func set_prompt(t: Dictionary) -> void:
@@ -480,9 +494,11 @@ func show_toast(msg: String, color: Color = UI.TEXT) -> void:
 	toasts.add_child(p)
 	while toasts.get_child_count() > 6:
 		toasts.get_child(0).free()
+	var pid := p.get_instance_id()   # capture an id, not the node: older toasts get freed early
 	get_tree().create_timer(5.0).timeout.connect(func():
-		if is_instance_valid(p):
-			p.queue_free())
+		var o = instance_from_id(pid)
+		if o:
+			o.queue_free())
 
 
 func _on_news(ev: Dictionary) -> void:
@@ -550,6 +566,11 @@ func _on_day_ended(s: Dictionary) -> void:
 	elif s.get("passed", false):
 		Sfx.play("jackpot")
 	summary.show_summary(s)
+
+
+func _on_luxury(peer: int, key: String) -> void:
+	if peer == Net.my_id() and key.begins_with("roflex"):
+		unbox.play(key == "roflex_iced")
 
 
 func _on_chat(from_name: String, msg: String) -> void:

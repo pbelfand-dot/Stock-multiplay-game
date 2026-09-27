@@ -38,6 +38,8 @@ var tv_screen: MeshInstance3D
 var ticker_label: Label3D
 var slot_machines: Array = []
 var npcs := {}                  # speaker name -> Node3D (has "Bubble" Label3D)
+var desks := {}                 # desk id -> floor position (players own desks 18..23)
+const PLAYER_DESK0 := 18
 var hoop_rim := Vector3(-W / 2 + 0.5, 2.05, -9.5)
 const RESTROOM_DOOR_Z := 2.2
 var ball_spawn := Vector3(-16.5, 1.0, -9.5)
@@ -393,6 +395,10 @@ func _desk(p: Vector3, id: int) -> void:
 	prop("Mouse", p + Vector3(0.42, 0.78, 0.2), rng.randf_range(-0.2, 0.2))
 	prop("Lamp", p + Vector3(-0.7, 0.78, -0.25), 0.45)
 	prop("Chair", p + Vector3(rng.randf_range(-0.1, 0.1), 0, 0.85), PI + rng.randf_range(-0.35, 0.35))
+	desks[id] = p
+	add_interact(crt, "terminal", id, "[E] Trade")
+	if id >= PLAYER_DESK0:
+		return   # player desks stay clean for their flex trophies
 	# desk clutter: every desk a little different
 	prop(["Mug", "DeskPhone", "Mug", "Papers"][rng.randi() % 4], p + Vector3(0.6, 0.78, -0.22), rng.randf_range(-PI, PI))
 	match rng.randi() % 4:
@@ -404,7 +410,6 @@ func _desk(p: Vector3, id: int) -> void:
 			prop("Papers", p + Vector3(-0.5, 0.78, 0.18), rng.randf_range(-0.3, 0.3))
 	if rng.randf() < 0.5:
 		prop("Trash", p + Vector3(-0.55, 0, -0.1))
-	add_interact(crt, "terminal", id, "[E] Trade")
 
 
 func _elevator() -> void:
@@ -622,7 +627,15 @@ func _decor() -> void:
 	solid(Vector3(0.36, 1.4, 0.36), Vector3(-19.5, 0.7, 4.6))
 	prop("WaterCooler", Vector3(-19.5, 0, 4.6), PI / 2)
 	prop("Clock", Vector3(-6, 2.6, D / 2 - 0.15), PI)
-	prop("BulletinBoard", Vector3(-9.5, 1.65, D / 2 - 0.15), PI)
+	prop("BulletinBoard", Vector3(-6.6, 1.65, D / 2 - 0.15), PI)
+	# FLEX SHOP: glass counter with watches and bags (luxury items)
+	var fc := solid(Vector3(2.2, 1.0, 0.7), Vector3(-10.0, 0.5, D / 2 - 0.6), null, PI)
+	prop("FlexCounter", Vector3(0, -0.5, 0), 0.0, fc)
+	add_interact(fc, "luxury", 0, "[E] FLEX SHOP")
+	var fs := label("FLEX SHOP", Vector3(-10.0, 2.3, D / 2 - 0.2), 110, Color(1, 0.84, 0.2), PI)
+	fs.outline_modulate = Color(0.35, 0.2, 0.0)
+	var fs2 := label("ROFLEX  ·  LOUIE BATON  ·  SUPREME", Vector3(-10.0, 1.85, D / 2 - 0.2), 44, Color(0.95, 0.95, 0.95), PI)
+	fs2.outline_size = 6
 	# the office is a mess: loose bills, paper balls and cigar butts on the carpet
 	var mess := ["Bill", "Bill", "Bill", "PaperBall", "CigarButt"]
 	for i in 34:

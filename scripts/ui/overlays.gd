@@ -180,3 +180,92 @@ class Summary extends PanelContainer:
 		else:
 			body.add_child(UI.lbl("Next day starts shortly... hit Tony up for items.", 20, UI.DIM))
 		visible = true
+
+
+class Unbox extends Control:
+	## First-person ROFLEX unboxing: the green box opens, the watch rises and
+	## spins in the light. Plays for ~3.2 s when you buy a watch.
+	const PropKit = preload("res://scripts/art/prop_kit.gd")
+
+	var vp: SubViewport
+	var lid: Node3D
+	var watch: Node3D
+	var world3d: Node3D
+	var caption: Label
+	var t := 0.0
+	var iced := false
+
+	func _ready() -> void:
+		set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		mouse_filter = Control.MOUSE_FILTER_IGNORE
+		visible = false
+		set_process(false)
+
+	func _setup() -> void:
+		vp = SubViewport.new()
+		vp.size = Vector2i(900, 700)
+		vp.own_world_3d = true
+		vp.transparent_bg = true
+		vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+		add_child(vp)
+		var tr := TextureRect.new()
+		tr.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
+		tr.custom_minimum_size = Vector2(900, 700)
+		tr.position = -Vector2(450, 330)
+		tr.texture = vp.get_texture()
+		tr.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		add_child(tr)
+		world3d = Node3D.new()
+		vp.add_child(world3d)
+		var env := Environment.new()
+		env.background_mode = Environment.BG_CLEAR_COLOR
+		env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+		env.ambient_light_color = Color.WHITE
+		env.ambient_light_energy = 0.7
+		var we := WorldEnvironment.new()
+		we.environment = env
+		world3d.add_child(we)
+		var l := DirectionalLight3D.new()
+		l.rotation_degrees = Vector3(-50, 30, 0)
+		world3d.add_child(l)
+		var cam := Camera3D.new()
+		cam.position = Vector3(0, 0.46, 0.44)
+		cam.rotation_degrees = Vector3(-44, 0, 0)
+		cam.fov = 34
+		world3d.add_child(cam)
+		PropKit.place("WatchBoxBase", world3d)
+		lid = PropKit.place("WatchBoxLid", world3d, Vector3(0, 0.08, -0.1))
+		caption = UI.lbl("", 64, UI.GOLD, true)
+		caption.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		caption.set_anchors_and_offsets_preset(Control.PRESET_CENTER_BOTTOM)
+		caption.position.y -= 190
+		caption.add_theme_color_override("font_outline_color", Color.BLACK)
+		caption.add_theme_constant_override("outline_size", 12)
+		add_child(caption)
+
+	func play(is_iced: bool) -> void:
+		if vp == null:
+			_setup()
+		iced = is_iced
+		if watch:
+			watch.queue_free()
+		watch = PropKit.place("WatchIced" if iced else "WatchGold", world3d, Vector3(0, 0.09, 0.01))
+		watch.rotation.x = -0.5
+		caption.text = "ROFLEX %s" % ("ICED OUT" if iced else "DATEJUST")
+		caption.modulate.a = 0.0
+		t = 0.0
+		visible = true
+		set_process(true)
+		Sfx.play("jackpot")
+
+	func _process(delta: float) -> void:
+		t += delta
+		var open := clampf((t - 0.3) / 0.6, 0.0, 1.0)
+		lid.rotation.x = -open * 1.9
+		watch.position.y = 0.09 + clampf((t - 0.9) / 0.6, 0.0, 1.0) * 0.045
+		watch.rotation.y = t * 1.6
+		caption.modulate.a = clampf((t - 0.8) * 3.0, 0.0, 1.0) * clampf((3.2 - t) * 3.0, 0.0, 1.0)
+		modulate.a = clampf(t * 5.0, 0.0, 1.0) * clampf((3.3 - t) * 4.0, 0.0, 1.0)
+		if t > 3.3:
+			visible = false
+			set_process(false)

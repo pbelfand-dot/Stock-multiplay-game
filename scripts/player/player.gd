@@ -14,6 +14,7 @@ const Props = preload("res://scripts/art/props.gd")
 var peer_id := 1
 var display_name := "Trader"
 var look := {}
+var _watch_kind := ""
 var is_local := false
 var world   # set by World
 
@@ -273,6 +274,11 @@ func _update_fx() -> void:
 	var gun_on: bool = m != null and m.effect_left(peer_id, "moneygun") > 0.0
 	var holding_ball: bool = world != null and world.ball != null and world.ball.holder == peer_id
 	held_cigar.visible = cigar_on and not gun_on
+	if m != null:
+		var wk: String = "iced" if m.lux_count(peer_id, "roflex_iced") > 0 else ("gold" if m.lux_count(peer_id, "roflex") > 0 else str(look.get("watch", "silver")))
+		if wk != _watch_kind:
+			_watch_kind = wk
+			model.set_watch(wk)
 	model.bloodshot = bool(look.get("bloodshot", false)) or cigar_on or (m != null and m.effect_left(peer_id, "powder") > 0.0)
 	held_gun.visible = gun_on
 	if smoke.emitting != cigar_on:

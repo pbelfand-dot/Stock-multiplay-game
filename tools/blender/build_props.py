@@ -982,6 +982,81 @@ def build_floor_mess():
     finish("CigarButt")
 
 
+# ----------------------------------------------------------------------------- luxury flex items
+
+def build_luxury():
+    GREEN_BOX = (0.06, 0.45, 0.22)
+    CREAM = (0.93, 0.88, 0.74)
+    # ROFLEX presentation box: base (origin bottom center) + lid (origin at the back hinge)
+    rbox((0.2, 0.08, 0.2), (0, 0.04, 0), GREEN_BOX, r=0.015, kind="Gloss")
+    rbox((0.17, 0.02, 0.17), (0, 0.075, 0), CREAM, r=0.01)
+    rbox((0.06, 0.03, 0.09), (0, 0.095, 0.01), CREAM, r=0.012)          # pillow
+    finish("WatchBoxBase")
+    rbox((0.2, 0.05, 0.2), (0, 0.025, 0.1), GREEN_BOX, r=0.015, kind="Gloss")
+    rbox((0.17, 0.004, 0.17), (0, -0.001, 0.1), CREAM)
+    ell((0.012, 0.004, 0.009), (0, 0.051, 0.1), GOLD, kind="Metal", segs=10, rings=4)   # crown logo
+    finish("WatchBoxLid")
+    for name, metal, face in (("WatchGold", GOLD, (0.96, 0.93, 0.8)), ("WatchIced", (0.82, 0.9, 1.0), (0.85, 0.92, 1.0))):
+        torus(0.03, 0.009, (0, 0.03, 0), metal, segs=20, rsegs=6, kind="Metal", rot=[("z", math.pi / 2)])
+        cyl(0.026, 0.012, (0, 0.062, 0), metal, segs=24, kind="Metal")
+        cyl(0.021, 0.004, (0, 0.069, 0), face, segs=24, kind="Gloss")
+        rbox((0.002, 0.003, 0.016), (0, 0.072, 0.005), BLACK)
+        rbox((0.012, 0.003, 0.002), (0.005, 0.072, 0), BLACK)
+        if name == "WatchIced":
+            for k in range(12):
+                a = k * math.pi / 6
+                ell((0.004, 0.004, 0.004), (math.cos(a) * 0.024, 0.07, math.sin(a) * 0.024), (1, 1, 1), kind="Glow", segs=6, rings=3)
+        finish(name)
+    # LOUIE BATON shopping bag (origin floor), front +z
+    rbox((0.34, 0.4, 0.14), (0, 0.2, 0), (0.96, 0.55, 0.12), r=0.01)
+    rbox((0.34, 0.03, 0.14), (0, 0.4, 0), (0.9, 0.48, 0.08))
+    for z in (-0.03, 0.03):
+        rod((-0.07, 0.4, z), (-0.04, 0.5, z), 0.006, (0.4, 0.22, 0.07), segs=5)
+        rod((-0.04, 0.5, z), (0.04, 0.5, z), 0.006, (0.4, 0.22, 0.07), segs=5)
+        rod((0.04, 0.5, z), (0.07, 0.4, z), 0.006, (0.4, 0.22, 0.07), segs=5)
+    finish("LouieBag")
+    # Supreme brick (red, origin bottom)
+    rbox((0.2, 0.06, 0.09), (0, 0.03, 0), (0.82, 0.08, 0.1), r=0.006)
+    rbox((0.13, 0.002, 0.04), (0, 0.061, 0), (0.97, 0.97, 0.97))
+    finish("SupremeBrick")
+    # cash-counting machine (origin bottom), bills fed at the top, stack in the tray
+    rbox((0.28, 0.16, 0.24), (0, 0.08, 0), (0.78, 0.78, 0.8), r=0.03, seg=3)
+    rbox((0.24, 0.06, 0.08), (0, 0.18, -0.07), (0.7, 0.7, 0.72), r=0.02)
+    rbox((0.16, 0.035, 0.065), (0, 0.215, -0.07), (0.45, 0.68, 0.38), r=0.004)       # bills on top
+    rbox((0.18, 0.06, 0.02), (0, 0.11, 0.121), (0.1, 0.1, 0.12), r=0.01)            # display bezel
+    rbox((0.07, 0.03, 0.005), (-0.04, 0.115, 0.132), (0.3, 1.0, 0.45), kind="Glow")
+    for k in range(6):
+        rbox((0.014, 0.012, 0.006), (0.03 + (k % 3) * 0.02, 0.105 + (k // 3) * 0.018, 0.132), (0.85, 0.85, 0.88))
+    rbox((0.2, 0.05, 0.08), (0, 0.035, 0.13), (0.6, 0.6, 0.62), r=0.01)             # front tray
+    rbox((0.16, 0.035, 0.065), (0, 0.075, 0.13), (0.45, 0.68, 0.38), r=0.004)
+    finish("CashCounter")
+
+
+def build_flex_counter():
+    """FLEX SHOP display counter, 2.2 x 1.0, front +z (customer side): the merch
+    sits out on green felt; gold trim and a lit kick strip."""
+    rbox((2.2, 0.86, 0.7), (0, 0.43, 0), (0.12, 0.12, 0.14), r=0.02, kind="Gloss")
+    rbox((2.24, 0.04, 0.74), (0, 0.88, 0), GOLD, r=0.012, kind="Metal")
+    rbox((2.14, 0.012, 0.66), (0, 0.905, 0), (0.1, 0.38, 0.22))                        # green felt
+    for x in (-0.7, 0.0, 0.7):                                                         # gold front panels
+        rbox((0.6, 0.5, 0.012), (x, 0.45, 0.352), (0.2, 0.2, 0.23), r=0.01)
+        rbox((0.56, 0.02, 0.014), (x, 0.66, 0.356), GOLD, kind="Metal")
+    for k in range(3):                                                                  # watch stands
+        x = -0.85 + k * 0.2
+        rbox((0.08, 0.06, 0.08), (x, 0.94, 0.05), (0.93, 0.88, 0.74), r=0.01)
+        torus(0.028, 0.008, (x, 1.0, 0.05), GOLD if k != 1 else (0.82, 0.9, 1.0), segs=16, rsegs=5,
+              kind="Metal", rot=[("z", math.pi / 2)])
+        cyl(0.024, 0.01, (x, 1.03, 0.05), GOLD if k != 1 else (0.82, 0.9, 1.0), segs=16, kind="Metal")
+    rbox((0.3, 0.36, 0.13), (0.35, 1.09, -0.05), (0.96, 0.55, 0.12), r=0.01)           # LOUIE bag
+    for z in (-0.02, 0.02):
+        rod((0.29, 1.27, z - 0.05), (0.41, 1.27, z - 0.05), 0.006, (0.4, 0.22, 0.07), segs=5)
+    for k in range(3):                                                                  # brick pyramid
+        rbox((0.2, 0.06, 0.09), (0.8 + (k % 2) * 0.1 - 0.05, 0.94 + (k // 2) * 0.061, 0.08), (0.82, 0.08, 0.1), r=0.006)
+    rbox((0.2, 0.2, 0.2), (-0.3, 1.0, 0.0), (0.06, 0.45, 0.22), r=0.015, kind="Gloss")  # ROFLEX box
+    rbox((2.2, 0.04, 0.04), (0, 0.06, 0.34), (0.95, 0.85, 0.3), kind="Glow")            # LED kick strip
+    finish("FlexCounter")
+
+
 # ----------------------------------------------------------------------------- main
 
 def main():
@@ -992,7 +1067,8 @@ def main():
                build_slot, build_arcade, build_bell_podium, build_hoop, build_certificate, build_whiteboard,
                build_tv, build_elevator, build_ceiling_light, build_window_bay, build_cell,
                build_stream_desk, build_gaming_chair, build_ring_light, build_neon_board, build_skyline,
-               build_bulletin_board, build_door, build_restroom, build_floor_mess, build_coin):
+               build_bulletin_board, build_door, build_restroom, build_floor_mess, build_coin,
+               build_luxury, build_flex_counter):
         fn()
     keep = {o.name for o in KIT}
     for o in list(bpy.data.objects):

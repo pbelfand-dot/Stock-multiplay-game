@@ -86,6 +86,10 @@ func _host() -> void:
 	if m.stats[bob].trades < 1:
 		_fail("server didn't record client trade")
 		return
+	if m.lux_count(bob, "louie") != 1 or get_node("/root/Main/World").builder.root.get_node_or_null("Trophies_%d" % (get_node("/root/Main/World").desk_of(bob))) == null:
+		_fail("client's LOUIE BATON bag didn't show up")
+		return
+	_say("client's flex synced (LOUIE BATON on their desk)")
 	# Crank the client's heat -> raid -> cops should catch them (they stand still).
 	m._add_heat(bob, 200.0)
 	if m.raid.is_empty():
@@ -113,6 +117,9 @@ func _client() -> void:
 		return
 	m.request_use("cigar")
 	if not await _wait_for(func(): return m.effect_left(Net.my_id(), "cigar") > 0.0, 5.0, "cigar active"):
+		return
+	m.request_buy_lux("louie")
+	if not await _wait_for(func(): return m.lux_count(Net.my_id(), "louie") == 1, 5.0, "louie bag bought"):
 		return
 	m.request_slot(300.0)
 	if not await _wait_for(func(): return got.get("slot_result", 0) >= 1, 5.0, "slot result"):

@@ -28,6 +28,7 @@ signal raid_changed(target: int, active: bool)
 signal day_ended(summary: Dictionary)
 signal game_over(summary: Dictionary)
 signal toast(msg: String)
+signal luxury_bought(peer: int, key: String)
 signal chat(from_name: String, msg: String)
 signal error_msg(msg: String)
 
@@ -40,6 +41,7 @@ var accounts := {}              # ledger payload
 var heat := {}                  # peer -> float
 var jail := {}                  # peer -> seconds left
 var inventory := {}             # peer -> {item: count}
+var owned := {}                 # peer -> {luxury: count} (flex items, never consumed)
 var effects := {}               # peer -> {effect: seconds left}
 var stats := {}                 # peer -> {pnl_day, pnl_total, trades, arrests, biggest}
 var raid := {}                  # {target, t} when active
@@ -256,6 +258,37 @@ func _req_buy(item: String) -> void:
 	inventory[id][item] = inventory[id].get(item, 0) + 1
 	if Net.mode == "coop":
 		_s_toast.rpc("%s spent %s of the fund on %s" % [Net.player_name(id), Rules.money(def.price), def.name])
+	_push_state()
+
+
+func lux_count(peer: int, key: String) -> int:
+	return int(owned.get(peer, {}).get(key, 0))
+
+
+func request_buy_lux(key: String) -> void:
+	_req_buy_lux.rpc_id(1, key)
+
+
+@rpc("any_peer", "call_local", "reliable")
+func _req_buy_lux(key: String) -> void:
+	if not Net.is_server() or not Rules.LUXURY.has(key):
+		return
+	var id := _sender()
+	_ensure_peer(id)
+	var def: Dictionary = Rules.LUXURY[key]
+	if lux_count(id, key) >= int(def.max):
+		_s_error.rpc_id(id, "You already flex enough %s." % def.name)
+		return
+	var acct := acct_for(id)
+	var a: Dictionary = ledger.get_acct(acct)
+	if a.is_empty() or a.balance < def.price:
+		_s_error.rpc_id(id, "Can't afford %s." % def.name)
+		return
+	ledger.adjust(acct, -def.price)
+	owned[id][key] = lux_count(id, key) + 1
+	_add_heat(id, def.get("heat", 0.0))
+	_s_toast.rpc("%s copped a %s (%s)" % [Net.player_name(id), def.name, Rules.money(def.price)])
+	_s_luxury.rpc(id, key)
 	_push_state()
 
 
@@ -510,6 +543,8 @@ func _ensure_peer(id: int) -> void:
 		heat[id] = 0.0
 	if not inventory.has(id):
 		inventory[id] = {}
+	if not owned.has(id):
+		owned[id] = {}
 	if not effects.has(id):
 		effects[id] = {}
 	if not stats.has(id):
@@ -538,6 +573,7 @@ func _reset_run() -> void:
 	ledger = Ledger.new()
 	heat.clear()
 	inventory.clear()
+	owned.clear()
 	effects.clear()
 	stats.clear()
 	jail.clear()
@@ -632,7 +668,7 @@ func _push_state() -> void:
 	_dirty = false
 	accounts = ledger.payload()
 	_s_state.rpc({"phase": phase, "day": day, "time_left": time_left, "quota": quota,
-		"accounts": accounts, "heat": heat, "jail": jail, "inventory": inventory,
+		"accounts": accounts, "heat": heat, "jail": jail, "inventory": inventory, "owned": owned,
 		"effects": effects, "stats": stats, "raid": raid})
 
 
@@ -650,6 +686,7 @@ func _s_state(s: Dictionary) -> void:
 	heat = s.heat
 	jail = s.jail
 	inventory = s.inventory
+	owned = s.get("owned", {})
 	effects = s.effects
 	stats = s.stats
 	raid = s.raid
@@ -753,6 +790,11 @@ func _s_day_ended(summary: Dictionary) -> void:
 @rpc("authority", "call_local", "reliable")
 func _s_game_over(summary: Dictionary) -> void:
 	game_over.emit(summary)
+
+
+@rpc("authority", "call_local", "reliable")
+func _s_luxury(peer: int, key: String) -> void:
+	luxury_bought.emit(peer, key)
 
 
 @rpc("authority", "call_local", "reliable")

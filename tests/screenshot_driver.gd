@@ -128,6 +128,30 @@ func _run() -> void:
 	m.request_use("cigar")
 	await get_tree().create_timer(1.5).timeout
 	await _snap("12_hud_items")
+	# flex: the shop, the unboxing, then the trophies on your desk
+	p.teleport(Vector3(-10.0, 0.1, 10.6))
+	p.rotation.y = PI
+	p.pitch = -0.1
+	p.head.rotation.x = -0.1
+	await _frames(5)
+	await _snap("26_flex_counter")
+	hud.open_interact({"type": "luxury", "id": 0})
+	await _frames(5)
+	await _snap("27_flex_shop")
+	hud.close_modals()
+	m.request_buy_lux("roflex")
+	await get_tree().create_timer(1.6).timeout
+	await _snap("28_roflex_unbox")
+	for k in ["louie", "louie", "counter", "supreme", "supreme", "supreme"]:
+		m.request_buy_lux(k)
+	await get_tree().create_timer(2.2).timeout
+	var dp: Vector3 = world.builder.desks[world.desk_of(Net.my_id())]
+	p.teleport(dp + Vector3(0.9, 0.1, 2.3))
+	p.rotation.y = 0.35
+	p.pitch = -0.38
+	p.head.rotation.x = -0.38
+	await _frames(8)
+	await _snap("29_flex_desk")
 	hud.mugshot.play(4298, "Trader", world.local_player.look)
 	await get_tree().create_timer(1.0).timeout
 	await _snap("13_mugshot")

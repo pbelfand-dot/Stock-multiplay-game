@@ -254,6 +254,9 @@ func build(l: Dictionary) -> void:
 	for mi in inst.find_children("*", "MeshInstance3D", true, false):
 		var nm: String = mi.name
 		if not want.has(nm):
+			if nm == "Acc_watch":   # kept (hidden) so a bought ROFLEX can appear live
+				mi.visible = false
+				continue
 			mi.get_parent().remove_child(mi)
 			mi.queue_free()
 			continue
@@ -319,6 +322,32 @@ static func _eye_material(veins: bool) -> StandardMaterial3D:
 		m.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
 	_mats[key] = m
 	return m
+
+
+static func watch_material(kind: String) -> StandardMaterial3D:
+	match kind:
+		"gold":
+			return material(Color(1.0, 0.76, 0.25), "metal")
+		"iced":   # diamonds: pale blue, glinting
+			var key := "watch_iced"
+			if not _mats.has(key):
+				var m := material(Color(0.82, 0.92, 1.0), "metal").duplicate()
+				m.emission_enabled = true
+				m.emission = Color(0.55, 0.75, 1.0)
+				m.emission_energy_multiplier = 0.6
+				_mats[key] = m
+			return _mats[key]
+	return material(Color(0.75, 0.8, 0.88), "metal")
+
+
+## Swap the wrist watch live (bought ROFLEX) without rebuilding the model.
+func set_watch(kind: String) -> void:
+	var mi := find_child("Acc_watch", true, false) as MeshInstance3D
+	if mi == null:
+		return
+	mi.visible = kind != "none"
+	if mi.visible:
+		mi.material_override = watch_material(kind)
 
 
 func _apply_eyes() -> void:
@@ -405,7 +434,7 @@ func _wanted_pieces() -> Dictionary:
 		w["Hat_" + hat] = material(_g("hat_color"), "cloth")
 	var watch: String = _g("watch")
 	if watch != "none":
-		w["Acc_watch"] = material(Color(0.75, 0.8, 0.88) if watch == "silver" else Color(1.0, 0.76, 0.25), "metal")
+		w["Acc_watch"] = watch_material(watch)
 	var gold := material(Color(1.0, 0.76, 0.25), "metal")
 	if _g("ring"):
 		w["Acc_ring"] = gold

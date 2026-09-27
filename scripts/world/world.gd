@@ -11,6 +11,7 @@ const TvScript = preload("res://scripts/ui/tv_screen.gd")
 const Rules = preload("res://scripts/sim/rules.gd")
 const BallScript = preload("res://scripts/world/ball.gd")
 const PlayerLook = preload("res://scripts/art/character.gd")
+const PropKit = preload("res://scripts/art/prop_kit.gd")
 
 var builder
 var players_node: Node3D
@@ -25,6 +26,7 @@ var _idle_t := 8.0
 var _ticker_offset := 0.0
 var _screen_acc := 0.0
 var _marquee_t := {}
+var _trophy_sig := {}           # desk id -> signature of what's on it
 
 
 func _ready() -> void:
@@ -56,6 +58,8 @@ func _ready() -> void:
 	match_node.market_tick.connect(_on_market_tick)
 	match_node.slot_result.connect(_on_slot_result)
 	match_node.state_changed.connect(_on_state)
+	match_node.state_changed.connect(_update_trophies)
+	Net.players_changed.connect(_update_trophies)
 	match_node.news.connect(_on_news)
 	_sync_players()
 
@@ -247,6 +251,94 @@ func _tick_marquees(delta: float) -> void:
 			var mq: Label3D = body.get_node("Marquee")
 			mq.text = "DEGEN SLOTS"
 			mq.modulate = Color(1, 0.88, 0.15)
+
+
+# ---------------------------------------------------------------- flex trophies
+
+## Every player owns a desk in the front row. Their luxury buys pile up on it:
+## nameplate, cash counter, ROFLEX boxes, Supreme bricks, LOUIE BATON bags.
+func desk_of(peer: int) -> int:
+	var i := 0
+	for id in Net.players:
+		if id == peer:
+			return builder.PLAYER_DESK0 + i
+		i += 1
+	return -1
+
+
+func _update_trophies() -> void:
+	var i := 0
+	for id in Net.players:
+		var desk: int = builder.PLAYER_DESK0 + i
+		i += 1
+		if not builder.desks.has(desk):
+			continue
+		var own: Dictionary = match_node.owned.get(id, {}) if match_node else {}
+		var sig := "%s|%s" % [Net.player_name(id), str(own)]
+		if _trophy_sig.get(desk, "") == sig:
+			continue
+		_trophy_sig[desk] = sig
+		_build_trophies(desk, Net.player_name(id), own)
+	for desk in _trophy_sig.keys():
+		if desk - builder.PLAYER_DESK0 >= Net.players.size():
+			_trophy_sig.erase(desk)
+			var old: Node = builder.root.get_node_or_null("Trophies_%d" % desk)
+			if old:
+				old.queue_free()
+
+
+func _build_trophies(desk: int, who: String, own: Dictionary) -> void:
+	var old: Node = builder.root.get_node_or_null("Trophies_%d" % desk)
+	if old:
+		builder.root.remove_child(old)
+		old.queue_free()
+	var p: Vector3 = builder.desks[desk]
+	var t := Node3D.new()
+	t.name = "Trophies_%d" % desk
+	t.position = p
+	builder.root.add_child(t)
+	var plate := Label3D.new()
+	plate.text = "%s'S DESK" % who.to_upper()
+	plate.font_size = 40
+	plate.pixel_size = 0.0035
+	plate.modulate = Color(1, 0.84, 0.2)
+	plate.outline_size = 8
+	plate.position = Vector3(0, 1.4, -0.46)
+	t.add_child(plate)
+	var top := 0.78
+	if own.get("counter", 0) > 0:
+		PropKit.place("CashCounter", t, Vector3(0.62, top, -0.2), -0.3)
+	var boxes := 0
+	for k in ["roflex", "roflex_iced"]:
+		if own.get(k, 0) > 0:
+			var bp := Vector3(-0.42, top, 0.16 - boxes * 0.26)
+			var base := PropKit.place("WatchBoxBase", t, bp, 0.5)
+			var lid := PropKit.place("WatchBoxLid", base, Vector3(0, 0.08, -0.1))
+			lid.rotation.x = -1.9
+			PropKit.place("WatchIced" if k == "roflex_iced" else "WatchGold", base, Vector3(0, 0.09, 0.01)).rotation.x = -0.4
+			boxes += 1
+	for n in int(own.get("supreme", 0)):
+		var b := PropKit.place("SupremeBrick", t, Vector3(0.74, top + n * 0.061, 0.24), 0.2 + (n % 2) * 0.12)
+		var sl := Label3D.new()
+		sl.text = "Supreme"
+		sl.font_size = 40
+		sl.pixel_size = 0.0011
+		sl.outline_size = 0
+		sl.modulate = Color.WHITE
+		sl.position = Vector3(0, 0.0625, 0)
+		sl.rotation.x = -PI / 2
+		b.add_child(sl)
+	for n in int(own.get("louie", 0)):
+		var bag := PropKit.place("LouieBag", t, Vector3(1.25 + n * 0.38, 0, 0.15 + (n % 2) * 0.1), -0.2 + n * 0.15)
+		var ll := Label3D.new()
+		ll.text = "LOUIE\nBATON"
+		ll.font_size = 36
+		ll.pixel_size = 0.0022
+		ll.outline_size = 0
+		ll.line_spacing = -6
+		ll.modulate = Color(0.35, 0.18, 0.05)
+		ll.position = Vector3(0, 0.22, 0.072)
+		bag.add_child(ll)
 
 
 func _on_state() -> void:
