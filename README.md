@@ -12,6 +12,10 @@ Built in **Godot 4.7** — free, no accounts, no store.
 
 | | |
 |---|---|
+| ![The Tailor](docs/screens/tailor.jpg) | ![Hair & facial hair](docs/screens/hair_styles.jpg) |
+
+| | |
+|---|---|
 | ![Trading floor](docs/screens/office.jpg) | ![Terminal](docs/screens/terminal.jpg) |
 | ![TRAMP on the office TV](docs/screens/tv_tramp.jpg) | ![Tony the Plug](docs/screens/tony.jpg) |
 | ![Trade closed](docs/screens/trade_closed.jpg) | ![Slots](docs/screens/slots.jpg) |
@@ -61,13 +65,28 @@ Built in **Godot 4.7** — free, no accounts, no store.
   - you're **fined 15%**
   - you sit in the holding cell for 20s
 - **BAG SLOTS** in the casino corner: set your bet with −/+ and pull the lever. Three 7s pay 60x.
-- **Characters in the trailer's style.** They're built in code (`scripts/art/`): big egg heads, tired
-  bulging eyes with dark bags, an orange nose, slicked hair, pinstripe suits with a shirt V and tie,
-  a watch and a gold ring. Everyone is fully animated (walk, blink, talk, aim, smoke, dive, cuffed).
-  - Each player gets a different look.
-  - The cops have mustaches and aim with both hands.
-  - TRAMP shows up **live on the office TV** at a podium between two flags.
-  - Getting arrested gives a **3D mugshot of your own character** holding the NYPD placard.
+- **Characters in the trailer's style, modeled in Blender.** `tools/blender/build_characters.py`
+  builds them procedurally into `assets/characters/character_kit.glb`:
+  - **Base:** one skinned "stick figure" skeleton, and a smooth base body with bone-heat weights.
+  - **Face (the same for everyone):** the trailer's egg head with bulging tired eyes, droopy lids,
+    dark bags, an orange nose, thick brows and a thin mouth.
+  - **Clothing layers:**
+    - suit jacket (lapels, pockets, buttons), shirt V, cuffs, tie or long tie
+    - dress shirt, cop uniform with duty belt, hoodie, tee
+    - slacks, dress shoes, sneakers
+  - **Hair styles:** slick, swept, swoop, short, buzz, messy, afro, long, bald.
+  - **Facial hair:** mustache, goatee, full, stubble.
+  - **Glasses:** shades, specs.
+  - **Hats:** cop, headset, headband, beanie, cap.
+  - **Accessories:** watch, ring, gold chain.
+  - Clothing copies the body's weights, so it moves with the body. Every pose is driven on the bones
+    (walk, blink, talk, aim, smoke, dive, cuffed and more).
+- **The Tailor** (main menu): customize your trader with a live 3D preview.
+  - Outfit, suit color, pinstripes, shirt, tie, pants, shoes, hair, skin tone, facial hair, glasses,
+    hat, watch, chain and ring. There's also a randomize button.
+  - Your look is saved and sent to everyone in the game.
+- **TRAMP on the office TV** at a podium between two flags, and a **3D mugshot of your own character**
+  holding the NYPD placard.
 - **Basketball hoop.** Grab the ball (E), throw it (left mouse). A swish is +$1,000 to the fund.
 - The rest of the office: red carpet, CRT desks, city skyline, the MONEY TALKS whiteboard, the ticker
   strip and the opening bell.
@@ -147,15 +166,22 @@ built in code, so an AI can keep extending it.
 scripts/
   sim/      market.gd (price model), news.gd (TRAMP/TJZ/KIMCHEE...), ledger.gd (leverage math), rules.gd (tuning)
   net/      net.gd (ENet host/join), match.gd (server-authoritative game loop), config.gd, sfx.gd
-  art/      character.gd (rigged cartoon people + presets), shapes.gd (mesh generator), props.gd, batcher.gd
+  art/      character.gd (skinned kit loader: looks, presets, bone animation), props.gd, shapes.gd, batcher.gd
   world/    world.gd, office_builder.gd (the whole level), ball.gd
   player/   player.gd (first person), cop.gd (navmesh chase AI)
   ui/       hud.gd, terminal.gd, chart.gd, slots_ui.gd, shop_ui.gd, trade_popup.gd, overlays.gd, tv_screen.gd, main_menu.gd
 tests/      test_sim.gd, smoke_driver.gd (2-player end-to-end), screenshot_driver.gd, run_all.sh
-tools/      make_sfx.py (synthesizes every sound effect), thin_macos.py (splits the Mac build per chip)
+tools/      blender/build_characters.py (the character kit), make_sfx.py (sound effects),
+            thin_macos.py (splits the Mac build per chip)
+assets/     characters/character_kit.glb, fonts/, sfx/
 ```
 
 Tuning (money, quotas, heat, item prices, slot odds) lives in `scripts/sim/rules.gd`.
+
+**Rebuilding the characters:** run `pip install bpy==4.5.14`, then
+`python3 tools/blender/build_characters.py`. That takes about 10 seconds and rewrites
+`character_kit.glb`. To add a new hair style or garment, add a builder function to that script, then
+add the option to `OPTIONS` in `scripts/art/character.gd`.
 
 ### Tests
 

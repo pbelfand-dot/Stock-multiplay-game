@@ -2,3 +2,4 @@
 /build/
 /export/
 *.tmp
+__pycache__/

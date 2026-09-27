@@ -8,6 +8,7 @@ var last_ip := "127.0.0.1"
 var port := 7777
 var mouse_sensitivity := 0.0025
 var suit_color := Color(0.35, 0.36, 0.4)
+var look := {}            # character look from the tailor (empty = default for your slot)
 
 ## Command-line flags (after `--`), e.g. `-- --host --pvp --autostart`
 var cli := {}
@@ -70,12 +71,14 @@ func load_settings() -> void:
 		port = cf.get_value("net", "port", port)
 		mouse_sensitivity = cf.get_value("input", "sens", mouse_sensitivity)
 		suit_color = cf.get_value("player", "suit", suit_color)
+		look = cf.get_value("player", "look", look)
 
 
 func save_settings() -> void:
 	var cf := ConfigFile.new()
 	cf.set_value("player", "name", player_name)
 	cf.set_value("player", "suit", suit_color)
+	cf.set_value("player", "look", look)
 	cf.set_value("net", "ip", last_ip)
 	cf.set_value("net", "port", port)
 	cf.set_value("input", "sens", mouse_sensitivity)

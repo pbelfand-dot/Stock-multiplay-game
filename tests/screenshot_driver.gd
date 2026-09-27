@@ -28,6 +28,22 @@ func _run() -> void:
 	if not Config.cli.has("host"):
 		await _frames(30)
 		await _snap("00_menu")
+		if Config.cli.has("tailor"):
+			var menu = get_node("/root/Main/Menu")
+			menu._open_tailor()
+			await _frames(40)
+			await _snap("20_tailor")
+			var t = menu.get_child(menu.get_child_count() - 1)
+			var looks := [
+				{"outfit": "suit", "suit": Color(0.33, 0.32, 0.36), "hair_style": "swept", "hair": Color(0.3, 0.18, 0.12), "glasses": "shades", "watch": "gold"},
+				{"outfit": "hoodie", "suit": Color(0.8, 0.55, 0.1), "hair_style": "afro", "hair": Color(0.06, 0.05, 0.05), "skin": Color(0.38, 0.25, 0.17), "shoe_style": "sneaker", "shoes": Color(0.9, 0.9, 0.9), "chain": true},
+				{"outfit": "suit", "suit": Color(0.4, 0.1, 0.12), "tie": Color(0.9, 0.7, 0.1), "hair_style": "long", "hair": Color(0.86, 0.66, 0.14), "beard": "full", "hat": "cap", "hat_color": Color(0.15, 0.3, 0.75)},
+			]
+			for k in looks.size():
+				t.look = load("res://scripts/art/character.gd").full_look(looks[k])
+				t._refresh()
+				await _frames(30)
+				await _snap("21_tailor_%d" % k)
 		Sfx.quit_game()
 		return
 	while get_node_or_null("/root/Main/World/Match") == null:
