@@ -11,9 +11,11 @@ const W := 40.0
 const D := 28.0
 const H := 3.4
 
-const C_CARPET := Color(0.7, 0.07, 0.08)
-const C_WALL := Color(0.93, 0.85, 0.74)
-const C_TRIM := Color(0.45, 0.07, 0.09)
+# the newer clips' palette: blue-grey carpet, pale grey-blue walls, slate bands
+const C_CARPET := Color(0.44, 0.49, 0.6)
+const C_WALL := Color(0.74, 0.76, 0.8)
+const C_TRIM := Color(0.27, 0.3, 0.38)
+const C_WAINSCOT := Color(0.44, 0.48, 0.57)
 const C_CEIL := Color(0.84, 0.85, 0.87)
 const C_DESK := Color(0.92, 0.92, 0.9)
 const C_BEIGE := Color(0.86, 0.8, 0.66)
@@ -37,6 +39,7 @@ var ticker_label: Label3D
 var slot_machines: Array = []
 var npcs := {}                  # speaker name -> Node3D (has "Bubble" Label3D)
 var hoop_rim := Vector3(-W / 2 + 0.5, 2.05, -9.5)
+const RESTROOM_DOOR_Z := 2.2
 var ball_spawn := Vector3(-16.5, 1.0, -9.5)
 var rng := RandomNumberGenerator.new()
 
@@ -75,6 +78,7 @@ func build(parent: Node3D) -> void:
 	root.add_child(nav)
 	_environment()
 	_shell()
+	_restroom()
 	_windows_and_skyline()
 	_ceiling_lights()
 	_bullpen()
@@ -199,6 +203,8 @@ func textured(c: Color, kind: String, tile: float) -> StandardMaterial3D:
 						v = c.darkened(0.18)
 					else:
 						v = c.darkened(r.randf() * 0.07)
+				"tile":      # square floor tiles with grout
+					v = c.darkened(0.2) if x % 32 < 2 or y % 32 < 2 else c.darkened(r.randf() * 0.04)
 				"block":     # cinder blocks: 2 rows per tile, staggered
 					var row := y / 32
 					var bx := (x + (16 if row % 2 else 0)) % 64
@@ -253,22 +259,66 @@ func _shell() -> void:
 	box(Vector3(W / 2 - 1.3, H, 0.3), Vector3(-(W / 4 + 0.65), H / 2, D / 2), C_WALL)
 	box(Vector3(W / 2 - 1.3, H, 0.3), Vector3(W / 4 + 0.65, H / 2, D / 2), C_WALL)
 	box(Vector3(2.6, H - 2.4, 0.3), Vector3(0, 2.4 + (H - 2.4) / 2, D / 2), C_WALL)
-	box(Vector3(0.3, H, D), Vector3(-W / 2, H / 2, 0), C_WALL)                     # west
+	# west wall with the restroom door (opening z 1.7..2.7)
+	var dz0 := RESTROOM_DOOR_Z - 0.5
+	var dz1 := RESTROOM_DOOR_Z + 0.5
+	box(Vector3(0.3, H, dz0 + D / 2), Vector3(-W / 2, H / 2, (dz0 - D / 2) / 2), C_WALL)
+	box(Vector3(0.3, H, D / 2 - dz1), Vector3(-W / 2, H / 2, (dz1 + D / 2) / 2), C_WALL)
+	box(Vector3(0.3, H - 2.25, 1.0), Vector3(-W / 2, 2.25 + (H - 2.25) / 2, RESTROOM_DOOR_Z), C_WALL)
 	box(Vector3(0.3, H, D), Vector3(W / 2, H / 2, 0), C_WALL)                      # east
-	# the trailer's dark-red soffit band under the ceiling + baseboards
+	# slate soffit band under the ceiling, darker wainscot + chair rail, baseboard
 	for z in [D / 2 - 0.17, -D / 2 + 0.17]:
-		box(Vector3(W, 0.34, 0.05), Vector3(0, H - 0.17, z), C_TRIM, false, root)
-		box(Vector3(W, 0.03, 0.06), Vector3(0, H - 0.36, z), Color(0.3, 0.04, 0.05), false, root)
-		box(Vector3(W, 0.12, 0.05), Vector3(0, 0.06, z), C_TRIM, false, root)
+		box(Vector3(W, 0.3, 0.05), Vector3(0, H - 0.15, z), C_TRIM, false, root)
+		if z > 0:
+			_wainscot(Vector3(W, 0, 0.05), Vector3(0, 0, z))
 	for x in [-W / 2 + 0.17, W / 2 - 0.17]:
-		box(Vector3(0.05, 0.34, D), Vector3(x, H - 0.17, 0), C_TRIM, false, root)
-		box(Vector3(0.06, 0.03, D), Vector3(x, H - 0.36, 0), Color(0.3, 0.04, 0.05), false, root)
-		box(Vector3(0.05, 0.12, D), Vector3(x, 0.06, 0), C_TRIM, false, root)
+		box(Vector3(0.05, 0.3, D), Vector3(x, H - 0.15, 0), C_TRIM, false, root)
+	_wainscot(Vector3(0, 0, D), Vector3(W / 2 - 0.17, 0, 0))
+	# west side: stop at the restroom door
+	_wainscot(Vector3(0, 0, dz0 + D / 2), Vector3(-W / 2 + 0.17, 0, (dz0 - D / 2) / 2))
+	_wainscot(Vector3(0, 0, D / 2 - dz1), Vector3(-W / 2 + 0.17, 0, (dz1 + D / 2) / 2))
+
+
+## Lower wall band: darker panel to 0.95 m, a slate chair rail, a baseboard.
+func _wainscot(span: Vector3, at: Vector3) -> void:
+	var t := Vector3(0.05, 0, 0.05)
+	var size := span + t
+	box(Vector3(size.x, 0.95, size.z), at + Vector3(0, 0.475, 0), C_WAINSCOT, false, root)
+	box(Vector3(size.x + 0.02, 0.05, size.z + 0.02), at + Vector3(0, 0.97, 0), C_TRIM, false, root)
+	box(Vector3(size.x + 0.02, 0.1, size.z + 0.02), at + Vector3(0, 0.05, 0), C_TRIM, false, root)
+
+
+## A small restroom behind the west-wall door (tile floor, toilet, sink + mirror).
+func _restroom() -> void:
+	var z := RESTROOM_DOOR_Z
+	var x0 := -W / 2 - 3.0
+	var tile := textured(Color(0.93, 0.94, 0.96), "tile", 0.4)
+	box(Vector3(3.0, 0.2, 3.6), Vector3(x0 + 1.5, -0.1, z), Color.WHITE).material_override = tile
+	box(Vector3(3.0, 0.2, 3.6), Vector3(x0 + 1.5, H + 0.1, z), C_CEIL, false, root)
+	box(Vector3(0.2, H, 3.6), Vector3(x0 - 0.1, H / 2, z), Color(0.62, 0.78, 0.86))
+	box(Vector3(3.2, H, 0.2), Vector3(x0 + 1.5, H / 2, z - 1.9), Color(0.62, 0.78, 0.86))
+	box(Vector3(3.2, H, 0.2), Vector3(x0 + 1.5, H / 2, z + 1.9), Color(0.62, 0.78, 0.86))
+	solid(Vector3(0.45, 0.8, 0.7), Vector3(x0 + 0.4, 0.4, z - 1.0))
+	prop("Toilet", Vector3(x0 + 0.35, 0, z - 1.05), PI / 2)
+	prop("Sink", Vector3(x0 + 1.6, 0, z + 1.6), PI)
+	prop("CeilingLight", Vector3(x0 + 1.5, H, z))
+	var lt := OmniLight3D.new()
+	lt.position = Vector3(x0 + 1.5, H - 0.4, z)
+	lt.omni_range = 4.5
+	lt.light_energy = 0.8
+	root.add_child(lt)
+	# door: frame on the office side, leaf swung open into the restroom
+	var door := prop("DoorFrame", Vector3(-W / 2, 0, z), PI / 2)
+	var leaf := prop("DoorLeaf", Vector3(-0.49, 0, -0.06), 1.45, door)
+	leaf.rotation.y = 1.45
+	var sign := label("RESTROOM", Vector3(0.8, 1.6, 0.02), 30, Color(0.15, 0.2, 0.35), 0.0, door)
+	sign.pixel_size = 0.004
+	sign.outline_size = 0
 
 
 func _windows_and_skyline() -> void:
 	# North wall: low sill wall + header, glass, window bays with blinds.
-	box(Vector3(W, 0.9, 0.3), Vector3(0, 0.45, -D / 2), C_WALL)
+	box(Vector3(W, 0.9, 0.3), Vector3(0, 0.45, -D / 2), C_WAINSCOT)
 	box(Vector3(W, 0.4, 0.3), Vector3(0, H - 0.2, -D / 2), C_WALL)
 	var glass := StandardMaterial3D.new()
 	glass.albedo_color = Color(0.7, 0.85, 1.0, 0.16)
@@ -510,6 +560,12 @@ func _decor() -> void:
 	solid(Vector3(0.36, 1.4, 0.36), Vector3(-19.5, 0.7, 4.6))
 	prop("WaterCooler", Vector3(-19.5, 0, 4.6), PI / 2)
 	prop("Clock", Vector3(-6, 2.6, D / 2 - 0.15), PI)
+	prop("BulletinBoard", Vector3(-9.5, 1.65, D / 2 - 0.15), PI)
+	# the office is a mess: loose bills, paper balls and cigar butts on the carpet
+	var mess := ["Bill", "Bill", "Bill", "PaperBall", "CigarButt"]
+	for i in 34:
+		var p := Vector3(rng.randf_range(-17, 17), 0.0, rng.randf_range(-12, 11))
+		prop(mess[rng.randi() % mess.size()], p, rng.randf_range(-PI, PI))
 	prop("Clock", Vector3(W / 2 - 0.15, 2.6, -2.0), -PI / 2)
 	for p in [Vector3(12.8, 0, -13.2), Vector3(-19.2, 0, 13.0), Vector3(19.2, 0, -3.8)]:
 		solid_cyl(0.23, 0.9, p + Vector3(0, 0.45, 0))

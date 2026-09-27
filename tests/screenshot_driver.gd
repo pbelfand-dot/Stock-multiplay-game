@@ -74,6 +74,8 @@ func _run() -> void:
 		["21_lounge", Vector3(-11.5, 0.1, 8.0), 1.6, -0.2],
 		["22_holding_cell", Vector3(-1.5, 0.1, 40.3), PI - 0.55, -0.1],
 		["23_skyline", Vector3(8.5, 0.1, -11.5), -0.1, 0.3],
+		["24_restroom_door", Vector3(-15.5, 0.1, 4.2), 1.85, 0.0],
+		["25_restroom", Vector3(-20.4, 0.1, 2.4), 1.45, -0.15],
 	]
 	# a fake remote teammate so we can see player models
 	for k in 2:
