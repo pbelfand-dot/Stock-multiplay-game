@@ -273,6 +273,7 @@ func _update_fx() -> void:
 	var gun_on: bool = m != null and m.effect_left(peer_id, "moneygun") > 0.0
 	var holding_ball: bool = world != null and world.ball != null and world.ball.holder == peer_id
 	held_cigar.visible = cigar_on and not gun_on
+	model.bloodshot = bool(look.get("bloodshot", false)) or cigar_on or (m != null and m.effect_left(peer_id, "powder") > 0.0)
 	held_gun.visible = gun_on
 	if smoke.emitting != cigar_on:
 		smoke.emitting = cigar_on

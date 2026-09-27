@@ -22,7 +22,7 @@ const OPTIONS := {
 	"hair_style": ["slick", "swept", "swoop", "short", "buzz", "messy", "afro", "long", "bald"],
 	"beard": ["none", "mustache", "goatee", "full", "stubble"],
 	"glasses": ["none", "shades", "specs"],
-	"hat": ["none", "headset", "headband", "beanie", "cap", "cop"],
+	"hat": ["none", "headset", "headband", "beanie", "cap", "cop", "police", "bowler", "bucket"],
 	"shoe_style": ["dress", "sneaker"],
 	"watch": ["silver", "gold", "none"],
 }
@@ -51,13 +51,15 @@ const DEFAULT := {
 	"pants": null, "shoes": Color(0.07, 0.07, 0.08), "shoe_style": "dress",
 	"beard": "none", "glasses": "none", "watch": "silver", "ring": true,
 	"chain": false, "hat": "none", "hat_color": Color(0.85, 0.1, 0.12), "brows": null,
+	"bloodshot": false,
 }
 
 const PRESETS := {
 	"trader": {},
-	"cop": {"outfit": "cop", "suit": Color(0.15, 0.16, 0.27), "pants": Color(0.11, 0.11, 0.19), "pinstripe": false,
-		"hat": "cop", "beard": "mustache", "hair": Color(0.2, 0.13, 0.08), "hair_style": "short", "watch": "none", "ring": false},
-	"dealer": {"suit": Color(0.1, 0.1, 0.12), "hair": Color(0.08, 0.08, 0.12), "watch": "gold"},
+	"cop": {"outfit": "cop", "suit": Color(0.2, 0.36, 0.78), "pants": Color(0.16, 0.26, 0.62), "pinstripe": false,
+		"hat": "police", "beard": "goatee", "hair": Color(0.62, 0.28, 0.1), "hair_style": "short", "watch": "none", "ring": false},
+	"dealer": {"suit": Color(0.1, 0.1, 0.12), "hair": Color(0.08, 0.08, 0.12), "watch": "gold", "bloodshot": true,
+		"hat": "bowler", "hat_color": Color(0.12, 0.1, 0.09), "beard": "goatee"},
 	"flex": {"suit": Color(0.33, 0.32, 0.36), "hair": Color(0.3, 0.18, 0.12), "hair_style": "swept",
 		"glasses": "shades", "watch": "gold"},
 	"beard": {"suit": Color(0.1, 0.1, 0.12), "beard": "goatee", "hair": Color(0.12, 0.1, 0.1), "pinstripe": false},
@@ -70,7 +72,7 @@ const PRESETS := {
 		"chain": true, "hair": Color(0.03, 0.03, 0.05), "hair_style": "messy", "glasses": "shades",
 		"skin": Color(0.88, 0.72, 0.58), "watch": "gold", "shoe_style": "sneaker", "shoes": Color(0.1, 0.1, 0.1)},
 	"kitteh": {"outfit": "tee", "suit": Color(0.25, 0.32, 0.22), "pants": Color(0.25, 0.28, 0.35),
-		"hat": "headband", "hat_color": Color(0.9, 0.1, 0.12), "hair": Color(0.45, 0.28, 0.14),
+		"hat": "headband", "hat_color": Color(0.9, 0.1, 0.12), "hair": Color(0.45, 0.28, 0.14), "bloodshot": true,
 		"hair_style": "long", "beard": "stubble", "shoe_style": "sneaker", "shoes": Color(0.8, 0.2, 0.2)},
 	"crammer": {"outfit": "shirt", "suit": Color(0.95, 0.95, 0.96), "pants": Color(0.2, 0.2, 0.25),
 		"tie": Color(0.8, 0.1, 0.12), "hair_style": "bald", "hair": Color(0.7, 0.7, 0.72), "glasses": "specs"},
@@ -97,7 +99,13 @@ var look := {}
 var pose := "idle"        # idle | aim | sit | type | type_stand | smoke | hold | dive | placard | cheer | cuffed
 var move_speed := 0.0
 var talking := false
-var eyes_open := 0.6
+var eyes_open := 0.82
+## Red-veined eyes (stoned look). Set by looks ("bloodshot") or live by gameplay.
+var bloodshot := false:
+	set(v):
+		if v != bloodshot:
+			bloodshot = v
+			_apply_eyes()
 
 var j := {}               # attachment points: spine, head (aligned to character axes)
 var prop_right: Node3D
@@ -168,7 +176,7 @@ static func random_look(rng: RandomNumberGenerator = null) -> Dictionary:
 		"skin": pick.call(SKIN_TONES),
 		"beard": pick.call(["none", "none", "mustache", "goatee", "full", "stubble"]),
 		"glasses": pick.call(["none", "none", "shades", "specs"]),
-		"hat": pick.call(["none", "none", "none", "headset", "beanie", "cap", "headband"]),
+		"hat": pick.call(["none", "none", "none", "headset", "beanie", "cap", "headband", "bowler", "bucket"]),
 		"hat_color": pick.call(ACCENT_COLORS),
 		"watch": pick.call(OPTIONS.watch), "chain": rng.randf() < 0.25,
 	}
@@ -256,6 +264,69 @@ func build(l: Dictionary) -> void:
 	prop_left = _aligned_attachment("Hand_L", _bone_pos("Hand_L") + Vector3(0.012, -0.075, -0.012), "GripL")
 	j["spine"] = _aligned_attachment("Spine", Vector3(0, 0.93, 0), "SpineAnchor")
 	j["head"] = _aligned_attachment("Head", _bone_pos("Head"), "HeadAnchor")
+	bloodshot = bool(_g("bloodshot")) or bloodshot
+	_apply_eyes()
+	# POLICE lettering on the cap and the vest (front + back), Schedule I style
+	if _g("hat") == "police":
+		_print_on(j["head"], "POLICE", Vector3(0, 0.352, -0.238), Vector3(-0.39, PI, 0), Color(1.0, 0.85, 0.2), 0.0011)
+	if _g("outfit") == "cop":
+		_print_on(j["spine"], "POLICE", Vector3(0, 0.37, -0.154), Vector3(0, PI, 0), Color(0.97, 0.97, 0.97), 0.0028)
+		_print_on(j["spine"], "POLICE", Vector3(0, 0.38, 0.165), Vector3.ZERO, Color(0.97, 0.97, 0.97), 0.0032)
+
+
+func _print_on(anchor: Node3D, text: String, pos: Vector3, rot: Vector3, color: Color, px: float) -> void:
+	var l := Label3D.new()
+	l.text = text
+	l.font_size = 48
+	l.pixel_size = px
+	l.modulate = color
+	l.outline_size = 0
+	l.position = pos
+	l.rotation = rot
+	l.double_sided = false
+	var f = load("res://assets/fonts/Oswald-Bold.woff2")
+	if f:
+		l.font = f
+	anchor.add_child(l)
+
+
+## White eyeballs, or red-veined ones for the stoned look. Pupils stay black
+## because the vertex colors multiply the texture.
+static func _eye_material(veins: bool) -> StandardMaterial3D:
+	var key := "eyes_%s" % veins
+	if _mats.has(key):
+		return _mats[key]
+	var m := material(Color.WHITE, "fixed").duplicate()
+	if veins:
+		var n := 128
+		var img := Image.create(n, n, true, Image.FORMAT_RGB8)
+		img.fill(Color(0.98, 0.9, 0.88))
+		var r := RandomNumberGenerator.new()
+		r.seed = 99
+		for i in 26:
+			var p := Vector2(r.randf() * n, r.randf() * n)
+			var dir := Vector2.from_angle(r.randf() * TAU)
+			for step in 40:
+				dir = dir.rotated(r.randf_range(-0.5, 0.5))
+				p = (p + dir * 1.2).posmodv(Vector2(n, n))
+				var c := Color(0.85, 0.12, 0.12).lerp(Color(0.98, 0.6, 0.6), step / 40.0)
+				img.set_pixelv(Vector2i(p), c)
+				img.set_pixelv(Vector2i((p + Vector2(1, 0)).posmodv(Vector2(n, n))), c)
+		img.generate_mipmaps()
+		m.albedo_texture = ImageTexture.create_from_image(img)
+		m.uv1_triplanar = true
+		m.uv1_scale = Vector3.ONE * 9.0
+		m.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
+	_mats[key] = m
+	return m
+
+
+func _apply_eyes() -> void:
+	if skel == null:
+		return
+	var eyes := find_child("Eyes", true, false) as MeshInstance3D
+	if eyes:
+		eyes.material_override = _eye_material(bloodshot)
 
 
 func _bone_pos(bone: String) -> Vector3:
@@ -287,7 +358,7 @@ func _wanted_pieces() -> Dictionary:
 	var fixed_m := material(Color.WHITE, "fixed")
 	var w := {
 		"Body": skin_m, "Skull": skin_m, "Lids": skin_m, "Hands": skin_m,
-		"Eyes": fixed_m, "Mouth": fixed_m,
+		"Eyes": _eye_material(bool(_g("bloodshot"))), "Mouth": fixed_m,
 		"Brows": material(_g("brows") if _g("brows") != null else hair.darkened(0.15), "hair"),
 		"Pants": material(pants, "cloth", stripes),
 	}
@@ -309,13 +380,14 @@ func _wanted_pieces() -> Dictionary:
 		"cop":
 			w["Top_cop"] = top_m
 			w["Gear_cop"] = fixed_m
+			w["Vest_cop"] = fixed_m
 		"hoodie":
 			w["Top_hoodie"] = top_m
 		"tee":
 			w["Top_tee"] = top_m
 	var hs: String = _g("hair_style")
 	# hats squash big hair: swap in a short cut underneath
-	if _g("hat") in ["beanie", "cap", "cop"] and hs in ["afro", "messy", "swoop", "slick", "swept"]:
+	if _g("hat") in ["beanie", "cap", "cop", "police", "bowler", "bucket"] and hs in ["afro", "messy", "swoop", "slick", "swept", "long"]:
 		hs = "short"
 	if hs != "none":
 		w["Hair_" + hs] = hair_m
@@ -327,7 +399,7 @@ func _wanted_pieces() -> Dictionary:
 	if _g("glasses") != "none":
 		w["Glasses_" + _g("glasses")] = fixed_m
 	var hat: String = _g("hat")
-	if hat in ["cop", "headset"]:
+	if hat in ["cop", "headset", "police"]:
 		w["Hat_" + hat] = fixed_m
 	elif hat != "none":
 		w["Hat_" + hat] = material(_g("hat_color"), "cloth")

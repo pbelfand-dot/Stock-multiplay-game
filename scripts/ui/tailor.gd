@@ -198,11 +198,12 @@ func _refresh() -> void:
 	_cycle("beard")
 	_cycle("glasses")
 	_cycle("hat")
-	if look.hat in ["headband", "beanie", "cap"]:
+	if look.hat in ["headband", "beanie", "cap", "bowler", "bucket"]:
 		_swatches("HAT COLOR", "hat_color", Character.ACCENT_COLORS)
 	_cycle("watch")
 	_toggle("GOLD CHAIN", "chain")
 	_toggle("PINKY RING", "ring")
+	_toggle("BLOODSHOT EYES", "bloodshot")
 
 
 func _row(title: String) -> HBoxContainer:
