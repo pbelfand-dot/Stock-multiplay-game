@@ -107,16 +107,106 @@ func _label(parent: Node3D, text: String, pos: Vector3, size: int, c: Color) -> 
 	return l
 
 
-func _flag(parent: Node3D, pos: Vector3) -> void:
+static var _flag_tex: ImageTexture
+static var _flag_shader: Shader
+
+
+## A proper US flag (Executive Order 10834 proportions): 13 stripes,
+## canton over the top 7 stripes at 0.76 hoist x 0.4 fly, 50 stars in 9 rows
+## alternating 6 and 5. Official colors: Old Glory Red / Old Glory Blue.
+static func us_flag_texture() -> ImageTexture:
+	if _flag_tex:
+		return _flag_tex
+	var H := 260
+	var W := int(H * 1.9)
+	var red := Color8(0xB2, 0x22, 0x34)
+	var blue := Color8(0x3C, 0x3B, 0x6E)
+	var img := Image.create(W, H, false, Image.FORMAT_RGBA8)
+	var stripe_h := float(H) / 13.0
+	for y in H:
+		var stripe := int(y / stripe_h)
+		img.fill_rect(Rect2i(0, y, W, 1), red if stripe % 2 == 0 else Color.WHITE)
+	var cw := int(W * 0.4)
+	var ch := int(round(stripe_h * 7))
+	img.fill_rect(Rect2i(0, 0, cw, ch), blue)
+	# stars: diameter 0.0616 of the hoist; 9 rows, spacing cw/12 by ch/10
+	var r_out := 0.0616 * H / 2.0
+	var r_in := r_out * 0.382
+	var star := PackedVector2Array()
+	for k in 10:
+		var ang := -PI / 2 + k * PI / 5
+		var rr := r_out if k % 2 == 0 else r_in
+		star.append(Vector2(cos(ang), sin(ang)) * rr)
+	for row in 9:
+		var cy := (row + 1) * ch / 10.0
+		var count := 6 if row % 2 == 0 else 5
+		for k in count:
+			var cx := ((2 * k + 1) if row % 2 == 0 else (2 * k + 2)) * cw / 12.0
+			for py in range(int(cy - r_out) - 1, int(cy + r_out) + 2):
+				for px in range(int(cx - r_out) - 1, int(cx + r_out) + 2):
+					if px < 0 or py < 0 or px >= W or py >= H:
+						continue
+					if Geometry2D.is_point_in_polygon(Vector2(px + 0.5 - cx, py + 0.5 - cy), star):
+						img.set_pixel(px, py, Color.WHITE)
+	img.generate_mipmaps()
+	_flag_tex = ImageTexture.create_from_image(img)
+	return _flag_tex
+
+
+static func flag_material(mirror: bool) -> ShaderMaterial:
+	if _flag_shader == null:
+		_flag_shader = Shader.new()
+		_flag_shader.code = """
+shader_type spatial;
+render_mode cull_disabled;
+uniform sampler2D flag_tex : source_color, filter_linear_mipmap;
+uniform float mirror = 0.0;
+void vertex() {
+	// ripple grows from the pole (u=0) to the free end (u=1)
+	float u = UV.x;
+	VERTEX.z += sin(u * 9.0 - TIME * 3.2) * 0.035 * u + sin(u * 4.0 - TIME * 1.7) * 0.02 * u;
+	VERTEX.y -= u * u * 0.04;
+}
+void fragment() {
+	vec2 uv = UV;
+	if (mirror > 0.5) { uv.x = 1.0 - uv.x; }
+	vec3 c = texture(flag_tex, uv).rgb;
+	// fold shading from the ripple
+	float fold = 0.88 + 0.12 * sin(UV.x * 9.0 - TIME * 3.2 + 1.2);
+	ALBEDO = c * fold;
+	ROUGHNESS = 0.9;
+}
+"""
+	var m := ShaderMaterial.new()
+	m.shader = _flag_shader
+	m.set_shader_parameter("flag_tex", us_flag_texture())
+	m.set_shader_parameter("mirror", 1.0 if mirror else 0.0)
+	return m
+
+
+## Flag on a pole. dir = +1 flies to the right of the pole, -1 to the left
+## (the canton always sits at the hoist, next to the pole).
+func _flag(parent: Node3D, pos: Vector3, dir: int = 1) -> void:
 	var f := Node3D.new()
 	f.position = pos
 	parent.add_child(f)
-	_box(f, Vector3(0.03, 2.2, 0.03), Vector3(0, 1.1, 0), Color(0.35, 0.25, 0.15))
-	S.part(f, S.superellipsoid(0.04, 0.05, 0.04, 2.0), S.mat(Color(0.85, 0.7, 0.3), false), Vector3(0, 2.24, 0))
-	for i in 7:
-		_box(f, Vector3(0.5, 0.07, 0.02), Vector3(0.27, 2.08 - i * 0.14, 0.02), Color(0.8, 0.1, 0.15) if i % 2 == 0 else Color(0.97, 0.97, 0.97))
-	_box(f, Vector3(0.22, 0.36, 0.025), Vector3(0.13, 1.93, 0.035), Color(0.15, 0.2, 0.5))
-	f.rotation.z = 0.05
+	_box(f, Vector3(0.03, 2.3, 0.03), Vector3(0, 1.15, 0), Color(0.35, 0.25, 0.15))
+	S.part(f, S.superellipsoid(0.035, 0.06, 0.035, 2.0), S.mat(Color(0.9, 0.72, 0.3), false), Vector3(0, 2.34, 0))
+	_box(f, Vector3(0.28, 0.04, 0.28), Vector3(0, 0.02, 0), Color(0.25, 0.18, 0.1))
+	var cloth := MeshInstance3D.new()
+	var pm := PlaneMesh.new()
+	pm.orientation = PlaneMesh.FACE_Z
+	pm.size = Vector2(0.72, 0.38)
+	pm.subdivide_width = 24
+	pm.subdivide_depth = 8
+	cloth.mesh = pm
+	cloth.material_override = flag_material(false)
+	# PlaneMesh UV.x runs left->right; flip the mesh for flags flying left so
+	# u=0 stays at the pole (the ripple is pinned there)
+	cloth.position = Vector3(dir * 0.375, 2.0, 0.0)
+	if dir < 0:
+		cloth.scale.x = -1.0
+	f.add_child(cloth)
 
 
 func _build_studio() -> void:
@@ -159,8 +249,8 @@ func _build_studio() -> void:
 	for x in [-1.7, 1.7]:
 		_box(pres, Vector3(0.7, 0.9, 0.06), Vector3(x, 1.9, -1.12), Color(0.2, 0.6, 0.62))
 		_box(pres, Vector3(0.04, 0.9, 0.07), Vector3(x, 1.9, -1.1), Color(0.5, 0.5, 0.55))
-	_flag(pres, Vector3(-0.95, 0, -0.6))
-	_flag(pres, Vector3(0.95, 0, -0.6))
+	_flag(pres, Vector3(-1.05, 0, -0.6), 1)
+	_flag(pres, Vector3(1.05, 0, -0.6), -1)
 	var podium := _box(pres, Vector3(0.9, 1.15, 0.45), Vector3(0, 0.58, 0.45), Color(0.12, 0.2, 0.55))
 	S.part(podium, S.superellipsoid(0.17, 0.17, 0.02, 2.0), S.mat(Color(0.9, 0.75, 0.3), false), Vector3(0, 0.15, 0.23))
 	_box(pres, Vector3(0.95, 0.05, 0.5), Vector3(0, 1.17, 0.45), Color(0.3, 0.22, 0.14))
