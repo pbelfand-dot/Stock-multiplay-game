@@ -9,6 +9,7 @@ const ShopScript = preload("res://scripts/ui/shop_ui.gd")
 const PopupScript = preload("res://scripts/ui/trade_popup.gd")
 const Overlays = preload("res://scripts/ui/overlays.gd")
 const PhoneScript = preload("res://scripts/ui/phone.gd")
+const CrtFrame = preload("res://scripts/ui/crt_frame.gd")
 
 var world
 var match_node
@@ -50,6 +51,7 @@ var slots
 var shop
 var lux_shop
 var phone
+var crt
 var _last_post := ""
 var unbox
 var popup
@@ -283,6 +285,10 @@ func _build_modals() -> void:
 	terminal.visible = false
 	terminal.closed.connect(close_modals)
 	root.add_child(terminal)
+	crt = CrtFrame.new()
+	crt.follower = terminal
+	crt.visible = false
+	root.add_child(crt)
 	slots = SlotsScript.new()
 	slots.setup(match_node)
 	slots.visible = false
@@ -379,6 +385,7 @@ func close_modals() -> void:
 	slots.visible = false
 	shop.visible = false
 	lux_shop.visible = false
+	crt.visible = false
 	pause_menu.visible = false
 	_close_chat()
 
@@ -388,6 +395,8 @@ func open_interact(t: Dictionary) -> void:
 	match t.type:
 		"terminal":
 			terminal.visible = true
+			crt.visible = true
+			crt.pop_in()
 			terminal._refresh_all()
 		"slots":
 			slots.visible = true
@@ -498,6 +507,7 @@ func _on_state() -> void:
 func _on_tick() -> void:
 	var t: float = maxf(match_node.time_left, 0.0)
 	time_lbl.text = "%d:%02d" % [int(t) / 60, int(t) % 60]
+	crt.set_time(t, t < 30 and match_node.phase == "trading")
 	time_lbl.add_theme_color_override("font_color", UI.RED if t < 30 and match_node.phase == "trading" else UI.TEXT)
 	var acct_id: int = match_node.acct_for(Net.my_id())
 	var eq: float = match_node.equity_of(acct_id)

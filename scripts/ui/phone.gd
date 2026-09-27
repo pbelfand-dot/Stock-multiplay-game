@@ -164,7 +164,9 @@ func _process(delta: float) -> void:
 	var eased := 1.0 - pow(1.0 - _slide, 3.0)
 	frame.position = Vector2(vp.x - 404, vp.y - 110 - eased * 560.0)
 	frame.visible = _slide > 0.001
-	badge.text = "[P] PHONE  •  %d new" % _unread if _unread > 0 and not open else ""
+	var hud = get_parent().get_parent() if get_parent() else null
+	var hidden: bool = hud != null and hud.has_method("is_modal_open") and hud.is_modal_open()
+	badge.text = "[P] PHONE  •  %d new" % _unread if _unread > 0 and not open and not hidden else ""
 	_meme_t -= delta
 	if _meme_t <= 0.0:
 		_meme_t = randf_range(35.0, 60.0)
