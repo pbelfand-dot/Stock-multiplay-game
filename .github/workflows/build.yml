@@ -1,0 +1,80 @@
+name: Test & Build
+
+on:
+  push:
+    branches: ["**"]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+env:
+  GODOT_VERSION: "4.7.2"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Godot
+        run: |
+          curl -sSL -o godot.zip "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable/Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip"
+          unzip -q godot.zip
+          mv "Godot_v${GODOT_VERSION}-stable_linux.x86_64" godot
+          chmod +x godot
+      - name: Import project
+        run: ./godot --headless --path . --import || true
+      - name: Run tests (compile, sim, 2-player co-op + PvP smoke)
+        run: GODOT=./godot tests/run_all.sh
+
+  export:
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Godot + export templates
+        run: |
+          curl -sSL -o godot.zip "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable/Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip"
+          unzip -q godot.zip
+          mv "Godot_v${GODOT_VERSION}-stable_linux.x86_64" godot
+          chmod +x godot
+          curl -sSL -o templates.tpz "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable/Godot_v${GODOT_VERSION}-stable_export_templates.tpz"
+          T="$HOME/.local/share/godot/export_templates/${GODOT_VERSION}.stable"
+          mkdir -p "$T"
+          unzip -q -j templates.tpz \
+            templates/windows_release_x86_64.exe templates/linux_release.x86_64 \
+            templates/macos.zip templates/version.txt -d "$T"
+          rm templates.tpz
+      - name: Export
+        run: |
+          ./godot --headless --path . --import || true
+          mkdir -p build/windows build/linux build/macos
+          ./godot --headless --path . --export-release "Windows"
+          ./godot --headless --path . --export-release "Linux"
+          ./godot --headless --path . --export-release "macOS"
+          cd build
+          (cd windows && zip -q ../Bagholders-Windows.zip Bagholders.exe)
+          (cd linux && zip -q ../Bagholders-Linux.zip Bagholders.x86_64)
+          cp macos/Bagholders.zip Bagholders-macOS.zip
+          ls -la
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Bagholders-Windows
+          path: build/Bagholders-Windows.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Bagholders-macOS
+          path: build/Bagholders-macOS.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Bagholders-Linux
+          path: build/Bagholders-Linux.zip
+      - name: Publish release (tags only)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            build/Bagholders-Windows.zip
+            build/Bagholders-macOS.zip
+            build/Bagholders-Linux.zip
