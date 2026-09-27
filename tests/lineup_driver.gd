@@ -34,8 +34,8 @@ func _ready() -> void:
 	floor_mi.material_override = fm
 	add_child(floor_mi)
 	var specs := [
-		["trader", "smoke"], ["cop", "aim"], ["flex", "hold"], ["beard", "idle"],
-		["tramp", "cheer"], ["tjz", "idle"], ["kimchee", "idle"], ["kitteh", "idle"], ["crammer", "idle"],
+		["trader", "finger"], ["cop", "aim"], ["flex", "watch"], ["beard", "idle"],
+		["tramp", "fistpump"], ["tjz", "sit"], ["kimchee", "point"], ["kitteh", "idle"], ["crammer", "dunk"],
 	]
 	var i := 0
 	for sp in specs:
@@ -44,8 +44,10 @@ func _ready() -> void:
 		c.pose = sp[1]
 		c.position = Vector3(-4.0 + i * 1.0, 0, 0)
 		c.rotation.y = PI  # face the camera (+Z)
-		if sp[0] in ["beard", "kitteh"]:
+		if sp[0] == "beard":
 			c.move_speed = 4.5
+		if sp[0] == "kitteh":
+			c.move_speed = 7.5
 		add_child(c)
 		i += 1
 	# second row: every hair style + beard + hat on the default trader
