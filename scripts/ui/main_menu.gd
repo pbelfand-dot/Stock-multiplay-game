@@ -20,7 +20,7 @@ func _ready() -> void:
 		p = clampf(p + randf_range(-0.03, 0.032), 0.1, 0.9)
 		_line.append(p)
 	var box := VBoxContainer.new()
-	UI.center(box, Vector2(560, 700))
+	UI.center(box, Vector2(560, 760))
 	box.add_theme_constant_override("separation", 10)
 	add_child(box)
 	var title := UI.lbl("BAGHOLDERS", 120, UI.GOLD, true)
@@ -36,6 +36,9 @@ func _ready() -> void:
 	name_edit.text = Config.player_name
 	name_edit.max_length = 16
 	box.add_child(name_edit)
+	var tailor := UI.btn("THE TAILOR  (customize your trader)", UI.GOLD.darkened(0.45), 24)
+	tailor.pressed.connect(_open_tailor)
+	box.add_child(tailor)
 	var host_row := HBoxContainer.new()
 	box.add_child(host_row)
 	var coop := UI.btn("HOST CO-OP", UI.GREEN.darkened(0.3), 28)
@@ -73,6 +76,20 @@ func _ready() -> void:
 	var quit := UI.btn("QUIT", UI.NAVY_2, 20)
 	quit.pressed.connect(func(): Sfx.quit_game())
 	box.add_child(quit)
+
+
+func _open_tailor() -> void:
+	_save()
+	var t = load("res://scripts/ui/tailor.gd").new()
+	add_child(t)
+	for c in get_children():
+		if c != t and c is Control:
+			c.visible = false
+	t.done.connect(func():
+		t.queue_free()
+		for c in get_children():
+			if c is Control:
+				c.visible = true)
 
 
 func set_status(msg: String) -> void:

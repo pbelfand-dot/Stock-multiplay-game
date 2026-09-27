@@ -67,7 +67,7 @@ func _sync_players() -> void:
 		if not players_node.has_node(str(id)):
 			var p := PlayerScript.new()
 			var info: Dictionary = Net.players[id]
-			p.setup(id, info.name, PlayerLook.player_look(idx), id == Net.my_id(), self)
+			p.setup(id, info.name, Net.look_of(id, idx), id == Net.my_id(), self)
 			players_node.add_child(p)
 			p.teleport(spawn_point(idx))
 			if p.is_local:

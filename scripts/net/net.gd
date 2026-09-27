@@ -8,6 +8,7 @@ signal connection_failed(reason: String)
 signal server_gone
 
 const MAX_PLAYERS := 6
+const Character = preload("res://scripts/art/character.gd")
 const SUIT_COLORS := [
 	Color(0.35, 0.36, 0.4), Color(0.12, 0.13, 0.2), Color(0.45, 0.12, 0.14),
 	Color(0.15, 0.3, 0.2), Color(0.5, 0.42, 0.3), Color(0.3, 0.2, 0.45),
@@ -42,7 +43,7 @@ func host(port: int, game_mode: String) -> Error:
 	multiplayer.multiplayer_peer = peer
 	mode = game_mode
 	players.clear()
-	players[1] = {"name": Config.player_name, "color": _color_for(0)}
+	players[1] = {"name": Config.player_name, "color": _color_for(0), "look": Character.sanitize(Config.look)}
 	in_session = true
 	players_changed.emit()
 	return OK
@@ -83,7 +84,7 @@ func _on_peer_disconnected(id: int) -> void:
 
 func _on_connected() -> void:
 	in_session = true
-	_register.rpc_id(1, Config.player_name.substr(0, 16))
+	_register.rpc_id(1, Config.player_name.substr(0, 16), Config.look)
 	connected_ok.emit()
 
 
@@ -98,7 +99,7 @@ func _on_server_gone() -> void:
 
 
 @rpc("any_peer", "reliable")
-func _register(pname: String) -> void:
+func _register(pname: String, look: Dictionary = {}) -> void:
 	if not is_server():
 		return
 	var id := multiplayer.get_remote_sender_id()
@@ -108,7 +109,7 @@ func _register(pname: String) -> void:
 	pname = pname.strip_edges()
 	if pname.is_empty():
 		pname = "Trader %d" % players.size()
-	players[id] = {"name": pname, "color": _color_for(players.size())}
+	players[id] = {"name": pname, "color": _color_for(players.size()), "look": Character.sanitize(look)}
 	_sync_players.rpc(players, mode)
 	players_changed.emit()
 
@@ -122,3 +123,9 @@ func _sync_players(p: Dictionary, m: String) -> void:
 
 func player_name(id: int) -> String:
 	return players.get(id, {}).get("name", "???")
+
+
+## The look a player chose in the tailor (falls back to a default per slot).
+func look_of(id: int, slot: int) -> Dictionary:
+	var l: Dictionary = players.get(id, {}).get("look", {})
+	return l if not l.is_empty() else Character.player_look(slot)

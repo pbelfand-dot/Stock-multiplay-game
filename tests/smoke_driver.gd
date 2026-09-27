@@ -12,6 +12,9 @@ var got := {}
 
 func _ready() -> void:
 	role = Config.cli.get("smoke", "")
+	if role == "client":
+		# a custom tailor look that the host must see
+		Config.look = {"hair_style": "afro", "outfit": "hoodie", "suit": Color(0.8, 0.55, 0.1), "hat": "none"}
 	_run.call_deferred()
 
 
@@ -76,6 +79,10 @@ func _host() -> void:
 		_fail("no puppet for client")
 		return
 	_say("client puppet at %s" % str(pnode.global_position))
+	if Net.players[bob].get("look", {}).get("hair_style", "") != "afro" or pnode.look.get("outfit", "") != "hoodie":
+		_fail("client's tailor look didn't sync: %s" % str(Net.players[bob].get("look", {})))
+		return
+	_say("client's tailor look synced (afro + hoodie)")
 	if m.stats[bob].trades < 1:
 		_fail("server didn't record client trade")
 		return

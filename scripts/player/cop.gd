@@ -67,7 +67,7 @@ func _build_body() -> void:
 	model.name = "Model"
 	model.build(Character.preset("cop"))
 	model.pose = "aim"
-	model.eyes_open = 0.95
+	model.eyes_open = 0.85
 	add_child(model)
 	var gun = Props.pistol()
 	gun.rotation = Vector3(-PI / 2, 0, 0)

@@ -44,8 +44,22 @@ func _ready() -> void:
 		c.pose = sp[1]
 		c.position = Vector3(-4.0 + i * 1.0, 0, 0)
 		c.rotation.y = PI  # face the camera (+Z)
+		if sp[0] in ["beard", "kitteh"]:
+			c.move_speed = 4.5
 		add_child(c)
 		i += 1
+	# second row: every hair style + beard + hat on the default trader
+	var styles: Array = Character.OPTIONS.hair_style
+	var beards := ["none", "mustache", "goatee", "full", "stubble", "none", "none", "none", "none"]
+	var hats := ["none", "none", "none", "none", "none", "headset", "beanie", "cap", "headband"]
+	for k in styles.size():
+		var c2 := Character.new()
+		c2.build({"hair_style": styles[k], "beard": beards[k], "hat": hats[k],
+			"hair": Character.HAIR_COLORS[k % Character.HAIR_COLORS.size()],
+			"skin": Character.SKIN_TONES[k % Character.SKIN_TONES.size()]})
+		c2.position = Vector3(-4.0 + k * 1.0, 0, -4.0)
+		c2.rotation.y = PI
+		add_child(c2)
 	_run.call_deferred()
 
 
@@ -66,10 +80,15 @@ func _snap(cam_pos: Vector3, look: Vector3, fov: float, file: String) -> void:
 
 func _run() -> void:
 	await _snap(Vector3(0, 1.2, 6.0), Vector3(0, 0.95, 0), 60, "full")
+	await _snap(Vector3(-2.2, 1.3, 3.2), Vector3(-2.2, 1.0, 0), 50, "mid_left")
+	await _snap(Vector3(2.0, 1.3, 3.2), Vector3(2.0, 1.0, 0), 50, "mid_right")
 	await _snap(Vector3(-4.0, 1.62, 0.9), Vector3(-4.0, 1.6, 0), 40, "face_trader")
 	await _snap(Vector3(-3.0, 1.62, 0.9), Vector3(-3.0, 1.6, 0), 40, "face_cop")
 	await _snap(Vector3(-2.0, 1.62, 0.9), Vector3(-2.0, 1.6, 0), 40, "face_flex")
 	await _snap(Vector3(0.0, 1.62, 0.9), Vector3(0.0, 1.6, 0), 40, "face_tramp")
 	await _snap(Vector3(-3.6, 1.3, 2.3), Vector3(-3.5, 1.1, 0), 45, "trader_cop_mid")
 	await _snap(Vector3(-5.5, 1.4, 1.2), Vector3(-4.0, 1.2, 0), 45, "trader_side")
+	await _snap(Vector3(-2.5, 1.75, -1.2), Vector3(-2.5, 1.72, -4.0), 38, "hair_row_a")
+	await _snap(Vector3(1.5, 1.75, -1.2), Vector3(1.5, 1.72, -4.0), 38, "hair_row_b")
+	await _snap(Vector3(-4.6, 1.8, -3.0), Vector3(-4.0, 1.75, -4.0), 40, "hair_side")
 	Sfx.quit_game()
