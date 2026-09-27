@@ -74,6 +74,29 @@ static func placard(number: int) -> Node3D:
 	return n
 
 
+## Zippo lighter, open, with a flickering flame ("Flame" child). Origin = grip.
+static func zippo() -> Node3D:
+	var n := Node3D.new()
+	n.name = "Zippo"
+	var chrome := S.mat(Color(0.8, 0.82, 0.86), false)
+	S.part(n, S.superellipsoid(0.02, 0.03, 0.012, 5.0), chrome, Vector3(0, 0.0, 0))
+	S.part(n, S.superellipsoid(0.02, 0.018, 0.003, 5.0), chrome, Vector3(0, 0.05, 0.012), Vector3(-0.5, 0, 0))   # flipped lid
+	S.part(n, S.superellipsoid(0.008, 0.008, 0.006, 3.0), S.mat(Color(0.3, 0.3, 0.32), false), Vector3(0.004, 0.034, 0))
+	var flame := S.part(n, S.superellipsoid(0.007, 0.02, 0.007, 1.6), S.mat(Color(1, 0.62, 0.15), false, 4.0), Vector3(-0.004, 0.058, 0))
+	flame.name = "Flame"
+	return n
+
+
+## A raised middle finger for the emote (skin colored), pointing along -Y of
+## the hand grip so it sticks out past the fist.
+static func finger(skin: Color) -> Node3D:
+	var n := Node3D.new()
+	n.name = "Finger"
+	S.part(n, S.superellipsoid(0.016, 0.05, 0.016, 2.1), S.mat(skin, false), Vector3(0, -0.06, -0.01))
+	S.part(n, S.superellipsoid(0.013, 0.008, 0.004, 2.0), S.mat(skin.lightened(0.3), false), Vector3(0, -0.095, -0.024))   # nail
+	return n
+
+
 ## First-person arm for the local player: sleeve + cuff + chunky hand.
 static func fp_arm(look: Dictionary) -> Node3D:
 	var n := Node3D.new()
@@ -92,4 +115,11 @@ static func fp_arm(look: Dictionary) -> Node3D:
 	grip.name = "Grip"
 	grip.position = Vector3(0.0, 0.02, -0.12)
 	n.add_child(grip)
+	# emote bits: the middle finger (up out of the fist) and a wrist watch
+	var f := S.part(n, S.superellipsoid(0.017, 0.058, 0.017, 2.1), S.mat(skin, false), Vector3(0.02, 0.07, -0.12))
+	f.name = "FingerUp"
+	f.visible = false
+	var w := S.part(n, S.superellipsoid(0.066, 0.02, 0.03, 2.6), S.mat(Color(1, 0.78, 0.2), false, 0.2), Vector3(0.02, -0.02, 0.02))
+	w.name = "Watch"
+	w.visible = false
 	return n

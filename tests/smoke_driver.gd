@@ -68,7 +68,7 @@ func _host() -> void:
 	if not await _wait_for(func(): return m.phase == "trading", 10.0, "trading phase"):
 		return
 	# wait for the client's trade + slot + chat
-	if not await _wait_for(func(): return got.get("trade_closed", 0) >= 1 and got.get("slot_result", 0) >= 1 and got.get("chat", 0) >= 2, 40.0, "client actions"):
+	if not await _wait_for(func(): return got.get("trade_closed", 0) >= 1 and got.get("slot_result", 0) >= 1 and got.get("chat", 0) >= 1, 40.0, "client actions"):
 		return
 	var bob := 0
 	for id in Net.players:
@@ -81,6 +81,11 @@ func _host() -> void:
 	_say("client puppet at %s" % str(pnode.global_position))
 	if Net.players[bob].get("look", {}).get("hair_style", "") != "afro" or pnode.look.get("outfit", "") != "hoodie":
 		_fail("client's tailor look didn't sync: %s" % str(Net.players[bob].get("look", {})))
+		return
+	if not await _wait_for(func(): return pnode.seat == 0 and pnode.emote == 1, 30.0, "client sitting + finger emote"):
+		return
+	_say("client's chair + emote synced (pose %s)" % pnode.model.pose)
+	if not await _wait_for(func(): return got.get("chat", 0) >= 3, 30.0, "client ready for the raid"):
 		return
 	_say("client's tailor look synced (afro + hoodie)")
 	if m.stats[bob].trades < 1:
@@ -143,6 +148,15 @@ func _client() -> void:
 	if not await _wait_for(func(): return w.ball.holder == 0, 5.0, "ball throw"):
 		return
 		_say("basketball grab + throw ok")
+	# sit in a desk chair and flip the bird: the host must see both
+	var lp = w.local_player
+	lp.sit(0)
+	lp.emote = 1
+	lp._emote_t = 30.0
+	m.send_chat("sitting + emote")
+	await get_tree().create_timer(1.0).timeout
+	lp.stand_up()
+	lp.emote = 0
 	# blood pressure: walk into the restroom and take care of it
 	w.local_player.teleport(w.builder.toilet_pos + Vector3(1.1, 0.1, 0.4))
 	await get_tree().create_timer(0.6).timeout

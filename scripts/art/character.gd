@@ -469,37 +469,85 @@ func _process(delta: float) -> void:
 	var s := sin(_phase)
 	var c := cos(_phase)
 	var breathe := sin(_t * 2.0) * 0.012
+	var idle := 1.0 - clampf(walk * 2.0, 0.0, 1.0)
+	var shift := sin(_t * 0.7) * idle          # idle weight shift from foot to foot
+	var run := clampf(walk - 1.0, 0.0, 0.6)
 	var t := {
-		"root_y": 0.0, "root_rx": 0.0, "spine_rx": -0.02 + breathe - walk * 0.06, "chest_rx": breathe * 0.6,
-		"shL": Vector3(s * 0.5 * walk, 0, -0.05), "shR": Vector3(-s * 0.5 * walk, 0, 0.05),
-		"elL": Vector3(0.15 + 0.25 * walk, 0, 0), "elR": Vector3(0.15 + 0.25 * walk, 0, 0),
-		"hipL": Vector3(-s * 0.6 * walk, 0, 0), "hipR": Vector3(s * 0.6 * walk, 0, 0),
-		"knL": Vector3(-maxf(0.0, c) * 0.95 * walk, 0, 0), "knR": Vector3(-maxf(0.0, -c) * 0.95 * walk, 0, 0),
-		"ftL": Vector3(maxf(0.0, c) * 0.3 * walk, 0, 0), "ftR": Vector3(maxf(0.0, -c) * 0.3 * walk, 0, 0),
-		"bob": absf(s) * 0.03 * walk, "hand": Vector3.ZERO,
+		"root_y": 0.0, "root_rx": 0.0, "spine_rx": -0.02 + breathe - walk * 0.05 - run * 0.25, "chest_rx": breathe * 0.6,
+		# hips twist with the stride, shoulders counter-twist; a little side roll
+		"hips_ry": s * 0.14 * walk, "hips_rz": c * 0.05 * walk + shift * 0.035, "spine_ry": -s * 0.18 * walk,
+		"shL": Vector3(s * 0.55 * walk, 0, -0.05 - shift * 0.02), "shR": Vector3(-s * 0.55 * walk, 0, 0.05 - shift * 0.02),
+		# elbows bend more on the back-swing, runners pump bent arms
+		"elL": Vector3(0.12 + (0.2 + maxf(0.0, -s) * 0.35) * walk + run * 0.9, 0, 0),
+		"elR": Vector3(0.12 + (0.2 + maxf(0.0, s) * 0.35) * walk + run * 0.9, 0, 0),
+		"hipL": Vector3(-s * 0.62 * walk + shift * 0.03, 0, 0.02 * shift), "hipR": Vector3(s * 0.62 * walk - shift * 0.03, 0, 0.02 * shift),
+		"knL": Vector3(-maxf(0.0, c) * 1.05 * walk - maxf(0.0, shift) * 0.08, 0, 0),
+		"knR": Vector3(-maxf(0.0, -c) * 1.05 * walk - maxf(0.0, -shift) * 0.08, 0, 0),
+		"ftL": Vector3(maxf(0.0, c) * 0.35 * walk, 0, 0), "ftR": Vector3(maxf(0.0, -c) * 0.35 * walk, 0, 0),
+		"bob": absf(s) * 0.035 * walk - 0.01 * walk, "hand": Vector3.ZERO, "head_rx": 0.0, "head_ry": 0.0,
 	}
-	match pose:
+	var upper: String = pose.trim_prefix("sit_") if pose.begins_with("sit_") else pose
+	if pose.begins_with("sit"):
+		t.root_y = -0.43
+		t.hipL = Vector3(1.5, 0, 0.12)
+		t.hipR = Vector3(1.5, 0, -0.12)
+		t.knL = Vector3(-1.45, 0, 0)
+		t.knR = Vector3(-1.45, 0, 0)
+		t.ftL = Vector3(0.1, 0, 0)
+		t.ftR = Vector3(0.1, 0, 0)
+		t.spine_rx = -0.12
+		t.bob = 0.0
+		t.hips_rz = 0.0
+		t.hips_ry = 0.0
+		t.spine_ry = 0.0
+		t.shL = Vector3(0.35, 0, -0.1)
+		t.shR = Vector3(0.35, 0, 0.1)
+		t.elL = Vector3(0.9, 0, 0)
+		t.elR = Vector3(0.9, 0, 0)
+	match upper:
+		"finger":   # the bird, right in their face
+			t.shR = Vector3(1.25, 0.25, 0.1)
+			t.elR = Vector3(1.55, 0, 0)
+			t.head_rx = -0.05
+		"fistpump":
+			var pump := absf(sin(_t * 9.0))
+			t.shR = Vector3(2.3 + pump * 0.4, 0.1, 0.2)
+			t.elR = Vector3(1.2 - pump * 0.9, 0, 0)
+			t.shL = Vector3(0.3, 0, -0.1)
+			t.spine_rx -= 0.1
+		"watch":    # left wrist up to the face, admire it
+			t.shL = Vector3(1.1, -0.9, -0.1)
+			t.elL = Vector3(1.9, 0, 0)
+			t.head_rx = 0.35
+			t.head_ry = 0.35
+		"point":
+			t.shR = Vector3(1.5, 0.05, 0.05)
+			t.elR = Vector3(0.05, 0, 0)
+		"dunk":
+			t.shL = Vector3(2.9, -0.15, 0)
+			t.shR = Vector3(2.9, 0.15, 0)
+			t.elL = Vector3(0.3, 0, 0)
+			t.elR = Vector3(0.3, 0, 0)
+			t.knL = Vector3(-1.0, 0, 0)
+			t.knR = Vector3(-0.6, 0, 0)
+			t.hipL = Vector3(0.6, 0, 0)
+			t.spine_rx = -0.15
 		"aim":
 			t.shL = Vector3(1.42, -0.42, 0)
 			t.shR = Vector3(1.42, 0.42, 0)
 			t.elL = Vector3(0.12, 0, 0)
 			t.elR = Vector3(0.12, 0, 0)
 			t.spine_rx = 0.03
-		"sit", "type":
+		"type":
 			t.root_y = -0.43
 			t.hipL = Vector3(1.5, 0, 0.05)
 			t.hipR = Vector3(1.5, 0, -0.05)
 			t.knL = Vector3(-1.5, 0, 0)
 			t.knR = Vector3(-1.5, 0, 0)
-			t.shL = Vector3(0.35, 0, -0.1)
-			t.shR = Vector3(0.35, 0, 0.1)
-			t.elL = Vector3(0.9, 0, 0)
-			t.elR = Vector3(0.9, 0, 0)
-			if pose == "type":
-				t.shL = Vector3(0.9, -0.2, 0)
-				t.shR = Vector3(0.9, 0.2, 0)
-				t.elL = Vector3(0.9 + sin(_t * 18.0) * 0.08, 0, 0)
-				t.elR = Vector3(0.9 + cos(_t * 17.0) * 0.08, 0, 0)
+			t.shL = Vector3(0.9, -0.2, 0)
+			t.shR = Vector3(0.9, 0.2, 0)
+			t.elL = Vector3(0.9 + sin(_t * 18.0) * 0.08, 0, 0)
+			t.elR = Vector3(0.9 + cos(_t * 17.0) * 0.08, 0, 0)
 		"type_stand":
 			t.shL = Vector3(0.75, -0.2, 0)
 			t.shR = Vector3(0.75, 0.2, 0)
@@ -548,8 +596,8 @@ func _process(delta: float) -> void:
 	ry = lerpf(ry, t.root_y + t.bob, k)
 	_state["root_y"] = ry
 	skel.set_bone_pose_position(hips, _rest_p[hips] + Vector3(0, ry, 0))
-	_pose_bone("Hips", Vector3(t.root_rx, 0, 0), k)
-	_pose_bone("Spine", Vector3(t.spine_rx, 0, 0), k)
+	_pose_bone("Hips", Vector3(t.root_rx, t.hips_ry, t.hips_rz), k)
+	_pose_bone("Spine", Vector3(t.spine_rx, t.spine_ry, -t.hips_rz * 0.6), k)
 	_pose_bone("Chest", Vector3(t.chest_rx, 0, 0), k)
 	_pose_bone("UpperArm_L", t.shL, k)
 	_pose_bone("UpperArm_R", t.shR, k)
@@ -562,7 +610,7 @@ func _process(delta: float) -> void:
 	_pose_bone("Foot_L", t.ftL, k)
 	_pose_bone("Foot_R", t.ftR, k)
 	_pose_bone("Neck", Vector3(_pitch * 0.5, 0, 0), k)
-	_pose_bone("Head", Vector3(_pitch * 0.3, sin(_t * 0.37) * 0.08, 0), k)
+	_pose_bone("Head", Vector3(_pitch * 0.3 + t.head_rx, sin(_t * 0.37) * 0.08 * idle + t.head_ry - t.spine_ry * 0.5, 0), k)
 	# blink + tired lids
 	_next_blink -= delta
 	if _next_blink <= 0.0:

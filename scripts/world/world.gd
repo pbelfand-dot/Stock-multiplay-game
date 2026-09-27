@@ -143,7 +143,10 @@ func _process(delta: float) -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if event.is_action_pressed("interact") and not ui_blocking() and local_player:
+	if event.is_action_pressed("interact") and not ui_blocking() and local_player and local_player.seat >= 0 \
+			and local_player.look_target().get("type", "") in ["", "chair"]:
+		local_player.stand_up()
+	elif event.is_action_pressed("interact") and not ui_blocking() and local_player:
 		var t: Dictionary = local_player.look_target()
 		if t.get("type", "") == "ball":
 			ball.request_grab()
@@ -151,6 +154,8 @@ func _unhandled_input(event: InputEvent) -> void:
 			match_node.request_relieve()
 		elif t.get("type", "") == "studio_exit":
 			leave_studio()
+		elif t.get("type", "") == "chair":
+			local_player.sit(t.id)
 		elif not t.is_empty():
 			hud.open_interact(t)
 			get_viewport().set_input_as_handled()

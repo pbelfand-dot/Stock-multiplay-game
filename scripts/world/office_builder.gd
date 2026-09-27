@@ -41,6 +41,8 @@ var npcs := {}                  # speaker name -> Node3D (has "Bubble" Label3D)
 var desks := {}                 # desk id -> floor position (players own desks 18..23)
 const PLAYER_DESK0 := 18
 var toilet_pos := Vector3.ZERO
+var chairs := {}                # chair id -> {node, pos, rot}  (desk chairs you can sit in)
+const CHAIR_LAYER := 16
 var hoop_rim := Vector3(-W / 2 + 0.5, 2.05, -9.5)
 const RESTROOM_DOOR_Z := 2.2
 var ball_spawn := Vector3(-16.5, 1.0, -9.5)
@@ -76,6 +78,7 @@ func build(parent: Node3D) -> void:
 	nm.cell_size = 0.25
 	nm.cell_height = 0.25
 	nm.agent_max_climb = 0.25
+	nm.geometry_collision_mask = 1   # chairs (layer 16) are sit targets, not walls
 	nm.filter_baking_aabb = AABB(Vector3(-W / 2, -1, -D / 2), Vector3(W, 4, D))
 	nav.navigation_mesh = nm
 	root.add_child(nav)
@@ -397,7 +400,7 @@ func _desk(p: Vector3, id: int) -> void:
 	prop("Keyboard", p + Vector3(0, 0.78, 0.2), rng.randf_range(-0.05, 0.05))
 	prop("Mouse", p + Vector3(0.42, 0.78, 0.2), rng.randf_range(-0.2, 0.2))
 	prop("Lamp", p + Vector3(-0.7, 0.78, -0.25), 0.45)
-	prop("Chair", p + Vector3(rng.randf_range(-0.1, 0.1), 0, 0.85), PI + rng.randf_range(-0.35, 0.35))
+	_chair(id, p + Vector3(rng.randf_range(-0.1, 0.1), 0, 0.85), PI + rng.randf_range(-0.35, 0.35))
 	desks[id] = p
 	add_interact(crt, "terminal", id, "[E] Trade")
 	if id >= PLAYER_DESK0:
@@ -413,6 +416,29 @@ func _desk(p: Vector3, id: int) -> void:
 			prop("Papers", p + Vector3(-0.5, 0.78, 0.18), rng.randf_range(-0.3, 0.3))
 	if rng.randf() < 0.5:
 		prop("Trash", p + Vector3(-0.55, 0, -0.1))
+
+
+## A desk chair you can sit in: its own (unbatched) meshes so it can hide while
+## someone rolls around in it, plus a sit target the player body walks through.
+func _chair(id: int, pos: Vector3, rot: float) -> void:
+	var ch := prop("Chair", pos, rot)
+	ch.name = "Chair%d" % id
+	for mi in ch.get_children():
+		mi.set_meta("no_batch", true)
+	var sb := StaticBody3D.new()
+	sb.collision_layer = CHAIR_LAYER
+	sb.collision_mask = 0
+	var cs := CollisionShape3D.new()
+	var sh := BoxShape3D.new()
+	sh.size = Vector3(0.55, 0.6, 0.55)
+	cs.shape = sh
+	cs.position = Vector3(0, 0.6, 0)
+	sb.add_child(cs)
+	sb.set_meta("interact", "chair")
+	sb.set_meta("interact_id", id)
+	sb.set_meta("prompt", "[E] Sit (WASD to roll)")
+	ch.add_child(sb)
+	chairs[id] = {"node": ch, "pos": pos, "rot": rot}
 
 
 func _elevator() -> void:

@@ -3,6 +3,7 @@ extends Node
 ##   xvfb-run -s "-screen 0 1600x900x24" godot --path . -- --host --autostart --shots=/tmp/shots
 
 var out_dir := ""
+var _fakes: Array = []
 
 
 func _ready() -> void:
@@ -85,9 +86,20 @@ func _run() -> void:
 		world.players_node.add_child(d)
 		d.teleport(Vector3(1.2 + k * 1.3, 0.1, 5.5 - k * 0.6))
 		d.rotation.y = PI + 0.3
+	_fakes = []
+	for c in world.players_node.get_children():
+		if int(str(c.name)) >= 900:
+			_fakes.append(c)
 	world._say("TJZ", "OH MY GOD, TRADE! LONG BTC RIGHT NOW!", 30.0)
 	world._say("KIMCHEE", "APING MY WHOLE BAG INTO $WAGMI. NFA", 30.0)
+	# emotes + chairs on the two fake teammates (as if they came over the network)
+	views.append(["34_emotes", Vector3(-6.8, 0.1, 6.2), 0.25, -0.05])
 	for v in views:
+		if v[0] == "34_emotes":
+			var ch: Dictionary = world.builder.chairs[world.builder.chairs.keys()[19]]
+			_fakes[0].net_tf(Vector3(-7.6, 0.1, 3.9), PI + 0.4, 0.0, 1 << 3)            # the finger
+			_fakes[1].net_tf(ch.pos + Vector3(0, 0.1, 0), ch.rot + PI, 0.0, (3 << 3) | ((world.builder.chairs.keys()[19] + 1) << 6))
+			await get_tree().create_timer(0.8).timeout
 		p.teleport(v[1])
 		p.rotation.y = v[2]
 		p.pitch = v[3]
@@ -213,6 +225,10 @@ func _quick(world, m, hud) -> void:
 		world.players_node.add_child(d)
 		d.teleport(Vector3(1.2 + k * 1.3, 0.1, 5.5 - k * 0.6))
 		d.rotation.y = PI + 0.3
+	_fakes = []
+	for c in world.players_node.get_children():
+		if int(str(c.name)) >= 900:
+			_fakes.append(c)
 	world._say("TJZ", "OH MY GOD, TRADE! LONG BTC RIGHT NOW!", 30.0)
 	world._say("KIMCHEE", "APING MY WHOLE BAG INTO $WAGMI. NFA", 30.0)
 	for v in [["q1_streamers", Vector3(72.5, 0.1, 3.4), 0.55, 0.0], ["q2_teammates", Vector3(2.0, 0.1, 8.6), 0.0, -0.1],
