@@ -40,6 +40,7 @@ var slot_machines: Array = []
 var npcs := {}                  # speaker name -> Node3D (has "Bubble" Label3D)
 var desks := {}                 # desk id -> floor position (players own desks 18..23)
 const PLAYER_DESK0 := 18
+var toilet_pos := Vector3.ZERO
 var hoop_rim := Vector3(-W / 2 + 0.5, 2.05, -9.5)
 const RESTROOM_DOOR_Z := 2.2
 var ball_spawn := Vector3(-16.5, 1.0, -9.5)
@@ -300,7 +301,9 @@ func _restroom() -> void:
 	box(Vector3(0.2, H, 3.6), Vector3(x0 - 0.1, H / 2, z), Color(0.62, 0.78, 0.86))
 	box(Vector3(3.2, H, 0.2), Vector3(x0 + 1.5, H / 2, z - 1.9), Color(0.62, 0.78, 0.86))
 	box(Vector3(3.2, H, 0.2), Vector3(x0 + 1.5, H / 2, z + 1.9), Color(0.62, 0.78, 0.86))
-	solid(Vector3(0.45, 0.8, 0.7), Vector3(x0 + 0.4, 0.4, z - 1.0))
+	var toilet := solid(Vector3(0.45, 0.8, 0.7), Vector3(x0 + 0.4, 0.4, z - 1.0))
+	add_interact(toilet, "relieve", 0, "[E] Relieve the pressure")
+	toilet_pos = Vector3(x0 + 0.4, 0, z - 1.0)
 	prop("Toilet", Vector3(x0 + 0.35, 0, z - 1.05), PI / 2)
 	prop("Sink", Vector3(x0 + 1.6, 0, z + 1.6), PI)
 	prop("CeilingLight", Vector3(x0 + 1.5, H, z))

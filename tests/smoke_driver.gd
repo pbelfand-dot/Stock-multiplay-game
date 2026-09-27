@@ -52,7 +52,7 @@ func _run() -> void:
 	if not await _wait_for(func(): return _match() != null, 15.0, "world"):
 		return
 	m = _match()
-	for sig in ["news", "trade_closed", "trade_opened", "slot_result", "arrested", "raid_changed", "chat", "state_changed"]:
+	for sig in ["news", "trade_closed", "trade_opened", "slot_result", "arrested", "raid_changed", "chat", "state_changed", "relieved"]:
 		var s: String = sig
 		m.connect(sig, func(_a = null, _b = null, _c = null, _d = null): got[s] = got.get(s, 0) + 1)
 	if role == "host":
@@ -142,7 +142,17 @@ func _client() -> void:
 	w.ball.request_throw(Vector3(-1, 0.6, 0))
 	if not await _wait_for(func(): return w.ball.holder == 0, 5.0, "ball throw"):
 		return
-	_say("basketball grab + throw ok")
+		_say("basketball grab + throw ok")
+	# blood pressure: walk into the restroom and take care of it
+	w.local_player.teleport(w.builder.toilet_pos + Vector3(1.1, 0.1, 0.4))
+	await get_tree().create_timer(0.6).timeout
+	m.request_relieve()
+	if not await _wait_for(func(): return got.get("relieved", 0) >= 1, 5.0, "restroom relief"):
+		return
+	if not await _wait_for(func(): return m.pressure_of(Net.my_id()) < 5.0, 3.0, "pressure reset"):
+		return
+	_say("restroom relief ok (pressure %.1f)" % m.pressure_of(Net.my_id()))
+	await get_tree().create_timer(4.0 + 0.2).timeout
 	w.local_player.teleport(w.spawn_point(1))
 	await get_tree().create_timer(0.5).timeout
 	m.send_chat("ready for the cops")

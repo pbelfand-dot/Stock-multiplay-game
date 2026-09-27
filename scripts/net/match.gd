@@ -29,6 +29,7 @@ signal day_ended(summary: Dictionary)
 signal game_over(summary: Dictionary)
 signal toast(msg: String)
 signal luxury_bought(peer: int, key: String)
+signal relieved(peer: int, line: String)
 signal chat(from_name: String, msg: String)
 signal error_msg(msg: String)
 
@@ -42,6 +43,7 @@ var heat := {}                  # peer -> float
 var jail := {}                  # peer -> seconds left
 var inventory := {}             # peer -> {item: count}
 var owned := {}                 # peer -> {luxury: count} (flex items, never consumed)
+var pressure := {}              # peer -> blood pressure 0..100 (see Rules.PRESSURE_*)
 var effects := {}               # peer -> {effect: seconds left}
 var stats := {}                 # peer -> {pnl_day, pnl_total, trades, arrests, biggest}
 var raid := {}                  # {target, t} when active
@@ -179,6 +181,9 @@ func _req_open(sym: String, side: int, margin: float, lev: int) -> void:
 	if is_jailed(id):
 		_s_error.rpc_id(id, "You're in jail, genius.")
 		return
+	if pressure_of(id) >= Rules.PRESSURE_FAT_FINGER and rng.randf() < 0.6:
+		margin *= 2.0 if rng.randf() < 0.5 else 0.5   # shaking hands: fat-finger the size
+		_s_error.rpc_id(id, "FAT FINGER! Your hands are shaking. Go relieve the pressure.")
 	var fee_rate := 0.0 if effect_left(id, "cigar") > 0.0 else Ledger.FEE_RATE
 	var r: Dictionary = ledger.open_position(acct_for(id), sym, side, margin, lev,
 		market.price_of(sym), Net.player_name(id), fee_rate)
@@ -292,6 +297,34 @@ func _req_buy_lux(key: String) -> void:
 	_push_state()
 
 
+func pressure_of(peer: int) -> float:
+	return float(pressure.get(peer, 0.0))
+
+
+## Go take care of it (only in the restroom, see World.near_toilet).
+func request_relieve() -> void:
+	_req_relieve.rpc_id(1)
+
+
+@rpc("any_peer", "call_local", "reliable")
+func _req_relieve() -> void:
+	if not Net.is_server():
+		return
+	var id := _sender()
+	_ensure_peer(id)
+	if effect_left(id, "relief") > 0.0 or is_jailed(id) or not world.near_toilet(id):
+		return
+	effects[id]["relief"] = Rules.RELIEF_SECONDS
+	pressure[id] = 0.0
+	_s_relieved.rpc(id, Rules.RELIEF_LINES[rng.randi() % Rules.RELIEF_LINES.size()])
+	_push_state()
+
+
+@rpc("authority", "call_local", "reliable")
+func _s_relieved(peer: int, line: String) -> void:
+	relieved.emit(peer, line)
+
+
 func request_use(item: String) -> void:
 	_req_use.rpc_id(1, item)
 
@@ -399,6 +432,10 @@ func _server_step(dt: float) -> void:
 				effects[id].erase(e)
 	for id in heat.keys():
 		heat[id] = maxf(heat[id] - Rules.HEAT_DECAY * dt, 0.0)
+	if phase == "trading":
+		for id in pressure.keys():
+			if not is_jailed(id) and effect_left(id, "relief") <= 0.0:
+				pressure[id] = minf(pressure[id] + Rules.PRESSURE_RISE * dt, Rules.PRESSURE_MAX)
 	for id in jail.keys():
 		jail[id] -= dt
 		if jail[id] <= 0.0:
@@ -421,7 +458,7 @@ func _server_step(dt: float) -> void:
 		if time_left <= 0.0:
 			_start_day()
 
-	_s_tick.rpc(market.tick_payload(), time_left, heat, raid)
+	_s_tick.rpc(market.tick_payload(), time_left, heat, raid, pressure)
 	if _dirty:
 		_push_state()
 
@@ -545,6 +582,8 @@ func _ensure_peer(id: int) -> void:
 		inventory[id] = {}
 	if not owned.has(id):
 		owned[id] = {}
+	if not pressure.has(id):
+		pressure[id] = 0.0
 	if not effects.has(id):
 		effects[id] = {}
 	if not stats.has(id):
@@ -574,6 +613,7 @@ func _reset_run() -> void:
 	heat.clear()
 	inventory.clear()
 	owned.clear()
+	pressure.clear()
 	effects.clear()
 	stats.clear()
 	jail.clear()
@@ -709,7 +749,8 @@ func _mirror_market_full(p: Dictionary) -> void:
 
 
 @rpc("authority", "call_local", "unreliable_ordered")
-func _s_tick(p: Dictionary, t_left: float, h: Dictionary, r: Dictionary) -> void:
+func _s_tick(p: Dictionary, t_left: float, h: Dictionary, r: Dictionary, bp: Dictionary = {}) -> void:
+	pressure = bp
 	if m_assets.size() != p.p.size():
 		return
 	var new_candle: bool = p.ci != m_ci

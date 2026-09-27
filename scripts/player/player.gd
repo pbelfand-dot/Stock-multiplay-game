@@ -2,6 +2,7 @@ extends CharacterBody3D
 ## First-person player. The owning peer simulates movement and broadcasts
 ## its transform; every other peer shows an interpolated puppet.
 
+const Rules = preload("res://scripts/sim/rules.gd")
 const WALK := 4.5
 const SPRINT := 7.5
 const JUMP := 4.6
@@ -15,6 +16,7 @@ var peer_id := 1
 var display_name := "Trader"
 var look := {}
 var _watch_kind := ""
+var _sway_t := 0.0
 var is_local := false
 var world   # set by World
 
@@ -216,6 +218,9 @@ func _local_move(delta: float) -> void:
 	var speed := SPRINT if Input.is_action_pressed("sprint") else WALK
 	if m and m.effect_left(peer_id, "powder") > 0.0:
 		speed *= 1.6
+	var bp: float = m.pressure_of(peer_id) if m else 0.0
+	if bp > Rules.PRESSURE_WOBBLY:   # high blood pressure: heavy legs
+		speed *= lerpf(1.0, 0.6, (bp - Rules.PRESSURE_WOBBLY) / (Rules.PRESSURE_MAX - Rules.PRESSURE_WOBBLY))
 	var dir := (transform.basis * Vector3(input.x, 0, input.y)).normalized()
 	_dive_cd = maxf(_dive_cd - delta, 0.0)
 	if diving > 0.0:
@@ -266,6 +271,12 @@ func _local_move(delta: float) -> void:
 		else:
 			cam.h_offset = 0.0
 			cam.fov = lerpf(cam.fov, 80.0, delta * 3.0)
+		# blood pressure: the room sways and throbs
+		var bpk := clampf((m.pressure_of(peer_id) - Rules.PRESSURE_WOBBLY) / (Rules.PRESSURE_MAX - Rules.PRESSURE_WOBBLY), 0.0, 1.0) if m else 0.0
+		_sway_t += delta
+		cam.rotation.z = sin(_sway_t * 1.3) * 0.05 * bpk
+		cam.rotation.y = sin(_sway_t * 0.9 + 1.0) * 0.035 * bpk
+		cam.v_offset = sin(_sway_t * 7.0) * 0.01 * bpk
 
 
 func _update_fx() -> void:

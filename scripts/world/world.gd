@@ -92,7 +92,13 @@ func spawn_point(i: int) -> Vector3:
 
 
 func ui_blocking() -> bool:
-	return hud != null and hud.is_modal_open()
+	return hud != null and (hud.is_modal_open() or hud.busy())
+
+
+## Server check for the restroom: is this player standing by the toilet?
+func near_toilet(peer: int) -> bool:
+	var pn := player_node(peer)
+	return pn != null and pn.global_position.distance_to(builder.toilet_pos) < 2.2
 
 
 # ---------------------------------------------------------------- per-frame
@@ -112,6 +118,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		var t: Dictionary = local_player.look_target()
 		if t.get("type", "") == "ball":
 			ball.request_grab()
+		elif t.get("type", "") == "relieve":
+			match_node.request_relieve()
 		elif not t.is_empty():
 			hud.open_interact(t)
 			get_viewport().set_input_as_handled()

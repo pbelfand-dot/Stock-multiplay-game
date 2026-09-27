@@ -56,6 +56,17 @@ static func quota_for_day(day: int, start: float = START_FUND) -> float:
 
 # ---------------- slots ----------------
 
+## Blood pressure (Mark Hanna's lunch prescription): rises while the market is
+## open; relieve it in the restroom 2-3 times a trading day or it wrecks you.
+const PRESSURE_MAX := 100.0
+const PRESSURE_RISE := 100.0 / 120.0       # full in ~2 min of trading
+const PRESSURE_RED := 50.0                 # screen starts going red
+const PRESSURE_WOBBLY := 70.0              # camera sway, slower legs
+const PRESSURE_FAT_FINGER := 85.0          # orders come out the wrong size
+const RELIEF_SECONDS := 4.0
+const RELIEF_LINES := ["Prescription filled.", "Twice a day, minimum.", "Keep the blood flowing.",
+	"Rookie numbers? Not today.", "Rhythm below the belt: restored.", "Balance restored. Differential intact."]
+
 const SLOT_SYMBOLS := ["CHERRY", "CLOVER", "BELL", "DIAMOND", "SEVEN"]
 const SLOT_WEIGHTS := [5, 4, 3, 2, 1]
 const SLOT_TRIPLE_PAY := {"CHERRY": 5, "CLOVER": 8, "BELL": 12, "DIAMOND": 25, "SEVEN": 60}

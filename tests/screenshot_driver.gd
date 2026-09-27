@@ -152,6 +152,20 @@ func _run() -> void:
 	p.head.rotation.x = -0.38
 	await _frames(8)
 	await _snap("29_flex_desk")
+	# blood pressure: redline it, then go to the restroom
+	m.pressure[Net.my_id()] = 93.0
+	p.teleport(Vector3(-14.0, 0.1, 2.2))
+	p.rotation.y = PI / 2
+	p.pitch = 0.0
+	p.head.rotation.x = 0.0
+	await get_tree().create_timer(1.2).timeout
+	await _snap("30_blood_pressure")
+	p.teleport(world.builder.toilet_pos + Vector3(1.1, 0.1, 0.4))
+	await get_tree().create_timer(0.3).timeout
+	m.request_relieve()
+	await get_tree().create_timer(1.4).timeout
+	await _snap("31_relief")
+	await get_tree().create_timer(3.0).timeout
 	hud.mugshot.play(4298, "Trader", world.local_player.look)
 	await get_tree().create_timer(1.0).timeout
 	await _snap("13_mugshot")

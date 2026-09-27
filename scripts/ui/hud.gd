@@ -19,6 +19,14 @@ var day_lbl: Label
 var time_lbl: Label
 var phase_lbl: Label
 var heat_bar: ProgressBar
+var bp_bar: ProgressBar
+var bp_lbl: Label
+var bp_vignette: ColorRect
+var relief_panel: ColorRect
+var relief_lbl: Label
+var relief_t := 0.0
+var _beat_t := 0.0
+var _bp_warned := false
 var heat_lbl: Label
 var chyron: PanelContainer
 var chyron_speaker: Label
@@ -81,6 +89,7 @@ func setup(w, m) -> void:
 	m.error_msg.connect(func(e): show_toast(e, UI.RED))
 	m.chat.connect(_on_chat)
 	m.luxury_bought.connect(_on_luxury)
+	m.relieved.connect(_on_relieved)
 	_on_state()
 
 
@@ -133,6 +142,19 @@ func _build_top_bar() -> void:
 	bg.set_corner_radius_all(6)
 	heat_bar.add_theme_stylebox_override("background", bg)
 	heat_box.add_child(heat_bar)
+	bp_lbl = UI.lbl("BLOOD PRESSURE", 18, Color(1, 0.55, 0.55), true)
+	bp_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	heat_box.add_child(bp_lbl)
+	bp_bar = ProgressBar.new()
+	bp_bar.max_value = Rules.PRESSURE_MAX
+	bp_bar.show_percentage = false
+	bp_bar.custom_minimum_size = Vector2(280, 12)
+	var bfill := StyleBoxFlat.new()
+	bfill.bg_color = Color(0.9, 0.1, 0.2)
+	bfill.set_corner_radius_all(5)
+	bp_bar.add_theme_stylebox_override("fill", bfill)
+	bp_bar.add_theme_stylebox_override("background", bg)
+	heat_box.add_child(bp_bar)
 	jail_lbl = UI.lbl("", 26, UI.RED, true)
 	jail_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	heat_box.add_child(jail_lbl)
@@ -274,6 +296,34 @@ func _build_modals() -> void:
 	root.add_child(lux_shop)
 	unbox = Overlays.Unbox.new()
 	root.add_child(unbox)
+	# blood pressure: red, pulsing vignette + the restroom fade
+	bp_vignette = ColorRect.new()
+	bp_vignette.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	bp_vignette.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var sh := Shader.new()
+	sh.code = """shader_type canvas_item;
+uniform float strength = 0.0;
+void fragment() {
+	float d = distance(UV, vec2(0.5)) * 1.45;
+	float v = smoothstep(0.35, 1.0, d) * strength + strength * 0.12;
+	COLOR = vec4(0.75, 0.0, 0.03, clamp(v, 0.0, 0.85));
+}"""
+	var sm := ShaderMaterial.new()
+	sm.shader = sh
+	bp_vignette.material = sm
+	root.add_child(bp_vignette)
+	root.move_child(bp_vignette, 0)
+	relief_panel = ColorRect.new()
+	relief_panel.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	relief_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	relief_panel.color = Color(0.02, 0.02, 0.03, 0.0)
+	root.add_child(relief_panel)
+	relief_lbl = UI.lbl("", 34, UI.GOLD, true)
+	relief_lbl.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	relief_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	relief_lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	relief_lbl.modulate.a = 0.0
+	relief_panel.add_child(relief_lbl)
 	summary = Overlays.Summary.new()
 	root.add_child(summary)
 	mugshot = Overlays.Mugshot.new()
@@ -367,6 +417,7 @@ func _process(delta: float) -> void:
 		raid_flash.color = Color(1, 0, 0, (0.12 if mine else 0.05) * (0.5 + 0.5 * sin(_raid_t * 10.0)))
 	else:
 		raid_flash.color.a = 0.0
+	_update_pressure_fx(delta)
 	var jl: float = match_node.jail.get(Net.my_id(), 0.0)
 	jail_lbl.text = "IN JAIL %ds" % ceili(jl) if jl > 0.0 else ""
 	jail_lbl.visible = jl > 0.0
@@ -445,6 +496,14 @@ func _on_tick() -> void:
 	fund_lbl.add_theme_color_override("font_color", UI.GREEN if eq >= match_node.quota or match_node.phase == "lobby" else UI.GOLD)
 	var h: float = match_node.heat.get(Net.my_id(), 0.0)
 	heat_bar.value = h
+	var bp: float = match_node.pressure_of(Net.my_id())
+	bp_bar.value = bp
+	bp_lbl.text = "BLOOD PRESSURE %d%s" % [int(bp), "  → RESTROOM!" if bp >= Rules.PRESSURE_WOBBLY else ""]
+	if bp >= Rules.PRESSURE_RED and not _bp_warned:
+		_bp_warned = true
+		show_toast("Blood pressure rising. Mark Hanna's prescription: twice a day, minimum. Restroom's by the whiteboard.", Color(1, 0.55, 0.55))
+	elif bp < 10.0:
+		_bp_warned = false
 	heat_lbl.text = "HEAT %d" % int(h)
 	if terminal.visible:
 		terminal._refresh_prices()
@@ -566,6 +625,39 @@ func _on_day_ended(s: Dictionary) -> void:
 	elif s.get("passed", false):
 		Sfx.play("jackpot")
 	summary.show_summary(s)
+
+
+## True while you're busy in the restroom (World blocks movement).
+func busy() -> bool:
+	return relief_t > 0.0
+
+
+func _update_pressure_fx(delta: float) -> void:
+	var bp: float = match_node.pressure_of(Net.my_id())
+	var k := clampf((bp - Rules.PRESSURE_RED) / (Rules.PRESSURE_MAX - Rules.PRESSURE_RED), 0.0, 1.0)
+	_beat_t -= delta
+	var pulse := 0.0
+	if k > 0.0 and relief_t <= 0.0:
+		if _beat_t <= 0.0:
+			_beat_t = lerpf(1.3, 0.55, k)
+			Sfx.play("heartbeat", lerpf(-14.0, -2.0, k))
+		pulse = maxf(0.0, _beat_t - lerpf(1.3, 0.55, k) + 0.25) * 2.0
+	(bp_vignette.material as ShaderMaterial).set_shader_parameter("strength", k * (0.75 + 0.25 * pulse))
+	if relief_t > 0.0:
+		relief_t -= delta
+		var a := clampf(minf(relief_t, Rules.RELIEF_SECONDS - relief_t) * 3.0, 0.0, 1.0)
+		relief_panel.color.a = a
+		relief_lbl.modulate.a = a
+
+
+func _on_relieved(peer: int, line: String) -> void:
+	if peer == Net.my_id():
+		close_modals()
+		relief_t = Rules.RELIEF_SECONDS
+		relief_lbl.text = "*chest thump*  mm-MM  mm-mm\n\n\"%s\"" % line
+		Sfx.play("hum")
+	else:
+		show_toast("%s is in the restroom. Keeping the blood flowing." % Net.player_name(peer), UI.DIM)
 
 
 func _on_luxury(peer: int, key: String) -> void:
