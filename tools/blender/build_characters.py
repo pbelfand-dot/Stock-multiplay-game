@@ -35,6 +35,7 @@ from mathutils import Matrix, Quaternion, Vector
 from mathutils.bvhtree import BVHTree
 
 OUT = os.path.join(os.path.dirname(__file__), "..", "..", "assets", "characters", "character_kit.glb")
+HEAD_STRETCH = 1.11  # Schedule I-style tall bean heads: the head group is stretched this much in z
 K = 0.565           # metaball: visible surface radius = K * element radius (stiffness 2, threshold .6)
 RES = 0.011         # metaball polygonization size (m)
 random.seed(7)
@@ -298,25 +299,17 @@ def build_head():
         return hit[0] if hit[0] else Vector((x, 0.15, z))
 
     FACE["surf"] = surf
-    eye_z = c.z + 0.03
-    ex = 0.058
+    eye_z = c.z + 0.032
+    ex = 0.066
+    q = 1.0 / HEAD_STRETCH      # pre-squash in z so features come out round after the stretch
     parts = [head]
-    # nose (orange-tinted skin)
+    # small skin-toned nose nub (Schedule I faces barely have one)
     n = Blob("Nose", res=0.004)
-    np_ = surf(0, c.z - 0.025)
-    n.ellipsoid(np_ + Vector((0, 0.012, 0.0)), (0.02, 0.028, 0.03))
-    n.ellipsoid(np_ + Vector((0, 0.024, -0.018)), (0.017, 0.02, 0.016))
+    np_ = surf(0, c.z - 0.035)
+    n.ellipsoid(np_ + Vector((0, 0.006, 0.0)), (0.016, 0.018, 0.02 * q))
     nose = n.to_object("Nose")
-    set_color(nose, (1.0, 0.72, 0.6))
+    set_color(nose, (0.97, 0.88, 0.84))
     parts.append(nose)
-    # dark bags around/below the eyes (the trailer's tired look)
-    for s in (1, -1):
-        bp = surf(s * ex, eye_z - 0.03)
-        bg = Blob("Bag", res=0.004)
-        bg.ellipsoid(bp + Vector((0, -0.006, 0.0)), (0.05, 0.014, 0.03))
-        bag = bg.to_object("Bag")
-        set_color(bag, (0.86, 0.72, 0.68))
-        parts.append(bag)
     head = join(parts, "Skull")
     # eyes: big bulging whites + small pupils (fixed colors)
     face_parts = []
@@ -325,16 +318,16 @@ def build_head():
         ep = surf(s * ex, eye_z)
         ec = ep + Vector((0, -0.008, 0))
         FACE["eyes"].append(ec)
-        w = uv_sphere(ec, (0.05, 0.036, 0.046), 24, 16, "EyeWhite")
+        w = uv_sphere(ec, (0.058, 0.04, 0.058 * q), 28, 18, "EyeWhite")
         set_color(w, (0.97, 0.97, 0.95))
-        p = uv_sphere(ec + Vector((-s * 0.006, 0.033, -0.004)), (0.015, 0.008, 0.016), 16, 10, "Pupil")
+        p = uv_sphere(ec + Vector((-s * 0.004, 0.038, -0.002)), (0.011, 0.006, 0.011 * q), 16, 10, "Pupil")
         set_color(p, (0.03, 0.03, 0.035))
         face_parts += [w, p]
     face = join(face_parts, "Eyes")
     # mouth (on the Jaw bone so it can open when talking)
     mp = surf(0, c.z - 0.105)
     FACE["mouth"] = mp
-    m = uv_sphere(mp + Vector((0, 0.002, 0)), (0.032, 0.008, 0.0065), 20, 10, "Mouth")
+    m = uv_sphere(mp + Vector((0, 0.002, 0)), (0.03, 0.007, 0.0045), 20, 10, "Mouth")
     set_color(m, (0.18, 0.05, 0.05))
     # eyelids: upper half-shells over each eye (on Lid bones → blink/droop)
     lids = []
@@ -345,7 +338,7 @@ def build_head():
         dead = [f for f in bm.faces if f.calc_center_median().z < -0.05]
         bmesh.ops.delete(bm, geom=dead, context="FACES")
         for v in bm.verts:
-            v.co = Vector((v.co.x * 0.056, v.co.y * 0.041, v.co.z * 0.051))
+            v.co = Vector((v.co.x * 0.064, v.co.y * 0.045, v.co.z * 0.064 * q))
         # droop: tilt the shell forward so it covers the top ~third of the eye
         rot = Matrix.Rotation(math.radians(38), 3, "X")
         for v in bm.verts:
@@ -359,9 +352,9 @@ def build_head():
     # brows (hair color)
     brows = []
     for s in (1, -1):
-        bp = surf(s * 0.062, eye_z + 0.075)
+        bp = surf(s * 0.066, eye_z + 0.078)
         br = Blob("Brow", res=0.004)
-        br.capsule(bp + Vector((-s * 0.03, 0.004, -0.004)), bp + Vector((s * 0.028, 0.0, 0.008)), 0.014)
+        br.capsule(bp + Vector((-s * 0.032, 0.006, -0.003)), bp + Vector((s * 0.03, 0.0, 0.004)), 0.017)
         brows.append(br.to_object("Brow"))
     return head, face, m, lids, join(brows, "Brows")
 
@@ -576,6 +569,20 @@ def build_cop():
     set_color(hol, (0.06, 0.06, 0.07))
     gear.append(hol)
     return shirt, join(gear, "Gear_cop")
+
+
+def build_vest():
+    """Dark tactical vest worn over the cop shirt (Godot prints POLICE on it)."""
+    b = Blob("Vest")
+    b.ellipsoid((0, -0.005, 1.03), (0.172, 0.13, 0.1))
+    b.ellipsoid((0, 0.0, 1.16), (0.17, 0.126, 0.13))
+    b.ellipsoid((0, 0.006, 1.33), (0.2, 0.138, 0.14))
+    for s in (1, -1):
+        b.capsule((s * 0.1, 0.0, 1.42), (s * 0.14, -0.01, 1.5), 0.04)     # shoulder straps
+    b.ellipsoid((0, 0.02, 1.5), (0.085, 0.1, 0.05), neg=True)              # neck hole
+    ob = b.to_object("Vest_cop", decimate=0.45)
+    set_color(ob, (0.26, 0.28, 0.32))
+    return ob
 
 
 def build_hoodie():
@@ -803,14 +810,27 @@ def build_beard(head, style):
     def jaw(d):
         return d.z < (mz / 0.19) + 0.12 and d.y > -0.3 and abs(_az(d)) < math.pi * 0.55
 
-    b = Blob("Beard_" + style, res=0.005)
-    if style in ("mustache", "goatee", "full"):
-        for i in range(-4, 5):
-            b.ball(mp + Vector((i * 0.0105, 0.011, 0.027 - abs(i) * 0.0035)), 0.016 if style != "mustache" else 0.018)
+    b = Blob("Beard_" + style, res=0.004)
+    surf = FACE["surf"]
+
+    def on_face(x, dz, lift=0.003):
+        return surf(x, mp.z + dz) + Vector((0, lift, 0))
+
+    q = 1.0 / HEAD_STRETCH
+    if style in ("mustache", "full"):
+        for i in range(-5, 6):                         # thick brush above the lip
+            x = i * 0.0078
+            b.ball(on_face(x, (0.017 - x * x * 5.0) * q), 0.0115 if style == "mustache" else 0.01)
     if style == "goatee":
-        b.ellipsoid(mp + Vector((0, 0.0, -0.05)), (0.04, 0.028, 0.035))
-        for sd in (1, -1):
-            b.capsule(mp + Vector((sd * 0.035, 0.004, 0.02)), mp + Vector((sd * 0.028, -0.004, -0.035)), 0.01)
+        # Schedule I "circle beard": a tight ring around the mouth + a chin patch
+        n = 30
+        for i in range(n):
+            ang = i / n * math.tau
+            x = math.cos(ang) * 0.047
+            dz = math.sin(ang) * (0.02 if math.sin(ang) > 0 else 0.05)
+            b.ball(on_face(x, dz * q), 0.011)
+        for x, dz in ((0, -0.036), (0.016, -0.032), (-0.016, -0.032), (0, -0.05), (0.03, -0.028), (-0.03, -0.028)):
+            b.ball(on_face(x, dz * q), 0.013)
     if style == "full":
         hair_mass(b, head, jaw, 0.02, 0.018, step=2, edge=False)
         b.ellipsoid(mp + Vector((0, -0.003, -0.012)), (0.036, 0.03, 0.012), neg=True)   # keep the mouth open
@@ -827,21 +847,21 @@ def build_glasses(kind):
     if kind == "shades":
         for e in (e0, e1):
             ln = Blob("Lens", res=0.004)
-            ln.ellipsoid(e + Vector((0, 0.05, 0.002)), (0.056, 0.01, 0.04), stiff=3)
+            ln.ellipsoid(e + Vector((0, 0.054, 0.0)), (0.06, 0.01, 0.04), stiff=3)
             parts.append(ln.to_object("Lens"))
         br = Blob("Bridge", res=0.004)
-        br.capsule(e0 + Vector((-0.02, 0.05, 0.02)), e1 + Vector((0.02, 0.05, 0.02)), 0.008)
+        br.capsule(e0 + Vector((-0.02, 0.054, 0.024)), e1 + Vector((0.02, 0.054, 0.024)), 0.008)
         for e, s in ((e0, 1), (e1, -1)):
-            br.capsule(e + Vector((s * 0.05, 0.045, 0.015)), Vector((s * 0.158, -0.02, e.z + 0.02)), 0.006)
+            br.capsule(e + Vector((s * 0.06, 0.049, 0.015)), Vector((s * 0.158, -0.02, e.z + 0.02)), 0.006)
         parts.append(br.to_object("Frame"))
         ob = join(parts, "Glasses_shades")
         set_color(ob, (0.03, 0.03, 0.04))
         return ob
     for e in (e0, e1):
         bm = bmesh.new()
-        bmesh.ops.create_circle(bm, cap_ends=False, segments=24, radius=0.047)
+        bmesh.ops.create_circle(bm, cap_ends=False, segments=24, radius=0.058)
         for v in bm.verts:
-            v.co = Vector((v.co.x, 0, v.co.y)) + e + Vector((0, 0.045, 0))
+            v.co = Vector((v.co.x, 0, v.co.y / HEAD_STRETCH)) + e + Vector((0, 0.05, 0))
         rim = bm_to_object(bm, "Rim")
         add_mod(rim, "SKIN")
         for sv in rim.data.skin_vertices[0].data:
@@ -850,9 +870,9 @@ def build_glasses(kind):
         apply_mods(rim)
         parts.append(rim)
     br = Blob("Bridge", res=0.004)
-    br.capsule(e0 + Vector((-0.045, 0.05, 0.01)), e1 + Vector((0.045, 0.05, 0.01)), 0.006)
+    br.capsule(e0 + Vector((-0.056, 0.054, 0.01)), e1 + Vector((0.056, 0.054, 0.01)), 0.006)
     for e, s in ((e0, 1), (e1, -1)):
-        br.capsule(e + Vector((s * 0.047, 0.045, 0.01)), Vector((s * 0.158, -0.02, e.z + 0.015)), 0.005)
+        br.capsule(e + Vector((s * 0.058, 0.05, 0.01)), Vector((s * 0.158, -0.02, e.z + 0.015)), 0.005)
     parts.append(br.to_object("Frame"))
     ob = join(parts, "Glasses_specs")
     set_color(ob, (0.08, 0.08, 0.1))
@@ -905,7 +925,48 @@ def build_hat(head, kind):
         b.ellipsoid(top + Vector((0, 0.19, -0.1)), (0.11, 0.1, 0.012), rot=Quaternion((1, 0, 0), 0.12))
         b.ball(top + Vector((0, 0.0, 0.035)), 0.018)
         return join([ob, b.to_object("Bill")], "Hat_cap")
+    if kind == "police":   # navy ball cap; Godot prints POLICE on the front
+        ob = shell_from_head(head, "policedome", lambda d: d.z > 0.26, 0.03, 0.022)
+        b = Blob("Bill", res=0.005)
+        b.ellipsoid(top + Vector((0, 0.19, -0.115)), (0.115, 0.105, 0.012), rot=Quaternion((1, 0, 0), 0.1))
+        b.ball(top + Vector((0, 0.0, 0.035)), 0.018)
+        ob = join([ob, b.to_object("Bill")], "Hat_police")
+        set_color(ob, (0.1, 0.16, 0.42))
+        return ob
+    if kind == "bowler":
+        prof = [(0.0, 0.2), (0.07, 0.198), (0.12, 0.185), (0.15, 0.15), (0.16, 0.09), (0.162, 0.03),
+                (0.2, 0.012), (0.232, 0.02), (0.235, 0.0), (0.19, -0.004), (0.155, 0.0), (0.14, 0.02)]
+        return lathe_z(prof, c + Vector((0, -0.005, 0.085)), "Hat_bowler")
+    if kind == "bucket":
+        prof = [(0.0, 0.16), (0.14, 0.16), (0.155, 0.14), (0.165, 0.03), (0.2, -0.01), (0.245, -0.05),
+                (0.24, -0.062), (0.195, -0.025), (0.158, 0.0), (0.145, 0.02)]
+        return lathe_z(prof, c + Vector((0, -0.005, 0.1)), "Hat_bucket")
     return None
+
+
+def lathe_z(profile, base, name, segs=40):
+    """Surface of revolution around the z axis. profile: [(radius, z), ...] top-down."""
+    bm = bmesh.new()
+    rings = []
+    for r, z in profile:
+        if r < 1e-5:
+            rings.append([bm.verts.new(base + Vector((0, 0, z)))])
+        else:
+            rings.append([bm.verts.new(base + Vector((r * math.cos(a), r * math.sin(a), z)))
+                          for a in (2 * math.pi * i / segs for i in range(segs))])
+    for k in range(len(rings) - 1):
+        a, b = rings[k], rings[k + 1]
+        for i in range(segs):
+            if len(a) == 1:
+                bm.faces.new((a[0], b[i], b[(i + 1) % segs]))
+            else:
+                bm.faces.new((a[i], b[i], b[(i + 1) % segs], a[(i + 1) % segs]))
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    ob = bm_to_object(bm, name)
+    add_mod(ob, "SUBSURF", levels=1)
+    apply_mods(ob)
+    shade_smooth(ob)
+    return ob
 
 
 def build_accessories():
@@ -1105,7 +1166,8 @@ BUDGET = {
     "_hair": 4500, "Hair_afro": 5500, "Hair_long": 5500, "Hair_bald": 1500, "Beard_mustache": 900,
     "Beard_goatee": 1400, "Beard_full": 2500, "Beard_stubble": 1000, "Glasses_shades": 1200,
     "Glasses_specs": 1400, "Hat_cop": 3000, "Hat_headset": 2000, "Hat_headband": 1200, "Hat_beanie": 2500,
-    "Hat_cap": 2500, "Acc_watch": 700, "Acc_chain": 1000,
+    "Hat_cap": 2500, "Acc_watch": 700, "Acc_chain": 1000, "Hat_police": 2500, "Hat_bowler": 2200,
+    "Hat_bucket": 2200, "Vest_cop": 3500,
 }
 
 
@@ -1127,7 +1189,7 @@ def main():
     kit.append((build_tie(front), "Tie", "auto"))
     kit.append((build_tie(front, long_tie=True), "Tie", "auto"))
     cop, gear = build_cop()
-    kit += [(cop, "Suit", "auto"), (gear, "Fixed", "auto")]
+    kit += [(cop, "Suit", "auto"), (gear, "Fixed", "auto"), (build_vest(), "Fixed", "auto")]
     kit.append((build_hoodie(), "Suit", "auto"))
     kit.append((build_tee(), "Suit", "auto"))
     kit.append((build_dress_shirt(), "Suit", "auto"))
@@ -1143,6 +1205,9 @@ def main():
     kit.append((build_glasses("specs"), "Fixed", "Head"))
     kit.append((build_hat(head, "cop"), "Fixed", "Head"))
     kit.append((build_hat(head, "headset"), "Fixed", "Head"))
+    kit.append((build_hat(head, "police"), "Fixed", "Head"))
+    for h in ("bowler", "bucket"):
+        kit.append((build_hat(head, h), "Hat", "Head"))
     for h in ("headband", "beanie", "cap"):
         kit.append((build_hat(head, h), "Hat", "Head"))
     acc = build_accessories()
@@ -1161,7 +1226,8 @@ def main():
     # trailer proportions: a bigger head that sits low on the collar
     HEAD_GROUP = ("Skull", "Eyes", "Mouth", "Lids", "Brows", "Hair_", "Beard_", "Glasses_", "Hat_")
     pivot = Vector((0, 0, 1.6))
-    M = Matrix.Translation(Vector((0, 0, -0.035))) @ Matrix.Translation(pivot) @ Matrix.Scale(1.1, 4) @ Matrix.Translation(-pivot)
+    M = Matrix.Translation(Vector((0, 0, -0.035))) @ Matrix.Translation(pivot) \
+        @ Matrix.Diagonal((1.1, 1.1, 1.1 * HEAD_STRETCH, 1.0)) @ Matrix.Translation(-pivot)
     for ob, role, sk in kit:
         if ob.name.startswith(HEAD_GROUP):
             ob.data.transform(M)

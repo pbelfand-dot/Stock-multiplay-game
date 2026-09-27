@@ -56,7 +56,12 @@ func _setup_inputs() -> void:
 	_key("pause", [KEY_ESCAPE])
 	_key("start_day", [KEY_ENTER, KEY_KP_ENTER])
 	_key("chat", [KEY_T])
-	_key("emote_flex", [KEY_F])
+	_key("emote_finger", [KEY_F])
+	_key("emote_fistpump", [KEY_V])
+	_key("emote_watch", [KEY_Z])
+	_key("emote_point", [KEY_X])
+	_key("phone", [KEY_P])
+	_key("phone_action", [KEY_G])
 	_key("dive", [KEY_C, KEY_CTRL])
 	for i in 6:
 		_key("item_%d" % (i + 1), [KEY_1 + i])

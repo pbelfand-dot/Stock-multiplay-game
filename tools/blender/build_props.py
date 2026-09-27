@@ -241,7 +241,7 @@ BLACK = (0.08, 0.08, 0.09)
 BEIGE = (0.88, 0.83, 0.71)
 BEIGE_D = (0.76, 0.7, 0.58)
 BEIGE_L = (0.95, 0.92, 0.84)
-CHAIR_BLUE = (0.16, 0.46, 0.72)
+CHAIR_BLUE = (0.16, 0.6, 0.7)     # the newer clips' teal task chairs
 FABRIC = (0.84, 0.81, 0.76)
 PANEL_FRAME = (0.6, 0.6, 0.62)
 PAPER = (0.97, 0.97, 0.95)
@@ -490,12 +490,12 @@ def build_beanbag():
             h = -0.24 - (h + 0.24) * 0.1
         dent = 0.1 * math.exp(-((px + 0.04) ** 2 + (pz + 0.08) ** 2) / 0.04) if up > 0 else 0.0
         v.co = Vector((px, -pz, h - dent + 0.25))
-    ob = emit(bm, (0.98, 0.74, 0.14))
+    ob = emit(bm, (0.98, 0.78, 0.2))
     # baked shading: darker toward the floor so the blob reads as round
     col = ob.data.color_attributes["Col"]
     for i, v in enumerate(ob.data.vertices):
         k = 0.62 + 0.38 * min(1.0, v.co.z / 0.62)
-        c = lin((0.98 * k, 0.74 * k, 0.14 * k))
+        c = lin((0.98 * k, 0.78 * k, 0.2 * k))
         col.data[i].color = (c[0], c[1], c[2], 1.0)
     finish("Beanbag")
 
@@ -554,37 +554,62 @@ def build_vending():
 # ----------------------------------------------------------------------------- fun corner
 
 def build_slot():
-    """DEGEN SLOTS machine, front +z, 1.1 x 1.95. Reel window center (0, 1.15, ~0.44)."""
-    rbox((1.04, 0.8, 0.84), (0, 0.4, 0), PURPLE, r=0.04, seg=3)
-    rbox((1.08, 0.06, 0.88), (0, 0.03, 0), PURPLE_D, r=0.02)
-    rbox((0.9, 0.34, 0.02), (0, 0.42, 0.425), PURPLE_D, r=0.02)                        # belly panel
-    rbox((0.5, 0.1, 0.12), (0, 0.62, 0.44), GOLD, r=0.02, kind="Metal")                # coin tray
-    rbox((1.0, 0.12, 0.34), (0, 0.84, 0.3), PURPLE_D, r=0.03, rot=[("x", -0.25)])       # button deck
-    for k, c in enumerate(((0.95, 0.15, 0.15), (0.2, 0.8, 0.25), (0.2, 0.4, 1.0))):
-        cyl(0.04, 0.03, (-0.2 + k * 0.2, 0.91, 0.34), c, kind="Glow", segs=16, rot=[("x", -0.25)])
-    rbox((1.04, 0.72, 0.64), (0, 1.25, -0.08), PURPLE, r=0.04, seg=3)                  # reel housing
-    rbox((0.96, 0.52, 0.02), (0, 1.16, 0.245), PURPLE_D)
-    for k in range(3):                                                                  # reels
-        cyl(0.2, 0.24, (-0.29 + k * 0.29, 1.16, 0.23), (0.96, 0.94, 0.86), segs=24, rot=[("z", math.pi / 2)])
-    for x in (-0.145, 0.145):                                                          # purple dividers
+    """DEGEN SLOTS v2 (newer clips): charcoal cabinet, purple reel frame, red side
+    panels, gold bulb marquee, -/+ bet buttons, gold lever with a blue knob.
+    Front +z. Reel centers (x -0.29/0/0.29, y 1.16), marquee display center
+    (0, 1.8, 0.2), bet readout (0, 0.86, 0.48)."""
+    CHAR = (0.17, 0.18, 0.21)
+    CHAR_L = (0.24, 0.25, 0.29)
+    RED = (0.86, 0.1, 0.12)
+    rbox((1.02, 0.8, 0.84), (0, 0.4, 0), CHAR, r=0.04, seg=3)
+    rbox((1.06, 0.06, 0.88), (0, 0.03, 0), (0.1, 0.1, 0.12), r=0.02)
+    rbox((0.56, 0.12, 0.14), (0, 0.6, 0.44), GOLD, r=0.03, kind="Metal")               # coin tray
+    rbox((0.46, 0.06, 0.1), (0, 0.63, 0.46), (0.08, 0.06, 0.04), r=0.02)
+    rbox((0.8, 0.26, 0.02), (0, 0.32, 0.425), CHAR_L, r=0.02)                           # belly panel
+    # bet deck: red minus, readout, green plus on the front edge
+    rbox((1.02, 0.16, 0.2), (0, 0.86, 0.38), CHAR_L, r=0.03)
+    rbox((0.16, 0.1, 0.05), (-0.33, 0.86, 0.49), RED, r=0.02, kind="Gloss")
+    rbox((0.07, 0.018, 0.01), (-0.33, 0.86, 0.518), PAPER)
+    rbox((0.36, 0.09, 0.02), (0, 0.86, 0.485), (0.04, 0.05, 0.06), r=0.015)
+    rbox((0.16, 0.1, 0.05), (0.33, 0.86, 0.49), (0.18, 0.8, 0.25), r=0.02, kind="Gloss")
+    rbox((0.07, 0.018, 0.01), (0.33, 0.86, 0.518), PAPER)
+    rbox((0.018, 0.06, 0.01), (0.33, 0.86, 0.519), PAPER)
+    # reel section
+    rbox((1.02, 0.74, 0.64), (0, 1.25, -0.08), CHAR, r=0.04, seg=3)
+    rbox((0.9, 0.5, 0.02), (0, 1.16, 0.245), (0.05, 0.03, 0.08))
+    for k in range(3):
+        cyl(0.2, 0.24, (-0.29 + k * 0.29, 1.16, 0.23), (0.97, 0.95, 0.88), segs=24, rot=[("z", math.pi / 2)])
+    for x in (-0.145, 0.145):
         rbox((0.04, 0.5, 0.06), (x, 1.16, 0.44), PURPLE, r=0.01)
-    # gold frame around the window
-    rbox((0.98, 0.04, 0.05), (0, 1.43, 0.44), GOLD, r=0.012, kind="Metal")
-    rbox((0.98, 0.04, 0.05), (0, 0.89, 0.44), GOLD, r=0.012, kind="Metal")
-    for x in (-0.47, 0.47):
-        rbox((0.04, 0.58, 0.05), (x, 1.16, 0.44), GOLD, r=0.012, kind="Metal")
-    for k in range(7):                                                                  # marquee bulbs
-        ell((0.03, 0.03, 0.03), (-0.42 + k * 0.14, 1.5, 0.43), (1.0, 0.98, 0.9), kind="Glow", segs=10, rings=6)
-    # top sign box
-    rbox((1.12, 0.36, 0.52), (0, 1.79, -0.1), PURPLE_D, r=0.05, seg=3)
-    rbox((1.0, 0.26, 0.02), (0, 1.79, 0.165), (0.1, 0.03, 0.18), r=0.02)
-    rbox((1.12, 0.035, 0.05), (0, 1.97, 0.14), GOLD, r=0.012, kind="Metal")
-    rbox((1.12, 0.035, 0.05), (0, 1.61, 0.14), GOLD, r=0.012, kind="Metal")
-    # lever on the right side
-    rbox((0.08, 0.16, 0.14), (0.56, 1.1, 0.0), GOLD, r=0.03, kind="Metal")
-    rod((0.6, 1.1, 0.0), (0.64, 1.58, 0.02), 0.018, (0.8, 0.82, 0.86), kind="Metal")
-    ell((0.06, 0.06, 0.06), (0.645, 1.62, 0.02), (0.9, 0.1, 0.12), kind="Gloss")
+    # purple frame + white light strips + red side panels
+    for sx, sy, x, y in ((1.0, 0.07, 0, 1.445), (1.0, 0.07, 0, 0.875), (0.07, 0.64, -0.475, 1.16), (0.07, 0.64, 0.475, 1.16)):
+        rbox((sx, sy, 0.07), (x, y, 0.44), (0.44, 0.16, 0.78), r=0.02, kind="Gloss")
+    for x in (-0.425, 0.425):
+        rbox((0.025, 0.5, 0.02), (x, 1.16, 0.46), (1.0, 1.0, 0.95), kind="Glow")
+    for x in (-0.535, 0.535):
+        rbox((0.06, 0.8, 0.3), (x, 1.2, 0.3), RED, r=0.02, kind="Gloss")
+    # gold marquee with a dark display and bulbs all around
+    rbox((1.14, 0.44, 0.2), (0, 1.8, 0.08), GOLD, r=0.05, seg=3, kind="Metal")
+    rbox((1.2, 0.46, 0.4), (0, 1.8, -0.18), CHAR, r=0.05)
+    rbox((0.96, 0.28, 0.02), (0, 1.8, 0.185), (0.05, 0.03, 0.09), r=0.02)
+    for k in range(9):
+        x = -0.5 + k * 0.125
+        ell((0.024, 0.024, 0.024), (x, 1.99, 0.18), (1.0, 0.98, 0.9), kind="Glow", segs=8, rings=5)
+        ell((0.024, 0.024, 0.024), (x, 1.61, 0.18), (1.0, 0.98, 0.9), kind="Glow", segs=8, rings=5)
+    for x in (-0.535, 0.535):
+        for y in (1.73, 1.87):
+            ell((0.024, 0.024, 0.024), (x, y, 0.18), (1.0, 0.98, 0.9), kind="Glow", segs=8, rings=5)
+    # lever: gold housing, gold arm, blue ball
+    rbox((0.1, 0.18, 0.16), (0.58, 1.1, 0.0), GOLD, r=0.035, kind="Metal")
+    rod((0.62, 1.1, 0.0), (0.66, 1.56, 0.03), 0.02, GOLD, kind="Metal")
+    ell((0.065, 0.065, 0.065), (0.665, 1.61, 0.03), (0.15, 0.32, 0.95), kind="Gloss")
     finish("SlotMachine")
+
+
+def build_coin():
+    """Gold coin for the jackpot burst."""
+    cyl(0.03, 0.006, (0, 0, 0), GOLD, segs=14, kind="Metal", rot=[("x", math.pi / 2)])
+    finish("Coin")
 
 
 def build_arcade():
@@ -888,6 +913,150 @@ def build_skyline():
     finish("EmpireState")
 
 
+# ----------------------------------------------------------------------------- newer-clip decor
+
+def build_bulletin_board():
+    """Green cork board with pinned notes, 1.4 x 0.9, origin center, face +z."""
+    rbox((1.4, 0.9, 0.04), (0, 0, 0.02), WOOD, r=0.012)
+    rbox((1.32, 0.82, 0.01), (0, 0, 0.045), (0.3, 0.62, 0.3))
+    notes = [(-0.45, 0.22, (1.0, 0.92, 0.35)), (-0.15, 0.25, PAPER), (0.2, 0.2, (1.0, 0.62, 0.75)),
+             (0.45, 0.24, (0.55, 0.8, 1.0)), (-0.4, -0.15, PAPER), (-0.05, -0.2, (1.0, 0.92, 0.35)),
+             (0.3, -0.18, PAPER), (0.52, -0.25, (1.0, 0.7, 0.3))]
+    for x, y, c in notes:
+        w, h = (0.2, 0.26) if c == PAPER else (0.13, 0.13)
+        rbox((w, h, 0.004), (x, y, 0.053), c, rot=[("z", random.uniform(-0.12, 0.12))])
+        ell((0.012, 0.012, 0.008), (x, y + h / 2 - 0.025, 0.058), (0.9, 0.15, 0.15), kind="Gloss", segs=8, rings=4)
+        if c == PAPER:
+            for k in range(4):
+                rbox((w * 0.7, 0.008, 0.002), (x, y + 0.06 - k * 0.035, 0.056), (0.5, 0.5, 0.55))
+    finish("BulletinBoard")
+
+
+def build_door():
+    """Restroom door. DoorFrame: origin floor center of the 1.0 m opening, face +z.
+    DoorLeaf: origin at the hinge (left edge), leaf runs along +x, so it can swing."""
+    FR = (0.36, 0.39, 0.46)
+    rbox((0.1, 2.25, 0.18), (-0.55, 1.125, 0), FR, r=0.015)
+    rbox((0.1, 2.25, 0.18), (0.55, 1.125, 0), FR, r=0.015)
+    rbox((1.2, 0.1, 0.18), (0, 2.2, 0), FR, r=0.015)
+    rbox((0.24, 0.24, 0.01), (0.8, 1.6, 0.0), PAPER, r=0.02)          # sign plate beside it
+    finish("DoorFrame")
+    rbox((0.98, 2.13, 0.05), (0.49, 1.075, 0), (0.2, 0.24, 0.34), r=0.01)
+    for z in (0.03, -0.03):
+        rbox((0.06, 0.2, 0.012), (0.86, 1.0, z), STEEL, r=0.005, kind="Metal")
+        rod((0.86, 1.02, z * 1.6), (0.74, 1.02, z * 2.4), 0.012, STEEL, kind="Metal")
+    finish("DoorLeaf")
+
+
+def build_restroom():
+    """Toilet + sink + mirror set, for the little restroom off the office."""
+    PORC = (0.96, 0.96, 0.97)
+    lathe([(0.0, 0.0), (0.13, 0.0), (0.16, 0.3), (0.2, 0.4), (0.17, 0.42), (0.13, 0.36), (0.0, 0.36)],
+          (0, 0, 0.12), PORC, kind="Gloss", segs=24)
+    rbox((0.4, 0.34, 0.16), (0, 0.6, -0.12), PORC, r=0.03, kind="Gloss")
+    rbox((0.36, 0.03, 0.4), (0, 0.44, 0.1), PORC, r=0.015, kind="Gloss")
+    rbox((0.06, 0.02, 0.03), (0.15, 0.79, -0.08), STEEL, kind="Metal")
+    finish("Toilet")
+    rbox((0.5, 0.14, 0.4), (0, 0.8, 0), PORC, r=0.04, kind="Gloss")
+    rbox((0.36, 0.06, 0.26), (0, 0.85, 0.02), (0.8, 0.84, 0.88), r=0.03, kind="Gloss")
+    rbox((0.1, 0.72, 0.1), (0, 0.36, -0.08), PORC, r=0.03, kind="Gloss")
+    rod((0, 0.87, -0.15), (0, 0.97, -0.09), 0.012, STEEL, kind="Metal")
+    rbox((0.5, 0.7, 0.02), (0, 1.45, -0.19), (0.75, 0.85, 0.92), kind="Gloss")      # mirror
+    rbox((0.54, 0.74, 0.015), (0, 1.45, -0.2), STEEL, kind="Metal")
+    finish("Sink")
+
+
+def build_floor_mess():
+    """Loose clutter for the floor: a dollar bill, a crumpled paper ball, a cigar butt."""
+    rbox((0.16, 0.003, 0.07), (0, 0.0015, 0), (0.55, 0.75, 0.45), rot=[("x", 0.05), ("z", 0.04)])
+    rbox((0.13, 0.004, 0.05), (0, 0.004, 0), (0.42, 0.62, 0.36))
+    finish("Bill")
+    bm = bmesh.new()
+    bmesh.ops.create_icosphere(bm, subdivisions=1, radius=0.045)
+    for v in bm.verts:
+        v.co *= random.uniform(0.75, 1.15)
+    emit(bm, PAPER, pos=(0, 0.04, 0), smooth=False)
+    finish("PaperBall")
+    rod((-0.03, 0.009, 0), (0.03, 0.009, 0.01), 0.009, (0.45, 0.28, 0.13), segs=8)
+    ell((0.0095, 0.0095, 0.006), (-0.032, 0.009, 0), (0.35, 0.33, 0.32), segs=8, rings=4)
+    finish("CigarButt")
+
+
+# ----------------------------------------------------------------------------- luxury flex items
+
+def build_luxury():
+    GREEN_BOX = (0.06, 0.45, 0.22)
+    CREAM = (0.93, 0.88, 0.74)
+    # ROFLEX presentation box: base (origin bottom center) + lid (origin at the back hinge)
+    rbox((0.2, 0.08, 0.2), (0, 0.04, 0), GREEN_BOX, r=0.015, kind="Gloss")
+    rbox((0.17, 0.02, 0.17), (0, 0.075, 0), CREAM, r=0.01)
+    rbox((0.06, 0.03, 0.09), (0, 0.095, 0.01), CREAM, r=0.012)          # pillow
+    finish("WatchBoxBase")
+    rbox((0.2, 0.05, 0.2), (0, 0.025, 0.1), GREEN_BOX, r=0.015, kind="Gloss")
+    rbox((0.17, 0.004, 0.17), (0, -0.001, 0.1), CREAM)
+    ell((0.012, 0.004, 0.009), (0, 0.051, 0.1), GOLD, kind="Metal", segs=10, rings=4)   # crown logo
+    finish("WatchBoxLid")
+    for name, metal, face in (("WatchGold", GOLD, (0.96, 0.93, 0.8)), ("WatchIced", (0.82, 0.9, 1.0), (0.85, 0.92, 1.0))):
+        torus(0.03, 0.009, (0, 0.03, 0), metal, segs=20, rsegs=6, kind="Metal", rot=[("z", math.pi / 2)])
+        cyl(0.026, 0.012, (0, 0.062, 0), metal, segs=24, kind="Metal")
+        cyl(0.021, 0.004, (0, 0.069, 0), face, segs=24, kind="Gloss")
+        rbox((0.002, 0.003, 0.016), (0, 0.072, 0.005), BLACK)
+        rbox((0.012, 0.003, 0.002), (0.005, 0.072, 0), BLACK)
+        if name == "WatchIced":
+            for k in range(12):
+                a = k * math.pi / 6
+                ell((0.004, 0.004, 0.004), (math.cos(a) * 0.024, 0.07, math.sin(a) * 0.024), (1, 1, 1), kind="Glow", segs=6, rings=3)
+        finish(name)
+    # LOUIE BATON shopping bag (origin floor), front +z
+    rbox((0.34, 0.4, 0.14), (0, 0.2, 0), (0.96, 0.55, 0.12), r=0.01)
+    rbox((0.34, 0.03, 0.14), (0, 0.4, 0), (0.9, 0.48, 0.08))
+    for z in (-0.03, 0.03):
+        rod((-0.07, 0.4, z), (-0.04, 0.5, z), 0.006, (0.4, 0.22, 0.07), segs=5)
+        rod((-0.04, 0.5, z), (0.04, 0.5, z), 0.006, (0.4, 0.22, 0.07), segs=5)
+        rod((0.04, 0.5, z), (0.07, 0.4, z), 0.006, (0.4, 0.22, 0.07), segs=5)
+    finish("LouieBag")
+    # Supreme brick (red, origin bottom)
+    rbox((0.2, 0.06, 0.09), (0, 0.03, 0), (0.82, 0.08, 0.1), r=0.006)
+    rbox((0.13, 0.002, 0.04), (0, 0.061, 0), (0.97, 0.97, 0.97))
+    finish("SupremeBrick")
+    # cash-counting machine (origin bottom), bills fed at the top, stack in the tray
+    rbox((0.28, 0.16, 0.24), (0, 0.08, 0), (0.78, 0.78, 0.8), r=0.03, seg=3)
+    rbox((0.24, 0.06, 0.08), (0, 0.18, -0.07), (0.7, 0.7, 0.72), r=0.02)
+    rbox((0.16, 0.035, 0.065), (0, 0.215, -0.07), (0.45, 0.68, 0.38), r=0.004)       # bills on top
+    rbox((0.18, 0.06, 0.02), (0, 0.11, 0.121), (0.1, 0.1, 0.12), r=0.01)            # display bezel
+    rbox((0.07, 0.03, 0.005), (-0.04, 0.115, 0.132), (0.3, 1.0, 0.45), kind="Glow")
+    for k in range(6):
+        rbox((0.014, 0.012, 0.006), (0.03 + (k % 3) * 0.02, 0.105 + (k // 3) * 0.018, 0.132), (0.85, 0.85, 0.88))
+    rbox((0.2, 0.05, 0.08), (0, 0.035, 0.13), (0.6, 0.6, 0.62), r=0.01)             # front tray
+    rbox((0.16, 0.035, 0.065), (0, 0.075, 0.13), (0.45, 0.68, 0.38), r=0.004)
+    finish("CashCounter")
+
+
+def build_flex_counter():
+    """FLEX SHOP display counter, 2.2 x 1.0, front +z (customer side): the merch
+    sits out on green felt; gold trim and a lit kick strip."""
+    rbox((2.2, 0.86, 0.7), (0, 0.43, 0), (0.12, 0.12, 0.14), r=0.02, kind="Gloss")
+    rbox((2.24, 0.04, 0.74), (0, 0.88, 0), GOLD, r=0.012, kind="Metal")
+    rbox((2.14, 0.012, 0.66), (0, 0.905, 0), (0.1, 0.38, 0.22))                        # green felt
+    for x in (-0.7, 0.0, 0.7):                                                         # gold front panels
+        rbox((0.6, 0.5, 0.012), (x, 0.45, 0.352), (0.2, 0.2, 0.23), r=0.01)
+        rbox((0.56, 0.02, 0.014), (x, 0.66, 0.356), GOLD, kind="Metal")
+    for k in range(3):                                                                  # watch stands
+        x = -0.85 + k * 0.2
+        rbox((0.08, 0.06, 0.08), (x, 0.94, 0.05), (0.93, 0.88, 0.74), r=0.01)
+        torus(0.028, 0.008, (x, 1.0, 0.05), GOLD if k != 1 else (0.82, 0.9, 1.0), segs=16, rsegs=5,
+              kind="Metal", rot=[("z", math.pi / 2)])
+        cyl(0.024, 0.01, (x, 1.03, 0.05), GOLD if k != 1 else (0.82, 0.9, 1.0), segs=16, kind="Metal")
+    rbox((0.3, 0.36, 0.13), (0.35, 1.09, -0.05), (0.96, 0.55, 0.12), r=0.01)           # LOUIE bag
+    for z in (-0.02, 0.02):
+        rod((0.29, 1.27, z - 0.05), (0.41, 1.27, z - 0.05), 0.006, (0.4, 0.22, 0.07), segs=5)
+    for k in range(3):                                                                  # brick pyramid
+        rbox((0.2, 0.06, 0.09), (0.8 + (k % 2) * 0.1 - 0.05, 0.94 + (k // 2) * 0.061, 0.08), (0.82, 0.08, 0.1), r=0.006)
+    rbox((0.2, 0.2, 0.2), (-0.3, 1.0, 0.0), (0.06, 0.45, 0.22), r=0.015, kind="Gloss")  # ROFLEX box
+    rbox((2.2, 0.04, 0.04), (0, 0.06, 0.34), (0.95, 0.85, 0.3), kind="Glow")            # LED kick strip
+    finish("FlexCounter")
+
+
 # ----------------------------------------------------------------------------- main
 
 def main():
@@ -897,7 +1066,9 @@ def main():
                build_couch, build_armchair, build_beanbag, build_coffee_table, build_plant, build_vending,
                build_slot, build_arcade, build_bell_podium, build_hoop, build_certificate, build_whiteboard,
                build_tv, build_elevator, build_ceiling_light, build_window_bay, build_cell,
-               build_stream_desk, build_gaming_chair, build_ring_light, build_neon_board, build_skyline):
+               build_stream_desk, build_gaming_chair, build_ring_light, build_neon_board, build_skyline,
+               build_bulletin_board, build_door, build_restroom, build_floor_mess, build_coin,
+               build_luxury, build_flex_counter):
         fn()
     keep = {o.name for o in KIT}
     for o in list(bpy.data.objects):

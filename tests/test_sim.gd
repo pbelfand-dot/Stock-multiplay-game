@@ -26,6 +26,8 @@ func _init() -> void:
 	test_market()
 	test_impulse()
 	test_ledger()
+	test_tpsl()
+	test_spread_and_fees()
 	test_liquidation()
 	test_news()
 	test_slots()
@@ -36,7 +38,7 @@ func _init() -> void:
 
 func test_market() -> void:
 	var m = Market.new(1234)
-	check(m.assets.size() == 6, "6 assets")
+	check(m.assets.size() == Market.ASSET_DEFS.size() and m.assets.size() == 7, "7 assets (clip watchlist + WAGMI)")
 	var closes := 0
 	for i in 1200:  # 300 s at 4 Hz
 		if m.step(0.25):
@@ -49,7 +51,7 @@ func test_market() -> void:
 		var c: Array = a.candles[-1]
 		check(c[1] >= c[0] and c[1] >= c[3] and c[2] <= c[0] and c[2] <= c[3], "OHLC consistent")
 	var tp: Dictionary = m.tick_payload()
-	check(tp.p.size() == 6 and tp.c.size() == 6, "tick payload shape")
+	check(tp.p.size() == 7 and tp.c.size() == 7, "tick payload shape")
 	var fp: Dictionary = m.full_payload()
 	check(fp.assets[0].candles.size() == closes, "full payload history")
 
@@ -91,6 +93,44 @@ func test_ledger() -> void:
 	check(not l.open_position(0, "BTC", 0, 100.0, 1, 1000.0, "x").ok, "side must be +-1")
 	check(not l.open_position(0, "BTC", 1, -5.0, 1, 1000.0, "x").ok, "positive size")
 	check(not l.open_position(99, "BTC", 1, 5.0, 1, 1000.0, "x").ok, "account must exist")
+
+
+func test_spread_and_fees() -> void:
+	var l = Ledger.new()
+	l.create_account(1, "p", 100_000.0)
+	# the clip's numbers: $400 margin at x125 pays a $75 fee
+	var r: Dictionary = l.open_position(1, "BTC", 1, 400.0, 125, 1000.0, "p")
+	check(r.ok and approx(r.pos.fee, 75.0), "clip fee: $400 x125 -> $75, got %f" % r.pos.fee)
+	r = l.open_position(1, "BTC", 1, 1_000.0, 10, 1000.0, "p", Ledger.FEE_RATE, 0.002)
+	check(approx(r.pos.entry, 1001.0), "long buys the ask (+half spread)")
+	r = l.open_position(1, "BTC", -1, 1_000.0, 10, 1000.0, "p", Ledger.FEE_RATE, 0.002)
+	check(approx(r.pos.entry, 999.0), "short sells the bid (-half spread)")
+	var closed: Dictionary = l.close_position(1, r.pos.pid, 1000.0)
+	check(closed.pnl < 0.0, "round trip at the same mid loses the spread")
+
+
+func test_tpsl() -> void:
+	var l = Ledger.new()
+	l.create_account(1, "p", 100_000.0)
+	var r: Dictionary = l.open_position(1, "BTC", 1, 1_000.0, 10, 1000.0, "p")
+	var pid: int = r.pos.pid
+	check(approx(Ledger.liq_price(r.pos), 900.0), "long x10 liquidates at -10%%: %f" % Ledger.liq_price(r.pos))
+	check(not l.set_tpsl(1, pid, 990.0, 0.0), "TP below entry rejected for a long")
+	check(not l.set_tpsl(1, pid, 0.0, 1010.0), "SL above entry rejected for a long")
+	check(not l.set_tpsl(1, pid, 0.0, 880.0), "SL past liquidation rejected")
+	check(l.set_tpsl(1, pid, 1050.0, 960.0), "valid TP/SL accepted")
+	var prices := {"BTC": 1020.0}
+	var pf := func(s): return prices[s]
+	check(l.check_triggers(pf).is_empty(), "no trigger between SL and TP")
+	prices.BTC = 1051.0
+	var hit: Array = l.check_triggers(pf)
+	check(hit.size() == 1 and hit[0].trigger == "TP" and approx(hit[0].pnl, 510.0), "TP closes in profit")
+	r = l.open_position(1, "BTC", -1, 1_000.0, 10, 1000.0, "p")
+	check(approx(Ledger.liq_price(r.pos), 1100.0), "short x10 liquidates at +10%%")
+	check(l.set_tpsl(1, r.pos.pid, 950.0, 1030.0), "short TP below / SL above")
+	prices.BTC = 1031.0
+	hit = l.check_triggers(pf)
+	check(hit.size() == 1 and hit[0].trigger == "SL" and hit[0].pnl < 0.0, "SL cuts the short loss")
 
 
 func test_liquidation() -> void:

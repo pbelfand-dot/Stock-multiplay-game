@@ -131,6 +131,27 @@ def main():
     n = noise(0.35)
     save("swish", env(lowpass(n, 0.3) - lowpass(n, 0.05), 0.02, 0.12), 0.6)
 
+    # Heartbeat (blood pressure): lub-dub, low thumps
+    def thump(f, d):
+        tt_ = t(d)
+        return env(np.sin(2 * np.pi * np.cumsum(np.linspace(f, f * 0.55, len(tt_))) / SR), 0.002, d * 0.35)
+    save("heartbeat", mix([(0.0, thump(70, 0.18)), (0.22, thump(58, 0.2))], 0.6), 0.9)
+
+    # The chest-thump hum (Wall Street lunch warm-up): two chest thumps + a
+    # low nasal "mm-MM mm-mm" melody
+    def hum(f, d):
+        tt_ = t(d)
+        vib = 1 + 0.01 * np.sin(2 * np.pi * 5.5 * tt_)
+        ph = np.cumsum(f * vib) / SR
+        s_ = sum(a * np.sin(2 * np.pi * k * ph) for k, a in ((1, 1.0), (2, 0.5), (3, 0.3), (4, 0.15)))
+        e = np.minimum(1, tt_ / 0.04) * np.minimum(1, (d - tt_) / 0.06)
+        return lowpass(s_ * e, 0.08)
+    parts = [(0.0, thump(80, 0.16)), (0.28, thump(80, 0.16))]
+    tune = [(0.55, 147, 0.26), (0.85, 175, 0.4), (1.3, 147, 0.26), (1.6, 131, 0.5)]
+    parts += [(st, hum(f, d) * 0.5) for st, f, d in tune]
+    parts += [(2.2, thump(80, 0.16)), (2.48, thump(80, 0.16))]
+    save("hum", mix(parts, 2.8), 0.8)
+
     # Whoosh (dive)
     n = noise(0.5)
     sweep = np.linspace(0.02, 0.4, len(n))

@@ -11,9 +11,11 @@ const W := 40.0
 const D := 28.0
 const H := 3.4
 
-const C_CARPET := Color(0.7, 0.07, 0.08)
-const C_WALL := Color(0.93, 0.85, 0.74)
-const C_TRIM := Color(0.45, 0.07, 0.09)
+# the newer clips' palette: blue-grey carpet, pale grey-blue walls, slate bands
+const C_CARPET := Color(0.44, 0.49, 0.6)
+const C_WALL := Color(0.74, 0.76, 0.8)
+const C_TRIM := Color(0.27, 0.3, 0.38)
+const C_WAINSCOT := Color(0.44, 0.48, 0.57)
 const C_CEIL := Color(0.84, 0.85, 0.87)
 const C_DESK := Color(0.92, 0.92, 0.9)
 const C_BEIGE := Color(0.86, 0.8, 0.66)
@@ -36,7 +38,13 @@ var tv_screen: MeshInstance3D
 var ticker_label: Label3D
 var slot_machines: Array = []
 var npcs := {}                  # speaker name -> Node3D (has "Bubble" Label3D)
+var desks := {}                 # desk id -> floor position (players own desks 18..23)
+const PLAYER_DESK0 := 18
+var toilet_pos := Vector3.ZERO
+var chairs := {}                # chair id -> {node, pos, rot}  (desk chairs you can sit in)
+const CHAIR_LAYER := 16
 var hoop_rim := Vector3(-W / 2 + 0.5, 2.05, -9.5)
+const RESTROOM_DOOR_Z := 2.2
 var ball_spawn := Vector3(-16.5, 1.0, -9.5)
 var rng := RandomNumberGenerator.new()
 
@@ -70,11 +78,13 @@ func build(parent: Node3D) -> void:
 	nm.cell_size = 0.25
 	nm.cell_height = 0.25
 	nm.agent_max_climb = 0.25
+	nm.geometry_collision_mask = 1   # chairs (layer 16) are sit targets, not walls
 	nm.filter_baking_aabb = AABB(Vector3(-W / 2, -1, -D / 2), Vector3(W, 4, D))
 	nav.navigation_mesh = nm
 	root.add_child(nav)
 	_environment()
 	_shell()
+	_restroom()
 	_windows_and_skyline()
 	_ceiling_lights()
 	_bullpen()
@@ -199,6 +209,8 @@ func textured(c: Color, kind: String, tile: float) -> StandardMaterial3D:
 						v = c.darkened(0.18)
 					else:
 						v = c.darkened(r.randf() * 0.07)
+				"tile":      # square floor tiles with grout
+					v = c.darkened(0.2) if x % 32 < 2 or y % 32 < 2 else c.darkened(r.randf() * 0.04)
 				"block":     # cinder blocks: 2 rows per tile, staggered
 					var row := y / 32
 					var bx := (x + (16 if row % 2 else 0)) % 64
@@ -253,22 +265,68 @@ func _shell() -> void:
 	box(Vector3(W / 2 - 1.3, H, 0.3), Vector3(-(W / 4 + 0.65), H / 2, D / 2), C_WALL)
 	box(Vector3(W / 2 - 1.3, H, 0.3), Vector3(W / 4 + 0.65, H / 2, D / 2), C_WALL)
 	box(Vector3(2.6, H - 2.4, 0.3), Vector3(0, 2.4 + (H - 2.4) / 2, D / 2), C_WALL)
-	box(Vector3(0.3, H, D), Vector3(-W / 2, H / 2, 0), C_WALL)                     # west
+	# west wall with the restroom door (opening z 1.7..2.7)
+	var dz0 := RESTROOM_DOOR_Z - 0.5
+	var dz1 := RESTROOM_DOOR_Z + 0.5
+	box(Vector3(0.3, H, dz0 + D / 2), Vector3(-W / 2, H / 2, (dz0 - D / 2) / 2), C_WALL)
+	box(Vector3(0.3, H, D / 2 - dz1), Vector3(-W / 2, H / 2, (dz1 + D / 2) / 2), C_WALL)
+	box(Vector3(0.3, H - 2.25, 1.0), Vector3(-W / 2, 2.25 + (H - 2.25) / 2, RESTROOM_DOOR_Z), C_WALL)
 	box(Vector3(0.3, H, D), Vector3(W / 2, H / 2, 0), C_WALL)                      # east
-	# the trailer's dark-red soffit band under the ceiling + baseboards
+	# slate soffit band under the ceiling, darker wainscot + chair rail, baseboard
 	for z in [D / 2 - 0.17, -D / 2 + 0.17]:
-		box(Vector3(W, 0.34, 0.05), Vector3(0, H - 0.17, z), C_TRIM, false, root)
-		box(Vector3(W, 0.03, 0.06), Vector3(0, H - 0.36, z), Color(0.3, 0.04, 0.05), false, root)
-		box(Vector3(W, 0.12, 0.05), Vector3(0, 0.06, z), C_TRIM, false, root)
+		box(Vector3(W, 0.3, 0.05), Vector3(0, H - 0.15, z), C_TRIM, false, root)
+		if z > 0:
+			_wainscot(Vector3(W, 0, 0.05), Vector3(0, 0, z))
 	for x in [-W / 2 + 0.17, W / 2 - 0.17]:
-		box(Vector3(0.05, 0.34, D), Vector3(x, H - 0.17, 0), C_TRIM, false, root)
-		box(Vector3(0.06, 0.03, D), Vector3(x, H - 0.36, 0), Color(0.3, 0.04, 0.05), false, root)
-		box(Vector3(0.05, 0.12, D), Vector3(x, 0.06, 0), C_TRIM, false, root)
+		box(Vector3(0.05, 0.3, D), Vector3(x, H - 0.15, 0), C_TRIM, false, root)
+	_wainscot(Vector3(0, 0, D), Vector3(W / 2 - 0.17, 0, 0))
+	# west side: stop at the restroom door
+	_wainscot(Vector3(0, 0, dz0 + D / 2), Vector3(-W / 2 + 0.17, 0, (dz0 - D / 2) / 2))
+	_wainscot(Vector3(0, 0, D / 2 - dz1), Vector3(-W / 2 + 0.17, 0, (dz1 + D / 2) / 2))
+
+
+## Lower wall band: darker panel to 0.95 m, a slate chair rail, a baseboard.
+func _wainscot(span: Vector3, at: Vector3) -> void:
+	var t := Vector3(0.05, 0, 0.05)
+	var size := span + t
+	box(Vector3(size.x, 0.95, size.z), at + Vector3(0, 0.475, 0), C_WAINSCOT, false, root)
+	box(Vector3(size.x + 0.02, 0.05, size.z + 0.02), at + Vector3(0, 0.97, 0), C_TRIM, false, root)
+	box(Vector3(size.x + 0.02, 0.1, size.z + 0.02), at + Vector3(0, 0.05, 0), C_TRIM, false, root)
+
+
+## A small restroom behind the west-wall door (tile floor, toilet, sink + mirror).
+func _restroom() -> void:
+	var z := RESTROOM_DOOR_Z
+	var x0 := -W / 2 - 3.0
+	var tile := textured(Color(0.93, 0.94, 0.96), "tile", 0.4)
+	box(Vector3(3.0, 0.2, 3.6), Vector3(x0 + 1.5, -0.1, z), Color.WHITE).material_override = tile
+	box(Vector3(3.0, 0.2, 3.6), Vector3(x0 + 1.5, H + 0.1, z), C_CEIL, false, root)
+	box(Vector3(0.2, H, 3.6), Vector3(x0 - 0.1, H / 2, z), Color(0.62, 0.78, 0.86))
+	box(Vector3(3.2, H, 0.2), Vector3(x0 + 1.5, H / 2, z - 1.9), Color(0.62, 0.78, 0.86))
+	box(Vector3(3.2, H, 0.2), Vector3(x0 + 1.5, H / 2, z + 1.9), Color(0.62, 0.78, 0.86))
+	var toilet := solid(Vector3(0.45, 0.8, 0.7), Vector3(x0 + 0.4, 0.4, z - 1.0))
+	add_interact(toilet, "relieve", 0, "[E] Relieve the pressure")
+	toilet_pos = Vector3(x0 + 0.4, 0, z - 1.0)
+	prop("Toilet", Vector3(x0 + 0.35, 0, z - 1.05), PI / 2)
+	prop("Sink", Vector3(x0 + 1.6, 0, z + 1.6), PI)
+	prop("CeilingLight", Vector3(x0 + 1.5, H, z))
+	var lt := OmniLight3D.new()
+	lt.position = Vector3(x0 + 1.5, H - 0.4, z)
+	lt.omni_range = 4.5
+	lt.light_energy = 0.8
+	root.add_child(lt)
+	# door: frame on the office side, leaf swung open into the restroom
+	var door := prop("DoorFrame", Vector3(-W / 2, 0, z), PI / 2)
+	var leaf := prop("DoorLeaf", Vector3(-0.49, 0, -0.06), 1.45, door)
+	leaf.rotation.y = 1.45
+	var sign := label("RESTROOM", Vector3(0.8, 1.6, 0.02), 30, Color(0.15, 0.2, 0.35), 0.0, door)
+	sign.pixel_size = 0.004
+	sign.outline_size = 0
 
 
 func _windows_and_skyline() -> void:
 	# North wall: low sill wall + header, glass, window bays with blinds.
-	box(Vector3(W, 0.9, 0.3), Vector3(0, 0.45, -D / 2), C_WALL)
+	box(Vector3(W, 0.9, 0.3), Vector3(0, 0.45, -D / 2), C_WAINSCOT)
 	box(Vector3(W, 0.4, 0.3), Vector3(0, H - 0.2, -D / 2), C_WALL)
 	var glass := StandardMaterial3D.new()
 	glass.albedo_color = Color(0.7, 0.85, 1.0, 0.16)
@@ -342,7 +400,11 @@ func _desk(p: Vector3, id: int) -> void:
 	prop("Keyboard", p + Vector3(0, 0.78, 0.2), rng.randf_range(-0.05, 0.05))
 	prop("Mouse", p + Vector3(0.42, 0.78, 0.2), rng.randf_range(-0.2, 0.2))
 	prop("Lamp", p + Vector3(-0.7, 0.78, -0.25), 0.45)
-	prop("Chair", p + Vector3(rng.randf_range(-0.1, 0.1), 0, 0.85), PI + rng.randf_range(-0.35, 0.35))
+	_chair(id, p + Vector3(rng.randf_range(-0.1, 0.1), 0, 0.85), PI + rng.randf_range(-0.35, 0.35))
+	desks[id] = p
+	add_interact(crt, "terminal", id, "[E] Trade")
+	if id >= PLAYER_DESK0:
+		return   # player desks stay clean for their flex trophies
 	# desk clutter: every desk a little different
 	prop(["Mug", "DeskPhone", "Mug", "Papers"][rng.randi() % 4], p + Vector3(0.6, 0.78, -0.22), rng.randf_range(-PI, PI))
 	match rng.randi() % 4:
@@ -354,7 +416,29 @@ func _desk(p: Vector3, id: int) -> void:
 			prop("Papers", p + Vector3(-0.5, 0.78, 0.18), rng.randf_range(-0.3, 0.3))
 	if rng.randf() < 0.5:
 		prop("Trash", p + Vector3(-0.55, 0, -0.1))
-	add_interact(crt, "terminal", id, "[E] Trade")
+
+
+## A desk chair you can sit in: its own (unbatched) meshes so it can hide while
+## someone rolls around in it, plus a sit target the player body walks through.
+func _chair(id: int, pos: Vector3, rot: float) -> void:
+	var ch := prop("Chair", pos, rot)
+	ch.name = "Chair%d" % id
+	for mi in ch.get_children():
+		mi.set_meta("no_batch", true)
+	var sb := StaticBody3D.new()
+	sb.collision_layer = CHAIR_LAYER
+	sb.collision_mask = 0
+	var cs := CollisionShape3D.new()
+	var sh := BoxShape3D.new()
+	sh.size = Vector3(0.55, 0.6, 0.55)
+	cs.shape = sh
+	cs.position = Vector3(0, 0.6, 0)
+	sb.add_child(cs)
+	sb.set_meta("interact", "chair")
+	sb.set_meta("interact_id", id)
+	sb.set_meta("prompt", "[E] Sit (WASD to roll)")
+	ch.add_child(sb)
+	chairs[id] = {"node": ch, "pos": pos, "rot": rot}
 
 
 func _elevator() -> void:
@@ -402,9 +486,15 @@ func _casino() -> void:
 		nav.add_child(sm)
 		prop("SlotMachine", Vector3.ZERO, 0.0, sm)
 		var body := solid(Vector3(1.1, 1.9, 0.9), Vector3(0, 0.95, 0), sm)
-		var sign := label("DEGEN SLOTS", Vector3(0, 0.84, 0.19), 64, Color(1, 0.85, 0.15), 0.0, body)
-		sign.pixel_size = 0.0028
+		var sign := label("DEGEN SLOTS", Vector3(0, 0.85, 0.2), 64, Color(1, 0.88, 0.15), 0.0, body)
+		sign.pixel_size = 0.0027
 		sign.outline_modulate = Color(0.5, 0.1, 0.0)
+		sign.name = "Marquee"
+		var bet := label("$300", Vector3(0, -0.09, 0.5), 40, Color(0.3, 1.0, 0.4), 0.0, body)
+		bet.pixel_size = 0.0022
+		bet.outline_size = 0
+		bet.name = "Bet"
+		body.add_child(_jackpot_fx())
 		for k in 3:
 			var l := label("7", Vector3(-0.29 + k * 0.29, 0.21, 0.45), 64, Color(0.85, 0.1, 0.1), 0.0, body)
 			l.pixel_size = 0.0028
@@ -413,6 +503,62 @@ func _casino() -> void:
 		add_interact(body, "slots", i, "[E] Play slots")
 		slot_machines.append(body)
 		i += 1
+
+
+## One-shot burst of gold coins + confetti for a slot win (World triggers it).
+func _jackpot_fx() -> Node3D:
+	var fx := Node3D.new()
+	fx.name = "Jackpot"
+	fx.position = Vector3(0, 0.85, 0.35)
+	var coins := CPUParticles3D.new()
+	coins.name = "Coins"
+	coins.emitting = false
+	coins.one_shot = true
+	coins.explosiveness = 0.85
+	coins.amount = 36
+	coins.lifetime = 1.8
+	coins.mesh = PropKit.mesh("Coin")
+	coins.material_override = PropKit.material("Metal")
+	coins.direction = Vector3(0, 1, 0.7)
+	coins.spread = 55.0
+	coins.initial_velocity_min = 2.2
+	coins.initial_velocity_max = 4.2
+	coins.gravity = Vector3(0, -7.0, 0)
+	coins.angular_velocity_min = -540.0
+	coins.angular_velocity_max = 540.0
+	coins.scale_amount_min = 1.0
+	coins.scale_amount_max = 1.6
+	fx.add_child(coins)
+	var confetti := CPUParticles3D.new()
+	confetti.name = "Confetti"
+	confetti.emitting = false
+	confetti.one_shot = true
+	confetti.explosiveness = 0.9
+	confetti.amount = 60
+	confetti.lifetime = 2.2
+	var q := QuadMesh.new()
+	q.size = Vector2(0.035, 0.018)
+	confetti.mesh = q
+	var cm := StandardMaterial3D.new()
+	cm.vertex_color_use_as_albedo = true
+	cm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	cm.cull_mode = BaseMaterial3D.CULL_DISABLED
+	confetti.material_override = cm
+	var g := Gradient.new()
+	g.offsets = PackedFloat32Array([0.0, 0.25, 0.5, 0.75, 1.0])
+	g.colors = PackedColorArray([Color(1, 0.2, 0.4), Color(0.2, 0.8, 1), Color(1, 0.85, 0.1), Color(0.4, 1, 0.4), Color(0.8, 0.3, 1)])
+	confetti.color_initial_ramp = g
+	confetti.direction = Vector3(0, 1, 0.5)
+	confetti.spread = 70.0
+	confetti.initial_velocity_min = 1.5
+	confetti.initial_velocity_max = 3.5
+	confetti.gravity = Vector3(0, -2.5, 0)
+	confetti.damping_min = 1.0
+	confetti.damping_max = 2.0
+	confetti.angular_velocity_min = -720.0
+	confetti.angular_velocity_max = 720.0
+	fx.add_child(confetti)
+	return fx
 
 
 func _tv_wall() -> void:
@@ -510,6 +656,20 @@ func _decor() -> void:
 	solid(Vector3(0.36, 1.4, 0.36), Vector3(-19.5, 0.7, 4.6))
 	prop("WaterCooler", Vector3(-19.5, 0, 4.6), PI / 2)
 	prop("Clock", Vector3(-6, 2.6, D / 2 - 0.15), PI)
+	prop("BulletinBoard", Vector3(-6.6, 1.65, D / 2 - 0.15), PI)
+	# FLEX SHOP: glass counter with watches and bags (luxury items)
+	var fc := solid(Vector3(2.2, 1.0, 0.7), Vector3(-10.0, 0.5, D / 2 - 0.6), null, PI)
+	prop("FlexCounter", Vector3(0, -0.5, 0), 0.0, fc)
+	add_interact(fc, "luxury", 0, "[E] FLEX SHOP")
+	var fs := label("FLEX SHOP", Vector3(-10.0, 2.3, D / 2 - 0.2), 110, Color(1, 0.84, 0.2), PI)
+	fs.outline_modulate = Color(0.35, 0.2, 0.0)
+	var fs2 := label("ROFLEX  ·  LOUIE BATON  ·  SUPREME", Vector3(-10.0, 1.85, D / 2 - 0.2), 44, Color(0.95, 0.95, 0.95), PI)
+	fs2.outline_size = 6
+	# the office is a mess: loose bills, paper balls and cigar butts on the carpet
+	var mess := ["Bill", "Bill", "Bill", "PaperBall", "CigarButt"]
+	for i in 34:
+		var p := Vector3(rng.randf_range(-17, 17), 0.0, rng.randf_range(-12, 11))
+		prop(mess[rng.randi() % mess.size()], p, rng.randf_range(-PI, PI))
 	prop("Clock", Vector3(W / 2 - 0.15, 2.6, -2.0), -PI / 2)
 	for p in [Vector3(12.8, 0, -13.2), Vector3(-19.2, 0, 13.0), Vector3(19.2, 0, -3.8)]:
 		solid_cyl(0.23, 0.9, p + Vector3(0, 0.45, 0))
@@ -542,26 +702,84 @@ func npc(pos: Vector3, rot_y: float, preset: String, title: String, pose: String
 	return n
 
 
-## Streamer corner: TJZ at his stream desk, KIMCHEE and ROARING KITTEH.
+## KWIK LIVE studio: its own room off-map (reach it from the phone's KWIK app).
+## TJZ at his battle station, KIMCHEE on the couch set, ROARING KITTEH's cam.
+const STUDIO := Vector3(70, 0, 0)
+var studio_cam_pos := STUDIO + Vector3(0, 1.7, 1.2)
+var studio_spawn := STUDIO + Vector3(-2.8, 0.1, 2.6)
+var studio_exit_to := Vector3(15.5, 0.1, 10.5)
+
+
 func _streamer_corner() -> void:
-	var base := Vector3(16.5, 0, 12.0)
-	solid(Vector3(2.2, 0.06, 0.9), base + Vector3(0, 0.75, 0))
-	prop("StreamDesk", base)
-	prop("RingLight", base + Vector3(0, 0, -1.1))
-	prop("NeonBoard", base + Vector3(0, 2.5, 1.83), PI)
-	var live_sign := label("KWIK LIVE", base + Vector3(0, 2.5, 1.78), 90, Color(0.75, 0.5, 1), PI)
+	var c := STUDIO
+	var studio := Node3D.new()
+	studio.name = "Studio"
+	root.add_child(studio)
+	var wall := Color(0.16, 0.12, 0.26)
+	box(Vector3(12, 0.2, 9), c + Vector3(0, -0.1, 0), Color(0.12, 0.1, 0.16), true, studio)
+	box(Vector3(12, 0.2, 9), c + Vector3(0, 3.1, 0), Color(0.08, 0.07, 0.1), false, studio)
+	box(Vector3(12, 3.2, 0.2), c + Vector3(0, 1.5, -4.5), wall, true, studio)
+	box(Vector3(12, 3.2, 0.2), c + Vector3(0, 1.5, 4.5), wall, true, studio)
+	box(Vector3(0.2, 3.2, 9), c + Vector3(-6, 1.5, 0), wall, true, studio)
+	box(Vector3(0.2, 3.2, 9), c + Vector3(6, 1.5, 0), wall, true, studio)
+	# acoustic foam panels + purple/cyan LED strips
+	for x in [-4.5, -2.5, 2.5, 4.5]:
+		for y in [1.3, 2.2]:
+			box(Vector3(0.8, 0.8, 0.08), c + Vector3(x, y, -4.37), Color(0.1, 0.08, 0.14), false, studio)
+	for z in [-4.35, 4.35]:
+		box(Vector3(11.8, 0.05, 0.05), c + Vector3(0, 3.0, z), Color(0.7, 0.3, 1.0), false, studio, 3.0)
+	for x in [-5.85, 5.85]:
+		box(Vector3(0.05, 0.05, 8.8), c + Vector3(x, 3.0, 0), Color(0.2, 0.9, 1.0), false, studio, 3.0)
+	for p in [Vector3(-3, 2.6, 0), Vector3(3, 2.6, 0), Vector3(0, 2.6, -2.2), Vector3(0, 2.4, 2.8)]:
+		var o := OmniLight3D.new()
+		o.position = c + p
+		o.omni_range = 8.0
+		o.light_energy = 1.3
+		o.light_color = Color(0.85, 0.75, 1.0)
+		studio.add_child(o)
+	prop("NeonBoard", c + Vector3(0, 2.4, -4.38), 0.0, studio)
+	var live_sign := label("KWIK LIVE", c + Vector3(0, 2.4, -4.33), 90, Color(0.8, 0.55, 1), 0.0, studio)
 	live_sign.outline_size = 16
 	live_sign.outline_modulate = Color(0.3, 0.05, 0.6)
-	prop("GamingChair", base + Vector3(0, 0, 0.95), PI)
-	var tj := npc(base + Vector3(0, 0, 0.9), PI, "tjz", "TJZ  (LIVE)", "type")
+	# TJZ's battle station (faces the room / the camera)
+	var tjd := c + Vector3(0, 0, -2.6)
+	solid(Vector3(2.2, 0.06, 0.9), tjd + Vector3(0, 0.75, 0), studio)
+	prop("StreamDesk", tjd, 0.0, studio)
+	prop("RingLight", tjd + Vector3(0.9, 0, 1.4), 0.0, studio)
+	prop("GamingChair", tjd + Vector3(0, 0, 0.95), PI, studio)
+	var tj := npc(tjd + Vector3(0, 0, 0.9), PI, "tjz", "TJZ  (LIVE)", "type")
 	npcs["TJZ"] = tj
-	var kc := npc(base + Vector3(-2.6, 0, -1.4), PI * 0.8, "kimchee", "KIMCHEE", "hold")
+	# KIMCHEE on the couch set
+	solid(Vector3(2.4, 0.45, 0.9), c + Vector3(-3.9, 0.225, 1.2), studio, PI / 2)
+	prop("Couch", c + Vector3(-4.5, 0, 1.2), PI / 2, studio)
+	prop("Plant", c + Vector3(-5.3, 0, -3.6), 0.0, studio)
+	prop("RingLight", c + Vector3(-2.2, 0, 2.6), 0.0, studio)
+	var kc := npc(c + Vector3(-3.2, 0, 0.6), PI * 0.55, "kimchee", "KIMCHEE", "hold")
 	kc.get_node("Model").prop_right.add_child(Props.phone())
 	npcs["KIMCHEE"] = kc
-	var rk := npc(base + Vector3(-4.4, 0, -0.6), PI * 1.15, "kitteh", "ROARING KITTEH")
+	# ROARING KITTEH's corner
+	prop("Beanbag", c + Vector3(3.8, 0, 1.4), -0.6, studio)
+	prop("Armchair", c + Vector3(4.6, 0, -2.2), -0.9, studio)
+	var rk := npc(c + Vector3(3.4, 0, 0.2), -PI * 0.6, "kitteh", "ROARING KITTEH")
 	npcs["ROARING KITTEH"] = rk
+	# the way back: a door to the office
+	var door := prop("DoorFrame", c + Vector3(-5.9, 0, 3.2), PI / 2, studio)
+	prop("DoorLeaf", Vector3(-0.49, 0, -0.06), 0.0, door)
+	var ex := solid(Vector3(0.3, 2.2, 1.0), c + Vector3(-5.8, 1.1, 3.2), studio)
+	add_interact(ex, "studio_exit", 0, "[E] Back to the office")
+	var el := label("EXIT", Vector3(0, 2.35, 0.02), 40, Color(0.3, 1, 0.4), 0.0, door)
+	el.pixel_size = 0.004
+	# Jim Crammer stays on the trading floor (he's a TV guy)
 	var jc := npc(Vector3(W / 2 - 1.5, 0, 1.6), -PI / 2, "crammer", "JIM CRAMMER", "cheer")
 	npcs["JIM CRAMMER"] = jc
+	# the old streamer corner becomes a KWIK LIVE ad + seating
+	var ad := label("KWIK LIVE\nwatch on your phone [P]", Vector3(16.5, 2.4, D / 2 - 0.32), 40, Color(0.8, 0.55, 1), PI)
+	ad.line_spacing = -6
+	ad.outline_modulate = Color(0.3, 0.05, 0.6)
+	prop("NeonBoard", Vector3(16.5, 2.4, D / 2 - 0.25), PI)
+	for x in [15.2, 17.8]:
+		solid(Vector3(0.8, 0.8, 0.75), Vector3(x, 0.4, 12.3), null, PI)
+		prop("Armchair", Vector3(x, 0, 12.3), PI)
 
 
 func bake_nav() -> void:

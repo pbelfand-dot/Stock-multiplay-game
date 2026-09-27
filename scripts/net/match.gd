@@ -28,6 +28,9 @@ signal raid_changed(target: int, active: bool)
 signal day_ended(summary: Dictionary)
 signal game_over(summary: Dictionary)
 signal toast(msg: String)
+signal luxury_bought(peer: int, key: String)
+signal relieved(peer: int, line: String)
+signal posted(ev: Dictionary)
 signal chat(from_name: String, msg: String)
 signal error_msg(msg: String)
 
@@ -40,6 +43,8 @@ var accounts := {}              # ledger payload
 var heat := {}                  # peer -> float
 var jail := {}                  # peer -> seconds left
 var inventory := {}             # peer -> {item: count}
+var owned := {}                 # peer -> {luxury: count} (flex items, never consumed)
+var pressure := {}              # peer -> blood pressure 0..100 (see Rules.PRESSURE_*)
 var effects := {}               # peer -> {effect: seconds left}
 var stats := {}                 # peer -> {pnl_day, pnl_total, trades, arrests, biggest}
 var raid := {}                  # {target, t} when active
@@ -58,6 +63,7 @@ var _cop_acc := 0.0
 var _next_event: Dictionary = {}
 var _next_event_in := 0.0
 var _early_sent := false
+var _post_sent := false
 var _booking_no := 4298
 var _dirty := false
 
@@ -177,9 +183,12 @@ func _req_open(sym: String, side: int, margin: float, lev: int) -> void:
 	if is_jailed(id):
 		_s_error.rpc_id(id, "You're in jail, genius.")
 		return
+	if pressure_of(id) >= Rules.PRESSURE_FAT_FINGER and rng.randf() < 0.6:
+		margin *= 2.0 if rng.randf() < 0.5 else 0.5   # shaking hands: fat-finger the size
+		_s_error.rpc_id(id, "FAT FINGER! Your hands are shaking. Go relieve the pressure.")
 	var fee_rate := 0.0 if effect_left(id, "cigar") > 0.0 else Ledger.FEE_RATE
 	var r: Dictionary = ledger.open_position(acct_for(id), sym, side, margin, lev,
-		market.price_of(sym), Net.player_name(id), fee_rate)
+		market.price_of(sym), Net.player_name(id), fee_rate, market.spread_of(sym))
 	if not r.ok:
 		_s_error.rpc_id(id, r.error)
 		return
@@ -211,6 +220,21 @@ func _req_close(pid: int) -> void:
 	var r: Dictionary = ledger.close_position(acct, pid, market.price_of(sym))
 	if r.ok:
 		_after_close(r, acct, id)
+	_push_state()
+
+
+## Take-profit / stop-loss for one of your positions (0 = off).
+func request_set_tpsl(pid: int, tp: float, sl: float) -> void:
+	_req_set_tpsl.rpc_id(1, pid, tp, sl)
+
+
+@rpc("any_peer", "call_local", "reliable")
+func _req_set_tpsl(pid: int, tp: float, sl: float) -> void:
+	if not Net.is_server():
+		return
+	var id := _sender()
+	if not ledger.set_tpsl(acct_for(id), pid, tp, sl):
+		_s_error.rpc_id(id, "TP goes on the profit side, SL between entry and LIQ.")
 	_push_state()
 
 
@@ -257,6 +281,65 @@ func _req_buy(item: String) -> void:
 	if Net.mode == "coop":
 		_s_toast.rpc("%s spent %s of the fund on %s" % [Net.player_name(id), Rules.money(def.price), def.name])
 	_push_state()
+
+
+func lux_count(peer: int, key: String) -> int:
+	return int(owned.get(peer, {}).get(key, 0))
+
+
+func request_buy_lux(key: String) -> void:
+	_req_buy_lux.rpc_id(1, key)
+
+
+@rpc("any_peer", "call_local", "reliable")
+func _req_buy_lux(key: String) -> void:
+	if not Net.is_server() or not Rules.LUXURY.has(key):
+		return
+	var id := _sender()
+	_ensure_peer(id)
+	var def: Dictionary = Rules.LUXURY[key]
+	if lux_count(id, key) >= int(def.max):
+		_s_error.rpc_id(id, "You already flex enough %s." % def.name)
+		return
+	var acct := acct_for(id)
+	var a: Dictionary = ledger.get_acct(acct)
+	if a.is_empty() or a.balance < def.price:
+		_s_error.rpc_id(id, "Can't afford %s." % def.name)
+		return
+	ledger.adjust(acct, -def.price)
+	owned[id][key] = lux_count(id, key) + 1
+	_add_heat(id, def.get("heat", 0.0))
+	_s_toast.rpc("%s copped a %s (%s)" % [Net.player_name(id), def.name, Rules.money(def.price)])
+	_s_luxury.rpc(id, key)
+	_push_state()
+
+
+func pressure_of(peer: int) -> float:
+	return float(pressure.get(peer, 0.0))
+
+
+## Go take care of it (only in the restroom, see World.near_toilet).
+func request_relieve() -> void:
+	_req_relieve.rpc_id(1)
+
+
+@rpc("any_peer", "call_local", "reliable")
+func _req_relieve() -> void:
+	if not Net.is_server():
+		return
+	var id := _sender()
+	_ensure_peer(id)
+	if effect_left(id, "relief") > 0.0 or is_jailed(id) or not world.near_toilet(id):
+		return
+	effects[id]["relief"] = Rules.RELIEF_SECONDS
+	pressure[id] = 0.0
+	_s_relieved.rpc(id, Rules.RELIEF_LINES[rng.randi() % Rules.RELIEF_LINES.size()])
+	_push_state()
+
+
+@rpc("authority", "call_local", "reliable")
+func _s_relieved(peer: int, line: String) -> void:
+	relieved.emit(peer, line)
 
 
 func request_use(item: String) -> void:
@@ -366,6 +449,10 @@ func _server_step(dt: float) -> void:
 				effects[id].erase(e)
 	for id in heat.keys():
 		heat[id] = maxf(heat[id] - Rules.HEAT_DECAY * dt, 0.0)
+	if phase == "trading":
+		for id in pressure.keys():
+			if not is_jailed(id) and effect_left(id, "relief") <= 0.0:
+				pressure[id] = minf(pressure[id] + Rules.PRESSURE_RISE * dt, Rules.PRESSURE_MAX)
 	for id in jail.keys():
 		jail[id] -= dt
 		if jail[id] <= 0.0:
@@ -376,6 +463,9 @@ func _server_step(dt: float) -> void:
 	if phase == "trading":
 		time_left -= dt
 		_step_news(dt)
+		for r in ledger.check_triggers(market.price_of):
+			_after_close(r, r.acct, r.pos.get("trader_id", 0))
+			_dirty = true
 		for r in ledger.check_liquidations(market.price_of):
 			_after_close(r, r.acct, r.pos.get("trader_id", 0))
 			_dirty = true
@@ -388,7 +478,7 @@ func _server_step(dt: float) -> void:
 		if time_left <= 0.0:
 			_start_day()
 
-	_s_tick.rpc(market.tick_payload(), time_left, heat, raid)
+	_s_tick.rpc(market.tick_payload(), time_left, heat, raid, pressure)
 	if _dirty:
 		_push_state()
 
@@ -400,6 +490,10 @@ func _step_news(dt: float) -> void:
 		for id in effects.keys():
 			if effect_left(id, "powder") > 0.0:
 				_s_news_early.rpc_id(id, _public(_next_event))
+	# Tramp posts before the TV covers it: phone-watchers get a head start
+	if not _post_sent and _next_event_in <= 4.0 and _next_event.speaker == "TRAMP":
+		_post_sent = true
+		_s_post.rpc(_public(_next_event))
 	if _next_event_in <= 0.0:
 		newsdeck.apply(market, _next_event)
 		last_news = _public(_next_event)
@@ -411,6 +505,7 @@ func _roll_next_event() -> void:
 	_next_event = newsdeck.roll()
 	_next_event_in = rng.randf_range(22.0, 40.0)
 	_early_sent = false
+	_post_sent = false
 
 
 func _public(ev: Dictionary) -> Dictionary:
@@ -427,7 +522,7 @@ func _after_close(r: Dictionary, acct: int, closer: int) -> void:
 	if r.pct > 100.0 and heat.has(trader_id):
 		_add_heat(trader_id, Rules.HEAT_BIG_WIN)
 	_s_trade_closed.rpc({"acct": acct, "trader": pos.trader, "sym": pos.sym, "side": pos.side,
-		"pnl": r.pnl, "pct": r.pct, "liquidated": r.liquidated, "lev": pos.lev})
+		"pnl": r.pnl, "pct": r.pct, "liquidated": r.liquidated, "lev": pos.lev, "trigger": r.get("trigger", "")})
 
 
 func _add_heat(id: int, amount: float) -> void:
@@ -510,6 +605,10 @@ func _ensure_peer(id: int) -> void:
 		heat[id] = 0.0
 	if not inventory.has(id):
 		inventory[id] = {}
+	if not owned.has(id):
+		owned[id] = {}
+	if not pressure.has(id):
+		pressure[id] = 0.0
 	if not effects.has(id):
 		effects[id] = {}
 	if not stats.has(id):
@@ -538,6 +637,8 @@ func _reset_run() -> void:
 	ledger = Ledger.new()
 	heat.clear()
 	inventory.clear()
+	owned.clear()
+	pressure.clear()
 	effects.clear()
 	stats.clear()
 	jail.clear()
@@ -632,7 +733,7 @@ func _push_state() -> void:
 	_dirty = false
 	accounts = ledger.payload()
 	_s_state.rpc({"phase": phase, "day": day, "time_left": time_left, "quota": quota,
-		"accounts": accounts, "heat": heat, "jail": jail, "inventory": inventory,
+		"accounts": accounts, "heat": heat, "jail": jail, "inventory": inventory, "owned": owned,
 		"effects": effects, "stats": stats, "raid": raid})
 
 
@@ -650,6 +751,7 @@ func _s_state(s: Dictionary) -> void:
 	heat = s.heat
 	jail = s.jail
 	inventory = s.inventory
+	owned = s.get("owned", {})
 	effects = s.effects
 	stats = s.stats
 	raid = s.raid
@@ -672,7 +774,8 @@ func _mirror_market_full(p: Dictionary) -> void:
 
 
 @rpc("authority", "call_local", "unreliable_ordered")
-func _s_tick(p: Dictionary, t_left: float, h: Dictionary, r: Dictionary) -> void:
+func _s_tick(p: Dictionary, t_left: float, h: Dictionary, r: Dictionary, bp: Dictionary = {}) -> void:
+	pressure = bp
 	if m_assets.size() != p.p.size():
 		return
 	var new_candle: bool = p.ci != m_ci
@@ -753,6 +856,16 @@ func _s_day_ended(summary: Dictionary) -> void:
 @rpc("authority", "call_local", "reliable")
 func _s_game_over(summary: Dictionary) -> void:
 	game_over.emit(summary)
+
+
+@rpc("authority", "call_local", "reliable")
+func _s_post(ev: Dictionary) -> void:
+	posted.emit(ev)
+
+
+@rpc("authority", "call_local", "reliable")
+func _s_luxury(peer: int, key: String) -> void:
+	luxury_bought.emit(peer, key)
 
 
 @rpc("authority", "call_local", "reliable")

@@ -3,6 +3,7 @@ extends Control
 ## axis on the right, time axis on the bottom, entry lines, pen drawings.
 
 const UI = preload("res://scripts/ui/ui_theme.gd")
+const Ledger = preload("res://scripts/sim/ledger.gd")
 const Rules = preload("res://scripts/sim/rules.gd")
 const VISIBLE := 60
 const AXIS_W := 78.0
@@ -14,6 +15,11 @@ var pen_enabled := false
 var strokes: Array = []          # Array[PackedVector2Array] in normalized (0..1) coords
 var _drawing := false
 var show_volume := true
+# price <-> y mapping from the last draw (for dragging TP/SL lines)
+var _lo := 0.0
+var _hi := 1.0
+var _plot := Rect2()
+var _drag := {}          # {pid, kind: "tp"/"sl", price, pos}
 
 
 func _ready() -> void:
@@ -26,8 +32,60 @@ func clear_drawings() -> void:
 	queue_redraw()
 
 
+func _price_at(y: float) -> float:
+	return _lo + (1.0 - (y - _plot.position.y) / _plot.size.y) * (_hi - _lo)
+
+
+func _y_at(p: float) -> float:
+	return _plot.position.y + _plot.size.y * (1.0 - (p - _lo) / (_hi - _lo))
+
+
+## Drag a position's TP/SL line to move it; drag from its entry line up/down to
+## create one (toward profit = TP, toward loss = SL). Right-click removes.
+func _tpsl_input(event: InputEvent) -> bool:
+	if match_node == null:
+		return false
+	if event is InputEventMouseButton and event.pressed:
+		for pos in match_node.my_acct().get("positions", []):
+			if pos.sym != sym:
+				continue
+			for kind in ["tp", "sl", "entry"]:
+				var p: float = pos.entry if kind == "entry" else pos.get(kind, 0.0)
+				if p > 0.0 and absf(_y_at(p) - event.position.y) < 7.0:
+					if event.button_index == MOUSE_BUTTON_RIGHT and kind != "entry":
+						match_node.request_set_tpsl(pos.pid, 0.0 if kind == "tp" else pos.tp, 0.0 if kind == "sl" else pos.sl)
+						return true
+					if event.button_index == MOUSE_BUTTON_LEFT:
+						_drag = {"pid": pos.pid, "kind": kind, "price": p, "pos": pos}
+						return true
+	elif event is InputEventMouseMotion and not _drag.is_empty():
+		_drag.price = _price_at(event.position.y)
+		if _drag.kind == "entry":
+			_drag.kind_live = "tp" if (_drag.price - _drag.pos.entry) * _drag.pos.side > 0.0 else "sl"
+		queue_redraw()
+		return true
+	elif event is InputEventMouseButton and not event.pressed and not _drag.is_empty():
+		var pos: Dictionary = _drag.pos
+		var kind: String = _drag.get("kind_live", _drag.kind) if _drag.kind == "entry" else _drag.kind
+		var tp: float = pos.tp
+		var sl: float = pos.sl
+		if absf(_drag.price - pos.entry) > 0.0001 * pos.entry:
+			if kind == "tp":
+				tp = _drag.price
+			else:
+				sl = _drag.price
+			match_node.request_set_tpsl(pos.pid, tp, sl)
+			Sfx.play("click")
+		_drag = {}
+		queue_redraw()
+		return true
+	return false
+
+
 func _gui_input(event: InputEvent) -> void:
 	if not pen_enabled:
+		if _tpsl_input(event):
+			accept_event()
 		return
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
 		_drawing = event.pressed
@@ -64,6 +122,9 @@ func _draw() -> void:
 	var pad := maxf((hi - lo) * 0.08, hi * 0.0005)
 	lo -= pad
 	hi += pad
+	_lo = lo
+	_hi = hi
+	_plot = plot
 	var y_of := func(p: float) -> float:
 		return plot.position.y + plot.size.y * (1.0 - (p - lo) / (hi - lo))
 
@@ -108,6 +169,27 @@ func _draw() -> void:
 		var col := UI.GREEN if pos.side > 0 else UI.RED
 		draw_dashed_line(Vector2(plot.position.x, y), Vector2(plot.end.x, y), col, 1.5, 8.0)
 		draw_string(font, Vector2(plot.position.x + 6, y - 4), "%s x%d %s" % ["LONG" if pos.side > 0 else "SHORT", pos.lev, pos.trader], HORIZONTAL_ALIGNMENT_LEFT, -1, 14, col)
+		# LIQ line (yellow) — only when it's on screen
+		var lq := Ledger.liq_price(pos)
+		if lq > lo and lq < hi:
+			var ly: float = y_of.call(lq)
+			draw_dashed_line(Vector2(plot.position.x, ly), Vector2(plot.end.x, ly), UI.GOLD, 1.2, 3.0)
+			draw_string(font, Vector2(plot.position.x + plot.size.x * 0.45, ly - 3), "LIQ", HORIZONTAL_ALIGNMENT_LEFT, -1, 13, UI.GOLD)
+		# TP / SL lines with profit tags (dragging shows the preview)
+		for kind in ["tp", "sl"]:
+			var p: float = pos.get(kind, 0.0)
+			if not _drag.is_empty() and _drag.pid == pos.pid and _drag.get("kind_live", _drag.kind) == kind:
+				p = _drag.price
+			if p <= 0.0:
+				continue
+			var ky: float = clampf(y_of.call(p), plot.position.y, plot.end.y)
+			var kc := UI.GREEN if kind == "tp" else UI.RED
+			draw_line(Vector2(plot.position.x, ky), Vector2(plot.end.x, ky), kc, 1.6)
+			var gain := Ledger.pnl_of(pos, p)
+			var tag := "%s  %s%s" % [kind.to_upper(), "+" if gain >= 0 else "", Rules.money(gain)]
+			var tw := font.get_string_size(tag, HORIZONTAL_ALIGNMENT_LEFT, -1, 14).x + 12
+			draw_rect(Rect2(plot.end.x - tw - 6, ky - 10, tw, 20), kc)
+			draw_string(font, Vector2(plot.end.x - tw, ky + 5), tag, HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color.BLACK)
 
 	# live price tag
 	var py: float = y_of.call(a.price)

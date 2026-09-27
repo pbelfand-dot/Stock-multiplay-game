@@ -52,7 +52,7 @@ func _run() -> void:
 	if not await _wait_for(func(): return _match() != null, 15.0, "world"):
 		return
 	m = _match()
-	for sig in ["news", "trade_closed", "trade_opened", "slot_result", "arrested", "raid_changed", "chat", "state_changed"]:
+	for sig in ["news", "trade_closed", "trade_opened", "slot_result", "arrested", "raid_changed", "chat", "state_changed", "relieved"]:
 		var s: String = sig
 		m.connect(sig, func(_a = null, _b = null, _c = null, _d = null): got[s] = got.get(s, 0) + 1)
 	if role == "host":
@@ -68,7 +68,7 @@ func _host() -> void:
 	if not await _wait_for(func(): return m.phase == "trading", 10.0, "trading phase"):
 		return
 	# wait for the client's trade + slot + chat
-	if not await _wait_for(func(): return got.get("trade_closed", 0) >= 1 and got.get("slot_result", 0) >= 1 and got.get("chat", 0) >= 2, 40.0, "client actions"):
+	if not await _wait_for(func(): return got.get("trade_closed", 0) >= 1 and got.get("slot_result", 0) >= 1 and got.get("chat", 0) >= 1, 40.0, "client actions"):
 		return
 	var bob := 0
 	for id in Net.players:
@@ -82,10 +82,19 @@ func _host() -> void:
 	if Net.players[bob].get("look", {}).get("hair_style", "") != "afro" or pnode.look.get("outfit", "") != "hoodie":
 		_fail("client's tailor look didn't sync: %s" % str(Net.players[bob].get("look", {})))
 		return
+	if not await _wait_for(func(): return pnode.seat == 0 and pnode.emote == 1, 30.0, "client sitting + finger emote"):
+		return
+	_say("client's chair + emote synced (pose %s)" % pnode.model.pose)
+	if not await _wait_for(func(): return got.get("chat", 0) >= 3, 30.0, "client ready for the raid"):
+		return
 	_say("client's tailor look synced (afro + hoodie)")
 	if m.stats[bob].trades < 1:
 		_fail("server didn't record client trade")
 		return
+	if m.lux_count(bob, "louie") != 1 or get_node("/root/Main/World").builder.root.get_node_or_null("Trophies_%d" % (get_node("/root/Main/World").desk_of(bob))) == null:
+		_fail("client's LOUIE BATON bag didn't show up")
+		return
+	_say("client's flex synced (LOUIE BATON on their desk)")
 	# Crank the client's heat -> raid -> cops should catch them (they stand still).
 	m._add_heat(bob, 200.0)
 	if m.raid.is_empty():
@@ -114,6 +123,9 @@ func _client() -> void:
 	m.request_use("cigar")
 	if not await _wait_for(func(): return m.effect_left(Net.my_id(), "cigar") > 0.0, 5.0, "cigar active"):
 		return
+	m.request_buy_lux("louie")
+	if not await _wait_for(func(): return m.lux_count(Net.my_id(), "louie") == 1, 5.0, "louie bag bought"):
+		return
 	m.request_slot(300.0)
 	if not await _wait_for(func(): return got.get("slot_result", 0) >= 1, 5.0, "slot result"):
 		return
@@ -135,7 +147,26 @@ func _client() -> void:
 	w.ball.request_throw(Vector3(-1, 0.6, 0))
 	if not await _wait_for(func(): return w.ball.holder == 0, 5.0, "ball throw"):
 		return
-	_say("basketball grab + throw ok")
+		_say("basketball grab + throw ok")
+	# sit in a desk chair and flip the bird: the host must see both
+	var lp = w.local_player
+	lp.sit(0)
+	lp.emote = 1
+	lp._emote_t = 30.0
+	m.send_chat("sitting + emote")
+	await get_tree().create_timer(1.0).timeout
+	lp.stand_up()
+	lp.emote = 0
+	# blood pressure: walk into the restroom and take care of it
+	w.local_player.teleport(w.builder.toilet_pos + Vector3(1.1, 0.1, 0.4))
+	await get_tree().create_timer(0.6).timeout
+	m.request_relieve()
+	if not await _wait_for(func(): return got.get("relieved", 0) >= 1, 5.0, "restroom relief"):
+		return
+	if not await _wait_for(func(): return m.pressure_of(Net.my_id()) < 5.0, 3.0, "pressure reset"):
+		return
+	_say("restroom relief ok (pressure %.1f)" % m.pressure_of(Net.my_id()))
+	await get_tree().create_timer(4.0 + 0.2).timeout
 	w.local_player.teleport(w.spawn_point(1))
 	await get_tree().create_timer(0.5).timeout
 	m.send_chat("ready for the cops")

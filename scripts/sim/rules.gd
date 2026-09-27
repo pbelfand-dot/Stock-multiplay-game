@@ -34,12 +34,38 @@ const ITEMS := {
 
 const ITEM_DURATION := {"cigar": 60.0, "powder": 40.0, "moneygun": 10.0}
 
+## Luxury flex items: permanent, they show up on your desk / wrist. "max" caps how
+## many you can own (one watch of each kind, trophies stack up).
+const LUXURY := {
+	"supreme": {"name": "Supreme Brick", "price": 2_500.0, "max": 6,
+		"desc": "It's a brick. It says Supreme. You need it."},
+	"counter": {"name": "Cash Counter", "price": 8_000.0, "max": 1,
+		"desc": "Sits on your desk going brrrrt. Counts nothing. Looks rich."},
+	"louie": {"name": "LOUIE BATON Bag", "price": 12_000.0, "max": 4,
+		"desc": "Orange bag. Empty. Pure flex. Lines up next to your desk."},
+	"roflex": {"name": "ROFLEX Datejust", "price": 35_000.0, "max": 1,
+		"desc": "Gold ROFLEX on your wrist + the green box on your desk."},
+	"roflex_iced": {"name": "ROFLEX Iced Out", "price": 150_000.0, "max": 1, "heat": 10.0,
+		"desc": "Diamond bezel. Blinding. The SEC notices (+10 heat)."},
+}
+
 
 static func quota_for_day(day: int, start: float = START_FUND) -> float:
 	return start * pow(QUOTA_GROWTH, day)
 
 
 # ---------------- slots ----------------
+
+## Blood pressure (Mark Hanna's lunch prescription): rises while the market is
+## open; relieve it in the restroom 2-3 times a trading day or it wrecks you.
+const PRESSURE_MAX := 100.0
+const PRESSURE_RISE := 100.0 / 120.0       # full in ~2 min of trading
+const PRESSURE_RED := 50.0                 # screen starts going red
+const PRESSURE_WOBBLY := 70.0              # camera sway, slower legs
+const PRESSURE_FAT_FINGER := 85.0          # orders come out the wrong size
+const RELIEF_SECONDS := 4.0
+const RELIEF_LINES := ["Prescription filled.", "Twice a day, minimum.", "Keep the blood flowing.",
+	"Rookie numbers? Not today.", "Rhythm below the belt: restored.", "Balance restored. Differential intact."]
 
 const SLOT_SYMBOLS := ["CHERRY", "CLOVER", "BELL", "DIAMOND", "SEVEN"]
 const SLOT_WEIGHTS := [5, 4, 3, 2, 1]

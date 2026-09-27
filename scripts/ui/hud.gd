@@ -8,6 +8,8 @@ const SlotsScript = preload("res://scripts/ui/slots_ui.gd")
 const ShopScript = preload("res://scripts/ui/shop_ui.gd")
 const PopupScript = preload("res://scripts/ui/trade_popup.gd")
 const Overlays = preload("res://scripts/ui/overlays.gd")
+const PhoneScript = preload("res://scripts/ui/phone.gd")
+const CrtFrame = preload("res://scripts/ui/crt_frame.gd")
 
 var world
 var match_node
@@ -19,6 +21,14 @@ var day_lbl: Label
 var time_lbl: Label
 var phase_lbl: Label
 var heat_bar: ProgressBar
+var bp_bar: ProgressBar
+var bp_lbl: Label
+var bp_vignette: ColorRect
+var relief_panel: ColorRect
+var relief_lbl: Label
+var relief_t := 0.0
+var _beat_t := 0.0
+var _bp_warned := false
 var heat_lbl: Label
 var chyron: PanelContainer
 var chyron_speaker: Label
@@ -39,6 +49,11 @@ var raid_flash: ColorRect
 var terminal
 var slots
 var shop
+var lux_shop
+var phone
+var crt
+var _last_post := ""
+var unbox
 var popup
 var mugshot
 var summary
@@ -78,6 +93,9 @@ func setup(w, m) -> void:
 	m.toast.connect(show_toast)
 	m.error_msg.connect(func(e): show_toast(e, UI.RED))
 	m.chat.connect(_on_chat)
+	m.luxury_bought.connect(_on_luxury)
+	m.relieved.connect(_on_relieved)
+	m.posted.connect(_on_posted)
 	_on_state()
 
 
@@ -130,6 +148,19 @@ func _build_top_bar() -> void:
 	bg.set_corner_radius_all(6)
 	heat_bar.add_theme_stylebox_override("background", bg)
 	heat_box.add_child(heat_bar)
+	bp_lbl = UI.lbl("BLOOD PRESSURE", 18, Color(1, 0.55, 0.55), true)
+	bp_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	heat_box.add_child(bp_lbl)
+	bp_bar = ProgressBar.new()
+	bp_bar.max_value = Rules.PRESSURE_MAX
+	bp_bar.show_percentage = false
+	bp_bar.custom_minimum_size = Vector2(280, 12)
+	var bfill := StyleBoxFlat.new()
+	bfill.bg_color = Color(0.9, 0.1, 0.2)
+	bfill.set_corner_radius_all(5)
+	bp_bar.add_theme_stylebox_override("fill", bfill)
+	bp_bar.add_theme_stylebox_override("background", bg)
+	heat_box.add_child(bp_bar)
 	jail_lbl = UI.lbl("", 26, UI.RED, true)
 	jail_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	heat_box.add_child(jail_lbl)
@@ -254,6 +285,10 @@ func _build_modals() -> void:
 	terminal.visible = false
 	terminal.closed.connect(close_modals)
 	root.add_child(terminal)
+	crt = CrtFrame.new()
+	crt.follower = terminal
+	crt.visible = false
+	root.add_child(crt)
 	slots = SlotsScript.new()
 	slots.setup(match_node)
 	slots.visible = false
@@ -264,6 +299,44 @@ func _build_modals() -> void:
 	shop.visible = false
 	shop.closed.connect(close_modals)
 	root.add_child(shop)
+	lux_shop = ShopScript.new()
+	lux_shop.setup(match_node, "luxury")
+	lux_shop.visible = false
+	lux_shop.closed.connect(close_modals)
+	root.add_child(lux_shop)
+	unbox = Overlays.Unbox.new()
+	root.add_child(unbox)
+	phone = PhoneScript.new()
+	phone.world = world
+	root.add_child(phone)
+	# blood pressure: red, pulsing vignette + the restroom fade
+	bp_vignette = ColorRect.new()
+	bp_vignette.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	bp_vignette.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var sh := Shader.new()
+	sh.code = """shader_type canvas_item;
+uniform float strength = 0.0;
+void fragment() {
+	float d = distance(UV, vec2(0.5)) * 1.45;
+	float v = smoothstep(0.35, 1.0, d) * strength + strength * 0.12;
+	COLOR = vec4(0.75, 0.0, 0.03, clamp(v, 0.0, 0.85));
+}"""
+	var sm := ShaderMaterial.new()
+	sm.shader = sh
+	bp_vignette.material = sm
+	root.add_child(bp_vignette)
+	root.move_child(bp_vignette, 0)
+	relief_panel = ColorRect.new()
+	relief_panel.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	relief_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	relief_panel.color = Color(0.02, 0.02, 0.03, 0.0)
+	root.add_child(relief_panel)
+	relief_lbl = UI.lbl("", 34, UI.GOLD, true)
+	relief_lbl.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	relief_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	relief_lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	relief_lbl.modulate.a = 0.0
+	relief_panel.add_child(relief_lbl)
 	summary = Overlays.Summary.new()
 	root.add_child(summary)
 	mugshot = Overlays.Mugshot.new()
@@ -291,7 +364,7 @@ func _build_modals() -> void:
 		Config.mouse_sensitivity = val
 		Config.save_settings())
 	sens_row.add_child(sens)
-	v.add_child(UI.lbl("WASD move · SHIFT sprint · E interact · 1-6 items\nTAB scoreboard · T chat · ENTER (host) opening bell\nIn terminal: B buy · S sell · Q/E size · L leverage · C close all", 16, UI.DIM))
+	v.add_child(UI.lbl("WASD move · SHIFT sprint · E interact · 1-6 items\nTAB scoreboard · T chat · ENTER (host) opening bell\nP phone · In terminal: B buy · S sell · Q/E size · L leverage · C close all", 16, UI.DIM))
 	var leave := UI.btn("LEAVE OFFICE", UI.RED.darkened(0.2), 24)
 	leave.pressed.connect(func(): get_tree().root.get_node("Main").leave_game())
 	v.add_child(leave)
@@ -305,13 +378,15 @@ func _build_modals() -> void:
 # ---------------------------------------------------------------- modals
 
 func is_modal_open() -> bool:
-	return terminal.visible or slots.visible or shop.visible or pause_menu.visible or _chat_open
+	return terminal.visible or slots.visible or shop.visible or lux_shop.visible or pause_menu.visible or _chat_open
 
 
 func close_modals() -> void:
 	terminal.visible = false
 	slots.visible = false
 	shop.visible = false
+	lux_shop.visible = false
+	crt.visible = false
 	pause_menu.visible = false
 	_close_chat()
 
@@ -321,12 +396,17 @@ func open_interact(t: Dictionary) -> void:
 	match t.type:
 		"terminal":
 			terminal.visible = true
+			crt.visible = true
+			crt.pop_in()
 			terminal._refresh_all()
 		"slots":
 			slots.visible = true
 		"shop":
 			shop.visible = true
 			shop._refresh()
+		"luxury":
+			lux_shop.visible = true
+			lux_shop._refresh()
 
 
 func set_prompt(t: Dictionary) -> void:
@@ -353,6 +433,7 @@ func _process(delta: float) -> void:
 		raid_flash.color = Color(1, 0, 0, (0.12 if mine else 0.05) * (0.5 + 0.5 * sin(_raid_t * 10.0)))
 	else:
 		raid_flash.color.a = 0.0
+	_update_pressure_fx(delta)
 	var jl: float = match_node.jail.get(Net.my_id(), 0.0)
 	jail_lbl.text = "IN JAIL %ds" % ceili(jl) if jl > 0.0 else ""
 	jail_lbl.visible = jl > 0.0
@@ -364,6 +445,13 @@ func _unhandled_input(event: InputEvent) -> void:
 			close_modals()
 		else:
 			pause_menu.visible = true
+		get_viewport().set_input_as_handled()
+	elif event.is_action_pressed("phone") and not is_modal_open():
+		phone.toggle()
+		get_viewport().set_input_as_handled()
+	elif event.is_action_pressed("phone_action") and phone.open and phone.app == "kwik" and not is_modal_open():
+		world.go_to_studio()
+		phone.toggle()
 		get_viewport().set_input_as_handled()
 	elif event.is_action_pressed("chat") and not is_modal_open():
 		_chat_open = true
@@ -424,6 +512,7 @@ func _on_state() -> void:
 func _on_tick() -> void:
 	var t: float = maxf(match_node.time_left, 0.0)
 	time_lbl.text = "%d:%02d" % [int(t) / 60, int(t) % 60]
+	crt.set_time(t, t < 30 and match_node.phase == "trading")
 	time_lbl.add_theme_color_override("font_color", UI.RED if t < 30 and match_node.phase == "trading" else UI.TEXT)
 	var acct_id: int = match_node.acct_for(Net.my_id())
 	var eq: float = match_node.equity_of(acct_id)
@@ -431,6 +520,14 @@ func _on_tick() -> void:
 	fund_lbl.add_theme_color_override("font_color", UI.GREEN if eq >= match_node.quota or match_node.phase == "lobby" else UI.GOLD)
 	var h: float = match_node.heat.get(Net.my_id(), 0.0)
 	heat_bar.value = h
+	var bp: float = match_node.pressure_of(Net.my_id())
+	bp_bar.value = bp
+	bp_lbl.text = "BLOOD PRESSURE %d%s" % [int(bp), "  → RESTROOM!" if bp >= Rules.PRESSURE_WOBBLY else ""]
+	if bp >= Rules.PRESSURE_RED and not _bp_warned:
+		_bp_warned = true
+		show_toast("Blood pressure rising. Mark Hanna's prescription: twice a day, minimum. Restroom's by the whiteboard.", Color(1, 0.55, 0.55))
+	elif bp < 10.0:
+		_bp_warned = false
 	heat_lbl.text = "HEAT %d" % int(h)
 	if terminal.visible:
 		terminal._refresh_prices()
@@ -480,12 +577,23 @@ func show_toast(msg: String, color: Color = UI.TEXT) -> void:
 	toasts.add_child(p)
 	while toasts.get_child_count() > 6:
 		toasts.get_child(0).free()
+	var pid := p.get_instance_id()   # capture an id, not the node: older toasts get freed early
 	get_tree().create_timer(5.0).timeout.connect(func():
-		if is_instance_valid(p):
-			p.queue_free())
+		var o = instance_from_id(pid)
+		if o:
+			o.queue_free())
+
+
+func _on_posted(ev: Dictionary) -> void:
+	_last_post = ev.headline
+	phone.post_news(ev)
+	if not phone.open:
+		show_toast("NEW POST — @realDonnyTramp   [P] check your phone", UI.GOLD)
 
 
 func _on_news(ev: Dictionary) -> void:
+	if ev.headline != _last_post:
+		phone.post_news(ev)
 	Sfx.play("news", -2.0)
 	chyron_speaker.text = " %s " % ev.role
 	chyron_text.text = ev.headline
@@ -512,7 +620,9 @@ func _on_trade_opened(info: Dictionary) -> void:
 
 func _on_trade_closed(info: Dictionary) -> void:
 	if info.acct == match_node.acct_for(Net.my_id()):
-		popup.show_trade(info.pnl, info.pct, info.liquidated, "%s %s" % [info.trader, info.sym])
+		var trig: String = info.get("trigger", "")
+		popup.show_trade(info.pnl, info.pct, info.liquidated, "%s %s%s" % [info.trader, info.sym,
+				("  · %s HIT" % trig) if trig != "" else ""])
 		if info.liquidated:
 			Sfx.play("liquidated")
 		elif info.pnl >= 0.0:
@@ -550,6 +660,44 @@ func _on_day_ended(s: Dictionary) -> void:
 	elif s.get("passed", false):
 		Sfx.play("jackpot")
 	summary.show_summary(s)
+
+
+## True while you're busy in the restroom (World blocks movement).
+func busy() -> bool:
+	return relief_t > 0.0
+
+
+func _update_pressure_fx(delta: float) -> void:
+	var bp: float = match_node.pressure_of(Net.my_id())
+	var k := clampf((bp - Rules.PRESSURE_RED) / (Rules.PRESSURE_MAX - Rules.PRESSURE_RED), 0.0, 1.0)
+	_beat_t -= delta
+	var pulse := 0.0
+	if k > 0.0 and relief_t <= 0.0:
+		if _beat_t <= 0.0:
+			_beat_t = lerpf(1.3, 0.55, k)
+			Sfx.play("heartbeat", lerpf(-14.0, -2.0, k))
+		pulse = maxf(0.0, _beat_t - lerpf(1.3, 0.55, k) + 0.25) * 2.0
+	(bp_vignette.material as ShaderMaterial).set_shader_parameter("strength", k * (0.75 + 0.25 * pulse))
+	if relief_t > 0.0:
+		relief_t -= delta
+		var a := clampf(minf(relief_t, Rules.RELIEF_SECONDS - relief_t) * 3.0, 0.0, 1.0)
+		relief_panel.color.a = a
+		relief_lbl.modulate.a = a
+
+
+func _on_relieved(peer: int, line: String) -> void:
+	if peer == Net.my_id():
+		close_modals()
+		relief_t = Rules.RELIEF_SECONDS
+		relief_lbl.text = "*chest thump*  mm-MM  mm-mm\n\n\"%s\"" % line
+		Sfx.play("hum")
+	else:
+		show_toast("%s is in the restroom. Keeping the blood flowing." % Net.player_name(peer), UI.DIM)
+
+
+func _on_luxury(peer: int, key: String) -> void:
+	if peer == Net.my_id() and key.begins_with("roflex"):
+		unbox.play(key == "roflex_iced")
 
 
 func _on_chat(from_name: String, msg: String) -> void:

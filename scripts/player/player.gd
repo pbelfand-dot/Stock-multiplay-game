@@ -2,6 +2,7 @@ extends CharacterBody3D
 ## First-person player. The owning peer simulates movement and broadcasts
 ## its transform; every other peer shows an interpolated puppet.
 
+const Rules = preload("res://scripts/sim/rules.gd")
 const WALK := 4.5
 const SPRINT := 7.5
 const JUMP := 4.6
@@ -10,10 +11,13 @@ const REACH := 2.6
 const SEND_RATE := 1.0 / 20.0
 const Character = preload("res://scripts/art/character.gd")
 const Props = preload("res://scripts/art/props.gd")
+const PropKit = preload("res://scripts/art/prop_kit.gd")
 
 var peer_id := 1
 var display_name := "Trader"
 var look := {}
+var _watch_kind := ""
+var _sway_t := 0.0
 var is_local := false
 var world   # set by World
 
@@ -42,6 +46,19 @@ var bills: CPUParticles3D
 var held_cigar: Node3D
 var held_gun: Node3D
 var powder_fx := 0.0
+# emotes (F finger, V fist pump, Z show watch, X point) and chairs
+const EMOTES := ["", "finger", "fistpump", "watch", "point"]
+const EMOTE_TIME := 2.4
+const ROLL_SPEED := 2.2
+var emote := 0              # index into EMOTES (synced)
+var _emote_t := 0.0
+var seat := -1              # desk chair id we're sitting in (synced), -1 = standing
+var carried_chair: Node3D
+var finger_prop: Node3D
+var zippo: Node3D
+var _zippo_t := 0.0
+var _cigar_was := 0.0
+var _fp_rest := Vector3(0.3, -0.28, -0.42)
 
 
 func setup(id: int, pname: String, player_look: Dictionary, local: bool, w) -> void:
@@ -76,7 +93,7 @@ func _ready() -> void:
 		cam.current = true
 		ray = RayCast3D.new()
 		ray.target_position = Vector3(0, 0, -REACH)
-		ray.collision_mask = 1 | 8
+		ray.collision_mask = 1 | 8 | 16
 		ray.add_exception(self)
 		cam.add_child(ray)
 		body_mesh.visible = false
@@ -155,6 +172,11 @@ func _build_fx() -> void:
 		fp_arm.rotation = Vector3(0.08, 0.12, 0)
 		cam.add_child(fp_arm)
 		fp_arm.visible = false
+		zippo = Props.zippo()
+		zippo.position = Vector3(-0.2, -0.3, -0.4)
+		zippo.rotation = Vector3(0.15, -0.3, 0.1)
+		zippo.visible = false
+		cam.add_child(zippo)
 		var grip: Node3D = fp_arm.get_node("Grip")
 		held_cigar = Props.cigar()
 		held_cigar.rotation = Vector3(0, 0.5, 0)
@@ -174,6 +196,9 @@ func _build_fx() -> void:
 		held_gun = Props.flex_gun()
 		held_gun.rotation = Vector3(-PI / 2, 0, 0)
 		model.prop_right.add_child(held_gun)
+		finger_prop = Props.finger(look.get("skin", Color(0.88, 0.7, 0.58)))
+		finger_prop.visible = false
+		model.prop_right.add_child(finger_prop)
 		smoke.position = Vector3(0.1, 1.62, -0.3)
 		bills.position = Vector3(0.3, 1.35, -0.6)
 	held_cigar.visible = false
@@ -183,6 +208,15 @@ func _build_fx() -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if not is_local or world == null:
 		return
+	if not world.ui_blocking():
+		for i in range(1, EMOTES.size()):
+			if event.is_action_pressed("emote_" + EMOTES[i]):
+				emote = i
+				_emote_t = EMOTE_TIME
+				if EMOTES[i] == "watch":
+					Sfx.play("coin", -4.0, 1.3)
+		if seat >= 0 and (event.is_action_pressed("jump") or event.is_action_pressed("dive")):
+			stand_up()
 	if event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
 		rotation.y -= event.relative.x * Config.mouse_sensitivity
 		pitch = clampf(pitch - event.relative.y * Config.mouse_sensitivity, -1.45, 1.45)
@@ -195,7 +229,8 @@ func _physics_process(delta: float) -> void:
 		_send_acc += delta
 		if _send_acc >= SEND_RATE:
 			_send_acc = 0.0
-			var flags := (1 if raining else 0) | (2 if diving > 0.0 else 0) | (4 if world.ui_blocking() else 0)
+			var flags := (1 if raining else 0) | (2 if diving > 0.0 else 0) | (4 if world.ui_blocking() else 0) \
+					| (emote << 3) | ((seat + 1) << 6)
 			world._p_tf.rpc(global_position, rotation.y, pitch, flags)
 	else:
 		if _has_target:
@@ -213,8 +248,13 @@ func _local_move(delta: float) -> void:
 	if not blocked:
 		input = Input.get_vector("move_left", "move_right", "move_forward", "move_back")
 	var speed := SPRINT if Input.is_action_pressed("sprint") else WALK
+	if seat >= 0:
+		speed = ROLL_SPEED
 	if m and m.effect_left(peer_id, "powder") > 0.0:
 		speed *= 1.6
+	var bp: float = m.pressure_of(peer_id) if m else 0.0
+	if bp > Rules.PRESSURE_WOBBLY:   # high blood pressure: heavy legs
+		speed *= lerpf(1.0, 0.6, (bp - Rules.PRESSURE_WOBBLY) / (Rules.PRESSURE_MAX - Rules.PRESSURE_WOBBLY))
 	var dir := (transform.basis * Vector3(input.x, 0, input.y)).normalized()
 	_dive_cd = maxf(_dive_cd - delta, 0.0)
 	if diving > 0.0:
@@ -225,7 +265,7 @@ func _local_move(delta: float) -> void:
 	else:
 		velocity.x = dir.x * speed
 		velocity.z = dir.z * speed
-		if not blocked and _dive_cd <= 0.0 and is_on_floor() and Input.is_action_just_pressed("dive"):
+		if seat < 0 and not blocked and _dive_cd <= 0.0 and is_on_floor() and Input.is_action_just_pressed("dive"):
 			var fwd := -transform.basis.z
 			velocity.x = fwd.x * speed * 1.7
 			velocity.z = fwd.z * speed * 1.7
@@ -235,7 +275,7 @@ func _local_move(delta: float) -> void:
 			Sfx.play("whoosh")
 	if not is_on_floor():
 		velocity.y -= GRAVITY * delta
-	elif not blocked and Input.is_action_just_pressed("jump"):
+	elif seat < 0 and not blocked and Input.is_action_just_pressed("jump"):
 		velocity.y = JUMP
 	move_and_slide()
 	if global_position.y < -10.0:
@@ -254,7 +294,10 @@ func _local_move(delta: float) -> void:
 			_brrt_acc = 0.22
 			Sfx.play("brrt", -6.0, randf_range(0.9, 1.1))
 	# dive camera: drop low and roll
-	head.position.y = lerpf(head.position.y, 0.55 if diving > 0.0 else 1.62, delta * 10.0)
+	head.position.y = lerpf(head.position.y, 0.55 if diving > 0.0 else (1.22 if seat >= 0 else 1.62), delta * 10.0)
+	if seat >= 0 and carried_chair:   # the chair swivels a little behind your yaw
+		carried_chair.rotation.y = lerp_angle(carried_chair.rotation.y, PI, delta * 4.0)
+	_update_fp_emote(delta)
 	head.rotation.z = lerpf(head.rotation.z, 0.25 if diving > 0.0 else 0.0, delta * 8.0)
 	# head bob / powder shake
 	if cam:
@@ -265,6 +308,12 @@ func _local_move(delta: float) -> void:
 		else:
 			cam.h_offset = 0.0
 			cam.fov = lerpf(cam.fov, 80.0, delta * 3.0)
+		# blood pressure: the room sways and throbs
+		var bpk := clampf((m.pressure_of(peer_id) - Rules.PRESSURE_WOBBLY) / (Rules.PRESSURE_MAX - Rules.PRESSURE_WOBBLY), 0.0, 1.0) if m else 0.0
+		_sway_t += delta
+		cam.rotation.z = sin(_sway_t * 1.3) * 0.05 * bpk
+		cam.rotation.y = sin(_sway_t * 0.9 + 1.0) * 0.035 * bpk
+		cam.v_offset = sin(_sway_t * 7.0) * 0.01 * bpk
 
 
 func _update_fx() -> void:
@@ -273,13 +322,19 @@ func _update_fx() -> void:
 	var gun_on: bool = m != null and m.effect_left(peer_id, "moneygun") > 0.0
 	var holding_ball: bool = world != null and world.ball != null and world.ball.holder == peer_id
 	held_cigar.visible = cigar_on and not gun_on
+	if m != null:
+		var wk: String = "iced" if m.lux_count(peer_id, "roflex_iced") > 0 else ("gold" if m.lux_count(peer_id, "roflex") > 0 else str(look.get("watch", "silver")))
+		if wk != _watch_kind:
+			_watch_kind = wk
+			model.set_watch(wk)
+	model.bloodshot = bool(look.get("bloodshot", false)) or cigar_on or (m != null and m.effect_left(peer_id, "powder") > 0.0)
 	held_gun.visible = gun_on
 	if smoke.emitting != cigar_on:
 		smoke.emitting = cigar_on
 	if bills.emitting != raining:
 		bills.emitting = raining
 	if is_local:
-		fp_arm.visible = cigar_on or gun_on or holding_ball
+		fp_arm.visible = cigar_on or gun_on or holding_ball or emote > 0
 		return
 	# animate the remote model from what we know about this player
 	var dt := get_physics_process_delta_time()
@@ -290,8 +345,16 @@ func _update_fx() -> void:
 	model.move_speed = _speed
 	model.look_pitch(pitch)
 	var jailed: bool = m != null and m.is_jailed(peer_id)
+	finger_prop.visible = EMOTES[emote] == "finger"
+	var airborne := global_position.y > 0.45
 	if diving > 0.0:
 		model.pose = "dive"
+	elif holding_ball and airborne:
+		model.pose = "dunk"
+	elif seat >= 0:
+		model.pose = "sit_" + EMOTES[emote] if emote > 0 else ("sit_smoke" if cigar_on else "sit")
+	elif emote > 0:
+		model.pose = EMOTES[emote]
 	elif jailed:
 		model.pose = "cuffed"
 	elif gun_on:
@@ -304,6 +367,79 @@ func _update_fx() -> void:
 		model.pose = "smoke"
 	else:
 		model.pose = "idle"
+
+
+# ---------------------------------------------------------------- chairs + emotes
+
+func sit(chair_id: int) -> void:
+	if seat >= 0 or not world.builder.chairs.has(chair_id):
+		return
+	var c: Dictionary = world.builder.chairs[chair_id]
+	teleport(c.pos + Vector3(0, 0.1, 0))
+	rotation.y = c.rot + PI
+	_set_seat(chair_id)
+	Sfx.play("click", -2.0, 0.7)
+
+
+func stand_up() -> void:
+	_set_seat(-1)
+
+
+## Swap the desk's static chair for one we carry around (everyone sees it).
+func _set_seat(id: int) -> void:
+	if id == seat or world == null:
+		return
+	if seat >= 0 and world.builder.chairs.has(seat):
+		world.builder.chairs[seat].node.visible = true
+	if carried_chair:
+		carried_chair.queue_free()
+		carried_chair = null
+	seat = id if world.builder.chairs.has(id) else -1
+	if seat >= 0:
+		world.builder.chairs[seat].node.visible = false
+		carried_chair = PropKit.place("Chair", self, Vector3(0, 0, 0.12), PI)
+
+
+func _update_fp_emote(delta: float) -> void:
+	var m = world.match_node
+	# the Zippo: flick it open and light up whenever a fresh cigar starts
+	var cig: float = m.effect_left(peer_id, "cigar") if m else 0.0
+	if cig > _cigar_was + 1.0:
+		_zippo_t = 1.4
+		Sfx.play("click", -2.0, 1.8)
+	_cigar_was = cig
+	_zippo_t = maxf(_zippo_t - delta, 0.0)
+	zippo.visible = _zippo_t > 0.0
+	if zippo.visible:
+		var fl: Node3D = zippo.get_node("Flame")
+		fl.scale = Vector3.ONE * (0.8 + randf() * 0.5)
+		zippo.position = Vector3(-0.2, -0.3 + minf(1.4 - _zippo_t, 0.25) * 0.6, -0.4)
+	# emotes in first person: the arm comes up in front of the camera
+	_emote_t = maxf(_emote_t - delta, 0.0)
+	if _emote_t <= 0.0:
+		emote = 0
+	var e: String = EMOTES[emote]
+	fp_arm.get_node("FingerUp").visible = e == "finger"
+	fp_arm.get_node("Watch").visible = e == "watch" or _watch_kind in ["gold", "iced"]
+	var want_pos := _fp_rest
+	var want_rot := Vector3(0.08, 0.12, 0)
+	match e:
+		"finger":
+			want_pos = Vector3(0.12, -0.12, -0.36)
+			want_rot = Vector3(1.35, 0.1, 0.05)
+		"fistpump":
+			want_pos = Vector3(0.18, -0.1 + sin(_emote_t * 18.0) * 0.06, -0.4)
+			want_rot = Vector3(1.2, 0.2, 0.2)
+		"watch":
+			want_pos = Vector3(0.05, -0.16, -0.32)
+			want_rot = Vector3(0.6, 0.9, -1.4)
+		"point":
+			want_pos = Vector3(0.2, -0.16, -0.5)
+			want_rot = Vector3(0.1, 0.05, 0)
+	if e != "":
+		fp_arm.visible = true
+	fp_arm.position = fp_arm.position.lerp(want_pos, clampf(delta * 14.0, 0, 1))
+	fp_arm.rotation = fp_arm.rotation.lerp(want_rot, clampf(delta * 14.0, 0, 1))
 
 
 ## What the crosshair is pointing at: {type, id, prompt} or {}
@@ -333,6 +469,8 @@ func net_tf(pos: Vector3, yaw: float, p: float, flags: int) -> void:
 	raining = flags & 1 != 0
 	diving = 0.5 if flags & 2 != 0 else 0.0
 	busy = flags & 4 != 0
+	emote = (flags >> 3) & 7
+	_set_seat(((flags >> 6) & 31) - 1)
 	if not _has_target:
 		global_position = pos
 		_has_target = true

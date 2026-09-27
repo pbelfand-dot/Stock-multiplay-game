@@ -3,6 +3,7 @@ extends Node
 ##   xvfb-run -s "-screen 0 1600x900x24" godot --path . -- --host --autostart --shots=/tmp/shots
 
 var out_dir := ""
+var _fakes: Array = []
 
 
 func _ready() -> void:
@@ -66,7 +67,8 @@ func _run() -> void:
 		["05_lounge_tony", Vector3(-12, 0.1, 5), 0.9, -0.1],
 		["06_west_wall", Vector3(-14, 0.1, -4), 1.3, 0.05],
 		["07_windows", Vector3(3, 0.1, -6), 0.3, 0.12],
-		["16_streamer_corner", Vector3(11.5, 0.1, 6.5), -2.45, 0.02],
+		["16_streamer_corner", Vector3(72.5, 0.1, 3.4), 0.55, 0.0],
+		["16b_kwik_ad", Vector3(16.5, 0.1, 7.5), PI, 0.1],
 		["18_teammates", Vector3(2.0, 0.1, 9.0), 0.0, -0.1],
 		["19_tony_close", Vector3(-14.2, 0.1, 6.6), 2.75, -0.05],
 		["17_hoop_ball", Vector3(-15.0, 0.1, -9.0), PI / 2 - 0.1, 0.25],
@@ -74,6 +76,8 @@ func _run() -> void:
 		["21_lounge", Vector3(-11.5, 0.1, 8.0), 1.6, -0.2],
 		["22_holding_cell", Vector3(-1.5, 0.1, 40.3), PI - 0.55, -0.1],
 		["23_skyline", Vector3(8.5, 0.1, -11.5), -0.1, 0.3],
+		["24_restroom_door", Vector3(-15.5, 0.1, 4.2), 1.85, 0.0],
+		["25_restroom", Vector3(-20.4, 0.1, 2.4), 1.45, -0.15],
 	]
 	# a fake remote teammate so we can see player models
 	for k in 2:
@@ -82,9 +86,20 @@ func _run() -> void:
 		world.players_node.add_child(d)
 		d.teleport(Vector3(1.2 + k * 1.3, 0.1, 5.5 - k * 0.6))
 		d.rotation.y = PI + 0.3
+	_fakes = []
+	for c in world.players_node.get_children():
+		if int(str(c.name)) >= 900:
+			_fakes.append(c)
 	world._say("TJZ", "OH MY GOD, TRADE! LONG BTC RIGHT NOW!", 30.0)
 	world._say("KIMCHEE", "APING MY WHOLE BAG INTO $WAGMI. NFA", 30.0)
+	# emotes + chairs on the two fake teammates (as if they came over the network)
+	views.append(["34_emotes", Vector3(-6.8, 0.1, 6.2), 0.25, -0.05])
 	for v in views:
+		if v[0] == "34_emotes":
+			var ch: Dictionary = world.builder.chairs[world.builder.chairs.keys()[19]]
+			_fakes[0].net_tf(Vector3(-7.6, 0.1, 3.9), PI + 0.4, 0.0, 1 << 3)            # the finger
+			_fakes[1].net_tf(ch.pos + Vector3(0, 0.1, 0), ch.rot + PI, 0.0, (3 << 3) | ((world.builder.chairs.keys()[19] + 1) << 6))
+			await get_tree().create_timer(0.8).timeout
 		p.teleport(v[1])
 		p.rotation.y = v[2]
 		p.pitch = v[3]
@@ -95,6 +110,12 @@ func _run() -> void:
 	m.request_open("BTC", 1, 25_000.0, 100)
 	m.request_open("BTC", -1, 5_000.0, 25)
 	await get_tree().create_timer(3.0).timeout
+	await get_tree().process_frame
+	for pos in m.my_acct().get("positions", []):
+		if pos.side > 0:
+			var mv: float = pos.margin / pos.units
+			m.request_set_tpsl(pos.pid, pos.entry + mv * 0.4, pos.entry - mv * 0.3)
+	await get_tree().create_timer(0.3).timeout
 	hud.open_interact({"type": "terminal", "id": 0})
 	await _frames(10)
 	await _snap("08_terminal")
@@ -107,6 +128,15 @@ func _run() -> void:
 	await get_tree().create_timer(2.2).timeout
 	await _snap("10_slots")
 	hud.close_modals()
+	# the machine itself after a big win: marquee amount + coin burst
+	p.teleport(Vector3(17.2, 0.1, -10.6))
+	p.rotation.y = -PI / 2 - 0.35
+	p.pitch = 0.1
+	p.head.rotation.x = 0.1
+	await _frames(5)
+	world._on_slot_result(Net.my_id(), [4, 4, 4], 3750.0, 300.0)
+	await get_tree().create_timer(0.35).timeout
+	await _snap("10b_slot_jackpot")
 	hud.open_interact({"type": "shop", "id": 0})
 	await _frames(5)
 	await _snap("11_shop")
@@ -117,6 +147,55 @@ func _run() -> void:
 	m.request_use("cigar")
 	await get_tree().create_timer(1.5).timeout
 	await _snap("12_hud_items")
+	# flex: the shop, the unboxing, then the trophies on your desk
+	p.teleport(Vector3(-10.0, 0.1, 10.6))
+	p.rotation.y = PI
+	p.pitch = -0.1
+	p.head.rotation.x = -0.1
+	await _frames(5)
+	await _snap("26_flex_counter")
+	hud.open_interact({"type": "luxury", "id": 0})
+	await _frames(5)
+	await _snap("27_flex_shop")
+	hud.close_modals()
+	m.request_buy_lux("roflex")
+	await get_tree().create_timer(1.6).timeout
+	await _snap("28_roflex_unbox")
+	for k in ["louie", "louie", "counter", "supreme", "supreme", "supreme"]:
+		m.request_buy_lux(k)
+	await get_tree().create_timer(2.2).timeout
+	var dp: Vector3 = world.builder.desks[world.desk_of(Net.my_id())]
+	p.teleport(dp + Vector3(0.9, 0.1, 2.3))
+	p.rotation.y = 0.35
+	p.pitch = -0.38
+	p.head.rotation.x = -0.38
+	await _frames(8)
+	await _snap("29_flex_desk")
+	# blood pressure: redline it, then go to the restroom
+	m.pressure[Net.my_id()] = 93.0
+	p.teleport(Vector3(-14.0, 0.1, 2.2))
+	p.rotation.y = PI / 2
+	p.pitch = 0.0
+	p.head.rotation.x = 0.0
+	await get_tree().create_timer(1.2).timeout
+	await _snap("30_blood_pressure")
+	p.teleport(world.builder.toilet_pos + Vector3(1.1, 0.1, 0.4))
+	await get_tree().create_timer(0.3).timeout
+	m.request_relieve()
+	await get_tree().create_timer(1.4).timeout
+	await _snap("31_relief")
+	await get_tree().create_timer(3.0).timeout
+	# the phone feed with a Tramp post dropping before the TV has it
+	p.teleport(Vector3(0, 0.1, 6))
+	p.rotation.y = 0.0
+	hud.phone.toggle()
+	m._s_post({"speaker": "TRAMP", "role": "PRESIDENT", "headline": "TRAMP: WE ARE IN WAR", "day": 1})
+	await get_tree().create_timer(0.8).timeout
+	await _snap("32_phone_feed")
+	hud.phone.toggle()
+	await get_tree().create_timer(2.5).timeout
+	await _snap("33_phone_kwik")
+	hud.phone.toggle()
 	hud.mugshot.play(4298, "Trader", world.local_player.look)
 	await get_tree().create_timer(1.0).timeout
 	await _snap("13_mugshot")
@@ -146,9 +225,13 @@ func _quick(world, m, hud) -> void:
 		world.players_node.add_child(d)
 		d.teleport(Vector3(1.2 + k * 1.3, 0.1, 5.5 - k * 0.6))
 		d.rotation.y = PI + 0.3
+	_fakes = []
+	for c in world.players_node.get_children():
+		if int(str(c.name)) >= 900:
+			_fakes.append(c)
 	world._say("TJZ", "OH MY GOD, TRADE! LONG BTC RIGHT NOW!", 30.0)
 	world._say("KIMCHEE", "APING MY WHOLE BAG INTO $WAGMI. NFA", 30.0)
-	for v in [["q1_streamers", Vector3(12.5, 0.1, 7.5), -2.3, 0.0], ["q2_teammates", Vector3(2.0, 0.1, 8.6), 0.0, -0.1],
+	for v in [["q1_streamers", Vector3(72.5, 0.1, 3.4), 0.55, 0.0], ["q2_teammates", Vector3(2.0, 0.1, 8.6), 0.0, -0.1],
 			["q3_tony", Vector3(-14.2, 0.1, 6.6), 2.75, -0.05], ["q4_crammer", Vector3(15.5, 0.1, 1.6), -PI / 2, 0.0]]:
 		p.teleport(v[1])
 		p.rotation.y = v[2]

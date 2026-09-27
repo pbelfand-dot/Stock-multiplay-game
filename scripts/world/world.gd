@@ -11,6 +11,7 @@ const TvScript = preload("res://scripts/ui/tv_screen.gd")
 const Rules = preload("res://scripts/sim/rules.gd")
 const BallScript = preload("res://scripts/world/ball.gd")
 const PlayerLook = preload("res://scripts/art/character.gd")
+const PropKit = preload("res://scripts/art/prop_kit.gd")
 
 var builder
 var players_node: Node3D
@@ -24,6 +25,9 @@ var _bubble_t := {}
 var _idle_t := 8.0
 var _ticker_offset := 0.0
 var _screen_acc := 0.0
+var _marquee_t := {}
+const UI_RED := Color(1, 0.3, 0.3)
+var _trophy_sig := {}           # desk id -> signature of what's on it
 
 
 func _ready() -> void:
@@ -55,6 +59,8 @@ func _ready() -> void:
 	match_node.market_tick.connect(_on_market_tick)
 	match_node.slot_result.connect(_on_slot_result)
 	match_node.state_changed.connect(_on_state)
+	match_node.state_changed.connect(_update_trophies)
+	Net.players_changed.connect(_update_trophies)
 	match_node.news.connect(_on_news)
 	_sync_players()
 
@@ -87,7 +93,40 @@ func spawn_point(i: int) -> Vector3:
 
 
 func ui_blocking() -> bool:
-	return hud != null and hud.is_modal_open()
+	return hud != null and (hud.is_modal_open() or hud.busy())
+
+
+# ---------------------------------------------------------------- KWIK studio
+
+func in_studio(node: Node3D) -> bool:
+	return node != null and node.global_position.distance_to(builder.STUDIO) < 12.0
+
+
+func go_to_studio() -> void:
+	if local_player and not match_node.is_jailed(Net.my_id()):
+		local_player.teleport(builder.studio_spawn)
+		local_player.rotation.y = -PI / 2 - 0.3
+		hud.show_toast("You pulled up to the KWIK LIVE studio. Chat is going crazy.", Color(0.8, 0.55, 1))
+
+
+func leave_studio() -> void:
+	if local_player:
+		local_player.teleport(builder.studio_exit_to)
+
+
+## Cops can't path into the studio: if they come for you there, the stream
+## gets swatted and you're dumped back on the trading floor.
+func _check_studio_raid() -> void:
+	if local_player and not match_node.raid.is_empty() and match_node.raid.get("target", 0) == Net.my_id() \
+			and in_studio(local_player):
+		leave_studio()
+		hud.show_toast("SWATTED ON STREAM. The cops are on the trading floor. RUN.", UI_RED)
+
+
+## Server check for the restroom: is this player standing by the toilet?
+func near_toilet(peer: int) -> bool:
+	var pn := player_node(peer)
+	return pn != null and pn.global_position.distance_to(builder.toilet_pos) < 2.2
 
 
 # ---------------------------------------------------------------- per-frame
@@ -96,16 +135,27 @@ func _process(delta: float) -> void:
 	if local_player and hud:
 		hud.set_prompt(local_player.look_target() if not ui_blocking() else {})
 	_tick_bubbles(delta)
+	_tick_marquees(delta)
+	_check_studio_raid()
 	_ticker_offset += delta
 	if builder.ticker_label:
 		builder.ticker_label.position.x = fposmod(-_ticker_offset * 2.2, 36.0) - 18.0 + 9.0
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if event.is_action_pressed("interact") and not ui_blocking() and local_player:
+	if event.is_action_pressed("interact") and not ui_blocking() and local_player and local_player.seat >= 0 \
+			and local_player.look_target().get("type", "") in ["", "chair"]:
+		local_player.stand_up()
+	elif event.is_action_pressed("interact") and not ui_blocking() and local_player:
 		var t: Dictionary = local_player.look_target()
 		if t.get("type", "") == "ball":
 			ball.request_grab()
+		elif t.get("type", "") == "relieve":
+			match_node.request_relieve()
+		elif t.get("type", "") == "studio_exit":
+			leave_studio()
+		elif t.get("type", "") == "chair":
+			local_player.sit(t.id)
 		elif not t.is_empty():
 			hud.open_interact(t)
 			get_viewport().set_input_as_handled()
@@ -197,8 +247,9 @@ func _update_desk_screens() -> void:
 			l.modulate = Color(0.3, 1, 0.45) if ch >= 0 else Color(1, 0.35, 0.3)
 
 
-func _on_slot_result(_peer: int, reels: Array, _payout: float, _bet: float) -> void:
-	# Flash every machine's reel window with the result (cheap spectacle).
+func _on_slot_result(peer: int, reels: Array, payout: float, bet: float) -> void:
+	# Every machine flashes the reels; the one this player stands at shows the
+	# bet, the win on its marquee and pops coins + confetti.
 	const LOOK := {"CHERRY": ["CHR", Color(0.9, 0.1, 0.15)], "CLOVER": ["CLV", Color(0.1, 0.65, 0.2)],
 			"BELL": ["BEL", Color(0.95, 0.65, 0.05)], "DIAMOND": ["DIA", Color(0.1, 0.6, 0.95)],
 			"SEVEN": ["7", Color(0.85, 0.1, 0.1)]}
@@ -209,6 +260,129 @@ func _on_slot_result(_peer: int, reels: Array, _payout: float, _bet: float) -> v
 				var look: Array = LOOK[Rules.SLOT_SYMBOLS[reels[k]]]
 				l.text = look[0]
 				l.modulate = look[1]
+	var body: Node3D = _machine_near(peer)
+	if body == null:
+		return
+	(body.get_node("Bet") as Label3D).text = Rules.money(bet)
+	if payout > 0.0:
+		var mq: Label3D = body.get_node("Marquee")
+		mq.text = "+" + Rules.money(payout)
+		mq.modulate = Color(1, 0.45, 0.75)
+		_marquee_t[body] = 4.0
+		for n in ["Jackpot/Coins", "Jackpot/Confetti"]:
+			var p: CPUParticles3D = body.get_node(n)
+			p.amount = 60 if payout >= bet * 10.0 else 30
+			p.restart()
+
+
+func _machine_near(peer: int) -> Node3D:
+	var pn := player_node(peer)
+	var best: Node3D = null
+	var bd := 1e9
+	for body in builder.slot_machines:
+		var d: float = body.global_position.distance_to(pn.global_position) if pn else 0.0
+		if d < bd:
+			bd = d
+			best = body
+	return best
+
+
+func _tick_marquees(delta: float) -> void:
+	for body in _marquee_t.keys():
+		_marquee_t[body] -= delta
+		if _marquee_t[body] <= 0.0:
+			_marquee_t.erase(body)
+			var mq: Label3D = body.get_node("Marquee")
+			mq.text = "DEGEN SLOTS"
+			mq.modulate = Color(1, 0.88, 0.15)
+
+
+# ---------------------------------------------------------------- flex trophies
+
+## Every player owns a desk in the front row. Their luxury buys pile up on it:
+## nameplate, cash counter, ROFLEX boxes, Supreme bricks, LOUIE BATON bags.
+func desk_of(peer: int) -> int:
+	var i := 0
+	for id in Net.players:
+		if id == peer:
+			return builder.PLAYER_DESK0 + i
+		i += 1
+	return -1
+
+
+func _update_trophies() -> void:
+	var i := 0
+	for id in Net.players:
+		var desk: int = builder.PLAYER_DESK0 + i
+		i += 1
+		if not builder.desks.has(desk):
+			continue
+		var own: Dictionary = match_node.owned.get(id, {}) if match_node else {}
+		var sig := "%s|%s" % [Net.player_name(id), str(own)]
+		if _trophy_sig.get(desk, "") == sig:
+			continue
+		_trophy_sig[desk] = sig
+		_build_trophies(desk, Net.player_name(id), own)
+	for desk in _trophy_sig.keys():
+		if desk - builder.PLAYER_DESK0 >= Net.players.size():
+			_trophy_sig.erase(desk)
+			var old: Node = builder.root.get_node_or_null("Trophies_%d" % desk)
+			if old:
+				old.queue_free()
+
+
+func _build_trophies(desk: int, who: String, own: Dictionary) -> void:
+	var old: Node = builder.root.get_node_or_null("Trophies_%d" % desk)
+	if old:
+		builder.root.remove_child(old)
+		old.queue_free()
+	var p: Vector3 = builder.desks[desk]
+	var t := Node3D.new()
+	t.name = "Trophies_%d" % desk
+	t.position = p
+	builder.root.add_child(t)
+	var plate := Label3D.new()
+	plate.text = "%s'S DESK" % who.to_upper()
+	plate.font_size = 40
+	plate.pixel_size = 0.0035
+	plate.modulate = Color(1, 0.84, 0.2)
+	plate.outline_size = 8
+	plate.position = Vector3(0, 1.4, -0.46)
+	t.add_child(plate)
+	var top := 0.78
+	if own.get("counter", 0) > 0:
+		PropKit.place("CashCounter", t, Vector3(0.62, top, -0.2), -0.3)
+	var boxes := 0
+	for k in ["roflex", "roflex_iced"]:
+		if own.get(k, 0) > 0:
+			var bp := Vector3(-0.42, top, 0.16 - boxes * 0.26)
+			var base := PropKit.place("WatchBoxBase", t, bp, 0.5)
+			var lid := PropKit.place("WatchBoxLid", base, Vector3(0, 0.08, -0.1))
+			lid.rotation.x = -1.9
+			PropKit.place("WatchIced" if k == "roflex_iced" else "WatchGold", base, Vector3(0, 0.09, 0.01)).rotation.x = -0.4
+			boxes += 1
+	for n in int(own.get("supreme", 0)):
+		var b := PropKit.place("SupremeBrick", t, Vector3(0.74, top + n * 0.061, 0.24), 0.2 + (n % 2) * 0.12)
+		var sl := Label3D.new()
+		sl.text = "Supreme"
+		sl.font_size = 40
+		sl.pixel_size = 0.0011
+		sl.outline_size = 0
+		sl.modulate = Color.WHITE
+		sl.position = Vector3(0, 0.0625, 0)
+		sl.rotation.x = -PI / 2
+		b.add_child(sl)
+	for n in int(own.get("louie", 0)):
+		var bag := PropKit.place("LouieBag", t, Vector3(1.25 + n * 0.38, 0, 0.15 + (n % 2) * 0.1), -0.2 + n * 0.15)
+		var ll := Label3D.new()
+		ll.text = "LOUIE\nBATON"
+		ll.font_size = 36
+		ll.pixel_size = 0.0022
+		ll.outline_size = 0
+		ll.line_spacing = -6
+		ll.modulate = Color(0.35, 0.18, 0.05)
+		ll.position = Vector3(0, 0.22, 0.072)
+		bag.add_child(ll)
 
 
 func _on_state() -> void:

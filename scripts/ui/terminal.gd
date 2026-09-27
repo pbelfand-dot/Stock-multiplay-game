@@ -6,6 +6,7 @@ const UI = preload("res://scripts/ui/ui_theme.gd")
 const Rules = preload("res://scripts/sim/rules.gd")
 const Ledger = preload("res://scripts/sim/ledger.gd")
 const ChartScript = preload("res://scripts/ui/chart.gd")
+const CrtFrame = preload("res://scripts/ui/crt_frame.gd")
 
 signal closed
 
@@ -26,6 +27,7 @@ var asset_kind: Label
 var price_lbl: Label
 var chg_lbl: Label
 var size_lbl: Label
+var fee_lbl: Label
 var lev_btn: Button
 var open_tab: Button
 var closed_tab: Button
@@ -45,12 +47,22 @@ func setup(m) -> void:
 
 
 func _ready() -> void:
-	add_theme_stylebox_override("panel", UI.panel_box(UI.NAVY, UI.LINE, 22, 5))
-	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	offset_left = 40
-	offset_top = 30
-	offset_right = -40
-	offset_bottom = -30
+	# the CRT's dark glass; CrtFrame draws the beige bezel over the edges
+	var glass := UI.panel_box(Color(0.06, 0.1, 0.16), Color(0.06, 0.1, 0.16), 0, 0)
+	glass.content_margin_left = 26
+	glass.content_margin_right = 26
+	glass.content_margin_top = 12
+	glass.content_margin_bottom = 12
+	add_theme_stylebox_override("panel", glass)
+	var hole: Rect2 = CrtFrame.HOLE
+	anchor_left = hole.position.x
+	anchor_top = hole.position.y
+	anchor_right = hole.end.x
+	anchor_bottom = hole.end.y
+	offset_left = 0
+	offset_top = 0
+	offset_right = 0
+	offset_bottom = 0
 	var root := HBoxContainer.new()
 	root.add_theme_constant_override("separation", 12)
 	add_child(root)
@@ -128,7 +140,7 @@ func _ready() -> void:
 	# ---------------- right column ----------------
 	var right := VBoxContainer.new()
 	right.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	right.add_theme_constant_override("separation", 8)
+	right.add_theme_constant_override("separation", 5)
 	root.add_child(right)
 	var wl := PanelContainer.new()
 	wl.add_theme_stylebox_override("panel", UI.panel_box(UI.NAVY, UI.LINE, 8, 2))
@@ -138,7 +150,7 @@ func _ready() -> void:
 	for d in preload("res://scripts/sim/market.gd").ASSET_DEFS:
 		var b := Button.new()
 		b.flat = true
-		b.custom_minimum_size.y = 34
+		b.custom_minimum_size.y = 26
 		var hb := HBoxContainer.new()
 		hb.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 		hb.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -164,13 +176,13 @@ func _ready() -> void:
 	right.add_child(card)
 	var cv := VBoxContainer.new()
 	card.add_child(cv)
-	asset_name = UI.lbl("Bitcoin", 34, UI.TEXT, true)
+	asset_name = UI.lbl("Bitcoin", 28, UI.TEXT, true)
 	cv.add_child(asset_name)
 	asset_kind = UI.lbl("BTC | Crypto", 18, UI.DIM)
 	cv.add_child(asset_kind)
 	var ph := HBoxContainer.new()
 	cv.add_child(ph)
-	price_lbl = UI.lbl("$0", 34, UI.TEXT, true)
+	price_lbl = UI.lbl("$0", 30, UI.TEXT, true)
 	ph.add_child(price_lbl)
 	chg_lbl = UI.lbl("+0.00%", 20, Color.BLACK, true)
 	var chg_bg := PanelContainer.new()
@@ -193,16 +205,19 @@ func _ready() -> void:
 	var plus := UI.btn(" + ", UI.NAVY_2, 26)
 	plus.pressed.connect(func(): _step_size(1))
 	sz.add_child(plus)
+	fee_lbl = UI.lbl("", 16, UI.DIM)
+	fee_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	cv.add_child(fee_lbl)
 	var orders := HBoxContainer.new()
 	cv.add_child(orders)
-	var buy := UI.btn("BUY", UI.GREEN.darkened(0.15), 30)
+	var buy := UI.btn("BUY", UI.GREEN.darkened(0.15), 26)
 	buy.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	buy.pressed.connect(func(): _order(1))
 	orders.add_child(buy)
 	lev_btn = UI.btn("x100", Color(0.25, 0.2, 0.05), 24)
 	lev_btn.pressed.connect(_cycle_lev)
 	orders.add_child(lev_btn)
-	var sell := UI.btn("SELL", UI.RED.darkened(0.1), 30)
+	var sell := UI.btn("SELL", UI.RED.darkened(0.1), 26)
 	sell.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	sell.pressed.connect(func(): _order(-1))
 	orders.add_child(sell)
@@ -268,6 +283,11 @@ func _update_size_labels() -> void:
 	var v: float = Rules.SIZE_STEPS[size_idx]
 	size_lbl.text = Rules.money(v).replace(".00", "")
 	lev_btn.text = "x%d" % Ledger.LEVERAGES[lev_idx]
+	var lev: int = Ledger.LEVERAGES[lev_idx]
+	var cigar: bool = match_node != null and match_node.effect_left(Net.my_id(), "cigar") > 0.0
+	var move := 1.0 / lev * 100.0
+	fee_lbl.text = ("no fee (cigar)" if cigar else "-%s fee" % Rules.money(v * lev * Ledger.FEE_RATE)) \
+			+ "  ·  liq at %s%.2f%%" % ["-", move]
 
 
 func _order(side: int) -> void:
@@ -353,6 +373,14 @@ func _refresh_rows() -> void:
 		var pid: int = pos.pid
 		x.pressed.connect(func(): match_node.request_close(pid))
 		r.get_child(7).queue_free()
+		# one-click TP (+50% on margin) / SL (-30%); drag the lines on the chart to fine-tune
+		var move: float = pos.margin / pos.units
+		var tpb := UI.btn("TP" if pos.get("tp", 0.0) <= 0.0 else "TP ✓", UI.GREEN.darkened(0.35), 14)
+		tpb.pressed.connect(func(): match_node.request_set_tpsl(pid, pos.entry + pos.side * move * 0.5, pos.sl))
+		var slb := UI.btn("SL" if pos.get("sl", 0.0) <= 0.0 else "SL ✓", UI.RED.darkened(0.45), 14)
+		slb.pressed.connect(func(): match_node.request_set_tpsl(pid, pos.tp, pos.entry - pos.side * move * 0.3))
+		r.add_child(tpb)
+		r.add_child(slb)
 		r.add_child(x)
 		rows_box.add_child(r)
 	_update_open_profits(acct)
