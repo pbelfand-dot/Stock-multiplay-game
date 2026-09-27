@@ -158,6 +158,8 @@ func _run() -> void:
 	await _frames(5)
 	await _snap("27_flex_shop")
 	hud.close_modals()
+	m.careers[Net.my_id()]["xp"] = 500.0   # DEGEN: everything unlocked for the shots
+	m._push_state()
 	m.request_buy_lux("roflex")
 	await get_tree().create_timer(1.6).timeout
 	await _snap("28_roflex_unbox")
@@ -200,6 +202,9 @@ func _run() -> void:
 	await get_tree().create_timer(2.5).timeout
 	await _snap("33_phone_kwik")
 	hud.phone.toggle()
+	hud._on_rank_up(Net.my_id(), 3)
+	await get_tree().create_timer(0.4).timeout
+	await _snap("35_rank_up")
 	hud.mugshot.play(4298, "Trader", world.local_player.look)
 	await get_tree().create_timer(1.0).timeout
 	await _snap("13_mugshot")

@@ -30,6 +30,7 @@ signal game_over(summary: Dictionary)
 signal toast(msg: String)
 signal luxury_bought(peer: int, key: String)
 signal relieved(peer: int, line: String)
+signal ranked_up(peer: int, rank: int)
 signal posted(ev: Dictionary)
 signal chat(from_name: String, msg: String)
 signal error_msg(msg: String)
@@ -45,6 +46,8 @@ var jail := {}                  # peer -> seconds left
 var inventory := {}             # peer -> {item: count}
 var owned := {}                 # peer -> {luxury: count} (flex items, never consumed)
 var pressure := {}              # peer -> blood pressure 0..100 (see Rules.PRESSURE_*)
+var careers := {}               # peer -> {xp, rank, best_day, days} (host-saved by name)
+const CAREER_PATH := "user://careers.cfg"
 var effects := {}               # peer -> {effect: seconds left}
 var stats := {}                 # peer -> {pnl_day, pnl_total, trades, arrests, biggest}
 var raid := {}                  # {target, t} when active
@@ -186,6 +189,9 @@ func _req_open(sym: String, side: int, margin: float, lev: int) -> void:
 	if pressure_of(id) >= Rules.PRESSURE_FAT_FINGER and rng.randf() < 0.6:
 		margin *= 2.0 if rng.randf() < 0.5 else 0.5   # shaking hands: fat-finger the size
 		_s_error.rpc_id(id, "FAT FINGER! Your hands are shaking. Go relieve the pressure.")
+	if lev > 100 and not has_rank_for(id, "lev_125"):
+		_s_error.rpc_id(id, "x125 unlocks at DEGEN. Rookie numbers.")
+		return
 	var fee_rate := 0.0 if effect_left(id, "cigar") > 0.0 else Ledger.FEE_RATE
 	var r: Dictionary = ledger.open_position(acct_for(id), sym, side, margin, lev,
 		market.price_of(sym), Net.player_name(id), fee_rate, market.spread_of(sym))
@@ -298,6 +304,9 @@ func _req_buy_lux(key: String) -> void:
 	var id := _sender()
 	_ensure_peer(id)
 	var def: Dictionary = Rules.LUXURY[key]
+	if not has_rank_for(id, key):
+		_s_error.rpc_id(id, "%s unlocks at %s." % [def.name, Rules.RANKS[Rules.RANK_GATES[key]].name])
+		return
 	if lux_count(id, key) >= int(def.max):
 		_s_error.rpc_id(id, "You already flex enough %s." % def.name)
 		return
@@ -308,10 +317,75 @@ func _req_buy_lux(key: String) -> void:
 		return
 	ledger.adjust(acct, -def.price)
 	owned[id][key] = lux_count(id, key) + 1
+	_save_careers()
 	_add_heat(id, def.get("heat", 0.0))
 	_s_toast.rpc("%s copped a %s (%s)" % [Net.player_name(id), def.name, Rules.money(def.price)])
 	_s_luxury.rpc(id, key)
 	_push_state()
+
+
+# ---------------- careers (host saves them, keyed by player name) ----------------
+
+func xp_of(peer: int) -> float:
+	return float(careers.get(peer, {}).get("xp", 0.0))
+
+
+func rank_idx(peer: int) -> int:
+	return Rules.rank_of(xp_of(peer))
+
+
+func has_rank_for(peer: int, gate: String) -> bool:
+	return rank_idx(peer) >= int(Rules.RANK_GATES.get(gate, 0))
+
+
+## Tests run with --smoke and must not read or write a real career file.
+func _careers_on_disk() -> bool:
+	return Net.is_server() and not Config.cli.has("smoke")
+
+
+func _load_career(id: int) -> void:
+	var cf := ConfigFile.new()
+	if _careers_on_disk():
+		cf.load(CAREER_PATH)
+	var key := Net.player_name(id).to_lower()
+	careers[id] = {"xp": float(cf.get_value(key, "xp", 0.0)), "best_day": float(cf.get_value(key, "best_day", 0.0)),
+		"days": int(cf.get_value(key, "days", 0))}
+	owned[id] = cf.get_value(key, "owned", {})
+
+
+func _save_careers() -> void:
+	if not _careers_on_disk():
+		return
+	var cf := ConfigFile.new()
+	cf.load(CAREER_PATH)
+	for id in careers:
+		if not Net.players.has(id):
+			continue
+		var key := Net.player_name(id).to_lower()
+		cf.set_value(key, "xp", careers[id].xp)
+		cf.set_value(key, "best_day", careers[id].best_day)
+		cf.set_value(key, "days", careers[id].days)
+		cf.set_value(key, "owned", owned.get(id, {}))
+	cf.save(CAREER_PATH)
+
+
+## Returns {gain, xp, rank, ranked_up}
+func _add_xp(id: int, gain: float, pnl_day: float) -> Dictionary:
+	_ensure_peer(id)
+	var c: Dictionary = careers[id]
+	var before := Rules.rank_of(c.xp)
+	c.xp += gain
+	c.days += 1
+	c.best_day = maxf(c.best_day, pnl_day)
+	var after := Rules.rank_of(c.xp)
+	if after > before:
+		_s_rank_up.rpc(id, after)
+	return {"gain": gain, "xp": c.xp, "rank": after, "ranked_up": after > before}
+
+
+@rpc("authority", "call_local", "reliable")
+func _s_rank_up(peer: int, rank: int) -> void:
+	ranked_up.emit(peer, rank)
 
 
 func pressure_of(peer: int) -> float:
@@ -609,6 +683,8 @@ func _ensure_peer(id: int) -> void:
 		owned[id] = {}
 	if not pressure.has(id):
 		pressure[id] = 0.0
+	if not careers.has(id):
+		_load_career(id)
 	if not effects.has(id):
 		effects[id] = {}
 	if not stats.has(id):
@@ -637,7 +713,6 @@ func _reset_run() -> void:
 	ledger = Ledger.new()
 	heat.clear()
 	inventory.clear()
-	owned.clear()
 	pressure.clear()
 	effects.clear()
 	stats.clear()
@@ -695,10 +770,12 @@ func _end_day() -> void:
 	for id in Net.players:
 		summary.players[id] = {"name": Net.player_name(id), "stats": stats.get(id, {}).duplicate()}
 	var over := false
+	var desk_passed := false
 	if Net.mode == "coop":
 		var bal: float = ledger.get_acct(0).balance
 		summary["balance"] = bal
 		summary["passed"] = bal >= quota
+		desk_passed = bal >= quota
 		over = bal < quota
 	else:
 		var ranking: Array = []
@@ -716,6 +793,14 @@ func _end_day() -> void:
 		over = day >= Rules.PVP_DAYS or alive <= needed_alive
 		if over and not ranking.is_empty():
 			summary["winner"] = ranking[0].name
+	# career XP: green days + making quota
+	summary["xp"] = {}
+	for id in Net.players:
+		var st: Dictionary = stats.get(id, {})
+		var made: bool = desk_passed if Net.mode == "coop" else not ledger.get_acct(id).get("busted", true)
+		var gain: float = maxf(st.get("pnl_day", 0.0), 0.0) / 1000.0 * Rules.XP_PER_1K + (Rules.XP_QUOTA_DAY if made else 0.0)
+		summary.xp[id] = _add_xp(id, gain, st.get("pnl_day", 0.0))
+	_save_careers()
 	if over:
 		phase = "gameover"
 		summary["over"] = true
@@ -733,7 +818,7 @@ func _push_state() -> void:
 	_dirty = false
 	accounts = ledger.payload()
 	_s_state.rpc({"phase": phase, "day": day, "time_left": time_left, "quota": quota,
-		"accounts": accounts, "heat": heat, "jail": jail, "inventory": inventory, "owned": owned,
+		"accounts": accounts, "heat": heat, "jail": jail, "inventory": inventory, "owned": owned, "careers": careers,
 		"effects": effects, "stats": stats, "raid": raid})
 
 
@@ -752,6 +837,7 @@ func _s_state(s: Dictionary) -> void:
 	jail = s.jail
 	inventory = s.inventory
 	owned = s.get("owned", {})
+	careers = s.get("careers", {})
 	effects = s.effects
 	stats = s.stats
 	raid = s.raid

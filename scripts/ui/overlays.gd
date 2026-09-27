@@ -170,6 +170,10 @@ class Summary extends PanelContainer:
 			if st.is_empty():
 				continue
 			body.add_child(UI.lbl("%s   P&L %s   trades %d   arrests %d   best %s" % [p.name, Rules.money(st.pnl_day), st.trades, st.arrests, Rules.money(st.biggest)], 20))
+			var xp: Dictionary = s.get("xp", {}).get(id, {})
+			if not xp.is_empty():
+				body.add_child(UI.lbl("      +%d XP  →  %s (%d XP)%s" % [int(xp.gain), Rules.RANKS[xp.rank].name, int(xp.xp),
+						"   RANK UP!" if xp.ranked_up else ""], 18, UI.GOLD if xp.ranked_up else UI.DIM, xp.ranked_up))
 			if st.pnl_day > mvp_v:
 				mvp_v = st.pnl_day
 				mvp = p.name

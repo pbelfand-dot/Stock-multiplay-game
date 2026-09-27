@@ -106,6 +106,9 @@ func in_studio(node: Node3D) -> bool:
 
 
 func go_to_studio() -> void:
+	if not match_node.has_rank_for(Net.my_id(), "studio"):
+		hud.show_toast("Studio access unlocks at ANALYST. Make some green days first.", UI_RED)
+		return
 	if local_player and not match_node.is_jailed(Net.my_id()):
 		local_player.teleport(builder.studio_spawn)
 		local_player.rotation.y = -PI / 2 - 0.3
