@@ -92,8 +92,8 @@ static func zippo() -> Node3D:
 static func finger(skin: Color) -> Node3D:
 	var n := Node3D.new()
 	n.name = "Finger"
-	S.part(n, S.superellipsoid(0.016, 0.05, 0.016, 2.1), S.mat(skin, false), Vector3(0, -0.06, -0.01))
-	S.part(n, S.superellipsoid(0.013, 0.008, 0.004, 2.0), S.mat(skin.lightened(0.3), false), Vector3(0, -0.095, -0.024))   # nail
+	S.part(n, S.superellipsoid(0.024, 0.075, 0.024, 2.1), S.mat(skin, false), Vector3(0, -0.085, -0.01))
+	S.part(n, S.superellipsoid(0.019, 0.012, 0.005, 2.0), S.mat(skin.lightened(0.3), false), Vector3(0, -0.14, -0.032))   # nail
 	return n
 
 

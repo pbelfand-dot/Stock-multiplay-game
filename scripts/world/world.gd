@@ -26,6 +26,9 @@ var _idle_t := 8.0
 var _ticker_offset := 0.0
 var _screen_acc := 0.0
 var _marquee_t := {}
+var _counting := 0.0
+var _count_node: Node
+var _brrt_t := 0.0
 const UI_RED := Color(1, 0.3, 0.3)
 var _trophy_sig := {}           # desk id -> signature of what's on it
 
@@ -137,6 +140,7 @@ func _process(delta: float) -> void:
 	_tick_bubbles(delta)
 	_tick_marquees(delta)
 	_check_studio_raid()
+	_tick_counter(delta)
 	_ticker_offset += delta
 	if builder.ticker_label:
 		builder.ticker_label.position.x = fposmod(-_ticker_offset * 2.2, 36.0) - 18.0 + 9.0
@@ -156,6 +160,8 @@ func _unhandled_input(event: InputEvent) -> void:
 			leave_studio()
 		elif t.get("type", "") == "chair":
 			local_player.sit(t.id)
+		elif t.get("type", "") == "counter":
+			_run_counter(t.id)
 		elif not t.is_empty():
 			hud.open_interact(t)
 			get_viewport().set_input_as_handled()
@@ -351,7 +357,50 @@ func _build_trophies(desk: int, who: String, own: Dictionary) -> void:
 	t.add_child(plate)
 	var top := 0.78
 	if own.get("counter", 0) > 0:
-		PropKit.place("CashCounter", t, Vector3(0.62, top, -0.2), -0.3)
+		var cc := PropKit.place("CashCounter", t, Vector3(0.62, top, -0.2), -0.3)
+		# display digits on the counter + [E] to run a stack through it
+		var disp := Label3D.new()
+		disp.name = "Count"
+		disp.text = "0"
+		disp.font_size = 40
+		disp.pixel_size = 0.0012
+		disp.outline_size = 0
+		disp.modulate = Color(0.35, 1.0, 0.5)
+		disp.position = Vector3(-0.04, 0.115, 0.136)
+		cc.add_child(disp)
+		var sb := StaticBody3D.new()
+		var cs := CollisionShape3D.new()
+		var sh := BoxShape3D.new()
+		sh.size = Vector3(0.3, 0.25, 0.3)
+		cs.shape = sh
+		cs.position = Vector3(0, 0.12, 0)
+		sb.add_child(cs)
+		sb.set_meta("interact", "counter")
+		sb.set_meta("interact_id", desk)
+		sb.set_meta("prompt", "[E] Money Counter")
+		cc.add_child(sb)
+		var bills := CPUParticles3D.new()
+		bills.name = "Bills"
+		bills.emitting = false
+		bills.amount = 24
+		bills.lifetime = 0.5
+		var q := QuadMesh.new()
+		q.size = Vector2(0.09, 0.04)
+		bills.mesh = q
+		var bm := StandardMaterial3D.new()
+		bm.albedo_color = Color(0.5, 0.75, 0.42)
+		bm.cull_mode = BaseMaterial3D.CULL_DISABLED
+		bills.material_override = bm
+		bills.position = Vector3(0, 0.08, 0.14)
+		bills.direction = Vector3(0, 0.3, 1)
+		bills.spread = 25.0
+		bills.initial_velocity_min = 0.6
+		bills.initial_velocity_max = 1.2
+		bills.gravity = Vector3(0, -1.5, 0)
+		bills.angular_velocity_min = -360.0
+		bills.angular_velocity_max = 360.0
+		cc.add_child(bills)
+	PropKit.place("PillBottle", t, Vector3(0.3, top, -0.3), 0.4)
 	var boxes := 0
 	for k in ["roflex", "roflex_iced"]:
 		if own.get(k, 0) > 0:
@@ -383,6 +432,35 @@ func _build_trophies(desk: int, who: String, own: Dictionary) -> void:
 		ll.modulate = Color(0.35, 0.18, 0.05)
 		ll.position = Vector3(0, 0.22, 0.072)
 		bag.add_child(ll)
+
+
+## Feed a stack of cash through your desk's money counter (just for the flex):
+## bills whir out, the display counts up, brrrt.
+func _run_counter(desk: int) -> void:
+	var t: Node = builder.root.get_node_or_null("Trophies_%d" % desk)
+	var cc: Node = t.get_node_or_null("CashCounter") if t else null
+	if cc == null or _counting > 0.0:
+		return
+	_counting = 2.6
+	_count_node = cc
+	(cc.get_node("Bills") as CPUParticles3D).emitting = true
+	local_player.show_cash_stack(2.6)
+	Sfx.play("brrt", -2.0)
+
+
+func _tick_counter(delta: float) -> void:
+	if _counting <= 0.0 or not is_instance_valid(_count_node):
+		return
+	_counting -= delta
+	var n := int((2.6 - maxf(_counting, 0.0)) / 2.6 * 100.0)
+	(_count_node.get_node("Count") as Label3D).text = str(n)
+	_brrt_t -= delta
+	if _brrt_t <= 0.0:
+		_brrt_t = 0.22
+		Sfx.play("brrt", -6.0, randf_range(0.95, 1.1))
+	if _counting <= 0.0:
+		(_count_node.get_node("Bills") as CPUParticles3D).emitting = false
+		hud.show_toast("100 bills. $10,000. Counted. Feels good.", Color(0.4, 1, 0.5))
 
 
 func _on_state() -> void:

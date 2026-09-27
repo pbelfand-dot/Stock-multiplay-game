@@ -171,6 +171,10 @@ func _run() -> void:
 	p.head.rotation.x = -0.38
 	await _frames(8)
 	await _snap("29_flex_desk")
+	world._run_counter(world.desk_of(Net.my_id()))
+	await get_tree().create_timer(1.2).timeout
+	await _snap("29b_money_counter")
+	await get_tree().create_timer(1.8).timeout
 	# blood pressure: redline it, then go to the restroom
 	m.pressure[Net.my_id()] = 93.0
 	p.teleport(Vector3(-14.0, 0.1, 2.2))
