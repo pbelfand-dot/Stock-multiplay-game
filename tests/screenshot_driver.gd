@@ -16,7 +16,9 @@ func _snap(name: String) -> void:
 	await RenderingServer.frame_post_draw
 	var img := get_viewport().get_texture().get_image()
 	img.save_png("%s/%s.png" % [out_dir, name])
-	print("shot: ", name)
+	print("shot: %s  (draws %d, prims %d)" % [name,
+			RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_DRAW_CALLS_IN_FRAME),
+			RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_PRIMITIVES_IN_FRAME)])
 
 
 func _frames(n: int) -> void:
@@ -68,6 +70,10 @@ func _run() -> void:
 		["18_teammates", Vector3(2.0, 0.1, 9.0), 0.0, -0.1],
 		["19_tony_close", Vector3(-14.2, 0.1, 6.6), 2.75, -0.05],
 		["17_hoop_ball", Vector3(-15.0, 0.1, -9.0), PI / 2 - 0.1, 0.25],
+		["20_elevator", Vector3(1.5, 0.1, 8.5), PI - 0.2, 0.08],
+		["21_lounge", Vector3(-11.5, 0.1, 8.0), 1.6, -0.2],
+		["22_holding_cell", Vector3(-1.5, 0.1, 40.3), PI - 0.55, -0.1],
+		["23_skyline", Vector3(8.5, 0.1, -11.5), -0.1, 0.3],
 	]
 	# a fake remote teammate so we can see player models
 	for k in 2:
