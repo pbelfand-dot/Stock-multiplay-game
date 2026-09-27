@@ -51,6 +51,14 @@ static func _load() -> void:
 	inst.free()
 
 
+## The first surface mesh of a prop (e.g. for particle meshes).
+static func mesh(prop: String) -> Mesh:
+	if _parts.is_empty():
+		_load()
+	var parts: Array = _parts.get(prop, [])
+	return parts[0][0] if not parts.is_empty() else null
+
+
 static func has(prop: String) -> bool:
 	if _parts.is_empty():
 		_load()

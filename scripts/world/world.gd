@@ -24,6 +24,7 @@ var _bubble_t := {}
 var _idle_t := 8.0
 var _ticker_offset := 0.0
 var _screen_acc := 0.0
+var _marquee_t := {}
 
 
 func _ready() -> void:
@@ -96,6 +97,7 @@ func _process(delta: float) -> void:
 	if local_player and hud:
 		hud.set_prompt(local_player.look_target() if not ui_blocking() else {})
 	_tick_bubbles(delta)
+	_tick_marquees(delta)
 	_ticker_offset += delta
 	if builder.ticker_label:
 		builder.ticker_label.position.x = fposmod(-_ticker_offset * 2.2, 36.0) - 18.0 + 9.0
@@ -197,8 +199,9 @@ func _update_desk_screens() -> void:
 			l.modulate = Color(0.3, 1, 0.45) if ch >= 0 else Color(1, 0.35, 0.3)
 
 
-func _on_slot_result(_peer: int, reels: Array, _payout: float, _bet: float) -> void:
-	# Flash every machine's reel window with the result (cheap spectacle).
+func _on_slot_result(peer: int, reels: Array, payout: float, bet: float) -> void:
+	# Every machine flashes the reels; the one this player stands at shows the
+	# bet, the win on its marquee and pops coins + confetti.
 	const LOOK := {"CHERRY": ["CHR", Color(0.9, 0.1, 0.15)], "CLOVER": ["CLV", Color(0.1, 0.65, 0.2)],
 			"BELL": ["BEL", Color(0.95, 0.65, 0.05)], "DIAMOND": ["DIA", Color(0.1, 0.6, 0.95)],
 			"SEVEN": ["7", Color(0.85, 0.1, 0.1)]}
@@ -209,6 +212,41 @@ func _on_slot_result(_peer: int, reels: Array, _payout: float, _bet: float) -> v
 				var look: Array = LOOK[Rules.SLOT_SYMBOLS[reels[k]]]
 				l.text = look[0]
 				l.modulate = look[1]
+	var body: Node3D = _machine_near(peer)
+	if body == null:
+		return
+	(body.get_node("Bet") as Label3D).text = Rules.money(bet)
+	if payout > 0.0:
+		var mq: Label3D = body.get_node("Marquee")
+		mq.text = "+" + Rules.money(payout)
+		mq.modulate = Color(1, 0.45, 0.75)
+		_marquee_t[body] = 4.0
+		for n in ["Jackpot/Coins", "Jackpot/Confetti"]:
+			var p: CPUParticles3D = body.get_node(n)
+			p.amount = 60 if payout >= bet * 10.0 else 30
+			p.restart()
+
+
+func _machine_near(peer: int) -> Node3D:
+	var pn := player_node(peer)
+	var best: Node3D = null
+	var bd := 1e9
+	for body in builder.slot_machines:
+		var d: float = body.global_position.distance_to(pn.global_position) if pn else 0.0
+		if d < bd:
+			bd = d
+			best = body
+	return best
+
+
+func _tick_marquees(delta: float) -> void:
+	for body in _marquee_t.keys():
+		_marquee_t[body] -= delta
+		if _marquee_t[body] <= 0.0:
+			_marquee_t.erase(body)
+			var mq: Label3D = body.get_node("Marquee")
+			mq.text = "DEGEN SLOTS"
+			mq.modulate = Color(1, 0.88, 0.15)
 
 
 func _on_state() -> void:

@@ -109,6 +109,15 @@ func _run() -> void:
 	await get_tree().create_timer(2.2).timeout
 	await _snap("10_slots")
 	hud.close_modals()
+	# the machine itself after a big win: marquee amount + coin burst
+	p.teleport(Vector3(17.2, 0.1, -10.6))
+	p.rotation.y = -PI / 2 - 0.35
+	p.pitch = 0.1
+	p.head.rotation.x = 0.1
+	await _frames(5)
+	world._on_slot_result(Net.my_id(), [4, 4, 4], 3750.0, 300.0)
+	await get_tree().create_timer(0.35).timeout
+	await _snap("10b_slot_jackpot")
 	hud.open_interact({"type": "shop", "id": 0})
 	await _frames(5)
 	await _snap("11_shop")

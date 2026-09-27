@@ -452,9 +452,15 @@ func _casino() -> void:
 		nav.add_child(sm)
 		prop("SlotMachine", Vector3.ZERO, 0.0, sm)
 		var body := solid(Vector3(1.1, 1.9, 0.9), Vector3(0, 0.95, 0), sm)
-		var sign := label("DEGEN SLOTS", Vector3(0, 0.84, 0.19), 64, Color(1, 0.85, 0.15), 0.0, body)
-		sign.pixel_size = 0.0028
+		var sign := label("DEGEN SLOTS", Vector3(0, 0.85, 0.2), 64, Color(1, 0.88, 0.15), 0.0, body)
+		sign.pixel_size = 0.0027
 		sign.outline_modulate = Color(0.5, 0.1, 0.0)
+		sign.name = "Marquee"
+		var bet := label("$300", Vector3(0, -0.09, 0.5), 40, Color(0.3, 1.0, 0.4), 0.0, body)
+		bet.pixel_size = 0.0022
+		bet.outline_size = 0
+		bet.name = "Bet"
+		body.add_child(_jackpot_fx())
 		for k in 3:
 			var l := label("7", Vector3(-0.29 + k * 0.29, 0.21, 0.45), 64, Color(0.85, 0.1, 0.1), 0.0, body)
 			l.pixel_size = 0.0028
@@ -463,6 +469,62 @@ func _casino() -> void:
 		add_interact(body, "slots", i, "[E] Play slots")
 		slot_machines.append(body)
 		i += 1
+
+
+## One-shot burst of gold coins + confetti for a slot win (World triggers it).
+func _jackpot_fx() -> Node3D:
+	var fx := Node3D.new()
+	fx.name = "Jackpot"
+	fx.position = Vector3(0, 0.85, 0.35)
+	var coins := CPUParticles3D.new()
+	coins.name = "Coins"
+	coins.emitting = false
+	coins.one_shot = true
+	coins.explosiveness = 0.85
+	coins.amount = 36
+	coins.lifetime = 1.8
+	coins.mesh = PropKit.mesh("Coin")
+	coins.material_override = PropKit.material("Metal")
+	coins.direction = Vector3(0, 1, 0.7)
+	coins.spread = 55.0
+	coins.initial_velocity_min = 2.2
+	coins.initial_velocity_max = 4.2
+	coins.gravity = Vector3(0, -7.0, 0)
+	coins.angular_velocity_min = -540.0
+	coins.angular_velocity_max = 540.0
+	coins.scale_amount_min = 1.0
+	coins.scale_amount_max = 1.6
+	fx.add_child(coins)
+	var confetti := CPUParticles3D.new()
+	confetti.name = "Confetti"
+	confetti.emitting = false
+	confetti.one_shot = true
+	confetti.explosiveness = 0.9
+	confetti.amount = 60
+	confetti.lifetime = 2.2
+	var q := QuadMesh.new()
+	q.size = Vector2(0.035, 0.018)
+	confetti.mesh = q
+	var cm := StandardMaterial3D.new()
+	cm.vertex_color_use_as_albedo = true
+	cm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	cm.cull_mode = BaseMaterial3D.CULL_DISABLED
+	confetti.material_override = cm
+	var g := Gradient.new()
+	g.offsets = PackedFloat32Array([0.0, 0.25, 0.5, 0.75, 1.0])
+	g.colors = PackedColorArray([Color(1, 0.2, 0.4), Color(0.2, 0.8, 1), Color(1, 0.85, 0.1), Color(0.4, 1, 0.4), Color(0.8, 0.3, 1)])
+	confetti.color_initial_ramp = g
+	confetti.direction = Vector3(0, 1, 0.5)
+	confetti.spread = 70.0
+	confetti.initial_velocity_min = 1.5
+	confetti.initial_velocity_max = 3.5
+	confetti.gravity = Vector3(0, -2.5, 0)
+	confetti.damping_min = 1.0
+	confetti.damping_max = 2.0
+	confetti.angular_velocity_min = -720.0
+	confetti.angular_velocity_max = 720.0
+	fx.add_child(confetti)
+	return fx
 
 
 func _tv_wall() -> void:
