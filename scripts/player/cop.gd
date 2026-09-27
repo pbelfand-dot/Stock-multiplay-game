@@ -37,6 +37,25 @@ func _ready() -> void:
 	agent.radius = 0.45
 	add_child(agent)
 	_net_pos = global_position
+	var siren := AudioStreamPlayer3D.new()
+	siren.stream = Sfx.looped("siren")
+	siren.unit_size = 6.0
+	siren.volume_db = -6.0
+	siren.autoplay = true
+	add_child(siren)
+	var light := OmniLight3D.new()
+	light.position = Vector3(0, 2.3, 0)
+	light.omni_range = 5.0
+	light.light_color = Color(1, 0.1, 0.1)
+	light.name = "Beacon"
+	add_child(light)
+
+
+func _process(_d: float) -> void:
+	var l: OmniLight3D = get_node_or_null("Beacon")
+	if l:
+		var blue := int(Time.get_ticks_msec() / 250) % 2 == 0
+		l.light_color = Color(0.1, 0.3, 1) if blue else Color(1, 0.1, 0.1)
 
 
 func _build_body() -> void:

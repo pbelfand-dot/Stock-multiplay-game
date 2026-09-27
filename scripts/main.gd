@@ -12,19 +12,24 @@ var world: Node3D
 
 
 func _ready() -> void:
+	get_tree().auto_accept_quit = false
 	Net.connected_ok.connect(_on_connected)
 	Net.connection_failed.connect(func(r): _show_menu(r))
 	Net.server_gone.connect(func(): leave_game("The host closed the office."))
 	if Config.cli.has("name"):
 		Config.player_name = Config.cli.name
 	if Config.cli.has("smoke"):
-		var drv = load("res://tests/smoke_driver.gd").new()
-		drv.name = "SmokeDriver"
-		add_child(drv)
+		var drv_script = load("res://tests/smoke_driver.gd")
+		if drv_script:
+			var drv = drv_script.new()
+			drv.name = "SmokeDriver"
+			add_child(drv)
 	if Config.cli.has("shots"):
-		var sd = load("res://tests/screenshot_driver.gd").new()
-		sd.name = "ScreenshotDriver"
-		add_child(sd)
+		var sd_script = load("res://tests/screenshot_driver.gd")
+		if sd_script:
+			var sd = sd_script.new()
+			sd.name = "ScreenshotDriver"
+			add_child(sd)
 	if Config.cli.has("host"):
 		host_game(int(Config.cli.get("port", Config.port)), "pvp" if Config.cli.has("pvp") else "coop")
 	elif Config.cli.has("join"):
@@ -88,3 +93,9 @@ func _free_world() -> void:
 		remove_child(world)
 		world.queue_free()
 		world = null
+
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_WM_CLOSE_REQUEST:
+		Net.leave()
+		Sfx.quit_game()

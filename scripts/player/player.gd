@@ -17,6 +17,9 @@ var world   # set by World
 
 var pitch := 0.0
 var raining := false
+var diving := 0.0
+var _dive_cd := 0.0
+var _brrt_acc := 0.0
 var _send_acc := 0.0
 var _target_pos := Vector3.ZERO
 var _target_yaw := 0.0
@@ -66,7 +69,7 @@ func _ready() -> void:
 		cam.current = true
 		ray = RayCast3D.new()
 		ray.target_position = Vector3(0, 0, -REACH)
-		ray.collision_mask = 1
+		ray.collision_mask = 1 | 8
 		ray.add_exception(self)
 		cam.add_child(ray)
 		body_mesh.visible = false
@@ -279,7 +282,7 @@ func _physics_process(delta: float) -> void:
 		_send_acc += delta
 		if _send_acc >= SEND_RATE:
 			_send_acc = 0.0
-			world._p_tf.rpc(global_position, rotation.y, pitch, raining)
+			world._p_tf.rpc(global_position, rotation.y, pitch, (1 if raining else 0) | (2 if diving > 0.0 else 0))
 	else:
 		if _has_target:
 			global_position = global_position.lerp(_target_pos, clampf(delta * 12.0, 0, 1))
@@ -299,8 +302,23 @@ func _local_move(delta: float) -> void:
 	if m and m.effect_left(peer_id, "powder") > 0.0:
 		speed *= 1.6
 	var dir := (transform.basis * Vector3(input.x, 0, input.y)).normalized()
-	velocity.x = dir.x * speed
-	velocity.z = dir.z * speed
+	_dive_cd = maxf(_dive_cd - delta, 0.0)
+	if diving > 0.0:
+		# committed to the dive: keep sliding, slowly lose speed
+		diving -= delta
+		velocity.x *= 0.985
+		velocity.z *= 0.985
+	else:
+		velocity.x = dir.x * speed
+		velocity.z = dir.z * speed
+		if not blocked and _dive_cd <= 0.0 and is_on_floor() and Input.is_action_just_pressed("dive"):
+			var fwd := -transform.basis.z
+			velocity.x = fwd.x * speed * 1.7
+			velocity.z = fwd.z * speed * 1.7
+			velocity.y = 2.8
+			diving = 0.75
+			_dive_cd = 1.8
+			Sfx.play("whoosh")
 	if not is_on_floor():
 		velocity.y -= GRAVITY * delta
 	elif not blocked and Input.is_action_just_pressed("jump"):
@@ -308,9 +326,22 @@ func _local_move(delta: float) -> void:
 	move_and_slide()
 	if global_position.y < -10.0:
 		global_position = world.spawn_point(0)
+	# basketball throw takes priority over the money gun
+	var ball = world.ball
+	var holding: bool = ball != null and ball.holder == peer_id
+	if holding and not blocked and Input.is_action_just_pressed("fire"):
+		ball.request_throw(-cam.global_basis.z)
 	# money gun
-	raining = (not blocked and m != null and m.effect_left(peer_id, "moneygun") > 0.0
+	raining = (not holding and not blocked and m != null and m.effect_left(peer_id, "moneygun") > 0.0
 		and Input.is_action_pressed("fire"))
+	if raining:
+		_brrt_acc -= delta
+		if _brrt_acc <= 0.0:
+			_brrt_acc = 0.22
+			Sfx.play("brrt", -6.0, randf_range(0.9, 1.1))
+	# dive camera: drop low and roll
+	head.position.y = lerpf(head.position.y, 0.55 if diving > 0.0 else 1.62, delta * 10.0)
+	head.rotation.z = lerpf(head.rotation.z, 0.25 if diving > 0.0 else 0.0, delta * 8.0)
 	# head bob / powder shake
 	if cam:
 		if m and m.effect_left(peer_id, "powder") > 0.0:
@@ -332,6 +363,8 @@ func _update_fx() -> void:
 		smoke.emitting = cigar_on
 	if bills.emitting != raining:
 		bills.emitting = raining
+	if not is_local:
+		body_mesh.rotation.x = lerpf(body_mesh.rotation.x, -1.35 if diving > 0.0 else 0.0, 0.2)
 
 
 ## What the crosshair is pointing at: {type, id, prompt} or {}
@@ -354,11 +387,12 @@ func teleport(pos: Vector3) -> void:
 
 
 ## Called by World when this player's owner broadcasts its transform.
-func net_tf(pos: Vector3, yaw: float, p: float, rain: bool) -> void:
+func net_tf(pos: Vector3, yaw: float, p: float, flags: int) -> void:
 	_target_pos = pos
 	_target_yaw = yaw
 	pitch = p
-	raining = rain
+	raining = flags & 1 != 0
+	diving = 0.5 if flags & 2 != 0 else 0.0
 	if not _has_target:
 		global_position = pos
 		_has_target = true

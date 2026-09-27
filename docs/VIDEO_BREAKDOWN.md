@@ -154,3 +154,19 @@ around it (items, heat/cops, slots) and pick our twist. Then decide whether it's
 4. **Co-op only (shared balance) or PvP too?** What's our twist?
 5. **Name / theme**: we need our own. Any ideas?
 6. **How much edgy content** (cigars, powder, politician parody): keep it, tone it down, or cut it?
+
+---
+
+## Decisions (answered)
+
+| Question | Answer |
+|---|---|
+| Engine / platform | **Godot 4.7**, desktop app (Windows / macOS / Linux), free for friends. **Not** on Steam. |
+| View | **First-person** 3D |
+| Budget / team | Minimal; AI builds everything (all art is procedural, fonts are OFL, sounds are synthesized) |
+| Mode | **Co-op** first (shared fund), plus **PvP** (own accounts, 3 days, snitching) |
+| Name | **BAGHOLDERS** — "Everyone shares the bag." |
+| Edgy content | Keep everything from the video: cigars, powder ("Nose Candy"), president parody ("TRAMP"), cops and mugshots |
+| Streamers | Added as parodies: **TJZ** (TJR-style day trader, "OH MY GOD, TRADE!"), **KIMCHEE** (memecoin whale who pumps and rugs), **ROARING KITTEH**, **JIM CRAMMER** (inverse him) |
+
+See the main [README](../README.md) for how the game plays.

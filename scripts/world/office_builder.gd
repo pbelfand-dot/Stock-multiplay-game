@@ -30,6 +30,9 @@ var jail_pos := Vector3(0, 0.1, 42.0)
 var tv_screen: MeshInstance3D
 var ticker_label: Label3D
 var slot_machines: Array = []
+var npcs := {}                  # speaker name -> Node3D (has "Bubble" Label3D)
+var hoop_rim := Vector3(-W / 2 + 0.5, 2.05, -9.5)
+var ball_spawn := Vector3(-16.5, 1.0, -9.5)
 
 
 func mat(c: Color, emissive: float = 0.0) -> StandardMaterial3D:
@@ -76,6 +79,7 @@ func build(parent: Node3D) -> void:
 	_bell_podium()
 	_ticker()
 	_holding_cell()
+	_streamer_corner()
 	for i in 6:
 		spawn_points.append(Vector3(-3.0 + i * 1.2, 0.1, 10.5))
 
@@ -319,13 +323,15 @@ func _lounge() -> void:
 	# Dealer NPC (the cigar guy from the trailer)
 	var dealer := Node3D.new()
 	dealer.position = Vector3(-15.0, 0, 8.6)
-	dealer.rotation.y = PI * 0.15
+	dealer.rotation.y = PI * 0.9
 	nav.add_child(dealer)
 	var body := box(Vector3(0.6, 1.1, 0.35), Vector3(0, 0.95, 0), C_DARK, true, dealer)
 	box(Vector3(0.62, 0.5, 0.37), Vector3(0, -0.8, 0), C_DARK, false, body)
 	sphere(0.24, Vector3(0, 1.72, 0), Color(0.96, 0.8, 0.66), dealer)
 	box(Vector3(0.44, 0.12, 0.44), Vector3(0, 1.9, -0.02), Color(0.12, 0.1, 0.08), false, dealer)
 	box(Vector3(0.12, 0.35, 0.02), Vector3(0, 1.2, 0.18), Color(0.95, 0.95, 0.95), false, dealer)
+	for ex in [-0.08, 0.08]:
+		sphere(0.035, Vector3(ex, 1.76, 0.21), Color(0.05, 0.05, 0.05), dealer)
 	var cigar := cyl(0.025, 0.2, Vector3(0.1, 1.64, 0.26), Color(0.45, 0.28, 0.12), false, dealer)
 	cigar.rotation.x = PI / 2
 	sphere(0.03, Vector3(0.1, 1.64, 0.36), Color(1, 0.4, 0.1), dealer)
@@ -404,10 +410,10 @@ func _west_wall() -> void:
 
 
 func _bell_podium() -> void:
-	box(Vector3(0.9, 1.1, 0.6), Vector3(13, 0.55, 8.5), Color(0.25, 0.15, 0.1))
-	var bell := cyl(0.18, 0.22, Vector3(13, 1.25, 8.5), Color(1, 0.8, 0.2))
+	box(Vector3(0.9, 1.1, 0.6), Vector3(7, 0.55, 8.0), Color(0.25, 0.15, 0.1))
+	var bell := cyl(0.18, 0.22, Vector3(7, 1.25, 8.0), Color(1, 0.8, 0.2))
 	bell.scale = Vector3(1, 1, 1)
-	var l := label("OPENING BELL\nhost: press ENTER", Vector3(13, 1.9, 8.5), 40, Color(1, 0.9, 0.5))
+	var l := label("OPENING BELL\nhost: press ENTER", Vector3(7, 1.9, 8.0), 40, Color(1, 0.9, 0.5))
 	l.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 	l.name = "BellLabel"
 
@@ -443,6 +449,77 @@ func _holding_cell() -> void:
 	cell.add_child(lt)
 	# benches
 	box(Vector3(4, 0.45, 0.6), c + Vector3(0, 0.22, -2.5), Color(0.3, 0.3, 0.32), true, cell)
+
+
+func npc(pos: Vector3, rot_y: float, suit: Color, skin: Color, hair: Color, title: String) -> Node3D:
+	var n := Node3D.new()
+	n.position = pos
+	n.rotation.y = rot_y
+	nav.add_child(n)
+	var body := box(Vector3(0.6, 1.1, 0.35), Vector3(0, 0.95, 0), suit, true, n)
+	box(Vector3(0.62, 0.5, 0.37), Vector3(0, -0.8, 0), suit.darkened(0.2), false, body)
+	sphere(0.24, Vector3(0, 1.72, 0), skin, n)
+	box(Vector3(0.44, 0.12, 0.44), Vector3(0, 1.9, -0.02), hair, false, n)
+	for ex in [-0.08, 0.08]:
+		sphere(0.035, Vector3(ex, 1.76, 0.21), Color(0.05, 0.05, 0.05), n)
+	box(Vector3(0.12, 0.35, 0.02), Vector3(0, 1.2, 0.18), Color(0.95, 0.95, 0.95), false, n)
+	var tag := label(title, Vector3(0, 2.2, 0), 34, Color(1, 1, 1), 0.0, n)
+	tag.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	var bubble := label("", Vector3(0, 2.65, 0), 40, Color(1, 0.95, 0.3), 0.0, n)
+	bubble.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	bubble.name = "Bubble"
+	bubble.width = 900
+	bubble.autowrap_mode = TextServer.AUTOWRAP_WORD
+	bubble.outline_size = 14
+	return n
+
+
+## Streamer corner: TJZ at his stream desk, KIMCHEE and ROARING KITTEH.
+func _streamer_corner() -> void:
+	var base := Vector3(16.5, 0, 12.0)
+	box(Vector3(2.2, 0.06, 0.9), base + Vector3(0, 0.75, 0), C_DARK)
+	box(Vector3(0.06, 0.75, 0.85), base + Vector3(-1.05, 0.375, 0), C_METAL, false)
+	box(Vector3(0.06, 0.75, 0.85), base + Vector3(1.05, 0.375, 0), C_METAL, false)
+	# three monitors with charts
+	for k in 3:
+		var mon := box(Vector3(0.6, 0.38, 0.04), base + Vector3(-0.65 + k * 0.65, 1.1, -0.25), C_DARK, false)
+		box(Vector3(0.56, 0.34, 0.01), Vector3(0, 0, 0.025), Color(0.05, 0.3, 0.15), false, mon, 0.8)
+	# ring light + mic
+	var ring := MeshInstance3D.new()
+	var tm := TorusMesh.new()
+	tm.inner_radius = 0.26
+	tm.outer_radius = 0.3
+	ring.mesh = tm
+	ring.material_override = mat(Color(1, 1, 1), 2.0)
+	ring.position = base + Vector3(0, 1.55, -1.1)
+	ring.rotation.x = PI / 2
+	nav.add_child(ring)
+	cyl(0.02, 1.5, base + Vector3(0, 0.75, -1.1), C_METAL)
+	cyl(0.04, 0.12, base + Vector3(0.3, 0.9, 0.2), C_DARK)
+	var live_sign := label("KWIK LIVE", base + Vector3(0, 2.5, 1.9), 90, Color(0.6, 0.3, 1), PI)
+	live_sign.outline_size = 16
+	var tj := npc(base + Vector3(0, 0, 0.85), PI, Color(0.1, 0.1, 0.12), Color(0.9, 0.72, 0.58), Color(0.1, 0.07, 0.05), "TJZ  (LIVE)")
+	box(Vector3(0.5, 0.08, 0.1), Vector3(0, 1.93, 0), C_DARK, false, tj)  # headset band
+	npcs["TJZ"] = tj
+	var kc := npc(base + Vector3(-2.6, 0, -1.4), PI * 0.8, Color(0.95, 0.95, 0.95), Color(0.93, 0.78, 0.62), Color(0.05, 0.05, 0.05), "KIMCHEE")
+	var chain := MeshInstance3D.new()
+	var cm := TorusMesh.new()
+	cm.inner_radius = 0.16
+	cm.outer_radius = 0.19
+	chain.mesh = cm
+	chain.material_override = mat(Color(1, 0.8, 0.15), 0.5)
+	chain.position = Vector3(0, 1.45, -0.12)
+	chain.rotation.x = 1.2
+	kc.add_child(chain)
+	npcs["KIMCHEE"] = kc
+	var rk := npc(base + Vector3(-4.4, 0, -0.6), PI * 1.15, Color(0.25, 0.3, 0.2), Color(0.95, 0.8, 0.66), Color(0.5, 0.3, 0.15), "ROARING KITTEH")
+	box(Vector3(0.5, 0.06, 0.5), Vector3(0, 1.8, 0), Color(0.9, 0.1, 0.1), false, rk)  # headband
+	for s in [-0.14, 0.14]:
+		var ear := box(Vector3(0.1, 0.16, 0.05), Vector3(s, 2.02, 0), Color(0.5, 0.3, 0.15), false, rk)
+		ear.rotation.z = 0.3 * sign(s)
+	npcs["ROARING KITTEH"] = rk
+	var jc := npc(Vector3(W / 2 - 1.5, 0, 1.6), -PI / 2, Color(0.95, 0.95, 0.95), Color(0.95, 0.8, 0.7), Color(0.85, 0.85, 0.85), "JIM CRAMMER")
+	npcs["JIM CRAMMER"] = jc
 
 
 func bake_nav() -> void:

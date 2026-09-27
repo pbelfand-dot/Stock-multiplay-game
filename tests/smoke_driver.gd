@@ -21,12 +21,12 @@ func _say(s: String) -> void:
 
 func _fail(why: String) -> void:
 	_say("SMOKE FAIL: " + why)
-	get_tree().quit(1)
+	Sfx.quit_game(1)
 
 
 func _pass() -> void:
 	_say("SMOKE PASS")
-	get_tree().quit(0)
+	Sfx.quit_game(0)
 
 
 func _wait_for(cond: Callable, timeout: float, what: String) -> bool:
@@ -65,7 +65,7 @@ func _host() -> void:
 	if not await _wait_for(func(): return m.phase == "trading", 10.0, "trading phase"):
 		return
 	# wait for the client's trade + slot + chat
-	if not await _wait_for(func(): return got.get("trade_closed", 0) >= 1 and got.get("slot_result", 0) >= 1 and got.get("chat", 0) >= 1, 30.0, "client actions"):
+	if not await _wait_for(func(): return got.get("trade_closed", 0) >= 1 and got.get("slot_result", 0) >= 1 and got.get("chat", 0) >= 2, 40.0, "client actions"):
 		return
 	var bob := 0
 	for id in Net.players:
@@ -118,6 +118,20 @@ func _client() -> void:
 	if not await _wait_for(func(): return got.get("trade_closed", 0) >= 1, 5.0, "trade closed"):
 		return
 	_say("closed; cash now %f; heat %s" % [m.my_acct().balance, str(m.heat)])
+	# Basketball: walk up, grab, throw.
+	var w = get_node("/root/Main/World")
+	w.local_player.teleport(w.ball.global_position + Vector3(1.5, -0.9, 0))
+	await get_tree().create_timer(0.5).timeout
+	w.ball.request_grab()
+	if not await _wait_for(func(): return w.ball.holder == Net.my_id(), 5.0, "ball grab"):
+		return
+	w.ball.request_throw(Vector3(-1, 0.6, 0))
+	if not await _wait_for(func(): return w.ball.holder == 0, 5.0, "ball throw"):
+		return
+	_say("basketball grab + throw ok")
+	w.local_player.teleport(w.spawn_point(1))
+	await get_tree().create_timer(0.5).timeout
+	m.send_chat("ready for the cops")
 	# Now just stand here and get arrested by the host-triggered raid.
 	if not await _wait_for(func(): return got.get("arrested", 0) >= 1, 40.0, "arrest"):
 		return

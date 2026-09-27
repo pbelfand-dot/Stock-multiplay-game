@@ -71,7 +71,7 @@ func _ready() -> void:
 	help.autowrap_mode = TextServer.AUTOWRAP_WORD
 	box.add_child(help)
 	var quit := UI.btn("QUIT", UI.NAVY_2, 20)
-	quit.pressed.connect(func(): get_tree().quit())
+	quit.pressed.connect(func(): Sfx.quit_game())
 	box.add_child(quit)
 
 

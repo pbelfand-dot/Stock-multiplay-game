@@ -122,6 +122,7 @@ func spin() -> void:
 	stop_at = [-1.0, -1.0, -1.0]
 	_t = 0.0
 	win_lbl.text = "..."
+	Sfx.play("click")
 	match_node.request_slot(Rules.SLOT_BETS[bet_idx])
 	# safety: unlock if the server rejects the spin
 	get_tree().create_timer(3.0).timeout.connect(func():
@@ -147,7 +148,10 @@ func _process(delta: float) -> void:
 		var all_stopped := true
 		for i in 3:
 			if stop_at[i] < 0.0 or _t < stop_at[i]:
+				var before := int(offsets[i])
 				offsets[i] += delta * (14.0 + i * 3.0)
+				if i == 0 and int(offsets[i]) != before:
+					Sfx.play("tick", -8.0)
 				all_stopped = false
 			else:
 				reels[i] = result[i]
@@ -164,7 +168,9 @@ func _show_result() -> void:
 		win_lbl.text = Rules.money(result_payout)
 		coins.restart()
 		coins.emitting = true
+		Sfx.play("coin")
 		if result_payout >= bet * 10:
+			Sfx.play("jackpot")
 			confetti.restart()
 			confetti.emitting = true
 			result_lbl.text = "WINNER WINNER. %s" % Rules.money(result_payout)

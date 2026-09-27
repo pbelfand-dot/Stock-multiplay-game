@@ -271,6 +271,7 @@ func _update_size_labels() -> void:
 
 
 func _order(side: int) -> void:
+	Sfx.play("click")
 	match_node.request_open(sym, side, Rules.SIZE_STEPS[size_idx], Ledger.LEVERAGES[lev_idx])
 
 

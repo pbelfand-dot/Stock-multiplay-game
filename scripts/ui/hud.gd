@@ -45,6 +45,7 @@ var summary
 var pause_menu: PanelContainer
 
 var _chat_open := false
+var _last_phase := ""
 var _tip_eta := 0.0
 var _raid_t := 0.0
 
@@ -354,6 +355,7 @@ func _process(delta: float) -> void:
 		raid_flash.color.a = 0.0
 	var jl: float = match_node.jail.get(Net.my_id(), 0.0)
 	jail_lbl.text = "IN JAIL %ds" % ceili(jl) if jl > 0.0 else ""
+	jail_lbl.visible = jl > 0.0
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -387,6 +389,10 @@ func _close_chat() -> void:
 # ---------------------------------------------------------------- updates
 
 func _on_state() -> void:
+	if match_node.phase != _last_phase:
+		if match_node.phase == "trading":
+			Sfx.play("bell")
+		_last_phase = match_node.phase
 	var me := Net.my_id()
 	var acct_id: int = match_node.acct_for(me)
 	var eq: float = match_node.equity_of(acct_id)
@@ -480,6 +486,7 @@ func show_toast(msg: String, color: Color = UI.TEXT) -> void:
 
 
 func _on_news(ev: Dictionary) -> void:
+	Sfx.play("news", -2.0)
 	chyron_speaker.text = " %s " % ev.role
 	chyron_text.text = ev.headline
 	show_toast("ON AIR: " + ev.headline, UI.GOLD)
@@ -506,6 +513,12 @@ func _on_trade_opened(info: Dictionary) -> void:
 func _on_trade_closed(info: Dictionary) -> void:
 	if info.acct == match_node.acct_for(Net.my_id()):
 		popup.show_trade(info.pnl, info.pct, info.liquidated, "%s %s" % [info.trader, info.sym])
+		if info.liquidated:
+			Sfx.play("liquidated")
+		elif info.pnl >= 0.0:
+			Sfx.play("cash", 0.0, 1.0 + clampf(info.pct / 400.0, 0.0, 0.3))
+		else:
+			Sfx.play("lose", -3.0)
 	elif Net.mode == "pvp" and absf(info.pct) > 150:
 		show_toast("%s %s %s on %s" % [info.trader, "cooked" if info.pnl > 0 else "got cooked for", Rules.money(absf(info.pnl)), info.sym], UI.DIM)
 
@@ -531,6 +544,10 @@ func _on_raid(target: int, active: bool) -> void:
 
 func _on_day_ended(s: Dictionary) -> void:
 	close_modals()
+	if s.get("over", false) and not s.get("passed", true):
+		Sfx.play("lose")
+	elif s.get("passed", false):
+		Sfx.play("jackpot")
 	summary.show_summary(s)
 
 

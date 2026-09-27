@@ -28,7 +28,7 @@ func _run() -> void:
 	if not Config.cli.has("host"):
 		await _frames(30)
 		await _snap("00_menu")
-		get_tree().quit()
+		Sfx.quit_game()
 		return
 	while get_node_or_null("/root/Main/World/Match") == null:
 		await get_tree().process_frame
@@ -45,7 +45,11 @@ func _run() -> void:
 		["05_lounge_tony", Vector3(-12, 0.1, 5), 0.9, -0.1],
 		["06_west_wall", Vector3(-14, 0.1, -4), 1.3, 0.05],
 		["07_windows", Vector3(3, 0.1, -6), 0.3, 0.12],
+		["16_streamer_corner", Vector3(11.5, 0.1, 6.5), -2.45, 0.02],
+		["17_hoop_ball", Vector3(-15.0, 0.1, -9.0), PI / 2 - 0.1, 0.25],
 	]
+	world._say("TJZ", "OH MY GOD, TRADE! LONG BTC RIGHT NOW!", 30.0)
+	world._say("KIMCHEE", "APING MY WHOLE BAG INTO $WAGMI. NFA", 30.0)
 	for v in views:
 		p.teleport(v[1])
 		p.rotation.y = v[2]
@@ -96,4 +100,4 @@ func _run() -> void:
 	m._add_heat(1, 200.0)
 	await get_tree().create_timer(2.2).timeout
 	await _snap("15_cops_raid")
-	get_tree().quit()
+	Sfx.quit_game()

@@ -72,5 +72,7 @@ func _refresh() -> void:
 		b.custom_minimum_size.x = 170
 		b.disabled = acct.get("balance", 0.0) < d.price
 		var k: String = key
-		b.pressed.connect(func(): match_node.request_buy(k))
+		b.pressed.connect(func():
+			Sfx.play("coin")
+			match_node.request_buy(k))
 		h.add_child(b)

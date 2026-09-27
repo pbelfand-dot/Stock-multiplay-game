@@ -9,6 +9,7 @@ const MatchScript = preload("res://scripts/net/match.gd")
 const HudScript = preload("res://scripts/ui/hud.gd")
 const TvScript = preload("res://scripts/ui/tv_screen.gd")
 const Rules = preload("res://scripts/sim/rules.gd")
+const BallScript = preload("res://scripts/world/ball.gd")
 
 var builder
 var players_node: Node3D
@@ -17,6 +18,9 @@ var match_node: Node
 var hud
 var tv
 var local_player
+var ball
+var _bubble_t := {}
+var _idle_t := 8.0
 var _ticker_offset := 0.0
 var _screen_acc := 0.0
 
@@ -43,10 +47,14 @@ func _ready() -> void:
 	hud.name = "HUD"
 	add_child(hud)
 	hud.setup(self, match_node)
+	ball = BallScript.new()
+	ball.setup(self)
+	add_child(ball)
 	Net.players_changed.connect(_sync_players)
 	match_node.market_tick.connect(_on_market_tick)
 	match_node.slot_result.connect(_on_slot_result)
 	match_node.state_changed.connect(_on_state)
+	match_node.news.connect(_on_news)
 	_sync_players()
 
 
@@ -86,6 +94,7 @@ func ui_blocking() -> bool:
 func _process(delta: float) -> void:
 	if local_player and hud:
 		hud.set_prompt(local_player.look_target() if not ui_blocking() else {})
+	_tick_bubbles(delta)
 	_ticker_offset += delta
 	if builder.ticker_label:
 		builder.ticker_label.position.x = fposmod(-_ticker_offset * 2.2, 36.0) - 18.0 + 9.0
@@ -94,7 +103,9 @@ func _process(delta: float) -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("interact") and not ui_blocking() and local_player:
 		var t: Dictionary = local_player.look_target()
-		if not t.is_empty():
+		if t.get("type", "") == "ball":
+			ball.request_grab()
+		elif not t.is_empty():
 			hud.open_interact(t)
 			get_viewport().set_input_as_handled()
 	elif event.is_action_pressed("start_day") and not ui_blocking():
@@ -110,6 +121,49 @@ func _unhandled_input(event: InputEvent) -> void:
 					match_node.request_use(key)
 				else:
 					hud.show_toast("You don't have a %s. Visit Tony in the lounge." % Rules.ITEMS[key].name)
+
+
+# ---------------------------------------------------------------- streamers
+
+const IDLE_LINES := {
+	"TJZ": ["Chat, we're so back.", "Liquidity grab incoming.", "Don't trade the open, bro.", "I'm not even mad. (I'm mad.)"],
+	"KIMCHEE": ["Anyone got a new ticker?", "Rugs are part of the journey.", "Just woke up. Up 4 milli.", "NFA. Obviously."],
+	"ROARING KITTEH": ["...", "*sips*", "I just like the stock."],
+	"JIM CRAMMER": ["BOOYAH!", "I've never been wrong! (I'm always wrong)", "Buy the dip! Which dip? ALL of them!"],
+}
+
+
+func _on_news(ev: Dictionary) -> void:
+	var sp: String = ev.get("speaker", "")
+	if builder.npcs.has(sp):
+		var line: String = ev.headline
+		var colon := line.find(": ")
+		_say(sp, line.substr(colon + 2) if colon >= 0 else line, 9.0)
+
+
+func _say(speaker: String, text: String, secs: float) -> void:
+	var n: Node3D = builder.npcs.get(speaker)
+	if n == null:
+		return
+	var b: Label3D = n.get_node("Bubble")
+	b.text = text
+	_bubble_t[speaker] = secs
+
+
+func _tick_bubbles(delta: float) -> void:
+	for sp in _bubble_t.keys():
+		_bubble_t[sp] -= delta
+		if _bubble_t[sp] <= 0.0:
+			_bubble_t.erase(sp)
+			var n: Node3D = builder.npcs.get(sp)
+			if n:
+				n.get_node("Bubble").text = ""
+	_idle_t -= delta
+	if _idle_t <= 0.0:
+		_idle_t = randf_range(12.0, 22.0)
+		var sp: String = IDLE_LINES.keys().pick_random()
+		if not _bubble_t.has(sp):
+			_say(sp, IDLE_LINES[sp].pick_random(), 5.0)
 
 
 func _on_market_tick() -> void:
@@ -164,10 +218,10 @@ func _on_state() -> void:
 ## Player transforms go through World (always present once connected) so a
 ## packet that beats the roster never hits a missing node.
 @rpc("any_peer", "unreliable_ordered")
-func _p_tf(pos: Vector3, yaw: float, pitch: float, rain: bool) -> void:
+func _p_tf(pos: Vector3, yaw: float, pitch: float, flags: int) -> void:
 	var p = player_node(multiplayer.get_remote_sender_id())
 	if p and not p.is_local:
-		p.net_tf(pos, yaw, pitch, rain)
+		p.net_tf(pos, yaw, pitch, flags)
 
 
 # ---------------------------------------------------------------- police

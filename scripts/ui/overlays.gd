@@ -22,10 +22,13 @@ class Mugshot extends Control:
 		suit = color
 		t = 0.0
 		visible = true
+		Sfx.play("flash")
 
 	func _process(delta: float) -> void:
 		if not visible:
 			return
+		if t < 2.2 and t + delta >= 2.2:
+			Sfx.play("flash")
 		t += delta
 		if t > 4.5:
 			visible = false
