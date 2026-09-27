@@ -6,6 +6,7 @@ extends RefCounted
 ##   pnl      = units * (price - entry) * side        (side: +1 long / -1 short)
 ##   fee      = notional * fee_rate, paid on open
 ##   liquidated when pnl <= -margin (you lose the margin, nothing more)
+##   tp / sl: optional take-profit / stop-loss prices (0 = off), auto-closed
 ##
 ## Co-op: every player trades from account 0 (the shared fund).
 ## PvP:   every player has their own account keyed by peer id.
@@ -54,7 +55,7 @@ func open_position(acct_id: int, sym: String, side: int, margin: float, lev: int
 		return {"ok": false, "error": "Not enough cash"}
 	a.balance -= margin + fee
 	var pos := {"pid": _next_pid, "sym": sym, "side": side, "margin": margin, "lev": lev,
-		"entry": price, "units": notional / price, "fee": fee, "trader": trader}
+		"entry": price, "units": notional / price, "fee": fee, "trader": trader, "tp": 0.0, "sl": 0.0}
 	_next_pid += 1
 	a.positions.append(pos)
 	return {"ok": true, "pos": pos}
@@ -78,6 +79,48 @@ func close_position(acct_id: int, pid: int, price: float, liquidated: bool = fal
 			return {"ok": true, "pnl": pnl, "pct": pnl / pos.margin * 100.0,
 				"pos": pos, "liquidated": liquidated}
 	return {"ok": false}
+
+
+## Price at which this position gets liquidated (pnl == -margin).
+static func liq_price(pos: Dictionary) -> float:
+	return pos.entry - pos.side * pos.margin / pos.units
+
+
+## Set take-profit / stop-loss (0 = remove). A TP must be on the profit side of
+## the entry, a SL on the loss side (but before liquidation). Returns ok.
+func set_tpsl(acct_id: int, pid: int, tp: float, sl: float) -> bool:
+	for pos in accounts.get(acct_id, {}).get("positions", []):
+		if pos.pid != pid:
+			continue
+		if tp > 0.0 and (tp - pos.entry) * pos.side <= 0.0:
+			return false
+		if sl > 0.0 and ((pos.entry - sl) * pos.side <= 0.0 or (sl - liq_price(pos)) * pos.side <= 0.0):
+			return false
+		pos.tp = maxf(tp, 0.0)
+		pos.sl = maxf(sl, 0.0)
+		return true
+	return false
+
+
+## Positions whose TP or SL was touched: closes them at the current price.
+## Returns close results with "acct" and "trigger" ("TP" / "SL").
+func check_triggers(price_fn: Callable) -> Array:
+	var out: Array = []
+	for id in accounts:
+		var hits: Array = []
+		for pos in accounts[id].positions:
+			var p: float = price_fn.call(pos.sym)
+			if pos.get("tp", 0.0) > 0.0 and (p - pos.tp) * pos.side >= 0.0:
+				hits.append([pos.pid, p, "TP"])
+			elif pos.get("sl", 0.0) > 0.0 and (p - pos.sl) * pos.side <= 0.0:
+				hits.append([pos.pid, p, "SL"])
+		for h in hits:
+			var r := close_position(id, h[0], h[1])
+			if r.ok:
+				r["acct"] = id
+				r["trigger"] = h[2]
+				out.append(r)
+	return out
 
 
 ## price_fn: Callable(sym) -> float. Returns array of liquidation results.

@@ -605,7 +605,9 @@ func _on_trade_opened(info: Dictionary) -> void:
 
 func _on_trade_closed(info: Dictionary) -> void:
 	if info.acct == match_node.acct_for(Net.my_id()):
-		popup.show_trade(info.pnl, info.pct, info.liquidated, "%s %s" % [info.trader, info.sym])
+		var trig: String = info.get("trigger", "")
+		popup.show_trade(info.pnl, info.pct, info.liquidated, "%s %s%s" % [info.trader, info.sym,
+				("  · %s HIT" % trig) if trig != "" else ""])
 		if info.liquidated:
 			Sfx.play("liquidated")
 		elif info.pnl >= 0.0:

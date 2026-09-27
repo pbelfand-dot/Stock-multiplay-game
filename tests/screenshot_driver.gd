@@ -97,6 +97,12 @@ func _run() -> void:
 	m.request_open("BTC", 1, 25_000.0, 100)
 	m.request_open("BTC", -1, 5_000.0, 25)
 	await get_tree().create_timer(3.0).timeout
+	await get_tree().process_frame
+	for pos in m.my_acct().get("positions", []):
+		if pos.side > 0:
+			var mv: float = pos.margin / pos.units
+			m.request_set_tpsl(pos.pid, pos.entry + mv * 0.4, pos.entry - mv * 0.3)
+	await get_tree().create_timer(0.3).timeout
 	hud.open_interact({"type": "terminal", "id": 0})
 	await _frames(10)
 	await _snap("08_terminal")

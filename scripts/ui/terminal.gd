@@ -353,6 +353,14 @@ func _refresh_rows() -> void:
 		var pid: int = pos.pid
 		x.pressed.connect(func(): match_node.request_close(pid))
 		r.get_child(7).queue_free()
+		# one-click TP (+50% on margin) / SL (-30%); drag the lines on the chart to fine-tune
+		var move: float = pos.margin / pos.units
+		var tpb := UI.btn("TP" if pos.get("tp", 0.0) <= 0.0 else "TP ✓", UI.GREEN.darkened(0.35), 14)
+		tpb.pressed.connect(func(): match_node.request_set_tpsl(pid, pos.entry + pos.side * move * 0.5, pos.sl))
+		var slb := UI.btn("SL" if pos.get("sl", 0.0) <= 0.0 else "SL ✓", UI.RED.darkened(0.45), 14)
+		slb.pressed.connect(func(): match_node.request_set_tpsl(pid, pos.tp, pos.entry - pos.side * move * 0.3))
+		r.add_child(tpb)
+		r.add_child(slb)
 		r.add_child(x)
 		rows_box.add_child(r)
 	_update_open_profits(acct)

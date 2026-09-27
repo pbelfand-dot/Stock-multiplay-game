@@ -223,6 +223,21 @@ func _req_close(pid: int) -> void:
 	_push_state()
 
 
+## Take-profit / stop-loss for one of your positions (0 = off).
+func request_set_tpsl(pid: int, tp: float, sl: float) -> void:
+	_req_set_tpsl.rpc_id(1, pid, tp, sl)
+
+
+@rpc("any_peer", "call_local", "reliable")
+func _req_set_tpsl(pid: int, tp: float, sl: float) -> void:
+	if not Net.is_server():
+		return
+	var id := _sender()
+	if not ledger.set_tpsl(acct_for(id), pid, tp, sl):
+		_s_error.rpc_id(id, "TP goes on the profit side, SL between entry and LIQ.")
+	_push_state()
+
+
 func request_close_all() -> void:
 	_req_close_all.rpc_id(1)
 
@@ -448,6 +463,9 @@ func _server_step(dt: float) -> void:
 	if phase == "trading":
 		time_left -= dt
 		_step_news(dt)
+		for r in ledger.check_triggers(market.price_of):
+			_after_close(r, r.acct, r.pos.get("trader_id", 0))
+			_dirty = true
 		for r in ledger.check_liquidations(market.price_of):
 			_after_close(r, r.acct, r.pos.get("trader_id", 0))
 			_dirty = true
@@ -504,7 +522,7 @@ func _after_close(r: Dictionary, acct: int, closer: int) -> void:
 	if r.pct > 100.0 and heat.has(trader_id):
 		_add_heat(trader_id, Rules.HEAT_BIG_WIN)
 	_s_trade_closed.rpc({"acct": acct, "trader": pos.trader, "sym": pos.sym, "side": pos.side,
-		"pnl": r.pnl, "pct": r.pct, "liquidated": r.liquidated, "lev": pos.lev})
+		"pnl": r.pnl, "pct": r.pct, "liquidated": r.liquidated, "lev": pos.lev, "trigger": r.get("trigger", "")})
 
 
 func _add_heat(id: int, amount: float) -> void:

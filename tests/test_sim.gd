@@ -26,6 +26,7 @@ func _init() -> void:
 	test_market()
 	test_impulse()
 	test_ledger()
+	test_tpsl()
 	test_liquidation()
 	test_news()
 	test_slots()
@@ -91,6 +92,30 @@ func test_ledger() -> void:
 	check(not l.open_position(0, "BTC", 0, 100.0, 1, 1000.0, "x").ok, "side must be +-1")
 	check(not l.open_position(0, "BTC", 1, -5.0, 1, 1000.0, "x").ok, "positive size")
 	check(not l.open_position(99, "BTC", 1, 5.0, 1, 1000.0, "x").ok, "account must exist")
+
+
+func test_tpsl() -> void:
+	var l = Ledger.new()
+	l.create_account(1, "p", 100_000.0)
+	var r: Dictionary = l.open_position(1, "BTC", 1, 1_000.0, 10, 1000.0, "p")
+	var pid: int = r.pos.pid
+	check(approx(Ledger.liq_price(r.pos), 900.0), "long x10 liquidates at -10%%: %f" % Ledger.liq_price(r.pos))
+	check(not l.set_tpsl(1, pid, 990.0, 0.0), "TP below entry rejected for a long")
+	check(not l.set_tpsl(1, pid, 0.0, 1010.0), "SL above entry rejected for a long")
+	check(not l.set_tpsl(1, pid, 0.0, 880.0), "SL past liquidation rejected")
+	check(l.set_tpsl(1, pid, 1050.0, 960.0), "valid TP/SL accepted")
+	var prices := {"BTC": 1020.0}
+	var pf := func(s): return prices[s]
+	check(l.check_triggers(pf).is_empty(), "no trigger between SL and TP")
+	prices.BTC = 1051.0
+	var hit: Array = l.check_triggers(pf)
+	check(hit.size() == 1 and hit[0].trigger == "TP" and approx(hit[0].pnl, 510.0), "TP closes in profit")
+	r = l.open_position(1, "BTC", -1, 1_000.0, 10, 1000.0, "p")
+	check(approx(Ledger.liq_price(r.pos), 1100.0), "short x10 liquidates at +10%%")
+	check(l.set_tpsl(1, r.pos.pid, 950.0, 1030.0), "short TP below / SL above")
+	prices.BTC = 1031.0
+	hit = l.check_triggers(pf)
+	check(hit.size() == 1 and hit[0].trigger == "SL" and hit[0].pnl < 0.0, "SL cuts the short loss")
 
 
 func test_liquidation() -> void:
