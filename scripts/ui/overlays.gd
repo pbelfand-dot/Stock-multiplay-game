@@ -6,20 +6,101 @@ const Rules = preload("res://scripts/sim/rules.gd")
 
 
 class Mugshot extends Control:
+	## Booking photo: your actual character in front of the lineup wall,
+	## holding the NYPD placard. Front shot, flash, then side profile.
+	const Character = preload("res://scripts/art/character.gd")
+	const Props = preload("res://scripts/art/props.gd")
+	const S = preload("res://scripts/art/shapes.gd")
+
 	var booking := 4298
 	var who := "TRADER"
-	var suit := Color(0.2, 0.2, 0.3)
 	var t := 0.0
+	var vp: SubViewport
+	var tex_rect: TextureRect
+	var model
+	var placard: Node3D
 
 	func _ready() -> void:
 		set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 		mouse_filter = Control.MOUSE_FILTER_IGNORE
 		visible = false
 
-	func play(no: int, pname: String, color: Color) -> void:
+	func _setup_world() -> void:
+		vp = SubViewport.new()
+		vp.size = Vector2i(1280, 720)
+		vp.own_world_3d = true
+		vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+		add_child(vp)
+		tex_rect = TextureRect.new()
+		tex_rect.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		tex_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		tex_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+		tex_rect.texture = vp.get_texture()
+		tex_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		add_child(tex_rect)
+		move_child(tex_rect, 0)
+		var w := Node3D.new()
+		vp.add_child(w)
+		var env := Environment.new()
+		env.background_mode = Environment.BG_COLOR
+		env.background_color = Color(0.3, 0.31, 0.35)
+		env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+		env.ambient_light_color = Color.WHITE
+		env.ambient_light_energy = 0.5
+		var we := WorldEnvironment.new()
+		we.environment = env
+		w.add_child(we)
+		var l := DirectionalLight3D.new()
+		l.rotation_degrees = Vector3(-20, 10, 0)
+		l.light_energy = 0.7
+		w.add_child(l)
+		# lineup wall with height lines
+		var wall := MeshInstance3D.new()
+		var bm := BoxMesh.new()
+		bm.size = Vector3(8, 4, 0.1)
+		wall.mesh = bm
+		wall.material_override = S.mat(Color(0.36, 0.37, 0.42), false)
+		wall.position = Vector3(0, 2, -0.8)
+		w.add_child(wall)
+		for i in 14:
+			var ln := MeshInstance3D.new()
+			var lm := BoxMesh.new()
+			lm.size = Vector3(8, 0.025 if i % 2 == 0 else 0.012, 0.02)
+			ln.mesh = lm
+			ln.material_override = S.mat(Color(0.12, 0.12, 0.14), false)
+			ln.position = Vector3(0, 0.3 + i * 0.15, -0.74)
+			w.add_child(ln)
+			if i % 2 == 0:
+				var tl := Label3D.new()
+				tl.text = "%d'" % (1 + i / 2)
+				tl.font_size = 48
+				tl.pixel_size = 0.003
+				tl.outline_size = 0
+				tl.modulate = Color(0.12, 0.12, 0.14)
+				tl.position = Vector3(-1.2, 0.36 + i * 0.15, -0.73)
+				w.add_child(tl)
+		model = Character.new()
+		model.rotation.y = PI
+		w.add_child(model)
+		var cam := Camera3D.new()
+		cam.position = Vector3(0, 1.4, 1.55)
+		cam.fov = 42
+		w.add_child(cam)
+		cam.look_at(Vector3(0, 1.3, 0))
+		cam.current = true
+
+	func play(no: int, pname: String, look: Dictionary) -> void:
+		if vp == null:
+			_setup_world()
 		booking = no
 		who = pname.to_upper()
-		suit = color
+		model.build(look)
+		model.pose = "placard"
+		model.eyes_open = 0.55
+		model.rotation.y = PI
+		placard = Props.placard(no)
+		placard.position = Vector3(0, 0.3, -0.3)
+		model.j.spine.add_child(placard)
 		t = 0.0
 		visible = true
 		Sfx.play("flash")
@@ -29,6 +110,10 @@ class Mugshot extends Control:
 			return
 		if t < 2.2 and t + delta >= 2.2:
 			Sfx.play("flash")
+			model.rotation.y = -PI / 2   # side profile
+			if placard:
+				placard.visible = false
+			model.pose = "cuffed"
 		t += delta
 		if t > 4.5:
 			visible = false
@@ -36,45 +121,11 @@ class Mugshot extends Control:
 
 	func _draw() -> void:
 		var s := size
-		draw_rect(Rect2(Vector2.ZERO, s), Color(0.28, 0.29, 0.33))
 		var f := UI.bold()
-		for i in 12:
-			var y := s.y - 40 - i * (s.y / 12.0)
-			draw_line(Vector2(0, y), Vector2(s.x, y), Color(0.1, 0.1, 0.12), 3)
-			draw_string(f, Vector2(20, y - 4), "%d'" % (3 + i / 2) if i % 2 == 0 else "", HORIZONTAL_ALIGNMENT_LEFT, -1, 22, Color(0.1, 0.1, 0.12))
-		var side := t > 2.2
-		var cx := s.x / 2
-		var head_c := Vector2(cx + (30 if side else 0), s.y * 0.33)
-		# body
-		draw_rect(Rect2(cx - 150, s.y * 0.45, 300, s.y * 0.6), suit)
-		draw_rect(Rect2(cx - 30, s.y * 0.45, 60, 120), Color(0.95, 0.95, 0.95))
-		draw_rect(Rect2(cx - 10, s.y * 0.46, 20, 110), Color(0.15, 0.3, 0.7))
-		draw_circle(head_c, 95, Color(0.96, 0.8, 0.66))
-		draw_rect(Rect2(head_c.x - 95, head_c.y - 110, 190, 55), Color(0.15, 0.1, 0.07))
-		if not side:
-			draw_circle(head_c + Vector2(-35, -5), 16, Color.WHITE)
-			draw_circle(head_c + Vector2(35, -5), 16, Color.WHITE)
-			draw_circle(head_c + Vector2(-35, -3), 7, Color.BLACK)
-			draw_circle(head_c + Vector2(35, -3), 7, Color.BLACK)
-			draw_line(head_c + Vector2(-25, 45), head_c + Vector2(25, 45), Color(0.3, 0.1, 0.1), 5)
-		else:
-			draw_circle(head_c + Vector2(60, -5), 14, Color.WHITE)
-			draw_circle(head_c + Vector2(66, -3), 6, Color.BLACK)
-		# placard
-		if not side:
-			var pr := Rect2(cx - 170, s.y * 0.58, 340, 170)
-			draw_rect(pr, Color(0.06, 0.06, 0.07))
-			draw_rect(pr, Color(0.4, 0.4, 0.4), false, 4)
-			var w1 := f.get_string_size("NYPD", HORIZONTAL_ALIGNMENT_LEFT, -1, 72).x
-			draw_string(f, Vector2(cx - w1 / 2, pr.position.y + 80), "NYPD", HORIZONTAL_ALIGNMENT_LEFT, -1, 72, Color.WHITE)
-			var num := "%06d" % booking
-			var w2 := f.get_string_size(num, HORIZONTAL_ALIGNMENT_LEFT, -1, 56).x
-			draw_string(f, Vector2(cx - w2 / 2, pr.position.y + 145), num, HORIZONTAL_ALIGNMENT_LEFT, -1, 56, Color(0.85, 0.85, 0.85))
 		var cap := "%s  —  BOOKED FOR SECURITIES FRAUD" % who
 		var cw := f.get_string_size(cap, HORIZONTAL_ALIGNMENT_LEFT, -1, 40).x
-		draw_string_outline(f, Vector2(cx - cw / 2, 70), cap, HORIZONTAL_ALIGNMENT_LEFT, -1, 40, 10, Color.BLACK)
-		draw_string(f, Vector2(cx - cw / 2, 70), cap, HORIZONTAL_ALIGNMENT_LEFT, -1, 40, UI.GOLD)
-		# flash
+		draw_string_outline(f, Vector2(s.x / 2 - cw / 2, 70), cap, HORIZONTAL_ALIGNMENT_LEFT, -1, 40, 10, Color.BLACK)
+		draw_string(f, Vector2(s.x / 2 - cw / 2, 70), cap, HORIZONTAL_ALIGNMENT_LEFT, -1, 40, UI.GOLD)
 		if t < 0.15 or (t > 2.2 and t < 2.35):
 			draw_rect(Rect2(Vector2.ZERO, s), Color(1, 1, 1, 0.8))
 

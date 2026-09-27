@@ -36,6 +36,9 @@ func _run() -> void:
 	var m = world.match_node
 	var hud = world.hud
 	await get_tree().create_timer(12.0).timeout   # let the first headline air
+	if Config.cli.has("quick"):
+		await _quick(world, m, hud)
+		return
 	var p = world.local_player
 	var views := [
 		["01_spawn_bullpen", Vector3(0, 0.1, 9), 0.0, -0.05],
@@ -46,8 +49,17 @@ func _run() -> void:
 		["06_west_wall", Vector3(-14, 0.1, -4), 1.3, 0.05],
 		["07_windows", Vector3(3, 0.1, -6), 0.3, 0.12],
 		["16_streamer_corner", Vector3(11.5, 0.1, 6.5), -2.45, 0.02],
+		["18_teammates", Vector3(2.0, 0.1, 9.0), 0.0, -0.1],
+		["19_tony_close", Vector3(-14.2, 0.1, 6.6), 2.75, -0.05],
 		["17_hoop_ball", Vector3(-15.0, 0.1, -9.0), PI / 2 - 0.1, 0.25],
 	]
+	# a fake remote teammate so we can see player models
+	for k in 2:
+		var d = load("res://scripts/player/player.gd").new()
+		d.setup(900 + k, ["Bob", "Dave"][k], load("res://scripts/art/character.gd").player_look(k + 1), false, world)
+		world.players_node.add_child(d)
+		d.teleport(Vector3(1.2 + k * 1.3, 0.1, 5.5 - k * 0.6))
+		d.rotation.y = PI + 0.3
 	world._say("TJZ", "OH MY GOD, TRADE! LONG BTC RIGHT NOW!", 30.0)
 	world._say("KIMCHEE", "APING MY WHOLE BAG INTO $WAGMI. NFA", 30.0)
 	for v in views:
@@ -83,7 +95,7 @@ func _run() -> void:
 	m.request_use("cigar")
 	await get_tree().create_timer(1.5).timeout
 	await _snap("12_hud_items")
-	hud.mugshot.play(4298, "Trader", Color(0.12, 0.13, 0.2))
+	hud.mugshot.play(4298, "Trader", world.local_player.look)
 	await get_tree().create_timer(1.0).timeout
 	await _snap("13_mugshot")
 	hud.mugshot.visible = false
@@ -100,4 +112,54 @@ func _run() -> void:
 	m._add_heat(1, 200.0)
 	await get_tree().create_timer(2.2).timeout
 	await _snap("15_cops_raid")
+	Sfx.quit_game()
+
+
+## Only the character views (faster iteration).
+func _quick(world, m, hud) -> void:
+	var p = world.local_player
+	for k in 2:
+		var d = load("res://scripts/player/player.gd").new()
+		d.setup(900 + k, ["Bob", "Dave"][k], load("res://scripts/art/character.gd").player_look(k + 1), false, world)
+		world.players_node.add_child(d)
+		d.teleport(Vector3(1.2 + k * 1.3, 0.1, 5.5 - k * 0.6))
+		d.rotation.y = PI + 0.3
+	world._say("TJZ", "OH MY GOD, TRADE! LONG BTC RIGHT NOW!", 30.0)
+	world._say("KIMCHEE", "APING MY WHOLE BAG INTO $WAGMI. NFA", 30.0)
+	for v in [["q1_streamers", Vector3(12.5, 0.1, 7.5), -2.3, 0.0], ["q2_teammates", Vector3(2.0, 0.1, 8.6), 0.0, -0.1],
+			["q3_tony", Vector3(-14.2, 0.1, 6.6), 2.75, -0.05], ["q4_crammer", Vector3(15.5, 0.1, 1.6), -PI / 2, 0.0]]:
+		p.teleport(v[1])
+		p.rotation.y = v[2]
+		p.pitch = v[3]
+		p.head.rotation.x = v[3]
+		await _frames(10)
+		await _snap(v[0])
+		print("draw calls %s: %d  objects: %d" % [v[0], Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME), Performance.get_monitor(Performance.RENDER_TOTAL_OBJECTS_IN_FRAME)])
+	m.request_buy("cigar")
+	await get_tree().create_timer(0.3).timeout
+	m.request_use("cigar")
+	p.teleport(Vector3(0, 0.1, 6))
+	p.rotation.y = 0.0
+	p.pitch = 0.0
+	p.head.rotation.x = 0.0
+	await get_tree().create_timer(0.8).timeout
+	await _snap("q5_fp_cigar")
+	p.teleport(Vector3(-3, 0.1, -12))
+	p.rotation.y = PI
+	m._add_heat(1, 200.0)
+	await get_tree().create_timer(2.4).timeout
+	await _snap("q6_cops")
+	world._on_news({})
+	var tv = world.tv
+	for e in [{"speaker": "TRAMP", "role": "PRESIDENT", "headline": "TRAMP: YOU'LL BE TIRED OF WINNING"},
+			{"speaker": "TJZ", "role": "STREAMER", "headline": "TJZ (LIVE): OH MY GOD, TRADE! LONG BTC RIGHT NOW!"}]:
+		tv._on_news(e)
+		await _frames(15)
+		await RenderingServer.frame_post_draw
+		tv.vp.get_texture().get_image().save_png("%s/q7_tv_%s.png" % [out_dir, e.role])
+	hud.mugshot.play(4298, "Trader", world.local_player.look)
+	await get_tree().create_timer(1.0).timeout
+	await _snap("q8_mugshot_front")
+	await get_tree().create_timer(2.0).timeout
+	await _snap("q9_mugshot_side")
 	Sfx.quit_game()

@@ -8,9 +8,12 @@ come out of the elevator.**
 Inspired by the *Broke Street* trailer (see [`docs/VIDEO_BREAKDOWN.md`](docs/VIDEO_BREAKDOWN.md)).
 Built in **Godot 4.7** — free, no accounts, no store.
 
+![The cast](docs/screens/lineup.jpg)
+
 | | |
 |---|---|
 | ![Trading floor](docs/screens/office.jpg) | ![Terminal](docs/screens/terminal.jpg) |
+| ![TRAMP on the office TV](docs/screens/tv_tramp.jpg) | ![Tony the Plug](docs/screens/tony.jpg) |
 | ![Trade closed](docs/screens/trade_closed.jpg) | ![Slots](docs/screens/slots.jpg) |
 | ![Cops](docs/screens/cops.jpg) | ![Mugshot](docs/screens/mugshot.jpg) |
 | ![Streamer corner](docs/screens/streamers.jpg) | ![Tony the Plug](docs/screens/shop.jpg) |
@@ -58,6 +61,13 @@ Built in **Godot 4.7** — free, no accounts, no store.
   - you're **fined 15%**
   - you sit in the holding cell for 20s
 - **BAG SLOTS** in the casino corner: set your bet with −/+ and pull the lever. Three 7s pay 60x.
+- **Characters in the trailer's style.** They're built in code (`scripts/art/`): big egg heads, tired
+  bulging eyes with dark bags, an orange nose, slicked hair, pinstripe suits with a shirt V and tie,
+  a watch and a gold ring. Everyone is fully animated (walk, blink, talk, aim, smoke, dive, cuffed).
+  - Each player gets a different look.
+  - The cops have mustaches and aim with both hands.
+  - TRAMP shows up **live on the office TV** at a podium between two flags.
+  - Getting arrested gives a **3D mugshot of your own character** holding the NYPD placard.
 - **Basketball hoop.** Grab the ball (E), throw it (left mouse). A swish is +$1,000 to the fund.
 - The rest of the office: red carpet, CRT desks, city skyline, the MONEY TALKS whiteboard, the ticker
   strip and the opening bell.
@@ -115,8 +125,14 @@ Each platform needs one extra step the first time:
 
 - **Windows:** it's a single `Bagholders.exe`. SmartScreen may say "unrecognized app". Click
   **More info → Run anyway**. That happens because the exe isn't code-signed.
-- **macOS:** unzip it, then **right-click → Open** the first time. Signing it properly costs $99/yr
-  with Apple.
+- **macOS:** grab **Bagholders-Mac-AppleSilicon** (M1/M2/M3/M4 Macs) or **Bagholders-Mac-Intel**
+  (older Macs). **Bagholders-macOS** is the universal build that works on both, at twice the size.
+  - Unzip it and double-click `BAGHOLDERS.app`. macOS will say it "could not verify" the app.
+  - Click **Done**, then open **System Settings → Privacy & Security**, scroll down, and click
+    **Open Anyway**. Do it within an hour of the warning.
+  - Since macOS 15 (Sequoia), right-click → Open no longer skips this step.
+  - Terminal alternative: `xattr -dr com.apple.quarantine BAGHOLDERS.app`
+  - Getting rid of the warning entirely needs Apple's $99/yr developer program.
 - **Linux:** run `chmod +x Bagholders.x86_64`, then `./Bagholders.x86_64`.
 
 ## Run from source / keep building it
@@ -131,11 +147,12 @@ built in code, so an AI can keep extending it.
 scripts/
   sim/      market.gd (price model), news.gd (TRAMP/TJZ/KIMCHEE...), ledger.gd (leverage math), rules.gd (tuning)
   net/      net.gd (ENet host/join), match.gd (server-authoritative game loop), config.gd, sfx.gd
+  art/      character.gd (rigged cartoon people + presets), shapes.gd (mesh generator), props.gd, batcher.gd
   world/    world.gd, office_builder.gd (the whole level), ball.gd
   player/   player.gd (first person), cop.gd (navmesh chase AI)
   ui/       hud.gd, terminal.gd, chart.gd, slots_ui.gd, shop_ui.gd, trade_popup.gd, overlays.gd, tv_screen.gd, main_menu.gd
 tests/      test_sim.gd, smoke_driver.gd (2-player end-to-end), screenshot_driver.gd, run_all.sh
-tools/      make_sfx.py (synthesizes every sound effect)
+tools/      make_sfx.py (synthesizes every sound effect), thin_macos.py (splits the Mac build per chip)
 ```
 
 Tuning (money, quotas, heat, item prices, slot odds) lives in `scripts/sim/rules.gd`.

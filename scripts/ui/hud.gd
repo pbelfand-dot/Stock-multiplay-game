@@ -526,8 +526,9 @@ func _on_trade_closed(info: Dictionary) -> void:
 func _on_arrested(peer: int, booking_no: int) -> void:
 	if peer == Net.my_id():
 		close_modals()
-		var col: Color = Net.players.get(peer, {}).get("color", Color.GRAY)
-		mugshot.play(booking_no, Net.player_name(peer), col)
+		var p = world.player_node(peer)
+		var look: Dictionary = p.look if p else {}
+		mugshot.play(booking_no, Net.player_name(peer), look)
 
 
 func _on_released(peer: int) -> void:

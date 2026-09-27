@@ -2,6 +2,8 @@ extends CharacterBody3D
 ## NYPD-style cop. Chases the raid target on the server using the baked
 ## navmesh; clients only see interpolated positions.
 
+const Character = preload("res://scripts/art/character.gd")
+const Props = preload("res://scripts/art/props.gd")
 const SPEED := 6.6          # a bit slower than a sprinting player (7.5)
 const CATCH_DIST := 1.25
 const DISTRACT_RADIUS := 7.0
@@ -13,6 +15,8 @@ var distracted := 0.0
 var _net_pos := Vector3.ZERO
 var _net_yaw := 0.0
 var _repath := 0.0
+var model
+var _last_pos := Vector3.ZERO
 
 
 func setup(w, target: int) -> void:
@@ -59,63 +63,24 @@ func _process(_d: float) -> void:
 
 
 func _build_body() -> void:
-	var blue := StandardMaterial3D.new()
-	blue.albedo_color = Color(0.1, 0.14, 0.35)
-	var skin := StandardMaterial3D.new()
-	skin.albedo_color = Color(0.93, 0.76, 0.6)
-	var gold := StandardMaterial3D.new()
-	gold.albedo_color = Color(1, 0.8, 0.2)
-	var torso := MeshInstance3D.new()
-	var tb := CapsuleMesh.new()
-	tb.radius = 0.32
-	tb.height = 1.2
-	torso.mesh = tb
-	torso.position.y = 1.0
-	torso.material_override = blue
-	add_child(torso)
-	var h := MeshInstance3D.new()
-	var hs := SphereMesh.new()
-	hs.radius = 0.24
-	hs.height = 0.5
-	h.mesh = hs
-	h.position.y = 1.78
-	h.material_override = skin
-	add_child(h)
-	var hat := MeshInstance3D.new()
-	var hc := CylinderMesh.new()
-	hc.top_radius = 0.27
-	hc.bottom_radius = 0.22
-	hc.height = 0.16
-	hat.mesh = hc
-	hat.position.y = 2.0
-	hat.material_override = blue
-	add_child(hat)
-	var badge := MeshInstance3D.new()
-	var bb := BoxMesh.new()
-	bb.size = Vector3(0.1, 0.1, 0.03)
-	badge.mesh = bb
-	badge.position = Vector3(0.12, 1.35, -0.31)
-	badge.material_override = gold
-	add_child(badge)
-	var stache := MeshInstance3D.new()
-	var sb := BoxMesh.new()
-	sb.size = Vector3(0.2, 0.05, 0.04)
-	stache.mesh = sb
-	stache.position = Vector3(0, 1.72, -0.23)
-	var dark := StandardMaterial3D.new()
-	dark.albedo_color = Color(0.1, 0.08, 0.06)
-	stache.material_override = dark
-	add_child(stache)
-	var gun := MeshInstance3D.new()
-	var gb := BoxMesh.new()
-	gb.size = Vector3(0.08, 0.1, 0.3)
-	gun.mesh = gb
-	gun.position = Vector3(0, 1.3, -0.5)
-	gun.material_override = dark
-	add_child(gun)
+	model = Character.new()
+	model.name = "Model"
+	model.build(Character.preset("cop"))
+	model.pose = "aim"
+	model.eyes_open = 0.95
+	add_child(model)
+	var gun = Props.pistol()
+	gun.rotation = Vector3(-PI / 2, 0, 0)
+	model.prop_right.add_child(gun)
 
 
 func _physics_process(delta: float) -> void:
+	if model:
+		var flat := global_position - _last_pos
+		flat.y = 0.0
+		model.move_speed = lerpf(model.move_speed, flat.length() / maxf(delta, 0.001), 0.3)
+		model.pose = "idle" if distracted > 0.0 else "aim"
+		_last_pos = global_position
 	if not Net.is_server():
 		global_position = global_position.lerp(_net_pos, clampf(delta * 10.0, 0, 1))
 		rotation.y = lerp_angle(rotation.y, _net_yaw, clampf(delta * 10.0, 0, 1))
