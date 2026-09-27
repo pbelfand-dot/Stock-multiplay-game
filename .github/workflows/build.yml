@@ -57,6 +57,7 @@ jobs:
           (cd windows && zip -q ../Bagholders-Windows.zip Bagholders.exe)
           (cd linux && zip -q ../Bagholders-Linux.zip Bagholders.x86_64)
           cp macos/Bagholders.zip Bagholders-macOS.zip
+          python3 ../tools/thin_macos.py macos/Bagholders.zip .
           ls -la
       - uses: actions/upload-artifact@v4
         with:
@@ -68,6 +69,14 @@ jobs:
           path: build/Bagholders-macOS.zip
       - uses: actions/upload-artifact@v4
         with:
+          name: Bagholders-Mac-AppleSilicon
+          path: build/Bagholders-Mac-AppleSilicon.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Bagholders-Mac-Intel
+          path: build/Bagholders-Mac-Intel.zip
+      - uses: actions/upload-artifact@v4
+        with:
           name: Bagholders-Linux
           path: build/Bagholders-Linux.zip
       - name: Publish release (tags only)
@@ -77,4 +86,6 @@ jobs:
           files: |
             build/Bagholders-Windows.zip
             build/Bagholders-macOS.zip
+            build/Bagholders-Mac-AppleSilicon.zip
+            build/Bagholders-Mac-Intel.zip
             build/Bagholders-Linux.zip

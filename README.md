@@ -125,8 +125,14 @@ Each platform needs one extra step the first time:
 
 - **Windows:** it's a single `Bagholders.exe`. SmartScreen may say "unrecognized app". Click
   **More info → Run anyway**. That happens because the exe isn't code-signed.
-- **macOS:** unzip it, then **right-click → Open** the first time. Signing it properly costs $99/yr
-  with Apple.
+- **macOS:** grab **Bagholders-Mac-AppleSilicon** (M1/M2/M3/M4 Macs) or **Bagholders-Mac-Intel**
+  (older Macs). **Bagholders-macOS** is the universal build that works on both, at twice the size.
+  - Unzip it and double-click `BAGHOLDERS.app`. macOS will say it "could not verify" the app.
+  - Click **Done**, then open **System Settings → Privacy & Security**, scroll down, and click
+    **Open Anyway**. Do it within an hour of the warning.
+  - Since macOS 15 (Sequoia), right-click → Open no longer skips this step.
+  - Terminal alternative: `xattr -dr com.apple.quarantine BAGHOLDERS.app`
+  - Getting rid of the warning entirely needs Apple's $99/yr developer program.
 - **Linux:** run `chmod +x Bagholders.x86_64`, then `./Bagholders.x86_64`.
 
 ## Run from source / keep building it
@@ -146,7 +152,7 @@ scripts/
   player/   player.gd (first person), cop.gd (navmesh chase AI)
   ui/       hud.gd, terminal.gd, chart.gd, slots_ui.gd, shop_ui.gd, trade_popup.gd, overlays.gd, tv_screen.gd, main_menu.gd
 tests/      test_sim.gd, smoke_driver.gd (2-player end-to-end), screenshot_driver.gd, run_all.sh
-tools/      make_sfx.py (synthesizes every sound effect)
+tools/      make_sfx.py (synthesizes every sound effect), thin_macos.py (splits the Mac build per chip)
 ```
 
 Tuning (money, quotas, heat, item prices, slot odds) lives in `scripts/sim/rules.gd`.
