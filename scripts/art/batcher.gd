@@ -8,22 +8,27 @@ const MERGEABLE := ["BoxMesh", "CylinderMesh", "SphereMesh", "TorusMesh", "Array
 
 ## Merge every static mesh under `root` (in root-local space), skipping any
 ## subtree whose top node is in `skip` (e.g. animated characters).
-static func merge_static(root: Node3D, skip: Array = []) -> int:
-	var groups := {}   # material -> Array[MeshInstance3D]
-	_collect(root, root, skip, groups)
+## With `cell` > 0 the merge is also split into cell x cell (m) floor tiles so
+## frustum culling still skips what's behind the camera. Meshes are only merged
+## with others that share material, render layers and shadow casting.
+static func merge_static(root: Node3D, skip: Array = [], cell := 0.0) -> int:
+	var groups := {}   # [material, layers, shadow, tile] -> Array[MeshInstance3D]
+	_collect(root, root, skip, groups, cell)
 	var merged := 0
-	for mat in groups:
-		var list: Array = groups[mat]
+	var inv := root.global_transform.affine_inverse()
+	for key in groups:
+		var list: Array = groups[key]
 		if list.size() < 2:
 			continue
 		var st := SurfaceTool.new()
 		st.begin(Mesh.PRIMITIVE_TRIANGLES)
-		var inv := root.global_transform.affine_inverse()
 		for mi in list:
 			st.append_from(mi.mesh, 0, inv * mi.global_transform)
 		var combined := MeshInstance3D.new()
 		combined.mesh = st.commit()
-		combined.material_override = mat
+		combined.material_override = key[0]
+		combined.layers = key[1]
+		combined.cast_shadow = key[2]
 		combined.name = "Batch"
 		root.add_child(combined)
 		for mi in list:
@@ -32,7 +37,7 @@ static func merge_static(root: Node3D, skip: Array = []) -> int:
 	return merged
 
 
-static func _collect(node: Node, root: Node3D, skip: Array, groups: Dictionary) -> void:
+static func _collect(node: Node, root: Node3D, skip: Array, groups: Dictionary, cell: float) -> void:
 	if node in skip:
 		return
 	if node is MeshInstance3D and node != root:
@@ -42,11 +47,16 @@ static func _collect(node: Node, root: Node3D, skip: Array, groups: Dictionary) 
 				and m.transparency == BaseMaterial3D.TRANSPARENCY_DISABLED \
 				and mi.mesh.get_class() in MERGEABLE and mi.mesh.get_surface_count() == 1 \
 				and not mi.has_meta("no_batch"):
-			if not groups.has(m):
-				groups[m] = []
-			groups[m].append(mi)
+			var tile := Vector2i.ZERO
+			if cell > 0.0:
+				var p := root.to_local(mi.global_position)
+				tile = Vector2i(floori(p.x / cell), floori(p.z / cell))
+			var key := [m, mi.layers, mi.cast_shadow, tile]
+			if not groups.has(key):
+				groups[key] = []
+			groups[key].append(mi)
 	for c in node.get_children():
-		_collect(c, root, skip, groups)
+		_collect(c, root, skip, groups, cell)
 
 
 ## Per-joint merge for characters: parts under the same joint never move

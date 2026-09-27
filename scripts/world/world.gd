@@ -199,11 +199,16 @@ func _update_desk_screens() -> void:
 
 func _on_slot_result(_peer: int, reels: Array, _payout: float, _bet: float) -> void:
 	# Flash every machine's reel window with the result (cheap spectacle).
-	var names := {"CHERRY": "CHR", "CLOVER": "CLV", "BELL": "BEL", "DIAMOND": "DIA", "SEVEN": "7"}
+	const LOOK := {"CHERRY": ["CHR", Color(0.9, 0.1, 0.15)], "CLOVER": ["CLV", Color(0.1, 0.65, 0.2)],
+			"BELL": ["BEL", Color(0.95, 0.65, 0.05)], "DIAMOND": ["DIA", Color(0.1, 0.6, 0.95)],
+			"SEVEN": ["7", Color(0.85, 0.1, 0.1)]}
 	for body in builder.slot_machines:
-		var l: Label3D = body.get_node_or_null("ReelText")
-		if l:
-			l.text = " ".join(reels.map(func(r): return names[Rules.SLOT_SYMBOLS[r]]))
+		for k in reels.size():
+			var l: Label3D = body.get_node_or_null("Reel%d" % k)
+			if l:
+				var look: Array = LOOK[Rules.SLOT_SYMBOLS[reels[k]]]
+				l.text = look[0]
+				l.modulate = look[1]
 
 
 func _on_state() -> void:
