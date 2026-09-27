@@ -10,6 +10,7 @@ const HudScript = preload("res://scripts/ui/hud.gd")
 const TvScript = preload("res://scripts/ui/tv_screen.gd")
 const Rules = preload("res://scripts/sim/rules.gd")
 const BallScript = preload("res://scripts/world/ball.gd")
+const PlayerLook = preload("res://scripts/art/character.gd")
 
 var builder
 var players_node: Node3D
@@ -66,7 +67,7 @@ func _sync_players() -> void:
 		if not players_node.has_node(str(id)):
 			var p := PlayerScript.new()
 			var info: Dictionary = Net.players[id]
-			p.setup(id, info.name, info.color, id == Net.my_id(), self)
+			p.setup(id, info.name, PlayerLook.player_look(idx), id == Net.my_id(), self)
 			players_node.add_child(p)
 			p.teleport(spawn_point(idx))
 			if p.is_local:
@@ -148,6 +149,7 @@ func _say(speaker: String, text: String, secs: float) -> void:
 	var b: Label3D = n.get_node("Bubble")
 	b.text = text
 	_bubble_t[speaker] = secs
+	n.get_node("Model").talking = true
 
 
 func _tick_bubbles(delta: float) -> void:
@@ -158,6 +160,7 @@ func _tick_bubbles(delta: float) -> void:
 			var n: Node3D = builder.npcs.get(sp)
 			if n:
 				n.get_node("Bubble").text = ""
+				n.get_node("Model").talking = false
 	_idle_t -= delta
 	if _idle_t <= 0.0:
 		_idle_t = randf_range(12.0, 22.0)

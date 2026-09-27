@@ -8,10 +8,12 @@ const JUMP := 4.6
 const GRAVITY := 12.0
 const REACH := 2.6
 const SEND_RATE := 1.0 / 20.0
+const Character = preload("res://scripts/art/character.gd")
+const Props = preload("res://scripts/art/props.gd")
 
 var peer_id := 1
 var display_name := "Trader"
-var suit := Color(0.35, 0.36, 0.4)
+var look := {}
 var is_local := false
 var world   # set by World
 
@@ -28,7 +30,12 @@ var _has_target := false
 var cam: Camera3D
 var ray: RayCast3D
 var head: Node3D
-var body_mesh: Node3D
+var body_mesh: Node3D     # the Character model (hidden for our own view)
+var model
+var fp_arm: Node3D
+var busy := false         # at a terminal / slot machine (synced)
+var _last_pos := Vector3.ZERO
+var _speed := 0.0
 var name_tag: Label3D
 var smoke: CPUParticles3D
 var bills: CPUParticles3D
@@ -37,10 +44,10 @@ var held_gun: Node3D
 var powder_fx := 0.0
 
 
-func setup(id: int, pname: String, color: Color, local: bool, w) -> void:
+func setup(id: int, pname: String, player_look: Dictionary, local: bool, w) -> void:
 	peer_id = id
 	display_name = pname
-	suit = color
+	look = player_look
 	is_local = local
 	world = w
 	name = str(id)
@@ -79,80 +86,21 @@ func _ready() -> void:
 
 
 func _build_body() -> void:
-	body_mesh = Node3D.new()
-	add_child(body_mesh)
-	var m := func(c: Color) -> StandardMaterial3D:
-		var s := StandardMaterial3D.new()
-		s.albedo_color = c
-		s.roughness = 0.9
-		return s
-	var torso := MeshInstance3D.new()
-	var tb := CapsuleMesh.new()
-	tb.radius = 0.3
-	tb.height = 1.1
-	torso.mesh = tb
-	torso.position.y = 1.05
-	torso.material_override = m.call(suit)
-	body_mesh.add_child(torso)
-	for side in [-0.13, 0.13]:
-		var leg := MeshInstance3D.new()
-		var lm := CapsuleMesh.new()
-		lm.radius = 0.11
-		lm.height = 0.75
-		leg.mesh = lm
-		leg.position = Vector3(side, 0.38, 0)
-		leg.material_override = m.call(suit.darkened(0.2))
-		body_mesh.add_child(leg)
-	var shirt := MeshInstance3D.new()
-	var sb := BoxMesh.new()
-	sb.size = Vector3(0.14, 0.4, 0.05)
-	shirt.mesh = sb
-	shirt.position = Vector3(0, 1.3, -0.28)
-	shirt.material_override = m.call(Color(0.95, 0.95, 0.95))
-	body_mesh.add_child(shirt)
-	var tie := MeshInstance3D.new()
-	var tbm := BoxMesh.new()
-	tbm.size = Vector3(0.05, 0.32, 0.06)
-	tie.mesh = tbm
-	tie.position = Vector3(0, 1.28, -0.29)
-	tie.material_override = m.call(Color(0.1, 0.1, 0.12))
-	body_mesh.add_child(tie)
-	var h := MeshInstance3D.new()
-	var hs := SphereMesh.new()
-	hs.radius = 0.24
-	hs.height = 0.5
-	h.mesh = hs
-	h.position.y = 1.78
-	h.material_override = m.call(Color(0.96, 0.8, 0.66))
-	body_mesh.add_child(h)
-	var hair := MeshInstance3D.new()
-	var hb := BoxMesh.new()
-	hb.size = Vector3(0.46, 0.14, 0.46)
-	hair.mesh = hb
-	hair.position = Vector3(0, 1.97, 0.02)
-	hair.material_override = m.call(Color(0.15, 0.1, 0.07))
-	body_mesh.add_child(hair)
-	var shades := MeshInstance3D.new()
-	var shb := BoxMesh.new()
-	shb.size = Vector3(0.4, 0.09, 0.05)
-	shades.mesh = shb
-	shades.position = Vector3(0, 1.82, -0.22)
-	shades.material_override = m.call(Color(0.02, 0.02, 0.02))
-	body_mesh.add_child(shades)
-	var watch := MeshInstance3D.new()
-	var wb := BoxMesh.new()
-	wb.size = Vector3(0.1, 0.06, 0.1)
-	watch.mesh = wb
-	watch.position = Vector3(0.36, 0.78, 0)
-	watch.material_override = m.call(Color(1, 0.8, 0.2))
-	body_mesh.add_child(watch)
+	model = Character.new()
+	model.name = "Model"
+	model.build(look)
+	add_child(model)
+	body_mesh = model
 	name_tag = Label3D.new()
 	name_tag.text = display_name
-	name_tag.position.y = 2.3
+	name_tag.position.y = 2.2
 	name_tag.font_size = 48
 	name_tag.pixel_size = 0.005
 	name_tag.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 	name_tag.outline_size = 10
+	var f = load("res://assets/fonts/Oswald-Bold.woff2")
+	if f:
+		name_tag.font = f
 	add_child(name_tag)
 
 
@@ -200,70 +148,35 @@ func _build_fx() -> void:
 	bills.position = Vector3(0.3, 1.35, -0.5)
 	add_child(bills)
 
-	# held props (shown in view for local, in hand for others)
-	var parent: Node3D = cam if is_local else self
-	held_cigar = Node3D.new()
-	parent.add_child(held_cigar)
-	var c := MeshInstance3D.new()
-	var cm := CylinderMesh.new()
-	cm.top_radius = 0.03
-	cm.bottom_radius = 0.035
-	cm.height = 0.35
-	c.mesh = cm
-	var cmat := StandardMaterial3D.new()
-	cmat.albedo_color = Color(0.5, 0.33, 0.15)
-	c.material_override = cmat
-	c.rotation.x = PI / 2
-	held_cigar.add_child(c)
-	var tipm := MeshInstance3D.new()
-	var ts := SphereMesh.new()
-	ts.radius = 0.035
-	ts.height = 0.07
-	tipm.mesh = ts
-	var tmat := StandardMaterial3D.new()
-	tmat.albedo_color = Color(1, 0.4, 0.05)
-	tmat.emission_enabled = true
-	tmat.emission = Color(1, 0.35, 0.05)
-	tmat.emission_energy_multiplier = 3
-	tipm.material_override = tmat
-	tipm.position = Vector3(0, 0, -0.18)
-	held_cigar.add_child(tipm)
-	held_cigar.position = Vector3(0.32, -0.3, -0.62) if is_local else Vector3(0.15, 1.6, -0.3)
+	# held props: first-person arm for us, the model's right hand for others
 	if is_local:
-		held_cigar.scale = Vector3.ONE * 0.6
-		held_cigar.rotation = Vector3(0.15, 0.35, 0)
+		fp_arm = Props.fp_arm(look)
+		fp_arm.position = Vector3(0.3, -0.28, -0.42)
+		fp_arm.rotation = Vector3(0.08, 0.12, 0)
+		cam.add_child(fp_arm)
+		fp_arm.visible = false
+		var grip: Node3D = fp_arm.get_node("Grip")
+		held_cigar = Props.cigar()
+		held_cigar.rotation = Vector3(0, 0.5, 0)
+		grip.add_child(held_cigar)
+		held_gun = Props.flex_gun()
+		held_gun.position = Vector3(0, -0.02, 0.02)
+		grip.add_child(held_gun)
 		# keep our own smoke small and off to the side so it doesn't blind us
 		smoke.amount = 14
 		smoke.scale_amount_min = 0.3
 		smoke.scale_amount_max = 0.7
 		smoke.position = Vector3(0.45, 1.45, -0.6)
+	else:
+		held_cigar = Props.cigar()
+		held_cigar.rotation = Vector3(-PI / 2, 0, 0)
+		model.prop_right.add_child(held_cigar)
+		held_gun = Props.flex_gun()
+		held_gun.rotation = Vector3(-PI / 2, 0, 0)
+		model.prop_right.add_child(held_gun)
+		smoke.position = Vector3(0.1, 1.62, -0.3)
+		bills.position = Vector3(0.3, 1.35, -0.6)
 	held_cigar.visible = false
-
-	held_gun = Node3D.new()
-	parent.add_child(held_gun)
-	var g := MeshInstance3D.new()
-	var gm := BoxMesh.new()
-	gm.size = Vector3(0.12, 0.14, 0.32)
-	g.mesh = gm
-	var gmat := StandardMaterial3D.new()
-	gmat.albedo_color = Color(0.85, 0.08, 0.08)
-	g.material_override = gmat
-	held_gun.add_child(g)
-	var grip := MeshInstance3D.new()
-	var grm := BoxMesh.new()
-	grm.size = Vector3(0.08, 0.18, 0.1)
-	grip.mesh = grm
-	grip.material_override = gmat
-	grip.position = Vector3(0, -0.14, 0.08)
-	held_gun.add_child(grip)
-	var flex := Label3D.new()
-	flex.text = "FLEX"
-	flex.font_size = 24
-	flex.pixel_size = 0.004
-	flex.position = Vector3(0.065, 0.0, 0.0)
-	flex.rotation.y = PI / 2
-	held_gun.add_child(flex)
-	held_gun.position = Vector3(0.28, -0.25, -0.5) if is_local else Vector3(0.35, 1.3, -0.35)
 	held_gun.visible = false
 
 
@@ -282,7 +195,8 @@ func _physics_process(delta: float) -> void:
 		_send_acc += delta
 		if _send_acc >= SEND_RATE:
 			_send_acc = 0.0
-			world._p_tf.rpc(global_position, rotation.y, pitch, (1 if raining else 0) | (2 if diving > 0.0 else 0))
+			var flags := (1 if raining else 0) | (2 if diving > 0.0 else 0) | (4 if world.ui_blocking() else 0)
+			world._p_tf.rpc(global_position, rotation.y, pitch, flags)
 	else:
 		if _has_target:
 			global_position = global_position.lerp(_target_pos, clampf(delta * 12.0, 0, 1))
@@ -357,14 +271,39 @@ func _update_fx() -> void:
 	var m = world.match_node if world else null
 	var cigar_on: bool = m != null and m.effect_left(peer_id, "cigar") > 0.0
 	var gun_on: bool = m != null and m.effect_left(peer_id, "moneygun") > 0.0
-	held_cigar.visible = cigar_on
+	var holding_ball: bool = world != null and world.ball != null and world.ball.holder == peer_id
+	held_cigar.visible = cigar_on and not gun_on
 	held_gun.visible = gun_on
 	if smoke.emitting != cigar_on:
 		smoke.emitting = cigar_on
 	if bills.emitting != raining:
 		bills.emitting = raining
-	if not is_local:
-		body_mesh.rotation.x = lerpf(body_mesh.rotation.x, -1.35 if diving > 0.0 else 0.0, 0.2)
+	if is_local:
+		fp_arm.visible = cigar_on or gun_on or holding_ball
+		return
+	# animate the remote model from what we know about this player
+	var dt := get_physics_process_delta_time()
+	var flat := global_position - _last_pos
+	flat.y = 0.0
+	_speed = lerpf(_speed, flat.length() / maxf(dt, 0.001), 0.25)
+	_last_pos = global_position
+	model.move_speed = _speed
+	model.look_pitch(pitch)
+	var jailed: bool = m != null and m.is_jailed(peer_id)
+	if diving > 0.0:
+		model.pose = "dive"
+	elif jailed:
+		model.pose = "cuffed"
+	elif gun_on:
+		model.pose = "hold"
+	elif holding_ball:
+		model.pose = "hold"
+	elif busy:
+		model.pose = "type_stand"
+	elif cigar_on:
+		model.pose = "smoke"
+	else:
+		model.pose = "idle"
 
 
 ## What the crosshair is pointing at: {type, id, prompt} or {}
@@ -393,6 +332,7 @@ func net_tf(pos: Vector3, yaw: float, p: float, flags: int) -> void:
 	pitch = p
 	raining = flags & 1 != 0
 	diving = 0.5 if flags & 2 != 0 else 0.0
+	busy = flags & 4 != 0
 	if not _has_target:
 		global_position = pos
 		_has_target = true

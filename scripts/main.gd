@@ -24,6 +24,11 @@ func _ready() -> void:
 			var drv = drv_script.new()
 			drv.name = "SmokeDriver"
 			add_child(drv)
+	if Config.cli.has("lineup"):
+		var lu_script = load("res://tests/lineup_driver.gd")
+		if lu_script:
+			add_child(lu_script.new())
+			return
 	if Config.cli.has("shots"):
 		var sd_script = load("res://tests/screenshot_driver.gd")
 		if sd_script:

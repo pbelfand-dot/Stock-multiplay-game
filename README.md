@@ -8,9 +8,12 @@ come out of the elevator.**
 Inspired by the *Broke Street* trailer (see [`docs/VIDEO_BREAKDOWN.md`](docs/VIDEO_BREAKDOWN.md)).
 Built in **Godot 4.7** — free, no accounts, no store.
 
+![The cast](docs/screens/lineup.jpg)
+
 | | |
 |---|---|
 | ![Trading floor](docs/screens/office.jpg) | ![Terminal](docs/screens/terminal.jpg) |
+| ![TRAMP on the office TV](docs/screens/tv_tramp.jpg) | ![Tony the Plug](docs/screens/tony.jpg) |
 | ![Trade closed](docs/screens/trade_closed.jpg) | ![Slots](docs/screens/slots.jpg) |
 | ![Cops](docs/screens/cops.jpg) | ![Mugshot](docs/screens/mugshot.jpg) |
 | ![Streamer corner](docs/screens/streamers.jpg) | ![Tony the Plug](docs/screens/shop.jpg) |
@@ -58,6 +61,13 @@ Built in **Godot 4.7** — free, no accounts, no store.
   - you're **fined 15%**
   - you sit in the holding cell for 20s
 - **BAG SLOTS** in the casino corner: set your bet with −/+ and pull the lever. Three 7s pay 60x.
+- **Characters in the trailer's style.** They're built in code (`scripts/art/`): big egg heads, tired
+  bulging eyes with dark bags, an orange nose, slicked hair, pinstripe suits with a shirt V and tie,
+  a watch and a gold ring. Everyone is fully animated (walk, blink, talk, aim, smoke, dive, cuffed).
+  - Each player gets a different look.
+  - The cops have mustaches and aim with both hands.
+  - TRAMP shows up **live on the office TV** at a podium between two flags.
+  - Getting arrested gives a **3D mugshot of your own character** holding the NYPD placard.
 - **Basketball hoop.** Grab the ball (E), throw it (left mouse). A swish is +$1,000 to the fund.
 - The rest of the office: red carpet, CRT desks, city skyline, the MONEY TALKS whiteboard, the ticker
   strip and the opening bell.
@@ -131,6 +141,7 @@ built in code, so an AI can keep extending it.
 scripts/
   sim/      market.gd (price model), news.gd (TRAMP/TJZ/KIMCHEE...), ledger.gd (leverage math), rules.gd (tuning)
   net/      net.gd (ENet host/join), match.gd (server-authoritative game loop), config.gd, sfx.gd
+  art/      character.gd (rigged cartoon people + presets), shapes.gd (mesh generator), props.gd, batcher.gd
   world/    world.gd, office_builder.gd (the whole level), ball.gd
   player/   player.gd (first person), cop.gd (navmesh chase AI)
   ui/       hud.gd, terminal.gd, chart.gd, slots_ui.gd, shop_ui.gd, trade_popup.gd, overlays.gd, tv_screen.gd, main_menu.gd
