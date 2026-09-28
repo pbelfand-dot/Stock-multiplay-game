@@ -24,7 +24,7 @@ around a display cushion.
     12 o'clock toward -Z, crown at +X (3 o'clock), band loop in the YZ plane (axis along X).
   * the case back sits at y = +LOOP_B (0.026); the dial top is ~0.034-0.036; the clasp bottom is at
     about y = -0.030.
-  * upright (dial facing the viewer, +Z): rotate -90 deg about X.
+  * upright (dial facing the viewer, +Z, 12 o'clock up): rotate +90 deg about X (rotation.x = PI / 2).
   * on a WatchPillow / the WatchCase cushions: put the watch origin on the cushion's mount point.
 
 DISPLAY PIECES (origin on the floor / wall, front = +Z):
@@ -549,11 +549,8 @@ def gem(r, pos, M=None, n=8, pav=0.9, up=None):
     if pav <= 0:     # the flat underside is never seen: drop it once the normals are settled
         bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
         bottom = [f for f in bm.faces if len(f.verts) == n and f.calc_center_median().y < 1e-9]
-        idx = {f.index for f in bottom}
-        bm.faces.index_update()
         cols = [c for f, c in zip(bm.faces, cols) if f not in bottom]
         bmesh.ops.delete(bm, geom=bottom, context="FACES_ONLY")
-        _ = idx
     Mx = (M if M is not None else Matrix.Identity(4)) @ Matrix.Translation(Vector(pos))
     if up is not None:
         q = Vector((0, 1, 0)).rotation_difference(Vector(up).normalized())
@@ -1896,9 +1893,18 @@ PILLOW_MOUNT_Y = 0.031     # loop centre above the surface a watch-on-pillow sta
 def pillow(pos, col, M=None, length=0.042):
     """Velvet C-cushion around the X axis, shaped to the wrist loop so a watch wraps it snugly: slightly
     narrower than the loop where the band sits, bulging out past it at both ends."""
-    prof = [(-1.0, 0.0), (-0.985, 0.42), (-0.93, 0.78), (-0.8, 1.03), (-0.62, 1.09), (-0.42, 1.04), (-0.3, 0.985),
-            (0.3, 0.985), (0.42, 1.04), (0.62, 1.09), (0.8, 1.03), (0.93, 0.78), (0.985, 0.42), (1.0, 0.0)]
-    sec = [(LOOP.point(LOOP.L * i / 28).y, LOOP.point(LOOP.L * i / 28).z) for i in range(28)]
+    def scf(a):
+        a = abs(a)
+        if a <= 0.3:
+            return 0.985
+        if a <= 0.78:
+            return 0.985 + 0.065 * math.sin(math.pi / 2 * (a - 0.3) / 0.48)
+        return 1.05 * math.sqrt(max(1 - ((a - 0.78) / 0.22) ** 2, 0.0))
+    fxs = [-1.0, -0.995, -0.98, -0.95, -0.91, -0.86, -0.8, -0.7, -0.6, -0.5, -0.4, -0.3]
+    fxs = fxs + [-f for f in reversed(fxs)]
+    prof = [(fx, scf(fx)) for fx in fxs]
+    NS = 40
+    sec = [(LOOP.point(LOOP.L * i / NS).y, LOOP.point(LOOP.L * i / NS).z) for i in range(NS)]
     rings = []
     for fx, sc in prof:
         x = fx * length
@@ -1912,7 +1918,7 @@ def pillow(pos, col, M=None, length=0.042):
         vr.append([bm.verts.new(p) for p in r])
     for k in range(len(vr) - 1):
         a, b = vr[k], vr[k + 1]
-        n = 28
+        n = NS
         for i in range(n):
             j = (i + 1) % n
             if len(a) == 1:
@@ -1934,7 +1940,7 @@ def build_watch_pillow():
     finish("WatchPillow", [("WatchPillow_Mount", (0.0, PILLOW_MOUNT_Y, 0.0))])
 
 
-WATCHCASE_FLOOR = 0.815
+WATCHCASE_FLOOR = 0.817
 WATCHCASE_SLOTS = [(x, WATCHCASE_FLOOR + PILLOW_MOUNT_Y, z) for z in (-0.12, 0.11) for x in (-0.38, 0.0, 0.38)]
 
 
@@ -1951,7 +1957,7 @@ def build_watch_case():
         box((0.5, 0.52, 0.012), WAL, "Gloss", (x, 0.44, 0.308), r=0.004)
     box((1.204, 0.018, 0.604), BR, "Metal", (0, 0.806, 0), r=0.004)                                 # brass cap
     box((1.18, 0.012, 0.012), BR, "Metal", (0, 0.09, 0.3), r=0.003)
-    box((1.1, 0.012, 0.52), (0.13, 0.13, 0.14), "Paint", (0, WATCHCASE_FLOOR - 0.006, 0))            # velvet floor
+    box((1.17, 0.012, 0.572), (0.13, 0.13, 0.14), "Paint", (0, WATCHCASE_FLOOR - 0.006, 0))          # velvet floor
     top = 1.0
     for sx in (-1, 1):                                                                                # brass frame
         for sz in (-1, 1):
@@ -2187,7 +2193,6 @@ def preview(outdir, only=None):
             views.append(("c", Vector((1.0, -0.25, 0.25)), c, rad * 2.8))
         else:
             views.append(("b", Vector((-0.4, -0.9, 0.35)), c, rad * 2.6))
-        s = rad / 0.05
         for lo_ in lights:
             lo_.location = Vector(lo_.location).normalized() * max(rad * 12, 0.5) + c
             lo_.rotation_euler = (c - lo_.location).to_track_quat("-Z", "Y").to_euler()
@@ -2203,7 +2208,6 @@ def preview(outdir, only=None):
             bpy.ops.render.render(write_still=True)
             print("rendered", sc.render.filepath)
         o.hide_render = True
-        _ = s
 
 
 def main():
