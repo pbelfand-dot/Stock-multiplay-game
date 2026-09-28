@@ -69,6 +69,10 @@ func _run() -> void:
 		await _street_only(world, m, hud)
 		Sfx.quit_game()
 		return
+	if Config.cli.has("progonly"):
+		await _progress_shots(world, m, hud)
+		Sfx.quit_game()
+		return
 	if Config.cli.has("elevonly"):
 		await _elevator_shots(world)
 		Sfx.quit_game()
@@ -329,6 +333,68 @@ func _quick(world, m, hud) -> void:
 
 
 ## First-person body (Content Warning style): what you see of yourself.
+## Progression: the day-event banner, Tony's contracts, the circuit breaker,
+## the office upgrades counter, the after-hours forecast, a fully kitted desk.
+func _progress_shots(world, m, hud) -> void:
+	const DayEvents = preload("res://scripts/sim/day_events.gd")
+	var p = world.local_player
+	p.teleport(Vector3(0, 0.1, 6))
+	p.rotation.y = 0.0
+	m._set_day_event("fed_day")
+	m._sched = DayEvents.schedule("fed_day", m.rng, m._day_len)
+	m._update_event_at()
+	m.contracts.clear()
+	m._deal_contracts(1)
+	_mark_done(m.contracts[1][0])
+	m._push_state()
+	hud._show_event_banner()
+	await _frames(20)
+	await _snap("p1_event_banner")
+	hud._event_t = 0.0
+	await _frames(10)
+	await _snap("p2_contracts_fed_countdown")
+	m.halt = 14.0
+	await _frames(6)
+	await _snap("p3_circuit_breaker")
+	m.halt = 0.0
+	m._set_day_event("black_friday")
+	m.ledger.get_acct(0).balance = 180_000.0
+	m._push_state()
+	hud.open_interact({"type": "luxury"})
+	await _frames(10)
+	await _snap("p4_office_upgrades")
+	hud.close_modals()
+	var s: Dictionary = {"day": 2, "quota": 56_250.0, "mode": "coop", "players": {1: {"name": "Trader",
+		"stats": {"pnl_day": 18_400.0, "trades": 9, "arrests": 0, "biggest": 9_100.0}}}, "overhead": 5_400.0,
+		"balance": 71_000.0, "passed": true, "next_quota": 84_375.0, "over": false, "event": "flash_crash",
+		"contracts": m.contracts.duplicate(true), "tomorrow": "black_friday",
+		"xp": {1: {"gain": 57.0, "xp": 212.0, "rank": 2, "ranked_up": false}}, "saved": {"slot": "x", "cloud": false}}
+	hud.summary.show_summary(s)
+	await _frames(10)
+	await _snap("p5_summary_forecast")
+	hud.summary.visible = false
+	# a kitted-out desk: every upgrade + two championship trophies
+	var own: Dictionary = m.owned[1]
+	for k in ["up_bloomberg", "up_scanner", "up_rolodex", "up_intern", "up_prime", "up_standing"]:
+		own[k] = 1
+	own["champ"] = 2
+	own["roflex"] = 1
+	m._push_state()
+	var desk: int = world.desk_of(1)
+	var dp: Vector3 = world.builder.desks[desk]
+	p.teleport(dp + Vector3(0.5, 0.1, 1.7))
+	p.rotation.y = 0.15
+	p.pitch = -0.5
+	p.head.rotation.x = -0.5
+	await _frames(20)
+	await _snap("p6_desk_upgrades")
+
+
+func _mark_done(c: Dictionary) -> void:
+	c.done = true
+	c.prog = c.goal
+
+
 ## Elevator arrival: from inside the car (doors shut, then open), and a friend
 ## riding up seen from the floor.
 func _elevator_shots(world) -> void:

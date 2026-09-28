@@ -44,27 +44,83 @@ const ITEM_DURATION := {"cigar": 60.0, "powder": 40.0, "moneygun": 10.0}
 ## "bag" = the desk-trophy prop for handbags. Brands: docs/BRANDS.md (parodies).
 const LUXURY := {
 	"supreme": {"name": "SUPRÉMO Brick", "price": 6_000.0, "max": 6, "store": "flex",
-		"desc": "It's a brick. It says SUPRÉMO. You need it."},
+		"desc": "It's a brick. It says SUPRÉMO. You need it.", "perk": {}, "perk_txt": "Does nothing. That's the point."},
 	"counter": {"name": "Cash Counter", "price": 25_000.0, "max": 1, "store": "flex",
-		"desc": "Sits on your desk going brrrrt. Press E on it to count a stack."},
+		"desc": "Sits on your desk going brrrrt. Press E on it to count a stack.", "perk": {}, "perk_txt": ""},
 	"guccero_bag": {"name": "GUCCERO Marmont Bag", "price": 45_000.0, "max": 3, "store": "guccero", "bag": "Bag_Guccero",
-		"desc": "Black leather, green-red web stripe. Very Milan. Very mid-cap."},
+		"desc": "Black leather, green-red web stripe. Very Milan. Very mid-cap.", "perk": {"contract_pay": 1.15}, "perk_txt": "Tony respects the bag: contracts pay +15%."},
 	"prava_bag": {"name": "PRAVA Nylon Tote", "price": 32_000.0, "max": 3, "store": "prava", "bag": "Bag_Prava",
-		"desc": "Minimal. Black. Silver triangle. Costs more than it should."},
+		"desc": "Minimal. Black. Silver triangle. Costs more than it should.", "perk": {"bp": 0.85}, "perk_txt": "Minimalism calms you: blood pressure rises 15% slower."},
 	"louie": {"name": "LOUIS VALMONT Keepall", "price": 60_000.0, "max": 4, "store": "valmont", "bag": "LouieBag",
-		"desc": "Tan leather, VM monogram. Empty. Pure flex. Lines up next to your desk."},
+		"desc": "Tan leather, VM monogram. Empty. Pure flex. Lines up next to your desk.", "perk": {"fee": 0.85}, "perk_txt": "Your broker sees the bag: trading fees -15%."},
 	"diorelle_bag": {"name": "DIORÉLLE Saddle Bag", "price": 80_000.0, "max": 3, "store": "diorelle", "bag": "Bag_Diorelle",
-		"desc": "Cream couture from Paris. Your desk has never been this classy."},
+		"desc": "Cream couture from Paris. Your desk has never been this classy.", "perk": {"overhead": 0.85}, "perk_txt": "Sponsors cover some of your tab: overhead -15%."},
 	"chavel_bag": {"name": "CHAVÉL Quilted Flap", "price": 120_000.0, "max": 3, "store": "chavel", "bag": "Bag_Chavel",
-		"desc": "Black quilted leather, gold chain. The old-money flex."},
+		"desc": "Black quilted leather, gold chain. The old-money flex.", "perk": {"xp": 1.15}, "perk_txt": "Old money teaches you things: +15% XP."},
 	"roflex": {"name": "Crownwell Datejust", "price": 250_000.0, "max": 1, "store": "crownwell",
-		"desc": "Gold Crownwell Genève on your wrist + the green box on your desk."},
+		"desc": "Gold Crownwell Genève on your wrist + the green box on your desk.", "perk": {"heat_decay": 1.3}, "perk_txt": "Cops respect the watch: heat cools 30% faster."},
 	"roflex_iced": {"name": "Crownwell Iced Out", "price": 1_500_000.0, "max": 1, "heat": 10.0, "store": "crownwell",
-		"desc": "Diamond bezel. Blinding. The SEC notices (+10 heat)."},
+		"desc": "Diamond bezel. Blinding. The SEC notices (+10 heat).", "perk": {"xp": 1.25, "early_news": 2.0}, "perk_txt": "People tell you things: headlines 2s early, +25% XP."},
 }
 const BOUTIQUES := ["guccero", "valmont", "prava", "crownwell", "diorelle", "chavel"]
 const BOUTIQUE_NAMES := {"guccero": "GUCCERO", "valmont": "LOUIS VALMONT", "prava": "PRAVA MILANO",
 	"crownwell": "CROWNWELL GENÈVE", "diorelle": "DIORÉLLE PARIS", "chavel": "CHAVÉL", "flex": "FLEX SHOP"}
+## Office upgrades (FLEX SHOP counter in the office): bought once, kept
+## forever (saved with your career like flex), and they change how you play.
+## "prop" = what shows up on your desk.
+const UPGRADES := {
+	"up_standing": {"name": "Standing Desk Mat", "price": 20_000.0, "prop": "StandingMat", "perk": {"bp": 0.8},
+		"desc": "Blood pressure rises 20% slower. Your chiropractor approves."},
+	"up_rolodex": {"name": "Tony's Rolodex", "price": 35_000.0, "prop": "Rolodex", "perk": {"contracts": 1},
+		"desc": "One more contract from Tony every morning."},
+	"up_scanner": {"name": "Police Scanner", "price": 40_000.0, "prop": "PoliceScanner", "perk": {"heat_decay": 1.25, "raid_warn": 1},
+		"desc": "Heat cools 25% faster, and you hear it when the cops start asking about you."},
+	"up_intern": {"name": "Unpaid Intern", "price": 60_000.0, "prop": "Mug", "perk": {"overhead": 0.8},
+		"desc": "Fetches coffee, cuts your overhead 20%. Doesn't get paid (it's \"experience\")."},
+	"up_bloomberg": {"name": "Bloomberg Terminal", "price": 90_000.0, "prop": "BloombergTerminal", "perk": {"early_news": 3.0},
+		"desc": "Every headline hits your screen 3 seconds before the TV."},
+	"up_prime": {"name": "Prime Broker Account", "price": 150_000.0, "prop": "PrimeCard", "perk": {"fee": 0.6, "spread": 0.7},
+		"desc": "Fees -40%, spreads -30%. Real-money pricing."},
+}
+
+## Perk keys: multipliers (fee, spread, bp, heat_decay, overhead, contract_pay,
+## xp), adds (contracts, raid_warn) and early_news (seconds, best one wins).
+const PERK_MULTS := ["fee", "spread", "bp", "heat_decay", "overhead", "contract_pay", "xp"]
+const PERK_ADDS := ["contracts", "raid_warn"]
+
+
+## Everything a trader's rank, flex and upgrades give them, combined.
+static func perks_for(rank: int, own: Dictionary) -> Dictionary:
+	var out := {"early_news": 0.0}
+	for k in PERK_MULTS:
+		out[k] = 1.0
+	for k in PERK_ADDS:
+		out[k] = 0
+	var srcs: Array = []
+	for r in mini(rank + 1, RANKS.size()):
+		srcs.append(RANKS[r].get("perk", {}))
+	for key in own:
+		if int(own[key]) <= 0:
+			continue
+		if LUXURY.has(key):
+			srcs.append(LUXURY[key].get("perk", {}))
+		elif UPGRADES.has(key):
+			srcs.append(UPGRADES[key].perk)
+	for p in srcs:
+		for k in p:
+			if k in PERK_MULTS:
+				out[k] *= float(p[k])
+			elif k in PERK_ADDS:
+				out[k] += int(p[k])
+			elif k == "early_news":
+				out[k] = maxf(out[k], float(p[k]))
+	return out
+
+
+## Co-op fund milestones: the first time the fund gets there, everyone gets XP.
+const MILESTONES := [100_000.0, 250_000.0, 1_000_000.0, 5_000_000.0, 25_000_000.0, 100_000_000.0]
+const MILESTONE_XP := [25.0, 40.0, 75.0, 150.0, 300.0, 600.0]
+
 const PAWN_RATE := 0.5          # pawn shop pays half what you paid
 const HOTDOG_PRICE := 20.0
 const HOTDOG_RELIEF := 35.0     # blood pressure points
@@ -84,13 +140,19 @@ static func quota_for_day(day: int, start: float = START_FUND) -> float:
 ## Career ranks (persisted by the host per player name). XP comes from green
 ## days: 1 XP per $1K of profit + 25 for every day the desk makes quota.
 const RANKS := [
-	{"name": "INTERN", "xp": 0, "unlock": "Welcome to the desk. Get coffee. Lose money."},
-	{"name": "ANALYST", "xp": 60, "unlock": "KWIK LIVE studio access (phone → G)."},
-	{"name": "TRADER", "xp": 180, "unlock": "Crownwell Datejust (Crownwell Genève, on the street)."},
-	{"name": "DEGEN", "xp": 450, "unlock": "x125 leverage + Crownwell Iced Out."},
-	{"name": "WHALE", "xp": 1000, "unlock": "Your name on the TV when you close big."},
-	{"name": "MARKET MAKER", "xp": 2200, "unlock": "Tramp follows you back."},
-	{"name": "WOLF", "xp": 5000, "unlock": "You are the Wolf of Wall Street. Chest thump."},
+	{"name": "INTERN", "xp": 0, "unlock": "Welcome to the desk. Get coffee. Lose money.", "perk": {}},
+	{"name": "ANALYST", "xp": 60, "unlock": "KWIK LIVE studio access (phone → G) + a 4th contract from Tony every day.",
+		"perk": {"contracts": 1}},
+	{"name": "TRADER", "xp": 180, "unlock": "Crownwell Datejust (Crownwell Genève) + trading fees -15%.",
+		"perk": {"fee": 0.85}},
+	{"name": "DEGEN", "xp": 450, "unlock": "x125 leverage + Crownwell Iced Out + contracts pay 1.5x.",
+		"perk": {"contract_pay": 1.5}},
+	{"name": "WHALE", "xp": 1000, "unlock": "Your name on the TV when you close big + your overhead -25%.",
+		"perk": {"overhead": 0.75}},
+	{"name": "MARKET MAKER", "xp": 2200, "unlock": "Tramp follows you back + spreads cut in half.",
+		"perk": {"spread": 0.5}},
+	{"name": "WOLF", "xp": 5000, "unlock": "You are the Wolf of Wall Street. Every headline hits you 3s early.",
+		"perk": {"early_news": 3.0}},
 ]
 const XP_PER_1K := 1.0
 const XP_QUOTA_DAY := 25.0

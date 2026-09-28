@@ -92,10 +92,17 @@ static func list() -> Array:
 	return out
 
 
-## The newest run that can still be continued (not busted / finished).
-static func latest_open() -> Dictionary:
+## Only the trader who started a run (the host, by name) can load it.
+## Saves from before owners existed are anyone's.
+static func owned_by(s: Dictionary, who: String) -> bool:
+	var o := str(s.get("owner", ""))
+	return o == "" or o.to_lower() == who.strip_edges().to_lower()
+
+
+## The newest run `who` can still continue (not busted / finished, theirs).
+static func latest_open(who: String = "") -> Dictionary:
 	for s in list():
-		if not s.get("over", false):
+		if not s.get("over", false) and (who == "" or owned_by(s, who)):
 			return s
 	return {}
 

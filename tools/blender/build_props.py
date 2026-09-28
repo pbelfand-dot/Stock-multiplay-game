@@ -1063,6 +1063,84 @@ def build_luxury():
     finish("CashCounter")
 
 
+def build_desk_upgrades():
+    """Office upgrades that sit on / by your desk, and the PvP champion trophy.
+    All origin bottom center, front +z (toward the trader)."""
+    ORANGE = (1.0, 0.55, 0.08)
+    # PvP championship trophy: gold cup with handles on a black plinth + gold plate
+    rbox((0.16, 0.06, 0.16), (0, 0.03, 0), BLACK, r=0.008, kind="Gloss")
+    rbox((0.12, 0.04, 0.12), (0, 0.08, 0), BLACK, r=0.006, kind="Gloss")
+    rbox((0.08, 0.022, 0.004), (0, 0.04, 0.081), GOLD, kind="Metal")
+    lathe([(0.0, 0.1), (0.035, 0.1), (0.028, 0.115), (0.012, 0.13), (0.01, 0.17), (0.02, 0.19),
+           (0.05, 0.215), (0.07, 0.26), (0.074, 0.3), (0.066, 0.3), (0.0, 0.3)], (0, 0, 0), GOLD, kind="Metal")
+    for sx in (-1, 1):
+        torus(0.028, 0.007, (sx * 0.076, 0.255, 0), GOLD, segs=16, rsegs=6, kind="Metal",
+              rot=[("x", math.pi / 2)], arc=math.pi * 1.2)
+    ell((0.02, 0.02, 0.02), (0, 0.31, 0), GOLD, kind="Metal", segs=12, rings=6)
+    finish("ChampTrophy")
+
+    # Bloomberg station: its own little side stand next to the desk, two slim
+    # monitors on an arm + the yellow/orange keyboard. Origin floor.
+    Y = 0.76
+    rbox((0.62, 0.035, 0.5), (0, Y - 0.018, 0), (0.2, 0.2, 0.22), r=0.01)
+    for sx in (-1, 1):
+        for sz in (-1, 1):
+            rbox((0.035, Y - 0.035, 0.035), (sx * 0.27, (Y - 0.035) / 2, sz * 0.21), DARK_STEEL, r=0.008, kind="Metal")
+    rbox((0.56, 0.02, 0.44), (0, 0.12, 0), DARK_STEEL, r=0.006, kind="Metal")          # lower shelf
+    rbox((0.3, 0.05, 0.22), (0.05, 0.155, 0.02), PAPER, r=0.004)                        # printouts on it
+    for sx in (-1, 1):
+        rbox((0.3, 0.2, 0.022), (sx * 0.16, Y + 0.3, -0.1 + 0.03 * 1), BLACK, r=0.008, kind="Gloss",
+             rot=[("y", -sx * 0.2)])
+        rbox((0.27, 0.17, 0.004), (sx * 0.16, Y + 0.3, -0.057), (0.08, 0.12, 0.2), kind="Glow",
+             rot=[("y", -sx * 0.2)])
+        for k in range(5):     # green/orange rows of quotes on the screens
+            rbox((0.22, 0.01, 0.002), (sx * 0.16, Y + 0.36 - k * 0.028, -0.054),
+                 ORANGE if k % 2 else (0.3, 1.0, 0.45), kind="Glow", rot=[("y", -sx * 0.2)])
+    rbox((0.04, 0.2, 0.035), (0, Y + 0.1, -0.13), DARK_STEEL, r=0.01, kind="Metal")
+    rbox((0.24, 0.012, 0.12), (0, Y + 0.006, -0.13), DARK_STEEL, r=0.01, kind="Metal")
+    rbox((0.42, 0.022, 0.14), (0, Y + 0.011, 0.12), BLACK, r=0.008)
+    for row in range(4):
+        for col in range(12):
+            c = ORANGE if col < 2 else ((1.0, 0.85, 0.15) if col > 9 else (0.2, 0.2, 0.22))
+            rbox((0.026, 0.008, 0.022), (-0.18 + col * 0.0327, Y + 0.026, 0.075 + row * 0.028), c)
+    finish("BloombergTerminal")
+
+    # police scanner: black radio, antenna, green LCD, orange knob
+    rbox((0.2, 0.08, 0.13), (0, 0.04, 0), (0.12, 0.12, 0.13), r=0.012)
+    rbox((0.11, 0.03, 0.004), (-0.03, 0.05, 0.066), (0.35, 1.0, 0.45), kind="Glow")
+    cyl(0.014, 0.02, (0.065, 0.05, 0.07), ORANGE, segs=12, rot=[("x", math.pi / 2)])
+    cyl(0.01, 0.02, (0.065, 0.02, 0.07), (0.5, 0.5, 0.52), segs=10, rot=[("x", math.pi / 2)])
+    rod((0.07, 0.08, -0.04), (0.09, 0.32, -0.05), 0.004, BLACK, segs=6)
+    ell((0.007, 0.007, 0.007), (0.09, 0.325, -0.05), (0.9, 0.1, 0.1), kind="Glow", segs=8, rings=4)
+    for k in range(4):
+        rbox((0.004, 0.035, 0.002), (-0.08 + k * 0.012, 0.045, 0.066), (0.3, 0.3, 0.32))
+    finish("PoliceScanner")
+
+    # Tony's Rolodex: two end plates, an axle and a fan of cards, on a base
+    rbox((0.16, 0.02, 0.1), (0, 0.01, 0), DARK_STEEL, r=0.006, kind="Metal")
+    for sx in (-1, 1):
+        cyl(0.055, 0.008, (sx * 0.07, 0.07, 0), BLACK, segs=20, rot=[("z", math.pi / 2)])
+    cyl(0.006, 0.15, (0, 0.07, 0), STEEL, segs=8, rot=[("z", math.pi / 2)], kind="Metal")
+    for k in range(9):
+        a = -0.9 + k * 0.22
+        rbox((0.12, 0.004, 0.07), (0, 0.07 + math.sin(a) * 0.04, math.cos(a) * 0.04), PAPER, rot=[("x", a + math.pi / 2)])
+    finish("Rolodex")
+
+    # anti-fatigue standing mat (floor, in front of the desk)
+    rbox((0.9, 0.018, 0.55), (0, 0.009, 0), (0.12, 0.12, 0.13), r=0.03, seg=3)
+    for k in range(6):
+        rbox((0.8, 0.004, 0.02), (0, 0.019, -0.2 + k * 0.08), (0.18, 0.18, 0.19))
+    ell((0.035, 0.035, 0.035), (0.34, 0.04, 0.18), (0.95, 0.2, 0.2), segs=12, rings=8)   # stress ball
+    finish("StandingMat")
+
+    # prime broker card on a little acrylic stand
+    rbox((0.1, 0.012, 0.05), (0, 0.006, 0), (0.85, 0.9, 0.95), r=0.004, kind="Gloss")
+    rbox((0.086, 0.054, 0.003), (0, 0.04, 0), (0.06, 0.06, 0.07), r=0.004, kind="Metal", rot=[("x", -0.25)])
+    rbox((0.014, 0.011, 0.002), (-0.025, 0.045, 0.004), GOLD, kind="Metal", rot=[("x", -0.25)])
+    rbox((0.05, 0.004, 0.002), (0.005, 0.028, 0.006), (0.75, 0.75, 0.78), kind="Metal", rot=[("x", -0.25)])
+    finish("PrimeCard")
+
+
 def build_flex_counter():
     """FLEX SHOP display counter, 2.2 x 1.0, front +z (customer side): the merch
     sits out on green felt; gold trim and a lit kick strip."""
@@ -1511,7 +1589,7 @@ def main():
                build_tv, build_elevator, build_ceiling_light, build_window_bay, build_cell,
                build_stream_desk, build_gaming_chair, build_ring_light, build_neon_board, build_skyline,
                build_bulletin_board, build_door, build_restroom, build_floor_mess, build_coin,
-               build_luxury, build_flex_counter, build_street_props, build_store_props):
+               build_luxury, build_desk_upgrades, build_flex_counter, build_street_props, build_store_props):
         fn()
     keep = {o.name for o in KIT}
     for o in list(bpy.data.objects):

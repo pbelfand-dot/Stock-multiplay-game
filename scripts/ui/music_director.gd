@@ -41,6 +41,8 @@ func _ready() -> void:
 	m.day_ended.connect(_on_day_ended)
 	m.game_over.connect(_on_day_ended)
 	m.state_changed.connect(_on_state)
+	m.shock.connect(_on_shock)
+	m.milestone.connect(func(_a, _x): _event("blue_bands", 20.0, 1))
 	Music.now_playing.connect(_on_now_playing)
 	now_label = Label.new()
 	now_label.add_theme_font_size_override("font_size", 18)
@@ -207,6 +209,12 @@ func _on_day_ended(s: Dictionary) -> void:
 		Music.event("stout_street", 999.0, 4)
 	elif pnl > 0.0 or s.get("passed", false):
 		Music.event("blue_bands", 999.0, 4)
+
+
+## Flash crash: rival music through the dump and the halt.
+func _on_shock(kind: String, stage: String) -> void:
+	if kind == "crash" and stage == "hit":
+		_event("type_a", 30.0, 3)
 
 
 func _on_state() -> void:

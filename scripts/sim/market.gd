@@ -36,6 +36,8 @@ var assets: Array = []          # Array[Dictionary]
 var time := 0.0                 # seconds since market open (monotonic across days)
 var candle_index := 0           # index of the currently forming candle
 var rng := RandomNumberGenerator.new()
+var vol_mult := {}              # sym -> volatility multiplier (day events)
+var bias := 0.0                 # trend drift for every asset, in units of its vol (bull run / bear market)
 
 
 func _init(seed_value: int = 0) -> void:
@@ -123,7 +125,9 @@ func _step_asset(a: Dictionary, dt: float) -> void:
 		if imp.dur > 0.0:
 			still.append(imp)
 	a.impulses = still
-	var r: float = (a.trend + mr + impulse) * dt + a.vol * VOL_SCALE * sqrt(dt) * _gauss()
+	var vm: float = vol_mult.get(a.sym, 1.0)
+	var drift: float = a.trend + bias * a.vol * VOL_SCALE
+	var r: float = (drift + mr + impulse) * dt + a.vol * vm * VOL_SCALE * sqrt(dt) * _gauss()
 	var jc: float = JUMP_CHANCE if JUMP_CHANCE_OVERRIDE < 0.0 else JUMP_CHANCE_OVERRIDE
 	var js: float = JUMP_SIZE if JUMP_SIZE_OVERRIDE < 0.0 else JUMP_SIZE_OVERRIDE
 	if rng.randf() < jc * dt:   # a wick: spike one way, the drift pulls it back

@@ -6,6 +6,8 @@ const Market = preload("res://scripts/sim/market.gd")
 const News = preload("res://scripts/sim/news.gd")
 const Ledger = preload("res://scripts/sim/ledger.gd")
 const Rules = preload("res://scripts/sim/rules.gd")
+const DayEvents = preload("res://scripts/sim/day_events.gd")
+const Contracts = preload("res://scripts/sim/contracts.gd")
 
 var failures := 0
 var checks := 0
@@ -34,6 +36,10 @@ func _init() -> void:
 	test_news()
 	test_slots()
 	test_format()
+	test_day_events()
+	test_event_market()
+	test_contracts()
+	test_perks()
 	print("sim tests: %d checks, %d failures" % [checks, failures])
 	quit(1 if failures > 0 else 0)
 
@@ -253,3 +259,154 @@ func test_format() -> void:
 	check(GFX.detect("NVIDIA Corporation NVIDIA GeForce RTX 3060", "", 16 * gb) == "ultra", "RTX + 16GB -> ultra")
 	check(GFX.detect("Mesa llvmpipe (LLVM 15)", "", 8 * gb) == "low", "software GL -> low")
 
+
+
+func test_day_events() -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 7
+	var seen := {}
+	var none := 0
+	var last := ""
+	var repeats := 0
+	for i in 2000:
+		var e := DayEvents.roll(rng, 3, last)
+		if e == "":
+			none += 1
+		else:
+			seen[e] = true
+			check(DayEvents.EVENTS.has(e) and DayEvents.MODS.has(e), "day event %s has info + mods" % e)
+			if e == last:
+				repeats += 1
+		last = e
+	check(seen.size() == DayEvents.EVENTS.size(), "every day event shows up (%d/%d)" % [seen.size(), DayEvents.EVENTS.size()])
+	check(repeats == 0, "never the same event two days running")
+	check(none > 300 and none < 700, "about a quarter of days are normal (%d/2000)" % none)
+	for i in 300:
+		var d1 := DayEvents.roll(rng, 1)
+		check(d1 == "" or d1 in DayEvents.DAY1_OK, "day 1 only gets the friendly events (%s)" % d1)
+	# timed shocks: Fed halfway, earnings late, the crash somewhere in the middle
+	var fed: Array = DayEvents.schedule("fed_day", rng, 300.0)
+	check(fed.size() == 1 and approx(fed[0].at, 150.0), "Fed speaks halfway through the day")
+	var hit: Dictionary = DayEvents.shock_news(fed[0], "hit")
+	var moves := 0.0
+	for e in hit.effects:
+		moves += e.pct
+	check(signf(moves) == signf(fed[0].dir) and absf(moves) > 0.15, "the Fed moves everything the way it decided (%.2f)" % moves)
+	check(DayEvents.shock_news(fed[0], "warn").effects.is_empty(), "the 30-second warning doesn't move anything")
+	for i in 50:
+		var cr: Array = DayEvents.schedule("flash_crash", rng, 300.0)
+		check(cr[0].at >= 60.0 and cr[0].at <= 225.0, "crash lands mid-day (%.0f)" % cr[0].at)
+	var crash: Dictionary = DayEvents.shock_news(DayEvents.schedule("flash_crash", rng, 300.0)[0], "hit")
+	var btc := 0.0
+	var gold := 0.0
+	for e in crash.effects:
+		if e.sym == "BTC":
+			btc = e.pct
+		if e.sym == "GOLD":
+			gold = e.pct
+	check(btc < -0.08 and gold > 0.0, "the crash dumps BTC, gold catches a bid")
+	check(DayEvents.schedule("bull_run", rng, 300.0).is_empty(), "no timed shocks on a bull run")
+	check(DayEvents.morning_news("fed_day", 300.0).headline.contains("2:30"), "morning show says when Powww speaks")
+	check(DayEvents.mod("black_friday", "lux_discount", 0.0) > 0.3 and DayEvents.mod("", "lux_discount", 0.0) == 0.0,
+		"Black Friday discount, none on a normal day")
+
+
+## Bull runs drift up, bear markets drift down, meme mania shakes memecoins.
+func test_event_market() -> void:
+	var up := 0.0
+	var down := 0.0
+	var calm := 0.0
+	var wild := 0.0
+	for seed_v in 20:
+		var a := Market.new(1000 + seed_v)
+		a.bias = DayEvents.mod("bull_run", "bias", 0.0)
+		var b := Market.new(1000 + seed_v)
+		b.bias = DayEvents.mod("bear_market", "bias", 0.0)
+		var c := Market.new(2000 + seed_v)
+		var d := Market.new(2000 + seed_v)
+		d.vol_mult = DayEvents.mod("meme_mania", "vol", {})
+		var ci := c.index_of("WAGMI")
+		var cp := c.price(ci)
+		var dp := d.price(ci)
+		for i in 1200:                     # one 5-minute day at 0.25s ticks
+			a.step(0.25)
+			b.step(0.25)
+			c.step(0.25)
+			d.step(0.25)
+			calm += absf(log(c.price(ci) / cp))
+			wild += absf(log(d.price(ci) / dp))
+			cp = c.price(ci)
+			dp = d.price(ci)
+		up += a.change_pct(a.index_of("BTC")) + a.change_pct(a.index_of("REX"))
+		down += b.change_pct(b.index_of("BTC")) + b.change_pct(b.index_of("REX"))
+	check(up > 0.0 and down < 0.0 and up - down > 40.0, "bull run drifts up, bear market down (%.1f vs %.1f)" % [up, down])
+	check(wild > calm * 1.6, "meme mania makes WAGMI move a lot more (%.2f vs %.2f)" % [wild, calm])
+	# the news desk follows the event: a tweetstorm is mostly Tramp
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 3
+	var n := News.new(rng)
+	n.boost = DayEvents.mod("tweetstorm", "news", {})
+	var tramp := 0
+	for i in 1000:
+		if n.roll().speaker == "TRAMP":
+			tramp += 1
+	check(tramp > 450, "tweetstorm: Tramp dominates the headlines (%d/1000)" % tramp)
+
+
+func test_contracts() -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 11
+	for i in 200:
+		var cs: Array = Contracts.deal(rng, 1 + i % 6, Rules.START_FUND, "", i % 3)
+		check(cs.size() == 3 + i % 3, "3 contracts + extras")
+		var ids := {}
+		for c in cs:
+			ids[c.id] = true
+		check(ids.size() == cs.size(), "no duplicate contracts")
+		check(cs[0].tier == 1 and cs[1].tier == 2 and cs[2].tier == 3, "easy, medium, hard")
+	var themed: Array = Contracts.deal(rng, 2, Rules.START_FUND, "flash_crash")
+	check(themed.any(func(c): return c.id == "short_big"), "crash day: Tony wants you short")
+	# progress
+	var g := Contracts.make("green3", 1, Rules.START_FUND, rng)
+	check(not Contracts.note(g, "close", {"pnl": 100.0, "side": 1, "sym": "BTC", "lev": 10, "pct": 5.0}), "1/3")
+	Contracts.note(g, "close", {"pnl": -50.0, "side": 1, "sym": "BTC", "lev": 10, "pct": -5.0})
+	Contracts.note(g, "close", {"pnl": 80.0, "side": -1, "sym": "OIL", "lev": 10, "pct": 5.0})
+	check(Contracts.note(g, "close", {"pnl": 10.0, "side": 1, "sym": "BTC", "lev": 10, "pct": 1.0}) and g.done, "3 winners done")
+	check(not Contracts.note(g, "close", {"pnl": 10.0, "side": 1, "sym": "BTC", "lev": 10, "pct": 1.0}), "a done contract pays once")
+	var st := Contracts.make("streak", 1, Rules.START_FUND, rng)
+	Contracts.note(st, "close", {"pnl": 1.0, "side": 1, "sym": "BTC", "lev": 1, "pct": 1.0})
+	Contracts.note(st, "close", {"pnl": 1.0, "side": 1, "sym": "BTC", "lev": 1, "pct": 1.0})
+	Contracts.note(st, "close", {"pnl": -1.0, "side": 1, "sym": "BTC", "lev": 1, "pct": -1.0})
+	check(st.prog == 0.0 and not st.done, "a loss breaks the streak")
+	var p := Contracts.make("profit", 3, Rules.START_FUND, rng)
+	check(p.goal > Contracts.make("profit", 1, Rules.START_FUND, rng).goal, "profit goals grow with the days")
+	check(Contracts.note(p, "close", {"pnl": 1.0, "side": 1, "sym": "BTC", "lev": 1, "pct": 1.0, "pnl_day": p.goal + 1.0}), "profit goal hit")
+	var nc := Contracts.make("no_casino", 1, Rules.START_FUND, rng)
+	check(not Contracts.note(nc, "close", {"pnl": 5.0, "side": 1, "sym": "BTC", "lev": 1, "pct": 1.0}), "end-of-day contracts wait for the bell")
+	check(Contracts.settle(nc, {"heat": 0.0}) and nc.done, "stayed off the slots")
+	var nc2 := Contracts.make("no_casino", 1, Rules.START_FUND, rng)
+	Contracts.note(nc2, "slots", {"mult": 0})
+	check(nc2.failed and not Contracts.settle(nc2, {}), "played the slots: failed")
+	var cl := Contracts.make("clean", 1, Rules.START_FUND, rng)
+	check(not Contracts.settle(cl, {"heat": 45.0}) and cl.failed, "too hot at the bell")
+	var ss := Contracts.make("short_big", 2, Rules.START_FUND, rng)
+	Contracts.note(ss, "close", {"pnl": ss.goal * 0.6, "side": -1, "sym": "BTC", "lev": 1, "pct": 1.0})
+	Contracts.note(ss, "close", {"pnl": 5000.0, "side": 1, "sym": "BTC", "lev": 1, "pct": 1.0})
+	check(not ss.done, "longs don't count toward short money")
+	check(Contracts.note(ss, "close", {"pnl": ss.goal * 0.5, "side": -1, "sym": "REX", "lev": 1, "pct": 1.0}), "short money adds up")
+
+
+func test_perks() -> void:
+	var base := Rules.perks_for(0, {})
+	check(base.fee == 1.0 and base.contracts == 0 and base.early_news == 0.0, "an intern gets nothing")
+	var wolf := Rules.perks_for(Rules.RANKS.size() - 1, {})
+	check(wolf.contracts == 1 and approx(wolf.fee, 0.85) and wolf.early_news == 3.0 and approx(wolf.overhead, 0.75),
+		"ranks stack their perks up to WOLF")
+	var loaded := Rules.perks_for(0, {"up_prime": 1, "louie": 2, "up_bloomberg": 1, "roflex_iced": 1, "up_rolodex": 1, "champ": 3})
+	check(approx(loaded.fee, 0.6 * 0.85), "Prime Broker x Valmont bag fees (%.3f)" % loaded.fee)
+	check(loaded.early_news == 3.0, "early news takes the best source, doesn't add up")
+	check(loaded.contracts == 1, "the Rolodex adds a contract")
+	for key in Rules.UPGRADES:
+		check(Rules.UPGRADES[key].price >= 20_000.0, "upgrades cost real money (%s)" % key)
+	# a normal day-2 overhead is more than a Rolodex costs? no: upgrades take saving up
+	check(Rules.UPGRADES.up_prime.price > Rules.overhead_for_day(3, 1) * 20.0, "Prime Broker is a long save")

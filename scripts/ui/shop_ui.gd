@@ -25,7 +25,7 @@ func setup(m, cat := "items") -> void:
 func _ready() -> void:
 	var lux := catalog.begins_with("luxury") or catalog == "pawn"
 	add_theme_stylebox_override("panel", UI.panel_box(Color(0.05, 0.1, 0.07) if lux else Color(0.1, 0.07, 0.05), UI.GOLD, 18, 5))
-	UI.center(self, Vector2(820, 640))
+	UI.center(self, Vector2(860, 700))
 	var v := VBoxContainer.new()
 	v.add_theme_constant_override("separation", 8)
 	add_child(v)
@@ -35,10 +35,14 @@ func _ready() -> void:
 	v.add_child(quote_lbl)
 	cash_lbl = UI.lbl("", 22, UI.GREEN, true)
 	v.add_child(cash_lbl)
+	var scroll := ScrollContainer.new()
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	v.add_child(scroll)
 	list = VBoxContainer.new()
-	list.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	list.add_theme_constant_override("separation", 6)
-	v.add_child(list)
+	scroll.add_child(list)
 	var foot := HBoxContainer.new()
 	v.add_child(foot)
 	foot.add_child(UI.lbl("Flex shows up on your desk and your wrist. Everyone sees it." if lux
@@ -151,6 +155,9 @@ func _refresh_pawn(me: int) -> void:
 
 func _refresh_luxury(me: int, acct: Dictionary) -> void:
 	var only := catalog.get_slice(":", 1) if catalog.contains(":") else ""   # "luxury" = the office counter: everything
+	if only == "":
+		_refresh_upgrades(me, acct)
+		list.add_child(UI.lbl("FLEX", 26, UI.GOLD, true))
 	for key in Rules.LUXURY:
 		var d: Dictionary = Rules.LUXURY[key]
 		if only != "" and d.get("store", "") != only:
@@ -166,12 +173,42 @@ func _refresh_luxury(me: int, acct: Dictionary) -> void:
 		h.add_child(info)
 		info.add_child(UI.lbl("%s   %d/%d" % [d.name, have, int(d.max)], 24, UI.TEXT, true))
 		info.add_child(UI.lbl(d.desc, 16, UI.DIM))
+		if d.get("perk_txt", "") != "":
+			info.add_child(UI.lbl("PERK: " + d.perk_txt, 16, Color(0.55, 1.0, 0.65)))
 		var maxed := have >= int(d.max)
-		var b := UI.btn("OWNED" if maxed else "BUY %s" % Rules.money(d.price), UI.GREEN.darkened(0.3), 20)
+		var price: float = match_node.lux_price(key)
+		var b := UI.btn("OWNED" if maxed else ("BUY %s" % Rules.money(price)) + (" (-%d%%)" % int(round((1.0 - price / d.price) * 100.0)) if price < d.price else ""),
+				UI.GREEN.darkened(0.3), 20)
 		b.custom_minimum_size.x = 170
-		b.disabled = maxed or acct.get("balance", 0.0) < d.price
+		b.disabled = maxed or acct.get("balance", 0.0) < price
 		var k: String = key
 		b.pressed.connect(func():
 			Sfx.play("coin")
 			match_node.request_buy_lux(k))
+		h.add_child(b)
+
+
+## Office upgrades (only at the office counter): bought once, kept forever.
+func _refresh_upgrades(me: int, acct: Dictionary) -> void:
+	list.add_child(UI.lbl("OFFICE UPGRADES  ·  yours for good, they change how you play", 26, UI.GOLD, true))
+	for key in Rules.UPGRADES:
+		var d: Dictionary = Rules.UPGRADES[key]
+		var have: bool = match_node.lux_count(me, key) > 0
+		var row := PanelContainer.new()
+		row.add_theme_stylebox_override("panel", UI.panel_box(Color(0.07, 0.1, 0.18), Color(0.25, 0.4, 0.7), 8, 2))
+		list.add_child(row)
+		var h := HBoxContainer.new()
+		row.add_child(h)
+		var info := VBoxContainer.new()
+		info.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		h.add_child(info)
+		info.add_child(UI.lbl(d.name, 24, UI.TEXT, true))
+		info.add_child(UI.lbl(d.desc, 16, Color(0.55, 1.0, 0.65)))
+		var b := UI.btn("INSTALLED" if have else "BUY %s" % Rules.money(d.price), UI.NAVY_2.lightened(0.15), 20)
+		b.custom_minimum_size.x = 170
+		b.disabled = have or acct.get("balance", 0.0) < d.price
+		var k: String = key
+		b.pressed.connect(func():
+			Sfx.play("coin")
+			match_node.request_buy_upgrade(k))
 		h.add_child(b)

@@ -124,6 +124,9 @@ func _client() -> void:
 	if not await _wait_for(func(): return not m.m_assets.is_empty() and m.phase == "trading", 30.0, "trading phase on client"):
 		return
 	_say("market mirrored: %d assets, BTC=%f, candles=%d" % [m.m_assets.size(), m.price_of("BTC"), m.m_assets[0].candles.size()])
+	if not await _wait_for(func(): return m.contracts.get(Net.my_id(), []).size() >= 3, 5.0, "Tony's contracts on the client"):
+		return
+	_say("got Tony's contracts: %s" % ", ".join(m.contracts[Net.my_id()].map(func(c): return c.text)))
 	# we came up in the elevator: wait until we've walked out onto the floor
 	var wl = get_node("/root/Main/World")
 	var deepest := [-INF]          # how far into the car we were (the car is behind the wall at z > D/2)

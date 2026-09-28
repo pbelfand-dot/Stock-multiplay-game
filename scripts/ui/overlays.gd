@@ -3,6 +3,7 @@ extends RefCounted
 
 const UI = preload("res://scripts/ui/ui_theme.gd")
 const Rules = preload("res://scripts/sim/rules.gd")
+const DayEvents = preload("res://scripts/sim/day_events.gd")
 
 
 class Mugshot extends Control:
@@ -135,9 +136,9 @@ class Summary extends PanelContainer:
 
 	func _ready() -> void:
 		add_theme_stylebox_override("panel", UI.panel_box(Color(0.04, 0.06, 0.1, 0.95), UI.GOLD, 20, 5))
-		UI.center(self, Vector2(760, 560))
+		UI.center(self, Vector2(880, 700))
 		body = VBoxContainer.new()
-		body.add_theme_constant_override("separation", 6)
+		body.add_theme_constant_override("separation", 4)
 		add_child(body)
 		visible = false
 
@@ -163,6 +164,18 @@ class Summary extends PanelContainer:
 			for r in s.get("ranking", []):
 				body.add_child(UI.lbl("%d. %s  %s%s" % [rank, r.name, Rules.money(r.balance), "  (BUSTED)" if r.busted else ""], 26, UI.RED if r.busted else UI.TEXT))
 				rank += 1
+		if s.get("event", "") != "":
+			var ev: Dictionary = DayEvents.info(s.event)
+			body.add_child(UI.lbl("TODAY WAS: %s" % ev.name, 22, ev.get("color", UI.GOLD), true))
+		if s.get("champ", 0) > 0:
+			body.add_child(UI.lbl("%s takes the championship trophy home (%d total). It stays on their desk." % [
+					s.get("winner", ""), int(s.champ)], 20, UI.GOLD, true))
+		var mine: Array = s.get("contracts", {}).get(Net.my_id(), [])
+		if not mine.is_empty():
+			var done := 0
+			for c in mine:
+				done += 1 if c.done else 0
+			body.add_child(UI.lbl("Tony's contracts: %d / %d done" % [done, mine.size()], 20, UI.GREEN if done > 0 else UI.DIM))
 		body.add_child(UI.lbl("— DESK STATS —", 22, UI.DIM, true))
 		var mvp := ""
 		var mvp_v := -INF
@@ -181,6 +194,12 @@ class Summary extends PanelContainer:
 				mvp = p.name
 		if mvp != "":
 			body.add_child(UI.lbl("WOLF OF THE DAY: %s" % mvp, 26, UI.GOLD, true))
+		var tomorrow: String = s.get("tomorrow", "")
+		if not over and tomorrow != "":
+			var tv: Dictionary = DayEvents.info(tomorrow)
+			body.add_child(UI.lbl("TOMORROW: %s — %s" % [tv.name, tv.forecast], 22, tv.get("color", UI.GOLD), true))
+		elif not over and s.has("tomorrow"):
+			body.add_child(UI.lbl("TOMORROW: a normal day. Probably.", 20, UI.DIM))
 		if over:
 			body.add_child(UI.lbl("RUN OVER. Host: press ENTER to go back to the lobby.", 20, UI.DIM))
 		else:
