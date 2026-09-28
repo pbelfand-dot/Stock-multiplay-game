@@ -11,6 +11,7 @@ const REACH := 2.6
 const SEND_RATE := 1.0 / 20.0
 const Character = preload("res://scripts/art/character.gd")
 const Props = preload("res://scripts/art/props.gd")
+const CashArt = preload("res://scripts/art/cash_art.gd")
 const PropKit = preload("res://scripts/art/prop_kit.gd")
 
 var peer_id := 1
@@ -46,7 +47,9 @@ var held_cigar: Node3D
 var held_gun: Node3D
 var powder_fx := 0.0
 # emotes (F finger, V fist pump, Z show watch, X point) and chairs
-const EMOTES := ["", "finger", "fistpump", "watch", "point", "dance", "smoke_cough", "smoke_chill"]   # 3 sync bits: max 8
+const EMOTES := ["", "finger", "fistpump", "watch", "point", "dance", "smoke_cough", "smoke_chill",
+	"flash", "fan"]   # 4 sync bits: max 16
+const HELD_EMOTES := ["flash", "fan"]   # stay up until you press it again (or 20 s)
 const EMOTE_TIME := 2.4
 const ROLL_SPEED := 2.2
 var emote := 0              # index into EMOTES (synced)
@@ -63,7 +66,9 @@ var carried_chair: Node3D
 var zippo: Node3D
 var _zippo_t := 0.0
 var _cigar_was := 0.0
-var cash_stack: Node3D
+var cash_stack: Node3D           # the stack in your hand (sized by your cash on hand)
+var _stack_amount := -1.0         # what the current stack was built for
+var held_fan: Node3D
 var _cash_t := 0.0
 
 
@@ -201,7 +206,9 @@ func _attach_props() -> void:
 		zippo.rotation = Vector3(-PI / 2, 0, 0)
 		zippo.visible = false
 		model.prop_left.add_child(zippo)
-		cash_stack = null
+	cash_stack = null                   # the old hands (and what was in them) are gone
+	held_fan = null
+	_stack_amount = -1.0
 
 
 ## New clothes from the Tailor: rebuild the body (and first-person arm) and
@@ -220,8 +227,11 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	if not world.ui_blocking():
 		for i in range(1, EMOTES.size()):
-			if event.is_action_pressed("emote_" + EMOTES[i]):
+			var act: String = "emote_" + EMOTES[i]
+			if InputMap.has_action(act) and event.is_action_pressed(act):   # not every emote has a hotkey
 				play_emote(EMOTES[i])
+		if event.is_action_pressed("spread_cash"):
+			world.toggle_spread()
 		if seat >= 0 and (event.is_action_pressed("jump") or event.is_action_pressed("dive")):
 			stand_up()
 	if event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
@@ -237,7 +247,7 @@ func _physics_process(delta: float) -> void:
 		if _send_acc >= SEND_RATE:
 			_send_acc = 0.0
 			var flags := (1 if raining else 0) | (2 if diving > 0.0 else 0) | (4 if world.ui_blocking() else 0) \
-					| (emote << 3) | ((seat + 1) << 6)
+					| (emote << 3) | ((seat + 1) << 7)
 			world._p_tf.rpc(global_position, rotation.y, pitch, flags)
 	else:
 		if _has_target:
@@ -357,6 +367,7 @@ func _update_fx() -> void:
 			model.set_watch(wk)
 	model.bloodshot = bool(look.get("bloodshot", false)) or cigar_on or (m != null and m.effect_left(peer_id, "powder") > 0.0)
 	held_gun.visible = gun_on
+	_update_held_cash(m)
 	if smoke.emitting != cigar_on:
 		smoke.emitting = cigar_on
 	if bills.emitting != raining:
@@ -435,18 +446,11 @@ func _set_seat(id: int) -> void:
 
 ## First-person: hold a fat cash stack out in front (money counter).
 func show_cash_stack(secs: float) -> void:
-	if cash_stack == null:
-		cash_stack = PropKit.place("Cash", model.prop_right, Vector3(0.0, -0.02, -0.06), PI / 2)
-	cash_stack.visible = true
 	_cash_t = secs
 
 
 func _update_fp_emote(delta: float) -> void:
-	if cash_stack:
-		_cash_t = maxf(_cash_t - delta, 0.0)
-		cash_stack.visible = _cash_t > 0.0
-		if cash_stack.visible:   # riffle the stack
-			cash_stack.position = Vector3(0.0, -0.02 + sin(_cash_t * 20.0) * 0.006, -0.06)
+	_cash_t = maxf(_cash_t - delta, 0.0)
 	var m = world.match_node
 	# the Zippo: flick it open and light up whenever a fresh cigar starts
 	var cig: float = m.effect_left(peer_id, "cigar") if m else 0.0
@@ -492,6 +496,19 @@ func play_emote(e: String) -> void:
 			return
 		emote = i
 		_emote_t = Character.clip_length("dance") * 3.0
+		return
+	if e in HELD_EMOTES:
+		if EMOTES[emote] == e:                   # pressed again: put it away
+			emote = 0
+			_emote_t = 0.0
+			return
+		var m = world.match_node if world else null
+		if is_local and m != null and m.cash_of(peer_id) < 100.0:
+			world.hud.show_toast("No cash on you. Hit an ATM first (office by the elevator, or outside the bank).", Color(1, 0.6, 0.3))
+			return
+		emote = i
+		_emote_t = 20.0
+		Sfx.play("brrt" if e == "flash" else "cash", -8.0, 1.4)
 		return
 	emote = i
 	# rotoscoped emotes play their whole clip once; the rest are short
@@ -561,8 +578,44 @@ func net_tf(pos: Vector3, yaw: float, p: float, flags: int) -> void:
 	raining = flags & 1 != 0
 	diving = 0.5 if flags & 2 != 0 else 0.0
 	busy = flags & 4 != 0
-	emote = (flags >> 3) & 7
-	_set_seat(((flags >> 6) & 31) - 1)
+	emote = (flags >> 3) & 15
+	_set_seat(((flags >> 7) & 31) - 1)
 	if not _has_target:
 		global_position = pos
 		_has_target = true
+
+
+# ---------------------------------------------------------------- cash in hand
+
+## The stack in your right hand while you flash it (or run it through a
+## counter): rebuilt when your cash on hand changes, so more money = a
+## bigger stack, and the top bill riffles. The fan for the money-spread pose.
+func _update_held_cash(m) -> void:
+	var e: String = EMOTES[emote]
+	var cash: float = m.cash_of(peer_id) if m != null else 0.0
+	var show_stack := (e == "flash" or _cash_t > 0.0) and cash >= 100.0
+	if show_stack:
+		var tier: float = floor(cash / 1000.0) * 1000.0          # rebuild on $1K changes, not every cent
+		if cash_stack == null or not is_instance_valid(cash_stack) or tier != _stack_amount:
+			if cash_stack and is_instance_valid(cash_stack):
+				cash_stack.queue_free()
+			cash_stack = CashArt.hand_stack(maxf(tier, 100.0))
+			cash_stack.position = Vector3(0.0, -0.01, -0.05)
+			cash_stack.rotation = Vector3(-PI / 2, 0.0, 0.0)          # stands up out of the fist, band facing out
+			model.prop_right.add_child(cash_stack)
+			_stack_amount = tier
+		var rf: Node3D = cash_stack.get_node_or_null("Riffle")
+		if rf:
+			rf.rotation.z = -absf(sin(Time.get_ticks_msec() / 1000.0 * 14.0)) * 0.45
+	if cash_stack and is_instance_valid(cash_stack):
+		cash_stack.visible = show_stack
+	if e == "fan":
+		if held_fan == null or not is_instance_valid(held_fan):
+			held_fan = CashArt.fan()
+			held_fan.position = Vector3(0.0, -0.01, -0.05)
+			held_fan.rotation = Vector3(-PI / 2, 0.0, 0.0)           # opens up out of the fist, facing out
+			held_fan.scale = Vector3.ONE * 1.15
+			model.prop_right.add_child(held_fan)
+		held_fan.visible = true
+	elif held_fan and is_instance_valid(held_fan):
+		held_fan.visible = false

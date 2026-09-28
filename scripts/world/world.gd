@@ -31,6 +31,9 @@ var _count_node: Node
 var _brrt_t := 0.0
 const UI_RED := Color(1, 0.3, 0.3)
 var _trophy_sig := {}           # desk id -> signature of what's on it
+const CashArt = preload("res://scripts/art/cash_art.gd")
+var atms: Array = []            # ATM nodes (office by the elevator, street outside the bank)
+var _spread_nodes := {}         # peer -> {node, sig}: cash laid out for the photo
 
 
 func _ready() -> void:
@@ -67,6 +70,9 @@ func _ready() -> void:
 	match_node.state_changed.connect(_update_trophies)
 	Net.players_changed.connect(_update_trophies)
 	match_node.news.connect(_on_news)
+	_build_atms()
+	match_node.cash_moved.connect(_on_cash_moved)
+	match_node.state_changed.connect(_sync_spreads)
 	_sync_players()
 
 
@@ -683,3 +689,144 @@ func _apply_graphics() -> void:
 		for mi in builder.root.find_children("*", "MeshInstance3D", true, false):
 			if mi.has_meta("no_batch"):
 				mi.visibility_range_end = g.detail
+
+
+# ---------------------------------------------------------------- ATMs + cash
+
+## ATM kiosk (prop "ATM" from the kit, a stand-in box until it's there).
+## Screen / header / dispenser points match build_props.py's ATM.
+const ATM_HEADER := Vector3(0, 1.53, 0.25)
+const ATM_SCREEN := Vector3(0, 1.16, 0.25)
+const ATM_SLOT := Vector3(0, 0.93, 0.3)
+
+
+func _build_atms() -> void:
+	var spots := [
+		[Vector3(3.3, 0, OfficeBuilder.D / 2 - 0.36), PI],          # office, by the elevator
+		[builder.street.P(-3.2, builder.street.SIDEWALK_H, -builder.street.WALK + 0.34), 0.0],   # outside the bank
+	]
+	for i in spots.size():
+		var pos: Vector3 = spots[i][0]
+		var rot: float = spots[i][1]
+		var n: Node3D
+		if PropKit.has("ATM"):
+			n = PropKit.place("ATM", builder.root, pos, rot)
+		else:
+			n = Node3D.new()
+			n.position = pos
+			n.rotation.y = rot
+			builder.root.add_child(n)
+			CashArt._box(n, Vector3(0.75, 1.65, 0.6), Vector3.ZERO, Color(0.3, 0.32, 0.36))
+			CashArt._box(n, Vector3(0.5, 0.36, 0.02), ATM_SCREEN + Vector3(0, -0.18, 0.02), Color(0.05, 0.25, 0.2))
+		n.name = "ATM_%d" % i
+		var head := Label3D.new()
+		head.text = "BAGHOLDER BANK"
+		head.font_size = 40
+		head.pixel_size = 0.0016
+		head.modulate = Color(1, 0.84, 0.3)
+		head.outline_size = 0
+		head.position = ATM_HEADER + Vector3(0, 0, 0.015)
+		n.add_child(head)
+		var scr := Label3D.new()
+		scr.name = "Screen"
+		scr.text = "WELCOME\n[E] CASH"
+		scr.font_size = 32
+		scr.pixel_size = 0.0014
+		scr.modulate = Color(0.45, 1.0, 0.7)
+		scr.outline_size = 0
+		scr.position = ATM_SCREEN + Vector3(0, 0, 0.015)
+		n.add_child(scr)
+		var col: Node3D = builder.solid(Vector3(0.75, 1.65, 0.6), pos + Vector3(0, 0.825, 0), builder.root, rot)
+		builder.add_interact(col, "atm", i, "[E] ATM: take out / put in cash")
+		atms.append(n)
+
+
+func _near_atm(node: Node3D) -> Node3D:
+	for a in atms:
+		if a.global_position.distance_to(node.global_position) < 3.0:
+			return a
+	return null
+
+
+## Cash in or out of an ATM: bills fly out of (or into) the slot for everyone
+## watching, the brrt of the counter inside.
+func _on_cash_moved(peer: int, withdrawn: float, _total: float) -> void:
+	var p := player_node(peer)
+	if p == null:
+		return
+	var a := _near_atm(p)
+	if a == null:
+		return
+	var out := withdrawn > 0.0
+	var n := clampi(int(log(maxf(absf(withdrawn), 1000.0) / 1000.0 + 1.0) * 4.0) + 3, 3, 16)
+	for k in n:
+		var b := CashArt.bill(a, ATM_SLOT, Vector3(0, randf_range(-0.2, 0.2), 0))
+		b.visible = false
+		var tw := create_tween()
+		tw.tween_interval(k * 0.07)
+		tw.tween_callback(func(): b.visible = true)
+		var dst := ATM_SLOT + Vector3(randf_range(-0.12, 0.12), randf_range(-0.35, -0.15), randf_range(0.25, 0.45))
+		if out:
+			tw.tween_property(b, "position", dst, 0.35).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+			tw.parallel().tween_property(b, "rotation", Vector3(randf_range(-0.6, 0.6), randf_range(-1, 1), randf_range(-0.5, 0.5)), 0.35)
+		else:
+			b.position = dst
+			tw.tween_property(b, "position", ATM_SLOT, 0.25).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+		tw.tween_interval(0.25 if out else 0.0)
+		tw.tween_callback(b.queue_free)
+	var scr: Label3D = a.get_node_or_null("Screen")
+	if scr:
+		scr.text = ("TAKE YOUR CASH\n%s" if out else "DEPOSITED\n%s") % Rules.money(absf(withdrawn))
+		get_tree().create_timer(2.5).timeout.connect(func():
+			if is_instance_valid(scr):
+				scr.text = "WELCOME\n[E] CASH")
+	if peer == Net.my_id():
+		local_player.show_cash_stack(2.2 if out else 0.0)
+
+
+## N: lay your cash out on the table / floor you're looking at (everyone sees
+## it; it's still yours). N again picks it up.
+func toggle_spread() -> void:
+	if local_player == null:
+		return
+	var me := Net.my_id()
+	if match_node.spreads.has(me):
+		match_node.request_spread(Vector3.ZERO, 0.0, true)
+		Sfx.play("cash", -6.0)
+		return
+	if match_node.cash_of(me) < 100.0:
+		hud.show_toast("No cash on you to spread. Hit an ATM first.", Color(1, 0.6, 0.3))
+		return
+	var cam: Camera3D = local_player.cam
+	var from := cam.global_position
+	var space := get_world_3d().direct_space_state
+	var hit := space.intersect_ray(PhysicsRayQueryParameters3D.create(from, from - cam.global_basis.z * 3.0, 1))
+	var pos: Vector3
+	if not hit.is_empty() and (hit.normal as Vector3).y > 0.7:
+		pos = hit.position                                   # a desk, a table, a bed, the floor
+	else:
+		var ahead: Vector3 = local_player.global_position - local_player.global_basis.z * 1.1 + Vector3(0, 1.0, 0)
+		var down := space.intersect_ray(PhysicsRayQueryParameters3D.create(ahead, ahead + Vector3.DOWN * 3.0, 1))
+		pos = down.position if not down.is_empty() else local_player.global_position - local_player.global_basis.z * 1.1
+	match_node.request_spread(pos + Vector3(0, 0.002, 0), local_player.rotation.y, false)
+	Sfx.play("brrt", -6.0)
+
+
+## Build / move / remove everyone's spreads from the match state.
+func _sync_spreads() -> void:
+	for peer in _spread_nodes.keys():
+		if not match_node.spreads.has(peer):
+			(_spread_nodes[peer].node as Node).queue_free()
+			_spread_nodes.erase(peer)
+	for peer in match_node.spreads:
+		var sp: Dictionary = match_node.spreads[peer]
+		var sig := "%s|%s|%d" % [str(sp.pos), str(sp.yaw), int(float(sp.amount) / 1000.0)]
+		if _spread_nodes.has(peer) and _spread_nodes[peer].sig == sig:
+			continue
+		if _spread_nodes.has(peer):
+			(_spread_nodes[peer].node as Node).queue_free()
+		var n := CashArt.spread(float(sp.amount), int(peer) + int(float(sp.amount)))
+		n.position = sp.pos
+		n.rotation.y = float(sp.yaw)
+		add_child(n)
+		_spread_nodes[peer] = {"node": n, "sig": sig}

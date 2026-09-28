@@ -42,6 +42,7 @@ signal contract_done(peer: int, c: Dictionary, cash: float)
 signal shock(kind: String, stage: String)
 signal milestone(amount: float, xp: float)
 signal saved(info: Dictionary)
+signal cash_moved(peer: int, withdrawn: float, total: float)
 
 # ---------------- mirrored state (all peers) ----------------
 var phase := "lobby"            # lobby | trading | intermission | gameover
@@ -69,6 +70,8 @@ var event_at := -1.0            # time_left when today's announced shock hits (F
 var halt := 0.0                 # circuit breaker: seconds of trading halt left
 var contracts := {}             # peer -> [contract] (Tony's contracts for today)
 var milestones := 0             # co-op: how many fund milestones this run has hit
+var wallet := {}                # peer -> cash on hand (out of the ATM), counts toward the quota
+var spreads := {}               # peer -> {pos, yaw, amount}: cash laid out for the photo
 var ready_up := {}                 # peer -> true: pressed ENTER, waiting for the bell (lobby / after hours)
 
 # ---------------- server-only ----------------
@@ -273,6 +276,109 @@ func _ring_bell() -> void:
 		_start_day()
 
 
+# ---------------- cash on hand (ATM, spreads) ----------------
+
+func cash_of(peer: int) -> float:
+	return float(wallet.get(peer, 0.0))
+
+
+## Every trader's cash on hand together (co-op: it's all the desk's money).
+func total_cash() -> float:
+	var t := 0.0
+	for id in wallet:
+		t += float(wallet[id])
+	return t
+
+
+## Pay for something: cash on hand first, the account covers the rest.
+func _pay(id: int, amount: float) -> bool:
+	var acct := acct_for(id)
+	var a: Dictionary = ledger.get_acct(acct)
+	var cash := cash_of(id)
+	if a.is_empty() or cash + float(a.get("balance", 0.0)) < amount:
+		return false
+	var from_cash := minf(cash, amount)
+	wallet[id] = cash - from_cash
+	if amount - from_cash > 0.0:
+		ledger.adjust(acct, -(amount - from_cash))
+	_shrink_spread(id)
+	return true
+
+
+## The ATM: take cash out of the trading account (co-op: the fund) / put it back.
+func request_withdraw(amount: float) -> void:
+	_req_cash.rpc_id(1, amount)
+
+
+func request_deposit(amount: float) -> void:
+	_req_cash.rpc_id(1, -amount)
+
+
+@rpc("any_peer", "call_local", "reliable")
+func _req_cash(amount: float) -> void:
+	if not Net.is_server():
+		return
+	var id := _sender()
+	_ensure_peer(id)
+	if is_jailed(id):
+		_s_error.rpc_id(id, "No ATMs in jail.")
+		return
+	var acct := acct_for(id)
+	var a: Dictionary = ledger.get_acct(acct)
+	var moved := 0.0                                     # + came out, - went in
+	if amount > 0.0:                                     # withdraw
+		amount = minf(amount, float(a.get("balance", 0.0)))
+		if amount < 1.0:
+			_s_error.rpc_id(id, "Insufficient funds. Go make some trades.")
+			return
+		ledger.adjust(acct, -amount)
+		wallet[id] = cash_of(id) + amount
+		moved = amount
+		if Net.mode == "coop" and Net.players.size() > 1:
+			_s_toast.rpc("%s pulled %s out of the fund in cash" % [Net.player_name(id), Rules.money(amount)])
+	else:                                                # deposit
+		amount = minf(-amount, cash_of(id))
+		if amount < 1.0:
+			return
+		wallet[id] = cash_of(id) - amount
+		ledger.adjust(acct, amount)
+		_shrink_spread(id)
+		moved = -amount
+	_s_cash.rpc(id, moved, cash_of(id))
+	_push_state()
+
+
+## Lay your cash out on the floor / a table for the photo (everyone sees it).
+## Nobody can take it; it's still your wallet. amount 0 = pick it back up.
+func request_spread(pos: Vector3, yaw: float, pick_up: bool) -> void:
+	_req_spread.rpc_id(1, pos, yaw, pick_up)
+
+
+@rpc("any_peer", "call_local", "reliable")
+func _req_spread(pos: Vector3, yaw: float, pick_up: bool) -> void:
+	if not Net.is_server():
+		return
+	var id := _sender()
+	if pick_up or cash_of(id) < 100.0:
+		spreads.erase(id)
+	else:
+		spreads[id] = {"pos": pos, "yaw": yaw, "amount": cash_of(id)}
+	_push_state()
+
+
+func _shrink_spread(id: int) -> void:
+	if spreads.has(id):
+		if cash_of(id) < 100.0:
+			spreads.erase(id)
+		else:
+			spreads[id].amount = cash_of(id)
+
+
+@rpc("authority", "call_local", "reliable")
+func _s_cash(peer: int, amount: float, total: float) -> void:
+	cash_moved.emit(peer, amount, total)
+
+
 func request_open(sym: String, side: int, margin: float, lev: int) -> void:
 	_req_open.rpc_id(1, sym, side, margin, lev)
 
@@ -424,10 +530,9 @@ func _req_buy(item: String) -> void:
 		return
 	var acct := acct_for(id)
 	var a: Dictionary = ledger.get_acct(acct)
-	if a.is_empty() or a.balance < def.price:
+	if not _pay(id, def.price):
 		_s_error.rpc_id(id, "Can't afford %s." % def.name)
 		return
-	ledger.adjust(acct, -def.price)
 	inventory[id][item] = inventory[id].get(item, 0) + 1
 	if Net.mode == "coop":
 		_s_toast.rpc("%s spent %s of the fund on %s" % [Net.player_name(id), Rules.money(def.price), def.name])
@@ -458,10 +563,9 @@ func _req_buy_lux(key: String) -> void:
 	var acct := acct_for(id)
 	var a: Dictionary = ledger.get_acct(acct)
 	var price := lux_price(key)
-	if a.is_empty() or a.balance < price:
+	if a.is_empty() or not _pay(id, price):
 		_s_error.rpc_id(id, "Can't afford %s." % def.name)
 		return
-	ledger.adjust(acct, -price)
 	owned[id][key] = lux_count(id, key) + 1
 	_save_careers()
 	_add_heat(id, def.get("heat", 0.0))
@@ -489,10 +593,9 @@ func _req_buy_upgrade(key: String) -> void:
 		return
 	var acct := acct_for(id)
 	var a: Dictionary = ledger.get_acct(acct)
-	if a.is_empty() or a.balance < def.price:
+	if a.is_empty() or not _pay(id, def.price):
 		_s_error.rpc_id(id, "Can't afford the %s." % def.name)
 		return
-	ledger.adjust(acct, -def.price)
 	owned[id][key] = 1
 	_save_careers()
 	_s_toast.rpc("%s upgraded their desk: %s" % [Net.player_name(id), def.name])
@@ -597,10 +700,9 @@ func _req_hotdog() -> void:
 	var id := _sender()
 	_ensure_peer(id)
 	var a: Dictionary = ledger.get_acct(acct_for(id))
-	if a.is_empty() or a.balance < Rules.HOTDOG_PRICE:
+	if a.is_empty() or not _pay(id, Rules.HOTDOG_PRICE):
 		_s_error.rpc_id(id, "Can't even afford a hot dog. Rookie numbers.")
 		return
-	ledger.adjust(acct_for(id), -Rules.HOTDOG_PRICE)
 	pressure[id] = maxf(pressure_of(id) - Rules.HOTDOG_RELIEF, 0.0)
 	_s_toast.rpc_id(id, "Dirty water dog. Blood pressure -%d." % int(Rules.HOTDOG_RELIEF))
 	_contract(id, "hotdog")
@@ -911,6 +1013,11 @@ func server_cop_caught(target: int) -> void:
 	var acct := acct_for(target)
 	var fine: float = ledger.get_acct(acct).get("balance", 0.0) * Rules.ARREST_FINE
 	ledger.adjust(acct, -fine)
+	var seized: float = floor(cash_of(target) * Rules.CASH_SEIZED)
+	if seized > 0.0:
+		wallet[target] = cash_of(target) - seized
+		spreads.erase(target)
+		_s_toast.rpc("The cops bagged %s of %s's cash as evidence." % [Rules.money(seized), Net.player_name(target)])
 	_s_arrested.rpc(target, _booking_no)
 	_s_toast.rpc("%s GOT ARRESTED. Fined %s." % [Net.player_name(target), Rules.money(fine)])
 	_end_raid(true)
@@ -973,6 +1080,8 @@ func _reset_run() -> void:
 	contracts.clear()
 	milestones = 0
 	ready_up.clear()
+	wallet.clear()
+	spreads.clear()
 	_set_day_event("")
 	next_event = ""
 	if not raid.is_empty():
@@ -1034,6 +1143,7 @@ func _restore_peer(id: int) -> void:
 	if p.is_empty():
 		return
 	inventory[id] = (p.get("inventory", {}) as Dictionary).duplicate()
+	wallet[id] = float(p.get("cash", 0.0))
 	for item in inventory[id]:
 		inventory[id][item] = int(inventory[id][item])
 	var st: Dictionary = p.get("stats", {})
@@ -1057,7 +1167,7 @@ func snapshot(over: bool) -> Dictionary:
 		var nm := Net.player_name(id)
 		names.append(nm)
 		var st: Dictionary = stats.get(id, {})
-		var p := {"name": nm, "inventory": inventory.get(id, {}).duplicate(),
+		var p := {"name": nm, "inventory": inventory.get(id, {}).duplicate(), "cash": cash_of(id),
 			"stats": {"pnl_total": st.get("pnl_total", 0.0), "trades": st.get("trades", 0),
 				"arrests": st.get("arrests", 0), "biggest": st.get("biggest", 0.0)}}
 		if Net.mode == "pvp" and ledger.has(id):
@@ -1331,7 +1441,7 @@ func _end_day() -> void:
 	var over := false
 	var desk_passed := false
 	if Net.mode == "coop":
-		var bal: float = ledger.get_acct(0).balance
+		var bal: float = ledger.get_acct(0).balance + total_cash()   # the desk's cash on hand counts
 		summary["balance"] = bal
 		summary["passed"] = bal >= quota
 		desk_passed = bal >= quota
@@ -1341,11 +1451,11 @@ func _end_day() -> void:
 		var alive := 0
 		for id in ledger.accounts:
 			var a: Dictionary = ledger.accounts[id]
-			if not a.busted and a.balance < quota:
+			if not a.busted and a.balance + cash_of(id) < quota:
 				a.busted = true
 			if not a.busted:
 				alive += 1
-			ranking.append({"id": id, "name": a.name, "balance": a.balance, "busted": a.busted})
+			ranking.append({"id": id, "name": a.name, "balance": a.balance + cash_of(id), "busted": a.busted})
 		ranking.sort_custom(func(x, y): return x.balance > y.balance)
 		summary["ranking"] = ranking
 		var needed_alive := 1 if ledger.accounts.size() > 1 else 0
@@ -1387,7 +1497,8 @@ func _push_state() -> void:
 	_s_state.rpc({"phase": phase, "day": day, "time_left": time_left, "quota": quota,
 		"accounts": accounts, "heat": heat, "jail": jail, "inventory": inventory, "owned": owned, "careers": careers,
 		"effects": effects, "stats": stats, "raid": raid, "day_event": day_event, "next_event": next_event,
-		"event_at": event_at, "halt": halt, "contracts": contracts, "milestones": milestones, "ready": ready_up})
+		"event_at": event_at, "halt": halt, "contracts": contracts, "milestones": milestones, "ready": ready_up,
+		"wallet": wallet, "spreads": spreads})
 
 
 # ======================================================================
@@ -1416,6 +1527,8 @@ func _s_state(s: Dictionary) -> void:
 	contracts = s.get("contracts", {})
 	milestones = s.get("milestones", 0)
 	ready_up = s.get("ready", {})
+	wallet = s.get("wallet", {})
+	spreads = s.get("spreads", {})
 	state_changed.emit()
 
 

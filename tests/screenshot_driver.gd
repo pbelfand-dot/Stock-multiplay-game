@@ -69,6 +69,92 @@ func _run() -> void:
 		await _street_only(world, m, hud)
 		Sfx.quit_game()
 		return
+	if Config.cli.has("handtest"):              # which way does a prop sit in the right hand?
+		var rots := [Vector3(0, PI / 2, 0), Vector3(-PI / 2, 0, 0), Vector3(-PI / 2, PI / 2, 0), Vector3(0, 0, PI / 2),
+			Vector3(PI / 2, 0, PI / 2), Vector3(0, PI / 2, PI / 2)]
+		m.wallet[1] = 150_000.0
+		m._push_state()
+		var dudes := []
+		for k in rots.size():
+			var d = load("res://scripts/player/player.gd").new()
+			d.setup(900 + k, "R%d" % k, load("res://scripts/art/character.gd").player_look(1), false, world)
+			world.players_node.add_child(d)
+			d.teleport(Vector3(-2.5 + k * 1.0, 0.1, 4.0))
+			d.rotation.y = PI
+			d.name_tag.text = "%d" % k
+			dudes.append(d)
+		await _frames(5)
+		for k in rots.size():
+			var st = load("res://scripts/art/cash_art.gd").fan() if Config.cli.has("fan") else load("res://scripts/art/cash_art.gd").hand_stack(80_000.0)
+			st.rotation = rots[k]
+			dudes[k].model.prop_right.add_child(st)
+			dudes[k].model.pose = "fan" if Config.cli.has("fan") else "flash"
+			dudes[k].set_physics_process(false)
+		var p1 = world.local_player
+		p1.teleport(Vector3(0, 0.1, 6.8))
+		p1.rotation.y = 0.0
+		await get_tree().create_timer(1.0).timeout
+		var cam := Camera3D.new()
+		world.add_child(cam)
+		cam.fov = 40
+		cam.current = true
+		for k in rots.size():
+			var hand: Vector3 = dudes[k].model.prop_right.global_position
+			cam.global_position = hand + Vector3(-0.3, 0.3, 0.7)
+			cam.look_at(hand)
+			await _frames(4)
+			await _snap("hand_rot_%d" % k)
+		Sfx.quit_game()
+		return
+	if Config.cli.has("cashonly"):             # ATM, the stack in your hand, the fan, a spread
+		var p0 = world.local_player
+		m.ledger.get_acct(0).balance = 900_000.0
+		m._push_state()
+		p0.teleport(world.atms[0].global_position + Vector3(0, 0.1, -1.3))
+		p0.rotation.y = 0.0
+		p0.pitch = -0.1
+		p0.head.rotation.x = -0.1
+		hud.open_interact({"type": "atm", "id": 0})
+		hud.atm.step = 6
+		hud.atm._go(1)
+		await get_tree().create_timer(0.35).timeout
+		await _snap("c1_atm_withdraw")
+		await get_tree().create_timer(1.5).timeout
+		hud.close_modals()
+		print("cash on hand: %s" % m.cash_of(1))
+		# flash it (third person via photo mode so we see ourselves)
+		p0.teleport(Vector3(0, 0.1, 6))
+		p0.rotation.y = 0.0
+		p0.play_emote("flash")
+		await _frames(10)
+		var pm = hud.photo
+		pm.toggle()
+		pm.cam.global_position = p0.global_position + Vector3(0.9, 1.55, -1.3)
+		pm.cam.look_at(p0.global_position + Vector3(0.15, 1.2, 0))
+		pm._yaw = pm.cam.rotation.y
+		pm._pitch = pm.cam.rotation.x
+		await _frames(10)
+		await _snap("c2_flash_250k")
+		p0.play_emote("fan")
+		await get_tree().create_timer(0.6).timeout
+		await _snap("c3_money_fan")
+		pm.toggle()
+		# lay it out on the floor
+		p0.emote = 0
+		world.toggle_spread()
+		await get_tree().create_timer(0.6).timeout
+		p0.teleport(Vector3(0, 0.1, 7.5))
+		p0.pitch = -0.75
+		p0.head.rotation.x = -0.75
+		await _frames(10)
+		await _snap("c4_spread_250k")
+		m.wallet[1] = 4_500.0
+		m._shrink_spread(1)
+		m._push_state()
+		await _frames(6)
+		await _snap("c5_spread_4k")
+		Sfx.quit_game()
+		return
 	if Config.cli.has("photoonly"):            # photo mode: pose, filter, snap
 		var pm = hud.photo
 		pm.dir_override = out_dir + "/photos"

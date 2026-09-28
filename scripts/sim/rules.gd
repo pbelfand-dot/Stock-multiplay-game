@@ -120,6 +120,11 @@ static func perks_for(rank: int, own: Dictionary) -> Dictionary:
 const MILESTONES := [100_000.0, 250_000.0, 1_000_000.0, 5_000_000.0, 25_000_000.0, 100_000_000.0]
 const MILESTONE_XP := [25.0, 40.0, 75.0, 150.0, 300.0, 600.0]
 
+## Cash on hand: the ATM steps, and what the cops keep as evidence when they
+## catch you with it.
+const ATM_STEPS := [1_000.0, 5_000.0, 10_000.0, 25_000.0, 50_000.0, 100_000.0, 250_000.0, 1_000_000.0]
+const CASH_SEIZED := 0.5
+
 const PAWN_RATE := 0.5          # pawn shop pays half what you paid
 const HOTDOG_PRICE := 20.0
 const HOTDOG_RELIEF := 35.0     # blood pressure points

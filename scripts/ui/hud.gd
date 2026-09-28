@@ -14,6 +14,7 @@ const CrtFrame = preload("res://scripts/ui/crt_frame.gd")
 const MusicDirector = preload("res://scripts/ui/music_director.gd")
 const EmoteWheel = preload("res://scripts/ui/emote_wheel.gd")
 const PhotoMode = preload("res://scripts/ui/photo_mode.gd")
+const AtmUi = preload("res://scripts/ui/atm_ui.gd")
 const DayEvents = preload("res://scripts/sim/day_events.gd")
 const Contracts = preload("res://scripts/sim/contracts.gd")
 
@@ -63,6 +64,8 @@ var phone
 var music                  # MusicDirector: picks the soundtrack
 var emote_wheel            # hold B
 var photo                  # K: photo mode
+var atm                    # BAGHOLDER BANK ATM
+var cash_lbl: Label
 var tailor
 var crt
 var _last_post := ""
@@ -147,6 +150,8 @@ func _build_top_bar() -> void:
 	bar.add_child(h)
 	fund_lbl = UI.lbl("FUND $0", 30, UI.GREEN, true)
 	h.add_child(fund_lbl)
+	cash_lbl = UI.lbl("", 24, Color(0.95, 1.0, 0.6), true)      # cash on hand (out of the ATM)
+	h.add_child(cash_lbl)
 	quota_lbl = UI.lbl("QUOTA $0", 24, UI.GOLD, true)
 	h.add_child(quota_lbl)
 	day_lbl = UI.lbl("LOBBY", 24, UI.TEXT, true)
@@ -415,6 +420,11 @@ void fragment() {
 	relief_lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	relief_lbl.modulate.a = 0.0
 	relief_panel.add_child(relief_lbl)
+	atm = AtmUi.new()
+	atm.setup(match_node)
+	atm.visible = false
+	atm.closed.connect(close_modals)
+	root.add_child(atm)
 	summary = Overlays.Summary.new()
 	summary.start_pressed.connect(func(): match_node.request_start())
 	summary.force_pressed.connect(func(): match_node.request_force_start())
@@ -460,7 +470,7 @@ void fragment() {
 	sens_row.add_child(sens)
 	v.add_child(Music.volume_row(UI.lbl("Music", 20)))
 	v.add_child(Graphics.settings_box(UI))
-	v.add_child(UI.lbl("WASD move · SHIFT sprint · E interact · 1-6 items\nB emote wheel · H dance · K photo mode · TAB scoreboard · T chat · ENTER (host) start the day\nP phone · In terminal: B buy · S sell · Q/E size · L leverage · C close all", 16, UI.DIM))
+	v.add_child(UI.lbl("WASD move · SHIFT sprint · E interact · 1-6 items\nB emote wheel · H dance · J flash cash · N lay your cash out · K photo mode · TAB scoreboard · T chat · ENTER (host) start the day\nP phone · In terminal: B buy · S sell · Q/E size · L leverage · C close all", 16, UI.DIM))
 	var leave := UI.btn("LEAVE OFFICE", UI.RED.darkened(0.2), 24)
 	leave.pressed.connect(func(): get_tree().root.get_node("Main").leave_game())
 	v.add_child(leave)
@@ -486,6 +496,7 @@ func _open_tailor() -> void:
 
 func is_modal_open() -> bool:
 	return terminal.visible or slots.visible or shop.visible or lux_shop.visible or pause_menu.visible or _chat_open \
+			or atm.visible \
 			or summary.visible or (photo != null and photo.active) \
 			or tailor != null
 
@@ -497,6 +508,7 @@ func close_modals() -> void:
 	lux_shop.visible = false
 	crt.visible = false
 	pause_menu.visible = false
+	atm.visible = false
 	if summary.visible:
 		summary.visible = false
 		if match_node.phase == "intermission":
@@ -531,6 +543,10 @@ func open_interact(t: Dictionary) -> void:
 			shop.visible = true
 		"tailor":
 			_open_tailor()
+		"atm":
+			atm.visible = true
+			atm._refresh()
+			Sfx.play("click")
 
 
 func set_prompt(t: Dictionary) -> void:
@@ -655,6 +671,9 @@ func _on_state() -> void:
 	var h: float = match_node.heat.get(me, 0.0)
 	heat_bar.value = h
 	heat_lbl.text = "HEAT %d" % int(h)
+	var cash: float = match_node.cash_of(me)
+	cash_lbl.text = "CASH %s" % Rules.money(cash)
+	cash_lbl.visible = cash >= 1.0
 	_refresh_inventory()
 	_refresh_contracts()
 	if match_node.phase == "trading" and match_node.day != _banner_day:

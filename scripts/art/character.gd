@@ -41,6 +41,7 @@ const POSE_HANDS := {
 	"smoke_chill": ["relax", "pinch"], "smoke": ["relax", "pinch"], "hold": ["relax", "hold"],
 	"aim": ["hold", "hold"], "light": ["hold", "relax"], "cheer": ["fist", "fist"], "dunk": ["open", "open"],
 	"dive": ["open", "open"], "placard": ["hold", "hold"], "type": ["relax", "relax"],
+	"flash": ["relax", "hold"], "fan": ["relax", "pinch"],
 }      # radians: A-pose rest (20 deg) -> arms nearly at the sides
 
 ## Everything a player can customize (the tailor menu edits these).
@@ -624,6 +625,26 @@ func _process(delta: float) -> void:
 		"point":
 			t.shR = Vector3(1.5, 0.05, 0.05)
 			t.elR = Vector3(0.05, 0, 0)
+		"flash":    # stack of cash held out at chest height, thumb riffling the top
+			var riff := sin(_t * 16.0) * 0.04
+			t.shR = Vector3(1.0 + riff, -0.15, 0.05)
+			t.elR = Vector3(0.85, 0, 0)
+			t.shL = Vector3(0.25, 0, -0.12)
+			t.spine_rx -= 0.04
+			t.head_rx = 0.12
+			if fp:      # into view, lower right
+				t.shR = Vector3(0.95 + riff, -0.3, 0.15)
+				t.elR = Vector3(1.05, 0, 0)
+		"fan":      # money spread: a fan of hundreds held up by the face
+			var sway := sin(_t * 2.2) * 0.05
+			t.shR = Vector3(1.15 + sway, 0.2, 0.25)
+			t.elR = Vector3(1.2, 0, 0)
+			t.shL = Vector3(0.3, 0, -0.12)
+			t.head_ry = -0.15
+			t.spine_ry = 0.08
+			if fp:
+				t.shR = Vector3(1.3 + sway, -0.1, 0.2)
+				t.elR = Vector3(1.35, 0, 0)
 		"dunk":
 			t.shL = Vector3(2.9, -0.15, 0)
 			t.shR = Vector3(2.9, 0.15, 0)

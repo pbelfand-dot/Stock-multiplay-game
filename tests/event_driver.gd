@@ -194,6 +194,10 @@ func _coop() -> void:
 		return
 	_say("milestone: the fund passed %s (%d hit)" % [Rules.money(Rules.MILESTONES[0]), m.milestones])
 
+	# ---- the ATM, cash on hand, the spread, and the cops taking half
+	if not await _wallet():
+		return
+
 	# ---- the closing bell: summary knows today's event and tomorrow's forecast
 	m.time_left = 0.5
 	if not await _wait(func(): return not summary.is_empty(), 5.0):
@@ -235,3 +239,56 @@ func _pvp() -> void:
 		_done(false, "no championship trophy: %s / owned %s" % [str(summary.get("winner")), str(m.owned.get(1, {}))])
 		return
 	_done(true, "PvP winner Trader took the championship trophy home")
+
+
+## ATM out/in, cash pays first, the spread follows the wallet, arrest seizes half.
+func _wallet() -> bool:
+	var moves: Array = []
+	m.cash_moved.connect(func(_p, amt, _t): moves.append(amt))
+	var a: Dictionary = m.ledger.get_acct(0)
+	a.balance = 100_000.0
+	m.request_withdraw(25_000.0)
+	if not await _wait(func(): return not moves.is_empty(), 3.0):
+		_done(false, "ATM withdraw never happened")
+		return false
+	if not is_equal_approx(m.cash_of(1), 25_000.0) or not is_equal_approx(a.balance, 75_000.0) or moves[0] <= 0.0:
+		_done(false, "withdraw wrong: cash %f, balance %f, moved %f" % [m.cash_of(1), a.balance, moves[0]])
+		return false
+	m.request_withdraw(10_000_000.0)                 # capped at what's in the account
+	if not await _wait(func(): return moves.size() >= 2, 3.0):
+		_done(false, "second withdraw never happened")
+		return false
+	if not is_equal_approx(m.cash_of(1), 100_000.0) or a.balance > 0.5:
+		_done(false, "withdraw cap wrong: cash %f, balance %f" % [m.cash_of(1), a.balance])
+		return false
+	m.request_deposit(40_000.0)
+	if not await _wait(func(): return moves.size() >= 3, 3.0):
+		_done(false, "deposit never happened")
+		return false
+	if not is_equal_approx(m.cash_of(1), 60_000.0) or not is_equal_approx(a.balance, 40_000.0) or moves[2] >= 0.0:
+		_done(false, "deposit wrong: cash %f, balance %f, moved %f" % [m.cash_of(1), a.balance, moves[2]])
+		return false
+	_say("ATM: took out $25K, then everything (capped), put $40K back: $60K on hand")
+	# the spread: everyone sees it, it follows your wallet
+	m.request_spread(Vector3(1, 0, 2), 0.3, false)
+	if not await _wait(func(): return m.spreads.has(1), 3.0):
+		_done(false, "spread never went down")
+		return false
+	# cash pays first: a hot dog comes out of your pocket, not the account
+	m.request_hotdog()
+	if not await _wait(func(): return m.cash_of(1) < 60_000.0, 3.0):
+		_done(false, "hot dog didn't come out of cash")
+		return false
+	if not is_equal_approx(a.balance, 40_000.0) or not is_equal_approx(float(m.spreads[1].amount), m.cash_of(1)):
+		_done(false, "pay-from-cash wrong: balance %f, spread %s, cash %f" % [a.balance, str(m.spreads[1]), m.cash_of(1)])
+		return false
+	var cash0: float = m.cash_of(1)
+	# busted with cash on you: the cops bag half, the spread's gone
+	m.raid = {"target": 1}
+	m.server_cop_caught(1)
+	if not is_equal_approx(m.cash_of(1), cash0 - floor(cash0 * Rules.CASH_SEIZED)) or m.spreads.has(1):
+		_done(false, "seizure wrong: %f -> %f, spread %s" % [cash0, m.cash_of(1), str(m.spreads.get(1))])
+		return false
+	_say("cash pays first, the spread follows it, cops seized %s of %s" % [Rules.money(floor(cash0 * Rules.CASH_SEIZED)), Rules.money(cash0)])
+	m.jail.erase(1)
+	return true
