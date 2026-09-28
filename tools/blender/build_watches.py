@@ -835,7 +835,7 @@ def lugs(x_in, x_out, z0, z1, top0, top1, bot0, bot1, col, kind="Metal", bevel=0
             prof = list(reversed(prof))
         for sx in (1, -1):
             a, b = sorted((sx * x_in, sx * x_out))
-            emit(slab_bm(prof, a, b, bevel, 2), col, kind)
+            emit(slab_bm(prof, a, b, bevel, 1), col, kind, sharp=0.9)
 
 
 # ============================================================================= shared watch parts
@@ -1115,16 +1115,19 @@ def jubilee_row(metal, metal_b, t=0.0026, gems=False):
         ow = w * 0.3
         for sx in (-1, 1):
             x0, x1 = sorted((sx * w / 2, sx * (w / 2 - ow)))
-            link(M, x0, x1, p * 0.94, t, 0.0011, metal_b, cap=0.0 if gems else 0.00028)
+            link(M, x0, x1, p * 0.94, t, 0.0011, metal_b, cap=0.0)
             if gems:
                 for dz in (-0.25, 0.25):
                     gem(0.0008, ((x0 + x1) / 2, t - 0.0001, dz * p), M=M, n=6, pav=0)
         cw = (w - 2 * ow) / 3.0
+        if gems:      # one pavé bar carrying three stones instead of three separate centre links
+            link(M, -1.44 * cw, 1.44 * cw, p * 0.62, t * 1.1, 0.0009, metal, z=p * 0.5, cap=0.0, n=2)
+            for k in (-1, 0, 1):
+                gem(min(cw * 0.4, 0.00085), (k * cw, t * 1.1 - 0.0001, p * 0.5), M=M, n=6, pav=0)
+            return
         for k in (-1, 0, 1):
             link(M, k * cw - cw * 0.44, k * cw + cw * 0.44, p * 0.62, t * 1.1, 0.0009, metal, z=p * 0.5,
                  cap=0.0, n=2)
-            if gems:
-                gem(min(cw * 0.38, 0.0008), (k * cw, t * 1.1 - 0.0001, p * 0.5), M=M, n=6, pav=0)
     return row
 
 
@@ -1164,7 +1167,7 @@ def cw_case(metal, metal_b, t=0.0026):
     return Yd
 
 
-def cw_bezel_fluted(y0, col, flutes=62):
+def cw_bezel_fluted(y0, col, flutes=54):
     prof = [(0.0157, y0 + 0.0072), (0.0198, y0 + 0.0072), (0.0200, y0 + 0.0082), (0.0192, y0 + 0.0096),
             (0.0176, y0 + 0.0104), (0.0162, y0 + 0.0103), (0.0157, y0 + 0.0097)]
 
@@ -1256,7 +1259,7 @@ def build_crownwell_datejust():
     cw_hands_baton(Yd, GOLD, PRINT)
     crystal(0.0162, Yd + 0.0019, H0 + 0.0107)
     cw_cyclops()
-    crown_knurled(0.0194, H0 + 0.0045, 0.0034, 0.0046, GOLD, logo=True)
+    crown_knurled(0.0194, H0 + 0.0045, 0.0034, 0.0046, GOLD, logo=True, ridges=18)
     bracelet(0.0238, jubilee_row(GOLD, GOLD_B), 0.0050, 0.0196, 0.0162, 0.030,
              lambda s, L, w: cw_clasp(s, L, w, GOLD, GOLD_B), filler=(GOLD_B, "Metal"))
     finish("Watch_Crownwell_Datejust")
@@ -1294,7 +1297,7 @@ def build_crownwell_iced():
     cw_hands_baton(Yd, M_, PRINT)
     crystal(0.0162, Yd + 0.0019, H0 + 0.0102)
     cw_cyclops(y=H0 + 0.0102)
-    crown_knurled(0.0194, H0 + 0.0045, 0.0034, 0.0046, M_, logo=True)
+    crown_knurled(0.0194, H0 + 0.0045, 0.0034, 0.0046, M_, logo=True, ridges=18)
     for sx in (-1, 1):                       # pavé on the lug tops
         for sz in (-1, 1):
             for k in range(3):
