@@ -364,6 +364,9 @@ func test_contracts() -> void:
 			ids[c.id] = true
 		check(ids.size() == cs.size(), "no duplicate contracts")
 		check(cs[0].tier == 1 and cs[1].tier == 2 and cs[2].tier == 3, "easy, medium, hard")
+	var d1: Array = Contracts.deal(rng, 1, Rules.START_FUND)
+	check(d1[0].cash <= 800.0 and d1[2].cash <= 4000.0, "contracts pay a bonus, not the quota (day 1: %s / %s)" % [d1[0].cash, d1[2].cash])
+	check(Rules.PVP_DAYS == 5, "a PvP match is 5 days")
 	var themed: Array = Contracts.deal(rng, 2, Rules.START_FUND, "flash_crash")
 	check(themed.any(func(c): return c.id == "short_big"), "crash day: Tony wants you short")
 	# progress

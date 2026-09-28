@@ -9,7 +9,7 @@ const OVERHEAD_GROWTH := 1.35
 const DAY_SECONDS := 300.0          # 5-minute trading day (like Broke Street)
 const INTERMISSION_SECONDS := 12.0
 const QUOTA_GROWTH := 1.5           # target balance multiplies each day
-const PVP_DAYS := 3
+const PVP_DAYS := 5                 # a PvP match: richest after 5 days wins
 
 const HEAT_MAX := 100.0
 const HEAT_DECAY := 0.5             # per second

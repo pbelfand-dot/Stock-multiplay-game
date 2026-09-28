@@ -40,7 +40,7 @@ Built in **Godot 4.7** — free, no accounts, no store.
 | Mode | How it works |
 |---|---|
 | **Co-op** (default) | One shared fund (starts at $25K). Hit each day's quota (x1.5 every day) or the fund is busted. Overhead gets paid every night. See how many days you survive. |
-| **PvP** | Everyone gets their own $25K. Same market, same news. Miss the quota and you're out. Richest after 3 days wins and takes a championship trophy home for good. No catch-up help: best one wins. Snitching allowed. |
+| **PvP** | Everyone gets their own $25K. Same market, same news. Miss the quota and you're out. Richest after 5 days wins and takes a championship trophy home for good. No catch-up help: best one wins. Snitching allowed. |
 
 ## Progression
 
