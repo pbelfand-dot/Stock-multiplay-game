@@ -901,7 +901,7 @@ def build_shirt_top(name, sleeve="long", hem=0.93, bulk=1.0, hips=False, untucke
     pants waistband (tee)."""
     b = Blob(name)
     if untucked:
-        b.ellipsoid((0, -0.006, WAIST - 0.012), (0.186, 0.136, 0.07))
+        b.ellipsoid((0, -0.006, WAIST - 0.012), (0.182, 0.132, 0.07))
         b.ellipsoid((0, -0.004, WAIST + 0.06), (0.172, 0.124, 0.08))
     if hips:
         b.ellipsoid((0, -0.006, hem + 0.07), (0.225, 0.15, 0.1))
@@ -1048,18 +1048,21 @@ def build_pants():
     cut_above(pants, WAIST)
     # waistband: a slightly darker rolled band hugging the cut edge
     bvh = BVHTree.FromObject(pants, bpy.context.evaluated_depsgraph_get())
-    pts = []
-    n = 40
-    for a in range(n + 1):
+    wb = Blob("Waistband", res=0.004)
+    n = 48
+    for a in range(n):
         ang = a / n * math.tau
         out = Vector((math.sin(ang), math.cos(ang), 0.0))
-        o = Vector((0, -0.008, WAIST - 0.016)) + out * 0.4
+        o = Vector((0, -0.008, WAIST - 0.014)) + out * 0.4
         hit = bvh.ray_cast(o, -out)
-        pts.append((hit[0] if hit[0] else o - out * 0.26) + Vector((0, 0, 0.008)))
-    wb = Blob("Waistband", res=0.0045)
-    wb.chain(pts, [0.0125] * len(pts))
-    band = wb.to_object("Waistband", smooth_iter=1)
-    set_color(band, (0.8, 0.8, 0.8))
+        if not hit[0]:
+            continue
+        nrm = Vector((hit[1].x, hit[1].y, 0)).normalized()
+        tan = Vector((0, 0, 1)).cross(nrm)
+        q = Matrix((tan, -nrm, Vector((0, 0, 1)))).transposed().to_quaternion()
+        wb.ellipsoid(hit[0] + Vector((0, 0, 0.006)) - nrm * 0.001, (0.016, 0.0065, 0.013), rot=q)   # flat band
+    band = wb.to_object("Waistband", smooth_iter=2)
+    set_color(band, (0.84, 0.84, 0.84))
     return join([pants, band], "Pants")
 
 
