@@ -248,7 +248,7 @@ func _boutique(s: Dictionary, inner: Callable, facing: float, side: int) -> void
 	var store: String = str(s.kind).get_slice(":", 1)
 	var at: Vector3 = inner.call(0, SHOP_DEPTH - 2.0)
 	var to_door := facing + PI            # props face +z at 0; this turns them toward the door
-	b.prop("FlexCounter", at, facing, root)
+	b.prop("ShopCounter" if store == "crownwell" else "FlexCounter", at, facing, root)   # no bags on a jeweller's counter
 	var c: Node3D = b.solid(Vector3(2.2, 1.0, 0.7), at + Vector3(0, 0.5, 0), root, facing)
 	b.add_interact(c, "lux", ["guccero", "valmont", "prava", "crownwell", "diorelle", "chavel"].find(store),
 			"[E] Shop %s" % s.name)
@@ -290,8 +290,44 @@ func _boutique(s: Dictionary, inner: Callable, facing: float, side: int) -> void
 
 
 ## Crownwell: glass watch cases and lit wall displays (watch models from build_watches.py).
+const WATCHES := ["Watch_Crownwell_Datejust", "Watch_Crownwell_Iced", "Watch_Crownwell_Sub", "Watch_Valere_Calatrava",
+		"Watch_Valere_Nautilus", "Watch_Audemont_RoyalOak", "Watch_Renaud_RM", "Watch_Carrel_Tank"]
+const CASE_SLOTS := [Vector3(-0.38, 0.848, -0.12), Vector3(0, 0.848, -0.12), Vector3(0.38, 0.848, -0.12),
+		Vector3(-0.38, 0.848, 0.11), Vector3(0, 0.848, 0.11), Vector3(0.38, 0.848, 0.11)]
+
+
 func _watch_floor(inner: Callable, to_door: float) -> void:
-	pass
+	# two glass vitrines on the floor, 6 watches each on their cushions
+	var n := 0
+	for dx in [-2.0, 2.0]:
+		var at: Vector3 = inner.call(dx, 3.3)
+		b.prop("WatchCase", at, to_door, root)
+		b.solid(Vector3(1.2, 1.0, 0.6), at + Vector3(0, 0.5, 0), root, to_door)
+		var basis := Basis(Vector3.UP, to_door)
+		for slot in CASE_SLOTS:
+			PropKit.place_detail(WATCHES[n % WATCHES.size()], root, at + basis * slot, Vector3(0, to_door, 0))
+			n += 1
+	# lit wall shelves down both sides: pillows tipped toward you, a watch on each
+	for wall in [[-4.8, PI / 2], [4.8, -PI / 2]]:
+		for dz in [2.3, 4.6]:
+			var at: Vector3 = inner.call(wall[0], dz)
+			b.prop("WatchWallShelf", at, wall[1], root)
+			var basis := Basis(Vector3.UP, wall[1])
+			for shelf_y in [1.38, 1.68]:          # eye-level rows (each watch is ~13k tris)
+				for sx in [-0.45, 0.0, 0.45]:
+					var slot: Vector3 = at + basis * Vector3(sx, shelf_y, 0.17)
+					var tilt := Node3D.new()
+					tilt.position = slot
+					tilt.rotation = Vector3(0.7, wall[1], 0)
+					root.add_child(tilt)
+					PropKit.place_detail("WatchPillow", tilt, Vector3.ZERO)
+					PropKit.place_detail(WATCHES[n % WATCHES.size()], tilt, Vector3(0, 0.031, 0))
+					n += 1
+	# the green box open on the counter, a Datejust inside
+	var box_at: Vector3 = inner.call(-0.4, SHOP_DEPTH - 2.0) + Vector3(0, 1.045, 0)     # on the ShopCounter top
+	PropKit.place_detail("WatchBox_Crownwell", root, box_at, Vector3(0, to_door, 0))
+	PropKit.place_detail("Watch_Crownwell_Datejust", root, box_at + Basis(Vector3.UP, to_door) * Vector3(0, 0.045, 0.008),
+			Vector3(0, to_door, 0))
 
 func _mannequin(pos: Vector3, facing: float, look: Dictionary) -> void:
 	var m = Character.new()

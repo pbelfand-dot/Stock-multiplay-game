@@ -397,6 +397,10 @@ func _street_only(world, m, hud) -> void:
 	for st in world.builder.street.NORTH + world.builder.street.SOUTH:
 		var side := -1 if world.builder.street.NORTH.has(st) else 1
 		views.append(["s1_" + str(st.kind).replace(":", "_"), Vector3(st.x, 0.25, side * 9.8), 0.0 if side < 0 else PI, -0.08])
+	var cw: float = 18.0          # Crownwell (north row): close-ups of the cases and the wall
+	views.append(["s2_watch_case", Vector3(cw - 2.0, 0.25, -11.2), 0.0, -0.75])
+	views.append(["s2_watch_wall", Vector3(cw - 3.0, 0.25, -12.0), PI / 2 + 0.1, -0.1])
+	views.append(["s2_watch_counter", Vector3(cw + 0.55, 0.25, -14.0), 0.0, -0.7])
 	for v in views:
 		p.teleport(so + v[1])
 		p.rotation.y = v[2]

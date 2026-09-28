@@ -6,6 +6,8 @@ extends RefCounted
 ## whole office into a few draw calls.
 
 const KIT_PATH := "res://assets/props/props_kit.glb"
+## Every kit loaded into the same prop table (names are unique across kits).
+const KITS := [KIT_PATH, "res://assets/props/watches_kit.glb"]   # watches: tools/blender/build_watches.py
 
 const HAZE_COLOR := Color(0.64, 0.78, 0.94)   # the sky; far towers fade into it
 
@@ -31,12 +33,24 @@ static func material(kind: String) -> StandardMaterial3D:
 			m.metallic_specular = 0.8
 		"Glow":
 			m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		"Glass":   # watch crystals, vitrine panes: see-through with a glint
+			m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+			m.albedo_color = Color(1, 1, 1, 0.14)
+			m.roughness = 0.05
+			m.metallic_specular = 1.0
 	_mats[kind] = m
 	return m
 
 
 static func _load() -> void:
-	var scene: PackedScene = load(KIT_PATH)
+	for path in KITS:
+		_load_kit(path)
+
+
+static func _load_kit(path: String) -> void:
+	var scene: PackedScene = load(path)
+	if scene == null:
+		return
 	var inst: Node = scene.instantiate()
 	for mi in inst.find_children("*", "MeshInstance3D", true, false):
 		var list: Array = []
@@ -105,4 +119,17 @@ static func place(prop: String, parent: Node, pos := Vector3.ZERO, rot_y := 0.0,
 	if not _parts.has(prop):
 		push_error("props kit has no '%s'" % prop)
 	parent.add_child(n)
+	return n
+
+
+## A small, dense prop (a watch): kept out of the static batch and only drawn
+## within `near` metres, so a store full of them costs nothing from the street.
+static func place_detail(prop: String, parent: Node, pos := Vector3.ZERO, rot := Vector3.ZERO, near := 9.0) -> Node3D:
+	var n := place(prop, parent, pos, rot.y)
+	n.rotation = rot
+	for mi in n.get_children():
+		if mi is MeshInstance3D:
+			mi.set_meta("no_batch", true)
+			mi.visibility_range_end = near
+			mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	return n
