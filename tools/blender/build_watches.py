@@ -546,11 +546,19 @@ def gem(r, pos, M=None, n=8, pav=0.9, up=None):
             cols.append((1.0, 1.0, 1.0))
         else:
             cols.append(_gem_rng.choice(GEM_TONES))
+    if pav <= 0:     # the flat underside is never seen: drop it once the normals are settled
+        bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+        bottom = [f for f in bm.faces if len(f.verts) == n and f.calc_center_median().y < 1e-9]
+        idx = {f.index for f in bottom}
+        bm.faces.index_update()
+        cols = [c for f, c in zip(bm.faces, cols) if f not in bottom]
+        bmesh.ops.delete(bm, geom=bottom, context="FACES_ONLY")
+        _ = idx
     Mx = (M if M is not None else Matrix.Identity(4)) @ Matrix.Translation(Vector(pos))
     if up is not None:
         q = Vector((0, 1, 0)).rotation_difference(Vector(up).normalized())
         Mx = Mx @ q.to_matrix().to_4x4()
-    return emit(bm, cols, "Gloss", Mx, smooth=False)
+    return emit(bm, cols, "Gloss", Mx, smooth=False, recalc=pav > 0)
 
 
 # ----------------------------------------------------------------------------- the wrist loop
@@ -935,7 +943,7 @@ def ray_outline(outline, th):
 
 # ----------------------------------------------------------------------------- straps
 
-def strap_samples(s_a, s_b, scale, groove):
+def strap_samples(s_a, s_b, scale, groove, rng=None):
     """Arc positions alternating scale / groove lengths (alligator scales, rubber ribs)."""
     ss = [s_a]
     kinds = []
@@ -943,7 +951,7 @@ def strap_samples(s_a, s_b, scale, groove):
     flip = 1 if s_b > s_a else -1
     k = 0
     while (s_b - s) * flip > 1e-6:
-        step = scale if k % 2 == 0 else groove
+        step = (scale * (rng.uniform(0.65, 1.35) if rng else 1.0)) if k % 2 == 0 else groove
         s = s + flip * step
         if (s - s_b) * flip > 0:
             s = s_b
@@ -958,10 +966,14 @@ def strap_section(w, t, cols=4, g=0.00032, er=0.0007):
     er = min(er, t * 0.4)
     pts, kinds = [], []
     X0 = w / 2 - er
-    cw = 2 * X0 / cols
+    wts = {1: [1.0], 3: [0.8, 1.4, 0.8], 4: [0.72, 1.28, 1.28, 0.72], 5: [0.62, 1.1, 1.56, 1.1, 0.62]}.get(
+        cols, [1.0] * cols)
+    edges = [X0]
+    for wt in wts:
+        edges.append(edges[-1] - 2 * X0 * wt / sum(wts))
     for c in range(cols):
-        xa = X0 - c * cw
-        xb = xa - cw
+        xa = edges[c]
+        xb = edges[c + 1]
         pts.append((xa - (g / 2 if c > 0 else 0.0), t))
         kinds.append(("scale", c))
         pts.append((xb + (g / 2 if c < cols - 1 else 0.0), t))
@@ -977,7 +989,7 @@ def strap_piece(s_a, s_b, w_fn, t_fn, off_fn, base, lining, edge, kind="Paint", 
     """Leather / rubber strap piece following the loop. Groove rings sink a little so light catches the
     scales; faces are colored per scale (random tone), groove, edge and lining."""
     rng = random.Random(seed)
-    ss, skinds = strap_samples(s_a, s_b, scale, groove)
+    ss, skinds = strap_samples(s_a, s_b, scale, groove, rng if var > 0.05 else None)
     n = len(ss) - 1
     total = abs(s_b - s_a)
     rings = []
@@ -1003,7 +1015,7 @@ def strap_piece(s_a, s_b, w_fn, t_fn, off_fn, base, lining, edge, kind="Paint", 
             elif fk == "edge":
                 c = edge
             elif skinds[i] == "groove" or fk[0] == "groove":
-                c = tuple(v * 0.42 for v in base)
+                c = tuple(v * 0.55 for v in base)
             else:
                 key = (i, fk[1])
                 if key not in tones:
@@ -1094,7 +1106,8 @@ def cw_clasp(s_mid, L, w, metal, metal_b, t=0.0034, engrave=(0.5, 0.36, 0.12)):
     crown_logo(0.0046, 0.0, metal, "Metal", M=M, pos=(0, 0, 0.0052), theta=math.pi, h=0.0003)
     text("CROWNWELL", 0.0012, engrave, "Paint", (0, 0.00003, -0.0035), theta=math.pi, M=M, spacing=1.15)
     for dz in (-L / 2 + 0.0012, L / 2 - 0.0012):
-        box((w + 0.0004, 0.0005, 0.0007), metal, "Metal", (0, -0.0001, dz), M=M, r=0.0002, seg=1)
+        box((w + 0.0004, 0.0005, 0.0007), metal, "Metal", (0, -0.0002, 0), M=LOOP.frame(s_mid + dz, t + 0.00025),
+            r=0.0002, seg=1)
 
 
 def jubilee_row(metal, metal_b, t=0.0026, gems=False):
@@ -1244,7 +1257,7 @@ def build_crownwell_datejust():
     crystal(0.0162, Yd + 0.0019, H0 + 0.0107)
     cw_cyclops()
     crown_knurled(0.0194, H0 + 0.0045, 0.0034, 0.0046, GOLD, logo=True)
-    bracelet(0.0238, jubilee_row(GOLD, GOLD_B), 0.0047, 0.0196, 0.0162, 0.030,
+    bracelet(0.0238, jubilee_row(GOLD, GOLD_B), 0.0050, 0.0196, 0.0162, 0.030,
              lambda s, L, w: cw_clasp(s, L, w, GOLD, GOLD_B), filler=(GOLD_B, "Metal"))
     finish("Watch_Crownwell_Datejust")
 
@@ -1291,7 +1304,7 @@ def build_crownwell_iced():
                 e = f * f * (3 - 2 * f)
                 ytop = H0 + 0.0068 + (yi + 0.0037 - H0 - 0.0068) * (0.35 * f + 0.65 * e)
                 gem(0.00075, (sx * 0.01105, ytop - 0.00005, sz * z), n=6, pav=0.5)
-    bracelet(0.0238, jubilee_row(M_, MB, gems=True), 0.0049, 0.0196, 0.0162, 0.030,
+    bracelet(0.0238, jubilee_row(M_, MB, gems=True), 0.0051, 0.0196, 0.0162, 0.030,
              lambda s, L, w: cw_clasp(s, L, w, M_, MB, engrave=(0.35, 0.36, 0.4)), filler=(MB, "Metal"))
     finish("Watch_Crownwell_Iced")
 
@@ -1409,7 +1422,7 @@ def build_valere_calatrava():
              (0, Yd - 0.0005)], M_, "Metal", 64)
     revolve([(0, y0 - 0.0001), (0.0128, y0 - 0.0001), (0.0134, y0 + 0.0002), (0, y0 + 0.0002)], MB, "Metal", 40)
     # Clous de Paris (hobnail) bezel: a checkerboard of raised points = a lattice of tiny pyramids
-    segs = 132
+    segs = 100
     prof = [(0.0157, y0 + 0.0043), (0.0187, y0 + 0.0043), (0.0189, y0 + 0.0049), (0.0186, y0 + 0.0054),
             (0.01815, y0 + 0.0058), (0.0176, y0 + 0.0061), (0.01705, y0 + 0.0063), (0.0165, y0 + 0.0063),
             (0.0160, y0 + 0.0060), (0.0157, y0 + 0.0056)]
@@ -1417,7 +1430,7 @@ def build_valere_calatrava():
     def mod(th, r, y, k):
         if 2 <= k <= 7:
             i = round(th / TAU * segs)
-            return r, y + (0.00014 if (i + k) % 2 == 0 else -0.00005)
+            return r, y + (0.00026 if (i + k) % 2 == 0 else -0.00008)
         return r, y
     revolve(prof, M_, "Metal", segs, mod=mod, closed=True, sharp=0.35)
     # cream dial, railway track, applied obus indices, small seconds at 6
@@ -1461,10 +1474,10 @@ def build_valere_calatrava():
     crystal(0.0162, Yd + 0.0014, y0 + 0.0069)
     crown_knurled(0.0186, y0 + 0.0024, 0.0023, 0.0034, M_, ridges=20, tube_r=0.0009)
     yi = band_y(0.0232)
-    lugs(0.0099, 0.01135, 0.0140, 0.0232, y0 + 0.0040, yi + 0.0034 + 0.0007, y0 + 0.0008, yi + 0.0002, M_,
-         bevel=0.00045)
+    lugs(0.0098, 0.0118, 0.0140, 0.0232, y0 + 0.0042, yi + 0.0034 + 0.0009, y0 + 0.0006, yi + 0.0001, M_,
+         bevel=0.0006)
     leather_strap(0.0232, 0.0196, 0.0158, 0.0036, 0.0026, (0.34, 0.18, 0.08), (0.62, 0.46, 0.3), (0.2, 0.1, 0.05),
-                  M_)
+                  M_, kind="Gloss", cols=5, scale=0.0019)
     finish("Watch_Valere_Calatrava")
 
 
@@ -1547,7 +1560,8 @@ def cw_clasp_plain(s_mid, L, w, metal, metal_b, name, t=0.0033, fnt="serif"):
     M = LOOP.frame(s_mid, t)
     text(name, 0.0013, tuple(v * 0.45 for v in metal_b), "Paint", (0, 0.00003, 0), theta=math.pi, M=M, fnt=fnt)
     for dz in (-L / 2 + 0.0012, L / 2 - 0.0012):
-        box((w + 0.0002, 0.0005, 0.0006), metal, "Metal", (0, -0.00015, dz), M=M, r=0.0002, seg=1)
+        box((w + 0.0002, 0.0005, 0.0006), metal, "Metal", (0, -0.0002, 0), M=LOOP.frame(s_mid + dz, t), r=0.0002,
+            seg=1)
 
 
 # ============================================================================= AUDEMONT ROYALE
@@ -1648,10 +1662,10 @@ def build_audemont_royaloak():
 
 # ============================================================================= RENAUD MILLEAUX
 
-def tonneau(ax=0.0196, az=0.0242, p=2.7, N=96):
+def tonneau(ax=0.0198, az=0.0242, p=3.6, N=128):
     out = []
     for x, z in superellipse(ax, az, p, N):
-        out.append((x * (1 - 0.13 * (z / az) ** 2), z))
+        out.append((x * (1 - 0.09 * (z / az) ** 2), z))
     return out
 
 
@@ -1685,10 +1699,12 @@ def build_renaud_rm():
     samp = lambda o: (lambda n: resample_polar(o, n))  # noqa: E731
     emit(bend(solid_shape_bm(samp(out), [(0.0024, y0 - 0.0002), (0.0015, y0 + 0.0008), (0.0014, y0 + 0.0016)], N),
               CARB_K), TI, "Metal")                                                 # titanium case back
-    emit(bend(solid_shape_bm(samp(out), [(0.0013, y0 + 0.0014), (0.0003, y0 + 0.0022), (0.0, y0 + 0.0034),
-                                         (0.0, y0 + 0.0066), (0.0005, y0 + 0.0074)], N), CARB_K * 0.7), carbon,
-         "Gloss", sharp=0.5)                                                       # carbon caseband
     op = [(x, z) for x, z in inset(resample_polar(out, 160), 0.0043)]
+    emit(bend(shaped_ring_bm(samp(out), samp(op), [("i", 0.0, y0 + 0.0014), ("o", 0.0013, y0 + 0.0014),
+                                                    ("o", 0.0003, y0 + 0.0022), ("o", 0.0, y0 + 0.0034),
+                                                    ("o", 0.0, y0 + 0.0066), ("o", 0.0005, y0 + 0.0074),
+                                                    ("i", 0.0, y0 + 0.0074)], N), CARB_K * 0.7), carbon,
+         "Gloss", sharp=0.5)                                                       # carbon caseband (hollow)
     prof = [("i", 0.0, y0 + 0.0072), ("o", 0.0004, y0 + 0.0072), ("o", 0.0, y0 + 0.0080), ("o", 0.0008, y0 + 0.0101),
             ("i", 0.0009, y0 + 0.0101), ("i", 0.0, y0 + 0.0092)]
     emit(bend(shaped_ring_bm(samp(out), samp(op), prof, N), CARB_K * 0.35), carbon, "Gloss", sharp=0.5)   # bezel
@@ -1791,7 +1807,7 @@ def build_renaud_rm():
     RUB = (0.8, 0.07, 0.05)
     for a, b in ((s6, sm), (s12, sm)):
         strap_piece(a, b, lambda f: 0.0232 - 0.005 * f, lambda f: 0.0042 - 0.001 * f, lambda f: 0.0,
-                    RUB, (0.55, 0.04, 0.03), (0.62, 0.05, 0.04), "Gloss", cols=3, scale=0.0021, groove=0.0006,
+                    RUB, (0.55, 0.04, 0.03), (0.62, 0.05, 0.04), "Gloss", cols=1, scale=0.0021, groove=0.0006,
                     sink=0.0003, var=0.03, seed=5)
     for sz in (1, -1):                       # carbon strap lugs closing the gap to the case
         yi = band_y(0.0222)
@@ -1864,8 +1880,8 @@ def build_carrel_tank():
     # beaded crown with a blue cabochon, on the right brancard
     crown_knurled(0.0126, y0 + 0.0030, 0.0021, 0.0030, M_, ridges=8, tube_r=0.0009,
                   cab=(0.12, 0.22, 0.78), bead=0.16)
-    leather_strap(0.0190, 0.0198, 0.0158, 0.0034, 0.0026, (0.06, 0.055, 0.05), (0.45, 0.33, 0.22),
-                  (0.03, 0.03, 0.03), M_)
+    leather_strap(0.0190, 0.0198, 0.0158, 0.0034, 0.0026, (0.075, 0.068, 0.062), (0.45, 0.33, 0.22),
+                  (0.03, 0.03, 0.03), M_, kind="Gloss", cols=5, scale=0.0019)
     finish("Watch_Carrel_Tank")
 
 
@@ -1977,7 +1993,10 @@ def build_watch_box():
     for sz in (-1, 1):
         box((W, H, 0.008), leather, "Gloss", (0, H / 2, sz * (D / 2 - 0.004)), r=0.003, seg=2)
     box((W - 0.016, 0.004, D - 0.016), CRM, "Paint", (0, BOX_FLOOR - 0.002, 0))
-    box((W + 0.0004, 0.003, D + 0.0004), (0.95, 0.76, 0.36), "Metal", (0, H - 0.008, 0), r=0.001)     # gold line
+    for sx in (-1, 1):                                                                              # gold piping
+        box((0.0012, 0.003, D + 0.0004), (0.95, 0.76, 0.36), "Metal", (sx * (W / 2 + 0.0002), H - 0.008, 0))
+    for sz in (-1, 1):
+        box((W + 0.0028, 0.003, 0.0012), (0.95, 0.76, 0.36), "Metal", (0, H - 0.008, sz * (D / 2 + 0.0002)))
     for sx in (-1, 1):
         box((0.002, H - 0.016, D - 0.018), CRM, "Paint", (sx * (W / 2 - 0.009), H / 2 + 0.004, 0))
     for sz in (-1, 1):
@@ -1994,9 +2013,9 @@ def build_watch_box():
     # satin lining inside the lid with the gold crown and name
     Mi = hinge @ T((0, Lh - 0.0085, D / 2), [("x", math.pi)])
     box((W - 0.016, 0.002, D - 0.016), CRM, "Paint", (0, -0.001, 0), M=Mi)
-    crown_logo(0.026, 0.0, (0.96, 0.76, 0.3), "Metal", M=Mi, pos=(0, 0, 0.012), h=0.0008, theta=math.pi)
-    text("CROWNWELL", 0.011, (0.8, 0.6, 0.22), "Metal", (0, 0.0001, -0.014), theta=math.pi, M=Mi, spacing=1.2)
-    text("GENÈVE", 0.006, (0.8, 0.6, 0.22), "Paint", (0, 0.0001, -0.025), theta=math.pi, M=Mi, spacing=1.3)
+    crown_logo(0.026, 0.0, (0.96, 0.76, 0.3), "Metal", M=Mi, pos=(0, 0, -0.012), h=0.0008)
+    text("CROWNWELL", 0.011, (0.8, 0.6, 0.22), "Metal", (0, 0.0001, 0.014), M=Mi, spacing=1.2)
+    text("GENÈVE", 0.006, (0.8, 0.6, 0.22), "Paint", (0, 0.0001, 0.025), M=Mi, spacing=1.3)
     Mo = hinge @ T((0, Lh, D / 2))
     crown_logo(0.03, 0.0, (0.96, 0.76, 0.3), "Metal", M=Mo, pos=(0, 0, 0.0), h=0.001)
     box((0.03, 0.006, 0.006), (0.95, 0.76, 0.36), "Metal", (0, H + 0.001, -D / 2 - 0.001), r=0.002)   # hinge
@@ -2030,7 +2049,7 @@ def build_wall_shelf():
     text("FINE WATCHES", 0.03, (0.12, 0.08, 0.04), "Paint", (0, 0.0, 0.0), fnt="serif", spacing=1.2,
          M=T((0, 1.93, D + 0.0245), [("x", math.pi / 2)]))
     box((1.5, 0.55, D + 0.04), WAL, "Gloss", (0, 0.275, (D + 0.04) / 2), r=0.012, seg=2)            # base cabinet
-    box((1.46, 0.02, D + 0.044), BR, "Metal", (0, 0.555, (D + 0.04) / 2), r=0.004)
+    box((1.5, 0.018, 0.008), BR, "Metal", (0, 0.545, D + 0.043), r=0.003)
     box((1.36, 0.08, 0.02), (0.03, 0.03, 0.03), "Paint", (0, 0.04, D + 0.03))                      # toe kick
     for y in SHELF_TOPS:
         box((1.36, 0.012, D - 0.04), (0.85, 0.93, 0.95), "Glass", (0, y - 0.006, (D - 0.04) / 2 + 0.03))
