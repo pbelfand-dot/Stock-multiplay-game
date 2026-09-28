@@ -151,7 +151,7 @@ func _client() -> void:
 	w.ball.request_throw(Vector3(-1, 0.6, 0))
 	if not await _wait_for(func(): return w.ball.holder == 0, 5.0, "ball throw"):
 		return
-		_say("basketball grab + throw ok")
+	_say("basketball grab + throw ok")
 	# down to the street: hot dog (blood pressure), then back up
 	w.go_to_street()
 	await get_tree().create_timer(0.4).timeout
@@ -162,6 +162,23 @@ func _client() -> void:
 	m.request_hotdog()
 	await get_tree().create_timer(1.0).timeout
 	_say("street ok, hot dog eaten (pressure now %.1f)" % m.pressure_of(Net.my_id()))
+	# soundtrack: walking into a boutique plays "Intoxicated"; getting liquidated cuts to "12 Stout Street"
+	Music.clear_event()           # the flex bought earlier is still playing "Blue Bands"
+	var shop: Rect2 = w.builder.street.zones[0].rect
+	w.local_player.teleport(Vector3(shop.get_center().x, w.builder.street.ORIGIN.y + 0.25, shop.get_center().y))
+	if not await _wait_for(func(): return Music.current == "intoxicated", 5.0, "boutique music (now %s, event %s %.0fs, zone %s)" % [Music.current, Music._event, Music._event_t, w.street_zone(w.local_player)]):
+		return
+	m.trade_closed.emit({"acct": m.acct_for(Net.my_id()), "trader": "x", "trader_id": Net.my_id(), "sym": "BTC",
+			"side": 1, "pnl": -1000.0, "pct": -100.0, "liquidated": true, "lev": 100, "trigger": ""})
+	await get_tree().create_timer(0.3).timeout
+	if Music.current != "intoxicated":
+		_fail("a liquidation changed the music (%s); 12 Stout Street is only for a losing day" % Music.current)
+		return
+	w.hud.music._on_day_ended({"passed": true, "players": {Net.my_id(): {"stats": {"pnl_day": -500.0}}}})
+	if not await _wait_for(func(): return Music.current == "stout_street", 3.0, "losing-day music"):
+		return
+	Music.clear_event()
+	_say("music ok (boutique -> Intoxicated, liquidation keeps it, losing day -> 12 Stout Street)")
 	w.leave_street()
 	await get_tree().create_timer(0.3).timeout
 	if w.in_street(w.local_player):

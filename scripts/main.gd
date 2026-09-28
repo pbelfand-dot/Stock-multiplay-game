@@ -61,6 +61,8 @@ func _show_menu(msg: String) -> void:
 		add_child(menu)
 	menu.visible = true
 	menu.set_status(msg)
+	Music.clear_event()
+	Music.set_bed("vyzee")                    # title screen
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 
 

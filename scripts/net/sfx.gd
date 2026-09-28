@@ -54,5 +54,6 @@ func quit_game(code: int = 0) -> void:
 		c.stop()
 		c.stream = null
 	streams.clear()
+	Music.stop_all()
 	await get_tree().create_timer(0.3).timeout
 	get_tree().quit(code)

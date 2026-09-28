@@ -62,6 +62,7 @@ var spawn := ORIGIN + Vector3(-6.0, 0.25, -7.0)      # in front of the lobby
 var lobby_exit := spawn
 var hotdog_pos := Vector3.ZERO
 var slot_bodies: Array = []
+var zones: Array = []      # [{rect: Rect2 on world x/z, kind}] one per shop interior (music, etc.)
 
 
 func _init(builder) -> void:
@@ -156,6 +157,8 @@ func _store(s: Dictionary, side: int) -> void:
 		sub.pixel_size = 0.006
 	# the shop behind: floor, walls, ceiling, light
 	var zin: float = side * (WALK + 0.4 + SHOP_DEPTH / 2)
+	var c := P(x, 0, zin)
+	zones.append({"rect": Rect2(c.x - 5.0, c.z - SHOP_DEPTH / 2, 10.0, SHOP_DEPTH), "kind": str(s.kind).get_slice(":", 0)})
 	b.box(Vector3(10, 0.2, SHOP_DEPTH), P(x, -0.1 + SIDEWALK_H, zin), s.floor, true, root)
 	b.box(Vector3(10, 0.2, SHOP_DEPTH), P(x, 4.3, zin), Color(0.9, 0.9, 0.9), false, root)
 	b.box(Vector3(10, 4.4, 0.2), P(x, 2.2, side * (WALK + 0.4 + SHOP_DEPTH)), s.wall, true, root)
