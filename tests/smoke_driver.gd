@@ -84,6 +84,9 @@ func _host() -> void:
 		return
 	if not await _wait_for(func(): return pnode.seat == 0 and pnode.emote == 1, 30.0, "client sitting + finger emote"):
 		return
+	if not await _wait_for(func(): return pnode.model.pose == "dance", 10.0, "client dance to sync"):
+		return
+	_say("client's dance synced (anim %.1fs in)" % pnode.model.anim_t)
 	if not await _wait_for(func(): return Net.players[bob].get("look", {}).get("hair_style", "") == "buzz" \
 			and pnode.look.get("hat", "") == "cap", 10.0, "tailor look change to sync"):
 		return
@@ -199,6 +202,21 @@ func _client() -> void:
 	await get_tree().create_timer(1.0).timeout
 	lp.stand_up()
 	lp.emote = 0
+	# the rotoscoped dance, in first person: our own body plays it, the host sees it, walking ends it
+	lp.emote = lp.EMOTES.find("dance")
+	lp._emote_t = 30.0
+	await get_tree().create_timer(2.5).timeout
+	if lp.model.pose != "dance" or not lp.model.visible or not lp.model.fp:
+		_fail("first-person dance didn't play on our body (pose %s)" % lp.model.pose)
+		return
+	var eye_y: float = lp.head.position.y
+	Input.action_press("move_forward")
+	await get_tree().create_timer(0.3).timeout
+	Input.action_release("move_forward")
+	if lp.emote != 0 or lp.model.pose == "dance":
+		_fail("walking didn't end the dance")
+		return
+	_say("dance ok (first-person body, camera at the eyes y=%.2f, walking ends it)" % eye_y)
 	# blood pressure: walk into the restroom and take care of it
 	w.local_player.teleport(w.builder.toilet_pos + Vector3(1.1, 0.1, 0.4))
 	await get_tree().create_timer(0.6).timeout

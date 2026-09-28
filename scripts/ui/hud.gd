@@ -388,7 +388,7 @@ void fragment() {
 		Config.save_settings())
 	sens_row.add_child(sens)
 	v.add_child(Music.volume_row(UI.lbl("Music", 20)))
-	v.add_child(UI.lbl("WASD move · SHIFT sprint · E interact · 1-6 items\nTAB scoreboard · T chat · ENTER (host) opening bell\nP phone · In terminal: B buy · S sell · Q/E size · L leverage · C close all", 16, UI.DIM))
+	v.add_child(UI.lbl("WASD move · SHIFT sprint · E interact · 1-6 items\nH dance · TAB scoreboard · T chat · ENTER (host) opening bell\nP phone · In terminal: B buy · S sell · Q/E size · L leverage · C close all", 16, UI.DIM))
 	var leave := UI.btn("LEAVE OFFICE", UI.RED.darkened(0.2), 24)
 	leave.pressed.connect(func(): get_tree().root.get_node("Main").leave_game())
 	v.add_child(leave)

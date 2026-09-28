@@ -61,6 +61,7 @@ func _setup_inputs() -> void:
 	_key("emote_fistpump", [KEY_V])
 	_key("emote_watch", [KEY_Z])
 	_key("emote_point", [KEY_X])
+	_key("emote_dance", [KEY_H])
 	_key("phone", [KEY_P])
 	_key("phone_action", [KEY_G])
 	_key("dive", [KEY_C, KEY_CTRL])

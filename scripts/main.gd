@@ -33,6 +33,11 @@ func _ready() -> void:
 		if fit_script:
 			add_child(fit_script.new())
 			return
+	if Config.cli.has("dancecheck"):
+		var dc_script = load("res://tests/dance_driver.gd")
+		var dc = dc_script.new()
+		add_child(dc)
+		return
 	if Config.cli.has("lineup"):
 		var lu_script = load("res://tests/lineup_driver.gd")
 		if lu_script:
