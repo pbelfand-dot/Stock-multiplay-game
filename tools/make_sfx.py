@@ -111,6 +111,37 @@ def guns():
                         (0.16, bell_strike(4900, 0.2, 0.015) * 0.35)], 0.45), 0.35)
 
 
+def cars():
+    """Driving: a loopable straight-six (pitch it up with the revs), a crash crunch, a tire screech."""
+    rng = np.random.default_rng(21)
+    d = 1.0
+    tt = t(d)
+    f0 = 60.0                                   # exactly 60 cycles in 1 s: loops cleanly
+    s_ = np.zeros_like(tt)
+    for k, a in ((1, 0.5), (2, 0.35), (3, 1.0), (4, 0.25), (6, 0.55), (9, 0.2), (12, 0.12)):
+        s_ += a * np.sin(2 * np.pi * f0 * k * tt + k * 0.7)
+    pulses = (np.sin(2 * np.pi * f0 * 3 * tt) > 0.6).astype(float)   # six cylinders firing: 3 per rev
+    rough = lowpass(rng.uniform(-1, 1, len(tt)), 0.08)
+    s_ = s_ * (0.75 + 0.25 * pulses) + rough * 0.25
+    s_ = lowpass(s_, 0.35)
+    save("engine", s_, 0.6)
+
+    d = 0.9
+    tt = t(d)
+    n = rng.uniform(-1, 1, len(tt))
+    thud = np.sin(2 * np.pi * np.cumsum(np.linspace(90, 40, len(tt))) / SR) * np.exp(-tt / 0.12)
+    crunch = (n - lowpass(n, 0.2)) * np.exp(-tt / 0.18)
+    glass = sum(np.sin(2 * np.pi * f * tt) * np.exp(-(tt - st).clip(0) / 0.05) * (tt > st)
+                for f, st in ((3100, 0.05), (4200, 0.09), (3700, 0.14), (5200, 0.2)))
+    save("crash", thud * 1.1 + crunch * 0.8 + glass * 0.12, 0.9)
+
+    d = 1.0
+    tt = t(d)
+    n = rng.uniform(-1, 1, len(tt))
+    squeal = np.sin(2 * np.pi * (1150 + 60 * np.sin(2 * np.pi * 5 * tt)) * tt) * 0.5
+    save("screech", (squeal + (lowpass(n, 0.5) - lowpass(n, 0.1)) * 0.6) * 0.9, 0.45)
+
+
 def main():
     # Opening bell: DING DING DING
     save("bell", mix([(0.0, bell_strike(880)), (0.45, bell_strike(880)), (0.9, bell_strike(880, 2.0, 0.8))], 3.0))
@@ -208,6 +239,7 @@ def main():
     save("brrt", env(square(90, tt) * (0.5 + 0.5 * np.sign(np.sin(2 * np.pi * 30 * tt))) + noise(0.25) * 0.2, 0.002, 0.2), 0.45)
 
     guns()
+    cars()
 
 
 if __name__ == "__main__":

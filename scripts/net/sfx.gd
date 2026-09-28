@@ -4,7 +4,7 @@ extends Node
 
 const NAMES := ["bell", "cash", "lose", "siren", "tick", "jackpot", "news", "flash",
 	"coin", "liquidated", "swish", "whoosh", "click", "brrt", "heartbeat", "hum", "cough",
-	"shot", "shot_big", "rack", "casing"]
+	"shot", "shot_big", "rack", "casing", "engine", "crash", "screech"]
 
 var streams := {}
 var _pool: Array = []

@@ -81,6 +81,28 @@ const LUXURY := {
 		"rate": 0.11, "auto": true, "rifle": true, "big": true, "pellets": 1, "kick": 0.02,
 		"desc": "Gold receiver, black furniture. You're the plug now (+10 heat).", "perk": {}, "perk_txt": ""},
 }
+## Cars (BEMZE dealership, off the highway). You drive to work every day.
+## top = top speed (m/s), zero60 = 0-60 mph seconds, grip = how hard it can
+## corner before it slides (1.0 = a good sports car), mass = how much a crash
+## shoves it around (tonnes). Game speeds: highway traffic cruises ~29 m/s.
+const CARS := {
+	"beater": {"name": "Your Mom's Sedan", "price": 0.0, "model": "", "top": 46.0, "zero60": 9.5, "grip": 0.72, "mass": 1.4,
+		"paint": Color(0.55, 0.57, 0.6), "desc": "Beige interior. Check-engine light. It gets you there."},
+	"bz_540i": {"name": "BEMZE 540i", "price": 65_000.0, "model": "Bemze_540i", "top": 58.0, "zero60": 4.6, "grip": 0.85, "mass": 1.8,
+		"paint": Color(0.1, 0.12, 0.16), "desc": "The executive car. Quiet, fast, looks like money."},
+	"bz_m2": {"name": "BEMZE M2", "price": 78_000.0, "model": "Bemze_M2", "top": 63.0, "zero60": 4.0, "grip": 1.05, "mass": 1.7,
+		"paint": Color(0.1, 0.35, 0.75), "desc": "Short, wide, angry. The best cut-up car per dollar."},
+	"bz_m3": {"name": "BEMZE M3 Competition", "price": 95_000.0, "model": "Bemze_M3", "top": 69.0, "zero60": 3.5, "grip": 1.0, "mass": 1.75,
+		"paint": Color(0.2, 0.5, 0.2), "desc": "Four doors, 503 hp, zero chill."},
+	"bz_m4": {"name": "BEMZE M4 Competition", "price": 105_000.0, "model": "Bemze_M4", "top": 69.0, "zero60": 3.4, "grip": 1.0, "mass": 1.72,
+		"paint": Color(0.85, 0.55, 0.1), "desc": "The coupe. Carbon roof. The grille is a personality."},
+	"bz_m5": {"name": "BEMZE M5", "price": 140_000.0, "model": "Bemze_M5", "top": 74.0, "zero60": 3.3, "grip": 0.92, "mass": 2.4,
+		"paint": Color(0.35, 0.36, 0.38), "desc": "717 hp hybrid super-sedan. Heavy. Doesn't care."},
+	"bz_m8": {"name": "BEMZE M8 Competition", "price": 165_000.0, "model": "Bemze_M8", "top": 76.0, "zero60": 3.0, "grip": 0.95, "mass": 1.9,
+		"paint": Color(0.55, 0.05, 0.08), "desc": "The flagship GT. Fastest thing on the lot."},
+}
+const CAR_ORDER := ["beater", "bz_540i", "bz_m2", "bz_m3", "bz_m4", "bz_m5", "bz_m8"]
+
 ## Q cycles through the guns you own in this order.
 const GUN_ORDER := ["pistol", "shotgun", "smg", "ak", "deagle", "ak_gold"]
 const SHOT_HEAT := 3.5              # every shot outside the range

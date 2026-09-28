@@ -46,6 +46,9 @@ func _ready() -> void:
 		var dc = dc_script.new()
 		add_child(dc)
 		return
+	if Config.cli.has("drivecheck"):    # car handling on a test track (no match)
+		add_child(load("res://tests/drive_driver.gd").new())
+		return
 	if Config.cli.has("lineup"):
 		var lu_script = load("res://tests/lineup_driver.gd")
 		if lu_script:

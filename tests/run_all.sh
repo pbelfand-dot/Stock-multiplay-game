@@ -15,6 +15,10 @@ echo "== save -> continue"
 "$G" --headless --path . -- --savecheck=2 --host --name=Trader --port=7791 2>&1 | grep -E "\[save\]" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
 echo "== hair motion (spring bones swing and settle)"
 "$G" --headless --path . -- --lineup=/tmp/bh_hair --hairmotion 2>&1 | grep -E "hairmotion:" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
+echo "== car handling (0-60, top speed, brakes, grip, crashes slow you down, scrapes don't)"
+for car in bz_m3 beater; do
+  "$G" --headless --path . -- --drivecheck --car=$car 2>&1 | grep -E "\[drive\] (FAIL|DRIVE)" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
+done
 echo "== day events, contracts, upgrades, milestones"
 "$G" --headless --path . -- --eventcheck --host --autostart --day_seconds=150 --day_event=flash_crash --name=Trader --port=7792 2>&1 | grep -E "\[events\]" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
 "$G" --headless --path . -- --eventcheck --pvp --host --autostart --day_seconds=4 --day_event=none --name=Trader --port=7793 2>&1 | grep -E "\[events\]" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
