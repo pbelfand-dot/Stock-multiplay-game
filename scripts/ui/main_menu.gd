@@ -43,7 +43,7 @@ func _ready() -> void:
 	# CONTINUE the newest run that isn't over; LOAD any save
 	var save_row := HBoxContainer.new()
 	box.add_child(save_row)
-	var last := SaveGame.latest_open()
+	var last := SaveGame.latest_open(Config.player_name)
 	if not last.is_empty():
 		var cont := UI.btn("CONTINUE  ·  %s" % SaveGame.describe(last), UI.GOLD.darkened(0.3), 20)
 		cont.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -135,6 +135,9 @@ func _host(game_mode: String) -> void:
 ## their things back by name.
 func _load(s: Dictionary) -> void:
 	_save()
+	if not SaveGame.owned_by(s, Config.player_name):
+		set_status("Only %s can load that save (they started it)." % s.get("owner", "the host"))
+		return
 	Config.load_slot = str(s.slot)
 	main.host_game(Config.port, str(s.get("mode", "coop")))
 
@@ -176,11 +179,18 @@ func _open_saves() -> void:
 		var row := HBoxContainer.new()
 		list.add_child(row)
 		var over: bool = s.get("over", false)
-		var l := UI.lbl(("BUSTED · " if over else "") + SaveGame.describe(s), 17, UI.DIM if over else UI.TEXT)
+		var mine := SaveGame.owned_by(s, name_edit.text if name_edit.text.strip_edges() != "" else Config.player_name)
+		var l := UI.lbl(("BUSTED · " if over else "") + SaveGame.describe(s) + ("" if mine else "  · started by %s" % s.owner),
+				17, UI.DIM if over or not mine else UI.TEXT)
 		l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		l.clip_text = true
 		row.add_child(l)
-		if not over:
+		if not over and not mine:
+			var lk := UI.btn("LOCKED", UI.NAVY_2, 16)
+			lk.disabled = true
+			lk.tooltip_text = "Only %s can load this run." % s.owner
+			row.add_child(lk)
+		elif not over:
 			var lb := UI.btn("LOAD", UI.GREEN.darkened(0.3), 16)
 			lb.pressed.connect(func(): _load(s))
 			row.add_child(lb)

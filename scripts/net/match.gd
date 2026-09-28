@@ -10,6 +10,8 @@ const News = preload("res://scripts/sim/news.gd")
 const Ledger = preload("res://scripts/sim/ledger.gd")
 const Rules = preload("res://scripts/sim/rules.gd")
 const SaveGame = preload("res://scripts/net/save_game.gd")
+const DayEvents = preload("res://scripts/sim/day_events.gd")
+const Contracts = preload("res://scripts/sim/contracts.gd")
 
 const TICK := 0.25
 const COP_SYNC := 0.1
@@ -36,6 +38,9 @@ signal ranked_up(peer: int, rank: int)
 signal posted(ev: Dictionary)
 signal chat(from_name: String, msg: String)
 signal error_msg(msg: String)
+signal contract_done(peer: int, c: Dictionary, cash: float)
+signal shock(kind: String, stage: String)
+signal milestone(amount: float, xp: float)
 
 # ---------------- mirrored state (all peers) ----------------
 var phase := "lobby"            # lobby | trading | intermission | gameover
@@ -57,6 +62,12 @@ var last_news := {}
 var news_log: Array = []
 var m_assets: Array = []        # client market mirror: [{sym,name,kind,candles,cur,price,open_day}]
 var m_ci := 0
+var day_event := ""             # today's random event (DayEvents), "" = a normal day
+var next_event := ""            # tomorrow's, rolled at the closing bell (the forecast)
+var event_at := -1.0            # time_left when today's announced shock hits (Fed / earnings), -1 = none
+var halt := 0.0                 # circuit breaker: seconds of trading halt left
+var contracts := {}             # peer -> [contract] (Tony's contracts for today)
+var milestones := 0             # co-op: how many fund milestones this run has hit
 
 # ---------------- server-only ----------------
 var market
@@ -67,13 +78,17 @@ var _acc := 0.0
 var _cop_acc := 0.0
 var _next_event: Dictionary = {}
 var _next_event_in := 0.0
-var _early_sent := false
 var _post_sent := false
 var _booking_no := 4298
 var _dirty := false
 var save_slot := ""              # this run autosaves here at every closing bell ("" = don't save)
 var _resume := {}                # a loaded save: players get their things back by name as they join
 var _restored := {}              # peer -> true once their saved things were handed back
+var _sched: Array = []           # today's timed shocks (DayEvents.schedule)
+var _day_len := Rules.DAY_SECONDS
+var _early_to := {}              # peer -> true once they got the next headline early
+var _raid_warned := {}           # police scanner: peer -> warned
+var _halt_shock := {}            # the crash that tripped the circuit breaker
 
 @onready var world = get_parent()
 
@@ -132,6 +147,30 @@ func effect_left(peer: int, eff: String) -> float:
 
 func item_count(peer: int, item: String) -> int:
 	return inventory.get(peer, {}).get(item, 0)
+
+
+## What a trader's rank, flex and office upgrades give them (Rules.perks_for).
+func perks(peer: int) -> Dictionary:
+	return Rules.perks_for(rank_idx(peer), owned.get(peer, {}))
+
+
+## Today's day-event modifier (DayEvents.MODS), or `default` on a normal day.
+func ev_mod(key: String, default = 1.0):
+	return DayEvents.mod(day_event, key, default)
+
+
+## Boutique price right now (Black Friday takes its cut).
+func lux_price(key: String) -> float:
+	return float(Rules.LUXURY[key].price) * (1.0 - float(ev_mod("lux_discount", 0.0)))
+
+
+## The heat where the cops come (a crackdown lowers it).
+func raid_threshold() -> float:
+	return float(ev_mod("raid_at", Rules.HEAT_MAX))
+
+
+func halted() -> bool:
+	return halt > 0.0
 
 
 func equity_of(acct_id: int) -> float:
@@ -200,6 +239,8 @@ func _req_order(sym: String, side: int, margin: float, lev: int, up_pct: float, 
 	if is_jailed(id):
 		_s_error.rpc_id(id, "You're in jail, genius.")
 		return
+	if _halt_msg(id):
+		return
 	var acct := acct_for(id)
 	var closing: Array = []
 	for pos in ledger.get_acct(acct).get("positions", []):
@@ -231,15 +272,19 @@ func _req_open(sym: String, side: int, margin: float, lev: int) -> void:
 	if is_jailed(id):
 		_s_error.rpc_id(id, "You're in jail, genius.")
 		return
+	if _halt_msg(id):
+		return
 	if pressure_of(id) >= Rules.PRESSURE_FAT_FINGER and rng.randf() < 0.6:
 		margin *= 2.0 if rng.randf() < 0.5 else 0.5   # shaking hands: fat-finger the size
 		_s_error.rpc_id(id, "FAT FINGER! Your hands are shaking. Go relieve the pressure.")
 	if lev > 100 and not has_rank_for(id, "lev_125"):
 		_s_error.rpc_id(id, "x125 unlocks at DEGEN. Rookie numbers.")
 		return
-	var fee_rate := 0.0 if effect_left(id, "cigar") > 0.0 else Ledger.FEE_RATE
+	var pk := perks(id)
+	var fee_rate: float = 0.0 if effect_left(id, "cigar") > 0.0 else Ledger.FEE_RATE * pk.fee * float(ev_mod("fee"))
+	var spread: float = market.spread_of(sym) * pk.spread * float(ev_mod("spread"))
 	var r: Dictionary = ledger.open_position(acct_for(id), sym, side, margin, lev,
-		market.price_of(sym), Net.player_name(id), fee_rate, market.spread_of(sym))
+		market.price_of(sym), Net.player_name(id), fee_rate, spread)
 	if not r.ok:
 		_s_error.rpc_id(id, r.error)
 		return
@@ -260,6 +305,8 @@ func _req_close(pid: int) -> void:
 	var id := _sender()
 	if is_jailed(id):
 		_s_error.rpc_id(id, "You're in jail. Your teammates can close it.")
+		return
+	if _halt_msg(id):
 		return
 	var acct := acct_for(id)
 	var sym := ""
@@ -298,7 +345,7 @@ func _req_close_all() -> void:
 	if not Net.is_server():
 		return
 	var id := _sender()
-	if is_jailed(id):
+	if is_jailed(id) or _halt_msg(id):
 		return
 	var acct := acct_for(id)
 	for r in ledger.close_all(acct, market.price_of):
@@ -357,14 +404,45 @@ func _req_buy_lux(key: String) -> void:
 		return
 	var acct := acct_for(id)
 	var a: Dictionary = ledger.get_acct(acct)
-	if a.is_empty() or a.balance < def.price:
+	var price := lux_price(key)
+	if a.is_empty() or a.balance < price:
 		_s_error.rpc_id(id, "Can't afford %s." % def.name)
 		return
-	ledger.adjust(acct, -def.price)
+	ledger.adjust(acct, -price)
 	owned[id][key] = lux_count(id, key) + 1
 	_save_careers()
 	_add_heat(id, def.get("heat", 0.0))
-	_s_toast.rpc("%s copped a %s (%s)" % [Net.player_name(id), def.name, Rules.money(def.price)])
+	_s_toast.rpc("%s copped a %s (%s%s)" % [Net.player_name(id), def.name, Rules.money(price),
+			" — BLACK FRIDAY" if price < def.price else ""])
+	_s_luxury.rpc(id, key)
+	_contract(id, "lux")
+	_push_state()
+
+
+## Office upgrades: bought once, kept forever (with your career), perks apply.
+func request_buy_upgrade(key: String) -> void:
+	_req_buy_upgrade.rpc_id(1, key)
+
+
+@rpc("any_peer", "call_local", "reliable")
+func _req_buy_upgrade(key: String) -> void:
+	if not Net.is_server() or not Rules.UPGRADES.has(key):
+		return
+	var id := _sender()
+	_ensure_peer(id)
+	var def: Dictionary = Rules.UPGRADES[key]
+	if lux_count(id, key) > 0:
+		_s_error.rpc_id(id, "You already have the %s." % def.name)
+		return
+	var acct := acct_for(id)
+	var a: Dictionary = ledger.get_acct(acct)
+	if a.is_empty() or a.balance < def.price:
+		_s_error.rpc_id(id, "Can't afford the %s." % def.name)
+		return
+	ledger.adjust(acct, -def.price)
+	owned[id][key] = 1
+	_save_careers()
+	_s_toast.rpc("%s upgraded their desk: %s" % [Net.player_name(id), def.name])
 	_s_luxury.rpc(id, key)
 	_push_state()
 
@@ -385,7 +463,7 @@ func has_rank_for(peer: int, gate: String) -> bool:
 
 ## Tests run with --smoke and must not read or write a real career file.
 func _careers_on_disk() -> bool:
-	return Net.is_server() and not Config.cli.has("smoke") and not Config.cli.has("savecheck")
+	return Net.is_server() and not Config.cli.has("smoke") and not Config.cli.has("savecheck") and not Config.cli.has("eventcheck")
 
 
 func _load_career(id: int) -> void:
@@ -472,6 +550,7 @@ func _req_hotdog() -> void:
 	ledger.adjust(acct_for(id), -Rules.HOTDOG_PRICE)
 	pressure[id] = maxf(pressure_of(id) - Rules.HOTDOG_RELIEF, 0.0)
 	_s_toast.rpc_id(id, "Dirty water dog. Blood pressure -%d." % int(Rules.HOTDOG_RELIEF))
+	_contract(id, "hotdog")
 	_push_state()
 
 
@@ -495,6 +574,7 @@ func _req_relieve() -> void:
 	effects[id]["relief"] = Rules.RELIEF_SECONDS
 	pressure[id] = 0.0
 	_s_relieved.rpc(id, Rules.RELIEF_LINES[rng.randi() % Rules.RELIEF_LINES.size()])
+	_contract(id, "relieve")
 	_push_state()
 
 
@@ -524,7 +604,10 @@ func _req_use(item: String) -> void:
 		"cigar", "powder", "moneygun":
 			effects[id][item] = Rules.ITEM_DURATION[item]
 		"tip":
-			if phase == "trading" and not _next_event.is_empty():
+			var soon := _next_shock(60.0)
+			if phase == "trading" and not soon.is_empty():
+				_s_tip.rpc_id(id, DayEvents.hint(soon), soon.at - (_day_len - time_left))
+			elif phase == "trading" and not _next_event.is_empty():
 				_s_tip.rpc_id(id, _next_event.hint, _next_event_in)
 			else:
 				_s_tip.rpc_id(id, "Market's closed — nothing to tip.", 0.0)
@@ -559,6 +642,7 @@ func _req_slot(bet: float) -> void:
 	stats[id].pnl_day += payout - bet
 	stats[id].pnl_total += payout - bet
 	_s_slot_result.rpc(id, reels, payout, bet)
+	_contract(id, "slots", {"mult": mult})
 	if mult >= 25:
 		_s_toast.rpc("%s HIT THE JACKPOT: %s!" % [Net.player_name(id), Rules.money(payout)])
 	_push_state()
@@ -580,6 +664,14 @@ func _sender() -> int:
 	return 1 if s == 0 else s
 
 
+## Circuit breaker: nobody trades (in or out) while the market is halted.
+func _halt_msg(id: int) -> bool:
+	if not halted():
+		return false
+	_s_error.rpc_id(id, "CIRCUIT BREAKER: trading halted for %ds. Nobody gets in or out." % ceili(halt))
+	return true
+
+
 # ======================================================================
 # server loop
 # ======================================================================
@@ -599,7 +691,7 @@ func _process(delta: float) -> void:
 
 func _server_step(dt: float) -> void:
 	var closed_candle := false
-	if phase == "lobby" or phase == "trading":
+	if phase == "lobby" or (phase == "trading" and not halted()):
 		closed_candle = market.step(dt)
 	_dirty = closed_candle or _dirty
 	# timers on players
@@ -608,12 +700,13 @@ func _server_step(dt: float) -> void:
 			effects[id][e] = maxf(effects[id][e] - dt, 0.0)
 			if effects[id][e] <= 0.0:
 				effects[id].erase(e)
+	var cool: float = Rules.HEAT_DECAY * float(ev_mod("heat_decay"))
 	for id in heat.keys():
-		heat[id] = maxf(heat[id] - Rules.HEAT_DECAY * dt, 0.0)
+		heat[id] = maxf(heat[id] - cool * perks(id).heat_decay * dt, 0.0)
 	if phase == "trading":
 		for id in pressure.keys():
 			if not is_jailed(id) and effect_left(id, "relief") <= 0.0:
-				pressure[id] = minf(pressure[id] + Rules.PRESSURE_RISE * dt, Rules.PRESSURE_MAX)
+				pressure[id] = minf(pressure[id] + Rules.PRESSURE_RISE * perks(id).bp * dt, Rules.PRESSURE_MAX)
 	for id in jail.keys():
 		jail[id] -= dt
 		if jail[id] <= 0.0:
@@ -623,13 +716,17 @@ func _server_step(dt: float) -> void:
 
 	if phase == "trading":
 		time_left -= dt
-		_step_news(dt)
-		for r in ledger.check_triggers(market.price_of):
-			_after_close(r, r.acct, r.pos.get("trader_id", 0))
-			_dirty = true
-		for r in ledger.check_liquidations(market.price_of):
-			_after_close(r, r.acct, r.pos.get("trader_id", 0))
-			_dirty = true
+		_step_shocks(dt)
+		if not halted():                     # a halted market: no headlines, no fills, no liquidations
+			_step_news(dt)
+			for r in ledger.check_triggers(market.price_of):
+				_after_close(r, r.acct, r.pos.get("trader_id", 0))
+				_dirty = true
+			for r in ledger.check_liquidations(market.price_of):
+				_after_close(r, r.acct, r.pos.get("trader_id", 0))
+				_dirty = true
+		_check_milestones()
+		_scanner_warnings()
 		_step_raid(dt)
 		_check_bust()
 		if time_left <= 0.0:
@@ -639,18 +736,25 @@ func _server_step(dt: float) -> void:
 		if time_left <= 0.0:
 			_start_day()
 
-	_s_tick.rpc(market.tick_payload(), time_left, heat, raid, pressure)
+	_s_tick.rpc(market.tick_payload(), time_left, heat, raid, pressure, halt)
 	if _dirty:
 		_push_state()
 
 
 func _step_news(dt: float) -> void:
 	_next_event_in -= dt
-	if not _early_sent and _next_event_in <= 6.0:
-		_early_sent = true
-		for id in effects.keys():
-			if effect_left(id, "powder") > 0.0:
-				_s_news_early.rpc_id(id, _public(_next_event))
+	# early headlines: Nose Candy (6s), the Bloomberg Terminal / Iced Out / WOLF rank perks
+	for id in effects.keys():
+		if _early_to.has(id) or not Net.players.has(id):
+			continue
+		var powder := effect_left(id, "powder") > 0.0
+		var lead := maxf(6.0 if powder else 0.0, float(perks(id).early_news))
+		if lead > 0.0 and _next_event_in <= lead:
+			_early_to[id] = true
+			var e := _public(_next_event)
+			e["lead"] = lead
+			e["src"] = "powder" if powder and lead <= 6.0 else "terminal"
+			_s_news_early.rpc_id(id, e)
 	# Tramp posts before the TV covers it: phone-watchers get a head start
 	if not _post_sent and _next_event_in <= 4.0 and _next_event.speaker == "TRAMP":
 		_post_sent = true
@@ -664,8 +768,8 @@ func _step_news(dt: float) -> void:
 
 func _roll_next_event() -> void:
 	_next_event = newsdeck.roll()
-	_next_event_in = rng.randf_range(22.0, 40.0)
-	_early_sent = false
+	_next_event_in = rng.randf_range(22.0, 40.0) * float(ev_mod("news_every"))
+	_early_to.clear()
 	_post_sent = false
 
 
@@ -682,6 +786,9 @@ func _after_close(r: Dictionary, acct: int, closer: int) -> void:
 		stats[trader_id].biggest = maxf(stats[trader_id].biggest, r.pnl)
 	if r.pct > 100.0 and heat.has(trader_id):
 		_add_heat(trader_id, Rules.HEAT_BIG_WIN)
+	if stats.has(trader_id):
+		_contract(trader_id, "close", {"pnl": r.pnl, "pct": r.pct, "side": pos.side, "sym": pos.sym, "lev": pos.lev,
+			"pnl_day": stats[trader_id].pnl_day})
 	_s_trade_closed.rpc({"acct": acct, "trader": pos.trader, "trader_id": trader_id, "sym": pos.sym, "side": pos.side,
 		"pnl": r.pnl, "pct": r.pct, "liquidated": r.liquidated, "lev": pos.lev, "trigger": r.get("trigger", "")})
 
@@ -689,8 +796,10 @@ func _after_close(r: Dictionary, acct: int, closer: int) -> void:
 func _add_heat(id: int, amount: float) -> void:
 	if not heat.has(id):
 		return
+	if amount > 0.0:
+		amount *= float(ev_mod("heat_gain"))        # SEC audit
 	heat[id] = minf(heat[id] + amount, Rules.HEAT_MAX)
-	if heat[id] >= Rules.HEAT_MAX and raid.is_empty() and not is_jailed(id) and phase == "trading":
+	if heat[id] >= raid_threshold() and raid.is_empty() and not is_jailed(id) and phase == "trading":
 		_start_raid(id)
 
 
@@ -780,6 +889,8 @@ func _ensure_peer(id: int) -> void:
 		ledger.create_account(id, Net.player_name(id), Rules.START_FUND)
 	if not _resume.is_empty() and not _restored.has(id):
 		_restore_peer(id)
+	if phase == "trading" and not contracts.has(id) and Net.players.has(id):
+		_deal_contracts(id)
 
 
 func _on_players_changed() -> void:
@@ -806,6 +917,10 @@ func _reset_run() -> void:
 	effects.clear()
 	stats.clear()
 	jail.clear()
+	contracts.clear()
+	milestones = 0
+	_set_day_event("")
+	next_event = ""
 	if not raid.is_empty():
 		_end_raid(false)
 	if Net.mode == "coop":
@@ -819,6 +934,7 @@ func _start_run() -> void:
 	if _resume.is_empty():
 		_reset_run()
 		day = 0
+		next_event = _roll_day_event(1)
 		_s_toast.rpc("DING DING DING. THE MARKET IS OPEN.")
 	else:   # a loaded run picks up the morning after its last closing bell
 		_s_toast.rpc("DING DING DING. Day %d — the fund is back in business." % (day + 1))
@@ -831,12 +947,12 @@ func _start_run() -> void:
 ## (written at the first closing bell). Tests don't touch real saves.
 func _open_save() -> void:
 	save_slot = ""
-	if Config.cli.has("smoke") and not Config.cli.has("savecheck"):
+	if (Config.cli.has("smoke") or Config.cli.has("eventcheck")) and not Config.cli.has("savecheck"):
 		return
 	if Config.load_slot != "":
 		var s := SaveGame.read(Config.load_slot)
 		Config.load_slot = ""
-		if not s.is_empty() and not s.get("over", false):
+		if not s.is_empty() and not s.get("over", false) and SaveGame.owned_by(s, Net.player_name(1)):
 			save_slot = str(s.slot)
 			_apply_save(s)
 			return
@@ -848,6 +964,8 @@ func _apply_save(s: Dictionary) -> void:
 	_restored.clear()
 	day = int(s.get("day", 0))
 	quota = Rules.quota_for_day(day + 1)
+	next_event = str(s.get("next_event", ""))
+	milestones = int(s.get("milestones", 0))
 	if Net.mode == "coop":
 		ledger.get_acct(0).balance = float(s.get("fund", Rules.START_FUND))
 	for id in Net.players:
@@ -896,7 +1014,8 @@ func snapshot(over: bool) -> Dictionary:
 		players[nm.to_lower()] = p
 	var fund: float = ledger.get_acct(0).balance if Net.mode == "coop" else best
 	return {"mode": Net.mode, "day": day, "fund": fund, "balance": fund, "over": over,
-		"names": names, "players": players}
+		"names": names, "players": players, "owner": Net.player_name(1), "next_event": next_event,
+		"milestones": milestones}
 
 
 func _autosave(over: bool) -> Dictionary:
@@ -905,6 +1024,154 @@ func _autosave(over: bool) -> Dictionary:
 	if not SaveGame.write(save_slot, snapshot(over)):
 		return {"error": true}
 	return {"slot": save_slot, "cloud": SaveGame.in_cloud()}
+
+
+# ---------------- day events (DayEvents) ----------------
+
+## Tomorrow's event. Tests pin it with --day_event=<id|none> (smoke runs
+## default to none so they stay predictable).
+func _roll_day_event(for_day: int) -> String:
+	return DayEvents.roll(rng, for_day, day_event)
+
+
+func _forced_event(rolled: String) -> String:
+	var f := str(Config.cli.get("day_event", "none" if Config.cli.has("smoke") or Config.cli.has("savecheck") else ""))
+	if f == "":
+		return rolled
+	return "" if f == "none" or not DayEvents.EVENTS.has(f) else f
+
+
+## Switch today's event on: market drift / volatility, who's on the news.
+func _set_day_event(id: String) -> void:
+	day_event = id
+	if market == null:
+		return
+	market.vol_mult = (ev_mod("vol", {}) as Dictionary).duplicate()
+	market.bias = float(ev_mod("bias", 0.0))
+	newsdeck.boost = (ev_mod("news", {}) as Dictionary).duplicate()
+	newsdeck.tramp_boost = float(ev_mod("tramp"))
+
+
+func _update_event_at() -> void:
+	event_at = -1.0
+	for s in _sched:
+		if not s.fired and DayEvents.public_at(s):
+			event_at = _day_len - s.at
+			return
+
+
+## The next unfired shock within `within` seconds (for the Insider Tip).
+func _next_shock(within: float) -> Dictionary:
+	var now := _day_len - time_left
+	for s in _sched:
+		if not s.fired and s.at - now <= within:
+			return s
+	return {}
+
+
+## Timed shocks: the warning, the hit, and for a crash the circuit breaker.
+func _step_shocks(dt: float) -> void:
+	if halted():
+		halt = maxf(halt - dt, 0.0)
+		if not halted():
+			_fire(DayEvents.shock_news(_halt_shock, "reopen"))
+			_s_shock.rpc(_halt_shock.kind, "reopen")
+			_s_toast.rpc("CIRCUIT BREAKER LIFTED. TRADING RESUMES.")
+			_dirty = true
+	var now := _day_len - time_left
+	for s in _sched:
+		var lead: float = DayEvents.CRASH_WARN if s.kind == "crash" else DayEvents.WARN_SECONDS
+		if not s.warned and now >= s.at - lead:
+			s.warned = true
+			_fire(DayEvents.shock_news(s, "warn"))
+			_s_shock.rpc(s.kind, "warn")
+		if not s.fired and now >= s.at:
+			s.fired = true
+			s["halt_at"] = now + DayEvents.HALT_AFTER
+			_fire(DayEvents.shock_news(s, "hit"))
+			_s_shock.rpc(s.kind, "hit")
+			_update_event_at()
+			_dirty = true
+		if s.kind == "crash" and s.fired and not s.get("halted", false) and now >= s.halt_at:
+			s["halted"] = true
+			_halt_shock = s
+			halt = DayEvents.HALT_SECONDS
+			_s_shock.rpc(s.kind, "halt")
+			_s_toast.rpc("CIRCUIT BREAKER TRIPPED. TRADING HALTED %ds." % int(DayEvents.HALT_SECONDS))
+			_dirty = true
+
+
+## Put a headline on the air (and move the market if it has effects).
+func _fire(ev: Dictionary) -> void:
+	newsdeck.apply(market, ev)
+	last_news = _public(ev)
+	_s_news.rpc(last_news)
+
+
+# ---------------- Tony's contracts ----------------
+
+func _deal_contracts(id: int) -> void:
+	var extra: int = perks(id).contracts
+	contracts[id] = Contracts.deal(rng, maxi(day, 1), Rules.START_FUND, day_event, extra)
+
+
+## Something happened to `id`: move their contracts along.
+func _contract(id: int, kind: String, data: Dictionary = {}) -> void:
+	if phase != "trading" or not contracts.has(id):
+		return
+	for c in contracts[id]:
+		if Contracts.note(c, kind, data):
+			_pay_contract(id, c)
+	_dirty = true
+
+
+func _pay_contract(id: int, c: Dictionary) -> void:
+	var pk := perks(id)
+	var cash: float = c.cash * pk.contract_pay
+	ledger.adjust(acct_for(id), cash)
+	_bonus_xp(id, c.xp * pk.xp)
+	_s_contract_done.rpc(id, c, cash)
+	_dirty = true
+
+
+## XP outside the closing bell (contracts, milestones).
+func _bonus_xp(id: int, gain: float) -> void:
+	_ensure_peer(id)
+	var c: Dictionary = careers[id]
+	var before := Rules.rank_of(c.xp)
+	c.xp += gain
+	var after := Rules.rank_of(c.xp)
+	if after > before:
+		_s_rank_up.rpc(id, after)
+
+
+## Co-op: the fund crossing $100K, $250K, $1M... pays everyone XP once a run.
+func _check_milestones() -> void:
+	if Net.mode != "coop" or milestones >= Rules.MILESTONES.size():
+		return
+	var amount: float = Rules.MILESTONES[milestones]
+	if ledger.equity(0, market.price_of) < amount:
+		return
+	var xp: float = Rules.MILESTONE_XP[milestones]
+	milestones += 1
+	for id in Net.players:
+		_bonus_xp(id, xp * perks(id).xp)
+	_s_milestone.rpc(amount, xp)
+	_dirty = true
+
+
+## Police Scanner upgrade: a heads-up before the cops come.
+func _scanner_warnings() -> void:
+	var th := raid_threshold()
+	for id in heat:
+		if perks(id).raid_warn <= 0:
+			continue
+		var h: float = heat[id]
+		if h >= th * 0.75 and not _raid_warned.has(id):
+			_raid_warned[id] = true
+			_s_toast.rpc_id(id, "SCANNER: \"All units, eyes on %s. Heat %d.\" Cool it." % [Net.player_name(id).to_upper(), int(h)])
+		elif h < th * 0.5:
+			_raid_warned.erase(id)
 
 
 func _start_day() -> void:
@@ -919,9 +1186,19 @@ func _start_day() -> void:
 		ledger.accounts[id].day_start = ledger.accounts[id].balance
 	for id in stats:
 		stats[id].pnl_day = 0.0
+	_day_len = time_left
+	halt = 0.0
+	_set_day_event(_forced_event(next_event))
+	_sched = DayEvents.schedule(day_event, rng, _day_len)
+	_update_event_at()
+	contracts.clear()
+	for id in Net.players:
+		_deal_contracts(id)
 	_roll_next_event()
 	_next_event_in = 10.0
 	_s_market_full.rpc(market.full_payload())
+	if day_event != "":
+		_fire(DayEvents.morning_news(day_event, _day_len))
 	_push_state()
 
 
@@ -941,15 +1218,24 @@ func _end_day() -> void:
 			if r.ok:
 				_after_close(r, id, r.pos.get("trader_id", 0))
 	# the bills come due before anyone checks the quota
+	# Tony's end-of-day contracts (clean hands, stayed off the slots) settle first
+	for id in contracts:
+		for c in contracts[id]:
+			if Contracts.settle(c, {"heat": heat.get(id, 0.0)}):
+				_pay_contract(id, c)
 	var overhead := 0.0
+	var ov_day: float = float(ev_mod("overhead"))            # bonus day: the firm pays
 	if Net.mode == "coop":
-		overhead = Rules.overhead_for_day(day, Net.players.size())
+		for id in Net.players:
+			overhead += Rules.overhead_for_day(day, 1) * perks(id).overhead * ov_day
 		ledger.adjust(0, -overhead)
 	else:
-		overhead = Rules.overhead_for_day(day, 1)
 		for id in ledger.accounts:
-			ledger.adjust(id, -overhead)
-	var summary := {"day": day, "quota": quota, "mode": Net.mode, "players": {}, "overhead": overhead}
+			var own_bill: float = Rules.overhead_for_day(day, 1) * perks(id).overhead * ov_day
+			overhead = maxf(overhead, own_bill)
+			ledger.adjust(id, -own_bill)
+	var summary := {"day": day, "quota": quota, "mode": Net.mode, "players": {}, "overhead": overhead,
+		"event": day_event, "contracts": contracts.duplicate(true)}
 	for id in Net.players:
 		summary.players[id] = {"name": Net.player_name(id), "stats": stats.get(id, {}).duplicate()}
 	var over := false
@@ -976,14 +1262,21 @@ func _end_day() -> void:
 		over = day >= Rules.PVP_DAYS or alive <= needed_alive
 		if over and not ranking.is_empty():
 			summary["winner"] = ranking[0].name
+			if ranking.size() > 1 and owned.has(ranking[0].id):   # the champion's trophy stays on their desk for good
+				var champ: int = ranking[0].id
+				owned[champ]["champ"] = lux_count(champ, "champ") + 1
+				summary["champ"] = lux_count(champ, "champ")
 	# career XP: green days + making quota
 	summary["xp"] = {}
 	for id in Net.players:
 		var st: Dictionary = stats.get(id, {})
 		var made: bool = desk_passed if Net.mode == "coop" else not ledger.get_acct(id).get("busted", true)
 		var gain: float = maxf(st.get("pnl_day", 0.0), 0.0) / 1000.0 * Rules.XP_PER_1K + (Rules.XP_QUOTA_DAY if made else 0.0)
-		summary.xp[id] = _add_xp(id, gain, st.get("pnl_day", 0.0))
+		summary.xp[id] = _add_xp(id, gain * perks(id).xp, st.get("pnl_day", 0.0))
 	_save_careers()
+	if not over:                                   # tomorrow's forecast (the save keeps it)
+		next_event = _roll_day_event(day + 1)
+		summary["tomorrow"] = next_event
 	summary["saved"] = _autosave(over)          # the closing bell saves the run (a busted run is marked over)
 	if over:
 		phase = "gameover"
@@ -1003,7 +1296,8 @@ func _push_state() -> void:
 	accounts = ledger.payload()
 	_s_state.rpc({"phase": phase, "day": day, "time_left": time_left, "quota": quota,
 		"accounts": accounts, "heat": heat, "jail": jail, "inventory": inventory, "owned": owned, "careers": careers,
-		"effects": effects, "stats": stats, "raid": raid})
+		"effects": effects, "stats": stats, "raid": raid, "day_event": day_event, "next_event": next_event,
+		"event_at": event_at, "halt": halt, "contracts": contracts, "milestones": milestones})
 
 
 # ======================================================================
@@ -1025,6 +1319,12 @@ func _s_state(s: Dictionary) -> void:
 	effects = s.effects
 	stats = s.stats
 	raid = s.raid
+	day_event = s.get("day_event", "")
+	next_event = s.get("next_event", "")
+	event_at = s.get("event_at", -1.0)
+	halt = s.get("halt", 0.0)
+	contracts = s.get("contracts", {})
+	milestones = s.get("milestones", 0)
 	state_changed.emit()
 
 
@@ -1044,8 +1344,9 @@ func _mirror_market_full(p: Dictionary) -> void:
 
 
 @rpc("authority", "call_local", "unreliable_ordered")
-func _s_tick(p: Dictionary, t_left: float, h: Dictionary, r: Dictionary, bp: Dictionary = {}) -> void:
+func _s_tick(p: Dictionary, t_left: float, h: Dictionary, r: Dictionary, bp: Dictionary = {}, hl: float = 0.0) -> void:
 	pressure = bp
+	halt = hl
 	if m_assets.size() != p.p.size():
 		return
 	var new_candle: bool = p.ci != m_ci
@@ -1141,6 +1442,21 @@ func _s_luxury(peer: int, key: String) -> void:
 @rpc("authority", "call_local", "reliable")
 func _s_pawned(peer: int, key: String) -> void:
 	pawned.emit(peer, key)
+
+
+@rpc("authority", "call_local", "reliable")
+func _s_contract_done(peer: int, c: Dictionary, cash: float) -> void:
+	contract_done.emit(peer, c, cash)
+
+
+@rpc("authority", "call_local", "reliable")
+func _s_shock(kind: String, stage: String) -> void:
+	shock.emit(kind, stage)
+
+
+@rpc("authority", "call_local", "reliable")
+func _s_milestone(amount: float, xp: float) -> void:
+	milestone.emit(amount, xp)
 
 
 @rpc("authority", "call_local", "reliable")

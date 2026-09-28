@@ -13,6 +13,8 @@ const PhoneScript = preload("res://scripts/ui/phone.gd")
 const CrtFrame = preload("res://scripts/ui/crt_frame.gd")
 const MusicDirector = preload("res://scripts/ui/music_director.gd")
 const EmoteWheel = preload("res://scripts/ui/emote_wheel.gd")
+const DayEvents = preload("res://scripts/sim/day_events.gd")
+const Contracts = preload("res://scripts/sim/contracts.gd")
 
 var world
 var match_node
@@ -68,6 +70,13 @@ var mugshot
 var summary
 var pause_menu: PanelContainer
 
+var event_banner: Label           # "DAY 3 — FED DAY" at the opening bell
+var _event_t := 0.0
+var _banner_day := -1
+var contracts_panel: PanelContainer
+var contracts_box: VBoxContainer
+var _contracts_sig := ""
+var _shock_t := 0.0              # red flash while a crash hits
 var _chat_open := false
 var _last_phase := ""
 var _tip_eta := 0.0
@@ -106,6 +115,9 @@ func setup(w, m) -> void:
 	m.relieved.connect(_on_relieved)
 	m.ranked_up.connect(_on_rank_up)
 	m.posted.connect(_on_posted)
+	m.contract_done.connect(_on_contract_done)
+	m.shock.connect(_on_shock)
+	m.milestone.connect(_on_milestone)
 	music = MusicDirector.new(self)
 	add_child(music)
 	emote_wheel = EmoteWheel.new(self)
@@ -143,11 +155,40 @@ func _build_top_bar() -> void:
 	rank_banner.add_theme_color_override("font_outline_color", Color.BLACK)
 	rank_banner.add_theme_constant_override("outline_size", 14)
 	rank_banner.modulate.a = 0.0
+	rank_banner.z_index = 10                     # above the day summary / shops
 	root.add_child(rank_banner)
+
+	event_banner = UI.lbl("", 30, Color.WHITE, true)
+	event_banner.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
+	event_banner.offset_left = -560
+	event_banner.offset_right = 560
+	event_banner.offset_top = -300
+	event_banner.offset_bottom = -40
+	event_banner.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	event_banner.autowrap_mode = TextServer.AUTOWRAP_WORD
+	event_banner.add_theme_color_override("font_outline_color", Color.BLACK)
+	event_banner.add_theme_constant_override("outline_size", 12)
+	event_banner.modulate.a = 0.0
+	event_banner.z_index = 10
+	root.add_child(event_banner)
 
 	phase_lbl = UI.lbl("", 24, UI.GOLD, true)
 	phase_lbl.position = Vector2(20, 72)
+	phase_lbl.add_theme_color_override("font_outline_color", Color.BLACK)
+	phase_lbl.add_theme_constant_override("outline_size", 6)
 	root.add_child(phase_lbl)
+
+	# Tony's contracts for today (left side, under the top bar)
+	contracts_panel = PanelContainer.new()
+	contracts_panel.add_theme_stylebox_override("panel", UI.panel_box(Color(0.1, 0.07, 0.04, 0.8), Color(0.55, 0.4, 0.15), 8, 2))
+	contracts_panel.position = Vector2(16, 112)
+	contracts_panel.custom_minimum_size.x = 430
+	contracts_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	contracts_panel.visible = false
+	root.add_child(contracts_panel)
+	contracts_box = VBoxContainer.new()
+	contracts_box.add_theme_constant_override("separation", 2)
+	contracts_panel.add_child(contracts_box)
 
 	var heat_panel := PanelContainer.new()
 	heat_panel.add_theme_stylebox_override("panel", UI.panel_box(Color(0.04, 0.07, 0.12, 0.85), UI.LINE, 10, 2))
@@ -488,6 +529,13 @@ func _process(delta: float) -> void:
 	_update_pressure_fx(delta)
 	_rank_t = maxf(_rank_t - delta, 0.0)
 	rank_banner.modulate.a = clampf(_rank_t, 0.0, 1.0)
+	_event_t = maxf(_event_t - delta, 0.0)
+	event_banner.modulate.a = clampf(_event_t, 0.0, 1.0)
+	if _shock_t > 0.0:
+		_shock_t = maxf(_shock_t - delta, 0.0)
+		raid_flash.color = Color(1, 0, 0, 0.18 * _shock_t / 3.0 * (0.6 + 0.4 * sin(_shock_t * 18.0)))
+	if match_node.phase == "trading":
+		phase_lbl.text = _today_line()
 	var xp: float = match_node.xp_of(Net.my_id())
 	var ri := Rules.rank_of(xp)
 	rank_lbl.text = "%s  %d/%s XP" % [Rules.RANKS[ri].name, int(xp), str(Rules.RANKS[ri + 1].xp) if ri + 1 < Rules.RANKS.size() else "MAX"]
@@ -545,6 +593,8 @@ func _on_state() -> void:
 	fund_lbl.text = "%s %s" % ["FUND" if coop else "YOU", Rules.money(eq)]
 	quota_lbl.text = "QUOTA %s" % Rules.money(match_node.quota)
 	quota_lbl.visible = match_node.phase != "lobby"
+	if match_node.phase != "trading":
+		phase_lbl.add_theme_color_override("font_color", UI.GOLD)
 	match match_node.phase:
 		"lobby":
 			day_lbl.text = "LOBBY · %s" % ("CO-OP" if coop else "PVP")
@@ -564,6 +614,11 @@ func _on_state() -> void:
 	heat_bar.value = h
 	heat_lbl.text = "HEAT %d" % int(h)
 	_refresh_inventory()
+	_refresh_contracts()
+	if match_node.phase == "trading" and match_node.day != _banner_day:
+		_banner_day = match_node.day
+		if match_node.day_event != "":
+			_show_event_banner()
 
 
 func _on_tick() -> void:
@@ -659,9 +714,10 @@ func _on_news(ev: Dictionary) -> void:
 
 
 func _on_news_early(ev: Dictionary) -> void:
-	tip_lbl.text = "THE NOSE KNOWS (6s early):\n" + ev.headline
+	var src := "THE NOSE KNOWS" if ev.get("src", "powder") == "powder" else "ON YOUR TERMINAL"
+	tip_lbl.text = "%s (%ds early):\n%s" % [src, int(ev.get("lead", 6.0)), ev.headline]
 	tip_panel.visible = true
-	_tip_eta = 6.0
+	_tip_eta = float(ev.get("lead", 6.0))
 
 
 func _on_tip(hint: String, eta: float) -> void:
@@ -795,3 +851,92 @@ func _on_chat(from_name: String, msg: String) -> void:
 	get_tree().create_timer(15.0).timeout.connect(func():
 		if is_instance_valid(l):
 			l.queue_free())
+
+
+# ---------------------------------------------------------------- day events + contracts
+
+## The line under the top bar during the day: today's event, countdowns, halts.
+func _today_line() -> String:
+	var m = match_node
+	if m.halt > 0.0:
+		phase_lbl.add_theme_color_override("font_color", UI.RED)
+		return "CIRCUIT BREAKER — TRADING HALTED %ds" % ceili(m.halt)
+	if m.day_event == "":
+		return ""
+	var e: Dictionary = DayEvents.info(m.day_event)
+	phase_lbl.add_theme_color_override("font_color", e.get("color", UI.GOLD))
+	var line := "TODAY: %s" % e.name
+	if m.event_at >= 0.0:
+		var left: float = m.time_left - m.event_at
+		if left > 0.0:
+			line += "  ·  %s IN %s" % ["POWWW SPEAKS" if m.day_event == "fed_day" else "REX REPORTS", DayEvents.clock(left)]
+	match m.day_event:
+		"black_friday":
+			line += "  ·  boutiques %d%% off" % int(DayEvents.mod("black_friday", "lux_discount", 0.0) * 100.0)
+		"crackdown":
+			line += "  ·  cops come at %d heat" % int(m.raid_threshold())
+	return line
+
+
+func _show_event_banner() -> void:
+	var e: Dictionary = DayEvents.info(match_node.day_event)
+	event_banner.text = "DAY %d\n%s\n%s" % [match_node.day, e.name, e.blurb]
+	event_banner.add_theme_color_override("font_color", e.get("color", UI.GOLD))
+	event_banner.add_theme_font_size_override("font_size", 30)
+	_event_t = 7.0
+	Sfx.play("news", 0.0, 0.8)
+
+
+func _refresh_contracts() -> void:
+	var mine: Array = match_node.contracts.get(Net.my_id(), [])
+	contracts_panel.visible = not mine.is_empty() and match_node.phase == "trading"
+	var sig := str(mine)
+	if sig == _contracts_sig:
+		return
+	_contracts_sig = sig
+	for c in contracts_box.get_children():
+		c.queue_free()
+	contracts_box.add_child(UI.lbl("TONY'S CONTRACTS", 18, UI.GOLD, true))
+	for c in mine:
+		var col: Color = UI.GREEN if c.done else (UI.RED if c.failed else UI.TEXT)
+		var mark := "✓" if c.done else ("✗" if c.failed else "•")
+		var prog := Contracts.progress_text(c)
+		var l := UI.lbl("%s %s%s   %s" % [mark, c.text, ("  (%s)" % prog) if prog != "" and not c.done and not c.failed else "",
+				Rules.money(c.cash)], 16, col, c.done)
+		l.autowrap_mode = TextServer.AUTOWRAP_WORD
+		l.custom_minimum_size.x = 420
+		contracts_box.add_child(l)
+
+
+func _on_contract_done(peer: int, c: Dictionary, cash: float) -> void:
+	if peer == Net.my_id():
+		Sfx.play("cash")
+		show_toast("CONTRACT DONE: %s  +%s  +%d XP" % [c.text, Rules.money(cash), int(c.xp)], UI.GREEN)
+	elif Net.mode == "coop":
+		show_toast("%s finished a contract: +%s to the fund" % [Net.player_name(peer), Rules.money(cash)], UI.DIM)
+
+
+func _on_shock(kind: String, stage: String) -> void:
+	match [kind, stage]:
+		["crash", "warn"]:
+			Sfx.play("siren", -4.0)
+			show_toast("SIRENS ON WALL ST. Something is about to break.", UI.RED)
+		["crash", "hit"]:
+			_shock_t = 3.0
+			Sfx.play("liquidated", -2.0)
+		["crash", "halt"]:
+			Sfx.play("bell", 0.0, 0.7)
+		["crash", "reopen"]:
+			Sfx.play("bell")
+		["fed", "warn"], ["earnings", "warn"]:
+			show_toast(("POWWW TAKES THE PODIUM IN 30 SECONDS. Pick a side." if kind == "fed"
+					else "REX EARNINGS IN 30 SECONDS. Beat or miss?"), UI.GOLD)
+		["fed", "hit"], ["earnings", "hit"]:
+			Sfx.play("news", 2.0, 0.9)
+
+
+func _on_milestone(amount: float, xp: float) -> void:
+	Sfx.play("jackpot")
+	rank_banner.text = "THE FUND HIT %s\n+%d XP FOR THE WHOLE DESK" % [Rules.money(amount), int(xp)]
+	rank_banner.modulate.a = 1.0
+	_rank_t = 5.0

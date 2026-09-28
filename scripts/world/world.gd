@@ -493,6 +493,28 @@ func _build_trophies(desk: int, who: String, own: Dictionary) -> void:
 				ll.position = Vector3(0, 0.22, 0.072)
 				bag_node.add_child(ll)
 			slot_i += 1
+	# office upgrades: they sit where they'd actually be used
+	# (the Bloomberg gets its own stand beside the desk: the desk top is full)
+	const UP_SPOTS := {"up_bloomberg": [Vector3(-1.34, 0, -0.05), 0.55], "up_scanner": [Vector3(-0.45, 0.78, -0.3), 0.25],
+		"up_rolodex": [Vector3(0.36, 0.78, -0.04), -0.35], "up_intern": [Vector3(0.2, 0.78, 0.38), 0.8],
+		"up_prime": [Vector3(-0.28, 0.78, 0.34), 0.15], "up_standing": [Vector3(0, 0, 0.95), 0.0]}
+	for key in Rules.UPGRADES:
+		if own.get(key, 0) > 0 and UP_SPOTS.has(key):
+			PropKit.place(Rules.UPGRADES[key].prop, t, UP_SPOTS[key][0], UP_SPOTS[key][1])
+	# PvP championship trophies stand on top of the cubicle wall for the whole floor to see
+	# (either side of the nameplate: up to four)
+	const CUP_X := [-0.62, 0.62, -0.84, 0.84]
+	for n in mini(int(own.get("champ", 0)), CUP_X.size()):
+		var tr := PropKit.place("ChampTrophy", t, Vector3(CUP_X[n], 1.31, -0.48), 0.0)
+		if n == 0:
+			var tl := Label3D.new()
+			tl.text = "CHAMPION x%d" % int(own.champ)
+			tl.font_size = 36
+			tl.pixel_size = 0.0014
+			tl.outline_size = 6
+			tl.modulate = Color(1, 0.84, 0.2)
+			tl.position = Vector3(0, 0.37, 0)
+			tr.add_child(tl)
 
 
 ## Feed a stack of cash through your desk's money counter (just for the flex):

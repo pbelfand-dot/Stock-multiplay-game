@@ -14,7 +14,12 @@ const REACTION_DELAY := 1.5   # seconds between headline and the market reacting
 const SYMS := ["BTC", "GOLD", "OIL", "SPX", "BNN", "REX", "WAGMI"]
 const TRAMP_MULT := 1.7   # "you're one post away from getting rich... or losing it all"
 
+## How often each speaker comes up (day events scale these, see DayEvents).
+const WEIGHTS := {"tramp": 0.22, "tjz": 0.18, "kimchee": 0.14, "crammer": 0.10, "kitteh": 0.08, "fed": 0.12, "breaking": 0.16}
+
 var rng: RandomNumberGenerator
+var boost := {}               # speaker -> weight multiplier for today
+var tramp_boost := 1.0        # tweetstorm: his posts hit harder
 
 
 func _init(r: RandomNumberGenerator) -> void:
@@ -34,21 +39,30 @@ func _arrow(pct: float) -> String:
 
 
 func roll() -> Dictionary:
-	var roll_v := rng.randf()
-	if roll_v < 0.22:
-		return _tramp()
-	elif roll_v < 0.40:
-		return _tjz()
-	elif roll_v < 0.54:
-		return _kimchee()
-	elif roll_v < 0.64:
-		return _crammer()
-	elif roll_v < 0.72:
-		return _kitteh()
-	elif roll_v < 0.84:
-		return _fed()
-	else:
-		return _breaking()
+	var total := 0.0
+	for k in WEIGHTS:
+		total += WEIGHTS[k] * float(boost.get(k, 1.0))
+	var r := rng.randf() * total
+	var who := "breaking"
+	for k in WEIGHTS:
+		r -= WEIGHTS[k] * float(boost.get(k, 1.0))
+		if r < 0.0:
+			who = k
+			break
+	match who:
+		"tramp":
+			return _tramp()
+		"tjz":
+			return _tjz()
+		"kimchee":
+			return _kimchee()
+		"crammer":
+			return _crammer()
+		"kitteh":
+			return _kitteh()
+		"fed":
+			return _fed()
+	return _breaking()
 
 
 func _ev(speaker: String, role: String, headline: String, effects: Array) -> Dictionary:
@@ -83,7 +97,7 @@ func _tramp() -> Dictionary:
 	var l: Array = _pick(lines)
 	var effects: Array = []
 	for pair in l[1]:
-		effects.append({"sym": pair[0], "pct": pair[1] * TRAMP_MULT * rng.randf_range(0.8, 1.25), "dur": rng.randf_range(3.0, 6.0), "delay": 0.0})
+		effects.append({"sym": pair[0], "pct": pair[1] * TRAMP_MULT * tramp_boost * rng.randf_range(0.8, 1.25), "dur": rng.randf_range(3.0, 6.0), "delay": 0.0})
 	return _ev("TRAMP", "PRESIDENT", "TRAMP: " + l[0], effects)
 
 

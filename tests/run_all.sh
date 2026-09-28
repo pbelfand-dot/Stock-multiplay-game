@@ -11,7 +11,11 @@ echo "== terminal clicks (BUY/SELL/auto-sell)"
 "$G" --headless --path . -- --host --autostart --clicktest --port=7790 2>&1 | grep -E "\[click\]" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
 echo "== save -> continue"
 "$G" --headless --path . -- --savecheck=1 --host --autostart --day_seconds=3 --name=Trader --port=7791 2>&1 | grep -E "\[save\]" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
+"$G" --headless --path . -- --savecheck=3 --host --name=Bob --port=7791 2>&1 | grep -E "\[save\]" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
 "$G" --headless --path . -- --savecheck=2 --host --name=Trader --port=7791 2>&1 | grep -E "\[save\]" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
+echo "== day events, contracts, upgrades, milestones"
+"$G" --headless --path . -- --eventcheck --host --autostart --day_seconds=150 --day_event=flash_crash --name=Trader --port=7792 2>&1 | grep -E "\[events\]" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
+"$G" --headless --path . -- --eventcheck --pvp --host --autostart --day_seconds=4 --day_event=none --name=Trader --port=7793 2>&1 | grep -E "\[events\]" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
 for mode in coop pvp; do
   echo "== multiplayer smoke ($mode)"
   extra=""; [ "$mode" = pvp ] && extra="--pvp"

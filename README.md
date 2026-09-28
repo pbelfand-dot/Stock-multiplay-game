@@ -39,8 +39,27 @@ Built in **Godot 4.7** — free, no accounts, no store.
 
 | Mode | How it works |
 |---|---|
-| **Co-op** (default) | One shared fund (starts at $100K). Hit each day's quota (x1.5 every day) or the fund is busted. See how many days you survive. |
-| **PvP** | Everyone gets their own $100K. Same market, same news. Miss the quota and you're out. Richest after 3 days wins. Snitching allowed. |
+| **Co-op** (default) | One shared fund (starts at $25K). Hit each day's quota (x1.5 every day) or the fund is busted. Overhead gets paid every night. See how many days you survive. |
+| **PvP** | Everyone gets their own $25K. Same market, same news. Miss the quota and you're out. Richest after 3 days wins and takes a championship trophy home for good. No catch-up help: best one wins. Snitching allowed. |
+
+## Progression
+
+- **Random day events.** Most mornings something is going on, announced on the TV and at the top of
+  your screen, and the after-hours summary shows **tomorrow's forecast** so you can plan:
+  FLASH CRASH (everything dumps, then the circuit breaker halts trading for 20s), FED DAY (Powww
+  speaks halfway through, 5–8% moves), MEME MANIA, BULL RUN, BEAR MARKET, SEC AUDIT (heat x2),
+  TRAMP TWEETSTORM, BLACK FRIDAY (boutiques 35% off), REX EARNINGS, CRACKDOWN (cops at 70 heat),
+  LIQUIDITY CRUNCH (fees/spreads up) and BONUS DAY (the firm pays the overhead).
+- **Tony's contracts.** Three goals every morning (easy, medium, hard), shown on the left of the
+  screen. Finish one and Tony pays cash + XP on the spot. Event days swap in a themed one.
+- **Ranks with perks.** ANALYST gets a 4th contract, TRADER cheaper fees, DEGEN bigger contract
+  payouts, WHALE lower overhead, MARKET MAKER half spreads, WOLF sees every headline 3s early.
+- **Flex that does something.** Every bag and watch has a perk (Crownwell: cops respect the watch,
+  heat cools 30% faster; Valmont: fees −15%; Chavél: +15% XP...).
+- **Office upgrades** at the FLEX SHOP counter, yours for good and on your desk: Standing Desk Mat,
+  Tony's Rolodex, Police Scanner, Unpaid Intern, Bloomberg Terminal, Prime Broker Account.
+- **Co-op milestones.** The fund passing $100K, $250K, $1M... pays the whole desk XP.
+- **Saves are the host's.** Only the trader who started a run can load it (friends just rejoin).
 | **Solo** | Co-op with just you. |
 
 ## What's in the office
@@ -203,7 +222,11 @@ GODOT=/path/to/godot tests/run_all.sh
 That runs:
 
 - a compile check
-- about 2,500 sim unit checks (the x100 leverage math matches the trailer: +1.21% move → +121%)
+- about 5,000 sim unit checks (the x100 leverage math matches the trailer: +1.21% move → +121%;
+  day events, contracts and perks)
+- save → continue, and someone else can't load your save
+- day events end to end: a forced flash crash + circuit breaker, contracts paying, upgrades,
+  Black Friday prices, the Fed tip, a co-op milestone, the PvP championship trophy
 - a real two-instance multiplayer smoke test, once in co-op and once in PvP
 
 The smoke test drives a full session: join, trade, buy and use an item, slots, chat, basketball,
