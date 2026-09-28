@@ -28,6 +28,10 @@ var price_lbl: Label
 var chg_lbl: Label
 var size_lbl: Label
 var fee_lbl: Label
+## auto-sell steps in % of the price (0 = off): sell if it goes UP this much / DOWN this much
+const AUTO_STEPS := [0.0, 0.5, 1.0, 2.0, 5.0, 10.0, 25.0, 50.0]
+var auto_idx := {"up": 0, "down": 0}
+var auto_lbls := {}
 var lev_btn: Button
 var open_tab: Button
 var closed_tab: Button
@@ -150,7 +154,7 @@ func _ready() -> void:
 	for d in preload("res://scripts/sim/market.gd").ASSET_DEFS:
 		var b := Button.new()
 		b.flat = true
-		b.custom_minimum_size.y = 26
+		b.custom_minimum_size.y = 24
 		var hb := HBoxContainer.new()
 		hb.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 		hb.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -205,9 +209,27 @@ func _ready() -> void:
 	var plus := UI.btn(" + ", UI.NAVY_2, 26)
 	plus.pressed.connect(func(): _step_size(1))
 	sz.add_child(plus)
-	fee_lbl = UI.lbl("", 16, UI.DIM)
+	fee_lbl = UI.lbl("", 14, UI.DIM)
 	fee_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	cv.add_child(fee_lbl)
+	# AUTO-SELL: sell by itself if the price goes this high / this low
+	var auto := HBoxContainer.new()
+	auto.add_theme_constant_override("separation", 4)
+	cv.add_child(auto)
+	auto.add_child(UI.lbl("AUTO", 16, UI.GOLD, true))
+	for k in ["up", "down"]:
+		var key: String = k
+		var mb := UI.btn("-", UI.NAVY_2, 16)
+		mb.pressed.connect(func(): _step_auto(key, -1))
+		auto.add_child(mb)
+		var l := UI.lbl("", 15, UI.GREEN if key == "up" else UI.RED, true)
+		l.custom_minimum_size.x = 96
+		l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		auto.add_child(l)
+		auto_lbls[key] = l
+		var pb := UI.btn("+", UI.NAVY_2, 16)
+		pb.pressed.connect(func(): _step_auto(key, 1))
+		auto.add_child(pb)
 	var orders := HBoxContainer.new()
 	cv.add_child(orders)
 	var buy := UI.btn("BUY", UI.GREEN.darkened(0.15), 26)
@@ -228,9 +250,9 @@ func _ready() -> void:
 	right.add_child(sess)
 	var sv := VBoxContainer.new()
 	sess.add_child(sv)
-	sv.add_child(UI.lbl("MY SESSION", 24, UI.TEXT, true))
+	sv.add_child(UI.lbl("MY SESSION", 20, UI.TEXT, true))
 	sv.add_child(UI.lbl("OPEN PROFIT", 14, UI.DIM))
-	open_profit_lbl = UI.lbl("$0", 34, UI.GOLD, true)
+	open_profit_lbl = UI.lbl("$0", 28, UI.GOLD, true)
 	sv.add_child(open_profit_lbl)
 	var lt := HBoxContainer.new()
 	sv.add_child(lt)
@@ -285,6 +307,7 @@ func _update_size_labels() -> void:
 	lev_btn.text = "x%d" % Ledger.LEVERAGES[lev_idx]
 	var lev: int = Ledger.LEVERAGES[lev_idx]
 	var cigar: bool = match_node != null and match_node.effect_left(Net.my_id(), "cigar") > 0.0
+	_update_auto_labels()
 	var move := 1.0 / lev * 100.0
 	fee_lbl.text = ("no fee (cigar)" if cigar else "-%s fee" % Rules.money(v * lev * Ledger.FEE_RATE)) \
 			+ "  ·  liq at %s%.2f%%" % ["-", move]
@@ -292,7 +315,28 @@ func _update_size_labels() -> void:
 
 func _order(side: int) -> void:
 	Sfx.play("click")
-	match_node.request_open(sym, side, Rules.SIZE_STEPS[size_idx], Ledger.LEVERAGES[lev_idx])
+	match_node.request_order(sym, side, Rules.SIZE_STEPS[size_idx], Ledger.LEVERAGES[lev_idx],
+			AUTO_STEPS[auto_idx.up], AUTO_STEPS[auto_idx.down])
+
+
+func _step_auto(key: String, d: int) -> void:
+	auto_idx[key] = clampi(auto_idx[key] + d, 0, AUTO_STEPS.size() - 1)
+	Sfx.play("click")
+	_update_auto_labels()
+
+
+func _update_auto_labels() -> void:
+	if auto_lbls.is_empty() or match_node == null:
+		return
+	var p: float = match_node.price_of(sym)
+	for key in ["up", "down"]:
+		var pct: float = AUTO_STEPS[auto_idx[key]]
+		var l: Label = auto_lbls[key]
+		if pct <= 0.0:
+			l.text = "%s off" % ("HIGH" if key == "up" else "LOW")
+		else:
+			var tgt := p * (1.0 + (pct if key == "up" else -pct) / 100.0)
+			l.text = "%s%s%% %s" % ["+" if key == "up" else "-", str(pct).trim_suffix(".0"), Rules.price_str(tgt)]
 
 
 func _on_trade_closed(info: Dictionary) -> void:
@@ -321,6 +365,7 @@ func _refresh_all() -> void:
 func _refresh_prices() -> void:
 	if not visible:
 		return
+	_update_auto_labels()
 	for a in match_node.m_assets:
 		if not watch_rows.has(a.sym):
 			continue
@@ -408,6 +453,8 @@ func _unhandled_input(event: InputEvent) -> void:
 				_order(1)
 			KEY_S:
 				_order(-1)
+			KEY_X:
+				match_node.request_close_all()
 			KEY_Q:
 				_step_size(-1)
 			KEY_E:

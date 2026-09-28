@@ -29,6 +29,7 @@ func _init() -> void:
 	test_tpsl()
 	test_spread_and_fees()
 	test_ranks()
+	test_auto_sell()
 	test_liquidation()
 	test_news()
 	test_slots()
@@ -94,6 +95,27 @@ func test_ledger() -> void:
 	check(not l.open_position(0, "BTC", 0, 100.0, 1, 1000.0, "x").ok, "side must be +-1")
 	check(not l.open_position(0, "BTC", 1, -5.0, 1, 1000.0, "x").ok, "positive size")
 	check(not l.open_position(99, "BTC", 1, 5.0, 1, 1000.0, "x").ok, "account must exist")
+
+
+func test_auto_sell() -> void:
+	var l = Ledger.new()
+	l.create_account(1, "p", 1_000_000.0)
+	var r: Dictionary = l.open_position(1, "BTC", 1, 1_000.0, 5, 1000.0, "p")
+	var set: Dictionary = l.set_auto_pct(1, r.pos.pid, 10.0, 5.0)
+	check(approx(set.tp, 1100.0) and approx(set.sl, 950.0), "long: sell at +10%% / -5%%: %s" % str(set))
+	var prices := {"BTC": 1050.0}
+	var pf := func(s): return prices[s]
+	check(l.check_triggers(pf).is_empty(), "nothing between the auto-sell prices")
+	prices.BTC = 949.0
+	var hit: Array = l.check_triggers(pf)
+	check(hit.size() == 1 and hit[0].trigger == "SL", "auto-sold when it went too low")
+	r = l.open_position(1, "BTC", -1, 1_000.0, 5, 1000.0, "p")
+	set = l.set_auto_pct(1, r.pos.pid, 5.0, 10.0)
+	check(approx(set.tp, 900.0) and approx(set.sl, 1050.0), "short: high = stop, low = take: %s" % str(set))
+	r = l.open_position(1, "BTC", 1, 1_000.0, 100, 1000.0, "p")
+	set = l.set_auto_pct(1, r.pos.pid, 0.0, 50.0)
+	check(set.sl > Ledger.liq_price(r.pos), "a too-deep stop is pulled in before liquidation")
+	check(approx(set.tp, 0.0), "high off = no take-profit")
 
 
 func test_ranks() -> void:
