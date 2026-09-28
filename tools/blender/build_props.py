@@ -1062,6 +1062,220 @@ def build_flex_counter():
     finish("FlexCounter")
 
 
+# ----------------------------------------------------------------------------- street (outside)
+
+def storefront(name, wall, trim, sign_bg, style=""):
+    """Ground-floor shop facade, 10 m wide x 4.4 m tall, front face at z=0.4
+    (origin at the back-bottom-center). Door opening 2.2 x 2.8 in the middle;
+    display windows either side; a sign band (Godot writes the brand on it)."""
+    D = 0.4
+    for x0, x1 in ((-5.0, -1.1), (1.1, 5.0)):
+        cx, w = (x0 + x1) / 2, x1 - x0
+        rbox((w, 4.4, D), (cx, 2.2, D / 2), wall)
+        # display window: dark glass set into the pillar + a trim frame
+        rbox((w - 1.0, 2.0, 0.06), (cx, 1.65, D + 0.01), (0.55, 0.7, 0.82), kind="Gloss")
+        for sx, sy, px, py in ((w - 0.84, 0.08, cx, 2.69), (w - 0.84, 0.1, cx, 0.6), (0.08, 2.14, cx - (w - 0.92) / 2, 1.65),
+                               (0.08, 2.14, cx + (w - 0.92) / 2, 1.65)):
+            rbox((sx, sy, 0.1), (px, py, D + 0.03), trim, kind="Metal")
+    rbox((2.2, 1.6, D), (0, 3.6, D / 2), wall)                                  # lintel over the door
+    for x in (-1.12, 1.12):
+        rbox((0.12, 2.9, 0.12), (x, 1.45, D + 0.04), trim, kind="Metal")         # door frame
+    rbox((2.36, 0.12, 0.12), (0, 2.86, D + 0.04), trim, kind="Metal")
+    rbox((9.6, 0.9, 0.12), (0, 3.62, D + 0.07), sign_bg, r=0.02)                 # sign band
+    rbox((10.0, 0.14, 0.3), (0, 4.36, D + 0.1), trim, kind="Metal")              # cornice
+    rbox((10.0, 0.25, 0.1), (0, 0.12, D + 0.05), [c * 0.7 for c in wall])        # base plinth
+    if style == "stripes":          # GUCCERO: green-red-green web stripe under the sign
+        for i, c in enumerate(((0.05, 0.4, 0.2), (0.75, 0.08, 0.1), (0.05, 0.4, 0.2))):
+            rbox((9.6, 0.07, 0.04), (0, 3.08 - i * 0.07, D + 0.14), c)
+    if style == "marble":           # black marble veins
+        for k in range(14):
+            x = random.uniform(-4.8, 4.8)
+            if abs(x) < 1.3:
+                continue
+            rbox((0.02, random.uniform(0.6, 1.8), 0.01), (x, random.uniform(0.6, 3.0), D + 0.005), (0.35, 0.35, 0.38),
+                 rot=[("z", random.uniform(-0.6, 0.6))])
+    if style == "quilted":          # CHAVÉL quilted diamonds
+        for x0 in (-4.9, 1.2):
+            for i in range(13):
+                for j in range(9):
+                    x = x0 + 0.15 + i * 0.28
+                    y = 0.3 + j * 0.46
+                    if 0.55 < y < 2.75 and abs(x - (x0 + 1.95)) < 1.4:
+                        continue
+                    rbox((0.16, 0.16, 0.02), (x, y, D + 0.01), [min(1.0, c * 1.15) for c in wall], rot=[("z", math.pi / 4)])
+    if style == "awning":           # deli: striped awning over the windows
+        for side in (-1, 1):
+            for k in range(8):
+                rbox((0.44, 0.04, 1.1), (side * 3.05 + (k - 3.5) * 0.46, 2.95, D + 0.5),
+                     (0.1, 0.45, 0.2) if k % 2 == 0 else (0.95, 0.95, 0.9), rot=[("x", 0.35)])
+    if style == "cream_awning":     # tailor / dior: plain scalloped awning
+        for side in (-1, 1):
+            rbox((3.6, 0.05, 1.0), (side * 3.05, 2.95, D + 0.45), (0.94, 0.9, 0.8), rot=[("x", 0.35)])
+    if style == "bars":             # pawn: security bars on the windows
+        for side in (-1, 1):
+            for k in range(9):
+                cyl(0.02, 2.0, (side * 3.05 + (k - 4) * 0.36, 1.65, D + 0.12), (0.2, 0.2, 0.22), segs=6, kind="Metal")
+    if style == "bulbs":            # casino: marquee bulbs around the sign
+        for k in range(24):
+            ell((0.05, 0.05, 0.05), (-4.7 + k * 0.41, 4.14, D + 0.16), (1.0, 0.95, 0.7), kind="Glow", segs=8, rings=4)
+            ell((0.05, 0.05, 0.05), (-4.7 + k * 0.41, 3.1, D + 0.16), (1.0, 0.95, 0.7), kind="Glow", segs=8, rings=4)
+    if style == "monogram":         # LOUIS VALMONT: little VM-ish diamonds on the leather
+        for i in range(20):
+            for j in range(9):
+                x = -4.8 + i * 0.5
+                y = 0.35 + j * 0.46
+                if abs(x) < 1.3 or (0.5 < y < 2.8 and 1.3 < abs(x) < 4.6):
+                    continue
+                rbox((0.1, 0.1, 0.01), (x, y, D + 0.005), (0.85, 0.7, 0.4), rot=[("z", math.pi / 4)])
+    finish(name)
+
+
+def build_street_props():
+    # storefronts in the owner's parody brand styles (docs/BRANDS.md)
+    storefront("Store_Guccero", (0.1, 0.1, 0.11), GOLD, (0.05, 0.05, 0.06), "stripes")
+    storefront("Store_Guccero2", (0.1, 0.1, 0.11), GOLD, (0.05, 0.05, 0.06), "marble")
+    storefront("Store_Valmont", (0.45, 0.3, 0.17), GOLD, (0.3, 0.18, 0.09), "monogram")
+    storefront("Store_Prava", (0.07, 0.07, 0.08), (0.8, 0.82, 0.86), (0.04, 0.04, 0.05))
+    storefront("Store_Diorelle", (0.94, 0.91, 0.84), GOLD, (0.97, 0.95, 0.9), "cream_awning")
+    storefront("Store_Chavel", (0.1, 0.1, 0.1), GOLD, (0.97, 0.97, 0.97), "quilted")
+    storefront("Store_Crownwell", (0.05, 0.28, 0.16), GOLD, (0.03, 0.18, 0.1))
+    storefront("Store_Deli", (0.55, 0.22, 0.16), (0.2, 0.2, 0.2), (0.08, 0.3, 0.14), "awning")
+    storefront("Store_Tailor", (0.12, 0.16, 0.3), GOLD, (0.08, 0.1, 0.2), "cream_awning")
+    storefront("Store_Pawn", (0.5, 0.5, 0.52), (0.25, 0.25, 0.27), (0.95, 0.78, 0.1), "bars")
+    storefront("Store_Casino", (0.25, 0.08, 0.35), GOLD, (0.12, 0.03, 0.18), "bulbs")
+    storefront("Store_Lobby", (0.6, 0.62, 0.66), (0.8, 0.82, 0.86), (0.15, 0.17, 0.2))
+    storefront("Store_Empty", (0.62, 0.58, 0.52), (0.4, 0.4, 0.42), (0.9, 0.9, 0.9))
+
+    # upper floors: 10 m wide, 3 floors (9 m), windows + cornice. origin back-bottom-center
+    for name, wall, win in (("Upper_Brick", (0.55, 0.28, 0.2), (0.6, 0.72, 0.85)),
+                            ("Upper_Stone", (0.78, 0.74, 0.66), (0.55, 0.68, 0.82)),
+                            ("Upper_Dark", (0.22, 0.24, 0.28), (0.5, 0.65, 0.8)),
+                            ("Upper_Glass", (0.45, 0.55, 0.65), (0.62, 0.78, 0.92))):
+        rbox((10.0, 9.0, 0.4), (0, 4.5, 0.2), wall)
+        for f in range(3):
+            for k in range(4):
+                x = -3.75 + k * 2.5
+                y = 1.1 + f * 3.0
+                rbox((1.4, 1.8, 0.05), (x, y + 0.9, 0.42), win, kind="Gloss")
+                rbox((1.6, 0.12, 0.14), (x, y - 0.05, 0.45), [c * 0.8 for c in wall])     # sill
+        rbox((10.2, 0.3, 0.5), (0, 8.9, 0.25), [c * 0.7 for c in wall])                    # cornice
+        finish(name)
+
+    # road furniture
+    cyl(0.07, 5.0, (0, 2.5, 0), (0.18, 0.2, 0.22), segs=10, kind="Metal")
+    rod((0, 4.9, 0), (0, 5.1, 0.9), 0.05, (0.18, 0.2, 0.22), kind="Metal")
+    rbox((0.35, 0.12, 0.5), (0, 5.05, 1.0), (0.18, 0.2, 0.22), r=0.03, kind="Metal")
+    rbox((0.3, 0.04, 0.42), (0, 4.98, 1.0), (1.0, 0.95, 0.8), kind="Glow")
+    cyl(0.14, 0.3, (0, 0.15, 0), (0.18, 0.2, 0.22), segs=12, kind="Metal")
+    finish("StreetLamp")
+    lathe([(0.0, 0.0), (0.12, 0.0), (0.12, 0.08), (0.09, 0.1), (0.09, 0.5), (0.1, 0.55), (0.06, 0.62), (0.0, 0.64)],
+          (0, 0, 0), (0.85, 0.12, 0.1), kind="Gloss", segs=16)
+    for sx in (-1, 1):
+        cyl(0.045, 0.08, (sx * 0.1, 0.4, 0), (0.85, 0.12, 0.1), segs=10, rot=[("z", math.pi / 2)], kind="Gloss")
+    finish("Hydrant")
+    for x in (-0.8, 0.8):
+        rbox((0.08, 0.45, 0.5), (x, 0.225, 0), (0.15, 0.15, 0.17), kind="Metal")
+    for k in range(4):
+        rbox((1.8, 0.04, 0.1), (0, 0.45, -0.18 + k * 0.12), WOOD, r=0.01)
+    for k in range(3):
+        rbox((1.8, 0.1, 0.04), (0, 0.6 + k * 0.13, -0.26), WOOD, r=0.01, rot=[("x", -0.2)])
+    finish("Bench")
+    rbox((1.2, 0.5, 1.2), (0, 0.25, 0), (0.55, 0.53, 0.5), r=0.03)
+    rbox((1.1, 0.05, 1.1), (0, 0.5, 0), (0.25, 0.17, 0.1))
+    cyl(0.08, 2.2, (0, 1.6, 0), (0.35, 0.24, 0.14), segs=10)
+    for k in range(9):
+        a = k * 2.39
+        ell((0.75, 0.6, 0.75), (math.cos(a) * 0.4, 2.8 + (k % 3) * 0.35, math.sin(a) * 0.4),
+            (0.2 + random.uniform(0, 0.08), 0.45 + random.uniform(0, 0.12), 0.18), segs=12, rings=8)
+    finish("Tree")
+    cyl(0.07, 3.2, (0, 1.6, 0), (0.2, 0.2, 0.22), segs=10, kind="Metal")
+    rbox((0.36, 1.0, 0.3), (0, 3.4, 0.05), (0.12, 0.12, 0.13), r=0.04)
+    for k, c in enumerate(((0.9, 0.1, 0.1), (1.0, 0.75, 0.1), (0.1, 0.9, 0.3))):
+        cyl(0.1, 0.03, (0, 3.72 - k * 0.3, 0.21), c, rot=[("x", math.pi / 2)], kind="Glow" if k == 2 else "Gloss", segs=14)
+    finish("TrafficLight")
+
+    # cars (Blender body, Godot writes the parody badge): origin floor center, nose +z
+    def car(name, body, sporty=False, taxi=False):
+        L, Wd = (4.3, 1.95) if sporty else (4.6, 1.85)
+        h = 0.7 if sporty else 0.85
+        rbox((Wd, h, L), (0, 0.25 + h / 2, 0), body, r=0.18, seg=3, kind="Gloss")
+        cab_h, cab_l = (0.42, 1.7) if sporty else (0.6, 2.3)
+        rbox((Wd - 0.25, cab_h, cab_l), (0, 0.25 + h + cab_h / 2 - 0.04, -0.2 if sporty else -0.1),
+             (0.12, 0.16, 0.2), r=0.15, seg=3, kind="Gloss")
+        for x in (-Wd / 2 + 0.02, Wd / 2 - 0.02):
+            for z in (-L / 2 + 0.8, L / 2 - 0.8):
+                cyl(0.36 if not sporty else 0.38, 0.28, (x, 0.36, z), (0.06, 0.06, 0.07), segs=18, rot=[("z", math.pi / 2)])
+                cyl(0.22, 0.3, (x, 0.36, z), (0.75, 0.76, 0.8), segs=12, rot=[("z", math.pi / 2)], kind="Metal")
+        for x in (-Wd / 2 + 0.3, Wd / 2 - 0.3):
+            rbox((0.4, 0.12, 0.05), (x, 0.25 + h * 0.7, L / 2 + 0.01), (1.0, 1.0, 0.9), kind="Glow")
+            rbox((0.4, 0.1, 0.05), (x, 0.25 + h * 0.7, -L / 2 - 0.01), (0.9, 0.1, 0.1), kind="Glow")
+        if taxi:
+            rbox((0.7, 0.18, 0.3), (0, 0.25 + h + cab_h + 0.06, -0.1), (1.0, 0.95, 0.6), r=0.04, kind="Glow")
+            for side in (-1, 1):
+                for k in range(8):
+                    rbox((0.02, 0.1, 0.18), (side * (Wd / 2 + 0.005), 0.25 + h * 0.45, -1.2 + k * 0.36),
+                         (0.08, 0.08, 0.08) if k % 2 == 0 else body)
+        finish(name)
+    car("Car_Torola", (0.72, 0.74, 0.78))
+    car("Car_Bemze", (0.1, 0.18, 0.42))
+    car("Car_Mercedez", (0.08, 0.08, 0.09))
+    car("Car_Bentlee", (0.2, 0.3, 0.22))
+    car("Car_Lambargamber", (1.0, 0.72, 0.05), sporty=True)
+    car("Car_Ferrazi", (0.85, 0.05, 0.05), sporty=True)
+    car("Car_Porsha", (0.95, 0.95, 0.95), sporty=True)
+    car("Car_Taxi", (1.0, 0.8, 0.05), taxi=True)
+
+    # hot dog cart with an umbrella (front +z)
+    rbox((1.6, 0.9, 0.8), (0, 0.75, 0), (0.85, 0.85, 0.88), r=0.04, kind="Metal")
+    rbox((1.62, 0.1, 0.82), (0, 1.25, 0), (0.95, 0.95, 0.97), r=0.02, kind="Metal")
+    for x in (-0.65, 0.65):
+        cyl(0.28, 0.08, (x, 0.28, 0.42), (0.1, 0.1, 0.11), segs=16, rot=[("x", math.pi / 2)])
+    rbox((1.4, 0.4, 0.02), (0, 0.8, 0.41), (0.95, 0.75, 0.1))
+    cyl(0.025, 1.4, (0.5, 1.95, -0.2), (0.7, 0.7, 0.72), segs=8, kind="Metal")
+    for k in range(8):
+        a0 = k * math.pi / 4
+        lathe([(0.0, 2.9), (1.1, 2.55)], (0.5, 0, -0.2), (0.9, 0.12, 0.1) if k % 2 == 0 else (0.97, 0.9, 0.2), segs=8, smooth=False) if k == 0 else None
+    for k in range(3):
+        rod((-0.45 + k * 0.2, 1.33, 0.1), (-0.3 + k * 0.2, 1.33, 0.1), 0.03, (0.8, 0.45, 0.25), segs=8)
+    finish("HotDogCart")
+
+    # shop fittings
+    for x in (-0.9, 0.9):
+        cyl(0.02, 1.6, (x, 0.8, 0), (0.75, 0.76, 0.8), segs=8, kind="Metal")
+    rod((-0.9, 1.6, 0), (0.9, 1.6, 0), 0.02, (0.75, 0.76, 0.8), kind="Metal")
+    rbox((1.9, 0.04, 0.5), (0, 0.02, 0), (0.75, 0.76, 0.8), kind="Metal")
+    cols = [(0.1, 0.1, 0.12), (0.9, 0.88, 0.8), (0.4, 0.1, 0.12), (0.12, 0.2, 0.4), (0.35, 0.36, 0.4), (0.55, 0.4, 0.25)]
+    for k in range(8):
+        x = -0.75 + k * 0.21
+        rbox((0.08, 0.9, 0.5), (x, 1.12, 0), cols[k % len(cols)], r=0.03)
+        rod((x, 1.6, 0), (x, 1.57, 0), 0.01, (0.75, 0.76, 0.8), segs=5, kind="Metal")
+    finish("ClothesRack")
+    rbox((2.0, 2.2, 0.45), (0, 1.1, 0), (0.93, 0.92, 0.9), r=0.02)
+    for k in range(4):
+        rbox((1.9, 0.04, 0.4), (0, 0.4 + k * 0.5, 0.03), (0.8, 0.8, 0.82), kind="Metal")
+        for j in range(5):
+            if random.random() < 0.8:
+                rbox((0.22, 0.25, 0.22), (-0.75 + j * 0.37, 0.55 + k * 0.5, 0.05),
+                     random.choice([(0.9, 0.2, 0.2), (0.2, 0.5, 0.9), (0.95, 0.8, 0.2), (0.3, 0.7, 0.3), (0.95, 0.95, 0.95)]), r=0.02)
+    finish("ShopShelf")
+    rbox((2.4, 1.0, 0.6), (0, 0.5, 0), (0.25, 0.18, 0.12), r=0.02)
+    rbox((2.44, 0.05, 0.64), (0, 1.02, 0), (0.85, 0.85, 0.86), kind="Gloss")
+    rbox((0.3, 0.3, 0.3), (0.8, 1.2, 0), (0.15, 0.15, 0.17), r=0.03)                  # register
+    rbox((0.24, 0.1, 0.02), (0.8, 1.3, 0.16), (0.3, 1.0, 0.4), kind="Glow")
+    finish("ShopCounter")
+
+    # handbag variants for the new boutiques (origin floor, front +z)
+    for name, body, trim in (("Bag_Guccero", (0.1, 0.1, 0.11), (0.1, 0.45, 0.2)),
+                             ("Bag_Prava", (0.08, 0.08, 0.09), (0.8, 0.82, 0.86)),
+                             ("Bag_Diorelle", (0.92, 0.88, 0.8), GOLD),
+                             ("Bag_Chavel", (0.07, 0.07, 0.08), GOLD)):
+        rbox((0.3, 0.2, 0.1), (0, 0.1, 0), body, r=0.03, seg=3)
+        rbox((0.3, 0.04, 0.102), (0, 0.16, 0), trim)
+        rbox((0.06, 0.04, 0.02), (0, 0.13, 0.055), GOLD, kind="Metal")
+        torus(0.1, 0.008, (0, 0.2, 0), trim, segs=16, rsegs=5, rot=[("x", math.pi / 2)], arc=math.pi, kind="Metal")
+        finish(name)
+
+
 # ----------------------------------------------------------------------------- main
 
 def main():
@@ -1073,7 +1287,7 @@ def main():
                build_tv, build_elevator, build_ceiling_light, build_window_bay, build_cell,
                build_stream_desk, build_gaming_chair, build_ring_light, build_neon_board, build_skyline,
                build_bulletin_board, build_door, build_restroom, build_floor_mess, build_coin,
-               build_luxury, build_flex_counter):
+               build_luxury, build_flex_counter, build_street_props):
         fn()
     keep = {o.name for o in KIT}
     for o in list(bpy.data.objects):

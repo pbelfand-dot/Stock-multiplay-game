@@ -36,18 +36,34 @@ const ITEM_DURATION := {"cigar": 60.0, "powder": 40.0, "moneygun": 10.0}
 
 ## Luxury flex items: permanent, they show up on your desk / wrist. "max" caps how
 ## many you can own (one watch of each kind, trophies stack up).
+## "store" = which street boutique sells it (the office FLEX SHOP sells all).
+## "bag" = the desk-trophy prop for handbags. Brands: docs/BRANDS.md (parodies).
 const LUXURY := {
-	"supreme": {"name": "Supreme Brick", "price": 2_500.0, "max": 6,
-		"desc": "It's a brick. It says Supreme. You need it."},
-	"counter": {"name": "Cash Counter", "price": 8_000.0, "max": 1,
-		"desc": "Sits on your desk going brrrrt. Counts nothing. Looks rich."},
-	"louie": {"name": "LOUIE BATON Bag", "price": 12_000.0, "max": 4,
-		"desc": "Orange bag. Empty. Pure flex. Lines up next to your desk."},
-	"roflex": {"name": "ROFLEX Datejust", "price": 35_000.0, "max": 1,
-		"desc": "Gold ROFLEX on your wrist + the green box on your desk."},
-	"roflex_iced": {"name": "ROFLEX Iced Out", "price": 150_000.0, "max": 1, "heat": 10.0,
+	"supreme": {"name": "SUPRÉMO Brick", "price": 2_500.0, "max": 6, "store": "flex",
+		"desc": "It's a brick. It says SUPRÉMO. You need it."},
+	"counter": {"name": "Cash Counter", "price": 8_000.0, "max": 1, "store": "flex",
+		"desc": "Sits on your desk going brrrrt. Press E on it to count a stack."},
+	"guccero_bag": {"name": "GUCCERO Marmont Bag", "price": 9_000.0, "max": 3, "store": "guccero", "bag": "Bag_Guccero",
+		"desc": "Black leather, green-red web stripe. Very Milan. Very mid-cap."},
+	"prava_bag": {"name": "PRAVA Nylon Tote", "price": 7_000.0, "max": 3, "store": "prava", "bag": "Bag_Prava",
+		"desc": "Minimal. Black. Silver triangle. Costs more than it should."},
+	"louie": {"name": "LOUIS VALMONT Keepall", "price": 12_000.0, "max": 4, "store": "valmont", "bag": "LouieBag",
+		"desc": "Tan leather, VM monogram. Empty. Pure flex. Lines up next to your desk."},
+	"diorelle_bag": {"name": "DIORÉLLE Saddle Bag", "price": 15_000.0, "max": 3, "store": "diorelle", "bag": "Bag_Diorelle",
+		"desc": "Cream couture from Paris. Your desk has never been this classy."},
+	"chavel_bag": {"name": "CHAVÉL Quilted Flap", "price": 22_000.0, "max": 3, "store": "chavel", "bag": "Bag_Chavel",
+		"desc": "Black quilted leather, gold chain. The old-money flex."},
+	"roflex": {"name": "Crownwell Datejust", "price": 35_000.0, "max": 1, "store": "crownwell",
+		"desc": "Gold Crownwell Genève on your wrist + the green box on your desk."},
+	"roflex_iced": {"name": "Crownwell Iced Out", "price": 150_000.0, "max": 1, "heat": 10.0, "store": "crownwell",
 		"desc": "Diamond bezel. Blinding. The SEC notices (+10 heat)."},
 }
+const BOUTIQUES := ["guccero", "valmont", "prava", "crownwell", "diorelle", "chavel"]
+const BOUTIQUE_NAMES := {"guccero": "GUCCERO", "valmont": "LOUIS VALMONT", "prava": "PRAVA MILANO",
+	"crownwell": "CROWNWELL GENÈVE", "diorelle": "DIORÉLLE PARIS", "chavel": "CHAVÉL", "flex": "FLEX SHOP"}
+const PAWN_RATE := 0.5          # pawn shop pays half what you paid
+const HOTDOG_PRICE := 20.0
+const HOTDOG_RELIEF := 35.0     # blood pressure points
 
 
 static func quota_for_day(day: int, start: float = START_FUND) -> float:
@@ -61,8 +77,8 @@ static func quota_for_day(day: int, start: float = START_FUND) -> float:
 const RANKS := [
 	{"name": "INTERN", "xp": 0, "unlock": "Welcome to the desk. Get coffee. Lose money."},
 	{"name": "ANALYST", "xp": 60, "unlock": "KWIK LIVE studio access (phone → G)."},
-	{"name": "TRADER", "xp": 180, "unlock": "ROFLEX Datejust at the FLEX SHOP."},
-	{"name": "DEGEN", "xp": 450, "unlock": "x125 leverage + ROFLEX Iced Out."},
+	{"name": "TRADER", "xp": 180, "unlock": "Crownwell Datejust (Crownwell Genève, on the street)."},
+	{"name": "DEGEN", "xp": 450, "unlock": "x125 leverage + Crownwell Iced Out."},
 	{"name": "WHALE", "xp": 1000, "unlock": "Your name on the TV when you close big."},
 	{"name": "MARKET MAKER", "xp": 2200, "unlock": "Tramp follows you back."},
 	{"name": "WOLF", "xp": 5000, "unlock": "You are the Wolf of Wall Street. Chest thump."},

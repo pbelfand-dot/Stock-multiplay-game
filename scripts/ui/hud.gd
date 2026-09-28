@@ -3,6 +3,7 @@ extends CanvasLayer
 
 const UI = preload("res://scripts/ui/ui_theme.gd")
 const Rules = preload("res://scripts/sim/rules.gd")
+const Ledger = preload("res://scripts/sim/ledger.gd")
 const TerminalScript = preload("res://scripts/ui/terminal.gd")
 const SlotsScript = preload("res://scripts/ui/slots_ui.gd")
 const ShopScript = preload("res://scripts/ui/shop_ui.gd")
@@ -54,6 +55,7 @@ var slots
 var shop
 var lux_shop
 var phone
+var tailor
 var crt
 var _last_post := ""
 var unbox
@@ -394,8 +396,20 @@ void fragment() {
 
 # ---------------------------------------------------------------- modals
 
+func _open_tailor() -> void:
+	close_modals()
+	tailor = load("res://scripts/ui/tailor.gd").new()
+	root.add_child(tailor)
+	tailor.done.connect(func():
+		Net.set_look(Config.look)
+		Config.save_settings()
+		tailor.queue_free()
+		tailor = null)
+
+
 func is_modal_open() -> bool:
-	return terminal.visible or slots.visible or shop.visible or lux_shop.visible or pause_menu.visible or _chat_open
+	return terminal.visible or slots.visible or shop.visible or lux_shop.visible or pause_menu.visible or _chat_open \
+			or tailor != null
 
 
 func close_modals() -> void:
@@ -419,11 +433,22 @@ func open_interact(t: Dictionary) -> void:
 		"slots":
 			slots.visible = true
 		"shop":
+			shop.set_catalog("items")
 			shop.visible = true
-			shop._refresh()
 		"luxury":
+			lux_shop.set_catalog("luxury")
 			lux_shop.visible = true
-			lux_shop._refresh()
+		"lux":   # a street boutique: only that brand's items
+			lux_shop.set_catalog("luxury:" + Rules.BOUTIQUES[int(t.id)])
+			lux_shop.visible = true
+		"pawn":
+			lux_shop.set_catalog("pawn")
+			lux_shop.visible = true
+		"items":   # Tony's Deli on the street
+			shop.set_catalog("items", "deli")
+			shop.visible = true
+		"tailor":
+			_open_tailor()
 
 
 func set_prompt(t: Dictionary) -> void:
@@ -532,6 +557,7 @@ func _on_state() -> void:
 
 
 func _on_tick() -> void:
+	_check_margin_calls()
 	var t: float = maxf(match_node.time_left, 0.0)
 	time_lbl.text = "%d:%02d" % [int(t) / 60, int(t) % 60]
 	crt.set_time(t, t < 30 and match_node.phase == "trading")
@@ -684,6 +710,22 @@ func _on_day_ended(s: Dictionary) -> void:
 	summary.show_summary(s)
 
 
+## MARGIN CALL: warn once per trade when it's 70% of the way to liquidation.
+var _warned := {}
+
+
+func _check_margin_calls() -> void:
+	for pos in match_node.my_acct().get("positions", []):
+		if pos.get("trader_id", Net.my_id()) != Net.my_id() or _warned.has(pos.pid):
+			continue
+		var pnl: float = Ledger.pnl_of(pos, match_node.price_of(pos.sym))
+		if pnl <= -0.7 * pos.margin:
+			_warned[pos.pid] = true
+			Sfx.play("news", 0.0, 1.3)
+			show_toast("MARGIN CALL: %s x%d is %d%% down. SELL it or it gets wiped out!" % [
+					pos.sym, pos.lev, int(-pnl / pos.margin * 100.0)], UI.RED)
+
+
 ## True while you're busy in the restroom (World blocks movement).
 func busy() -> bool:
 	return relief_t > 0.0
@@ -729,7 +771,7 @@ func _on_relieved(peer: int, line: String) -> void:
 
 
 func _on_luxury(peer: int, key: String) -> void:
-	if peer == Net.my_id() and key.begins_with("roflex"):
+	if peer == Net.my_id() and key.begins_with("roflex"):   # Crownwell watches
 		unbox.play(key == "roflex_iced")
 
 

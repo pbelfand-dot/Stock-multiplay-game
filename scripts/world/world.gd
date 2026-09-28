@@ -85,6 +85,13 @@ func _sync_players() -> void:
 	for c in players_node.get_children():
 		if not Net.players.has(int(str(c.name))):
 			c.queue_free()
+	# tailor changes: rebuild anyone whose look changed
+	var slot := 0
+	for id in Net.players:
+		var p = players_node.get_node_or_null(str(id))
+		if p:
+			p.apply_look(Net.look_of(id, slot))
+		slot += 1
 
 
 func player_node(id: int) -> Node3D:
@@ -100,6 +107,26 @@ func ui_blocking() -> bool:
 
 
 # ---------------------------------------------------------------- KWIK studio
+
+func in_street(node: Node3D) -> bool:
+	return node != null and node.global_position.distance_to(builder.street.ORIGIN) < 90.0
+
+
+func go_to_street() -> void:
+	if local_player and not match_node.is_jailed(Net.my_id()):
+		Sfx.play("bell", -8.0, 1.6)
+		local_player.teleport(builder.street.spawn)
+		local_player.rotation.y = PI
+		hud.show_toast("Ground floor. The street is yours — boutiques, Tony's Deli, the Tailor, Pawn King, the casino.",
+				Color(0.95, 0.9, 0.6))
+
+
+func leave_street() -> void:
+	if local_player:
+		Sfx.play("bell", -8.0, 1.6)
+		local_player.teleport(builder.elevator_pos + Vector3(0, 0, -1.5))
+		local_player.rotation.y = 0.0
+
 
 func in_studio(node: Node3D) -> bool:
 	return node != null and node.global_position.distance_to(builder.STUDIO) < 12.0
@@ -123,10 +150,13 @@ func leave_studio() -> void:
 ## Cops can't path into the studio: if they come for you there, the stream
 ## gets swatted and you're dumped back on the trading floor.
 func _check_studio_raid() -> void:
-	if local_player and not match_node.raid.is_empty() and match_node.raid.get("target", 0) == Net.my_id() \
-			and in_studio(local_player):
-		leave_studio()
-		hud.show_toast("SWATTED ON STREAM. The cops are on the trading floor. RUN.", UI_RED)
+	if local_player and not match_node.raid.is_empty() and match_node.raid.get("target", 0) == Net.my_id():
+		if in_studio(local_player):
+			leave_studio()
+			hud.show_toast("SWATTED ON STREAM. The cops are on the trading floor. RUN.", UI_RED)
+		elif in_street(local_player):
+			leave_street()
+			hud.show_toast("Cops grabbed you on the street and dragged you upstairs. RUN.", UI_RED)
 
 
 ## Server check for the restroom: is this player standing by the toilet?
@@ -161,6 +191,13 @@ func _unhandled_input(event: InputEvent) -> void:
 			match_node.request_relieve()
 		elif t.get("type", "") == "studio_exit":
 			leave_studio()
+		elif t.get("type", "") == "elevator_down":
+			go_to_street()
+		elif t.get("type", "") == "elevator_up":
+			leave_street()
+		elif t.get("type", "") == "hotdog":
+			match_node.request_hotdog()
+			Sfx.play("coin")
 		elif t.get("type", "") == "chair":
 			local_player.sit(t.id)
 		elif t.get("type", "") == "counter":
@@ -309,7 +346,7 @@ func _tick_marquees(delta: float) -> void:
 # ---------------------------------------------------------------- flex trophies
 
 ## Every player owns a desk in the front row. Their luxury buys pile up on it:
-## nameplate, cash counter, ROFLEX boxes, Supreme bricks, LOUIE BATON bags.
+## nameplate, cash counter, Crownwell boxes, SUPRÉMO bricks, boutique bags.
 func desk_of(peer: int) -> int:
 	var i := 0
 	for id in Net.players:
@@ -416,7 +453,7 @@ func _build_trophies(desk: int, who: String, own: Dictionary) -> void:
 	for n in int(own.get("supreme", 0)):
 		var b := PropKit.place("SupremeBrick", t, Vector3(0.74, top + n * 0.061, 0.24), 0.2 + (n % 2) * 0.12)
 		var sl := Label3D.new()
-		sl.text = "Supreme"
+		sl.text = "SUPRÉMO"
 		sl.font_size = 40
 		sl.pixel_size = 0.0011
 		sl.outline_size = 0
@@ -424,17 +461,25 @@ func _build_trophies(desk: int, who: String, own: Dictionary) -> void:
 		sl.position = Vector3(0, 0.0625, 0)
 		sl.rotation.x = -PI / 2
 		b.add_child(sl)
-	for n in int(own.get("louie", 0)):
-		var bag := PropKit.place("LouieBag", t, Vector3(1.25 + n * 0.38, 0, 0.15 + (n % 2) * 0.1), -0.2 + n * 0.15)
-		var ll := Label3D.new()
-		ll.text = "LOUIE\nBATON"
-		ll.font_size = 36
-		ll.pixel_size = 0.0022
-		ll.outline_size = 0
-		ll.line_spacing = -6
-		ll.modulate = Color(0.35, 0.18, 0.05)
-		ll.position = Vector3(0, 0.22, 0.072)
-		bag.add_child(ll)
+	# handbags from the boutiques line up beside the desk
+	var slot_i := 0
+	for key in Rules.LUXURY:
+		var bag: String = Rules.LUXURY[key].get("bag", "")
+		if bag == "":
+			continue
+		for n in int(own.get(key, 0)):
+			var bp := Vector3(1.25 + (slot_i % 5) * 0.4, 0, 0.15 + (slot_i / 5) * 0.45 + (slot_i % 2) * 0.08)
+			var bag_node := PropKit.place(bag, t, bp, -0.2 + slot_i * 0.13)
+			if key == "louie":   # the VM monogram on the Valmont keepall
+				var ll := Label3D.new()
+				ll.text = "VM"
+				ll.font_size = 44
+				ll.pixel_size = 0.0022
+				ll.outline_size = 0
+				ll.modulate = Color(0.35, 0.18, 0.05)
+				ll.position = Vector3(0, 0.22, 0.072)
+				bag_node.add_child(ll)
+			slot_i += 1
 
 
 ## Feed a stack of cash through your desk's money counter (just for the flex):

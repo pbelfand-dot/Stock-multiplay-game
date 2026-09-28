@@ -207,6 +207,39 @@ func _build_fx() -> void:
 	held_gun.visible = false
 
 
+## New clothes from the Tailor: rebuild the body (and first-person arm) and
+## re-attach whatever we were holding.
+func apply_look(l: Dictionary) -> void:
+	if l == look:
+		return
+	look = l
+	model.build(look)
+	_watch_kind = ""
+	if is_local:
+		var old := fp_arm
+		fp_arm = Props.fp_arm(look)
+		fp_arm.position = old.position
+		fp_arm.rotation = old.rotation
+		fp_arm.visible = old.visible
+		cam.add_child(fp_arm)
+		var grip: Node3D = fp_arm.get_node("Grip")
+		held_cigar.reparent(grip, false)
+		held_gun.reparent(grip, false)
+		old.queue_free()
+	else:
+		held_cigar = Props.cigar()
+		held_cigar.rotation = Vector3(-PI / 2, 0, 0)
+		model.prop_right.add_child(held_cigar)
+		held_gun = Props.flex_gun()
+		held_gun.rotation = Vector3(-PI / 2, 0, 0)
+		model.prop_right.add_child(held_gun)
+		finger_prop = Props.finger(look.get("skin", Color(0.88, 0.7, 0.58)))
+		finger_prop.visible = false
+		model.prop_right.add_child(finger_prop)
+		held_cigar.visible = false
+		held_gun.visible = false
+
+
 func _unhandled_input(event: InputEvent) -> void:
 	if not is_local or world == null:
 		return

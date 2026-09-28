@@ -22,8 +22,15 @@ const ASSET_DEFS := [
 	{"sym": "WAGMI", "name": "WAGMI Coin", "kind": "Memecoin", "price": 0.42, "vol": 0.0038, "spread": 0.003},
 ]
 ## Fat tails: random stop-hunt wicks that knock out tight stops and high leverage.
-const JUMP_CHANCE := 0.012     # per asset per second
-const JUMP_SIZE := 9.0         # in units of per-second vol
+## Tuned by simulation (a position left alone for a 5-minute day, no news):
+## x100 gets liquidated ~60% of days, x50 ~20%, x25 ~1%, x10 never. News
+## events (Tramp, Kimchee rugs...) on top of that are where the risk lives.
+const JUMP_CHANCE := 0.005     # per asset per second
+const JUMP_SIZE := 5.0         # in units of per-second vol
+static var JUMP_CHANCE_OVERRIDE := -1.0
+static var TREND := 0.2          # max trend drift per second, in units of vol
+static var VOL_SCALE := 0.75
+static var JUMP_SIZE_OVERRIDE := -1.0
 
 var assets: Array = []          # Array[Dictionary]
 var time := 0.0                 # seconds since market open (monotonic across days)
@@ -101,7 +108,7 @@ func _step_asset(a: Dictionary, dt: float) -> void:
 	a.trend_timer -= dt
 	if a.trend_timer <= 0.0:
 		a.trend_timer = rng.randf_range(8.0, 25.0)
-		a.trend = rng.randf_range(-0.7, 0.7) * a.vol
+		a.trend = rng.randf_range(-TREND, TREND) * a.vol * VOL_SCALE
 	var mr := -0.004 * log(a.price / a.base)
 	var impulse := 0.0
 	var still: Array = []
@@ -116,9 +123,11 @@ func _step_asset(a: Dictionary, dt: float) -> void:
 		if imp.dur > 0.0:
 			still.append(imp)
 	a.impulses = still
-	var r: float = (a.trend + mr + impulse) * dt + a.vol * sqrt(dt) * _gauss()
-	if rng.randf() < JUMP_CHANCE * dt:   # a wick: spike one way, the drift pulls it back
-		var j: float = (1.0 if rng.randf() < 0.5 else -1.0) * a.vol * JUMP_SIZE * rng.randf_range(0.6, 1.4)
+	var r: float = (a.trend + mr + impulse) * dt + a.vol * VOL_SCALE * sqrt(dt) * _gauss()
+	var jc: float = JUMP_CHANCE if JUMP_CHANCE_OVERRIDE < 0.0 else JUMP_CHANCE_OVERRIDE
+	var js: float = JUMP_SIZE if JUMP_SIZE_OVERRIDE < 0.0 else JUMP_SIZE_OVERRIDE
+	if rng.randf() < jc * dt:   # a wick: spike one way, the drift pulls it back
+		var j: float = (1.0 if rng.randf() < 0.5 else -1.0) * a.vol * js * rng.randf_range(0.6, 1.4)
 		r += j
 		a.impulses.append({"delay": 0.3, "dur": 2.5, "rate": -j * 0.7 / 2.5})
 	a.price = maxf(a.price * exp(r), 0.0001)

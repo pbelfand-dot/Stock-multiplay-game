@@ -202,6 +202,36 @@ func _run() -> void:
 	await get_tree().create_timer(2.5).timeout
 	await _snap("33_phone_kwik")
 	hud.phone.toggle()
+	# the street outside: elevator down, then a tour of the block and the stores
+	var so: Vector3 = world.builder.street.ORIGIN
+	world.go_to_street()
+	await get_tree().create_timer(0.8).timeout
+	for v in [["40_street_arrival", Vector3(-6, 0.25, -6.5), PI + 0.35, 0.05],
+			["41_street_east", Vector3(-20, 0.25, 7.0), -PI / 2 + 0.25, 0.05],
+			["42_street_west", Vector3(20, 0.25, -7.0), PI / 2 + 0.2, 0.08],
+			["43_boutiques", Vector3(-24, 0.25, -3.0), PI - 0.1, 0.12],
+			["44_guccero_inside", Vector3(-30, 0.25, -10.0), 0.0, 0.0],
+			["45_crownwell_inside", Vector3(18, 0.25, -10.0), 0.0, 0.0],
+			["46_tailor_inside", Vector3(-6, 0.25, 10.0), PI, 0.0],
+			["47_casino_inside", Vector3(6, 0.25, 10.0), PI, 0.05],
+			["48_hotdog", Vector3(2.0, 0.25, -3.2), PI, -0.05],
+			["49_lobby", Vector3(-6, 0.25, -10.0), 0.0, 0.05]]:
+		p.teleport(so + v[1])
+		p.rotation.y = v[2]
+		p.pitch = v[3]
+		p.head.rotation.x = v[3]
+		await _frames(8)
+		await _snap(v[0])
+	hud.open_interact({"type": "lux", "id": 0})
+	await _frames(5)
+	await _snap("50_guccero_shop")
+	hud.close_modals()
+	hud.open_interact({"type": "pawn", "id": 0})
+	await _frames(5)
+	await _snap("51_pawn_shop")
+	hud.close_modals()
+	world.leave_street()
+	await _frames(5)
 	hud._on_rank_up(Net.my_id(), 3)
 	await get_tree().create_timer(0.4).timeout
 	await _snap("35_rank_up")

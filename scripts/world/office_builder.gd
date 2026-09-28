@@ -26,6 +26,7 @@ const Character = preload("res://scripts/art/character.gd")
 const Props = preload("res://scripts/art/props.gd")
 const PropKit = preload("res://scripts/art/prop_kit.gd")
 const Batcher = preload("res://scripts/art/batcher.gd")
+const StreetBuilder = preload("res://scripts/world/street_builder.gd")
 
 var mats := {}
 var root: Node3D
@@ -47,6 +48,7 @@ var hoop_rim := Vector3(-W / 2 + 0.5, 2.05, -9.5)
 const RESTROOM_DOOR_Z := 2.2
 var ball_spawn := Vector3(-16.5, 1.0, -9.5)
 var rng := RandomNumberGenerator.new()
+var street                      # StreetBuilder (outside, ground level)
 
 
 func mat(c: Color, emissive: float = 0.0) -> StandardMaterial3D:
@@ -98,6 +100,9 @@ func build(parent: Node3D) -> void:
 	_holding_cell()
 	_streamer_corner()
 	_decor()
+	street = StreetBuilder.new(self)
+	street.build()
+	slot_machines.append_array(street.slot_bodies)
 	for i in 6:
 		spawn_points.append(Vector3(-3.0 + i * 1.2, 0.1, 10.5))
 	# merge all static geometry by material (characters animate: skip them)
@@ -444,8 +449,9 @@ func _chair(id: int, pos: Vector3, rot: float) -> void:
 func _elevator() -> void:
 	var z := D / 2 - 0.15
 	prop("Elevator", Vector3(0, 0, z), PI)
-	solid(Vector3(1.1, 2.3, 0.08), Vector3(-0.56, 1.15, z - 0.03))
-	solid(Vector3(1.1, 2.3, 0.08), Vector3(0.56, 1.15, z - 0.03))
+	for dx in [-0.56, 0.56]:
+		var d := solid(Vector3(1.1, 2.3, 0.08), Vector3(dx, 1.15, z - 0.03))
+		add_interact(d, "elevator_down", 0, "[E] Elevator: ground floor (the street)")
 	label("12", Vector3(0, 2.46, z - 0.22), 40, Color(0.2, 1, 0.3), PI).outline_size = 0
 
 
@@ -663,7 +669,7 @@ func _decor() -> void:
 	add_interact(fc, "luxury", 0, "[E] FLEX SHOP")
 	var fs := label("FLEX SHOP", Vector3(-10.0, 2.3, D / 2 - 0.2), 110, Color(1, 0.84, 0.2), PI)
 	fs.outline_modulate = Color(0.35, 0.2, 0.0)
-	var fs2 := label("ROFLEX  ·  LOUIE BATON  ·  SUPREME", Vector3(-10.0, 1.85, D / 2 - 0.2), 44, Color(0.95, 0.95, 0.95), PI)
+	var fs2 := label("CROWNWELL  ·  LOUIS VALMONT  ·  GUCCERO  ·  CHAVÉL", Vector3(-10.0, 1.85, D / 2 - 0.2), 40, Color(0.95, 0.95, 0.95), PI)
 	fs2.outline_size = 6
 	# the office is a mess: loose bills, paper balls and cigar butts on the carpet
 	var mess := ["Bill", "Bill", "Bill", "PaperBall", "CigarButt"]

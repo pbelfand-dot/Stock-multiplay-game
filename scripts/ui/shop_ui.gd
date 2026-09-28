@@ -9,6 +9,9 @@ signal closed
 
 var match_node
 var catalog := "items"
+var store_tag := ""
+var title_lbl: Label
+var quote_lbl: Label
 var list: VBoxContainer
 var cash_lbl: Label
 
@@ -20,14 +23,16 @@ func setup(m, cat := "items") -> void:
 
 
 func _ready() -> void:
-	var lux := catalog == "luxury"
+	var lux := catalog.begins_with("luxury") or catalog == "pawn"
 	add_theme_stylebox_override("panel", UI.panel_box(Color(0.05, 0.1, 0.07) if lux else Color(0.1, 0.07, 0.05), UI.GOLD, 18, 5))
 	UI.center(self, Vector2(820, 640))
 	var v := VBoxContainer.new()
 	v.add_theme_constant_override("separation", 8)
 	add_child(v)
-	v.add_child(UI.lbl("FLEX SHOP" if lux else "TONY \"THE PLUG\"", 48, UI.GOLD, true))
-	v.add_child(UI.lbl("\"If you have to ask, you can't afford it.\"" if lux else "\"Whatever you need, boss. Cash only. I was never here.\"", 18, UI.DIM))
+	title_lbl = UI.lbl(_title(), 48, UI.GOLD, true)
+	v.add_child(title_lbl)
+	quote_lbl = UI.lbl("", 18, UI.DIM)
+	v.add_child(quote_lbl)
 	cash_lbl = UI.lbl("", 22, UI.GREEN, true)
 	v.add_child(cash_lbl)
 	list = VBoxContainer.new()
@@ -55,7 +60,13 @@ func _refresh() -> void:
 	var me := Net.my_id()
 	var acct: Dictionary = match_node.my_acct()
 	cash_lbl.text = "%s CASH: %s" % ["FUND" if Net.mode == "coop" else "YOUR", Rules.money(acct.get("balance", 0.0))]
-	if catalog == "luxury":
+	if title_lbl:
+		title_lbl.text = _title()
+		quote_lbl.text = _quote()
+	if catalog == "pawn":
+		_refresh_pawn(me)
+		return
+	if catalog.begins_with("luxury"):
 		_refresh_luxury(me, acct)
 		return
 	var i := 0
@@ -86,9 +97,64 @@ func _refresh() -> void:
 		h.add_child(b)
 
 
+func _title() -> String:
+	if catalog == "pawn":
+		return "PAWN KING"
+	if catalog == "items":
+		return "TONY'S DELI" if store_tag == "deli" else "TONY \"THE PLUG\""
+	var st := catalog.get_slice(":", 1)
+	return Rules.BOUTIQUE_NAMES.get(st if st != "" else "flex", "FLEX SHOP")
+
+
+func _quote() -> String:
+	match catalog:
+		"pawn":
+			return "\"Half what you paid. Take it or leave it, Wolf.\""
+		"items":
+			return "\"Whatever you need, boss. Cash only. I was never here.\""
+	return "\"If you have to ask, you can't afford it.\""
+
+
+## Change what this panel sells: "items", "luxury", "luxury:<store>", "pawn".
+func set_catalog(cat: String, tag := "") -> void:
+	catalog = cat
+	store_tag = tag
+	_refresh()
+
+
+func _refresh_pawn(me: int) -> void:
+	var any := false
+	for key in Rules.LUXURY:
+		var have: int = match_node.lux_count(me, key)
+		if have <= 0:
+			continue
+		any = true
+		var d: Dictionary = Rules.LUXURY[key]
+		var row := PanelContainer.new()
+		row.add_theme_stylebox_override("panel", UI.panel_box(Color(0.16, 0.15, 0.08), Color(0.5, 0.45, 0.15), 8, 2))
+		list.add_child(row)
+		var h := HBoxContainer.new()
+		row.add_child(h)
+		var info := UI.lbl("%s   x%d" % [d.name, have], 24, UI.TEXT, true)
+		info.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		h.add_child(info)
+		var b := UI.btn("SELL %s" % Rules.money(d.price * Rules.PAWN_RATE), UI.GOLD.darkened(0.4), 20)
+		b.custom_minimum_size.x = 190
+		var k: String = key
+		b.pressed.connect(func():
+			Sfx.play("cash")
+			match_node.request_pawn(k))
+		h.add_child(b)
+	if not any:
+		list.add_child(UI.lbl("You don't own anything worth pawning. Go buy some flex first.", 20, UI.DIM))
+
+
 func _refresh_luxury(me: int, acct: Dictionary) -> void:
+	var only := catalog.get_slice(":", 1)
 	for key in Rules.LUXURY:
 		var d: Dictionary = Rules.LUXURY[key]
+		if only != "" and d.get("store", "") != only:
+			continue
 		var have: int = match_node.lux_count(me, key)
 		var row := PanelContainer.new()
 		row.add_theme_stylebox_override("panel", UI.panel_box(Color(0.08, 0.16, 0.11), Color(0.2, 0.45, 0.3), 8, 2))

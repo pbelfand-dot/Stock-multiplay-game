@@ -187,7 +187,7 @@ class Summary extends PanelContainer:
 
 
 class Unbox extends Control:
-	## First-person ROFLEX unboxing: the green box opens, the watch rises and
+	## First-person Crownwell unboxing: the green box opens, the watch rises and
 	## spins in the light. Plays for ~3.2 s when you buy a watch.
 	const PropKit = preload("res://scripts/art/prop_kit.gd")
 
@@ -255,7 +255,7 @@ class Unbox extends Control:
 			watch.queue_free()
 		watch = PropKit.place("WatchIced" if iced else "WatchGold", world3d, Vector3(0, 0.09, 0.01))
 		watch.rotation.x = -0.5
-		caption.text = "ROFLEX %s" % ("ICED OUT" if iced else "DATEJUST")
+		caption.text = "CROWNWELL GENÈVE\n%s" % ("ICED OUT" if iced else "DATEJUST")
 		caption.modulate.a = 0.0
 		t = 0.0
 		visible = true

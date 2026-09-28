@@ -222,6 +222,7 @@ static func material(c: Color, kind: String = "cloth", stripes := false) -> Stan
 		m.albedo_texture = ImageTexture.create_from_image(img)
 		m.albedo_color = Color.WHITE
 		m.uv1_triplanar = true
+		m.uv1_triplanar_sharpness = 24.0   # no blended "rings": stripes stay straight
 		m.uv1_scale = Vector3(1, 1, 1) * 26.0
 		m.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
 	_mats[key] = m
