@@ -56,10 +56,13 @@ func _run() -> void:
 	hud.open_interact({"type": "terminal", "id": 0})
 	for f in 20:
 		await get_tree().process_frame
-	var buy := _find_btn(hud.terminal, "BUY")
-	var sell := _find_btn(hud.terminal, "SELL")
-	if buy == null or sell == null:
+	var buy: Button = hud.terminal.buy_btn
+	var sell: Button = hud.terminal.sell_btn
+	if buy == null or sell == null or not buy.is_visible_in_tree():
 		_done(false, "no BUY/SELL button")
+		return
+	if not sell.text.begins_with("SHORT") or not buy.text.contains("LONG"):
+		_done(false, "with nothing open the buttons should say LONG / SHORT: %s / %s" % [buy.text, sell.text])
 		return
 	_say("BUY at %s, SELL at %s" % [buy.get_global_rect(), sell.get_global_rect()])
 	var mv := InputEventMouseMotion.new()
@@ -76,6 +79,10 @@ func _run() -> void:
 		_done(false, "clicking BUY didn't open a long: %s" % str(ps))
 		return
 	_say("BUY click opened a long")
+	await get_tree().create_timer(0.3).timeout
+	if not sell.text.begins_with("SELL"):
+		_done(false, "holding a long, the sell button should say SELL: %s" % sell.text)
+		return
 	await _click(sell)
 	await get_tree().create_timer(0.5).timeout
 	ps = _positions()
@@ -89,7 +96,11 @@ func _run() -> void:
 	if ps.size() != 1 or ps[0].side != -1:
 		_done(false, "SELL with nothing to sell should open a short: %s" % str(ps))
 		return
-	_say("SELL with no long opened a short")
+	_say("SHORT (SELL with no long) opened a short")
+	await get_tree().create_timer(0.3).timeout
+	if not buy.text.begins_with("BUY BACK"):
+		_done(false, "while short, the buy button should say BUY BACK: %s" % buy.text)
+		return
 	await _click(buy)      # buys the short back
 	await get_tree().create_timer(0.5).timeout
 	# AUTO-SELL: click + on HIGH twice (+1%) and + on LOW three times (-2%), then BUY

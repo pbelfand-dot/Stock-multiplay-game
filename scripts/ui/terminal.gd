@@ -33,6 +33,9 @@ const AUTO_STEPS := [0.0, 0.5, 1.0, 2.0, 5.0, 10.0, 25.0, 50.0]
 var auto_idx := {"up": 0, "down": 0}
 var auto_lbls := {}
 var lev_btn: Button
+var buy_btn: Button
+var sell_btn: Button
+var order_hint: Label
 var open_tab: Button
 var closed_tab: Button
 var rows_box: VBoxContainer
@@ -232,17 +235,21 @@ func _ready() -> void:
 		auto.add_child(pb)
 	var orders := HBoxContainer.new()
 	cv.add_child(orders)
-	var buy := UI.btn("BUY", UI.GREEN.darkened(0.15), 26)
-	buy.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	buy.pressed.connect(func(): _order(1))
-	orders.add_child(buy)
+	buy_btn = UI.btn("BUY ▲", UI.GREEN.darkened(0.15), 24)
+	buy_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	buy_btn.pressed.connect(func(): _order(1))
+	orders.add_child(buy_btn)
 	lev_btn = UI.btn("x100", Color(0.25, 0.2, 0.05), 24)
 	lev_btn.pressed.connect(_cycle_lev)
 	orders.add_child(lev_btn)
-	var sell := UI.btn("SELL", UI.RED.darkened(0.1), 26)
-	sell.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	sell.pressed.connect(func(): _order(-1))
-	orders.add_child(sell)
+	sell_btn = UI.btn("SHORT ▼", UI.RED.darkened(0.1), 24)
+	sell_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	sell_btn.pressed.connect(func(): _order(-1))
+	orders.add_child(sell_btn)
+	order_hint = UI.lbl("", 14, UI.DIM)
+	order_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	order_hint.autowrap_mode = TextServer.AUTOWRAP_WORD
+	cv.add_child(order_hint)
 
 	var sess := PanelContainer.new()
 	sess.add_theme_stylebox_override("panel", UI.panel_box(UI.NAVY, UI.LINE, 8, 2))
@@ -368,6 +375,7 @@ func _refresh_prices() -> void:
 	if not visible:
 		return
 	_update_auto_labels()
+	_update_order_labels()
 	for a in match_node.m_assets:
 		if not watch_rows.has(a.sym):
 			continue
@@ -471,3 +479,27 @@ func _unhandled_input(event: InputEvent) -> void:
 			_:
 				return
 		get_viewport().set_input_as_handled()
+
+
+## BUY / SELL say what they'll actually do on this asset: with nothing open,
+## BUY goes LONG (bet it goes up) and SELL goes SHORT (bet it goes down);
+## holding a long, SELL closes it; holding a short, BUY buys it back.
+func _update_order_labels() -> void:
+	if buy_btn == null or match_node == null:
+		return
+	var longs := 0
+	var shorts := 0
+	for pos in match_node.my_acct().get("positions", []):
+		if pos.sym == sym and pos.get("trader_id", Net.my_id()) == Net.my_id():
+			if pos.side > 0:
+				longs += 1
+			else:
+				shorts += 1
+	buy_btn.text = "BUY BACK  [B]" if shorts > 0 else "BUY ▲ LONG  [B]"
+	sell_btn.text = "SELL  [S]" if longs > 0 else "SHORT ▼  [S]"
+	if shorts > 0:
+		order_hint.text = "You're SHORT %s: BUY BACK closes it (you make money if it went down)." % sym
+	elif longs > 0:
+		order_hint.text = "You own %s: SELL cashes out (you make money if it went up)." % sym
+	else:
+		order_hint.text = "LONG = bet %s goes UP  ·  SHORT = bet it goes DOWN" % sym
