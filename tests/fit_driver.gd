@@ -46,7 +46,11 @@ func _ready() -> void:
 		["close_tee", Vector3(-1.0, 1.4, 0.95), Vector3(-1.0, 1.35, 0), 40.0],
 		["close_hoodie", Vector3(0.0, 1.4, 0.95), Vector3(0.0, 1.35, 0), 40.0],
 		["back", Vector3(0, 1.35, -3.2), Vector3(0, 1.25, 0), 34.0],
-		["hoodie_waist", Vector3(0.3, 1.0, 1.1), Vector3(0.0, 0.95, 0), 40.0]]
+		["hoodie_waist", Vector3(0.3, 1.0, 1.1), Vector3(0.0, 0.95, 0), 40.0],
+		["legs", Vector3(0, 0.6, 3.0), Vector3(0, 0.55, 0), 34.0],
+		["suit_side", Vector3(-0.9, 1.1, 0.6), Vector3(-2.0, 1.05, 0), 45.0],
+		["suit_back", Vector3(-2.0, 1.2, -1.3), Vector3(-2.0, 1.1, 0), 45.0],
+		["arms", Vector3(-1.5, 1.0, 1.1), Vector3(-1.5, 0.95, 0), 50.0]]
 	for s in shots:
 		cam.position = s[1]
 		cam.look_at(s[2])

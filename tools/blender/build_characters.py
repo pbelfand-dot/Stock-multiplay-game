@@ -148,13 +148,20 @@ class Blob:
         for i in range(len(pts) - 1):
             self.capsule(pts[i], pts[i + 1], (radii[i] + radii[i + 1]) / 2)
 
-    def to_object(self, name=None, decimate=1.0, smooth_iter=1):
+    def to_object(self, name=None, decimate=1.0, smooth_iter=1, relax=0):
+        """relax > 0: volume-preserving Laplacian smoothing on the dense mesh
+        (before decimation) to melt the bumps where blobs overlap."""
         dg = bpy.context.evaluated_depsgraph_get()
         ev = self.ob.evaluated_get(dg)
         me = bpy.data.meshes.new_from_object(ev)
         bpy.data.objects.remove(self.ob)
         bpy.data.metaballs.remove(self.mb)
         ob = link(bpy.data.objects.new(name or self.name, me))
+        if relax:
+            m = add_mod(ob, "LAPLACIANSMOOTH", iterations=relax, lambda_factor=0.6, lambda_border=0.0)
+            m.use_volume_preserve = True
+            m.use_normalized = True
+            apply_mods(ob)
         if smooth_iter:
             add_mod(ob, "SMOOTH", factor=0.5, iterations=smooth_iter)
         if decimate < 1.0:
@@ -259,6 +266,47 @@ def shell_from_head(head, name, keep, offset, thickness, segs=64, rings=48, subs
 
 
 # ----------------------------------------------------------------------------- body
+
+BODY = {}   # the smoothed base body (set in main) — garments are pushed clear of it
+
+
+def unbump(ob, iters=40, lam=0.9):
+    """Kill the metaball lumps: volume-preserving Laplacian smoothing turns the
+    union of blobs into one clean garment shell (no knee/elbow/belly bumps)."""
+    m = add_mod(ob, "LAPLACIANSMOOTH", iterations=iters, lambda_factor=lam, lambda_border=0.0)
+    m.use_volume_preserve = True
+    m.use_normalized = True
+    apply_mods(ob)
+    shade_smooth(ob)
+    return ob
+
+
+def clear_of(ob, under, gap=0.006, passes=2):
+    """Push every vertex of `ob` that sits inside (or too close to) the meshes
+    in `under` back out along their surface normal, so nothing pokes through."""
+    under = [u for u in under if u is not None]
+    if not under:
+        return ob
+    dg = bpy.context.evaluated_depsgraph_get()
+    trees = [BVHTree.FromObject(u, dg) for u in under]
+    for _ in range(passes):
+        me = ob.data
+        for v in me.vertices:
+            p = ob.matrix_world @ v.co
+            for t in trees:
+                loc, nrm, _, _ = t.find_nearest(p)
+                if loc is None:
+                    continue
+                d = (p - loc).dot(nrm)
+                # only nudge small poke-throughs; deep "inside" hits are armpit
+                # creases where the nearest surface is the wrong limb
+                if -0.02 < d < gap and (p - loc).length < 0.03:
+                    p = p + nrm * (gap - d)
+            v.co = ob.matrix_world.inverted() @ p
+        me.update()
+    shade_smooth(ob)
+    return ob
+
 
 def fit_to(ob, p, lift=0.004):
     """Closest point on garment `ob` to p, pushed out along its normal by `lift`."""
@@ -503,8 +551,9 @@ def build_jacket():
         b.chain([S["shoulder_" + sd], e, cuff], [0.066, 0.058, 0.052])
     for a in range(-4, 5):                                           # collar hugging the back of the neck
         ang = math.radians(a * 22)
-        b.ball((math.sin(ang) * 0.075, -math.cos(ang) * 0.06 - 0.005, 1.535), 0.032)
-    jacket = b.to_object("Jacket_shell", decimate=0.4)
+        b.ball((math.sin(ang) * 0.075, -math.cos(ang) * 0.06 - 0.005, 1.505), 0.036)
+    b.ellipsoid((0, -0.06, 1.46), (0.1, 0.05, 0.05))                 # back of the collar: no gap
+    jacket = clear_of(b.to_object("Jacket_shell", decimate=0.4, relax=12), [BODY.get("body")], 0.01, passes=1)
     bvh = BVHTree.FromObject(jacket, bpy.context.evaluated_depsgraph_get())
 
     def front(x, z):
@@ -624,7 +673,7 @@ def build_shirt_top(name, sleeve="long", hem=0.93, bulk=1.0, hips=False):
         else:
             mid = S["shoulder_" + sd].lerp(e, 0.55)
             b.capsule(S["shoulder_" + sd], mid, 0.062)
-    ob = b.to_object(name, decimate=0.4)
+    ob = clear_of(b.to_object(name, decimate=0.4, relax=12), [BODY.get("body")], 0.006, passes=1)
     cut_below(ob, hem)
     return ob
 
@@ -747,7 +796,7 @@ def build_pants():
     for sd in ("R", "L"):
         b.chain([S["hip_" + sd] + Vector((0, 0, 0.02)), S["knee_" + sd], S["ankle_" + sd] + Vector((0, 0, 0.015))],
                 [0.1, 0.078, 0.068])
-    return b.to_object("Pants", decimate=0.4)
+    return clear_of(b.to_object("Pants", decimate=0.4, relax=12), [BODY.get("body")], 0.005, passes=1)
 
 
 def build_shoes(kind):
@@ -1269,6 +1318,7 @@ def main():
     reset()
     kit = []   # (object, role, skinning)
     body = build_body()
+    BODY["body"] = body
     kit.append((body, "Skin", "auto"))
     head, eyes, mouth, lids, brows = build_head()
     kit += [(head, "Skin", "Head"), (eyes, "Fixed", "Head"), (mouth, "Fixed", "Jaw"), (brows, "Hair", "Head")]
@@ -1307,8 +1357,12 @@ def main():
     acc = build_accessories()
     kit.append((acc["Acc_watch"], "Metal", "Forearm_L"))
     kit.append((acc["Acc_ring"], "Gold", "Hand_R"))
-    # gold chains fitted to each outfit so they sit flush (suit / shirt / tee / hoodie)
+    # outer layers never sink into the pants
     tops = {o.name: o for o, _, _ in kit}
+    pants = next(o for o, _, _ in kit if o.name == "Pants")
+    for name in ("Jacket", "Top_hoodie"):
+        clear_of(tops[name], [pants], 0.008, passes=1)
+    # gold chains fitted to each outfit so they sit flush (suit / shirt / tee / hoodie)
     for outfit, top in (("suit", "Jacket"), ("shirt", "Top_shirt"), ("tee", "Top_tee"), ("hoodie", "Top_hoodie")):
         kit.append((build_chain(tops[top], "Acc_chain_" + outfit), "Gold", "auto"))
 
