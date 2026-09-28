@@ -16,7 +16,32 @@ const KIT_PATH := "res://assets/characters/character_kit.glb"
 const SCALE := 0.92
 const FP_LAYER := 1 << 19   # our own head: rendered for shadows/mirrors, not by our first-person camera
 const HEAD_PIECES := ["Skull", "Lids", "Eyes", "Mouth", "Brows", "Hair_", "Beard_", "Glasses_", "Hat_"]
-const ARM_IN := 0.29      # radians: A-pose rest (20 deg) -> arms nearly at the sides
+const ARM_IN := 0.29
+## Finger curl per digit segment (radians, on top of the slightly curled rest).
+## +X on each finger bone curls it toward the palm (see build_characters.py).
+const DIGITS := ["Thumb", "Index", "Middle", "Ring", "Pinky"]
+const _FIST := [1.3, 1.4, 1.0]
+const HAND_POSES := {
+	"relax": {"Thumb": [0.05, 0.05, 0.05], "Index": [0.1, 0.12, 0.08], "Middle": [0.14, 0.16, 0.1],
+			"Ring": [0.18, 0.2, 0.12], "Pinky": [0.22, 0.24, 0.14]},
+	"fist": {"Thumb": [0.3, 0.4, 0.5], "Index": _FIST, "Middle": _FIST, "Ring": _FIST, "Pinky": _FIST},
+	"middle": {"Thumb": [0.35, 0.45, 0.55], "Index": _FIST, "Middle": [-0.12, -0.18, -0.1], "Ring": _FIST, "Pinky": _FIST},
+	"point": {"Thumb": [0.3, 0.35, 0.4], "Index": [-0.1, -0.16, -0.1], "Middle": _FIST, "Ring": _FIST, "Pinky": _FIST},
+	"pinch": {"Thumb": [0.1, 0.0, -0.1], "Index": [0.7, 0.7, 0.5], "Middle": [0.45, 0.5, 0.3],
+			"Ring": [0.55, 0.55, 0.35], "Pinky": [0.65, 0.6, 0.4]},
+	"hold": {"Thumb": [0.3, 0.3, 0.3], "Index": [0.8, 0.9, 0.6], "Middle": [0.85, 0.95, 0.6],
+			"Ring": [0.9, 0.95, 0.6], "Pinky": [0.9, 1.0, 0.6]},
+	"open": {"Thumb": [-0.2, -0.12, -0.12], "Index": [-0.1, -0.16, -0.1], "Middle": [-0.12, -0.18, -0.1],
+			"Ring": [-0.14, -0.2, -0.11], "Pinky": [-0.16, -0.22, -0.12]},
+}
+## [left hand, right hand] for each pose (anything missing = relaxed)
+const POSE_HANDS := {
+	"finger": ["middle", "relax"], "fistpump": ["relax", "fist"], "point": ["relax", "point"],
+	"watch": ["fist", "relax"], "dance": ["fist", "fist"], "smoke_cough": ["relax", "pinch"],
+	"smoke_chill": ["relax", "pinch"], "smoke": ["relax", "pinch"], "hold": ["relax", "hold"],
+	"aim": ["hold", "hold"], "light": ["hold", "relax"], "cheer": ["fist", "fist"], "dunk": ["open", "open"],
+	"dive": ["open", "open"], "placard": ["hold", "hold"], "type": ["relax", "relax"],
+}      # radians: A-pose rest (20 deg) -> arms nearly at the sides
 
 ## Everything a player can customize (the tailor menu edits these).
 const OPTIONS := {
@@ -491,6 +516,21 @@ func _wanted_pieces() -> Dictionary:
 
 # ------------------------------------------------------------------ animation
 
+## Curl a hand's fingers toward a named pose (HAND_POSES), smoothly.
+func _pose_hand(side: String, pose_name: String, k: float) -> void:
+	var hp: Dictionary = HAND_POSES.get(pose_name, HAND_POSES["relax"])
+	for digit in DIGITS:
+		var target: Array = hp[digit]
+		for seg in 3:
+			var i: int = _bi.get("%s%d_%s" % [digit, seg + 1, side], -1)
+			if i < 0:
+				return                      # an old kit without finger bones
+			var key := "f%d" % i
+			var cur: float = lerpf(_state.get(key, 0.0), target[seg], k)
+			_state[key] = cur
+			skel.set_bone_pose_rotation(i, _rest_q[i] * Quaternion(Vector3.RIGHT, cur))
+
+
 func _pose_bone(bone: String, euler: Vector3, k: float) -> void:
 	var i: int = _bi.get(bone, -1)
 	if i < 0:
@@ -677,6 +717,9 @@ func _process(delta: float) -> void:
 	_pose_bone("Shin_R", t.knR, k)
 	_pose_bone("Foot_L", t.ftL, k)
 	_pose_bone("Foot_R", t.ftR, k)
+	var hands: Array = POSE_HANDS.get(upper, ["relax", "relax"])
+	_pose_hand("L", hands[0], k)
+	_pose_hand("R", hands[1], k)
 	_pose_bone("Neck", Vector3(_pitch * 0.5, 0, 0), k)
 	_pose_bone("Head", Vector3(_pitch * 0.3 + t.head_rx, sin(_t * 0.37) * 0.08 * idle + t.head_ry - t.spine_ry * 0.5, 0), k)
 	# blink + tired lids

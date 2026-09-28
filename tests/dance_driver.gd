@@ -34,8 +34,12 @@ func _ready() -> void:
 	var cam := Camera3D.new()
 	cam.fov = 40
 	add_child(cam)
-	cam.position = Vector3(0, 1.0, 4.6)
-	cam.look_at(Vector3(0, 0.95, 0))
+	if Config.cli.has("zoom"):     # upper body close-up (hands)
+		cam.position = Vector3(0.35, 1.35, 1.6)
+		cam.look_at(Vector3(0, 1.2, 0))
+	else:
+		cam.position = Vector3(0, 1.0, 4.6)
+		cam.look_at(Vector3(0, 0.95, 0))
 	cam.current = true
 	var times := []
 	for s in str(Config.cli.get("times", "0.4,1.2,2.0,2.8,4.4,4.8,5.2,5.6,6.0,8.8,9.2,10.8")).split(","):

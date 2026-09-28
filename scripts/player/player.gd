@@ -57,7 +57,6 @@ var _puffing := false
 var _coughed := false
 var seat := -1              # desk chair id we're sitting in (synced), -1 = standing
 var carried_chair: Node3D
-var finger_prop: Node3D
 var zippo: Node3D
 var _zippo_t := 0.0
 var _cigar_was := 0.0
@@ -191,9 +190,6 @@ func _attach_props() -> void:
 	held_gun = Props.flex_gun()
 	held_gun.rotation = Vector3(-PI / 2, 0, 0)
 	model.prop_right.add_child(held_gun)
-	finger_prop = Props.finger(look.get("skin", Color(0.88, 0.7, 0.58)))
-	finger_prop.visible = false
-	model.prop_left.add_child(finger_prop)    # the rotoscoped bird is left-handed
 	held_cigar.visible = false
 	held_gun.visible = false
 	if is_local:
@@ -364,7 +360,6 @@ func _update_fx() -> void:
 	model.move_speed = _speed
 	model.look_pitch(0.0 if is_local else pitch)   # our own neck stays put (the camera does the looking)
 	var jailed: bool = m != null and m.is_jailed(peer_id)
-	finger_prop.visible = EMOTES[emote] == "finger"
 	var airborne := global_position.y > 0.45
 	if diving > 0.0:
 		model.pose = "dive"
