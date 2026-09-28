@@ -15,6 +15,8 @@ const SLOTS := [
 	["finger", "THE BIRD", "For the shorts.", "F"],
 	["smoke_chill", "NONCHALANT", "Slow drag, blow it to the ceiling.", ""],
 	["smoke_cough", "FIRST HIT", "Drag. Cough. Pretend it didn't happen.", ""],
+	["flash", "FLASH CASH", "Your whole stack, riffling. More cash, bigger stack.", "J"],
+	["fan", "MONEY SPREAD", "A fan of hundreds by the face.", ""],
 ]
 const RADIUS := 275.0
 const ICON := 150

@@ -26,11 +26,14 @@ var _idle_t := 8.0
 var _ticker_offset := 0.0
 var _screen_acc := 0.0
 var _marquee_t := {}
-var _counting := 0.0
-var _count_node: Node
-var _brrt_t := 0.0
+var counters: Array = []        # public money counters (desk ones live with the trophies)
 const UI_RED := Color(1, 0.3, 0.3)
 var _trophy_sig := {}           # desk id -> signature of what's on it
+const CashArt = preload("res://scripts/art/cash_art.gd")
+const GunArt = preload("res://scripts/art/gun_art.gd")
+const MoneyCounter = preload("res://scripts/world/money_counter.gd")
+var atms: Array = []            # ATM nodes (office by the elevator, street outside the bank)
+var _spread_nodes := {}         # peer -> {node, sig}: cash laid out for the photo
 
 
 func _ready() -> void:
@@ -67,6 +70,10 @@ func _ready() -> void:
 	match_node.state_changed.connect(_update_trophies)
 	Net.players_changed.connect(_update_trophies)
 	match_node.news.connect(_on_news)
+	_build_atms()
+	match_node.cash_moved.connect(_on_cash_moved)
+	match_node.shot.connect(_on_shot)
+	match_node.state_changed.connect(_sync_spreads)
 	_sync_players()
 
 
@@ -186,7 +193,6 @@ func _process(delta: float) -> void:
 	_tick_marquees(delta)
 	_update_elevator(delta)
 	_check_studio_raid()
-	_tick_counter(delta)
 	_ticker_offset += delta
 	if builder.ticker_label:
 		builder.ticker_label.position.x = fposmod(-_ticker_offset * 2.2, 36.0) - 18.0 + 9.0
@@ -414,17 +420,14 @@ func _build_trophies(desk: int, who: String, own: Dictionary) -> void:
 	t.add_child(plate)
 	var top := 0.78
 	if own.get("counter", 0) > 0:
-		var cc := PropKit.place("CashCounter", t, Vector3(0.62, top, -0.2), -0.3)
-		# display digits on the counter + [E] to run a stack through it
-		var disp := Label3D.new()
-		disp.name = "Count"
-		disp.text = "0"
-		disp.font_size = 40
-		disp.pixel_size = 0.0012
-		disp.outline_size = 0
-		disp.modulate = Color(0.35, 1.0, 0.5)
-		disp.position = Vector3(-0.04, 0.115, 0.136)
-		cc.add_child(disp)
+		var cc := MoneyCounter.new()
+		cc.name = "CashCounter"
+		cc.kit = "CashCounter"
+		cc.display_at = Vector3(-0.23, 0, -0.04)
+		cc.pile_at = Vector3(0.02, 0, 0.26)
+		cc.position = Vector3(0.62, top, -0.2)
+		cc.rotation.y = -0.3
+		t.add_child(cc)
 		var sb := StaticBody3D.new()
 		var cs := CollisionShape3D.new()
 		var sh := BoxShape3D.new()
@@ -434,29 +437,8 @@ func _build_trophies(desk: int, who: String, own: Dictionary) -> void:
 		sb.add_child(cs)
 		sb.set_meta("interact", "counter")
 		sb.set_meta("interact_id", desk)
-		sb.set_meta("prompt", "[E] Money Counter")
+		sb.set_meta("prompt", "[E] Count your cash")
 		cc.add_child(sb)
-		var bills := CPUParticles3D.new()
-		bills.name = "Bills"
-		bills.emitting = false
-		bills.amount = 24
-		bills.lifetime = 0.5
-		var q := QuadMesh.new()
-		q.size = Vector2(0.09, 0.04)
-		bills.mesh = q
-		var bm := StandardMaterial3D.new()
-		bm.albedo_color = Color(0.5, 0.75, 0.42)
-		bm.cull_mode = BaseMaterial3D.CULL_DISABLED
-		bills.material_override = bm
-		bills.position = Vector3(0, 0.08, 0.14)
-		bills.direction = Vector3(0, 0.3, 1)
-		bills.spread = 25.0
-		bills.initial_velocity_min = 0.6
-		bills.initial_velocity_max = 1.2
-		bills.gravity = Vector3(0, -1.5, 0)
-		bills.angular_velocity_min = -360.0
-		bills.angular_velocity_max = 360.0
-		cc.add_child(bills)
 	PropKit.place("PillBottle", t, Vector3(0.3, top, -0.3), 0.4)
 	var boxes := 0
 	for k in ["roflex", "roflex_iced"]:
@@ -521,33 +503,34 @@ func _build_trophies(desk: int, who: String, own: Dictionary) -> void:
 			tr.add_child(tl)
 
 
-## Feed a stack of cash through your desk's money counter (just for the flex):
-## bills whir out, the display counts up, brrrt.
-func _run_counter(desk: int) -> void:
-	var t: Node = builder.root.get_node_or_null("Trophies_%d" % desk)
-	var cc: Node = t.get_node_or_null("CashCounter") if t else null
-	if cc == null or _counting > 0.0:
-		return
-	_counting = 2.6
-	_count_node = cc
-	(cc.get_node("Bills") as CPUParticles3D).emitting = true
-	local_player.show_cash_stack(2.6)
-	Sfx.play("brrt", -2.0)
+## A money counter by id: desk index for the desk counters, 1000+ for the
+## public ones (by the office ATM).
+func counter_node(id: int) -> Node:
+	if id >= 1000:
+		return counters[id - 1000] if id - 1000 < counters.size() else null
+	var t: Node = builder.root.get_node_or_null("Trophies_%d" % id)
+	return t.get_node_or_null("CashCounter") if t else null
 
 
-func _tick_counter(delta: float) -> void:
-	if _counting <= 0.0 or not is_instance_valid(_count_node):
+## [E] on a counter: run the cash you're carrying through it (everyone sees
+## the count). Nothing on you: it counts the house stack, $10K.
+func _run_counter(id: int) -> void:
+	var cc = counter_node(id)
+	if cc == null or cc.counting:
 		return
-	_counting -= delta
-	var n := int((2.6 - maxf(_counting, 0.0)) / 2.6 * 100.0)
-	(_count_node.get_node("Count") as Label3D).text = str(n)
-	_brrt_t -= delta
-	if _brrt_t <= 0.0:
-		_brrt_t = 0.22
-		Sfx.play("brrt", -6.0, randf_range(0.95, 1.1))
-	if _counting <= 0.0:
-		(_count_node.get_node("Bills") as CPUParticles3D).emitting = false
-		hud.show_toast("100 bills. $10,000. Counted. Feels good.", Color(0.4, 1, 0.5))
+	var cash: float = match_node.cash_of(Net.my_id())
+	if cash < 100.0:
+		cash = 10_000.0
+		hud.show_toast("Counting the house stack. Hit the ATM to run your own cash through it.", Color(1, 0.8, 0.4))
+	local_player.show_cash_stack(0.8)
+	_count_fx.rpc(id, cash)
+
+
+@rpc("any_peer", "call_local", "reliable")
+func _count_fx(id: int, amount: float) -> void:
+	var cc = counter_node(id)
+	if cc and not cc.counting:
+		cc.count(clampf(amount, 100.0, 1e12))
 
 
 func _on_state() -> void:
@@ -683,3 +666,179 @@ func _apply_graphics() -> void:
 		for mi in builder.root.find_children("*", "MeshInstance3D", true, false):
 			if mi.has_meta("no_batch"):
 				mi.visibility_range_end = g.detail
+
+
+# ---------------------------------------------------------------- ATMs + cash
+
+## ATM kiosk (prop "ATM" from the kit, a stand-in box until it's there).
+## Screen / header / dispenser points match build_props.py's ATM.
+const ATM_HEADER := Vector3(0, 1.54, 0.224)     # kit ATM reference points
+const ATM_SCREEN := Vector3(0, 1.21, 0.093)
+const ATM_SLOT := Vector3(0, 0.79, 0.2275)
+
+
+func _build_atms() -> void:
+	var spots := [
+		[Vector3(3.3, 0, OfficeBuilder.D / 2 - 0.36), PI],          # office, by the elevator
+		[builder.street.P(-3.2, builder.street.SIDEWALK_H, -builder.street.WALK + 0.34), 0.0],   # outside the bank
+	]
+	for i in spots.size():
+		var pos: Vector3 = spots[i][0]
+		var rot: float = spots[i][1]
+		var n: Node3D
+		if PropKit.has("ATM"):
+			n = PropKit.place("ATM", builder.root, pos, rot)
+		else:
+			n = Node3D.new()
+			n.position = pos
+			n.rotation.y = rot
+			builder.root.add_child(n)
+			CashArt._box(n, Vector3(0.75, 1.65, 0.6), Vector3.ZERO, Color(0.3, 0.32, 0.36))
+			CashArt._box(n, Vector3(0.5, 0.36, 0.02), ATM_SCREEN + Vector3(0, -0.18, 0.02), Color(0.05, 0.25, 0.2))
+		n.name = "ATM_%d" % i
+		var head := Label3D.new()
+		head.text = "BAGHOLDER BANK"
+		head.font_size = 40
+		head.pixel_size = 0.0016
+		head.modulate = Color(1, 1, 1)
+		head.outline_size = 0
+		head.position = ATM_HEADER + Vector3(0, 0, 0.003)
+		n.add_child(head)
+		var scr := Label3D.new()
+		scr.name = "Screen"
+		scr.text = "WELCOME\n[E] CASH"
+		scr.font_size = 32
+		scr.pixel_size = 0.0014
+		scr.modulate = Color(0.45, 1.0, 0.7)
+		scr.outline_size = 0
+		scr.position = ATM_SCREEN + Vector3(0, 0, 0.003)
+		n.add_child(scr)
+		var col: Node3D = builder.solid(Vector3(0.75, 1.65, 0.6), pos + Vector3(0, 0.825, 0), builder.root, rot)
+		builder.add_interact(col, "atm", i, "[E] ATM: take out / put in cash")
+		atms.append(n)
+		if i == 0:          # a counter on a stand next to the office ATM: count what you just pulled
+			var bs := Basis(Vector3.UP, rot)
+			var at: Vector3 = pos + bs * Vector3(1.05, 0, 0.05)
+			builder.box(Vector3(0.9, 0.95, 0.5), at + Vector3(0, 0.475, 0), Color(0.16, 0.16, 0.18), false, builder.root).rotation.y = rot
+			var mc := MoneyCounter.new()
+			mc.kit = "MoneyCounterPro"
+			mc.display_at = Vector3(-0.21, 0, -0.06)
+			mc.pile_at = Vector3(0.3, 0, 0.0)
+			mc.position = at + bs * Vector3(-0.14, 0.95, 0)
+			mc.rotation.y = rot
+			builder.root.add_child(mc)
+			var cb: Node3D = builder.solid(Vector3(0.9, 1.2, 0.5), at + Vector3(0, 0.6, 0), builder.root, rot)
+			builder.add_interact(cb, "counter", 1000 + counters.size(), "[E] Count your cash")
+			counters.append(mc)
+
+
+func _near_atm(node: Node3D) -> Node3D:
+	for a in atms:
+		if a.global_position.distance_to(node.global_position) < 3.0:
+			return a
+	return null
+
+
+## Cash in or out of an ATM: bills fly out of (or into) the slot for everyone
+## watching, the brrt of the counter inside.
+func _on_cash_moved(peer: int, withdrawn: float, _total: float) -> void:
+	var p := player_node(peer)
+	if p == null:
+		return
+	var a := _near_atm(p)
+	if a == null:
+		return
+	var out := withdrawn > 0.0
+	var n := clampi(int(log(maxf(absf(withdrawn), 1000.0) / 1000.0 + 1.0) * 4.0) + 3, 3, 16)
+	for k in n:
+		var b := CashArt.bill(a, ATM_SLOT, Vector3(0, randf_range(-0.2, 0.2), 0))
+		b.visible = false
+		var tw := create_tween()
+		tw.tween_interval(k * 0.07)
+		tw.tween_callback(func(): b.visible = true)
+		var dst := ATM_SLOT + Vector3(randf_range(-0.12, 0.12), randf_range(-0.35, -0.15), randf_range(0.25, 0.45))
+		if out:
+			tw.tween_property(b, "position", dst, 0.35).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+			tw.parallel().tween_property(b, "rotation", Vector3(randf_range(-0.6, 0.6), randf_range(-1, 1), randf_range(-0.5, 0.5)), 0.35)
+		else:
+			b.position = dst
+			tw.tween_property(b, "position", ATM_SLOT, 0.25).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+		tw.tween_interval(0.25 if out else 0.0)
+		tw.tween_callback(b.queue_free)
+	var scr: Label3D = a.get_node_or_null("Screen")
+	if scr:
+		scr.text = ("TAKE YOUR CASH\n%s" if out else "DEPOSITED\n%s") % Rules.money(absf(withdrawn))
+		get_tree().create_timer(2.5).timeout.connect(func():
+			if is_instance_valid(scr):
+				scr.text = "WELCOME\n[E] CASH")
+	if peer == Net.my_id():
+		local_player.show_cash_stack(2.2 if out else 0.0)
+
+
+## A round from `from` along `dir`: returns the hit (empty if it flew off)
+## and leaves a hole in whatever wall / desk / target it hit (not in people).
+func shoot_ray(from: Vector3, dir: Vector3, shooter: Node) -> Dictionary:
+	var q := PhysicsRayQueryParameters3D.create(from, from + dir * 80.0)
+	if shooter is CollisionObject3D:
+		q.exclude = [(shooter as CollisionObject3D).get_rid()]
+	var hit := get_world_3d().direct_space_state.intersect_ray(q)
+	if not hit.is_empty() and not (hit.collider is CharacterBody3D):
+		GunArt.hole(self, hit.position, hit.normal)
+	return hit
+
+
+## Someone else fired (our own shots already played when we pulled the trigger).
+func _on_shot(peer: int, hit: Vector3) -> void:
+	if peer == Net.my_id():
+		return
+	var p = player_node(peer)
+	if p:
+		p.remote_fire(hit)
+
+
+## N: lay your cash out on the table / floor you're looking at (everyone sees
+## it; it's still yours). N again picks it up.
+func toggle_spread() -> void:
+	if local_player == null:
+		return
+	var me := Net.my_id()
+	if match_node.spreads.has(me):
+		match_node.request_spread(Vector3.ZERO, 0.0, true)
+		Sfx.play("cash", -6.0)
+		return
+	if match_node.cash_of(me) < 100.0:
+		hud.show_toast("No cash on you to spread. Hit an ATM first.", Color(1, 0.6, 0.3))
+		return
+	var cam: Camera3D = local_player.cam
+	var from := cam.global_position
+	var space := get_world_3d().direct_space_state
+	var hit := space.intersect_ray(PhysicsRayQueryParameters3D.create(from, from - cam.global_basis.z * 3.0, 1))
+	var pos: Vector3
+	if not hit.is_empty() and (hit.normal as Vector3).y > 0.7:
+		pos = hit.position                                   # a desk, a table, a bed, the floor
+	else:
+		var ahead: Vector3 = local_player.global_position - local_player.global_basis.z * 1.1 + Vector3(0, 1.0, 0)
+		var down := space.intersect_ray(PhysicsRayQueryParameters3D.create(ahead, ahead + Vector3.DOWN * 3.0, 1))
+		pos = down.position if not down.is_empty() else local_player.global_position - local_player.global_basis.z * 1.1
+	match_node.request_spread(pos + Vector3(0, 0.002, 0), local_player.rotation.y, false)
+	Sfx.play("brrt", -6.0)
+
+
+## Build / move / remove everyone's spreads from the match state.
+func _sync_spreads() -> void:
+	for peer in _spread_nodes.keys():
+		if not match_node.spreads.has(peer):
+			(_spread_nodes[peer].node as Node).queue_free()
+			_spread_nodes.erase(peer)
+	for peer in match_node.spreads:
+		var sp: Dictionary = match_node.spreads[peer]
+		var sig := "%s|%s|%d" % [str(sp.pos), str(sp.yaw), int(float(sp.amount) / 1000.0)]
+		if _spread_nodes.has(peer) and _spread_nodes[peer].sig == sig:
+			continue
+		if _spread_nodes.has(peer):
+			(_spread_nodes[peer].node as Node).queue_free()
+		var n := CashArt.spread(float(sp.amount), int(peer) + int(float(sp.amount)))
+		n.position = sp.pos
+		n.rotation.y = float(sp.yaw)
+		add_child(n)
+		_spread_nodes[peer] = {"node": n, "sig": sig}

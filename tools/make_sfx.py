@@ -87,6 +87,30 @@ def cough():
     return mix([(0.0, burst(0.22, 150)), (0.3, burst(0.2, 135)), (0.62, burst(0.14, 125) * 0.6)], 0.9)
 
 
+def guns():
+    """BIG IRON: pistol crack, heavy boom (shotgun / rifle / .50), slide rack, brass on the floor."""
+    rng = np.random.default_rng(11)
+
+    def crack(d, body_f, decay, tail):
+        n = rng.uniform(-1, 1, int(SR * d))
+        tt_ = t(d)
+        snap = (n - lowpass(n, 0.25)) * np.exp(-tt_ / 0.006)                       # the supersonic crack
+        blast = lowpass(n, 0.18) * np.exp(-tt_ / decay)                             # muzzle blast
+        body = np.sin(2 * np.pi * np.cumsum(np.linspace(body_f, body_f * 0.3, len(tt_))) / SR) * np.exp(-tt_ / (decay * 0.8))
+        room = lowpass(n, 0.03) * np.exp(-tt_ / tail) * np.minimum(1, tt_ / 0.02)  # the room ringing
+        return snap * 0.9 + blast * 1.0 + body * 0.8 + room * 0.6
+    save("shot", crack(0.45, 180, 0.035, 0.12), 0.9)
+    save("shot_big", crack(0.9, 110, 0.07, 0.3), 0.95)
+
+    def clack(f, d=0.05):
+        n = rng.uniform(-1, 1, int(SR * d))
+        tt_ = t(d)
+        return ((n - lowpass(n, 0.3)) * 0.8 + np.sin(2 * np.pi * f * tt_) * 0.5) * np.exp(-tt_ / 0.012)
+    save("rack", mix([(0.0, clack(2400)), (0.14, clack(1900) * 1.2)], 0.3), 0.6)
+    save("casing", mix([(0.0, bell_strike(4700, 0.25, 0.03)), (0.09, bell_strike(5200, 0.2, 0.02) * 0.6),
+                        (0.16, bell_strike(4900, 0.2, 0.015) * 0.35)], 0.45), 0.35)
+
+
 def main():
     # Opening bell: DING DING DING
     save("bell", mix([(0.0, bell_strike(880)), (0.45, bell_strike(880)), (0.9, bell_strike(880, 2.0, 0.8))], 3.0))
@@ -182,6 +206,8 @@ def main():
     # Money-gun brrrt
     tt = t(0.25)
     save("brrt", env(square(90, tt) * (0.5 + 0.5 * np.sign(np.sin(2 * np.pi * 30 * tt))) + noise(0.25) * 0.2, 0.002, 0.2), 0.45)
+
+    guns()
 
 
 if __name__ == "__main__":

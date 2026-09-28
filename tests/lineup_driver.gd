@@ -5,8 +5,11 @@ extends Node3D
 ##   godot --path . -- --lineup=/tmp/out --hair
 ## One portrait per haircut (portrait_<style>.png, 800x800):
 ##   godot --path . -- --lineup=/tmp/out --hairportraits
+## Props kit review shots (three angles + one at game distance per prop):
+##   godot --path . -- --lineup=/tmp/out --props=ATM,Gun_Rifle [--refs=/tmp/ref.json]
 
 const Character = preload("res://scripts/art/character.gd")
+const PropKit = preload("res://scripts/art/prop_kit.gd")
 
 var out := ""
 
@@ -33,6 +36,7 @@ func _ready() -> void:
 	sun.shadow_enabled = true
 	add_child(sun)
 	var floor_mi := MeshInstance3D.new()
+	floor_mi.name = "Floor"
 	var pm := PlaneMesh.new()
 	pm.size = Vector2(40, 40)
 	floor_mi.mesh = pm
@@ -40,6 +44,9 @@ func _ready() -> void:
 	fm.albedo_color = Color(0.35, 0.38, 0.45)
 	floor_mi.material_override = fm
 	add_child(floor_mi)
+	if Config.cli.has("props"):
+		_propshots.call_deferred()
+		return
 	if Config.cli.has("hairgif"):
 		_hairgif()
 		return
@@ -390,3 +397,166 @@ func _run_hairportraits(styles: Array, chars: Array) -> void:
 		vp.get_texture().get_image().save_png("%s/portrait_%s.png" % [out, styles[i]])
 		print("lineup: portrait_", styles[i])
 	Sfx.quit_game()
+
+
+# ------------------------------------------------------------------ prop review shots
+## Each prop alone from three angles + one at game distance (1.2-3.5 m):
+##   godot --path . -- --lineup=/tmp/out --props=ATM,Gun_Rifle [--refs=/tmp/ref.json]
+## --refs (from PROPS_REF_JSON=/tmp/ref.json python3 tools/blender/build_props.py) marks each
+## prop's reference points with magenta dots. --props=demo stages the reference points in use
+## (bill stacks in a money counter, labels on the LCD / ATM screen, a gun with hand points).
+func _propshots() -> void:
+	var refs := {}
+	if Config.cli.has("refs"):
+		var parsed = JSON.parse_string(FileAccess.get_file_as_string(str(Config.cli.refs)))
+		if parsed is Dictionary:
+			refs = parsed
+	if str(Config.cli.props) == "demo":
+		await _propdemo(refs)
+		Sfx.quit_game()
+		return
+	for nm in str(Config.cli.props).split(","):
+		var n := PropKit.place(nm, self)
+		var box := _aabb(n)
+		if box.position.y < 0.0:
+			n.position.y = -box.position.y + 0.02
+			box = _aabb(n)
+		var wall := nm in ["GunWallRack", "TargetSheet"]
+		var back: MeshInstance3D = null
+		if wall:
+			back = _box(Vector3(box.size.x + 3.0, box.size.y + 3.0, 0.02), Color(0.55, 0.52, 0.48))
+			back.position = Vector3(0, box.get_center().y, -0.011)
+		if refs.has(nm):
+			var dr := clampf(box.size.length() * 0.012, 0.002, 0.012)
+			for k in refs[nm]:
+				var v = refs[nm][k]
+				if v is Array and v.size() == 3 and not (k.ends_with("normal") or k.ends_with("size")):
+					var dot := _dot(dr, Color(1, 0, 1))
+					dot.reparent(n, false)
+					dot.position = Vector3(v[0], v[1], v[2])
+		var c := box.get_center()
+		var r := box.size.length() * 0.5
+		var dist := r / sin(deg_to_rad(20.0)) * 1.05
+		var side := Vector3(-0.75, 0.3, 0.55) if wall else Vector3(-0.8, 0.35, -0.5)
+		for v in [["a", Vector3(0.6, 0.45, 0.75)], ["b", side], ["c", Vector3(0, 0.12, 1)]]:
+			await _snap(c + (v[1] as Vector3).normalized() * dist, c, 40, "%s_%s" % [nm, v[0]])
+		var gd := clampf(r * 4.0, 1.2, 3.5)
+		await _snap(c + Vector3(0.35, 0.5, 1.0).normalized() * gd, c, 70, "%s_game" % nm)
+		n.queue_free()
+		if back:
+			back.queue_free()
+	Sfx.quit_game()
+
+
+func _v3(a) -> Vector3:
+	return Vector3(a[0], a[1], a[2])
+
+
+func _propdemo(refs: Dictionary) -> void:
+	# money counters with stacks in the hopper (tilted, scaled up) and the stacker, digits on the LCD
+	var x := -0.5
+	for nm in ["MoneyCounter", "MoneyCounterPro", "CashCounter"]:
+		var mc := PropKit.place(nm, self, Vector3(x, 0, 0))
+		var r: Dictionary = refs.get(nm, {})
+		if r.is_empty():
+			break
+		var hop := PropKit.place("BillStack", mc, _v3(r.hopper))
+		hop.rotation.x = deg_to_rad(float(r.hopper_tilt_deg))
+		hop.scale = Vector3(1, 3.5, 1)
+		var out := PropKit.place("BillStack", mc, _v3(r.stacker))
+		out.scale = Vector3(1, 2.0, 1)
+		var lab := Label3D.new()
+		lab.text = "10000"
+		lab.font_size = 48
+		lab.pixel_size = 0.0006
+		lab.outline_size = 0
+		lab.modulate = Color(0.85, 0.95, 1.0)
+		lab.position = _v3(r.lcd_center) + _v3(r.lcd_normal) * 0.001
+		lab.rotation.x = -deg_to_rad(45.0)
+		mc.add_child(lab)
+		x += 0.45
+	var cd := PropKit.place("CounterDisplay", self, Vector3(0.85, 0, 0.05))
+	if refs.has("CounterDisplay"):
+		var led := Label3D.new()
+		led.text = "$10,000"
+		led.font_size = 40
+		led.pixel_size = 0.0005
+		led.outline_size = 0
+		led.modulate = Color(1, 0.15, 0.1)
+		led.position = _v3(refs.CounterDisplay.led_center) + Vector3(0, 0, 0.001)
+		cd.add_child(led)
+	PropKit.place("MoneyBrick", self, Vector3(1.05, 0, 0.05))
+	var fan := PropKit.place("BillFan", self, Vector3(-0.95, 0.05, 0.05))
+	fan.rotation.z = 0.0
+	await _snap(Vector3(0.05, 0.55, 0.95), Vector3(0.05, 0.1, 0), 45, "demo_counters")
+	await _snap(Vector3(-0.5, 0.42, 0.3), Vector3(-0.5, 0.15, 0.03), 45, "demo_counter_close")
+	for c in get_children():
+		if c is Node3D and not (c is Camera3D or c is DirectionalLight3D or c is WorldEnvironment) and c.name != "Floor":
+			c.queue_free()
+	await get_tree().process_frame
+	# ATM with UI text on the screen + header and a bill at the dispenser
+	var atm := PropKit.place("ATM", self)
+	if refs.has("ATM"):
+		var a: Dictionary = refs.ATM
+		for spec in [[a.screen_center, "BALANCE\n$1,337,420.69", Color(0.6, 1, 0.8), 0.0012],
+				[a.header_center, "BAGHOLDER BANK", Color(1, 1, 1), 0.0022]]:
+			var l := Label3D.new()
+			l.text = spec[1]
+			l.font_size = 64
+			l.pixel_size = spec[3]
+			l.outline_size = 0
+			l.modulate = spec[2]
+			l.position = _v3(spec[0]) + Vector3(0, 0, 0.002)
+			atm.add_child(l)
+		var bill := PropKit.place("BillStack", atm, _v3(a.dispenser) + Vector3(0, -0.005, 0.03))
+		bill.scale = Vector3(1, 0.4, 1)
+	await _snap(Vector3(0.9, 1.5, 2.2), Vector3(0, 0.95, 0), 45, "demo_atm")
+	atm.queue_free()
+	# guns with the grip / tip / support points marked
+	var gx := -1.2
+	for nm in ["Gun_Pistol", "Gun_Deagle", "Gun_SMG", "Gun_Shotgun", "Gun_Rifle", "Gun_RifleGold"]:
+		var g := PropKit.place(nm, self, Vector3(gx, 0.3, 0), -PI / 2)
+		for k in ["grip", "barrel_tip", "support_hand"]:
+			if refs.has(nm) and refs[nm].has(k):
+				var d := _dot(0.008, Color(1, 0, 1) if k != "grip" else Color(0, 1, 1))
+				d.reparent(g, false)
+				d.position = _v3(refs[nm][k])
+		gx += 0.45 if nm != "Gun_Shotgun" else 0.75
+	await _snap(Vector3(0.3, 0.45, 2.3), Vector3(0.3, 0.3, 0), 45, "demo_guns")
+
+
+func _aabb(n: Node3D) -> AABB:
+	var box := AABB()
+	var first := true
+	for mi in n.find_children("*", "MeshInstance3D", true, false):
+		var b: AABB = (mi as MeshInstance3D).global_transform * (mi as MeshInstance3D).get_aabb()
+		box = b if first else box.merge(b)
+		first = false
+	return box
+
+
+func _box(size: Vector3, col: Color) -> MeshInstance3D:
+	var mi := MeshInstance3D.new()
+	var bm := BoxMesh.new()
+	bm.size = size
+	mi.mesh = bm
+	var m := StandardMaterial3D.new()
+	m.albedo_color = col
+	mi.material_override = m
+	add_child(mi)
+	return mi
+
+
+func _dot(r: float, col: Color) -> MeshInstance3D:
+	var mi := MeshInstance3D.new()
+	var sm := SphereMesh.new()
+	sm.radius = r
+	sm.height = r * 2.0
+	mi.mesh = sm
+	var m := StandardMaterial3D.new()
+	m.albedo_color = col
+	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	m.no_depth_test = true
+	mi.material_override = m
+	add_child(mi)
+	return mi

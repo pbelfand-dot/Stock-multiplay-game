@@ -2,6 +2,8 @@ extends Node
 ## Takes screenshots of the office + UIs. Needs a real display (e.g. xvfb-run):
 ##   xvfb-run -s "-screen 0 1600x900x24" godot --path . -- --host --autostart --shots=/tmp/shots
 
+const Rules = preload("res://scripts/sim/rules.gd")
+
 var out_dir := ""
 var _fakes: Array = []
 
@@ -67,6 +69,252 @@ func _run() -> void:
 		return
 	if Config.cli.has("streetonly"):
 		await _street_only(world, m, hud)
+		Sfx.quit_game()
+		return
+	if Config.cli.has("handtest"):              # which way does a prop sit in the right hand?
+		var rots := [Vector3(0, PI / 2, 0), Vector3(-PI / 2, 0, 0), Vector3(-PI / 2, PI / 2, 0), Vector3(0, 0, PI / 2),
+			Vector3(PI / 2, 0, PI / 2), Vector3(0, PI / 2, PI / 2)]
+		m.wallet[1] = 150_000.0
+		m._push_state()
+		var dudes := []
+		for k in rots.size():
+			var d = load("res://scripts/player/player.gd").new()
+			d.setup(900 + k, "R%d" % k, load("res://scripts/art/character.gd").player_look(1), false, world)
+			world.players_node.add_child(d)
+			d.teleport(Vector3(-2.5 + k * 1.0, 0.1, 4.0))
+			d.rotation.y = PI
+			d.name_tag.text = "%d" % k
+			dudes.append(d)
+		await _frames(5)
+		for k in rots.size():
+			var st = load("res://scripts/art/cash_art.gd").fan() if Config.cli.has("fan") else load("res://scripts/art/cash_art.gd").hand_stack(80_000.0)
+			st.rotation = rots[k]
+			dudes[k].model.prop_right.add_child(st)
+			dudes[k].model.pose = "fan" if Config.cli.has("fan") else "flash"
+			dudes[k].set_physics_process(false)
+		var p1 = world.local_player
+		p1.teleport(Vector3(0, 0.1, 6.8))
+		p1.rotation.y = 0.0
+		await get_tree().create_timer(1.0).timeout
+		var cam := Camera3D.new()
+		world.add_child(cam)
+		cam.fov = 40
+		cam.current = true
+		for k in rots.size():
+			var hand: Vector3 = dudes[k].model.prop_right.global_position
+			cam.global_position = hand + Vector3(-0.3, 0.3, 0.7)
+			cam.look_at(hand)
+			await _frames(4)
+			await _snap("hand_rot_%d" % k)
+		Sfx.quit_game()
+		return
+	if Config.cli.has("counteronly"):          # money counters: the one by the ATM, then your desk's
+		var p0 = world.local_player
+		m.wallet[1] = 250_000.0
+		m.owned[1]["counter"] = 1
+		m._push_state()
+		hud.root.visible = false
+		await get_tree().create_timer(1.0).timeout
+		var cc = world.counter_node(1000)
+		var cam := Camera3D.new()
+		world.add_child(cam)
+		cam.fov = 50
+		cam.current = true
+		var fwd: Vector3 = cc.global_basis.z                # the counter's front
+		cam.global_position = cc.global_position + fwd * 0.75 + Vector3(0.25, 0.45, 0) + cc.global_basis.x * 0.1
+		cam.look_at(cc.global_position + Vector3(0, 0.1, 0))
+		await _snap("k0_counter_idle")
+		world._run_counter(1000)
+		await get_tree().create_timer(1.3).timeout
+		await _snap("k1_counting")
+		await get_tree().create_timer(6.5).timeout
+		await _snap("k2_counted_250k")
+		cam.global_position = cc.global_position + fwd * 2.2 + Vector3(0.8, 0.9, 0)
+		cam.look_at(cc.global_position)
+		await _snap("k3_counter_by_atm")
+		var dc = world.counter_node(world.builder.PLAYER_DESK0)
+		if dc:
+			m.wallet[1] = 60_000.0
+			world._run_counter(world.builder.PLAYER_DESK0)
+			var f2: Vector3 = dc.global_basis.z
+			cam.global_position = dc.global_position + f2 * 0.8 + Vector3(0, 0.5, 0)
+			cam.look_at(dc.global_position + Vector3(0, 0.08, 0))
+			await get_tree().create_timer(4.0).timeout
+			await _snap("k4_desk_counter_60k")
+		else:
+			print("no desk counter")
+		Sfx.quit_game()
+		return
+	if Config.cli.has("gunonly"):              # BIG IRON: the store, gun poses, first person, a shot
+		var st = world.builder.street
+		var guns := ["pistol", "pistol", "deagle", "shotgun", "ak", "ak_gold"]
+		var aim := [false, true, true, false, true, true]
+		var dudes := []
+		for k in guns.size():
+			var id: int = 900 + k
+			var d = load("res://scripts/player/player.gd").new()
+			d.setup(id, "G%d" % k, load("res://scripts/art/character.gd").player_look(k + 1), false, world)
+			world.players_node.add_child(d)
+			d.teleport(st.P(28.4 + k * 1.0, 0.2, st.WALK + 0.4 + 3.2))
+			d.rotation.y = 0.0                       # facing -z: out toward the door
+			d.name_tag.visible = false
+			m.owned[id] = {guns[k]: 1}
+			m.drawn[id] = guns[k]
+			d.photo_aim = aim[k]
+			dudes.append(d)
+		var p0 = world.local_player
+		p0.teleport(st.P(30.0 - 3.4, 0.2, st.WALK + 0.4 + 1.2))
+		p0.rotation.y = PI                           # facing +z: down the range
+		m.owned[1]["pistol"] = 1
+		m.owned[1]["ak"] = 1
+		m.drawn[1] = "pistol"
+		m._push_state()
+		hud.root.visible = false
+		await get_tree().create_timer(1.5).timeout
+		var cam := Camera3D.new()
+		world.add_child(cam)
+		cam.fov = 55
+		cam.current = true
+		cam.global_position = dudes[2].global_position + Vector3(0.5, 1.5, -4.2)
+		cam.look_at(dudes[2].global_position + Vector3(0.5, 1.1, 0))
+		await _frames(4)
+		await _snap("g1_lineup")
+		for k in guns.size():
+			var d = dudes[k]
+			cam.global_position = d.global_position + Vector3(0.55, 1.5, -1.6)
+			cam.look_at(d.global_position + Vector3(0, 1.25, 0))
+			await _frames(4)
+			await _snap("g2_pose_%d_%s%s" % [k, guns[k], "_aim" if aim[k] else ""])
+		# do the hands cross? (the model faces -z, so its right hand should stay at +x of its left)
+		for k in guns.size():
+			var d = dudes[k]
+			var sk: Skeleton3D = d.model.skel
+			var hl: Vector3 = d.model.to_local(sk.global_transform * sk.get_bone_global_pose(sk.find_bone("Hand_L")).origin)
+			var hr: Vector3 = d.model.to_local(sk.global_transform * sk.get_bone_global_pose(sk.find_bone("Hand_R")).origin)
+			print("hands %s%s: L %s  R %s  gap_x %.3f %s" % [guns[k], "_aim" if aim[k] else "", hl, hr, hr.x - hl.x,
+					"CROSSED" if hr.x - hl.x < 0.02 else "ok"])
+			cam.global_position = d.global_position + Vector3(0.0, 2.5, -0.55)
+			cam.look_at(d.global_position + Vector3(0, 1.2, -0.45), Vector3(0, 0, -1))
+			await _frames(3)
+			await _snap("g2t_top_%d_%s%s" % [k, guns[k], "_aim" if aim[k] else ""])
+		# the store from the door
+		cam.global_position = st.P(30.0 + 2.5, 1.7, st.WALK + 0.9)
+		cam.look_at(st.P(30.0 - 1.0, 1.2, st.WALK + 0.4 + 6.5))
+		cam.fov = 75
+		await _frames(4)
+		await _snap("g3_store")
+		# first person down the range: G19 at the low ready, aimed, a shot
+		cam.current = false
+		p0.cam.current = true
+		p0.pitch = 0.0
+		await get_tree().create_timer(0.8).timeout
+		await _snap("g4_fp_pistol")
+		p0.photo_aim = true
+		await get_tree().create_timer(0.8).timeout
+		p0._fire(Rules.LUXURY.pistol)
+		await _frames(1)
+		await _snap("g5_fp_pistol_fire")
+		m.drawn[1] = "ak"
+		m._push_state()
+		p0.photo_aim = false
+		await get_tree().create_timer(1.0).timeout
+		await _snap("g6a_fp_ak_low")
+		p0.photo_aim = true
+		await get_tree().create_timer(0.6).timeout
+		p0._fire(Rules.LUXURY.ak)
+		await _frames(1)
+		await _snap("g6_fp_ak_fire")
+		await get_tree().create_timer(1.0).timeout
+		for n in 12:
+			p0._shot_cd = 0.0
+			p0._fire(Rules.LUXURY.ak)
+			await _frames(3)
+		await get_tree().create_timer(0.8).timeout
+		cam.current = true
+		cam.fov = 45
+		var tgt: Vector3 = st.P(30.0 - 4.1, 1.45, st.WALK + 0.4 + 7.4)
+		cam.global_position = tgt + Vector3(0.4, 0.1, -1.6)
+		cam.look_at(tgt)
+		await _frames(3)
+		await _snap("g7_target_holes")
+		Sfx.quit_game()
+		return
+	if Config.cli.has("cashonly"):             # ATM, the stack in your hand, the fan, a spread
+		var p0 = world.local_player
+		m.ledger.get_acct(0).balance = 900_000.0
+		m._push_state()
+		p0.teleport(world.atms[0].global_position + Vector3(0, 0.1, -1.3))
+		p0.rotation.y = 0.0
+		p0.pitch = -0.1
+		p0.head.rotation.x = -0.1
+		hud.open_interact({"type": "atm", "id": 0})
+		hud.atm.step = 6
+		hud.atm._go(1)
+		await get_tree().create_timer(0.35).timeout
+		await _snap("c1_atm_withdraw")
+		await get_tree().create_timer(1.5).timeout
+		hud.close_modals()
+		print("cash on hand: %s" % m.cash_of(1))
+		# flash it (third person via photo mode so we see ourselves)
+		p0.teleport(Vector3(0, 0.1, 6))
+		p0.rotation.y = 0.0
+		p0.play_emote("flash")
+		await _frames(10)
+		var pm = hud.photo
+		pm.toggle()
+		pm.cam.global_position = p0.global_position + Vector3(0.9, 1.55, -1.3)
+		pm.cam.look_at(p0.global_position + Vector3(0.15, 1.2, 0))
+		pm._yaw = pm.cam.rotation.y
+		pm._pitch = pm.cam.rotation.x
+		await _frames(10)
+		await _snap("c2_flash_250k")
+		p0.play_emote("fan")
+		await get_tree().create_timer(0.6).timeout
+		await _snap("c3_money_fan")
+		pm.toggle()
+		# lay it out on the floor
+		p0.emote = 0
+		world.toggle_spread()
+		await get_tree().create_timer(0.6).timeout
+		p0.teleport(Vector3(0, 0.1, 7.5))
+		p0.pitch = -0.75
+		p0.head.rotation.x = -0.75
+		await _frames(10)
+		await _snap("c4_spread_250k")
+		m.wallet[1] = 4_500.0
+		m._shrink_spread(1)
+		m._push_state()
+		await _frames(6)
+		await _snap("c5_spread_4k")
+		Sfx.quit_game()
+		return
+	if Config.cli.has("photoonly"):            # photo mode: pose, filter, snap
+		var pm = hud.photo
+		pm.dir_override = out_dir + "/photos"
+		for d in 2:                             # a friend in the shot
+			var f = load("res://scripts/player/player.gd").new()
+			f.setup(900 + d, ["Bob", "Dave"][d], load("res://scripts/art/character.gd").player_look(d + 1), false, world)
+			world.players_node.add_child(f)
+			f.teleport(world.local_player.global_position + Vector3(-0.9 + d * 1.8, 0, -0.4))
+			f.rotation.y = world.local_player.rotation.y
+		pm.toggle()
+		pm._pose("fistpump")
+		await get_tree().create_timer(0.4).timeout
+		pm._freeze(true)
+		pm._set_filter(2)
+		await _frames(10)
+		await _snap("ph1_photo_mode_ui")
+		var path: String = await pm.snap_photo()
+		print("photo saved: %s exists=%s" % [path, FileAccess.file_exists(path)])
+		pm._set_filter(1)
+		pm.cam.global_position += Vector3(0.8, -0.6, 0.6)
+		pm._yaw += 0.3
+		await _frames(6)
+		var path2: String = await pm.snap_photo()
+		print("photo saved: %s exists=%s" % [path2, FileAccess.file_exists(path2)])
+		pm.toggle()
+		await _frames(4)
+		print("photo mode off: fp=%s cam=%s" % [world.local_player.model.fp, world.local_player.cam.current])
 		Sfx.quit_game()
 		return
 	if Config.cli.has("termonly"):             # the trading terminal with the full board

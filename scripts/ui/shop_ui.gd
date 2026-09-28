@@ -162,6 +162,8 @@ func _refresh_luxury(me: int, acct: Dictionary) -> void:
 		var d: Dictionary = Rules.LUXURY[key]
 		if only != "" and d.get("store", "") != only:
 			continue
+		if only == "" and d.get("store", "") == "iron":     # guns only at BIG IRON
+			continue
 		var have: int = match_node.lux_count(me, key)
 		var row := PanelContainer.new()
 		row.add_theme_stylebox_override("panel", UI.panel_box(Color(0.08, 0.16, 0.11), Color(0.2, 0.45, 0.3), 8, 2))

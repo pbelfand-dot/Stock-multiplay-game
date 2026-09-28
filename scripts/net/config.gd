@@ -65,12 +65,17 @@ func _setup_inputs() -> void:
 	_key("emote_point", [KEY_X])
 	_key("emote_dance", [KEY_H])
 	_key("emote_wheel", [KEY_B])
+	_key("photo_mode", [KEY_K])
+	_key("emote_flash", [KEY_J])
+	_key("spread_cash", [KEY_N])
+	_key("draw_gun", [KEY_Q])
 	_key("phone", [KEY_P])
 	_key("phone_action", [KEY_G])
 	_key("dive", [KEY_C, KEY_CTRL])
 	for i in 6:
 		_key("item_%d" % (i + 1), [KEY_1 + i])
 	_mouse("fire", MOUSE_BUTTON_LEFT)
+	_mouse("aim", MOUSE_BUTTON_RIGHT)
 
 
 func load_settings() -> void:

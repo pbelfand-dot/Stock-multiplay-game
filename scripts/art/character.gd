@@ -41,6 +41,8 @@ const POSE_HANDS := {
 	"smoke_chill": ["relax", "pinch"], "smoke": ["relax", "pinch"], "hold": ["relax", "hold"],
 	"aim": ["hold", "hold"], "light": ["hold", "relax"], "cheer": ["fist", "fist"], "dunk": ["open", "open"],
 	"dive": ["open", "open"], "placard": ["hold", "hold"], "type": ["relax", "relax"],
+	"flash": ["relax", "hold"], "fan": ["relax", "pinch"],
+	"pistol": ["relax", "hold"], "pistol_aim": ["hold", "hold"], "rifle": ["hold", "hold"], "rifle_aim": ["hold", "hold"],
 }      # radians: A-pose rest (20 deg) -> arms nearly at the sides
 
 ## Everything a player can customize (the tailor menu edits these).
@@ -145,6 +147,11 @@ var _rest_p := {}         # idx -> local rest position
 var _state := {}          # our own per-bone Euler (never read back from the skeleton)
 var _phase := 0.0
 var fp := false           # first-person body (Content Warning style): head hidden from our camera
+var aim_pitch := 0.0      # aiming a gun: the arms follow where you look (up +, down -)
+var pose_override := {}   # tuning: these pose keys win over the pose table
+var _ik_l: SkeletonModifier3D     # two-handed guns: IK puts the left hand on the gun
+var _ik_target: Node3D
+var _ik_pole: Node3D
 var anim_t := 0.0         # seconds into a clip pose (dance); restarts when the pose changes
 var _anim_pose := ""
 var anim_hold := -1.0     # tests: freeze a clip at this time
@@ -272,6 +279,9 @@ func build(l: Dictionary) -> void:
 	j.clear()
 	_bi.clear()
 	_jig.clear()
+	_ik_l = null
+	_ik_target = null
+	_ik_pole = null
 	_state.clear()
 	if _kit == null:
 		_kit = load(KIT_PATH)
@@ -432,6 +442,40 @@ func _apply_eyes() -> void:
 
 func _bone_pos(bone: String) -> Vector3:
 	return skel.get_bone_global_rest(_bi[bone]).origin
+
+
+## Put the left hand (wrist) at `at` (global) with two-bone IK, elbow down and
+## out, so it holds the gun's handguard / wraps the grip instead of floating
+## (or crossing the right arm). null lets the pose drive the arm again.
+func left_hand_to(at: Variant) -> void:
+	if skel == null:
+		return
+	if at == null:
+		if _ik_l:
+			_ik_l.active = false
+		return
+	if _ik_l == null:
+		_ik_target = Node3D.new()
+		_ik_target.name = "IKTargetL"
+		add_child(_ik_target)
+		_ik_pole = Node3D.new()
+		_ik_pole.name = "IKPoleL"
+		add_child(_ik_pole)
+		var ik := TwoBoneIK3D.new()
+		ik.name = "LeftHandIK"
+		skel.add_child(ik)
+		ik.setting_count = 1
+		ik.set_root_bone_name(0, "UpperArm_L")
+		ik.set_middle_bone_name(0, "Forearm_L")
+		ik.set_end_bone_name(0, "Hand_L")
+		ik.set_target_node(0, ik.get_path_to(_ik_target))
+		ik.set_pole_node(0, ik.get_path_to(_ik_pole))
+		_ik_l = ik
+	_ik_l.active = true
+	_ik_target.global_position = at
+	# the elbow points down and out to the left (in the body's own frame)
+	_ik_pole.position = Vector3(-0.55, 0.75, 0.15) / SCALE
+	_ik_pole.rotation = Vector3.ZERO
 
 
 func _aligned_attachment(bone: String, pos: Vector3, node_name: String) -> Node3D:
@@ -624,6 +668,26 @@ func _process(delta: float) -> void:
 		"point":
 			t.shR = Vector3(1.5, 0.05, 0.05)
 			t.elR = Vector3(0.05, 0, 0)
+		"flash":    # stack of cash held out at chest height, thumb riffling the top
+			var riff := sin(_t * 16.0) * 0.04
+			t.shR = Vector3(1.0 + riff, -0.15, 0.05)
+			t.elR = Vector3(0.85, 0, 0)
+			t.shL = Vector3(0.25, 0, -0.12)
+			t.spine_rx -= 0.04
+			t.head_rx = 0.12
+			if fp:      # into view, lower right
+				t.shR = Vector3(0.95 + riff, -0.3, 0.15)
+				t.elR = Vector3(1.05, 0, 0)
+		"fan":      # money spread: a fan of hundreds held up by the face
+			var sway := sin(_t * 2.2) * 0.05
+			t.shR = Vector3(1.15 + sway, 0.2, 0.25)
+			t.elR = Vector3(1.2, 0, 0)
+			t.shL = Vector3(0.3, 0, -0.12)
+			t.head_ry = -0.15
+			t.spine_ry = 0.08
+			if fp:
+				t.shR = Vector3(1.3 + sway, -0.1, 0.2)
+				t.elR = Vector3(1.35, 0, 0)
 		"dunk":
 			t.shL = Vector3(2.9, -0.15, 0)
 			t.shR = Vector3(2.9, 0.15, 0)
@@ -633,6 +697,52 @@ func _process(delta: float) -> void:
 			t.knR = Vector3(-0.6, 0, 0)
 			t.hipL = Vector3(0.6, 0, 0)
 			t.spine_rx = -0.15
+		"pistol":   # BIG IRON: out, low and in front, finger off the trigger
+			t.shR = Vector3(0.75, 0.15, 0.1)
+			t.elR = Vector3(0.75, 0, 0)
+			if fp:
+				t.shR = Vector3(1.35, 0.1, 0.12)
+				t.elR = Vector3(0.5, 0, 0)
+		"pistol_aim":   # two hands, arms out, sights up
+			t.shR = Vector3(1.45, 0.3, 0)
+			t.elR = Vector3(0.1, 0, 0)
+			t.shL = Vector3(1.38, -0.5, 0)
+			t.elL = Vector3(0.3, 0, 0)
+			t.spine_rx = 0.04
+			t.head_rx = 0.08
+			if fp:      # low-right of the view so the sights sit under the crosshair
+				t.shR = Vector3(1.75, 0.1, 0.08)
+				t.elR = Vector3(0.1, 0, 0)
+				t.shL = Vector3(1.7, -0.42, 0)
+				t.elL = Vector3(0.35, 0, 0)
+			t.shR = (t.shR as Vector3) + Vector3(aim_pitch, 0, 0)
+			t.shL = (t.shL as Vector3) + Vector3(aim_pitch, 0, 0)
+		"rifle":    # long gun at the low ready: right hand on the grip, left on the handguard (IK)
+			t.shR = Vector3(0.6, 0.4, 0.0)       # grip in front of the right hip (solved, tools: pose_override)
+			t.elR = Vector3(0.6, 0, 0)
+			t.shL = Vector3(0.95, -0.55, 0)
+			t.elL = Vector3(0.75, 0, 0)
+			t.spine_ry = -0.12
+			if fp:
+				t.shR = Vector3(1.2, 0.1, 0.2)
+				t.elR = Vector3(1.0, 0, 0)
+				t.shL = Vector3(1.3, -0.45, 0)
+				t.elL = Vector3(0.6, 0, 0)
+		"rifle_aim":    # shouldered, cheek on the stock
+			t.shR = Vector3(1.0, 0.6, -0.2)      # grip just in front of the right chest (solved)
+			t.elR = Vector3(1.8, 0, 0)
+			t.shL = Vector3(1.4, -0.3, 0)
+			t.elL = Vector3(0.3, 0, 0)
+			t.spine_ry = -0.18
+			t.head_rx = 0.12
+			t.head_ry = -0.1
+			if fp:
+				t.shR = Vector3(1.55, 0.1, 0.2)
+				t.elR = Vector3(1.1, 0, 0)
+				t.shL = Vector3(1.65, -0.25, 0)
+				t.elL = Vector3(0.3, 0, 0)
+			t.shR = (t.shR as Vector3) + Vector3(aim_pitch, 0, 0)
+			t.shL = (t.shL as Vector3) + Vector3(aim_pitch, 0, 0)
 		"aim":
 			t.shL = Vector3(1.42, -0.42, 0)
 			t.shR = Vector3(1.42, 0.42, 0)
@@ -694,6 +804,8 @@ func _process(delta: float) -> void:
 			t.hipR = Vector3(-0.35, 0, 0)
 			t.knL = Vector3(-0.5, 0, 0)
 			t.knR = Vector3(-0.3, 0, 0)
+	for key in pose_override:          # tools/tests: try arm angles without editing the table
+		t[key] = pose_override[key]
 	clip_fx = {"mouth": t.get("mouth", 0.0), "puff": t.get("puff", 0.0), "cough": t.get("cough", 0.0),
 			"at_mouth": t.get("at_mouth", 0.0)}
 	# the kit is rigged in an A-pose (arms 20 deg out): bring the arms in

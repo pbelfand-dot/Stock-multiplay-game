@@ -43,7 +43,7 @@ def lin(c):
     return (c[0], c[1], c[2])
 
 
-KINDS = ("Paint", "Gloss", "Metal", "Glow")
+KINDS = ("Paint", "Gloss", "Metal", "Glow", "Glass")
 MATS = {}
 
 
@@ -55,6 +55,10 @@ def mat(kind):
         vc = m.node_tree.nodes.new("ShaderNodeVertexColor")
         vc.layer_name = "Col"
         m.node_tree.links.new(vc.outputs["Color"], bsdf.inputs["Base Color"])
+        if kind == "Glass":   # vitrine panes (as in watches_kit); PropKit swaps in its see-through material
+            bsdf.inputs["Alpha"].default_value = 0.15
+            bsdf.inputs["Roughness"].default_value = 0.05
+            m.surface_render_method = "BLENDED"
         MATS[kind] = m
     return MATS[kind]
 
@@ -205,6 +209,49 @@ def extrude(points_zy, x0, x1, col, kind="Paint"):
     bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
     _sharpen(bm, 0.3)
     return emit(bm, col, kind)
+
+
+def prism(pts, axis, a0, a1, col, r=0.0, seg=2, kind="Paint"):
+    """2D outline extruded along a Godot axis from a0 to a1, optionally with rounded edges.
+    axis "x": pts are (z, y);  "z": pts are (x, y);  "y": pts are (x, z)."""
+    def P(u, v, a):
+        return {"x": (a, v, u), "z": (u, v, a), "y": (u, a, v)}[axis]
+    bm = bmesh.new()
+    lo = [bm.verts.new(G(P(u, v, a0))) for u, v in pts]
+    hi = [bm.verts.new(G(P(u, v, a1))) for u, v in pts]
+    bm.faces.new(lo)
+    bm.faces.new(hi)
+    for i in range(len(pts)):
+        j = (i + 1) % len(pts)
+        bm.faces.new((lo[i], lo[j], hi[j], hi[i]))
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    if r > 0:
+        bmesh.ops.bevel(bm, geom=list(bm.verts) + list(bm.edges), offset=r, offset_type="OFFSET",
+                        segments=seg, profile=0.5, affect="EDGES", clamp_overlap=True)
+    _sharpen(bm)
+    return emit(bm, col, kind)
+
+
+def xform_since(n0, pos=(0, 0, 0), rot=None):
+    """Move/rotate (Godot space) every part emitted since PARTS had n0 entries — reuses a
+    sub-assembly (a gun) inside a bigger prop (a wall rack)."""
+    M = Matrix.Translation(G(pos)) @ rmat(rot)
+    for ob in PARTS[n0:]:
+        ob.data.transform(M)
+    return M
+
+
+def GI(v):
+    """Blender (x, y, z) -> Godot (x, y, z)."""
+    return Vector((v[0], v[2], -v[1]))
+
+
+def bbox_since(n0):
+    """Godot-space (min, max) corners of the parts emitted since PARTS had n0 entries."""
+    pts = [GI(v.co) for ob in PARTS[n0:] for v in ob.data.vertices]
+    lo = Vector((min(p.x for p in pts), min(p.y for p in pts), min(p.z for p in pts)))
+    hi = Vector((max(p.x for p in pts), max(p.y for p in pts), max(p.z for p in pts)))
+    return lo, hi
 
 
 def finish(name):
@@ -1050,17 +1097,9 @@ def build_luxury():
     rbox((0.2, 0.06, 0.09), (0, 0.03, 0), (0.82, 0.08, 0.1), r=0.006)
     rbox((0.13, 0.002, 0.04), (0, 0.061, 0), (0.97, 0.97, 0.97))
     finish("SupremeBrick")
-    # cash-counting machine (origin bottom), bills fed at the top, stack in the tray
-    rbox((0.28, 0.16, 0.24), (0, 0.08, 0), (0.78, 0.78, 0.8), r=0.03, seg=3)
-    rbox((0.24, 0.06, 0.08), (0, 0.18, -0.07), (0.7, 0.7, 0.72), r=0.02)
-    rbox((0.16, 0.035, 0.065), (0, 0.215, -0.07), (0.45, 0.68, 0.38), r=0.004)       # bills on top
-    rbox((0.18, 0.06, 0.02), (0, 0.11, 0.121), (0.1, 0.1, 0.12), r=0.01)            # display bezel
-    rbox((0.07, 0.03, 0.005), (-0.04, 0.115, 0.132), (0.3, 1.0, 0.45), kind="Glow")
-    for k in range(6):
-        rbox((0.014, 0.012, 0.006), (0.03 + (k % 3) * 0.02, 0.105 + (k // 3) * 0.018, 0.132), (0.85, 0.85, 0.88))
-    rbox((0.2, 0.05, 0.08), (0, 0.035, 0.13), (0.6, 0.6, 0.62), r=0.01)             # front tray
-    rbox((0.16, 0.035, 0.065), (0, 0.075, 0.13), (0.45, 0.68, 0.38), r=0.004)
-    finish("CashCounter")
+    # desk cash-counting machine: the black MoneyCounter (same geometry + reference points,
+    # see build_money_counter; LCD center = REF["CashCounter"]["lcd_center"])
+    build_money_counter("CashCounter", MC_BLACK)
 
 
 def build_desk_upgrades():
@@ -1215,10 +1254,28 @@ def storefront(name, wall, trim, sign_bg, style=""):
     if style == "cream_awning":     # tailor / dior: plain scalloped awning
         for side in (-1, 1):
             rbox((3.6, 0.05, 1.0), (side * 3.05, 2.95, D + 0.45), (0.94, 0.9, 0.8), rot=[("x", 0.35)])
-    if style == "bars":             # pawn: security bars on the windows
+    if style in ("bars", "iron"):   # pawn / gun store: security bars on the windows
         for side in (-1, 1):
             for k in range(9):
                 cyl(0.02, 2.0, (side * 3.05 + (k - 4) * 0.36, 1.65, D + 0.12), (0.2, 0.2, 0.22), segs=6, kind="Metal")
+    if style == "iron":             # gun store: roll-up shutter boxes, riveted plates, hazard-striped plinth
+        for x0, x1 in ((-5.0, -1.1), (1.1, 5.0)):
+            cx, w = (x0 + x1) / 2, x1 - x0
+            rbox((w - 0.7, 0.34, 0.26), (cx, 2.93, D + 0.13), (0.2, 0.21, 0.23), r=0.03, kind="Metal")
+            for k in range(3):
+                rbox((w - 0.8, 0.014, 0.012), (cx, 2.84 + k * 0.09, D + 0.265), (0.12, 0.12, 0.13), kind="Metal")
+            for sx in (-1, 1):          # riveted steel plate on each pillar side of the window
+                px = cx + sx * (w / 2 - 0.25)
+                rbox((0.34, 2.3, 0.03), (px, 1.55, D + 0.015), (0.16, 0.17, 0.18), r=0.01, kind="Metal")
+                for j in range(6):
+                    ell((0.018, 0.018, 0.012), (px, 0.55 + j * 0.4, D + 0.03), (0.3, 0.31, 0.33), segs=8, rings=4, kind="Metal")
+            rbox((w - 0.1, 0.18, 0.02), (cx, 0.13, D + 0.105), (0.05, 0.05, 0.055))
+            x = x0 + 0.1
+            while x + 0.3 < x1 - 0.05:
+                prism([(x, 0.04), (x + 0.12, 0.04), (x + 0.26, 0.22), (x + 0.14, 0.22)], "z", D + 0.115, D + 0.12,
+                      (0.98, 0.62, 0.08))
+                x += 0.26
+        rbox((2.3, 0.08, 0.14), (0, 3.02, D + 0.12), trim, kind="Metal")       # heavy door header
     if style == "bulbs":            # casino: marquee bulbs around the sign
         for k in range(24):
             ell((0.05, 0.05, 0.05), (-4.7 + k * 0.41, 4.14, D + 0.16), (1.0, 0.95, 0.7), kind="Glow", segs=8, rings=4)
@@ -1580,6 +1637,700 @@ def build_store_props():
     finish("GuitarWall")
 
 
+# ----------------------------------------------------------------------------- money, bank & gun store
+#
+# Gameplay code is written against the reference points below (prop-local Godot axes, meters).
+# They are computed from the same numbers that build the geometry and stored in REF[prop];
+# `main()` prints them after every build so the contract can be checked at a glance.
+#
+#   MoneyCounter / MoneyCounterPro / CashCounter  origin bottom center, front +z, 0.30 x 0.24 x 0.28
+#       hopper   base center of the input stack; the stack sits on a tray tilted 20 deg
+#                (rotate a BillStack by rotation.x = +20 deg so its +y matches the tray normal)
+#       stacker  base center of the output stack (flat pocket floor), long side along x
+#       lcd      center + normal of the flat blue LCD (sloped 45 deg; a Label3D there needs rotation.x = -45 deg)
+#   CounterDisplay   origin bottom center; red LED panel faces +z
+#   BillStack / MoneyBrick   0.156 (x) x 0.066 (z), origin bottom center; height 0.010 / 0.011
+#   BillFan    origin = grip pivot; 9 bills fanned in the XY plane, facing +z, 110 deg spread about +y
+#   ATM        origin floor center, front +z: screen / dispenser / header panel points in REF
+#   Gun_*      origin = grip center (where the right hand closes), barrel -z, up +y:
+#              REF has the barrel tip and the support-hand point (left hand on the handguard / pump)
+#   GunWallRack  origin bottom center, back at z=0, front +z;  GunCase origin floor center, front +z
+#   TargetSheet  origin at its center, back on z=0, front +z;  AmmoShelf origin floor center, front +z
+
+REF = {}
+
+
+def _r3(v):
+    return tuple(round(float(c), 4) for c in v)
+
+
+# --- money counter ------------------------------------------------------------------
+
+MC_BLACK = {"body": (0.16, 0.16, 0.17), "base": (0.06, 0.06, 0.065), "panel": (0.045, 0.045, 0.05),
+            "tray": (0.27, 0.28, 0.31),
+            "bezel": (0.2, 0.21, 0.23), "wing": (0.3, 0.32, 0.36), "floor": (0.2, 0.2, 0.22),
+            "vent": (0.05, 0.05, 0.055), "btn": (0.55, 0.57, 0.6), "inner": (0.035, 0.035, 0.04)}
+MC_PRO = {"body": (0.9, 0.9, 0.91), "base": (0.62, 0.63, 0.66), "panel": (0.07, 0.07, 0.08),
+          "tray": (0.66, 0.68, 0.72),
+          "bezel": (0.32, 0.33, 0.36), "wing": (0.76, 0.82, 0.88), "floor": (0.74, 0.75, 0.78),
+          "vent": (0.6, 0.61, 0.64), "btn": (0.84, 0.85, 0.88), "inner": (0.16, 0.16, 0.18)}
+LCD_BLUE = (0.08, 0.2, 0.62)
+
+MC_TRAY_TILT = math.radians(20)       # hopper tray: rises toward the back, normal leans forward
+MC_TRAY_LOW = (0.048, 0.1775)         # (z, y) front/low end of the tray, against the feed gate
+MC_FACE_E = Vector((0, 0.12, 0.14))   # bottom edge of the 45-degree control face
+MC_FACE_A = math.radians(45)
+
+
+def build_money_counter(name, pal):
+    """Front-loading bill counter, 0.30 w x 0.24 h x 0.28 d, origin bottom center, front +z.
+    Bills go in the sloped hopper on top (between two guide wings), come out in the stacker
+    pocket at the front-bottom; blue LCD on the 45-degree face (Godot draws the count)."""
+    W = 0.30
+    tz, ty = MC_TRAY_LOW
+    tan = math.tan(MC_TRAY_TILT)
+    z_back = tz - (0.24 - ty) / tan                     # tray reaches the 0.24 top here
+    shell = [(-0.14, 0.014), (0.045, 0.014), (0.045, 0.097), (0.14, 0.101), (0.14, 0.12),
+             (0.06, 0.2), (tz, ty), (z_back, 0.24), (-0.14, 0.24)]
+    prism(shell, "x", -W / 2, W / 2, pal["body"], r=0.008, seg=2, kind="Gloss")
+    rbox((W, 0.02, 0.28), (0, 0.01, 0), pal["base"], r=0.006)                               # base / feet band
+    # stacker pocket: dark back wall, plastic floor, side cheeks, front lip, two fingers
+    rbox((0.26, 0.082, 0.004), (0, 0.056, 0.047), pal["inner"])
+    rbox((0.25, 0.003, 0.09), (0, 0.0215, 0.092), pal["floor"])
+    for sx in (-1, 1):
+        rbox((0.02, 0.09, 0.098), (sx * 0.14, 0.058, 0.091), pal["body"], r=0.006, kind="Gloss")
+        rbox((0.014, 0.036, 0.004), (sx * 0.05, 0.043, 0.133), pal["wing"], r=0.002, kind="Gloss", rot=[("x", -0.3)])
+    rbox((0.25, 0.008, 0.008), (0, 0.025, 0.135), pal["base"], r=0.002)
+    stacker = Vector((0, 0.023, 0.09))
+    # hopper: feed gap at the gate, two guide wings following the 20-degree tray
+    rbox((0.17, 0.004, 0.004), (0, ty + 0.001, tz - 0.001), pal["inner"])
+    for sx in (-1, 1):
+        wing = [(0.054, ty - 0.004), (0.054, ty + 0.03), (-0.07, ty + 0.03 + 0.124 * tan),
+                (-0.07, ty - 0.004 + 0.118 * tan)]
+        prism(wing, "x", sx * 0.086, sx * 0.093, pal["wing"], r=0.0025, seg=1, kind="Gloss")
+    u = Vector((0, math.sin(MC_TRAY_TILT), -math.cos(MC_TRAY_TILT)))    # up the tray, toward the back
+    nt = Vector((0, math.cos(MC_TRAY_TILT), math.sin(MC_TRAY_TILT)))    # tray normal
+    T0 = Vector((0, ty, tz))
+    trot = [("x", MC_TRAY_TILT)]
+    rbox((0.168, 0.003, 0.15), T0 + u * 0.079 + nt * 0.0005, pal["tray"], r=0.001, kind="Gloss", rot=trot)
+    for sx in (-1, 1):                                                  # rubber feed rollers
+        rbox((0.03, 0.003, 0.014), T0 + Vector((sx * 0.035, 0, 0)) + u * 0.014 + nt * 0.0006, pal["inner"], rot=trot)
+    hopper = T0 + u * 0.036 + nt * 0.002                                # stack (0.066 deep) against the gate
+    # side vents + back switch/socket
+    for k in range(4):
+        rbox((W + 0.002, 0.004, 0.09), (0, 0.05 + k * 0.014, -0.06), pal["vent"])
+    rbox((0.022, 0.014, 0.004), (0.09, 0.06, -0.141), pal["inner"])
+    rbox((0.03, 0.022, 0.004), (-0.08, 0.06, -0.141), pal["inner"])
+    # control face: dark panel, bezel, LCD, buttons
+    E, a = MC_FACE_E, MC_FACE_A
+    s = Vector((0, math.sin(a), -math.cos(a)))
+    n = Vector((0, math.cos(a), math.sin(a)))
+    rot = [("x", a)]
+
+    def fp(x, sd, h):
+        return Vector((x, 0, 0)) + E + s * sd + n * h
+    rbox((0.272, 0.006, 0.09), fp(0, 0.058, 0.002), pal["panel"], r=0.004, kind="Gloss", rot=rot)
+    lcd_x, lcd_s, lcd_w, lcd_h = -0.03, 0.066, 0.12, 0.036
+    rbox((lcd_w + 0.012, 0.002, lcd_h + 0.012), fp(lcd_x, lcd_s, 0.0045), pal["bezel"], r=0.001, rot=rot)
+    rbox((lcd_w, 0.002, lcd_h), fp(lcd_x, lcd_s, 0.0055), LCD_BLUE, kind="Glow", rot=rot)
+    lcd = fp(lcd_x, lcd_s, 0.0065)
+    for i, (bx, bs) in enumerate(((0.074, 0.052), (0.108, 0.052), (0.074, 0.08), (0.108, 0.08))):
+        col = (0.2, 0.45, 0.95) if i == 3 else ((0.95, 0.55, 0.12) if i == 2 else pal["btn"])
+        rbox((0.026, 0.005, 0.018), fp(bx, bs, 0.006), col, r=0.002, seg=1, kind="Gloss", rot=rot)
+    for k in range(4):
+        rbox((0.018, 0.004, 0.011), fp(-0.078 + k * 0.032, 0.025, 0.006), pal["btn"], r=0.002, seg=1, kind="Gloss", rot=rot)
+    rbox((0.006, 0.003, 0.006), fp(0.12, 0.022, 0.006), (0.3, 1.0, 0.4), kind="Glow", rot=rot)   # power LED
+    finish(name)
+    REF[name] = {"hopper": _r3(hopper), "hopper_tilt_deg": 20.0,
+                 "hopper_normal": _r3((0, math.cos(MC_TRAY_TILT), math.sin(MC_TRAY_TILT))),
+                 "stacker": _r3(stacker), "lcd_center": _r3(lcd), "lcd_normal": _r3(n),
+                 "lcd_size": (lcd_w, lcd_h)}
+
+
+def build_counter_display():
+    """Customer display for the money counter: a black box on a little stand, red LED window at +z."""
+    K = (0.07, 0.07, 0.075)
+    rbox((0.064, 0.008, 0.046), (0, 0.004, 0), K, r=0.004, kind="Gloss")
+    rbox((0.018, 0.024, 0.012), (0, 0.018, -0.003), K, r=0.003, kind="Gloss")
+    rbox((0.1, 0.044, 0.026), (0, 0.048, 0), K, r=0.008, seg=2, kind="Gloss")
+    rbox((0.084, 0.03, 0.002), (0, 0.049, 0.0128), (0.02, 0.02, 0.022), r=0.003)
+    rbox((0.078, 0.024, 0.002), (0, 0.049, 0.0135), (0.3, 0.025, 0.02), kind="Glow")
+    rod((0, 0.01, -0.02), (0.02, 0.004, -0.045), 0.0025, K, segs=6)
+    finish("CounterDisplay")
+    REF["CounterDisplay"] = {"led_center": (0.0, 0.049, 0.0145), "led_normal": (0, 0, 1), "led_size": (0.078, 0.024)}
+
+
+# --- bills ------------------------------------------------------------------------------
+
+BILL_W, BILL_D = 0.156, 0.066
+BILL_EDGE = ((0.52, 0.62, 0.46), (0.58, 0.68, 0.51))
+BILL_LINE = (0.33, 0.41, 0.3)
+BILL_TOP = (0.64, 0.73, 0.58)
+BILL_INK = (0.24, 0.34, 0.24)
+BILL_RIBBON = (0.25, 0.45, 0.85)
+
+
+def _paper_layers(x0, x1, y0, y1, layers):
+    """Stacked paper slabs with thin darker lines between them (many bills seen edge-on)."""
+    line = 0.0003
+    h = (y1 - y0 - (layers - 1) * line) / layers
+    y = y0
+    for k in range(layers):
+        rbox((x1 - x0, h, BILL_D), ((x0 + x1) / 2, y + h / 2, 0), BILL_EDGE[k % 2])
+        y += h
+        if k < layers - 1:
+            rbox((x1 - x0, line, BILL_D), ((x0 + x1) / 2, y + line / 2, 0), BILL_LINE)
+            y += line
+
+
+def build_bills():
+    # BillStack: loose $100s, exactly 0.156 x 0.010 x 0.066 (the game scales it in Y)
+    _paper_layers(-BILL_W / 2, BILL_W / 2, 0.0, 0.0093, 6)
+    rbox((BILL_W, 0.0004, BILL_D), (0, 0.0095, 0), BILL_TOP)                           # top bill
+    T = 0.0097                                                                          # top bill surface
+    ell((0.013, 0.0003, 0.017), (-0.012, T, 0), BILL_INK, segs=12, rings=4)          # portrait oval
+    rbox((0.004, 0.0003, BILL_D), (0.022, T + 0.00015, 0), BILL_RIBBON)                # security ribbon
+    for sx in (-1, 1):
+        for sz in (-1, 1):
+            rbox((0.014, 0.0003, 0.007), (sx * 0.064, T + 0.00015, sz * 0.025), BILL_INK)   # corner "100"s
+    rbox((0.02, 0.0003, 0.01), (0.052, T + 0.00015, 0.017), (0.75, 0.6, 0.3))          # big copper 100
+    finish("BillStack")
+    REF["BillStack"] = {"size": (BILL_W, 0.01, BILL_D)}
+
+    # MoneyBrick: strapped $10K (100 bills), 0.156 x 0.011 x 0.066, mustard bank strap around the middle
+    B = 0.016
+    for x0, x1 in ((-BILL_W / 2, -B), (B, BILL_W / 2)):
+        _paper_layers(x0, x1, 0.0, 0.0101, 7)
+        rbox((x1 - x0, 0.0003, BILL_D), ((x0 + x1) / 2, 0.01025, 0), BILL_TOP)
+    for sx in (-1, 1):
+        for sz in (-1, 1):
+            rbox((0.014, 0.0002, 0.007), (sx * 0.064, 0.0105, sz * 0.025), BILL_INK)
+    rbox((2 * B, 0.0108, BILL_D), (0, 0.0054, 0), (0.86, 0.68, 0.16))                   # strap
+    rbox((0.022, 0.0002, 0.03), (0, 0.0109, 0), (0.5, 0.36, 0.08))                      # "$10,000" print
+    finish("MoneyBrick")
+    REF["MoneyBrick"] = {"size": (BILL_W, 0.011, BILL_D), "strap_width": 2 * B}
+
+    # BillFan: 9 hundreds fanned like a hand of cards, pivot at the grip, facing +z
+    n, spread = 9, math.radians(110)
+    for i in range(n):
+        ang = spread / 2 - i * spread / (n - 1)          # leftmost bill first, at the back
+        n0 = len(PARTS)
+        rbox((BILL_D, BILL_W, 0.0006), (0, 0.068, 0), BILL_TOP if i == n - 1 else BILL_EDGE[1])
+        f = 0.0006
+        ell((0.012, 0.016, 0.0003), (0, 0.062, f), BILL_INK, segs=10, rings=4)
+        rbox((BILL_D, 0.004, 0.0003), (0, 0.092, f), BILL_RIBBON)
+        for sy in (-1, 1):
+            rbox((0.008, 0.013, 0.0003), (0.023, 0.068 + sy * 0.064, f), BILL_INK)
+        rbox((BILL_D - 0.006, 0.001, 0.0002), (0, 0.068 - 0.074, f), BILL_LINE)
+        rbox((BILL_D - 0.006, 0.001, 0.0002), (0, 0.068 + 0.074, f), BILL_LINE)
+        xform_since(n0, (0, 0, 0.0004 + i * 0.0012), [("z", ang)])
+    finish("BillFan")
+    REF["BillFan"] = {"pivot": (0, 0, 0), "spread_deg": 110, "bills": n,
+                      "bill_center_radius": 0.068}
+
+
+# --- ATM --------------------------------------------------------------------------------
+
+def build_atm():
+    """Free-standing bank ATM, 0.75 w x 1.65 h x 0.6 d, origin floor center, front +z."""
+    BODY = (0.17, 0.21, 0.3)
+    FASCIA = (0.07, 0.07, 0.08)
+    SILVER = (0.72, 0.74, 0.78)
+    GREEN = (0.16, 0.62, 0.32)
+    rbox((0.73, 0.06, 0.48), (0, 0.03, -0.05), (0.04, 0.04, 0.045), r=0.01)                       # plinth
+    rbox((0.75, 0.9, 0.5), (0, 0.5, -0.05), BODY, r=0.02, seg=1, kind="Gloss")                      # lower body
+    rbox((0.75, 0.48, 0.38), (0, 1.2, -0.11), FASCIA, r=0.02, seg=1, kind="Gloss")                  # upper fascia
+    rbox((0.75, 0.22, 0.52), (0, 1.54, -0.04), BODY, r=0.02, seg=2, kind="Gloss")                   # header box
+    for sx in (-1, 1):                                                                              # screen hood
+        rbox((0.06, 0.47, 0.15), (sx * 0.345, 1.2, 0.145), BODY, r=0.015, kind="Gloss")
+        rbox((0.018, 0.9, 0.02), (sx * 0.366, 0.5, 0.2), SILVER, r=0.006, kind="Metal")           # corner trim
+    rbox((0.63, 0.012, 0.13), (0, 1.425, 0.15), FASCIA, kind="Gloss")                              # hood top liner
+    # header: lit panel (Godot writes the bank name on it)
+    hdr_c, hdr_w, hdr_h = Vector((0, 1.54, 0.224)), 0.68, 0.15
+    rbox((hdr_w + 0.016, hdr_h + 0.016, 0.004), hdr_c - Vector((0, 0, 0.0025)), SILVER, kind="Metal")
+    rbox((hdr_w, hdr_h, 0.004), hdr_c - Vector((0, 0, 0.002)), (0.1, 0.32, 0.72), kind="Glow")
+    # screen in its hood
+    scr_c, scr_w, scr_h = Vector((0, 1.21, 0.093)), 0.40, 0.30
+    rbox((0.46, 0.36, 0.012), (0, 1.21, 0.085), (0.03, 0.03, 0.035), r=0.008, kind="Gloss")
+    rbox((scr_w, scr_h, 0.004), scr_c - Vector((0, 0, 0.002)), (0.04, 0.1, 0.18), kind="Glow")
+    for k in range(4):                                                                             # side soft keys
+        for sx in (-1, 1):
+            rbox((0.026, 0.02, 0.012), (sx * 0.232, 1.1 + k * 0.07, 0.088), SILVER, kind="Metal")
+    # card reader (right of screen, lower) with green lead-in light; receipt slot above it
+    rbox((0.075, 0.07, 0.035), (0.272, 1.1, 0.1), (0.12, 0.12, 0.13), r=0.008, kind="Gloss")
+    rbox((0.055, 0.007, 0.004), (0.272, 1.105, 0.118), (0.01, 0.01, 0.01))
+    rbox((0.055, 0.006, 0.003), (0.272, 1.088, 0.118), (0.2, 1.0, 0.45), kind="Glow")
+    rbox((0.075, 0.035, 0.025), (0.272, 1.33, 0.095), (0.12, 0.12, 0.13), r=0.006, kind="Gloss")
+    rbox((0.058, 0.005, 0.004), (0.272, 1.33, 0.108), (0.01, 0.01, 0.01))
+    for k in range(4):                                                                             # speaker grille
+        rbox((0.05, 0.005, 0.003), (-0.272, 1.29 + k * 0.014, 0.081), (0.2, 0.2, 0.22))
+    ell((0.008, 0.008, 0.004), (0, 1.395, 0.08), (0.02, 0.02, 0.03), segs=10, rings=4, kind="Gloss")  # camera
+    # keypad console: sloped shelf that juts out to z = 0.30
+    prism([(0.18, 0.86), (0.3, 0.895), (0.3, 0.95), (0.075, 1.02), (0.075, 0.9)], "x", -0.375, 0.375,
+          FASCIA, r=0.012, seg=2, kind="Gloss")
+    a = math.atan2(0.07, 0.225)
+    s = Vector((0, math.sin(a), -math.cos(a)))
+    nk = Vector((0, math.cos(a), math.sin(a)))
+    P0 = Vector((0, 0.95, 0.3))
+
+    def kp(x, sd, h):
+        return Vector((x, 0, 0)) + P0 + s * sd + nk * h
+    rot = [("x", a)]
+    rbox((0.2, 0.006, 0.16), kp(-0.06, 0.115, 0.002), (0.2, 0.21, 0.23), r=0.006, kind="Metal", rot=rot)
+    for row in range(4):
+        for col in range(3):
+            rbox((0.036, 0.008, 0.028), kp(-0.12 + col * 0.045, 0.06 + row * 0.036, 0.006), SILVER, kind="Metal", rot=rot)
+    for row, c in enumerate(((0.2, 0.75, 0.3), (0.95, 0.8, 0.15), (0.9, 0.18, 0.15), SILVER)):
+        rbox((0.05, 0.008, 0.028), kp(0.01, 0.06 + row * 0.036, 0.006), c, kind="Gloss", rot=rot)
+    rbox((0.12, 0.004, 0.06), kp(0.2, 0.12, 0.002), (0.25, 0.25, 0.27), kind="Gloss", rot=rot)   # privacy label
+    # cash dispenser: metal lip + wide dark slot + green "take cash" lights
+    rbox((0.37, 0.08, 0.03), (0, 0.79, 0.21), SILVER, r=0.01, kind="Metal")
+    rbox((0.3, 0.022, 0.012), (0, 0.79, 0.2215), (0.01, 0.01, 0.012))
+    rbox((0.32, 0.01, 0.04), (0, 0.772, 0.228), SILVER, r=0.004, kind="Metal")
+    rbox((0.1, 0.006, 0.004), (0, 0.818, 0.2255), (0.2, 1.0, 0.45), kind="Glow")
+    dispenser = Vector((0, 0.79, 0.2275))
+    # lower body: green brand stripe, service door with a lock, receipt-ish deposit slot
+    rbox((0.75, 0.035, 0.008), (0, 0.7, 0.2), GREEN, kind="Gloss")
+    rbox((0.6, 0.5, 0.008), (0, 0.38, 0.2), (0.14, 0.17, 0.25), r=0.004, kind="Gloss")
+    cyl(0.014, 0.012, (0.24, 0.52, 0.206), SILVER, segs=12, kind="Metal", rot=[("x", math.pi / 2)])
+    rbox((0.02, 0.002, 0.002), (0.24, 0.52, 0.2125), (0.05, 0.05, 0.05))
+    rbox((0.2, 0.03, 0.02), (-0.2, 0.62, 0.205), SILVER, r=0.005, kind="Metal")                      # deposit slot
+    rbox((0.16, 0.006, 0.004), (-0.2, 0.62, 0.2155), (0.01, 0.01, 0.01))
+    finish("ATM")
+    REF["ATM"] = {"screen_center": _r3(scr_c), "screen_normal": (0, 0, 1), "screen_size": (scr_w, scr_h),
+                  "dispenser": _r3(dispenser), "dispenser_slot_size": (0.3, 0.022),
+                  "header_center": _r3(hdr_c), "header_normal": (0, 0, 1), "header_size": (hdr_w, hdr_h)}
+
+
+# --- guns -------------------------------------------------------------------------------
+# Each _gun_* emits parts in its own design coordinates, then moves them so the grip center is
+# the origin; returns the reference points in the final (grip-origin) coordinates.  GUN_LOD
+# drops bevels, tiny details and cylinder segments for the copies baked into the rack / case.
+
+GUN_LOD = False
+GUN_BLACK = (0.25, 0.25, 0.27)     # blued steel ("Metal")
+GUN_POLY = (0.1, 0.1, 0.105)
+GUN_DARK = (0.03, 0.03, 0.035)
+GUN_WOOD = (0.55, 0.3, 0.13)
+GUN_WOOD_D = (0.36, 0.19, 0.08)
+GOLD_D = (0.82, 0.58, 0.13)
+
+
+def gbox(size, pos, col, r=0.0, kind="Metal", rot=None, seg=1, detail=False):
+    if detail and GUN_LOD:
+        return
+    rbox(size, pos, col, r=0.0 if GUN_LOD else r, seg=seg, kind=kind, rot=rot)
+
+
+def gcyl(r, h, pos, col, segs=12, kind="Metal", rot=None, detail=False):
+    if detail and GUN_LOD:
+        return
+    cyl(r, h, pos, col, segs=max(6, segs // 2) if GUN_LOD else segs, kind=kind, rot=rot)
+
+
+def grod(a, b, r, col, segs=12, kind="Metal", detail=False):
+    if detail and GUN_LOD:
+        return
+    rod(a, b, r, col, segs=max(6, segs // 2) if GUN_LOD else segs, kind=kind)
+
+
+def gprism(pts, axis, a0, a1, col, r=0.0, kind="Gloss", seg=1):
+    prism(pts, axis, a0, a1, col, r=0.0 if GUN_LOD else r, seg=seg, kind=kind)
+
+
+ZR = [("x", math.pi / 2)]   # cylinder along z
+
+
+def _to_grip(n0, grip, pts):
+    g = Vector(grip)
+    xform_since(n0, -g)
+    return {k: _r3(Vector(v) - g) for k, v in pts.items()}
+
+
+def _gun_pistol():
+    """Compact polymer pistol (Glock-like), 0.186 long."""
+    n0 = len(PARTS)
+    SL, PO, DK = GUN_BLACK, GUN_POLY, GUN_DARK
+    gbox((0.026, 0.032, 0.186), (0, 0.07, -0.05), SL, r=0.004)                           # slide
+    for k in range(7):
+        gbox((0.0275, 0.022, 0.0022), (0, 0.068, 0.012 + k * 0.0045), DK, detail=True)    # serrations
+    gbox((0.011, 0.004, 0.034), (0.004, 0.0865, -0.03), (0.3, 0.3, 0.31), kind="Metal", detail=True)  # port
+    gbox((0.02, 0.007, 0.007), (0, 0.0885, 0.036), DK)                                     # rear sight
+    gbox((0.004, 0.006, 0.005), (0, 0.0885, -0.136), DK)                                   # front sight
+    gcyl(0.0055, 0.003, (0, 0.07, -0.1425), DK, segs=10, rot=ZR)                           # bore
+    gbox((0.024, 0.021, 0.125), (0, 0.045, -0.072), PO, r=0.004, kind="Paint")             # frame / dust cover
+    gbox((0.026, 0.022, 0.05), (0, 0.045, 0.018), PO, r=0.005, kind="Paint")               # beavertail
+    for k in range(2):
+        gbox((0.0245, 0.004, 0.004), (0, 0.035, -0.11 + k * 0.014), DK, detail=True)       # rail slots
+    gbox((0.012, 0.006, 0.052), (0, 0.011, -0.038), PO, r=0.002, kind="Paint")             # trigger guard
+    gbox((0.012, 0.03, 0.007), (0, 0.024, -0.064), PO, r=0.002, kind="Paint", rot=[("x", 0.15)])
+    gbox((0.006, 0.02, 0.006), (0, 0.026, -0.033), DK, rot=[("x", 0.35)])                 # trigger
+    GA = [("x", -0.33)]
+    grip = Vector((0, -0.01, 0.0034))
+    d = Vector((0, math.cos(-0.33), math.sin(-0.33)))
+    gbox((0.03, 0.105, 0.05), grip, PO, r=0.008, kind="Paint", rot=GA)                     # grip
+    gbox((0.031, 0.06, 0.034), grip + d * -0.004, (0.055, 0.055, 0.06), kind="Paint", rot=GA, detail=True)  # stipple
+    gbox((0.032, 0.009, 0.054), grip + d * -0.056, PO, r=0.003, kind="Paint", rot=GA)      # mag base
+    return _to_grip(n0, grip, {"barrel_tip": (0, 0.07, -0.144), "support_hand": grip + Vector((-0.03, -0.012, -0.004))})
+
+
+def _gun_deagle():
+    """Big heavy .50 pistol (Desert-Eagle-like), 0.27 long, all gold."""
+    n0 = len(PARTS)
+    GD, G2, K = GOLD, GOLD_D, "Metal"
+    gprism([(-0.015, 0.108), (0.015, 0.108), (0.016, 0.09), (0.009, 0.064), (-0.009, 0.064), (-0.016, 0.09)],
+           "z", -0.2, -0.055, GD, r=0.003, kind=K)                                        # triangular barrel
+    gbox((0.01, 0.006, 0.145), (0, 0.111, -0.128), G2, kind=K)                             # top rib
+    gbox((0.032, 0.044, 0.13), (0, 0.084, 0.005), GD, r=0.004, kind=K)                     # slide
+    for k in range(8):
+        gbox((0.0335, 0.03, 0.0025), (0, 0.082, 0.02 + k * 0.0055), G2, kind=K, detail=True)
+    gbox((0.028, 0.026, 0.19), (0, 0.05, -0.075), GD, r=0.004, kind=K)                     # frame
+    gbox((0.03, 0.028, 0.055), (0, 0.05, 0.045), GD, r=0.005, kind=K)
+    gbox((0.01, 0.018, 0.012), (0, 0.104, 0.074), G2, kind=K, rot=[("x", 0.5)])            # hammer
+    gbox((0.022, 0.008, 0.008), (0, 0.109, 0.06), G2, kind=K)                              # rear sight
+    gbox((0.005, 0.01, 0.008), (0, 0.115, -0.19), G2, kind=K)                              # front sight
+    gcyl(0.0065, 0.003, (0, 0.093, -0.2005), GUN_DARK, segs=12, rot=ZR)                    # bore
+    gbox((0.004, 0.01, 0.022), (-0.017, 0.086, 0.05), G2, kind=K, detail=True)             # safety
+    gbox((0.012, 0.007, 0.07), (0, 0.012, -0.046), GD, r=0.002, kind=K)                    # trigger guard
+    gbox((0.012, 0.034, 0.008), (0, 0.027, -0.08), GD, r=0.002, kind=K, rot=[("x", 0.12)])
+    gbox((0.007, 0.022, 0.007), (0, 0.028, -0.043), G2, kind=K, rot=[("x", 0.35)])         # trigger
+    GA = [("x", -0.28)]
+    grip = Vector((0, -0.012, 0.012))
+    d = Vector((0, math.cos(-0.28), math.sin(-0.28)))
+    gbox((0.034, 0.112, 0.058), grip, GD, r=0.01, kind=K, rot=GA)
+    gbox((0.036, 0.075, 0.042), grip + d * -0.004, G2, kind=K, rot=GA, detail=True)       # grip panels
+    gbox((0.036, 0.01, 0.062), grip + d * -0.06, G2, r=0.003, kind=K, rot=GA)              # mag base
+    return _to_grip(n0, grip, {"barrel_tip": (0, 0.093, -0.202), "support_hand": grip + Vector((-0.032, -0.012, -0.004))})
+
+
+def _gun_smg():
+    """Compact SMG (Uzi-like) with the stick magazine in the pistol grip, stock folded."""
+    n0 = len(PARTS)
+    BK, PO, DK = GUN_BLACK, GUN_POLY, GUN_DARK
+    gbox((0.044, 0.058, 0.26), (0, 0.07, -0.05), BK, r=0.006)                              # receiver
+    for sx in (-1, 1):
+        gbox((0.004, 0.004, 0.2), (sx * 0.012, 0.1005, -0.05), BK, detail=True)            # top ribs
+    gcyl(0.008, 0.014, (0, 0.104, -0.07), DK, segs=10)                                     # cocking knob
+    gbox((0.024, 0.016, 0.01), (0, 0.105, 0.066), BK)                                      # rear sight
+    for sx in (-1, 1):
+        gbox((0.005, 0.02, 0.014), (sx * 0.009, 0.106, -0.165), BK)                        # front sight ears
+    gbox((0.003, 0.014, 0.004), (0, 0.104, -0.165), DK, detail=True)
+    gcyl(0.017, 0.022, (0, 0.07, -0.191), BK, segs=14, rot=ZR)                             # barrel nut
+    gcyl(0.009, 0.035, (0, 0.07, -0.2185), BK, segs=10, rot=ZR)                            # barrel
+    gcyl(0.005, 0.002, (0, 0.07, -0.2365), DK, segs=8, rot=ZR)                             # bore
+    gbox((0.04, 0.03, 0.14), (0, 0.032, -0.11), PO, r=0.006, kind="Paint")                 # front grip frame
+    GA = [("x", -0.1)]
+    grip = Vector((0, -0.01, 0.004))
+    d = Vector((0, math.cos(-0.1), math.sin(-0.1)))
+    gbox((0.034, 0.11, 0.046), grip, PO, r=0.008, kind="Paint", rot=GA)                    # pistol grip
+    gbox((0.026, 0.1, 0.034), grip + d * -0.09, BK, r=0.003, rot=GA)                       # stick magazine
+    gbox((0.03, 0.008, 0.038), grip + d * -0.142, BK, r=0.002, rot=GA)                     # mag base
+    gbox((0.018, 0.055, 0.008), (0, 0.005, 0.03), BK, rot=GA)                              # grip safety
+    gbox((0.012, 0.006, 0.055), (0, 0.006, -0.045), PO, r=0.002, kind="Paint")             # trigger guard
+    gbox((0.012, 0.032, 0.007), (0, 0.021, -0.071), PO, r=0.002, kind="Paint")
+    gbox((0.006, 0.02, 0.006), (0, 0.025, -0.04), DK, rot=[("x", 0.3)])                   # trigger
+    for sx in (-1, 1):                                                                      # folded stock
+        grod((sx * 0.026, 0.05, 0.085), (sx * 0.026, 0.05, -0.13), 0.0035, BK, segs=6)
+    gbox((0.058, 0.03, 0.022), (0, 0.06, 0.09), BK, r=0.004)                               # stock hinge
+    gbox((0.062, 0.035, 0.01), (0, 0.045, -0.136), BK, r=0.003)                            # butt plate
+    return _to_grip(n0, grip, {"barrel_tip": (0, 0.07, -0.237), "support_hand": (0, 0.032, -0.11)})
+
+
+def _gun_shotgun():
+    """Pump shotgun (870-like): black steel, wood stock + pump, 1.06 long."""
+    n0 = len(PARTS)
+    ST, WD, WD2, DK = GUN_BLACK, GUN_WOOD, GUN_WOOD_D, GUN_DARK
+    gbox((0.034, 0.056, 0.2), (0, 0.052, -0.09), ST, r=0.006)                              # receiver
+    gbox((0.002, 0.02, 0.065), (0.0172, 0.062, -0.1), DK, detail=True)                     # ejection port
+    gbox((0.026, 0.02, 0.1), (0, 0.018, -0.05), ST, r=0.004)                               # trigger plate
+    gbox((0.012, 0.006, 0.06), (0, -0.004, -0.045), ST, r=0.002)                           # trigger guard
+    gbox((0.012, 0.026, 0.007), (0, 0.008, -0.074), ST, r=0.002)
+    gbox((0.006, 0.02, 0.006), (0, 0.008, -0.045), DK, rot=[("x", 0.3)])
+    grod((0, 0.058, -0.19), (0, 0.058, -0.69), 0.0115, ST, segs=12)                        # barrel
+    gbox((0.008, 0.005, 0.49), (0, 0.0715, -0.44), ST, detail=True)                        # vent rib
+    gbox((0.005, 0.005, 0.005), (0, 0.076, -0.683), (0.95, 0.93, 0.85), kind="Metal")      # bead
+    gcyl(0.0085, 0.002, (0, 0.058, -0.6905), DK, segs=10, rot=ZR)                          # bore
+    grod((0, 0.03, -0.19), (0, 0.03, -0.615), 0.0115, ST, segs=12)                         # magazine tube
+    gcyl(0.013, 0.02, (0, 0.03, -0.62), ST, segs=12, rot=ZR)                               # mag cap
+    gbox((0.018, 0.045, 0.012), (0, 0.045, -0.6), ST)                                      # barrel clamp
+    for sx in (-1, 1):
+        gbox((0.004, 0.008, 0.07), (sx * 0.014, 0.035, -0.21), ST, detail=True)            # action bars
+    gbox((0.044, 0.044, 0.19), (0, 0.032, -0.33), WD, r=0.014, seg=2, kind="Gloss")        # pump
+    for k in range(6):
+        gbox((0.0455, 0.0455, 0.005), (0, 0.032, -0.268 - k * 0.025), WD2, r=0.014, kind="Gloss", detail=True)
+    stock = [(0.0, 0.074), (0.07, 0.056), (0.14, 0.062), (0.345, 0.056), (0.355, 0.05), (0.355, -0.085),
+             (0.33, -0.088), (0.1, -0.02), (0.045, 0.006), (0.01, 0.015), (0.0, 0.03)]
+    gprism(stock, "x", -0.019, 0.019, WD, r=0.006, seg=2)
+    gbox((0.04, 0.142, 0.016), (0, -0.0175, 0.362), (0.06, 0.06, 0.065), r=0.005, kind="Paint")  # butt pad
+    return _to_grip(n0, (0, 0.034, 0.045), {"barrel_tip": (0, 0.058, -0.692), "support_hand": (0, 0.032, -0.33)})
+
+
+def _gun_rifle(steel=GUN_BLACK, steel_kind="Metal", furn=GUN_WOOD, furn_kind="Gloss"):
+    """AK-style rifle: wood (or black) furniture, curved magazine, 0.89 long. Grip at the origin."""
+    n0 = len(PARTS)
+    ST, SK, FU, FK, DK = steel, steel_kind, furn, furn_kind, GUN_DARK
+    gbox((0.032, 0.05, 0.25), (0, 0.065, -0.03), ST, r=0.005, kind=SK)                     # receiver
+    gbox((0.03, 0.02, 0.23), (0, 0.092, -0.02), ST, r=0.009, kind=SK)                      # dust cover
+    gbox((0.034, 0.05, 0.03), (0, 0.068, -0.165), ST, r=0.004, kind=SK)                    # trunnion
+    gbox((0.026, 0.024, 0.055), (0, 0.098, -0.19), ST, r=0.004, kind=SK)                   # rear sight block
+    gbox((0.02, 0.006, 0.05), (0, 0.112, -0.18), ST, kind=SK, detail=True)                 # sight leaf
+    grod((0, 0.078, -0.16), (0, 0.078, -0.505), 0.008, ST, segs=12, kind=SK)               # barrel
+    gcyl(0.0105, 0.03, (0, 0.078, -0.52), ST, segs=12, kind=SK, rot=ZR)                    # muzzle nut
+    gcyl(0.005, 0.002, (0, 0.078, -0.5355), DK, segs=8, rot=ZR)                            # bore
+    gbox((0.02, 0.02, 0.03), (0, 0.08, -0.47), ST, kind=SK)                                # front sight block
+    gbox((0.016, 0.036, 0.012), (0, 0.1, -0.475), ST, kind=SK)                             # front sight post
+    gbox((0.022, 0.045, 0.028), (0, 0.092, -0.405), ST, r=0.003, kind=SK)                  # gas block
+    grod((0, 0.06, -0.4), (0, 0.06, -0.52), 0.003, ST, segs=6, kind=SK, detail=True)       # cleaning rod
+    gbox((0.03, 0.024, 0.17), (0, 0.109, -0.305), FU, r=0.009, kind=FK)                    # upper handguard
+    gbox((0.044, 0.05, 0.2), (0, 0.068, -0.29), FU, r=0.012, seg=2, kind=FK)               # lower handguard
+    gbox((0.046, 0.054, 0.01), (0, 0.068, -0.186), ST, kind=SK)                            # retainer
+    gbox((0.014, 0.012, 0.022), (0.022, 0.082, -0.07), ST, r=0.003, kind=SK)               # charging handle
+    gbox((0.004, 0.014, 0.075), (0.0175, 0.072, -0.03), ST, kind=SK, rot=[("x", 0.05)], detail=True)  # selector
+    gbox((0.012, 0.005, 0.075), (0, 0.013, -0.066), ST, r=0.002, kind=SK)                  # trigger guard
+    gbox((0.012, 0.03, 0.006), (0, 0.027, -0.101), ST, kind=SK)
+    gbox((0.006, 0.022, 0.006), (0, 0.03, -0.06), DK, rot=[("x", 0.3)])                   # trigger
+    gbox((0.03, 0.1, 0.038), (0, 0, 0), FU, r=0.008, kind=FK, rot=[("x", -0.35)])          # pistol grip
+    # curved magazine: centerline swept forward along an arc
+    L, n, ph0, ph1 = 0.215, 6, 0.12, 0.78
+    p = Vector((-0.137, 0.05))    # (z, y)
+    back, front = [], []
+    for k in range(n + 1):
+        ph = ph0 + (ph1 - ph0) * k / n
+        w = 0.052 - 0.008 * k / n
+        nrm = Vector((-math.cos(ph), math.sin(ph)))      # toward the front
+        back.append(tuple(p - nrm * w / 2))
+        front.append(tuple(p + nrm * w / 2))
+        p = p + Vector((-math.sin(ph), -math.cos(ph))) * (L / n)
+    gprism(back + front[::-1], "x", -0.013, 0.013, ST, r=0.004, kind=SK)
+    stock = [(0.085, 0.092), (0.2, 0.074), (0.345, 0.064), (0.345, -0.068), (0.3, -0.058), (0.19, -0.005),
+             (0.12, 0.03), (0.085, 0.045)]
+    gprism(stock, "x", -0.018, 0.018, FU, r=0.006, seg=2, kind=FK)
+    gbox((0.038, 0.136, 0.01), (0, -0.002, 0.35), ST, r=0.003, kind=SK)                    # butt plate
+    return _to_grip(n0, (0, 0, 0), {"barrel_tip": (0, 0.078, -0.536), "support_hand": (0, 0.068, -0.29)})
+
+
+GUNS = (("Gun_Pistol", _gun_pistol), ("Gun_Deagle", _gun_deagle), ("Gun_SMG", _gun_smg),
+        ("Gun_Shotgun", _gun_shotgun), ("Gun_Rifle", _gun_rifle),
+        ("Gun_RifleGold", lambda: _gun_rifle(GOLD, "Metal", (0.07, 0.07, 0.075), "Paint")))
+
+
+def build_guns():
+    for name, fn in GUNS:
+        REF[name] = fn()
+        REF[name]["grip"] = (0.0, 0.0, 0.0)
+        finish(name)
+
+
+def _place_gun(fn, rot, center=None, rest_y=None, zmin=None, lod=True):
+    """Bake a (low-detail) gun into the prop being built: rotate it, then move it so its bounding
+    box center sits at `center` (x, y, z; None = leave that axis), its bottom at `rest_y`, or its
+    back at `zmin`. Returns the Godot-space transform (a function) for local gun points."""
+    global GUN_LOD
+    GUN_LOD = lod
+    n0 = len(PARTS)
+    fn()
+    GUN_LOD = False
+    M1 = xform_since(n0, (0, 0, 0), rot)
+    lo, hi = bbox_since(n0)
+    c = (lo + hi) / 2
+    t = Vector((0, 0, 0))
+    if center is not None:
+        for i in range(3):
+            if center[i] is not None:
+                t[i] = center[i] - c[i]
+    if rest_y is not None:
+        t.y = rest_y - lo.y
+    if zmin is not None:
+        t.z = zmin - lo.z
+    M2 = xform_since(n0, t)
+    return lambda p: GI(M2 @ M1 @ G(p))
+
+
+# --- gun store fittings ------------------------------------------------------------------
+
+def _tag(x, y, z, price_col=(0.85, 0.15, 0.12), rot=None):
+    rbox((0.07, 0.04, 0.003), (x, y, z), PAPER, rot=rot)
+    rbox((0.05, 0.009, 0.002), (x, y + 0.006, z + 0.002), price_col, rot=rot)
+
+
+def build_gun_wall_rack():
+    """Slat-wall gun display, 2.4 w x 1.6 h, origin bottom center, back at z=0, front +z.
+    Long guns hang on pegs barrel-right, pistols hang by the trigger guard."""
+    W, H = 2.4, 1.6
+    BOARD = (0.5, 0.5, 0.52)
+    FRAME = (0.08, 0.08, 0.09)
+    ORANGE = (0.95, 0.5, 0.08)
+    rbox((W, H, 0.03), (0, H / 2, 0.015), BOARD, r=0.004)
+    for k in range(14):
+        rbox((W - 0.1, 0.012, 0.004), (0, 0.16 + k * 0.1, 0.031), (0.3, 0.3, 0.32))        # slat grooves
+    for y in (0.03, H - 0.03):
+        rbox((W, 0.06, 0.05), (0, y, 0.025), FRAME, r=0.01)
+    for sx in (-1, 1):
+        rbox((0.05, H, 0.05), (sx * (W / 2 - 0.025), H / 2, 0.025), FRAME, r=0.01)
+    rbox((W - 0.1, 0.012, 0.012), (0, H - 0.066, 0.045), ORANGE, kind="Metal")              # accent strip
+    rbox((W - 0.2, 0.012, 0.02), (0, H - 0.08, 0.06), (1.0, 0.93, 0.78), kind="Glow")       # light bar
+    peg = (0.55, 0.56, 0.6)
+    BARREL_RIGHT = [("y", -math.pi / 2)]            # gun's right side faces +z, muzzle to +x
+
+    rows = []
+    # row 1: two AKs;  row 2: shotgun + two SMGs;  row 3: pistols
+    for fn, xc, y, pegs in ((_gun_rifle, -0.58, 1.30, ((0, 0.032, 0.06), (0, 0.035, -0.3))),
+                            (GUNS[5][1], 0.58, 1.30, ((0, 0.032, 0.06), (0, 0.035, -0.3))),
+                            (_gun_shotgun, -0.52, 0.93, ((0, -0.02, -0.16), (0, -0.026, -0.5))),
+                            (_gun_smg, 0.32, 0.93, ((0, 0.01, 0.075), (0, 0.012, -0.15))),
+                            (_gun_smg, 0.86, 0.93, ((0, 0.01, 0.075), (0, 0.012, -0.15)))):
+        n0 = len(PARTS)
+        f = _place_gun(fn, BARREL_RIGHT, center=(xc, None, None), zmin=0.05)
+        t = Vector((0, y, 0)) - Vector((0, f((0, 0, 0)).y, 0))
+        xform_since(n0, t)
+        rows.append((f, t, pegs, bbox_since(n0)))
+    pistols = [_gun_pistol, _gun_deagle] * 4
+    for k in range(7):
+        n0 = len(PARTS)
+        xc = -0.93 + k * 0.31
+        f = _place_gun(pistols[k], BARREL_RIGHT, center=(xc, None, None), zmin=0.05)
+        t = Vector((0, 0.5, 0)) - Vector((0, f((0, 0, 0)).y, 0))
+        xform_since(n0, t)
+        rows.append((f, t, ((0, 0.022 + 0.01 * (k % 2), -0.045),), bbox_since(n0)))
+    for f, t, pegs, (lo, hi) in rows:
+        for p in pegs:
+            w = f(p) + t
+            rod((w.x, w.y, 0.03), (w.x, w.y, hi.z + 0.004), 0.006, peg, segs=6, kind="Metal")
+        _tag((lo.x + hi.x) / 2, lo.y - 0.035, 0.034)
+    rbox((W - 0.12, 0.025, 0.16), (0, 0.2, 0.08), FRAME, r=0.006)                          # bottom ledge
+    rng = random.Random(5)
+    cols = [(0.15, 0.45, 0.2), (0.85, 0.65, 0.1), (0.7, 0.12, 0.1), (0.1, 0.25, 0.55)]
+    x = -1.08
+    while x < 1.05:
+        c = rng.choice(cols)
+        rbox((0.1, 0.06, 0.13), (x, 0.2125 + 0.03, 0.085), c)
+        rbox((0.07, 0.025, 0.002), (x, 0.245, 0.151), (0.95, 0.95, 0.92))
+        x += 0.13 + rng.choice((0.0, 0.0, 0.05))
+    finish("GunWallRack")
+    REF["GunWallRack"] = {"size": (W, H), "back_z": 0.0}
+
+
+GUNCASE_FLOOR = 0.817
+
+
+def build_gun_case():
+    """Glass-top gun counter, 1.8 w x 1.0 h x 0.7 d, origin floor center, customers at +z.
+    Pistols lie on red felt under glass (Glass panes like the WatchCase)."""
+    BODY = (0.09, 0.09, 0.1)
+    PANEL = (0.14, 0.14, 0.15)
+    STEEL = (0.62, 0.64, 0.68)
+    ORANGE = (0.95, 0.5, 0.08)
+    FELT = (0.45, 0.07, 0.09)
+    rbox((1.74, 0.08, 0.64), (0, 0.04, 0), (0.03, 0.03, 0.03), r=0.004)                     # plinth
+    rbox((1.8, 0.72, 0.7), (0, 0.44, 0), BODY, r=0.012, seg=2, kind="Gloss")                # cabinet
+    for x in (-0.59, 0.0, 0.59):
+        rbox((0.54, 0.52, 0.012), (x, 0.44, 0.354), PANEL, r=0.008, kind="Gloss")
+    rbox((1.78, 0.014, 0.012), (0, 0.1, 0.35), ORANGE, kind="Metal")                        # kick stripe
+    rbox((1.804, 0.018, 0.704), (0, 0.806, 0), STEEL, r=0.004, kind="Metal")                # cap
+    rbox((1.77, 0.012, 0.672), (0, GUNCASE_FLOOR - 0.006, 0), FELT)                         # felt floor
+    top = 1.0
+    for sx in (-1, 1):                                                                      # steel frame
+        for sz in (-1, 1):
+            rbox((0.016, top - 0.812, 0.016), (sx * 0.892, (top + 0.812) / 2, sz * 0.342), STEEL, r=0.003, kind="Metal")
+    for sz in (-1, 1):
+        rbox((1.8, 0.016, 0.016), (0, top - 0.008, sz * 0.342), STEEL, r=0.003, kind="Metal")
+    for sx in (-1, 1):
+        rbox((0.016, 0.016, 0.7), (sx * 0.892, top - 0.008, 0), STEEL, r=0.003, kind="Metal")
+    rbox((0.016, top - 0.812, 0.016), (0, (top + 0.812) / 2, 0.342), STEEL, r=0.003, kind="Metal")
+    G_ = (0.85, 0.93, 0.95)
+    rbox((1.77, 0.006, 0.672), (0, top - 0.003, 0), G_, kind="Glass")
+    for sz in (-1, 1):
+        rbox((1.77, top - 0.815, 0.006), (0, (top + 0.815) / 2, sz * 0.338), G_, kind="Glass")
+    for sx in (-1, 1):
+        rbox((0.006, top - 0.815, 0.672), (sx * 0.888, (top + 0.815) / 2, 0), G_, kind="Glass")
+    rbox((1.7, 0.006, 0.01), (0, top - 0.02, -0.33), (1.0, 0.95, 0.85), kind="Glow")        # LED strip
+    LIE = [("z", math.pi / 2), ("y", math.pi / 2)]        # right side up, top toward +z, muzzle -x
+    guns = [_gun_pistol, _gun_deagle, _gun_pistol, _gun_deagle, _gun_smg, _gun_pistol]
+    for i, fn in enumerate(guns):
+        x = -0.58 + (i % 3) * 0.58
+        z = 0.14 if i < 3 else -0.14
+        _place_gun(fn, LIE, center=(x, None, z), rest_y=GUNCASE_FLOOR + 0.002)
+        _tag(x + 0.19, GUNCASE_FLOOR + 0.02, z + 0.06, rot=[("x", -1.0)])
+    finish("GunCase")
+    REF["GunCase"] = {"felt_top_y": GUNCASE_FLOOR, "glass_top_y": top}
+
+
+def build_target_sheet():
+    """Paper shooting target, 0.45 x 0.6, back on z=0, origin at its center, front +z."""
+    PAPER_T = (0.95, 0.93, 0.86)
+    INK = (0.1, 0.1, 0.12)
+    W_ = (0.95, 0.95, 0.93)
+    rbox((0.45, 0.6, 0.002), (0, 0, 0.001), PAPER_T)
+    torso = [(-0.19, -0.27), (0.19, -0.27), (0.19, 0.0), (0.16, 0.06), (0.1, 0.095), (0.035, 0.105),
+             (-0.035, 0.105), (-0.1, 0.095), (-0.16, 0.06), (-0.19, 0.0)]
+    prism(torso, "z", 0.002, 0.0028, INK)
+    rbox((0.07, 0.05, 0.0008), (0, 0.125, 0.0024), INK)                                    # neck
+    cyl(0.058, 0.0008, (0, 0.18, 0.0024), INK, segs=24, rot=ZR)                             # head
+    for R in (0.035, 0.07, 0.105, 0.14):
+        torus(R, 0.0022, (0, -0.07, 0.0028), W_, segs=24, rsegs=4, rot=ZR)
+    torus(0.03, 0.002, (0, 0.18, 0.0028), W_, segs=16, rsegs=4, rot=ZR)
+    cyl(0.013, 0.0008, (0, -0.07, 0.003), (0.9, 0.15, 0.1), segs=16, rot=ZR)               # bullseye
+    for hx, hy, on_ink in ((0.02, -0.05, 1), (-0.045, -0.1, 1), (0.06, 0.0, 1), (0.012, 0.19, 1),
+                           (0.11, -0.2, 1), (-0.17, 0.22, 0), (0.17, -0.285, 0)):
+        cyl(0.0055, 0.0008, (hx, hy, 0.0034), (0.8, 0.78, 0.72) if on_ink else (0.15, 0.15, 0.15), segs=8, rot=ZR)
+    for k in range(3):                                                                      # printed footer
+        rbox((0.12 - k * 0.03, 0.006, 0.0006), (-0.14 + k * 0.01, -0.283 + k * 0.0, 0.0022), (0.3, 0.3, 0.32))
+    for sx in (-1, 1):                                                                      # staples
+        rbox((0.014, 0.003, 0.0012), (sx * 0.19, 0.28, 0.0025), (0.7, 0.72, 0.75), kind="Metal")
+    finish("TargetSheet")
+    REF["TargetSheet"] = {"size": (0.45, 0.6), "center": (0, 0, 0), "bullseye": (0, -0.07, 0.0034),
+                          "head": (0, 0.18, 0.0034)}
+
+
+def build_ammo_shelf():
+    """Steel shelf of ammo boxes, 1.2 w x 1.8 h x 0.4 d, origin floor center, front +z."""
+    rng = random.Random(7)
+    tops = _open_shelf(1.2, 1.8, 0.4, (0.22, 0.23, 0.25), 4, back=(0.13, 0.14, 0.15))
+    ORANGE = (0.95, 0.5, 0.08)
+    boxes = [(0.15, 0.42, 0.2), (0.88, 0.66, 0.1), (0.72, 0.12, 0.1), (0.1, 0.26, 0.58), (0.92, 0.92, 0.9),
+             (0.18, 0.18, 0.19)]
+    for r, y in enumerate(tops):
+        rbox((1.12, 0.03, 0.006), (0, y - 0.018, 0.2), ORANGE, kind="Metal")                # price rail
+        if r == 0:        # olive ammo cans
+            for k in range(3):
+                x = -0.37 + k * 0.37
+                rbox((0.3, 0.19, 0.16), (x, y + 0.095, 0.02), (0.3, 0.34, 0.18), r=0.01, kind="Gloss")
+                rbox((0.31, 0.03, 0.17), (x, y + 0.175, 0.02), (0.26, 0.3, 0.15), r=0.006, kind="Gloss")
+                rod((x - 0.06, y + 0.2, 0.02), (x + 0.06, y + 0.2, 0.02), 0.008, (0.2, 0.22, 0.12), segs=6)
+                rbox((0.14, 0.03, 0.002), (x, y + 0.1, 0.101), (0.9, 0.8, 0.3))
+            continue
+        x = -0.5
+        while x < 0.5:
+            wide = rng.random() < 0.25
+            bw, bh = (0.14, 0.07) if wide else (0.095, 0.052)
+            c = boxes[rng.randrange(len(boxes))]
+            label = (0.95, 0.95, 0.92) if c != boxes[4] else (0.72, 0.12, 0.1)
+            for j in range(rng.randint(2, 5 if r < 3 else 4)):
+                yy = y + bh / 2 + j * (bh + 0.001)
+                rbox((bw, bh, 0.14), (x + bw / 2, yy, 0.09), c)
+                rbox((bw - 0.02, bh * 0.4, 0.002), (x + bw / 2, yy, 0.161), label)
+            x += bw + 0.012
+    rbox((0.5, 0.1, 0.02), (0, 1.735, 0.205), (0.08, 0.08, 0.09), r=0.01)                    # header sign
+    rbox((0.44, 0.064, 0.004), (0, 1.735, 0.216), ORANGE, kind="Glow")
+    finish("AmmoShelf")
+    REF["AmmoShelf"] = {"shelf_tops_y": [round(y, 3) for y in tops]}
+
+
+def build_money_and_guns():
+    build_money_counter("MoneyCounter", MC_BLACK)
+    build_money_counter("MoneyCounterPro", MC_PRO)
+    build_counter_display()
+    build_bills()
+    build_atm()
+    build_guns()
+    build_gun_wall_rack()
+    build_gun_case()
+    build_target_sheet()
+    build_ammo_shelf()
+    storefront("Store_Guns", (0.09, 0.15, 0.1), (0.95, 0.5, 0.08), (0.04, 0.04, 0.045), "iron")
+    REF["Store_Guns"] = {"sign_band_center": (0, 3.62, 0.53), "sign_band_size": (9.6, 0.9)}
+
+
 def main():
     reset()
     for fn in (build_desk, build_divider, build_crt, build_keyboard, build_mouse, build_lamp, build_chair,
@@ -1589,7 +2340,8 @@ def main():
                build_tv, build_elevator, build_ceiling_light, build_window_bay, build_cell,
                build_stream_desk, build_gaming_chair, build_ring_light, build_neon_board, build_skyline,
                build_bulletin_board, build_door, build_restroom, build_floor_mess, build_coin,
-               build_luxury, build_desk_upgrades, build_flex_counter, build_street_props, build_store_props):
+               build_luxury, build_desk_upgrades, build_flex_counter, build_street_props, build_store_props,
+               build_money_and_guns):
         fn()
     keep = {o.name for o in KIT}
     for o in list(bpy.data.objects):
@@ -1601,6 +2353,18 @@ def main():
         total += tris
         print("  %-14s %6d tris" % (o.name, tris))
     print("props:", len(KIT), " tris:", total)
+    for name, ref in REF.items():   # the reference-point contract for gameplay code
+        ob = bpy.data.objects[name]
+        pts = [GI(v.co) for v in ob.data.vertices]
+        lo = [min(p[i] for p in pts) for i in range(3)]
+        hi = [max(p[i] for p in pts) for i in range(3)]
+        print("REF %-16s bbox min %s max %s" % (name, _r3(lo), _r3(hi)))
+        for k, v in ref.items():
+            print("REF %-16s   %-20s %s" % (name, k, v))
+    if os.environ.get("PROPS_REF_JSON"):      # review renders (tests/lineup_driver.gd --props) mark these
+        import json
+        with open(os.environ["PROPS_REF_JSON"], "w") as fh:
+            json.dump(REF, fh, indent=1)
     os.makedirs(os.path.dirname(OUT), exist_ok=True)
     bpy.ops.export_scene.gltf(filepath=OUT, export_format="GLB", export_vertex_color="ACTIVE",
                               export_apply=True, export_yup=True, export_materials="EXPORT",

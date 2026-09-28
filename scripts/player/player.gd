@@ -11,6 +11,8 @@ const REACH := 2.6
 const SEND_RATE := 1.0 / 20.0
 const Character = preload("res://scripts/art/character.gd")
 const Props = preload("res://scripts/art/props.gd")
+const CashArt = preload("res://scripts/art/cash_art.gd")
+const GunArt = preload("res://scripts/art/gun_art.gd")
 const PropKit = preload("res://scripts/art/prop_kit.gd")
 
 var peer_id := 1
@@ -46,7 +48,9 @@ var held_cigar: Node3D
 var held_gun: Node3D
 var powder_fx := 0.0
 # emotes (F finger, V fist pump, Z show watch, X point) and chairs
-const EMOTES := ["", "finger", "fistpump", "watch", "point", "dance", "smoke_cough", "smoke_chill"]   # 3 sync bits: max 8
+const EMOTES := ["", "finger", "fistpump", "watch", "point", "dance", "smoke_cough", "smoke_chill",
+	"flash", "fan"]   # 4 sync bits: max 16
+const HELD_EMOTES := ["flash", "fan"]   # stay up until you press it again (or 20 s)
 const EMOTE_TIME := 2.4
 const ROLL_SPEED := 2.2
 var emote := 0              # index into EMOTES (synced)
@@ -63,7 +67,16 @@ var carried_chair: Node3D
 var zippo: Node3D
 var _zippo_t := 0.0
 var _cigar_was := 0.0
-var cash_stack: Node3D
+var cash_stack: Node3D           # the stack in your hand (sized by your cash on hand)
+var _stack_amount := -1.0         # what the current stack was built for
+var held_fan: Node3D
+# BIG IRON: the gun you've got out (from the match's `drawn`, so everyone sees it)
+var gun_node: Node3D
+var _gun_key := ""
+var _shot_cd := 0.0
+var _aim_t := 0.0                 # > 0: arms up, aiming (after a shot, or holding right click)
+var _kick := 0.0                  # recoil still settling (radians of camera pitch)
+var photo_aim := false            # photo mode: hold the aim for the shot
 var _cash_t := 0.0
 
 
@@ -201,7 +214,11 @@ func _attach_props() -> void:
 		zippo.rotation = Vector3(-PI / 2, 0, 0)
 		zippo.visible = false
 		model.prop_left.add_child(zippo)
-		cash_stack = null
+	cash_stack = null                   # the old hands (and what was in them) are gone
+	held_fan = null
+	gun_node = null
+	_gun_key = ""
+	_stack_amount = -1.0
 
 
 ## New clothes from the Tailor: rebuild the body (and first-person arm) and
@@ -220,8 +237,13 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	if not world.ui_blocking():
 		for i in range(1, EMOTES.size()):
-			if event.is_action_pressed("emote_" + EMOTES[i]):
+			var act: String = "emote_" + EMOTES[i]
+			if InputMap.has_action(act) and event.is_action_pressed(act):   # not every emote has a hotkey
 				play_emote(EMOTES[i])
+		if event.is_action_pressed("spread_cash"):
+			world.toggle_spread()
+		if event.is_action_pressed("draw_gun"):
+			cycle_gun()
 		if seat >= 0 and (event.is_action_pressed("jump") or event.is_action_pressed("dive")):
 			stand_up()
 	if event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
@@ -237,7 +259,7 @@ func _physics_process(delta: float) -> void:
 		if _send_acc >= SEND_RATE:
 			_send_acc = 0.0
 			var flags := (1 if raining else 0) | (2 if diving > 0.0 else 0) | (4 if world.ui_blocking() else 0) \
-					| (emote << 3) | ((seat + 1) << 6)
+					| (emote << 3) | ((seat + 1) << 7)
 			world._p_tf.rpc(global_position, rotation.y, pitch, flags)
 	else:
 		if _has_target:
@@ -311,6 +333,19 @@ func _local_move(delta: float) -> void:
 		if _brrt_acc <= 0.0:
 			_brrt_acc = 0.22
 			Sfx.play("brrt", -6.0, randf_range(0.9, 1.1))
+	# BIG IRON: click fires (hold for the automatics), right click aims
+	_shot_cd = maxf(_shot_cd - delta, 0.0)
+	if gun_node and _gun_key != "" and not holding and not blocked and seat < 0:
+		var d: Dictionary = Rules.LUXURY[_gun_key]
+		var trig: bool = Input.is_action_pressed("fire") if d.auto else Input.is_action_just_pressed("fire")
+		if trig and _shot_cd <= 0.0:
+			_fire(d)
+		if Input.is_action_pressed("aim"):
+			_aim_t = maxf(_aim_t, 0.2)
+	if _kick > 0.0:                   # recoil climbs, then most of it settles back
+		var back := minf(_kick, delta * 0.6)
+		_kick -= back
+		pitch = clampf(pitch - back * 0.7, -1.45, 1.45)
 	# the camera rides the body's eyes (sitting, diving, dancing all move it),
 	# set back a little so looking down shows your chest, not the floor in front of it
 	var eye: Vector3 = to_local(model.j["eyes"].global_position) if model.j.has("eyes") else Vector3(0, 1.62, 0)
@@ -333,7 +368,8 @@ func _local_move(delta: float) -> void:
 			cam.fov = lerpf(cam.fov, 92.0, delta * 3.0)
 		else:
 			cam.h_offset = 0.0
-			cam.fov = lerpf(cam.fov, 80.0, delta * 3.0)
+			var aiming: bool = gun_node != null and Input.is_action_pressed("aim") and not blocked
+			cam.fov = lerpf(cam.fov, 62.0 if aiming else 80.0, delta * (10.0 if aiming else 3.0))
 		# blood pressure: the room sways and throbs
 		var bpk := clampf((m.pressure_of(peer_id) - Rules.PRESSURE_WOBBLY) / (Rules.PRESSURE_MAX - Rules.PRESSURE_WOBBLY), 0.0, 1.0) if m else 0.0
 		_sway_t += delta
@@ -357,6 +393,8 @@ func _update_fx() -> void:
 			model.set_watch(wk)
 	model.bloodshot = bool(look.get("bloodshot", false)) or cigar_on or (m != null and m.effect_left(peer_id, "powder") > 0.0)
 	held_gun.visible = gun_on
+	_update_held_cash(m)
+	_update_gun(m, gun_on or jailed_now(m))
 	if smoke.emitting != cigar_on:
 		smoke.emitting = cigar_on
 	if bills.emitting != raining:
@@ -387,6 +425,9 @@ func _update_fx() -> void:
 		model.pose = "hold"
 	elif jailed:
 		model.pose = "cuffed"
+	elif gun_node and gun_node.visible:
+		var rifle: bool = Rules.LUXURY[_gun_key].rifle
+		model.pose = ("rifle" if rifle else "pistol") + ("_aim" if _aim_t > 0.0 else "")
 	elif gun_on:
 		model.pose = "hold"
 	elif holding_ball:
@@ -397,6 +438,119 @@ func _update_fx() -> void:
 		model.pose = "smoke"
 	else:
 		model.pose = "idle"
+
+
+# ---------------------------------------------------------------- guns (BIG IRON)
+
+## Where the left wrist goes on each gun (gun-local: grip at the origin, barrel
+## -z, gun's left = -x): under the handguard / pump for long guns, wrapped
+## round the left of the grip for pistols.
+const SUPPORT := {
+	"pistol": Vector3(-0.04, -0.07, 0.035), "deagle": Vector3(-0.045, -0.075, 0.04),
+	"smg": Vector3(-0.035, -0.03, -0.07), "shotgun": Vector3(-0.04, -0.07, -0.2),
+	"ak": Vector3(-0.04, -0.03, -0.15), "ak_gold": Vector3(-0.04, -0.03, -0.15),
+}
+
+
+func jailed_now(m) -> bool:
+	return m != null and m.is_jailed(peer_id)
+
+
+## Q: out comes your first gun, then the next, then back in the holster.
+func cycle_gun() -> void:
+	var m = world.match_node if world else null
+	if m == null:
+		return
+	var mine: Array = m.guns_of(peer_id)
+	if mine.is_empty():
+		world.hud.show_toast("You don't own a gun. BIG IRON is on the street, next to the Chavél store.", Color(1, 0.6, 0.3))
+		return
+	var at := mine.find(m.gun_of(peer_id))
+	m.request_draw("" if at == mine.size() - 1 else mine[at + 1])
+
+
+## Build / swap / hide the gun in your hand to match what the match says you
+## have out (a money gun or cuffs put it away).
+func _update_gun(m, hide: bool) -> void:
+	var key: String = m.gun_of(peer_id) if m != null else ""
+	if key != _gun_key:
+		if gun_node and is_instance_valid(gun_node):
+			gun_node.queue_free()
+		gun_node = null
+		_gun_key = key
+		if key != "" and Rules.is_gun(key):
+			gun_node = GunArt.make(key)
+			gun_node.rotation = Vector3(-PI / 2, 0, 0)      # barrel out of the fist, like the cops' pistols
+			model.prop_right.add_child(gun_node)
+			if is_local or _near_me(12.0):
+				Sfx.play("rack", -4.0 if is_local else -12.0)
+	if gun_node:
+		gun_node.visible = not hide
+	_aim_t = maxf(_aim_t - get_physics_process_delta_time(), 0.0)
+	if photo_aim:
+		_aim_t = maxf(_aim_t, 0.2)
+	# the barrel points where we're looking when aiming (low and ahead when not);
+	# aiming, the arms follow the look up and down
+	var aiming := _aim_t > 0.0
+	model.aim_pitch = clampf(pitch, -0.9, 1.0) if aiming and gun_node else 0.0
+	if gun_node and gun_node.visible:
+		var rifle: bool = Rules.LUXURY[_gun_key].rifle
+		var pt: float = pitch if aiming else (-0.55 if rifle else -0.3)
+		var dir: Vector3 = (-global_basis.z * cos(pt) + Vector3.UP * sin(pt)).normalized()
+		gun_node.global_basis = Basis.looking_at(dir, Vector3.UP)
+		# second hand on the gun: rifles always, pistols when aiming (wraps the grip)
+		var sup: Variant = SUPPORT.get(_gun_key) if (rifle or aiming) else null
+		model.left_hand_to(gun_node.global_transform * (sup as Vector3) if sup != null else null)
+	else:
+		model.left_hand_to(null)
+
+
+func _near_me(r: float) -> bool:
+	var me = world.local_player if world else null
+	return me != null and is_instance_valid(me) and me.global_position.distance_to(global_position) < r
+
+
+## Pull the trigger: flash, bang, kick, a hole where it lands (pellets for the
+## shotgun), then tell the host (which tells everyone and decides the heat).
+func _fire(d: Dictionary) -> void:
+	_shot_cd = float(d.rate)
+	_aim_t = 1.4
+	GunArt.flash(gun_node, d.big)
+	Sfx.play("shot_big" if d.big else "shot", -1.0, randf_range(0.94, 1.06))
+	get_tree().create_timer(0.4).timeout.connect(func(): Sfx.play("casing", -16.0, randf_range(0.9, 1.1)))
+	var k: float = float(d.kick) * randf_range(0.8, 1.2)
+	pitch = clampf(pitch + k, -1.45, 1.45)
+	_kick += k
+	rotation.y += randf_range(-0.3, 0.3) * k
+	var from := cam.global_position
+	var fwd := -cam.global_basis.z
+	var spread := 0.05 if int(d.pellets) > 1 else (0.004 + minf(_speed, 6.0) * 0.004)
+	var first := from + fwd * 60.0
+	for n in int(d.pellets):
+		var dir := (fwd + cam.global_basis.x * randf_range(-spread, spread) + cam.global_basis.y * randf_range(-spread, spread)).normalized()
+		var hit: Dictionary = world.shoot_ray(from, dir, self)
+		if n == 0 and not hit.is_empty():
+			first = hit.position
+	world.match_node.request_shot(first)
+
+
+## Someone else fired: see the flash, hear it (quieter the further away).
+func remote_fire(hit: Vector3) -> void:
+	if gun_node == null or _gun_key == "":
+		return
+	var d: Dictionary = Rules.LUXURY[_gun_key]
+	_aim_t = 1.4
+	GunArt.flash(gun_node, d.big)
+	var me = world.local_player if world else null
+	var dist: float = me.global_position.distance_to(global_position) if me else 0.0
+	if dist < 70.0:
+		Sfx.play("shot_big" if d.big else "shot", -1.0 - dist * 0.45, randf_range(0.94, 1.06))
+	var tip: Node3D = gun_node.get_node_or_null("Muzzle")
+	var from: Vector3 = tip.global_position if tip else global_position + Vector3(0, 1.4, 0)
+	if from.distance_to(hit) > 0.05:
+		for n in int(d.pellets):
+			var to := hit + Vector3(randf_range(-1, 1), randf_range(-1, 1), randf_range(-1, 1)) * (0.06 if n > 0 else 0.0) * from.distance_to(hit) * 0.05
+			world.shoot_ray(from, (to - from).normalized(), self)
 
 
 # ---------------------------------------------------------------- chairs + emotes
@@ -435,18 +589,11 @@ func _set_seat(id: int) -> void:
 
 ## First-person: hold a fat cash stack out in front (money counter).
 func show_cash_stack(secs: float) -> void:
-	if cash_stack == null:
-		cash_stack = PropKit.place("Cash", model.prop_right, Vector3(0.0, -0.02, -0.06), PI / 2)
-	cash_stack.visible = true
 	_cash_t = secs
 
 
 func _update_fp_emote(delta: float) -> void:
-	if cash_stack:
-		_cash_t = maxf(_cash_t - delta, 0.0)
-		cash_stack.visible = _cash_t > 0.0
-		if cash_stack.visible:   # riffle the stack
-			cash_stack.position = Vector3(0.0, -0.02 + sin(_cash_t * 20.0) * 0.006, -0.06)
+	_cash_t = maxf(_cash_t - delta, 0.0)
 	var m = world.match_node
 	# the Zippo: flick it open and light up whenever a fresh cigar starts
 	var cig: float = m.effect_left(peer_id, "cigar") if m else 0.0
@@ -492,6 +639,19 @@ func play_emote(e: String) -> void:
 			return
 		emote = i
 		_emote_t = Character.clip_length("dance") * 3.0
+		return
+	if e in HELD_EMOTES:
+		if EMOTES[emote] == e:                   # pressed again: put it away
+			emote = 0
+			_emote_t = 0.0
+			return
+		var m = world.match_node if world else null
+		if is_local and m != null and m.cash_of(peer_id) < 100.0:
+			world.hud.show_toast("No cash on you. Hit an ATM first (office by the elevator, or outside the bank).", Color(1, 0.6, 0.3))
+			return
+		emote = i
+		_emote_t = 20.0
+		Sfx.play("brrt" if e == "flash" else "cash", -8.0, 1.4)
 		return
 	emote = i
 	# rotoscoped emotes play their whole clip once; the rest are short
@@ -561,8 +721,44 @@ func net_tf(pos: Vector3, yaw: float, p: float, flags: int) -> void:
 	raining = flags & 1 != 0
 	diving = 0.5 if flags & 2 != 0 else 0.0
 	busy = flags & 4 != 0
-	emote = (flags >> 3) & 7
-	_set_seat(((flags >> 6) & 31) - 1)
+	emote = (flags >> 3) & 15
+	_set_seat(((flags >> 7) & 31) - 1)
 	if not _has_target:
 		global_position = pos
 		_has_target = true
+
+
+# ---------------------------------------------------------------- cash in hand
+
+## The stack in your right hand while you flash it (or run it through a
+## counter): rebuilt when your cash on hand changes, so more money = a
+## bigger stack, and the top bill riffles. The fan for the money-spread pose.
+func _update_held_cash(m) -> void:
+	var e: String = EMOTES[emote]
+	var cash: float = m.cash_of(peer_id) if m != null else 0.0
+	var show_stack := (e == "flash" or _cash_t > 0.0) and cash >= 100.0
+	if show_stack:
+		var tier: float = floor(cash / 1000.0) * 1000.0          # rebuild on $1K changes, not every cent
+		if cash_stack == null or not is_instance_valid(cash_stack) or tier != _stack_amount:
+			if cash_stack and is_instance_valid(cash_stack):
+				cash_stack.queue_free()
+			cash_stack = CashArt.hand_stack(maxf(tier, 100.0))
+			cash_stack.position = Vector3(0.0, -0.01, -0.05)
+			cash_stack.rotation = Vector3(-PI / 2, 0.0, 0.0)          # stands up out of the fist, band facing out
+			model.prop_right.add_child(cash_stack)
+			_stack_amount = tier
+		var rf: Node3D = cash_stack.get_node_or_null("Riffle")
+		if rf:
+			rf.rotation.z = -absf(sin(Time.get_ticks_msec() / 1000.0 * 14.0)) * 0.45
+	if cash_stack and is_instance_valid(cash_stack):
+		cash_stack.visible = show_stack
+	if e == "fan":
+		if held_fan == null or not is_instance_valid(held_fan):
+			held_fan = CashArt.fan()
+			held_fan.position = Vector3(0.0, -0.01, -0.05)
+			held_fan.rotation = Vector3(-PI / 2, 0.0, 0.0)           # opens up out of the fist, facing out
+			held_fan.scale = Vector3.ONE * 1.15
+			model.prop_right.add_child(held_fan)
+		held_fan.visible = true
+	elif held_fan and is_instance_valid(held_fan):
+		held_fan.visible = false

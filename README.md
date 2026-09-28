@@ -134,8 +134,13 @@ Built in **Godot 4.7** — free, no accounts, no store.
 |---|---|
 | WASD / Shift / Space | Move / sprint / jump |
 | C or Ctrl | Dive |
-| E | Use desk terminal, slots, Tony, grab ball |
-| Left mouse | Throw ball / FLEX gun |
+| E | Use desk terminal, slots, Tony, grab ball, ATM, money counter |
+| Left mouse | Throw ball / FLEX gun / fire your gun |
+| Right mouse | Aim (with a gun out) |
+| Q | Draw your gun / next gun / holster (buy them at BIG IRON on the street) |
+| J | Flash the cash you're carrying |
+| N | Lay your cash out on the table / floor (N again picks it up) |
+| K | Photo mode (fly the camera, pose, filters, SNAP: saved to Pictures/BAGHOLDERS) |
 | 1–6 | Use items |
 | Tab | Scoreboard |
 | T | Chat |

@@ -194,6 +194,12 @@ func _coop() -> void:
 		return
 	_say("milestone: the fund passed %s (%d hit)" % [Rules.money(Rules.MILESTONES[0]), m.milestones])
 
+	# ---- the ATM, cash on hand, the spread, and the cops taking half
+	if not await _wallet():
+		return
+	if not await _guns():
+		return
+
 	# ---- the closing bell: summary knows today's event and tomorrow's forecast
 	m.time_left = 0.5
 	if not await _wait(func(): return not summary.is_empty(), 5.0):
@@ -235,3 +241,134 @@ func _pvp() -> void:
 		_done(false, "no championship trophy: %s / owned %s" % [str(summary.get("winner")), str(m.owned.get(1, {}))])
 		return
 	_done(true, "PvP winner Trader took the championship trophy home")
+
+
+## ATM out/in, cash pays first, the spread follows the wallet, arrest seizes half.
+func _wallet() -> bool:
+	var moves: Array = []
+	m.cash_moved.connect(func(_p, amt, _t): moves.append(amt))
+	var a: Dictionary = m.ledger.get_acct(0)
+	a.balance = 100_000.0
+	m.request_withdraw(25_000.0)
+	if not await _wait(func(): return not moves.is_empty(), 3.0):
+		_done(false, "ATM withdraw never happened")
+		return false
+	if not is_equal_approx(m.cash_of(1), 25_000.0) or not is_equal_approx(a.balance, 75_000.0) or moves[0] <= 0.0:
+		_done(false, "withdraw wrong: cash %f, balance %f, moved %f" % [m.cash_of(1), a.balance, moves[0]])
+		return false
+	m.request_withdraw(10_000_000.0)                 # capped at what's in the account
+	if not await _wait(func(): return moves.size() >= 2, 3.0):
+		_done(false, "second withdraw never happened")
+		return false
+	if not is_equal_approx(m.cash_of(1), 100_000.0) or a.balance > 0.5:
+		_done(false, "withdraw cap wrong: cash %f, balance %f" % [m.cash_of(1), a.balance])
+		return false
+	m.request_deposit(40_000.0)
+	if not await _wait(func(): return moves.size() >= 3, 3.0):
+		_done(false, "deposit never happened")
+		return false
+	if not is_equal_approx(m.cash_of(1), 60_000.0) or not is_equal_approx(a.balance, 40_000.0) or moves[2] >= 0.0:
+		_done(false, "deposit wrong: cash %f, balance %f, moved %f" % [m.cash_of(1), a.balance, moves[2]])
+		return false
+	_say("ATM: took out $25K, then everything (capped), put $40K back: $60K on hand")
+	# the spread: everyone sees it, it follows your wallet
+	m.request_spread(Vector3(1, 0, 2), 0.3, false)
+	if not await _wait(func(): return m.spreads.has(1), 3.0):
+		_done(false, "spread never went down")
+		return false
+	# cash pays first: a hot dog comes out of your pocket, not the account
+	m.request_hotdog()
+	if not await _wait(func(): return m.cash_of(1) < 60_000.0, 3.0):
+		_done(false, "hot dog didn't come out of cash")
+		return false
+	if not is_equal_approx(a.balance, 40_000.0) or not is_equal_approx(float(m.spreads[1].amount), m.cash_of(1)):
+		_done(false, "pay-from-cash wrong: balance %f, spread %s, cash %f" % [a.balance, str(m.spreads[1]), m.cash_of(1)])
+		return false
+	var cash0: float = m.cash_of(1)
+	# busted with cash on you: the cops bag half, the spread's gone
+	m.raid = {"target": 1}
+	m.server_cop_caught(1)
+	if not is_equal_approx(m.cash_of(1), cash0 - floor(cash0 * Rules.CASH_SEIZED)) or m.spreads.has(1):
+		_done(false, "seizure wrong: %f -> %f, spread %s" % [cash0, m.cash_of(1), str(m.spreads.get(1))])
+		return false
+	_say("cash pays first, the spread follows it, cops seized %s of %s" % [Rules.money(floor(cash0 * Rules.CASH_SEIZED)), Rules.money(cash0)])
+	m.jail.erase(1)
+	return true
+
+
+## BIG IRON: Q cycles your guns, shots outside the range bring heat (the first
+## one gets called in), the range is legal, the cops keep a gun you had out.
+func _guns() -> bool:
+	var w = m.world
+	var me = w.local_player
+	m.owned[1]["pistol"] = 1
+	m.owned[1]["ak"] = 1
+	var seen: Array = []
+	for k in 3:
+		me.cycle_gun()
+		var want: String = ["pistol", "ak", ""][k]
+		if not await _wait(func(): return m.gun_of(1) == want, 3.0):
+			_done(false, "Q didn't cycle to '%s' (have '%s')" % [want, m.gun_of(1)])
+			return false
+		seen.append(want if want != "" else "holstered")
+	m.request_draw("deagle")                          # not yours
+	await get_tree().create_timer(0.3).timeout
+	if m.gun_of(1) != "":
+		_done(false, "drew a gun you don't own")
+		return false
+	m.request_draw("pistol")
+	if not await _wait(func(): return m.gun_of(1) == "pistol" and me.gun_node != null, 3.0):
+		_done(false, "pistol never showed up in your hand")
+		return false
+	_say("Q: %s; can't draw a Deagle you don't own" % " -> ".join(seen))
+	# in the office: the first shot gets called in, the rest just add up
+	m.heat[1] = 0.0
+	var shots: Array = []
+	m.shot.connect(func(_p, _h): shots.append(1))
+	m.request_shot(Vector3(0, 1, -5))
+	m.request_shot(Vector3(0, 1, -5))                  # faster than a G19 cycles: ignored
+	if not await _wait(func(): return shots.size() >= 1, 2.0):
+		_done(false, "the shot never went out")
+		return false
+	var h1: float = m.heat[1]
+	if h1 < Rules.SHOT_HEAT + Rules.SHOTS_CALLED_IN - 1.0 or shots.size() != 1:
+		_done(false, "first shot: heat %.1f, %d shots went out" % [h1, shots.size()])
+		return false
+	await get_tree().create_timer(0.3).timeout
+	m.request_shot(Vector3(0, 1, -5))
+	if not await _wait(func(): return shots.size() >= 2, 2.0):
+		_done(false, "second shot never went out")
+		return false
+	var h2: float = m.heat[1]
+	if h2 - h1 > Rules.SHOT_HEAT + 0.5 or h2 <= h1:
+		_done(false, "follow-up shot heat wrong: %.1f -> %.1f" % [h1, h2])
+		return false
+	_say("office: first shot %.1f heat (called in), next +%.1f, double-tap too fast ignored" % [h1, h2 - h1])
+	# the range at BIG IRON: legal
+	var st = w.builder.street
+	me.teleport(st.P(30.0 - 3.4, 0.3, st.WALK + 0.4 + 3.0))
+	await get_tree().create_timer(0.3).timeout
+	if w.street_zone(me) != "iron":
+		_done(false, "not in the BIG IRON zone (%s)" % w.street_zone(me))
+		return false
+	m._last_shot[1] = -100.0
+	var h3: float = m.heat[1]
+	m.request_shot(me.global_position + Vector3(0, 1, 4))
+	if not await _wait(func(): return shots.size() >= 3, 2.0):
+		_done(false, "range shot never went out")
+		return false
+	if m.heat[1] > h3 + 0.01:
+		_done(false, "shooting at the range brought heat: %.1f -> %.1f" % [h3, m.heat[1]])
+		return false
+	_say("the range: no heat")
+	# busted with it out: it's evidence
+	m.raid = {"target": 1}
+	m.server_cop_caught(1)
+	if m.lux_count(1, "pistol") != 0 or m.gun_of(1) != "" or m.lux_count(1, "ak") != 1:
+		_done(false, "confiscation wrong: pistol %d, drawn '%s', ak %d" % [m.lux_count(1, "pistol"), m.gun_of(1), m.lux_count(1, "ak")])
+		return false
+	_say("arrested with the G19 out: cops kept it, the AK at home is safe")
+	m.jail.erase(1)
+	m.heat[1] = 0.0
+	me.teleport(w.spawn_point(0))
+	return true
