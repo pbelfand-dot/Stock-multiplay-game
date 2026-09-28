@@ -31,6 +31,10 @@ func _run() -> void:
 	if not Config.cli.has("host"):
 		await _frames(30)
 		await _snap("00_menu")
+		var gp = Graphics.popup(null, get_node("/root/Main/Menu"))
+		await _frames(5)
+		await _snap("00b_menu_graphics")
+		gp.queue_free()
 		if Config.cli.has("tailor"):
 			var menu = get_node("/root/Main/Menu")
 			menu._open_tailor()
@@ -385,6 +389,10 @@ func _fp_shots(world, m, hud) -> void:
 ## Just the street: outside views of the block + inside every store.
 func _street_only(world, m, hud) -> void:
 	var p = world.local_player
+	hud.pause_menu.visible = true
+	await _frames(5)
+	await _snap("s00_pause_menu")
+	hud.pause_menu.visible = false
 	var so: Vector3 = world.builder.street.ORIGIN
 	world.go_to_street()
 	await get_tree().create_timer(0.8).timeout

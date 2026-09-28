@@ -244,3 +244,12 @@ func test_format() -> void:
 	check(approx(Rules.overhead_for_day(1, 2), Rules.OVERHEAD_PER_TRADER * 2), "day1 overhead for 2 traders")
 	check(Rules.overhead_for_day(3, 1) > Rules.overhead_for_day(2, 1), "overhead creeps up")
 	check(Rules.LUXURY.roflex.price > Rules.START_FUND * 5, "a Crownwell has to be saved up for")
+	var GFX = load("res://scripts/net/graphics.gd")
+	var gb := 1073741824
+	check(GFX.detect("Apple Apple M1", "", 8 * gb) == "medium", "M1 8GB -> medium")
+	check(GFX.detect("Apple Apple M2 Pro", "", 16 * gb) == "high", "M2 Pro -> high")
+	check(GFX.detect("Apple Apple M3 Max", "", 36 * gb) == "ultra", "M3 Max -> ultra")
+	check(GFX.detect("Intel Inc. Intel(R) Iris(TM) Plus Graphics", "", 8 * gb) == "low", "Intel Iris Mac -> low")
+	check(GFX.detect("NVIDIA Corporation NVIDIA GeForce RTX 3060", "", 16 * gb) == "ultra", "RTX + 16GB -> ultra")
+	check(GFX.detect("Mesa llvmpipe (LLVM 15)", "", 8 * gb) == "low", "software GL -> low")
+

@@ -92,6 +92,7 @@ func _ready() -> void:
 		cam = Camera3D.new()
 		cam.fov = 80
 		cam.near = 0.05
+		cam.far = Graphics.cur.far
 		head.add_child(cam)
 		cam.current = true
 		ray = RayCast3D.new()

@@ -124,7 +124,9 @@ static func place(prop: String, parent: Node, pos := Vector3.ZERO, rot_y := 0.0,
 
 ## A small, dense prop (a watch): kept out of the static batch and only drawn
 ## within `near` metres, so a store full of them costs nothing from the street.
-static func place_detail(prop: String, parent: Node, pos := Vector3.ZERO, rot := Vector3.ZERO, near := 9.0) -> Node3D:
+static func place_detail(prop: String, parent: Node, pos := Vector3.ZERO, rot := Vector3.ZERO, near := -1.0) -> Node3D:
+	if near < 0.0:
+		near = Graphics.cur.detail      # the graphics preset decides how far detail draws
 	var n := place(prop, parent, pos, rot.y)
 	n.rotation = rot
 	for mi in n.get_children():

@@ -34,6 +34,8 @@ var _trophy_sig := {}           # desk id -> signature of what's on it
 
 
 func _ready() -> void:
+	Graphics.changed.connect(_apply_graphics)
+	Graphics.start_watch.call_deferred()
 	builder = OfficeBuilder.new()
 	builder.build(self)
 	if Net.is_server():
@@ -593,3 +595,18 @@ func on_arrested(peer: int) -> void:
 func on_released(peer: int) -> void:
 	if local_player and peer == Net.my_id():
 		local_player.teleport(builder.elevator_pos)
+
+
+## Graphics preset changed (or first applied): street shadows, view distance
+## and how far the small detailed props (watches) draw.
+func _apply_graphics() -> void:
+	var g: Dictionary = Graphics.cur
+	var sun := builder.root.get_node_or_null("Sun") as DirectionalLight3D if builder else null
+	if sun:
+		sun.shadow_enabled = g.shadows
+	if local_player and local_player.cam:
+		local_player.cam.far = g.far
+	if builder:
+		for mi in builder.root.find_children("*", "MeshInstance3D", true, false):
+			if mi.has_meta("no_batch"):
+				mi.visibility_range_end = g.detail

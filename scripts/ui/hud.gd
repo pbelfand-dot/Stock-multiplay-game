@@ -370,7 +370,7 @@ void fragment() {
 	root.add_child(mugshot)
 
 	pause_menu = PanelContainer.new()
-	UI.center(pause_menu, Vector2(460, 420))
+	UI.center(pause_menu, Vector2(620, 540))
 	var v := VBoxContainer.new()
 	v.add_theme_constant_override("separation", 12)
 	pause_menu.add_child(v)
@@ -392,6 +392,7 @@ void fragment() {
 		Config.save_settings())
 	sens_row.add_child(sens)
 	v.add_child(Music.volume_row(UI.lbl("Music", 20)))
+	v.add_child(Graphics.settings_box(UI))
 	v.add_child(UI.lbl("WASD move · SHIFT sprint · E interact · 1-6 items\nB emote wheel · H dance · TAB scoreboard · T chat · ENTER (host) opening bell\nP phone · In terminal: B buy · S sell · Q/E size · L leverage · C close all", 16, UI.DIM))
 	var leave := UI.btn("LEAVE OFFICE", UI.RED.darkened(0.2), 24)
 	leave.pressed.connect(func(): get_tree().root.get_node("Main").leave_game())
