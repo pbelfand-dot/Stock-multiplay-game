@@ -3,6 +3,7 @@ extends CanvasLayer
 
 const UI = preload("res://scripts/ui/ui_theme.gd")
 const Rules = preload("res://scripts/sim/rules.gd")
+const Ledger = preload("res://scripts/sim/ledger.gd")
 const TerminalScript = preload("res://scripts/ui/terminal.gd")
 const SlotsScript = preload("res://scripts/ui/slots_ui.gd")
 const ShopScript = preload("res://scripts/ui/shop_ui.gd")
@@ -532,6 +533,7 @@ func _on_state() -> void:
 
 
 func _on_tick() -> void:
+	_check_margin_calls()
 	var t: float = maxf(match_node.time_left, 0.0)
 	time_lbl.text = "%d:%02d" % [int(t) / 60, int(t) % 60]
 	crt.set_time(t, t < 30 and match_node.phase == "trading")
@@ -682,6 +684,22 @@ func _on_day_ended(s: Dictionary) -> void:
 	elif s.get("passed", false):
 		Sfx.play("jackpot")
 	summary.show_summary(s)
+
+
+## MARGIN CALL: warn once per trade when it's 70% of the way to liquidation.
+var _warned := {}
+
+
+func _check_margin_calls() -> void:
+	for pos in match_node.my_acct().get("positions", []):
+		if pos.get("trader_id", Net.my_id()) != Net.my_id() or _warned.has(pos.pid):
+			continue
+		var pnl: float = Ledger.pnl_of(pos, match_node.price_of(pos.sym))
+		if pnl <= -0.7 * pos.margin:
+			_warned[pos.pid] = true
+			Sfx.play("news", 0.0, 1.3)
+			show_toast("MARGIN CALL: %s x%d is %d%% down. SELL it or it gets wiped out!" % [
+					pos.sym, pos.lev, int(-pnl / pos.margin * 100.0)], UI.RED)
 
 
 ## True while you're busy in the restroom (World blocks movement).

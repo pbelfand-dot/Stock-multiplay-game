@@ -21,3 +21,19 @@ All brands in the game are fictional parodies. Never use the real names or logos
 | Audemars Piguet | **Audemont Royale** | Angular luxury sports watches, exposed screws, integrated bracelets |
 | Richard Mille | **Renaud Milleaux** | Skeletonized movements, tonneau-shaped cases, carbon/composite look |
 | Cartier | **Maison Carrel** | Roman numerals, rectangular cases, blue cabochon-style crown, Paris luxury |
+
+## Car makers (street cars, dealership)
+
+| Inspired by | In-game brand |
+|---|---|
+| Toyota | **Torola** |
+| BMW | **Bemze** |
+| Mercedes-Benz | **Mercedez Banz** |
+| Lamborghini | **Lambargamber** |
+| Ferrari | **Ferrazi** |
+| Bugatti | **Bugatata** |
+| Pagani | **Pagan** |
+| Porsche | **Porsha** |
+| McLaren | **MacLarin** |
+| Audi | **Audy** |
+| Bentley | **Bentlee** |

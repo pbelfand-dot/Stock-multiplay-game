@@ -13,7 +13,7 @@ signal closed
 var match_node
 var sym := "BTC"
 var size_idx := 2
-var lev_idx := 5
+var lev_idx := 2     # start at x10: x100 is a 1% move from liquidation
 var closed_trades: Array = []
 var last_trade := 0.0
 var show_closed := false
@@ -310,7 +310,9 @@ func _update_size_labels() -> void:
 	_update_auto_labels()
 	var move := 1.0 / lev * 100.0
 	fee_lbl.text = ("no fee (cigar)" if cigar else "-%s fee" % Rules.money(v * lev * Ledger.FEE_RATE)) \
-			+ "  ·  liq at %s%.2f%%" % ["-", move]
+			+ "  ·  wiped out at -%s%%" % str(snappedf(move, 0.01))
+	fee_lbl.add_theme_color_override("font_color", UI.RED if lev >= 50 else UI.DIM)
+	lev_btn.add_theme_color_override("font_color", UI.RED if lev >= 50 else UI.GOLD)
 
 
 func _order(side: int) -> void:
