@@ -20,7 +20,29 @@ const ASSET_DEFS := [
 	{"sym": "BNN", "name": "Banana Coin", "kind": "Crypto", "price": 100.0, "vol": 0.0016, "spread": 0.0008},
 	{"sym": "REX", "name": "Rex Motors", "kind": "Stock", "price": 1500.0, "vol": 0.0008, "spread": 0.0004},
 	{"sym": "WAGMI", "name": "WAGMI Coin", "kind": "Memecoin", "price": 0.42, "vol": 0.0038, "spread": 0.003},
+	# the rest of the board: more to watch, more that moves together (LINKS)
+	{"sym": "ETHR", "name": "Etherium", "kind": "Crypto", "price": 240.0, "vol": 0.0017, "spread": 0.0007},
+	{"sym": "DOGGO", "name": "Doggo Coin", "kind": "Memecoin", "price": 0.18, "vol": 0.0028, "spread": 0.002},
+	{"sym": "PEAR", "name": "Pear Inc.", "kind": "Stock", "price": 1900.0, "vol": 0.0006, "spread": 0.0003},
+	{"sym": "NVDUH", "name": "Nvidooh", "kind": "Stock", "price": 1100.0, "vol": 0.0011, "spread": 0.0004},
+	{"sym": "GAMR", "name": "GameShop", "kind": "Meme Stock", "price": 240.0, "vol": 0.0019, "spread": 0.0008},
+	{"sym": "AIRX", "name": "Air Excess", "kind": "Stock", "price": 420.0, "vol": 0.0009, "spread": 0.0004},
+	{"sym": "BURG", "name": "Burger Baron", "kind": "Stock", "price": 640.0, "vol": 0.0005, "spread": 0.0003},
+	{"sym": "PHRM", "name": "PharmaBro", "kind": "Stock", "price": 880.0, "vol": 0.001, "spread": 0.0004},
+	{"sym": "JPMG", "name": "JP Morgun", "kind": "Bank", "price": 1300.0, "vol": 0.0007, "spread": 0.0003},
+	{"sym": "GAS", "name": "Natural Gas", "kind": "Commodity", "price": 320.0, "vol": 0.0012, "spread": 0.0005},
+	{"sym": "FEAR", "name": "Fear Index", "kind": "Index", "price": 180.0, "vol": 0.0011, "spread": 0.0006},
 ]
+## Sectors: when a leader gets a news move, its followers move too, a beat
+## later (LINK_LAG) and by beta. Traders who read the tape get in on the
+## followers before they move. (Followers don't chain.)
+const LINKS := {
+	"BTC": [["ETHR", 0.9], ["DOGGO", 1.3], ["BNN", 0.6]],
+	"SPX": [["PEAR", 0.8], ["NVDUH", 1.3], ["JPMG", 0.9], ["REX", 0.8], ["AIRX", 0.7], ["BURG", 0.5], ["FEAR", -2.5]],
+	"OIL": [["AIRX", -0.6], ["GAS", 0.5]],
+	"NVDUH": [["PEAR", 0.4]],
+}
+const LINK_LAG := 0.8
 ## Fat tails: random stop-hunt wicks that knock out tight stops and high leverage.
 ## Tuned by simulation (a position left alone for a 5-minute day, no news):
 ## x100 gets liquidated ~60% of days, x50 ~20%, x25 ~1%, x10 never. News
@@ -84,13 +106,16 @@ func _gauss() -> float:
 
 ## Queue a price move: total_pct (e.g. +0.03 = +3%) spread over dur seconds,
 ## starting after delay seconds.
-func add_impulse(sym: String, total_pct: float, dur: float, delay: float = 0.0) -> void:
+func add_impulse(sym: String, total_pct: float, dur: float, delay: float = 0.0, follow := true) -> void:
 	var i := index_of(sym)
 	if i < 0:
 		return
 	dur = maxf(dur, 0.25)
-	var rate := log(1.0 + total_pct) / dur
+	var rate := log(maxf(1.0 + total_pct, 0.05)) / dur
 	assets[i].impulses.append({"delay": delay, "dur": dur, "rate": rate})
+	if follow:
+		for f in LINKS.get(sym, []):
+			add_impulse(f[0], total_pct * float(f[1]), dur * 1.3, delay + LINK_LAG, false)
 
 
 ## Advance the simulation. Returns true when a candle closed this step.

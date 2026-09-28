@@ -46,7 +46,8 @@ func _init() -> void:
 
 func test_market() -> void:
 	var m = Market.new(1234)
-	check(m.assets.size() == Market.ASSET_DEFS.size() and m.assets.size() == 7, "7 assets (clip watchlist + WAGMI)")
+	check(m.assets.size() == Market.ASSET_DEFS.size() and m.assets.size() == 18, "18 tickers on the board")
+	check(m.assets[0].sym == "BTC" and m.assets[5].sym == "REX", "the first six stay put (terminal keys 1-6)")
 	var closes := 0
 	for i in 1200:  # 300 s at 4 Hz
 		if m.step(0.25):
@@ -59,7 +60,7 @@ func test_market() -> void:
 		var c: Array = a.candles[-1]
 		check(c[1] >= c[0] and c[1] >= c[3] and c[2] <= c[0] and c[2] <= c[3], "OHLC consistent")
 	var tp: Dictionary = m.tick_payload()
-	check(tp.p.size() == 7 and tp.c.size() == 7, "tick payload shape")
+	check(tp.p.size() == Market.ASSET_DEFS.size() and tp.c.size() == Market.ASSET_DEFS.size(), "tick payload shape")
 	var fp: Dictionary = m.full_payload()
 	check(fp.assets[0].candles.size() == closes, "full payload history")
 
@@ -220,7 +221,27 @@ func test_news() -> void:
 	var queued := 0
 	for a in m.assets:
 		queued += a.impulses.size()
-	check(queued == ev2.effects.size(), "apply queues impulses")
+	check(queued >= ev2.effects.size(), "apply queues impulses (+ sector followers)")
+	# every ticker a headline can name exists on the board
+	var syms := {}
+	for a in m.assets:
+		syms[a.sym] = true
+	var unknown := {}
+	for i in 3000:
+		for e in n.roll().effects:
+			if not syms.has(e.sym):
+				unknown[e.sym] = true
+	check(unknown.is_empty(), "headlines only name real tickers (%s)" % str(unknown.keys()))
+	# sectors: SPX news drags the followers along, a beat later; FEAR goes the other way
+	var mk = Market.new(9)
+	mk.add_impulse("SPX", -0.08, 4.0, 0.0)
+	var fear: Array = mk.assets[mk.index_of("FEAR")].impulses
+	var nv: Array = mk.assets[mk.index_of("NVDUH")].impulses
+	check(fear.size() == 1 and fear[0].rate > 0.0 and fear[0].delay > 0.5, "FEAR spikes when the S&P dumps, a beat later")
+	check(nv.size() == 1 and nv[0].rate < 0.0, "tech follows the S&P down")
+	check(mk.assets[mk.index_of("PEAR")].impulses.size() == 1, "followers don't chain (NVDUH -> PEAR not doubled)")
+	mk.add_impulse("OIL", 0.05, 4.0, 0.0)
+	check(mk.assets[mk.index_of("AIRX")].impulses[-1].rate < 0.0, "oil up grounds the airline")
 
 
 func test_slots() -> void:

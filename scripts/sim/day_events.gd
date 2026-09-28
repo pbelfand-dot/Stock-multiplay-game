@@ -31,7 +31,7 @@ const EVENTS := {
 		"blurb": "Chair Powww speaks halfway through the day. Everything moves 5-8% on his first word. Pick a side before he talks.",
 		"forecast": "Powww speaks tomorrow. Cut or hike, it'll move everything."},
 	"meme_mania": {"name": "MEME MANIA", "color": Color(0.7, 1.0, 0.35),
-		"blurb": "WAGMI and BANANA COIN go feral (2x volatility) and the streamers won't stop posting.",
+		"blurb": "WAGMI, DOGGO, BANANA COIN and GAMESHOP go feral (2x volatility) and the streamers won't stop posting.",
 		"forecast": "Group chats are buzzing. Memecoins go feral tomorrow."},
 	"bull_run": {"name": "BULL RUN", "color": Color(0.35, 1.0, 0.5),
 		"blurb": "Everything grinds up all day. Longs get paid. Don't short the tape.",
@@ -65,7 +65,7 @@ const EVENTS := {
 const MODS := {
 	"flash_crash": {},
 	"fed_day": {},
-	"meme_mania": {"vol": {"WAGMI": 2.0, "BNN": 2.0}, "news": {"kimchee": 3.0, "kitteh": 3.0, "tjz": 1.5}, "news_every": 0.75},
+	"meme_mania": {"vol": {"WAGMI": 2.0, "BNN": 2.0, "DOGGO": 2.0, "GAMR": 2.0}, "news": {"kimchee": 3.0, "kitteh": 3.0, "tjz": 1.5}, "news_every": 0.75},
 	"bull_run": {"bias": 0.3},
 	"bear_market": {"bias": -0.3},
 	"sec_audit": {"heat_gain": 2.0, "heat_decay": 0.5},

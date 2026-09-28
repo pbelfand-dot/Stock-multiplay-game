@@ -279,8 +279,12 @@ func _tick_bubbles(delta: float) -> void:
 
 
 func _on_market_tick() -> void:
+	# the wall ticker shows 7 at a time and rolls to the next 7 every pass
 	var parts: PackedStringArray = []
-	for i in match_node.m_assets.size():
+	var n: int = match_node.m_assets.size()
+	var pages := maxi(ceili(n / 7.0), 1)
+	var page := int(_ticker_offset * 2.2 / 36.0) % pages
+	for i in range(page * 7, mini(page * 7 + 7, n)):
 		var a: Dictionary = match_node.m_assets[i]
 		var ch: float = (a.price / a.open_day - 1.0) * 100.0
 		parts.append("%s %s %s%.2f%%" % [a.sym, Rules.price_str(a.price), "+" if ch >= 0 else "-", absf(ch)])
