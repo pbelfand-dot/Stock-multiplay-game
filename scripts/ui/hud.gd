@@ -470,7 +470,7 @@ void fragment() {
 	sens_row.add_child(sens)
 	v.add_child(Music.volume_row(UI.lbl("Music", 20)))
 	v.add_child(Graphics.settings_box(UI))
-	v.add_child(UI.lbl("WASD move · SHIFT sprint · E interact · 1-6 items\nB emote wheel · H dance · J flash cash · N lay your cash out · K photo mode · TAB scoreboard · T chat · ENTER (host) start the day\nP phone · In terminal: B buy · S sell · Q/E size · L leverage · C close all", 16, UI.DIM))
+	v.add_child(UI.lbl("WASD move · SHIFT sprint · E interact · 1-6 items\nB emote wheel · H dance · J flash cash · N lay your cash out · K photo mode · Q draw gun (click fires, right click aims) · TAB scoreboard · T chat · ENTER (host) start the day\nP phone · In terminal: B buy · S sell · Q/E size · L leverage · C close all", 16, UI.DIM))
 	var leave := UI.btn("LEAVE OFFICE", UI.RED.darkened(0.2), 24)
 	leave.pressed.connect(func(): get_tree().root.get_node("Main").leave_game())
 	v.add_child(leave)

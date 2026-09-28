@@ -11,7 +11,8 @@ const Character = preload("res://scripts/art/character.gd")
 
 const MAX_DIST := 10.0            # how far the camera may wander from you
 const POSES := [["NONE", ""], ["DANCE", "dance"], ["FIST PUMP", "fistpump"], ["POINT", "point"],
-	["THE FINGER", "finger"], ["WATCH CHECK", "watch"], ["NONCHALANT", "smoke_chill"], ["FIRST HIT", "smoke_cough"]]
+	["THE FINGER", "finger"], ["WATCH CHECK", "watch"], ["NONCHALANT", "smoke_chill"], ["FIRST HIT", "smoke_cough"],
+	["FLASH CASH", "flash"], ["MONEY SPREAD", "fan"], ["DRAW / SWAP GUN", "#gun"], ["AIM", "#aim"]]
 const FILTERS := ["NONE", "B&W", "FILM", "COLD", "VHS"]
 
 var hud
@@ -186,6 +187,7 @@ func _exit() -> void:
 	_show_names(true)
 	var p = hud.world.local_player
 	if p:
+		p.photo_aim = false
 		p.model.set_first_person(true)
 		p.name_tag.visible = false                 # ours is never shown to us
 		if p.cam:
@@ -271,9 +273,19 @@ func _pose(e: String) -> void:
 		return
 	_freeze(false)
 	freeze_btn.set_pressed_no_signal(false)
+	if e == "#gun":                              # BIG IRON: out / next / away
+		p.photo_aim = false
+		p.cycle_gun()
+		return
+	if e == "#aim":
+		p.photo_aim = not p.photo_aim
+		p.emote = 0
+		p._emote_t = 0.0
+		return
 	if e == "":
 		p.emote = 0
 		p._emote_t = 0.0
+		p.photo_aim = false
 	else:
 		p.emote = 0                              # restart it even if it was playing
 		p.play_emote(e)

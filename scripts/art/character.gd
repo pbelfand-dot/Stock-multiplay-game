@@ -42,6 +42,7 @@ const POSE_HANDS := {
 	"aim": ["hold", "hold"], "light": ["hold", "relax"], "cheer": ["fist", "fist"], "dunk": ["open", "open"],
 	"dive": ["open", "open"], "placard": ["hold", "hold"], "type": ["relax", "relax"],
 	"flash": ["relax", "hold"], "fan": ["relax", "pinch"],
+	"pistol": ["relax", "hold"], "pistol_aim": ["hold", "hold"], "rifle": ["hold", "hold"], "rifle_aim": ["hold", "hold"],
 }      # radians: A-pose rest (20 deg) -> arms nearly at the sides
 
 ## Everything a player can customize (the tailor menu edits these).
@@ -146,6 +147,7 @@ var _rest_p := {}         # idx -> local rest position
 var _state := {}          # our own per-bone Euler (never read back from the skeleton)
 var _phase := 0.0
 var fp := false           # first-person body (Content Warning style): head hidden from our camera
+var aim_pitch := 0.0      # aiming a gun: the arms follow where you look (up +, down -)
 var anim_t := 0.0         # seconds into a clip pose (dance); restarts when the pose changes
 var _anim_pose := ""
 var anim_hold := -1.0     # tests: freeze a clip at this time
@@ -654,6 +656,52 @@ func _process(delta: float) -> void:
 			t.knR = Vector3(-0.6, 0, 0)
 			t.hipL = Vector3(0.6, 0, 0)
 			t.spine_rx = -0.15
+		"pistol":   # BIG IRON: out, low and in front, finger off the trigger
+			t.shR = Vector3(0.75, 0.15, 0.1)
+			t.elR = Vector3(0.75, 0, 0)
+			if fp:
+				t.shR = Vector3(1.35, 0.1, 0.12)
+				t.elR = Vector3(0.5, 0, 0)
+		"pistol_aim":   # two hands, arms out, sights up
+			t.shR = Vector3(1.45, 0.3, 0)
+			t.elR = Vector3(0.1, 0, 0)
+			t.shL = Vector3(1.38, -0.5, 0)
+			t.elL = Vector3(0.3, 0, 0)
+			t.spine_rx = 0.04
+			t.head_rx = 0.08
+			if fp:      # low-right of the view so the sights sit under the crosshair
+				t.shR = Vector3(1.75, 0.1, 0.08)
+				t.elR = Vector3(0.1, 0, 0)
+				t.shL = Vector3(1.7, -0.42, 0)
+				t.elL = Vector3(0.35, 0, 0)
+			t.shR = (t.shR as Vector3) + Vector3(aim_pitch, 0, 0)
+			t.shL = (t.shL as Vector3) + Vector3(aim_pitch, 0, 0)
+		"rifle":    # long gun at the low ready: right hand on the grip, left on the handguard
+			t.shR = Vector3(0.55, 0.3, 0.25)
+			t.elR = Vector3(1.3, 0, 0)
+			t.shL = Vector3(0.95, -0.55, 0)
+			t.elL = Vector3(0.75, 0, 0)
+			t.spine_ry = -0.12
+			if fp:
+				t.shR = Vector3(1.2, 0.1, 0.2)
+				t.elR = Vector3(1.0, 0, 0)
+				t.shL = Vector3(1.3, -0.45, 0)
+				t.elL = Vector3(0.6, 0, 0)
+		"rifle_aim":    # shouldered, cheek on the stock
+			t.shR = Vector3(1.0, 0.6, 0.35)
+			t.elR = Vector3(1.55, 0, 0)
+			t.shL = Vector3(1.4, -0.3, 0)
+			t.elL = Vector3(0.3, 0, 0)
+			t.spine_ry = -0.18
+			t.head_rx = 0.12
+			t.head_ry = -0.1
+			if fp:
+				t.shR = Vector3(1.55, 0.1, 0.2)
+				t.elR = Vector3(1.1, 0, 0)
+				t.shL = Vector3(1.65, -0.25, 0)
+				t.elL = Vector3(0.3, 0, 0)
+			t.shR = (t.shR as Vector3) + Vector3(aim_pitch, 0, 0)
+			t.shL = (t.shL as Vector3) + Vector3(aim_pitch, 0, 0)
 		"aim":
 			t.shL = Vector3(1.42, -0.42, 0)
 			t.shR = Vector3(1.42, 0.42, 0)

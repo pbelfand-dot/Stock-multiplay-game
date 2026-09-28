@@ -17,6 +17,7 @@ const SHOP_DEPTH := 8.0
 const HALF_LEN := 36.0
 const SIDEWALK_H := 0.12
 const PropKit = preload("res://scripts/art/prop_kit.gd")
+const Rules = preload("res://scripts/sim/rules.gd")
 const Character = preload("res://scripts/art/character.gd")
 
 ## The two rows of stores. kind -> what E does inside:
@@ -25,6 +26,7 @@ const Character = preload("res://scripts/art/character.gd")
 ##   tailor       change your look (synced to everyone)
 ##   pawn         sell your flex back for cash
 ##   casino       slot machines
+##   lux:iron     BIG IRON: gun counter + the indoor range (shots in here bring no heat)
 ##   lobby        the BAGHOLDER CAPITAL lobby: elevator back up to floor 12
 ##   none         for lease
 const NORTH := [
@@ -52,8 +54,8 @@ const SOUTH := [
 		"sign": Color(1.0, 0.8, 0.2), "floor": Color(0.35, 0.05, 0.1), "wall": Color(0.2, 0.06, 0.28)},
 	{"x": 18.0, "prop": "Store_Chavel", "upper": "Upper_Dark", "name": "CHAVÉL", "sub": "", "kind": "lux:chavel",
 		"sign": Color(0.05, 0.05, 0.05), "floor": Color(0.95, 0.95, 0.95), "wall": Color(0.1, 0.1, 0.1)},
-	{"x": 30.0, "prop": "Store_Empty", "upper": "Upper_Brick", "name": "FOR LEASE", "sub": "coming soon: BENTLEE dealership", "kind": "none",
-		"sign": Color(0.2, 0.2, 0.2), "floor": Color(0.5, 0.5, 0.5), "wall": Color(0.75, 0.73, 0.7)},
+	{"x": 30.0, "prop": "Store_Guns", "upper": "Upper_Brick", "name": "BIG IRON", "sub": "GUNS · AMMO · INDOOR RANGE", "kind": "lux:iron",
+		"sign": Color(0.98, 0.55, 0.1), "floor": Color(0.36, 0.36, 0.35), "wall": Color(0.16, 0.2, 0.17)},
 ]
 
 ## Wall colour of each upper-floor facade (the building's mass is built in it).
@@ -145,7 +147,7 @@ func _store(s: Dictionary, side: int) -> void:
 	var rot := 0.0 if side < 0 else PI
 	var face_z: float = side * WALK                       # street-side face of the facade
 	var back_z: float = side * (WALK + 0.4)               # facade origin (its back)
-	b.prop(s.prop, P(x, 0, back_z), rot, root)
+	b.prop(s.prop if PropKit.has(s.prop) else "Store_Empty", P(x, 0, back_z), rot, root)
 	for k in 3:
 		b.prop(s.upper, P(x, 4.4 + k * 9.0, back_z), rot, root)
 	_building(x, side, UPPER_WALL[s.upper], absf(x) > 29.0)
@@ -165,7 +167,8 @@ func _store(s: Dictionary, side: int) -> void:
 	# the shop behind: floor, walls, ceiling, light
 	var zin: float = side * (WALK + 0.4 + SHOP_DEPTH / 2)
 	var c := P(x, 0, zin)
-	zones.append({"rect": Rect2(c.x - 5.0, c.z - SHOP_DEPTH / 2, 10.0, SHOP_DEPTH), "kind": str(s.kind).get_slice(":", 0)})
+	var zone: String = "iron" if s.kind == "lux:iron" else str(s.kind).get_slice(":", 0)
+	zones.append({"rect": Rect2(c.x - 5.0, c.z - SHOP_DEPTH / 2, 10.0, SHOP_DEPTH), "kind": zone})
 	b.box(Vector3(10, 0.2, SHOP_DEPTH), P(x, -0.1 + SIDEWALK_H, zin), s.floor, true, root)
 	b.box(Vector3(10, 0.2, SHOP_DEPTH), P(x, 4.3, zin), Color(0.9, 0.9, 0.9), false, root)
 	b.box(Vector3(10, 4.4, 0.2), P(x, 2.2, side * (WALK + 0.4 + SHOP_DEPTH)), s.wall, true, root)
@@ -183,7 +186,10 @@ func _store(s: Dictionary, side: int) -> void:
 	var facing := PI if side < 0 else 0.0              # props/NPCs inside face the door
 	match str(s.kind).get_slice(":", 0):
 		"lux":
-			_boutique(s, inner, facing, side)
+			if s.kind == "lux:iron":
+				_gun_store(s, inner, facing)
+			else:
+				_boutique(s, inner, facing, side)
 		"items":
 			_counter_shop(inner, facing, side, "items", "[E] Tony's Deli", "trader")
 			for k in 3:
@@ -250,7 +256,7 @@ func _boutique(s: Dictionary, inner: Callable, facing: float, side: int) -> void
 	var to_door := facing + PI            # props face +z at 0; this turns them toward the door
 	b.prop("ShopCounter" if store == "crownwell" else "FlexCounter", at, facing, root)   # no bags on a jeweller's counter
 	var c: Node3D = b.solid(Vector3(2.2, 1.0, 0.7), at + Vector3(0, 0.5, 0), root, facing)
-	b.add_interact(c, "lux", ["guccero", "valmont", "prava", "crownwell", "diorelle", "chavel"].find(store),
+	b.add_interact(c, "lux", Rules.BOUTIQUES.find(store),
 			"[E] Shop %s" % s.name)
 	b.npc(inner.call(0, SHOP_DEPTH - 1.0), facing + PI, "fed" if store in ["prava", "chavel"] else "anchor", "", "idle")
 	# lighting: spot tracks on the ceiling
@@ -328,6 +334,58 @@ func _watch_floor(inner: Callable, to_door: float) -> void:
 	PropKit.place_detail("WatchBox_Crownwell", root, box_at, Vector3(0, to_door, 0))
 	PropKit.place_detail("Watch_Crownwell_Datejust", root, box_at + Basis(Vector3.UP, to_door) * Vector3(0, 0.045, 0.008),
 			Vector3(0, to_door, 0))
+
+## BIG IRON: glass gun cases for a counter, rifles and pistols on the back
+## wall, ammo down the right side, and a two-lane indoor range on the left
+## (shooting in here is legal: no heat).
+func _gun_store(s: Dictionary, inner: Callable, facing: float) -> void:
+	var to_door := facing + PI
+	# the counter: two glass cases end to end, guns on the felt inside
+	for dx in [-0.95, 0.95]:
+		_kit_or_box("GunCase", Vector3(1.8, 1.0, 0.7), inner.call(dx, 5.4), to_door, Color(0.1, 0.1, 0.11))
+	var c: Node3D = b.solid(Vector3(3.7, 1.0, 0.75), inner.call(0, 5.4) + Vector3(0, 0.5, 0), root, to_door)
+	b.add_interact(c, "lux", Rules.BOUTIQUES.find("iron"), "[E] Shop BIG IRON (guns: Q draws, click fires)")
+	b.npc(inner.call(0.4, 6.4), facing + PI, "beard", "", "idle")
+	# the back wall: long guns up top, handguns below
+	for dx in [-0.2, 2.5]:
+		_kit_or_box("GunWallRack", Vector3(2.4, 1.6, 0.1), inner.call(dx, SHOP_DEPTH - 0.12) + Vector3(0, 0.9, 0), to_door,
+				Color(0.16, 0.17, 0.19))
+	var pole: Label3D = b.label("NO FLEX WITHOUT A PERMIT", inner.call(1.15, SHOP_DEPTH - 0.14) + Vector3(0, 3.0, 0), 44,
+			Color(0.98, 0.55, 0.1), facing, root)
+	pole.outline_size = 0
+	# ammo down the right wall
+	for dz in [2.2, 4.0]:
+		_kit_or_box("AmmoShelf", Vector3(1.2, 1.9, 0.45), inner.call(4.65, dz), -PI / 2, Color(0.3, 0.3, 0.3))
+		b.solid(Vector3(0.5, 1.9, 1.2), inner.call(4.65, dz) + Vector3(0, 0.95, 0), root)
+	_mannequin(inner.call(3.2, 1.2), facing, {"outfit": "hoodie", "suit": Color(0.22, 0.26, 0.16), "hair_style": "bald",
+			"hat": "cap", "glasses": "shades"})
+	# the range: two lanes along the left wall, paper targets at the back
+	var lane_at: Vector3 = inner.call(-3.35, 4.9)
+	b.box(Vector3(0.08, 1.6, 5.8), inner.call(-2.05, 4.9) + Vector3(0, 0.8, 0), Color(0.3, 0.32, 0.3), true, root)
+	b.box(Vector3(2.9, 0.9, 0.3), inner.call(-3.4, 1.9) + Vector3(0, 0.45, 0), Color(0.24, 0.26, 0.24), true, root)   # the bench
+	b.box(Vector3(2.9, 0.04, 0.5), inner.call(-3.4, 1.9) + Vector3(0, 0.92, 0), Color(0.55, 0.45, 0.3), false, root)
+	for dx in [-4.1, -2.75]:
+		var tgt: Vector3 = inner.call(dx, SHOP_DEPTH - 0.18) + Vector3(0, 1.45, 0)
+		_kit_or_box("TargetSheet", Vector3(0.45, 0.6, 0.01), tgt, to_door, Color(0.95, 0.94, 0.9))
+		b.box(Vector3(0.6, 0.8, 0.04), tgt - Basis(Vector3.UP, to_door) * Vector3(0, 0, 0.02),
+				Color(0.4, 0.3, 0.2), true, root)                   # backer board (catches the rounds)
+	var rl: Label3D = b.label("RANGE  ·  EARS ON  ·  NO HEAT IN HERE", lane_at + Vector3(0, 2.9, 0), 40, Color(1, 0.3, 0.2), facing, root)
+	rl.outline_size = 0
+	var st := OmniLight3D.new()
+	st.position = inner.call(-3.4, SHOP_DEPTH - 1.0) + Vector3(0, 3.2, 0)
+	st.omni_range = 4.0
+	st.light_energy = 0.9
+	root.add_child(st)
+
+
+## A kit prop, or a plain box of about its size until the kit has it.
+func _kit_or_box(name: String, size: Vector3, pos: Vector3, rot_y: float, col: Color) -> void:
+	if PropKit.has(name):
+		b.prop(name, pos, rot_y, root)
+	else:
+		var mi: MeshInstance3D = b.box(size, pos + Vector3(0, size.y / 2.0, 0), col, false, root)
+		mi.rotation.y = rot_y
+
 
 func _mannequin(pos: Vector3, facing: float, look: Dictionary) -> void:
 	var m = Character.new()

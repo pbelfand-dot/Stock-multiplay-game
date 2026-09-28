@@ -2,6 +2,8 @@ extends Node
 ## Takes screenshots of the office + UIs. Needs a real display (e.g. xvfb-run):
 ##   xvfb-run -s "-screen 0 1600x900x24" godot --path . -- --host --autostart --shots=/tmp/shots
 
+const Rules = preload("res://scripts/sim/rules.gd")
+
 var out_dir := ""
 var _fakes: Array = []
 
@@ -104,6 +106,88 @@ func _run() -> void:
 			cam.look_at(hand)
 			await _frames(4)
 			await _snap("hand_rot_%d" % k)
+		Sfx.quit_game()
+		return
+	if Config.cli.has("gunonly"):              # BIG IRON: the store, gun poses, first person, a shot
+		var st = world.builder.street
+		var guns := ["pistol", "pistol", "deagle", "shotgun", "ak", "ak_gold"]
+		var aim := [false, true, true, false, true, true]
+		var dudes := []
+		for k in guns.size():
+			var id: int = 900 + k
+			var d = load("res://scripts/player/player.gd").new()
+			d.setup(id, "G%d" % k, load("res://scripts/art/character.gd").player_look(k + 1), false, world)
+			world.players_node.add_child(d)
+			d.teleport(st.P(28.4 + k * 1.0, 0.2, st.WALK + 0.4 + 3.2))
+			d.rotation.y = 0.0                       # facing -z: out toward the door
+			d.name_tag.visible = false
+			m.owned[id] = {guns[k]: 1}
+			m.drawn[id] = guns[k]
+			d.photo_aim = aim[k]
+			dudes.append(d)
+		var p0 = world.local_player
+		p0.teleport(st.P(30.0 - 3.4, 0.2, st.WALK + 0.4 + 1.2))
+		p0.rotation.y = PI                           # facing +z: down the range
+		m.owned[1]["pistol"] = 1
+		m.owned[1]["ak"] = 1
+		m.drawn[1] = "pistol"
+		m._push_state()
+		hud.root.visible = false
+		await get_tree().create_timer(1.5).timeout
+		var cam := Camera3D.new()
+		world.add_child(cam)
+		cam.fov = 55
+		cam.current = true
+		cam.global_position = dudes[2].global_position + Vector3(0.5, 1.5, -4.2)
+		cam.look_at(dudes[2].global_position + Vector3(0.5, 1.1, 0))
+		await _frames(4)
+		await _snap("g1_lineup")
+		for k in guns.size():
+			var d = dudes[k]
+			cam.global_position = d.global_position + Vector3(0.55, 1.5, -1.6)
+			cam.look_at(d.global_position + Vector3(0, 1.25, 0))
+			await _frames(4)
+			await _snap("g2_pose_%d_%s%s" % [k, guns[k], "_aim" if aim[k] else ""])
+		# the store from the door
+		cam.global_position = st.P(30.0 + 2.5, 1.7, st.WALK + 0.9)
+		cam.look_at(st.P(30.0 - 1.0, 1.2, st.WALK + 0.4 + 6.5))
+		cam.fov = 75
+		await _frames(4)
+		await _snap("g3_store")
+		# first person down the range: G19 at the low ready, aimed, a shot
+		cam.current = false
+		p0.cam.current = true
+		p0.pitch = 0.0
+		await get_tree().create_timer(0.8).timeout
+		await _snap("g4_fp_pistol")
+		p0.photo_aim = true
+		await get_tree().create_timer(0.8).timeout
+		p0._fire(Rules.LUXURY.pistol)
+		await _frames(1)
+		await _snap("g5_fp_pistol_fire")
+		m.drawn[1] = "ak"
+		m._push_state()
+		p0.photo_aim = false
+		await get_tree().create_timer(1.0).timeout
+		await _snap("g6a_fp_ak_low")
+		p0.photo_aim = true
+		await get_tree().create_timer(0.6).timeout
+		p0._fire(Rules.LUXURY.ak)
+		await _frames(1)
+		await _snap("g6_fp_ak_fire")
+		await get_tree().create_timer(1.0).timeout
+		for n in 12:
+			p0._shot_cd = 0.0
+			p0._fire(Rules.LUXURY.ak)
+			await _frames(3)
+		await get_tree().create_timer(0.8).timeout
+		cam.current = true
+		cam.fov = 45
+		var tgt: Vector3 = st.P(30.0 - 4.1, 1.45, st.WALK + 0.4 + 7.4)
+		cam.global_position = tgt + Vector3(0.4, 0.1, -1.6)
+		cam.look_at(tgt)
+		await _frames(3)
+		await _snap("g7_target_holes")
 		Sfx.quit_game()
 		return
 	if Config.cli.has("cashonly"):             # ATM, the stack in your hand, the fan, a spread

@@ -60,10 +60,36 @@ const LUXURY := {
 		"desc": "Gold Crownwell Genève on your wrist + the green box on your desk.", "perk": {"heat_decay": 1.3}, "perk_txt": "Cops respect the watch: heat cools 30% faster."},
 	"roflex_iced": {"name": "Crownwell Iced Out", "price": 1_500_000.0, "max": 1, "heat": 10.0, "store": "crownwell",
 		"desc": "Diamond bezel. Blinding. The SEC notices (+10 heat).", "perk": {"xp": 1.25, "early_news": 2.0}, "perk_txt": "People tell you things: headlines 2s early, +25% XP."},
+	# BIG IRON (the gun store): flex you carry. Q draws / swaps / holsters, click
+	# fires. rate = seconds between shots, auto = hold to fire, rifle = two hands.
+	"pistol": {"name": "G19 Compact", "price": 12_000.0, "max": 1, "store": "iron", "gun": "Gun_Pistol",
+		"rate": 0.2, "auto": false, "rifle": false, "big": false, "pellets": 1, "kick": 0.03,
+		"desc": "Polymer 9mm. Everybody's first. Fits in the suit.", "perk": {}, "perk_txt": ""},
+	"shotgun": {"name": "Pump Shotgun", "price": 22_000.0, "max": 1, "store": "iron", "gun": "Gun_Shotgun",
+		"rate": 0.85, "auto": false, "rifle": true, "big": true, "pellets": 8, "kick": 0.09,
+		"desc": "12 gauge. Home defense for your Keepall collection.", "perk": {}, "perk_txt": ""},
+	"smg": {"name": "Micro SMG", "price": 38_000.0, "max": 1, "store": "iron", "gun": "Gun_SMG",
+		"rate": 0.075, "auto": true, "rifle": false, "big": false, "pellets": 1, "kick": 0.012,
+		"desc": "Full auto. There is no reason to own this. Buy it.", "perk": {}, "perk_txt": ""},
+	"ak": {"name": "AK-47", "price": 55_000.0, "max": 1, "store": "iron", "gun": "Gun_Rifle",
+		"rate": 0.11, "auto": true, "rifle": true, "big": true, "pellets": 1, "kick": 0.02,
+		"desc": "Wood furniture, curved mag. Every crypto bro's profile picture.", "perk": {}, "perk_txt": ""},
+	"deagle": {"name": "Gold Desert Eagle", "price": 90_000.0, "max": 1, "store": "iron", "gun": "Gun_Deagle", "heat": 5.0,
+		"rate": 0.45, "auto": false, "rifle": false, "big": true, "pellets": 1, "kick": 0.08,
+		"desc": ".50 AE, gold plated, weighs as much as your ego (+5 heat).", "perk": {}, "perk_txt": ""},
+	"ak_gold": {"name": "Solid Gold AK", "price": 750_000.0, "max": 1, "store": "iron", "gun": "Gun_RifleGold", "heat": 10.0,
+		"rate": 0.11, "auto": true, "rifle": true, "big": true, "pellets": 1, "kick": 0.02,
+		"desc": "Gold receiver, black furniture. You're the plug now (+10 heat).", "perk": {}, "perk_txt": ""},
 }
-const BOUTIQUES := ["guccero", "valmont", "prava", "crownwell", "diorelle", "chavel"]
+## Q cycles through the guns you own in this order.
+const GUN_ORDER := ["pistol", "shotgun", "smg", "ak", "deagle", "ak_gold"]
+const SHOT_HEAT := 3.5              # every shot outside the range
+const SHOTS_CALLED_IN := 12.0       # the first shot after a quiet spell: somebody called it in
+const SHOTS_QUIET := 10.0
+const BOUTIQUES := ["guccero", "valmont", "prava", "crownwell", "diorelle", "chavel", "iron"]
 const BOUTIQUE_NAMES := {"guccero": "GUCCERO", "valmont": "LOUIS VALMONT", "prava": "PRAVA MILANO",
-	"crownwell": "CROWNWELL GENÈVE", "diorelle": "DIORÉLLE PARIS", "chavel": "CHAVÉL", "flex": "FLEX SHOP"}
+	"crownwell": "CROWNWELL GENÈVE", "diorelle": "DIORÉLLE PARIS", "chavel": "CHAVÉL", "flex": "FLEX SHOP",
+	"iron": "BIG IRON"}
 ## Office upgrades (FLEX SHOP counter in the office): bought once, kept
 ## forever (saved with your career like flex), and they change how you play.
 ## "prop" = what shows up on your desk.
@@ -161,7 +187,11 @@ const RANKS := [
 const XP_PER_1K := 1.0
 const XP_QUOTA_DAY := 25.0
 ## What each rank gates (item/feature -> minimum rank index)
-const RANK_GATES := {"studio": 1, "roflex": 2, "lev_125": 3, "roflex_iced": 3}
+const RANK_GATES := {"studio": 1, "roflex": 2, "lev_125": 3, "roflex_iced": 3, "deagle": 2, "ak_gold": 4}
+
+
+static func is_gun(key: String) -> bool:
+	return LUXURY.has(key) and LUXURY[key].has("gun")
 
 
 static func rank_of(xp: float) -> int:

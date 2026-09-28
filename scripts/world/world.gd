@@ -32,6 +32,7 @@ var _brrt_t := 0.0
 const UI_RED := Color(1, 0.3, 0.3)
 var _trophy_sig := {}           # desk id -> signature of what's on it
 const CashArt = preload("res://scripts/art/cash_art.gd")
+const GunArt = preload("res://scripts/art/gun_art.gd")
 var atms: Array = []            # ATM nodes (office by the elevator, street outside the bank)
 var _spread_nodes := {}         # peer -> {node, sig}: cash laid out for the photo
 
@@ -72,6 +73,7 @@ func _ready() -> void:
 	match_node.news.connect(_on_news)
 	_build_atms()
 	match_node.cash_moved.connect(_on_cash_moved)
+	match_node.shot.connect(_on_shot)
 	match_node.state_changed.connect(_sync_spreads)
 	_sync_players()
 
@@ -782,6 +784,27 @@ func _on_cash_moved(peer: int, withdrawn: float, _total: float) -> void:
 				scr.text = "WELCOME\n[E] CASH")
 	if peer == Net.my_id():
 		local_player.show_cash_stack(2.2 if out else 0.0)
+
+
+## A round from `from` along `dir`: returns the hit (empty if it flew off)
+## and leaves a hole in whatever wall / desk / target it hit (not in people).
+func shoot_ray(from: Vector3, dir: Vector3, shooter: Node) -> Dictionary:
+	var q := PhysicsRayQueryParameters3D.create(from, from + dir * 80.0)
+	if shooter is CollisionObject3D:
+		q.exclude = [(shooter as CollisionObject3D).get_rid()]
+	var hit := get_world_3d().direct_space_state.intersect_ray(q)
+	if not hit.is_empty() and not (hit.collider is CharacterBody3D):
+		GunArt.hole(self, hit.position, hit.normal)
+	return hit
+
+
+## Someone else fired (our own shots already played when we pulled the trigger).
+func _on_shot(peer: int, hit: Vector3) -> void:
+	if peer == Net.my_id():
+		return
+	var p = player_node(peer)
+	if p:
+		p.remote_fire(hit)
 
 
 ## N: lay your cash out on the table / floor you're looking at (everyone sees

@@ -43,6 +43,7 @@ signal shock(kind: String, stage: String)
 signal milestone(amount: float, xp: float)
 signal saved(info: Dictionary)
 signal cash_moved(peer: int, withdrawn: float, total: float)
+signal shot(peer: int, hit: Vector3)     # someone fired (hit = where the round landed)
 
 # ---------------- mirrored state (all peers) ----------------
 var phase := "lobby"            # lobby | trading | intermission | gameover
@@ -72,6 +73,8 @@ var contracts := {}             # peer -> [contract] (Tony's contracts for today
 var milestones := 0             # co-op: how many fund milestones this run has hit
 var wallet := {}                # peer -> cash on hand (out of the ATM), counts toward the quota
 var spreads := {}               # peer -> {pos, yaw, amount}: cash laid out for the photo
+var drawn := {}                 # peer -> gun key they're holding out (BIG IRON)
+var _last_shot := {}            # server: peer -> time of their last shot (rate + "called in")
 var ready_up := {}                 # peer -> true: pressed ENTER, waiting for the bell (lobby / after hours)
 
 # ---------------- server-only ----------------
@@ -379,6 +382,73 @@ func _s_cash(peer: int, amount: float, total: float) -> void:
 	cash_moved.emit(peer, amount, total)
 
 
+# ---------------- guns (BIG IRON) ----------------
+
+func gun_of(peer: int) -> String:
+	return str(drawn.get(peer, ""))
+
+
+## The guns you own, in Q order.
+func guns_of(peer: int) -> Array:
+	return Rules.GUN_ORDER.filter(func(k): return lux_count(peer, k) > 0)
+
+
+## Q: draw the next gun you own, or put it away after the last one.
+func request_draw(key: String) -> void:
+	_req_draw.rpc_id(1, key)
+
+
+@rpc("any_peer", "call_local", "reliable")
+func _req_draw(key: String) -> void:
+	if not Net.is_server():
+		return
+	var id := _sender()
+	if key == "":
+		drawn.erase(id)
+	elif Rules.is_gun(key) and lux_count(id, key) > 0 and not is_jailed(id):
+		drawn[id] = key
+	else:
+		return
+	_push_state()
+
+
+## Pulled the trigger (the shooter already saw it; everyone else sees it now).
+## Outside the range it brings heat: the first shot after a quiet spell gets
+## called in.
+func request_shot(hit: Vector3) -> void:
+	_req_shot.rpc_id(1, hit)
+
+
+@rpc("any_peer", "call_local", "unreliable_ordered")
+func _req_shot(hit: Vector3) -> void:
+	if not Net.is_server():
+		return
+	var id := _sender()
+	var key := gun_of(id)
+	if key == "" or is_jailed(id):
+		return
+	var now := Time.get_ticks_msec() / 1000.0
+	var last: float = _last_shot.get(id, -100.0)
+	if now - last < float(Rules.LUXURY[key].rate) * 0.6:     # faster than the gun can cycle
+		return
+	_last_shot[id] = now
+	var p = world.player_node(id) if world else null
+	if p and world.street_zone(p) != "iron" and phase == "trading":
+		var h := Rules.SHOT_HEAT
+		if now - last > Rules.SHOTS_QUIET:
+			h += Rules.SHOTS_CALLED_IN
+			_s_toast.rpc("SHOTS FIRED: %s is letting the %s rip. Somebody called it in." % [
+					Net.player_name(id), Rules.LUXURY[key].name])
+		_add_heat(id, h)
+		_dirty = true
+	_s_shot.rpc(id, hit)
+
+
+@rpc("authority", "call_local", "unreliable_ordered")
+func _s_shot(peer: int, hit: Vector3) -> void:
+	shot.emit(peer, hit)
+
+
 func request_open(sym: String, side: int, margin: float, lev: int) -> void:
 	_req_open.rpc_id(1, sym, side, margin, lev)
 
@@ -680,6 +750,8 @@ func _req_pawn(key: String) -> void:
 	if lux_count(id, key) <= 0:
 		return
 	owned[id][key] = lux_count(id, key) - 1
+	if gun_of(id) == key and lux_count(id, key) <= 0:
+		drawn.erase(id)
 	var cash: float = Rules.LUXURY[key].price * Rules.PAWN_RATE
 	ledger.adjust(acct_for(id), cash)
 	_s_toast.rpc("%s pawned a %s for %s" % [Net.player_name(id), Rules.LUXURY[key].name, Rules.money(cash)])
@@ -1018,6 +1090,12 @@ func server_cop_caught(target: int) -> void:
 		wallet[target] = cash_of(target) - seized
 		spreads.erase(target)
 		_s_toast.rpc("The cops bagged %s of %s's cash as evidence." % [Rules.money(seized), Net.player_name(target)])
+	var gun := gun_of(target)
+	if gun != "":                    # caught with it out: it's evidence now
+		drawn.erase(target)
+		owned[target][gun] = maxi(lux_count(target, gun) - 1, 0)
+		_save_careers()
+		_s_toast.rpc("The cops confiscated %s's %s." % [Net.player_name(target), Rules.LUXURY[gun].name])
 	_s_arrested.rpc(target, _booking_no)
 	_s_toast.rpc("%s GOT ARRESTED. Fined %s." % [Net.player_name(target), Rules.money(fine)])
 	_end_raid(true)
@@ -1082,6 +1160,7 @@ func _reset_run() -> void:
 	ready_up.clear()
 	wallet.clear()
 	spreads.clear()
+	drawn.clear()
 	_set_day_event("")
 	next_event = ""
 	if not raid.is_empty():
@@ -1498,7 +1577,7 @@ func _push_state() -> void:
 		"accounts": accounts, "heat": heat, "jail": jail, "inventory": inventory, "owned": owned, "careers": careers,
 		"effects": effects, "stats": stats, "raid": raid, "day_event": day_event, "next_event": next_event,
 		"event_at": event_at, "halt": halt, "contracts": contracts, "milestones": milestones, "ready": ready_up,
-		"wallet": wallet, "spreads": spreads})
+		"wallet": wallet, "spreads": spreads, "drawn": drawn})
 
 
 # ======================================================================
@@ -1529,6 +1608,7 @@ func _s_state(s: Dictionary) -> void:
 	ready_up = s.get("ready", {})
 	wallet = s.get("wallet", {})
 	spreads = s.get("spreads", {})
+	drawn = s.get("drawn", {})
 	state_changed.emit()
 
 
