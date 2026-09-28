@@ -1954,6 +1954,29 @@ def skin_rigid(ob, bone):
     g.add([v.index for v in ob.data.vertices], 1.0, "REPLACE")
 
 
+def skin_hanging_hair(ob):
+    """Long hair: rigid on the head down to the chin; below that the hanging
+    part blends gradually (over its whole length) toward the neck and chest,
+    so the ends only follow a head turn part of the way: they stay off the
+    shoulders, and the locks bend a little instead of stretching."""
+    chin = FACE["mouth"].z - 0.035          # below this the hair hangs free
+    zs = [(ob.matrix_world @ v.co).z for v in ob.data.vertices]
+    bottom = min(zs)
+    gh, gn, gc = (ob.vertex_groups.new(name=n) for n in ("Head", "Neck", "Chest"))
+    FOLLOW = 0.35                           # how much of a head turn the very ends still follow
+    for v, z in zip(ob.data.vertices, zs):
+        if z >= chin:
+            gh.add([v.index], 1.0, "REPLACE")
+            continue
+        t = min((chin - z) / max(chin - bottom, 1e-4), 1.0)
+        t = t * t * (3 - 2 * t)             # smoothstep: no crease at the jaw
+        off = (1.0 - FOLLOW) * t            # weight handed from the head to the body
+        gh.add([v.index], 1.0 - off, "REPLACE")
+        gn.add([v.index], off * 0.55, "REPLACE")
+        gc.add([v.index], off * 0.45, "REPLACE")
+    print("  %s: head down to z=%.3f, hanging to %.3f (ends follow the head %d%%)" % (ob.name, chin, bottom, FOLLOW * 100))
+
+
 def skin_split_by_side(ob, bone_r, bone_l):
     gr = ob.vertex_groups.new(name=bone_r)
     gl = ob.vertex_groups.new(name=bone_l)
@@ -2080,7 +2103,7 @@ def main():
     kit.append((build_shoes("sneaker"), "Shoes", "feet"))
     kit.append((join(SOLES, "Soles_sneaker"), "Fixed", "feet"))
     for st in ("slick", "swept", "swoop", "short", "buzz", "messy", "afro", "long", "bald"):
-        kit.append((build_hair(head, st), "Hair", "Head"))
+        kit.append((build_hair(head, st), "Hair", "hanging" if st == "long" else "Head"))
     for st in ("mustache", "goatee", "full", "stubble"):
         kit.append((build_beard(head, st), "Hair", "Head"))
     kit.append((build_glasses("shades"), "Fixed", "Head"))
@@ -2136,6 +2159,8 @@ def main():
             pass   # built with per-segment finger weights (build_hands)
         elif sk == "feet":
             skin_split_by_side(ob, "Foot_R", "Foot_L")
+        elif sk == "hanging":
+            skin_hanging_hair(ob)
         elif sk == "lids":
             skin_split_by_side(ob, "Lid_R", "Lid_L")
         else:

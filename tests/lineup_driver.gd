@@ -35,6 +35,9 @@ func _ready() -> void:
 	fm.albedo_color = Color(0.35, 0.38, 0.45)
 	floor_mi.material_override = fm
 	add_child(floor_mi)
+	if Config.cli.has("hairturn"):
+		_hairturn_lineup()
+		return
 	if Config.cli.has("hair"):
 		_hair_lineup()
 		return
@@ -158,3 +161,35 @@ func _snap_ortho(z: float, file: String) -> void:
 	get_viewport().get_texture().get_image().save_png(out + "/" + file + ".png")
 	print("lineup: ", file)
 	cam.queue_free()
+
+
+# ------------------------------------------------------------------ long hair vs. head turns
+## Long hair with the head turned / tilted: the ends must stay off the
+## shoulders (they ride the chest, the top rides the head).
+##   godot --path . -- --lineup=/tmp/out --hairturn
+const TURNS := [Vector3(0, 0.85, 0), Vector3(0, -0.85, 0), Vector3(0.55, 0, 0), Vector3(-0.35, 0.6, 0)]
+
+
+func _hairturn_lineup() -> void:
+	var chars: Array = []
+	for row in 2:                                  # row 0 seen from the front, row 1 from behind
+		for k in TURNS.size():
+			var c := Character.new()
+			c.build({"hair_style": "long", "beard": "none", "hat": "none", "hair": HAIR_TINT})
+			c.position = Vector3(-0.69 + k * 0.46, 0, -row * 6.0)
+			c.rotation.y = PI if row == 0 else 0.0
+			add_child(c)
+			chars.append(c)
+	_run_hairturn.call_deferred(chars)
+
+
+func _run_hairturn(chars: Array) -> void:
+	for k in 10:
+		await get_tree().process_frame
+	for i in chars.size():
+		var c = chars[i]
+		c.set_process(false)                       # hold the pose
+		c._pose_bone("Head", TURNS[i % TURNS.size()], 1.0)
+	await _snap_ortho(0.0, "hairturn_front")
+	await _snap_ortho(-6.0, "hairturn_back")
+	Sfx.quit_game()
