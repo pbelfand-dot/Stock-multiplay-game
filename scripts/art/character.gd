@@ -123,6 +123,7 @@ var fp := false           # first-person body (Content Warning style): head hidd
 var anim_t := 0.0         # seconds into a clip pose (dance); restarts when the pose changes
 var _anim_pose := ""
 var anim_hold := -1.0     # tests: freeze a clip at this time
+var clip_fx := {}         # per-frame clip flags: mouth (0..1), puff, cough, at_mouth
 static var _clips := {}   # clip name -> parsed JSON {fps, frames, keys}
 var _t := 0.0
 var _blink := 0.0
@@ -288,6 +289,18 @@ func build(l: Dictionary) -> void:
 		_print_on(j["spine"], "POLICE", Vector3(0, 0.38, 0.165), Vector3.ZERO, Color(0.97, 0.97, 0.97), 0.0032)
 	if fp:
 		_apply_fp()
+
+
+## Flat one-colour silhouette (the emote wheel's outlines).
+func set_silhouette(c: Color) -> void:
+	var m := StandardMaterial3D.new()
+	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	m.albedo_color = c
+	for mi in find_children("*", "MeshInstance3D", true, false):
+		mi.material_override = m
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	for l in find_children("*", "Label3D", true, false):
+		l.visible = false
 
 
 ## First person: keep drawing the body, arms and legs for our own camera but
@@ -544,13 +557,11 @@ func _process(delta: float) -> void:
 	match upper:
 		"dance":    # rotoscoped from the owner's clip (assets/anims/dance.json)
 			_apply_clip(t, "dance", anim_t)
-		"finger":   # the bird, right in their face
-			t.shR = Vector3(1.25, 0.25, 0.1)
-			t.elR = Vector3(1.55, 0, 0)
-			t.head_rx = -0.05
-			if fp:      # held out in front of our own camera
-				t.shR = Vector3(1.05, 0.3, 0.12)
-				t.elR = Vector3(1.05, 0, 0)
+		"finger":   # the bird, left hand up by the face (rotoscoped from the owner's clip)
+			_apply_clip(t, "finger", anim_t)
+			if fp:      # held out in front of our own camera, not through it
+				t.shL = (t.shL as Vector3) * Vector3(0.85, 1, 1)
+				t.elL = (t.elL as Vector3) * 0.75
 		"fistpump":
 			var pump := absf(sin(_t * 9.0))
 			t.shR = Vector3(2.3 + pump * 0.4, 0.1, 0.2)
@@ -560,17 +571,15 @@ func _process(delta: float) -> void:
 			if fp:      # pump it where we can see it (upper right of the view)
 				t.shR = Vector3(1.55 + pump * 0.45, 0.25, 0.2)
 				t.elR = Vector3(1.5 - pump * 0.7, 0, 0)
-		"watch":    # left forearm across the chest, wrist turned up, admire it
-			t.shL = Vector3(1.05, -0.55, 0.15)
-			t.elL = Vector3(1.35, 0, 0)
-			t.shR = Vector3(0.25, 0.1, 0.05)
-			t.head_rx = 0.45
-			t.head_ry = 0.3
+		"watch":    # left forearm across the chest, look down at it (rotoscoped)
+			_apply_clip(t, "watch", anim_t)
 			if fp:      # our camera doesn't look down on its own: bring the wrist up into view
-				t.shL = Vector3(1.35, -0.65, 0.1)
-				t.elL = Vector3(1.75, 0, 0)
+				t.shL = (t.shL as Vector3) + Vector3(0.3, -0.1, 0) * clampf((t.elL as Vector3).x / 1.35, 0.0, 1.0)
+				t.elL = (t.elL as Vector3) * 1.25
 				t.head_rx = 0.0
 				t.head_ry = 0.0
+		"smoke_cough", "smoke_chill":   # a drag, then a cough / a slow exhale (rotoscoped)
+			_apply_clip(t, upper, anim_t)
 		"point":
 			t.shR = Vector3(1.5, 0.05, 0.05)
 			t.elR = Vector3(0.05, 0, 0)
@@ -644,6 +653,8 @@ func _process(delta: float) -> void:
 			t.hipR = Vector3(-0.35, 0, 0)
 			t.knL = Vector3(-0.5, 0, 0)
 			t.knR = Vector3(-0.3, 0, 0)
+	clip_fx = {"mouth": t.get("mouth", 0.0), "puff": t.get("puff", 0.0), "cough": t.get("cough", 0.0),
+			"at_mouth": t.get("at_mouth", 0.0)}
 	# the kit is rigged in an A-pose (arms 20 deg out): bring the arms in
 	t.shL = t.shL + Vector3(0, 0, ARM_IN)
 	t.shR = t.shR - Vector3(0, 0, ARM_IN)
@@ -681,7 +692,7 @@ func _process(delta: float) -> void:
 	# talking: stretch the mouth on the jaw bone
 	var jaw: int = _bi.get("Jaw", -1)
 	if jaw >= 0:
-		var m_open := (0.5 + 0.5 * sin(_t * 14.0)) * 3.2 + 1.0 if talking else 1.0
+		var m_open := (0.5 + 0.5 * sin(_t * 14.0)) * 3.2 + 1.0 if talking else 1.0 + float(clip_fx.get("mouth", 0.0)) * 2.4
 		var cur: float = _state.get("jaw", 1.0)
 		cur = lerpf(cur, m_open, clampf(delta * 20.0, 0, 1))
 		_state["jaw"] = cur

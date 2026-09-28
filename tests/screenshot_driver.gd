@@ -351,6 +351,15 @@ func _fp_shots(world, m, hud) -> void:
 	m.request_use("moneygun")
 	await get_tree().create_timer(0.8).timeout
 	await _snap("fp_06_money_gun")
+	# the emote wheel (hold B)
+	hud.emote_wheel._show(true)
+	await get_tree().create_timer(1.2).timeout
+	await _snap("fp_09_emote_wheel")
+	hud.emote_wheel.sel = 2
+	hud.emote_wheel._refresh()
+	await get_tree().create_timer(0.6).timeout
+	await _snap("fp_09_emote_wheel_b")
+	hud.emote_wheel._show(false)
 	# the dance, from inside it
 	p.emote = p.EMOTES.find("dance")
 	p._emote_t = 30.0

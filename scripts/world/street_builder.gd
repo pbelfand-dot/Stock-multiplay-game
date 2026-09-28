@@ -211,7 +211,7 @@ func _store(s: Dictionary, side: int) -> void:
 			b.prop("Plant", inner.call(-4.0, 1.0), 0.0, root)
 			b.prop("Plant", inner.call(4.0, 1.0), 0.0, root)
 			b.prop("Couch", inner.call(-3.8, 4.0), facing + PI / 2 * side, root)
-			b.npc(inner.call(3.0, 3.5), facing, "cop", "SECURITY", "idle")
+			b.npc(inner.call(3.0, 3.5), facing + PI, "cop", "SECURITY", "idle")
 			lobby_exit = P(x, 0.25, side * (WALK - 1.5))
 			spawn = lobby_exit
 		"none":
@@ -223,7 +223,7 @@ func _counter_shop(inner: Callable, facing: float, side: int, type: String, prom
 	b.prop("ShopCounter", at, facing, root)
 	var c: Node3D = b.solid(Vector3(2.4, 1.05, 0.6), at + Vector3(0, 0.52, 0), root, facing)
 	b.add_interact(c, type, 0, prompt)
-	b.npc(inner.call(0, SHOP_DEPTH - 1.2), facing, clerk, "", "idle")
+	b.npc(inner.call(0, SHOP_DEPTH - 1.2), facing + PI, clerk, "", "idle")   # npc() faces +z at 0
 
 
 func _boutique(s: Dictionary, inner: Callable, facing: float, side: int) -> void:
@@ -233,7 +233,7 @@ func _boutique(s: Dictionary, inner: Callable, facing: float, side: int) -> void
 	var c: Node3D = b.solid(Vector3(2.2, 1.0, 0.7), at + Vector3(0, 0.5, 0), root, facing)
 	b.add_interact(c, "lux", ["guccero", "valmont", "prava", "crownwell", "diorelle", "chavel"].find(store),
 			"[E] Shop %s" % s.name)
-	b.npc(inner.call(0, SHOP_DEPTH - 1.0), facing, "fed" if store in ["prava", "chavel"] else "anchor", "", "idle")
+	b.npc(inner.call(0, SHOP_DEPTH - 1.0), facing + PI, "fed" if store in ["prava", "chavel"] else "anchor", "", "idle")
 	# display: mannequins in the window + racks along the walls
 	var looks := {
 		"guccero": {"suit": Color(0.1, 0.35, 0.2), "tie": Color(0.75, 0.08, 0.1)},
@@ -259,7 +259,7 @@ func _mannequin(pos: Vector3, facing: float, look: Dictionary) -> void:
 	look["watch"] = look.get("watch", "none")
 	m.build(look)
 	m.position = pos
-	m.rotation.y = facing + PI
+	m.rotation.y = facing          # Character faces -z at 0; `facing` points at the street
 	m.eyes_open = 0.0
 	root.add_child(m)
 	b.box(Vector3(0.6, 0.08, 0.6), pos + Vector3(0, 0.04, 0), Color(0.2, 0.2, 0.22), false, root)
