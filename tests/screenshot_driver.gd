@@ -69,6 +69,18 @@ func _run() -> void:
 		await _street_only(world, m, hud)
 		Sfx.quit_game()
 		return
+	if Config.cli.has("termonly"):             # the trading terminal with the full board
+		m.request_open("NVDUH", -1, 5_000.0, 10)
+		await get_tree().create_timer(1.0).timeout
+		hud.open_interact({"type": "terminal", "id": 0})
+		hud.terminal.select("NVDUH")
+		await _frames(20)
+		await _snap("t1_terminal_short")
+		hud.terminal.select("PEAR")
+		await _frames(10)
+		await _snap("t2_terminal_watchlist")
+		Sfx.quit_game()
+		return
 	if Config.cli.has("progonly"):
 		await _progress_shots(world, m, hud)
 		Sfx.quit_game()

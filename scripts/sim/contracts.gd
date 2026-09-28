@@ -10,7 +10,7 @@ extends RefCounted
 ##   "close" {pnl, pct, side, sym, lev, pnl_day}   "hotdog"   "relieve"
 ##   "slots" {mult}   "lux"   and settle(c, {heat, slots_played}) at the bell.
 
-const SYMS := ["BTC", "GOLD", "OIL", "REX", "BNN", "SPX"]
+const SYMS := ["BTC", "GOLD", "OIL", "REX", "BNN", "SPX", "PEAR", "NVDUH", "ETHR", "AIRX", "JPMG", "GAMR"]
 
 ## tier: 1 easy, 2 medium, 3 hard. goal "U" = scaled by the day's money unit.
 const TEMPLATES := {

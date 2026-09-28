@@ -34,6 +34,7 @@ var auto_idx := {"up": 0, "down": 0}
 var auto_lbls := {}
 var lev_btn: Button
 var buy_btn: Button
+var wscroll: ScrollContainer
 var sell_btn: Button
 var order_hint: Label
 var open_tab: Button
@@ -152,8 +153,13 @@ func _ready() -> void:
 	var wl := PanelContainer.new()
 	wl.add_theme_stylebox_override("panel", UI.panel_box(UI.NAVY, UI.LINE, 8, 2))
 	right.add_child(wl)
+	wscroll = ScrollContainer.new()                  # 18 tickers: the watchlist scrolls
+	wscroll.custom_minimum_size.y = 196
+	wscroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	wl.add_child(wscroll)
 	var wv := VBoxContainer.new()
-	wl.add_child(wv)
+	wv.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	wscroll.add_child(wv)
 	for d in preload("res://scripts/sim/market.gd").ASSET_DEFS:
 		var b := Button.new()
 		b.flat = true
@@ -293,6 +299,8 @@ func _row(cols: Array, color: Color) -> HBoxContainer:
 
 func select(s: String) -> void:
 	sym = s
+	if wscroll and watch_rows.has(s):              # keep the picked ticker in view
+		wscroll.ensure_control_visible.call_deferred(watch_rows[s].btn)
 	chart.sym = s
 	chart.clear_drawings()
 	_refresh_all()

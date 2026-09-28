@@ -11,7 +11,8 @@ extends RefCounted
 
 const REACTION_DELAY := 1.5   # seconds between headline and the market reacting
 
-const SYMS := ["BTC", "GOLD", "OIL", "SPX", "BNN", "REX", "WAGMI"]
+const SYMS := ["BTC", "GOLD", "OIL", "SPX", "BNN", "REX", "WAGMI", "ETHR", "DOGGO", "PEAR", "NVDUH", "GAMR",
+	"AIRX", "BURG", "PHRM", "JPMG", "GAS", "FEAR"]
 const TRAMP_MULT := 1.7   # "you're one post away from getting rich... or losing it all"
 
 ## How often each speaker comes up (day events scale these, see DayEvents).
@@ -93,6 +94,12 @@ func _tramp() -> Dictionary:
 		["WE ARE IN WAR!", [["OIL", 0.05], ["GOLD", 0.025], ["SPX", -0.03], ["BTC", -0.03]]],
 		["THE S&P IS AT ALL TIME HIGHS BECAUSE OF ME", [["SPX", 0.025]]],
 		["BANANA COIN IS A SCAM. TOTAL SCAM", [["BNN", -0.07]]],
+		["PEAR PHONES ARE MADE OVERSEAS. VERY BAD. SAD!", [["PEAR", -0.03]]],
+		["THE AIRLINES ARE A DISASTER. I'M GROUNDING THEM ALL", [["AIRX", -0.05]]],
+		["BIG PHARMA IS RIPPING YOU OFF. PRICES DOWN 90%. MAYBE 1000%", [["PHRM", -0.06]]],
+		["BURGER BARON. BEST BURGERS. I ATE 12 TODAY", [["BURG", 0.04]]],
+		["DOGGO COIN TO THE MOON. MY FAVORITE DOG", [["DOGGO", 0.15]]],
+		["AI CHIPS? WE MAKE THE BEST CHIPS. NVIDOOH, GREAT COMPANY", [["NVDUH", 0.04]]],
 	]
 	var l: Array = _pick(lines)
 	var effects: Array = []
@@ -103,7 +110,7 @@ func _tramp() -> Dictionary:
 
 ## TJR-style day-trading streamer. Right ~65% of the time.
 func _tjz() -> Dictionary:
-	var sym: String = _pick(["BTC", "GOLD", "OIL", "REX", "BNN"])
+	var sym: String = _pick(["BTC", "GOLD", "OIL", "REX", "BNN", "NVDUH", "PEAR", "ETHR", "GAMR", "JPMG"])
 	var d := 1 if rng.randf() < 0.5 else -1
 	var right := rng.randf() < 0.65
 	var move := d * (1 if right else -1) * rng.randf_range(0.012, 0.03)
@@ -121,25 +128,26 @@ func _tjz() -> Dictionary:
 
 ## Kimchi-style memecoin whale. Pumps WAGMI then (usually) rugs it.
 func _kimchee() -> Dictionary:
+	var coin: String = "WAGMI" if rng.randf() < 0.65 else "DOGGO"
 	var rug := rng.randf() < 0.7
 	var pump := rng.randf_range(0.15, 0.4)
-	var effects := [{"sym": "WAGMI", "pct": pump, "dur": rng.randf_range(8.0, 14.0), "delay": 0.0}]
+	var effects := [{"sym": coin, "pct": pump, "dur": rng.randf_range(8.0, 14.0), "delay": 0.0}]
 	if rug:
-		effects.append({"sym": "WAGMI", "pct": -rng.randf_range(0.35, 0.6), "dur": rng.randf_range(2.0, 4.0), "delay": rng.randf_range(16.0, 24.0)})
+		effects.append({"sym": coin, "pct": -rng.randf_range(0.35, 0.6), "dur": rng.randf_range(2.0, 4.0), "delay": rng.randf_range(16.0, 24.0)})
 	var line: String = _pick([
-		"APING MY WHOLE BAG INTO $WAGMI. NFA",
-		"$WAGMI TO A BILLI. I'M NOT SELLING (I'M SELLING)",
-		"JUST BOUGHT 40 MILLI OF $WAGMI. SEND IT",
-		"DEV IS BASED. $WAGMI IS THE ONE. TRUST",
-	])
+		"APING MY WHOLE BAG INTO $%s. NFA",
+		"$%s TO A BILLI. I'M NOT SELLING (I'M SELLING)",
+		"JUST BOUGHT 40 MILLI OF $%s. SEND IT",
+		"DEV IS BASED. $%s IS THE ONE. TRUST",
+	]) % coin
 	var ev := _ev("KIMCHEE", "STREAMER", "KIMCHEE: " + line, effects)
-	ev.hint = "WAGMI pump%s" % (" then RUG" if rug else " — no rug this time")
+	ev.hint = "%s pump%s" % [coin, " then RUG" if rug else " — no rug this time"]
 	return ev
 
 
 ## Inverse-Cramer: his calls are wrong 75% of the time.
 func _crammer() -> Dictionary:
-	var sym: String = _pick(["REX", "BNN", "BTC", "OIL"])
+	var sym: String = _pick(["REX", "BNN", "BTC", "OIL", "PEAR", "NVDUH", "GAMR", "AIRX", "BURG", "PHRM"])
 	var d := 1 if rng.randf() < 0.5 else -1
 	var right := rng.randf() < 0.25
 	var move := d * (1 if right else -1) * rng.randf_range(0.015, 0.035)
@@ -149,11 +157,11 @@ func _crammer() -> Dictionary:
 	return ev
 
 
-## Roaring-Kitty-style meme-stock legend. Posts a single emoji, REX goes nuts.
+## Roaring-Kitty-style meme-stock legend. Posts a single emoji, GameShop goes nuts.
 func _kitteh() -> Dictionary:
-	var effects := [{"sym": "REX", "pct": rng.randf_range(0.05, 0.1), "dur": rng.randf_range(5.0, 9.0), "delay": 0.0}]
+	var effects := [{"sym": "GAMR", "pct": rng.randf_range(0.08, 0.16), "dur": rng.randf_range(5.0, 9.0), "delay": 0.0}]
 	if rng.randf() < 0.5:
-		effects.append({"sym": "REX", "pct": -rng.randf_range(0.04, 0.08), "dur": 6.0, "delay": rng.randf_range(14.0, 20.0)})
+		effects.append({"sym": "GAMR", "pct": -rng.randf_range(0.06, 0.12), "dur": 6.0, "delay": rng.randf_range(14.0, 20.0)})
 	var line: String = _pick(["*posts a single cat meme*", "I LIKE THE STOCK.", "*is streaming in a headband*"])
 	return _ev("ROARING KITTEH", "STREAMER", "ROARING KITTEH: " + line, effects)
 
@@ -165,12 +173,14 @@ func _fed() -> Dictionary:
 			{"sym": "GOLD", "pct": 0.025, "dur": 6.0, "delay": 0.0},
 			{"sym": "BTC", "pct": 0.03, "dur": 7.0, "delay": 0.0},
 			{"sym": "REX", "pct": 0.015, "dur": 7.0, "delay": 0.0},
+			{"sym": "JPMG", "pct": -0.012, "dur": 7.0, "delay": 0.0},   # banks earn less when rates drop
 		])
 	return _ev("JEROME POWWW", "FED", "FED CHAIR POWWW: RATES HIKED. PARTY'S OVER", [
 		{"sym": "GOLD", "pct": -0.012, "dur": 6.0, "delay": 0.0},
 		{"sym": "BTC", "pct": -0.03, "dur": 7.0, "delay": 0.0},
 		{"sym": "REX", "pct": -0.02, "dur": 7.0, "delay": 0.0},
 		{"sym": "BNN", "pct": -0.02, "dur": 7.0, "delay": 0.0},
+		{"sym": "JPMG", "pct": 0.02, "dur": 7.0, "delay": 0.0},        # ...and more when they go up
 	])
 
 
@@ -188,6 +198,19 @@ func _breaking() -> Dictionary:
 		["COUNTRY MAKES BITCOIN LEGAL TENDER (IT'S A SMALL ONE)", "BTC", 0.03],
 		["CENTRAL BANKS HOARDING GOLD IN SECRET BUNKERS", "GOLD", 0.02],
 		["WAGMI DEV WALLET MOVES 90% OF SUPPLY", "WAGMI", -0.4],
+		["NVIDOOH UNVEILS AI CHIP THAT WRITES ITS OWN EARNINGS", "NVDUH", 0.06],
+		["NVIDOOH CHIPS FOUND TO BE 90% FAN", "NVDUH", -0.07],
+		["PEAR LAUNCHES THE iPEAR 17. IT'S THE SAME PHONE", "PEAR", -0.03],
+		["PEAR BUYS A SMALL COUNTRY FOR THE VIBES", "PEAR", 0.03],
+		["AIR EXCESS LOSES ANOTHER DOOR MID-FLIGHT", "AIRX", -0.07],
+		["BURGER BARON E. COLI SCARE IN 40 STATES", "BURG", -0.06],
+		["PHARMABRO CLAIMS IT CURED BALDNESS", "PHRM", 0.08],
+		["PHARMABRO CEO SUBPOENAED (AGAIN)", "PHRM", -0.06],
+		["JP MORGUN LOSES $2B TO A 'FAT FINGER'", "JPMG", -0.05],
+		["COLD SNAP: NATURAL GAS DEMAND SPIKES", "GAS", 0.06],
+		["GAMESHOP CEO POSTS A PICTURE OF A FROG", "GAMR", 0.1],
+		["ETHERIUM UPGRADE DELAYED FOR THE 9TH TIME", "ETHR", -0.05],
+		["DOGGO COIN ACCEPTED AT BURGER BARON", "DOGGO", 0.12],
 	]
 	var it: Array = _pick(items)
 	var pct: float = it[2] * rng.randf_range(0.8, 1.2)

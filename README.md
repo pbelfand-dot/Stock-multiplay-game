@@ -71,8 +71,11 @@ Built in **Godot 4.7** — free, no accounts, no store.
 - **Trading terminal** at every desk, like the trailer's: candlesticks, volume, pen tool, watchlist,
   size −/+, **x1–x100 leverage**, BUY (long) / SELL (short), positions with profit and fees, MY SESSION,
   and a big **TRADE CLOSED +$120.05K** popup. Get liquidated and you lose the margin.
-- **6 markets**: BTC, GOLD, OIL, BNN (Banana Corp), REX (Rex Motors), and **$WAGMI**, a memecoin that
-  moves 3x as much as the rest.
+- **18 tickers** (all parody): crypto (BTC, ETHR, DOGGO, BNN, $WAGMI), stocks (REX, PEAR, NVDUH, GAMR,
+  AIRX, BURG, PHRM, JPMG), commodities (GOLD, OIL, GAS) and indexes (SPX, FEAR). **Sectors move
+  together**: news on a leader drags its followers a beat later (BTC → the other coins, SPX → the
+  stocks, OIL up → the airline down, FEAR goes the opposite way of the S&P). The terminal's SELL
+  button reads **SHORT** when you have nothing to sell.
 - **LIVE TV + news** that moves the market (all parody):
   - **TRAMP** — "YOU'LL BE TIRED OF WINNING", tariffs, "I love Bitcoin"…
   - **TJZ** (day-trading streamer) — "OH MY GOD, TRADE! LONG BTC!" He's right about 65% of the time.
