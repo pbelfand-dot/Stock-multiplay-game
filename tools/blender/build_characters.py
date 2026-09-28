@@ -1103,11 +1103,6 @@ def _az(d):
     return math.atan2(d.x, d.y)
 
 
-def hairline(d, front=0.82, side=0.2, back=-0.6):
-    """Is direction d (unit vector from the head center) inside the hair area?"""
-    return hair_margin(d, front, side, back) > 0.0
-
-
 def hair_margin(d, front=0.82, side=0.2, back=-0.6):
     """How far (in unit-direction z) d is inside the hairline; <0 = outside."""
     a = abs(_az(d))
@@ -1142,7 +1137,8 @@ OVERLAP = 0.009   # measured: overlapping balls thicken the mass by ~1 cm
 def hair_mass(b, head, keep, thick, r=0.022, step=2, lift=None, line=(0.82, 0.2, -0.6), edge=True):
     """Metaball balls along the skull surface -> a smooth hair mass whose
     outer surface sits ~`thick` above the skin (lift(d) can add volume).
-    Fuller on top, tight on the sides, feathered at the hairline."""
+    Fuller on top, tight on the sides, feathered at the hairline. (Beards;
+    the haircuts are built from a cap + locks, see HairKit.)"""
     for p, n in skull_points(head, keep, step):
         d = (p - FACE["head_c"]).normalized()
         taper = 0.3 + 0.7 * max(0.0, min(1.0, d.z * 1.25))
@@ -1152,71 +1148,499 @@ def hair_mass(b, head, keep, thick, r=0.022, step=2, lift=None, line=(0.82, 0.2,
         b.ball(p + n * (t - r - OVERLAP), r)
 
 
+def dirv(az, el):
+    """Unit direction from the head center: az degrees around (0 = front, +90 =
+    the character's right, +X), el degrees up from the ear line."""
+    a, e = math.radians(az), math.radians(el)
+    return Vector((math.sin(a) * math.cos(e), math.cos(a) * math.cos(e), math.sin(e)))
+
+
+def _lerp_keys(keys, x):
+    if x <= keys[0][0]:
+        return keys[0][1]
+    for (x0, y0), (x1, y1) in zip(keys, keys[1:]):
+        if x <= x1:
+            return y0 + (y1 - y0) * smooth01((x - x0) / (x1 - x0))
+    return keys[-1][1]
+
+
+# natural hairline: (|azimuth|, elevation) — forehead, a little temple recess,
+# down the temple into a sideburn in front of the ear, up and over the ear,
+# down behind it to a rounded nape
+HAIRLINE = [(0, 49), (16, 50), (30, 54), (44, 46), (54, 36), (61, 25), (63, 8), (65, 2), (76, 0),
+            (79, 12), (82, 22), (101, 22), (113, 12), (128, -8), (145, -22), (165, -30), (180, -33)]
+
+
+def hair_line(az, keys=HAIRLINE):
+    """Lower edge of the hair (elevation, degrees) at azimuth az (degrees)."""
+    return _lerp_keys(keys, abs((az + 180.0) % 360.0 - 180.0))
+
+
+def az_samples(a0, a1, fine=(52, 112), coarse=6.0, dense=2.0):
+    """Azimuths from a0 to a1: dense around the sideburns / ears, coarse elsewhere."""
+    out, a = [], a0
+    while a < a1 - 1e-6:
+        out.append(a)
+        step = dense if fine[0] <= abs((a + 180.0) % 360.0 - 180.0) <= fine[1] else coarse
+        a = min(a + step, a1)
+    out.append(a1)
+    return out
+
+
+def bezier(ctrl, t):
+    pts = list(ctrl)
+    while len(pts) > 1:
+        pts = [p.lerp(q, t) for p, q in zip(pts, pts[1:])]
+    return pts[0]
+
+
+def taper(w, root=0.7, tip=0.0, peak=0.3, power=2.0):
+    """Width profile of a lock: narrower root, widest at `peak`, pointed tip."""
+    def f(t):
+        rise = root + (1.0 - root) * smooth01(t / peak)
+        fall = 1.0 - (1.0 - tip) * max(0.0, (t - peak) / (1.0 - peak)) ** power
+        return w * rise * fall
+    return f
+
+
+class HairKit:
+    """Stylized chunky hair, built as clean geometry instead of one blobby cap:
+      * cap(): a thin base hugging the scalp with a natural hairline (temples,
+        sideburns, the nape): the buzzed sides / the dark layer under the locks
+      * lock(): tapered, flattened clumps swept along the scalp; where they
+        overlap they leave strand grooves
+    Vertex colors carry the depth (the Hair material multiplies them by the
+    player's hair color): crests light, groove sides and undersides darker."""
+
+    def __init__(self, head, name, seed=1):
+        self.name = name
+        self.c = FACE["head_c"]
+        self.bvh = BVHTree.FromObject(head, bpy.context.evaluated_depsgraph_get())
+        self.bm = bmesh.new()
+        self.cols = []
+        self.rng = random.Random(seed)
+
+    def scalp(self, d):
+        """Outermost head surface point in direction d + a smooth outward normal."""
+        d = Vector(d).normalized()
+        hit = self.bvh.ray_cast(self.c + d * 0.6, -d)
+        p = hit[0] if hit[0] else self.c + Vector((d.x * 0.16, d.y * 0.172, d.z * 0.2))
+        q = p - self.c
+        n = Vector((q.x / 0.0256, q.y / 0.0296, q.z / 0.04)).normalized()   # skull ellipsoid normal
+        if hit[0]:
+            n = (n * 0.6 + hit[1] * 0.4).normalized()
+        return p, n
+
+    def vert(self, co, shade):
+        self.cols.append(max(0.0, min(1.0, shade)))
+        return self.bm.verts.new(co)
+
+    def face(self, vs):
+        if len(set(vs)) >= 3:
+            self.bm.faces.new(list(dict.fromkeys(vs)))
+
+    # ---- the base
+    def cap(self, low=hair_line, high=None, h=None, shade=None, span=(-180.0, 180.0), rows=9, jitter=0.0, H=0.006):
+        """Shell hugging the scalp from elevation low(az) up to high(az) (None:
+        the crown), h(az, el, s) above the skin (s: 0 at the hairline -> 1 top).
+        By default it feathers from the hairline up to a mass H thick."""
+        h = h or (lambda az, el, s: 0.0032 + (H - 0.0032) * smooth01(s / 0.35))
+        shade = shade or (lambda az, el, s: 0.84 - 0.16 * smooth01(s / 0.3))   # exposed edge lighter
+        wrap = span[1] - span[0] >= 359.9
+        azs = az_samples(*span)
+        if wrap:
+            azs = azs[:-1]
+        grid = []
+        for az in azs:
+            lo = low(az)
+            hi = high(az) if high else 90.0
+            col = []
+            for j in range(rows + (0 if high is None else 1)):
+                s = j / rows
+                el = lo + (hi - lo) * s
+                p, n = self.scalp(dirv(az, el))
+                hh = h(az, el, s)
+                if jitter:
+                    hh += self.rng.uniform(-jitter, jitter) * min(1.0, s * 4.0)
+                col.append(self.vert(p + n * hh, shade(az, el, s)))
+            grid.append(col)
+        pole = None
+        if high is None:
+            p, n = self.scalp(Vector((0, 0, 1)))
+            pole = self.vert(p + n * h(0.0, 90.0, 1.0), shade(0.0, 90.0, 1.0))
+        cols = len(grid) if wrap else len(grid) - 1
+        for i in range(cols):
+            a, b = grid[i], grid[(i + 1) % len(grid)]
+            for j in range(len(a) - 1):
+                self.face((a[j], a[j + 1], b[j + 1], b[j]))
+            if pole is not None:
+                self.face((a[-1], pole, b[-1]))
+
+    # ---- clumps
+    def lock(self, pts, nrms, w, top, bot, sides=8, tone=1.0, flat=0.32, box=0.35):
+        """A tapered clump along pts. nrms: outward normals; w: half widths;
+        top/bot: height of its crest / underside above the base points;
+        box: 0 = round section, 1 = squarish (neighbors merge, shallow grooves)."""
+        n = len(pts)
+        wmax = max(w) or 1.0
+        ex = 1.0 - 0.5 * box
+        sm = [nrms[0]] + [(nrms[i - 1] + nrms[i] * 2 + nrms[i + 1]).normalized() for i in range(1, n - 1)] + [nrms[-1]]
+        rings = []
+        T0 = None
+        for i in range(n):
+            T = (pts[min(i + 1, n - 1)] - pts[max(i - 1, 0)])
+            T = T.normalized() if T.length > 1e-7 else Vector((0, 0, -1))
+            N = sm[i] - T * sm[i].dot(T)
+            N = N.normalized() if N.length > 1e-6 else sm[i]
+            B = T.cross(N)
+            t = i / (n - 1)
+            along = 0.8 + 0.2 * smooth01(t / 0.3)
+            hgt = max(top[i] - bot[i], 0.0015)
+            hgt *= max(0.25, min(1.0, w[i] / (0.45 * wmax))) ** 0.8   # thin tips, no fins
+            ctr = pts[i] + N * (bot[i] + hgt * flat)
+            if i == 0:
+                T0 = T
+            if w[i] <= 1e-5:
+                rings.append([self.vert(ctr, tone * along * 0.92)])
+                continue
+            ring = []
+            for k in range(sides):
+                ph = k / sides * math.tau
+                cs, sn = math.cos(ph), math.sin(ph)
+                cs = math.copysign(abs(cs) ** ex, cs)
+                sn = math.copysign(abs(sn) ** ex, sn)
+                off = B * (cs * w[i]) + N * (sn * hgt * ((1.0 - flat) if sn > 0 else flat))
+                shade = 0.72 + 0.28 * sn if sn > 0 else 0.72 + 0.18 * sn
+                ring.append(self.vert(ctr + off, tone * along * shade))
+            rings.append(ring)
+        r0 = rings[0]
+        if len(r0) > 1:
+            ctr = sum((v.co for v in r0), Vector()) / len(r0) - T0 * 0.004
+            root = self.vert(ctr, tone * 0.5)
+            for k in range(len(r0)):
+                self.face((root, r0[k], r0[(k + 1) % len(r0)]))
+        for a, b in zip(rings, rings[1:]):
+            if len(a) == 1:
+                continue
+            for k in range(len(a)):
+                k1 = (k + 1) % len(a)
+                if len(b) == 1:
+                    self.face((a[k], b[0], a[k1]))
+                else:
+                    self.face((a[k], b[k], b[k1], a[k1]))
+
+    def strand(self, ctrl, n, width, top, bot=None, extra=None, sides=8, tone=1.0, bias=1.0, hang=None, box=0.35):
+        """A lock whose path is a Bezier through unit directions `ctrl` on the
+        scalp. width/top/bot are functions of t (0 root -> 1 tip);
+        extra(t, p, n) -> offset vector; hang=(drop, flare) continues the lock
+        straight down from its last scalp point (long hair)."""
+        bot = bot or (lambda t: 0.003)
+        ctrl = [Vector(v).normalized() for v in ctrl]
+        pts, nrms, ts = [], [], []
+        m = n if not hang else max(3, int(n * hang[2]) if len(hang) > 2 else n // 2)
+        # at least one ring every ~1.6 cm along the scalp: clean grooves where locks cross
+        span = sum((self.scalp(bezier(ctrl, (j + 1) / 8))[0] - self.scalp(bezier(ctrl, j / 8))[0]).length for j in range(8))
+        extra_rings = max(0, int(span / 0.016) + 1 - m)
+        m += extra_rings
+        n += extra_rings
+        for i in range(m):
+            u = (i / (m - 1)) ** bias
+            p, nn = self.scalp(bezier(ctrl, u).normalized())
+            pts.append(p)
+            nrms.append(nn)
+        if hang:
+            drop, flare = hang[0], hang[1]
+            p0, n0 = pts[-1], nrms[-1]
+            out = Vector((n0.x, n0.y, 0.0)).normalized()
+            k = n - m
+            for i in range(1, k + 1):
+                u = i / k
+                pts.append(p0 + Vector((0, 0, -drop * u)) + out * (flare * u * u))
+                nrms.append((out + Vector((0, 0, 0.25 * (1 - u)))).normalized())
+        L = [0.0]
+        for a, b in zip(pts, pts[1:]):
+            L.append(L[-1] + (b - a).length)
+        ts = [x / L[-1] for x in L]
+        if extra:
+            pts = [p + extra(t, p, nn) for p, nn, t in zip(pts, nrms, ts)]
+        self.lock(pts, nrms, [width(t) for t in ts], [top(t) for t in ts], [bot(t) for t in ts], sides, tone, box=box)
+
+    def jit(self, a):
+        return self.rng.uniform(-a, a)
+
+    def to_object(self, name):
+        me = bpy.data.meshes.new(name)
+        self.bm.to_mesh(me)
+        self.bm.free()
+        ob = link(bpy.data.objects.new(name, me))
+        attr = me.color_attributes.new("Col", "FLOAT_COLOR", "POINT")
+        for i, s in enumerate(self.cols):
+            attr.data[i].color = (s, s, s, 1.0)
+        me.color_attributes.active_color = attr
+        shade_smooth(ob)
+        return ob
+
+
 def build_hair(head, style):
-    c = FACE["head_c"]
-    b = Blob("Hair_" + style, res=0.0065)
-    if style == "bald":
-        hair_mass(b, head, lambda d: hairline(d) and d.z < 0.35 and abs(_az(d)) > 1.1, 0.01, 0.016, edge=False)
-        return b.to_object("Hair_bald", smooth_iter=2)
-    if style == "buzz":
-        hair_mass(b, head, lambda d: hairline(d, front=0.84), 0.013, 0.016, step=1, line=(0.84, 0.2, -0.6), edge=False)
-        return b.to_object("Hair_buzz", smooth_iter=2)
-    if style == "short":
-        hair_mass(b, head, lambda d: hairline(d, front=0.83), 0.018, 0.02, line=(0.83, 0.2, -0.6),
-                  lift=lambda d: 0.008 * max(0.0, d.z))
-        return b.to_object("Hair_short", smooth_iter=2)
-    if style == "slick":
-        # slicked back with a pompadour ridge along the front hairline
-        hair_mass(b, head, hairline, 0.02, 0.022,
-                  lift=lambda d: 0.03 * max(0.0, d.y) * max(0.0, d.z - 0.3) * 3.0)
-        b.ellipsoid(c + Vector((0, 0.1, 0.165)), (0.1, 0.06, 0.05), rot=Quaternion((1, 0, 0), -0.5))
-        for sd in (1, -1):
-            b.capsule(c + Vector((sd * 0.148, 0.03, 0.06)), c + Vector((sd * 0.15, 0.045, 0.0)), 0.012)
-        return b.to_object("Hair_slick", smooth_iter=2)
-    if style == "swept":
-        hair_mass(b, head, hairline, 0.02, 0.022,
-                  lift=lambda d: 0.03 * max(0.0, d.y + 0.2) * max(0.0, d.z - 0.3) * (1.4 + d.x))
-        b.ellipsoid(c + Vector((0.03, 0.1, 0.16)), (0.11, 0.06, 0.045), rot=Quaternion((0, 1, 0), -0.3) @ Quaternion((1, 0, 0), -0.4))
-        return b.to_object("Hair_swept", smooth_iter=2)
-    if style == "swoop":
-        # the TRAMP: big combed-over swoop
-        hair_mass(b, head, lambda d: hairline(d, front=0.78, side=0.1), 0.034, 0.026, line=(0.78, 0.1, -0.6),
-                  lift=lambda d: 0.02 * max(0.0, d.z))
-        b.ellipsoid(c + Vector((-0.015, 0.13, 0.16)), (0.17, 0.085, 0.065), rot=Quaternion((1, 0, 0), -0.6) @ Quaternion((0, 1, 0), 0.15))
-        b.ellipsoid(c + Vector((0.05, 0.06, 0.215)), (0.13, 0.13, 0.05))
-        b.ellipsoid(c + Vector((-0.12, 0.1, 0.12)), (0.06, 0.07, 0.05))
-        for sd in (1, -1):
-            b.ellipsoid(c + Vector((sd * 0.155, 0.0, 0.07)), (0.03, 0.08, 0.06))
-        return b.to_object("Hair_swoop", smooth_iter=2)
-    if style == "messy":
-        hair_mass(b, head, hairline, 0.022, 0.022)
-        for i in range(26):
-            th = random.uniform(0, math.tau)
-            ph = random.uniform(0.0, 0.95)
-            d = Vector((math.cos(th) * math.sin(ph), math.sin(th) * math.sin(ph), math.cos(ph)))
-            if hairline(d):
-                b.ball(c + Vector((d.x * 0.16, d.y * 0.165, d.z * 0.2)) + d * 0.02, random.uniform(0.028, 0.04))
-        return b.to_object("Hair_messy", smooth_iter=2)
     if style == "afro":
-        b.mb.resolution = 0.009
-        hair_mass(b, head, lambda d: hairline(d, front=0.66), 0.03, 0.03, line=(0.66, 0.2, -0.6))
-        b.ellipsoid(c + Vector((0, -0.03, 0.08)), (0.215, 0.205, 0.2))
-        for i in range(18):
-            th = i / 18 * math.tau
-            for ph in (0.55, 1.05):
-                d = Vector((math.cos(th) * math.sin(ph), math.sin(th) * math.sin(ph), math.cos(ph)))
-                if d.y > 0.45 and d.z < 0.75:
-                    continue
-                b.ball(c + Vector((d.x * 0.2, d.y * 0.19 - 0.03, d.z * 0.19 + 0.08)), 0.055)
-        b.ellipsoid(c + Vector((0, 0.2, -0.03)), (0.17, 0.09, 0.2), neg=True)   # keep the face open
-        return b.to_object("Hair_afro", smooth_iter=2)
-    if style == "long":
-        hair_mass(b, head, lambda d: hairline(d, front=0.66), 0.024, 0.022, line=(0.66, 0.2, -0.6))
-        b.ellipsoid(c + Vector((0, -0.1, -0.11)), (0.15, 0.07, 0.19))
-        for sd in (1, -1):
-            b.ellipsoid(c + Vector((sd * 0.155, -0.04, -0.1)), (0.035, 0.08, 0.18))
-        return b.to_object("Hair_long", smooth_iter=2)
-    return None
+        return build_afro(head)
+    k = HairKit(head, "Hair_" + style, seed=sum(map(ord, style)))
+    globals()["_hair_" + style](k)
+    return k.to_object("Hair_" + style)
+
+
+def _back_locks(k, n=5, top=0.015, low=-27, w=0.044, spread=58, crown=58):
+    """Wide locks from the crown down the back of the head to the nape (the
+    lowest layer: side and top locks lie over their upper ends)."""
+    for i in range(n):
+        u = i / (n - 1) * 2 - 1
+        a = 180 + u * spread
+        k.strand([dirv(180 + u * spread * 0.8, crown), dirv(a, (crown + low) * 0.5 + 6), dirv(180 + u * spread * 1.15, low + 3)],
+                 10, taper(w + k.jit(0.003), 0.8, 0.0, 0.3, 5.0), lambda t, tp=top: 0.004 + tp * (1 - 0.45 * t),
+                 tone=0.88 + k.jit(0.04), box=0.5)
+
+
+def _side_locks(k, sd, top=0.02, w=0.038, rows=((52, 46, 148, 24), (62, 35, 148, 4))):
+    """Back-combed locks along one side (sd=+1 right, -1 left), above the ear."""
+    for a0, e0, a1, e1 in rows:
+        k.strand([dirv(sd * a0, e0), dirv(sd * (a0 + a1) * 0.52, max(e0, e1) + 3), dirv(sd * a1, e1)], 10,
+                 taper(w + k.jit(0.002), 0.7, 0.0, 0.25, 4.0), lambda t, tp=top: 0.004 + tp * (1 - 0.55 * t),
+                 tone=0.9 + k.jit(0.04), box=0.5)
+
+
+def _hair_slick(k):
+    # slicked back with a pompadour: wide locks start at the hairline, rise into
+    # the pomp and are combed straight back over the crown; a side part on the right
+    k.cap(H=0.012)
+    _back_locks(k)
+    for sd in (1, -1):
+        _side_locks(k, sd)
+    for j, a in enumerate((-42, -26, -10, 6, 21)):
+        s = dirv(a, hair_line(a) + 1.0)
+        x = s.x
+
+        def top(t, a=a, j=j):
+            up = smooth01(t / 0.1)
+            hi = (0.064 - abs(a + 8) * 0.0003) * (1.0 - 0.1 * (j % 2))
+            return 0.004 + hi * up * (1 - 0.58 * smooth01((t - 0.08) / 0.5))
+
+        k.strand([s, Vector((x * 1.1, 0.35, 1.0)), Vector((x * 1.25, -0.75, 0.7)), Vector((x * 1.3, -0.95, 0.05))], 16,
+                 taper(0.05 + k.jit(0.002), 0.85, 0.0, 0.3, 5.0), top, bias=1.35, box=0.6,
+                 extra=lambda t, p, n: Vector((0, 0.014, 0.006)) * math.sin(min(1.0, t / 0.22) * math.pi),
+                 tone=0.96 + k.jit(0.03))
+    for i in range(2):   # the short side of the part, combed back and down
+        k.strand([dirv(40 + i * 10, 50 + i * 9), dirv(82 + i * 12, 50), dirv(135 + i * 10, 22 - i * 6)], 10,
+                 taper(0.04, 0.7, 0.0, 0.25, 4.0), lambda t: 0.004 + 0.026 * (1 - 0.35 * t), box=0.5,
+                 tone=0.92 + k.jit(0.03))
+
+
+def _part_line(u, az=36):
+    """A side part on the right, running from the front hairline back to the crown."""
+    return dirv(az + 90 * u ** 1.5, 52 + 18 * math.sin(min(1.0, u * 1.3) * math.pi / 2))
+
+
+def _hair_swept(k):
+    # side part on the right; the big side is swept across the top to the left
+    # with a soft wave over the forehead; the short side is combed down
+    k.cap(H=0.012)
+    _back_locks(k)
+    _side_locks(k, -1, rows=((64, 34, 155, 4),))
+    _side_locks(k, 1, rows=((64, 33, 155, 4),))
+    n = 5
+    for i in range(n):
+        u = i / (n - 1)
+        s = _part_line(u) + dirv(-90, 0) * 0.07
+        end = dirv(-70 - 75 * u, 34 - 16 * u)
+        mid = (s + end).normalized() + Vector((0, 0.15 - 0.3 * u, 0.5))
+        wave = (0.046 if i < 2 else 0.036) * (1.0 - 0.1 * (i % 2))
+        k.strand([s, mid, end], 14, taper(0.05 + k.jit(0.002), 0.6, 0.0, 0.3, 4.0),
+                 lambda t, wv=wave: 0.004 + wv * math.sin(min(1.0, (t + 0.12) / 0.8) * math.pi * 0.8),
+                 tone=0.95 + k.jit(0.04), box=0.55)
+    for i in range(2):
+        u = i
+        s = _part_line(u * 0.6) + dirv(90, 0) * 0.07
+        end = dirv(96 + 40 * u, 32 - 8 * u)
+        k.strand([s, (s + end).normalized() + Vector((0, 0, 0.25)), end], 10, taper(0.042, 0.6, 0.0, 0.25, 4.0),
+                 lambda t: 0.004 + 0.026 * (1 - 0.4 * t), tone=0.92 + k.jit(0.03), box=0.55)
+
+
+def _hair_swoop(k):
+    # the TRAMP: thick back-swept sides, everything else combed up from the
+    # nape and forward over the top, and one huge swoop rolling from the left
+    # over the forehead to the right
+    k.cap(H=0.016)
+    for sd in (1, -1):
+        _side_locks(k, sd, top=0.028, w=0.04)
+    for i in range(5):
+        u = i / 4 * 2 - 1
+        x = u * 0.5
+        k.strand([dirv(180 - u * 48, (-24, -18, -27, -18, -24)[i]), dirv(180 - u * 44, 42), Vector((x, 0.0, 1.15)),
+                  Vector((x * 0.9 + 0.1, 0.55, 0.9))],
+                 20, taper(0.05, 0.4, 0.0, 0.3, 3.0), lambda t: 0.006 + 0.032 * smooth01(t / 0.45), tone=0.9 + k.jit(0.04),
+                 box=0.5)
+    for i in range(3):
+        s = dirv(-108 + i * 10, 40 + i * 12)
+        mid = dirv(-35 + i * 8, 64 + i * 3)
+        end = dirv(42 - i * 14, 54 + i * 6)
+        k.strand([s, mid, end], 16, taper(0.058 - i * 0.005, 0.7, 0.0, 0.45, 2.5),
+                 lambda t, i=i: 0.01 + (0.078 - i * 0.008) * math.sin(min(1.0, t / 0.85) * math.pi * 0.62),
+                 extra=lambda t, p, n: Vector((0.008, 0.034, -0.004)) * smooth01((t - 0.35) / 0.65),
+                 tone=0.98 + k.jit(0.02), box=0.5)
+
+
+def _hair_short(k):
+    # tapered crop: faded sides + back (the cap: thin at the edges, a little
+    # longer up top) and chunky locks brushed forward from the crown into a
+    # short textured fringe. Stays under every hat (< 2.1 cm off the scalp).
+    k.cap(h=lambda az, el, s: 0.0032 + 0.0045 * smooth01((el - 5) / 45) + k.jit(0.0004),
+          shade=lambda az, el, s: 0.86 - 0.16 * smooth01((el - 30) / 25) + k.jit(0.03), rows=10)
+    n = 9
+    for i in range(n):
+        u = i / (n - 1) * 2 - 1
+        af = u * 62
+        k.strand([dirv(180 - u * 70, 50), Vector((u * 0.45, -0.25, 1.0)), Vector((u * 0.5, 0.55, 0.8)),
+                  dirv(af, hair_line(af) + 2.5)], 14,
+                 taper(0.036 + k.jit(0.003), 0.55, 0.0, 0.35, 2.0),
+                 lambda t, j=i: min(0.021, 0.006 + (0.015 - 0.002 * (j % 2)) * smooth01(t / 0.35) + 0.004 * t * t),
+                 box=0.4, tone=0.93 + k.jit(0.05))
+    for i in range(5):   # the crown: short locks fanning down the back, fading into the clippered nape
+        u = i / 4 * 2 - 1
+        k.strand([dirv(180 + u * 30, 60), dirv(180 + u * 55, 28)], 8, taper(0.034, 0.7, 0.0, 0.3, 2.0),
+                 lambda t: 0.004 + 0.009 * (1 - t), box=0.4, tone=0.88 + k.jit(0.04))
+
+
+def _hair_buzz(k):
+    # clipper cut: a close fuzzy shell following the hairline, a touch longer on top
+    k.cap(h=lambda az, el, s: 0.0022 + 0.0055 * smooth01((el + 10) / 55) + 0.0015 * smooth01(s / 0.25),
+          shade=lambda az, el, s: 0.8 + 0.12 * smooth01((el - 10) / 50) + k.jit(0.05), rows=14, jitter=0.0009)
+
+
+def _hair_messy(k):
+    # bed head: chunky locks spiral out of a crown whorl, tips flicking up and
+    # out, plus loose spikes on top and a choppy fringe
+    k.cap(H=0.012)
+    for sd in (1, -1):
+        _side_locks(k, sd, top=0.018, rows=((58, 38, 150, 8),))
+    whorl = dirv(172, 68)
+    n = 14
+    for i in range(n):
+        az = -180 + 360 * i / n + k.jit(5)
+        el_end = hair_line(az) + (3 if abs(az) < 60 else 6)
+        if abs(az) < 60:
+            el_end = max(el_end, 52)
+        end = dirv(az + k.jit(10), el_end)
+        mid = (whorl + end).normalized() + Vector((k.jit(0.12), k.jit(0.12), 0.3))
+        flick = 0.014 + k.rng.uniform(0, 0.018)
+        k.strand([whorl, mid, end], 12, taper(0.05 + k.jit(0.004), 0.45, 0.0, 0.4, 1.5),
+                 lambda t: 0.006 + 0.032 * math.sin(min(1.0, t) * math.pi * 0.75),
+                 extra=lambda t, p, nn, f=flick: nn * (f * smooth01((t - 0.55) / 0.45)),
+                 tone=0.9 + k.jit(0.06), box=0.3)
+    for i in range(14):
+        az = k.rng.uniform(-175, 175)
+        el = k.rng.uniform(50, 82)
+        d = k.rng.uniform(-180, 180)
+        s = dirv(az, el)
+        e = dirv(az + 22 * math.sin(math.radians(d)), el - 18 * abs(math.cos(math.radians(d))) - 4)
+        if abs(az) < 60:
+            e = dirv(az + k.jit(12), max(hair_line(az) + 5, el - 16))
+        spike = k.rng.uniform(0.022, 0.04)
+        k.strand([s, (s + e).normalized(), e], 8, taper(0.036 + k.jit(0.004), 0.7, 0.0, 0.3, 1.3),
+                 lambda t: 0.02 + 0.014 * (1 - t), sides=6,
+                 extra=lambda t, p, nn, sp=spike: nn * (sp * t * t), tone=0.97 + k.jit(0.03))
+
+
+def _hair_long(k):
+    # shoulder length, parted in the middle: wide locks run from the part over
+    # the ears and hang past the jaw; a shorter outer layer gives layered ends
+    k.cap(H=0.01)
+    for sd in (1, -1):
+        azs = (70, 92, 114, 136, 158, 176)
+        for i, az in enumerate(azs):
+            u = i / (len(azs) - 1)
+            s = dirv(sd * 2.5, 50 + 38 * min(1.0, u * 1.7)) if u < 0.6 else dirv(sd * (180 - (1 - u) * 50), 88 - 25 * u)
+            end = dirv(sd * az, 0 if az < 100 else -6)
+            mid = (s + end).normalized() + Vector((0, 0, 0.35))
+            drop = (0.21, 0.25, 0.23, 0.26, 0.24, 0.25)[i] + k.jit(0.008)
+            k.strand([s, mid, end], 20, taper(0.056 + k.jit(0.003), 0.55, 0.0, 0.25, 3.5),
+                     lambda t: 0.004 + 0.022 * (1 - 0.35 * t), hang=(drop, 0.026 + k.rng.uniform(0, 0.01), 0.5),
+                     tone=0.88 + k.jit(0.04), box=0.45)
+        for i, az in enumerate((80, 118, 154)):   # outer layer: shorter, sits on top
+            u = (i + 0.5) / 3
+            s = dirv(sd * 3, 56 + 32 * min(1.0, u * 1.6)) if u < 0.6 else dirv(sd * 160, 76)
+            end = dirv(sd * az, 8)
+            k.strand([s, (s + end).normalized() + Vector((0, 0, 0.35)), end], 16, taper(0.05, 0.55, 0.0, 0.25, 3.0),
+                     lambda t: 0.012 + 0.024 * (1 - 0.35 * t), bot=lambda t: 0.01,
+                     hang=(0.12 + 0.02 * i, 0.03, 0.55), tone=0.97 + k.jit(0.03), box=0.45)
+    k.strand([dirv(180, 72), dirv(180, 30), dirv(180, -10)], 18, taper(0.056, 0.6, 0.0, 0.25, 3.5),
+             lambda t: 0.003 + 0.02 * (1 - 0.3 * t), hang=(0.25, 0.02, 0.5), tone=0.86, box=0.45)
+    for sd in (1, -1):   # curtain bangs framing the forehead
+        s = dirv(sd * 3, 53)
+        k.strand([s, dirv(sd * 30, 60), dirv(sd * 62, 30)], 12, taper(0.04, 0.6, 0.0, 0.3, 2.0),
+                 lambda t: 0.006 + 0.028 * math.sin(min(1.0, t / 0.8) * math.pi * 0.7), tone=0.98, box=0.45)
+
+
+BALD_TOP = [(58, 22), (66, 30), (80, 38), (100, 38), (130, 32), (180, 27)]
+
+
+def _hair_bald(k):
+    # male-pattern bald: a fluffy fringe hugging the sides and back, bare on top
+    def high(az):
+        a = abs((az + 180.0) % 360.0 - 180.0)
+        return max(hair_line(az) + 1.5, _lerp_keys(BALD_TOP, a))
+
+    k.cap(high=high, span=(58.0, 302.0),
+          h=lambda az, el, s: 0.0022 + 0.009 * math.sin(s * math.pi) ** 0.6,
+          shade=lambda az, el, s: 0.72 + 0.2 * math.sin(s * math.pi) + k.jit(0.03), rows=6, jitter=0.0008)
+    for sd in (1, -1):
+        for i in range(7):
+            az = sd * (86 + i * 15)
+            hi = high(az)
+            lo = hair_line(az)
+            k.strand([dirv(az - sd * 4, hi - 2), dirv(az + sd * 3, hi - (hi - lo) * 0.45), dirv(az + sd * 8, lo + (hi - lo) * 0.25)], 7,
+                     taper(0.028 + k.jit(0.002), 0.7, 0.0, 0.3, 4.0), lambda t: 0.005 + 0.01 * (1 - 0.3 * t), sides=6,
+                     tone=0.88 + k.jit(0.04), box=0.4)
+
+
+def build_afro(head):
+    """Big round afro: a metaball mass covered in coily bumps (a regular layer
+    of coils + a looser random layer on top), darker between the coils and
+    under the brim."""
+    c = FACE["head_c"]
+    A = c + Vector((0, -0.028, 0.075))
+    R = Vector((0.235, 0.228, 0.22))
+    b = Blob("Hair_afro", res=0.008)
+    b.ellipsoid(A, (R.x * 0.88, R.y * 0.88, R.z * 0.88))
+    rng = random.Random(3)
+    face = c + Vector((0, 0.19, -0.04))
+
+    def coil(d, rad, r):
+        p = A + Vector((d.x * R.x, d.y * R.y, d.z * R.z)) * rad
+        if p.z < c.z - 0.13 or (p - face).length < 0.2:
+            return
+        b.ball(p, r)
+
+    n = 170
+    for i in range(n):
+        z = 1 - 2 * (i + 0.5) / n
+        r = math.sqrt(max(0.0, 1 - z * z))
+        th = i * math.pi * (3 - math.sqrt(5))
+        coil(Vector((math.cos(th) * r, math.sin(th) * r, z)), 0.92, 0.033 + rng.uniform(-0.004, 0.004))
+    for i in range(130):
+        d = Vector((rng.gauss(0, 1), rng.gauss(0, 1), rng.gauss(0, 1))).normalized()
+        coil(d, 0.99, rng.uniform(0.019, 0.026))
+    b.ellipsoid(c + Vector((0, 0.21, -0.035)), (0.16, 0.1, 0.2), neg=True)   # keep the face + brows open
+    b.ellipsoid(c + Vector((0, 0.02, -0.3)), (0.2, 0.2, 0.12), neg=True)     # and the neck / jaw
+    ob = b.to_object("Hair_afro", smooth_iter=1)
+    me = ob.data
+    attr = me.color_attributes.new("Col", "FLOAT_COLOR", "POINT")
+    for i, v in enumerate(me.vertices):
+        q = v.co - A
+        rr = Vector((q.x / R.x, q.y / R.y, q.z / R.z)).length
+        s = 0.56 + 0.44 * smooth01((rr - 0.87) / 0.17)
+        s *= 0.75 + 0.25 * smooth01((q.z + 0.12) / 0.15)
+        attr.data[i].color = (s, s, s, 1.0)
+    me.color_attributes.active_color = attr
+    return ob
 
 
 def build_beard(head, style):
@@ -1618,7 +2042,7 @@ BUDGET = {
     "Body": 3500, "Skull": 5500, "Brows": 500, "Hands": 5000, "Jacket": 5500, "Shirt_cuffs": 700,
     "Tie": 700, "Tie_long": 800, "Top_cop": 4500, "Gear_cop": 5000, "Top_hoodie": 5000, "Top_tee": 4000,
     "Top_shirt": 4000, "Pants": 3500, "Shoes_dress": 1800, "Shoes_sneaker": 1800, "Soles_sneaker": 700,
-    "_hair": 4500, "Hair_afro": 5500, "Hair_long": 5500, "Hair_bald": 1500, "Beard_mustache": 900,
+    "_hair": 12000, "Hair_afro": 6500, "Hair_long": 12000, "Hair_bald": 6000, "Beard_mustache": 900,
     "Beard_goatee": 1400, "Beard_full": 2500, "Beard_stubble": 1000, "Glasses_shades": 1200,
     "Glasses_specs": 1400, "Hat_cop": 3000, "Hat_headset": 2000, "Hat_headband": 1200, "Hat_beanie": 2500,
     "Hat_cap": 2500, "Acc_watch": 700, "Acc_chain_suit": 1400, "Acc_chain_shirt": 1400, "Acc_chain_tee": 1400,
@@ -1726,7 +2150,8 @@ def main():
     tris = sum(len(o.data.polygons) for o, _, _ in kit)
     print("kit meshes:", len(kit), " faces:", tris)
     for o, r, _ in kit:
-        print("  %-18s %-6s %6d faces" % (o.name, r, len(o.data.polygons)))
+        print("  %-18s %-6s %6d faces %6d tris" % (o.name, r, len(o.data.polygons),
+                                                   sum(len(p.vertices) - 2 for p in o.data.polygons)))
     os.makedirs(os.path.dirname(OUT), exist_ok=True)
     bpy.ops.export_scene.gltf(filepath=OUT, export_format="GLB", export_skins=True, export_animations=False,
                               export_vertex_color="ACTIVE", export_apply=False, export_yup=True,

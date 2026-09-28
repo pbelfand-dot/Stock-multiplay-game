@@ -1,6 +1,8 @@
 extends Node3D
 ## Renders a character lineup for visual checks (needs a display / xvfb):
 ##   godot --path . -- --lineup=/tmp/out
+## Hair close-ups (every style from the front, 3/4, side and back, plus hats):
+##   godot --path . -- --lineup=/tmp/out --hair
 
 const Character = preload("res://scripts/art/character.gd")
 
@@ -33,6 +35,9 @@ func _ready() -> void:
 	fm.albedo_color = Color(0.35, 0.38, 0.45)
 	floor_mi.material_override = fm
 	add_child(floor_mi)
+	if Config.cli.has("hair"):
+		_hair_lineup()
+		return
 	var specs := [
 		["trader", "finger"], ["cop", "aim"], ["flex", "watch"], ["beard", "idle"],
 		["tramp", "fistpump"], ["tjz", "sit"], ["kimchee", "point"], ["kitteh", "idle"], ["crammer", "dunk"],
@@ -94,3 +99,62 @@ func _run() -> void:
 	await _snap(Vector3(1.5, 1.75, -1.2), Vector3(1.5, 1.72, -4.0), 38, "hair_row_b")
 	await _snap(Vector3(-4.6, 1.8, -3.0), Vector3(-4.0, 1.75, -4.0), 40, "hair_side")
 	Sfx.quit_game()
+
+
+# ------------------------------------------------------------------ hair close-ups
+
+const HAIR_VIEWS := [0.0, -PI / 4.0, -PI / 2.0, PI]   # front, 3/4, side, back
+const HAIR_TINT := Color(0.42, 0.27, 0.15)
+
+
+func _head_row(z: float, looks: Array) -> void:
+	for k in looks.size():
+		var c := Character.new()
+		c.build(looks[k])
+		c.position = Vector3(-0.69 + k * 0.46, 0, z)
+		c.rotation.y = PI + HAIR_VIEWS[k % HAIR_VIEWS.size()]
+		add_child(c)
+
+
+func _hair_lineup() -> void:
+	var styles: Array = Character.OPTIONS.hair_style
+	for i in styles.size():
+		var look := {"hair_style": styles[i], "beard": "none", "hat": "none", "hair": HAIR_TINT}
+		_head_row(-i * 6.0, [look, look, look, look])
+	# hats over hair: the styles hats keep (short, buzz, bald), and big hair under a headband/headset
+	var hat_rows := [
+		[["short", "cap"], ["short", "beanie"], ["buzz", "bowler"], ["bald", "bucket"]],
+		[["afro", "headband"], ["long", "headband"], ["messy", "headset"], ["swoop", "headset"]],
+		[["slick", "cap"], ["short", "police"], ["short", "cop"], ["swept", "headband"]],
+	]
+	for r in hat_rows.size():
+		var looks := []
+		for hs in hat_rows[r]:
+			looks.append({"hair_style": hs[0], "hat": hs[1], "beard": "none", "hair": HAIR_TINT})
+		_head_row(-(styles.size() + r) * 6.0, looks)
+	_run_hair.call_deferred(styles)
+
+
+func _run_hair(styles: Array) -> void:
+	for i in styles.size():
+		await _snap_ortho(-i * 6.0, "hair_" + styles[i])
+	for r in 3:
+		await _snap_ortho(-(styles.size() + r) * 6.0, "hats_%d" % r)
+	Sfx.quit_game()
+
+
+func _snap_ortho(z: float, file: String) -> void:
+	var cam := Camera3D.new()
+	add_child(cam)
+	cam.projection = Camera3D.PROJECTION_ORTHOGONAL
+	cam.size = 0.95
+	cam.far = 5.0
+	cam.position = Vector3(0, 1.67, z + 3.0)
+	cam.look_at(Vector3(0, 1.67, z))
+	cam.current = true
+	for k in 20:
+		await get_tree().process_frame
+	await RenderingServer.frame_post_draw
+	get_viewport().get_texture().get_image().save_png(out + "/" + file + ".png")
+	print("lineup: ", file)
+	cam.queue_free()
