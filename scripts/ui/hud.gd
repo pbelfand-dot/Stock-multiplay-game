@@ -13,6 +13,7 @@ const PhoneScript = preload("res://scripts/ui/phone.gd")
 const CrtFrame = preload("res://scripts/ui/crt_frame.gd")
 const MusicDirector = preload("res://scripts/ui/music_director.gd")
 const EmoteWheel = preload("res://scripts/ui/emote_wheel.gd")
+const PhotoMode = preload("res://scripts/ui/photo_mode.gd")
 const DayEvents = preload("res://scripts/sim/day_events.gd")
 const Contracts = preload("res://scripts/sim/contracts.gd")
 
@@ -61,6 +62,7 @@ var lux_shop
 var phone
 var music                  # MusicDirector: picks the soundtrack
 var emote_wheel            # hold B
+var photo                  # K: photo mode
 var tailor
 var crt
 var _last_post := ""
@@ -124,6 +126,12 @@ func setup(w, m) -> void:
 	add_child(music)
 	emote_wheel = EmoteWheel.new(self)
 	root.add_child(emote_wheel)
+	var photo_layer := CanvasLayer.new()           # above the HUD, so the HUD can hide while shooting
+	photo_layer.layer = layer + 1
+	add_child(photo_layer)
+	photo = PhotoMode.new(self)
+	photo.theme = root.theme
+	photo_layer.add_child(photo)
 	_on_state()
 
 
@@ -452,7 +460,7 @@ void fragment() {
 	sens_row.add_child(sens)
 	v.add_child(Music.volume_row(UI.lbl("Music", 20)))
 	v.add_child(Graphics.settings_box(UI))
-	v.add_child(UI.lbl("WASD move · SHIFT sprint · E interact · 1-6 items\nB emote wheel · H dance · TAB scoreboard · T chat · ENTER (host) start the day\nP phone · In terminal: B buy · S sell · Q/E size · L leverage · C close all", 16, UI.DIM))
+	v.add_child(UI.lbl("WASD move · SHIFT sprint · E interact · 1-6 items\nB emote wheel · H dance · K photo mode · TAB scoreboard · T chat · ENTER (host) start the day\nP phone · In terminal: B buy · S sell · Q/E size · L leverage · C close all", 16, UI.DIM))
 	var leave := UI.btn("LEAVE OFFICE", UI.RED.darkened(0.2), 24)
 	leave.pressed.connect(func(): get_tree().root.get_node("Main").leave_game())
 	v.add_child(leave)
@@ -478,7 +486,7 @@ func _open_tailor() -> void:
 
 func is_modal_open() -> bool:
 	return terminal.visible or slots.visible or shop.visible or lux_shop.visible or pause_menu.visible or _chat_open \
-			or summary.visible \
+			or summary.visible or (photo != null and photo.active) \
 			or tailor != null
 
 
@@ -570,6 +578,10 @@ func _process(delta: float) -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if summary.visible and event.is_action_pressed("start_day") and Net.is_server():
 		match_node.request_start()              # ENTER on the after-hours summary rings the next bell
+		get_viewport().set_input_as_handled()
+		return
+	if event.is_action_pressed("photo_mode") and not is_modal_open() and not _chat_open:
+		photo.toggle()
 		get_viewport().set_input_as_handled()
 		return
 	if event.is_action_pressed("pause"):

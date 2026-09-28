@@ -69,6 +69,35 @@ func _run() -> void:
 		await _street_only(world, m, hud)
 		Sfx.quit_game()
 		return
+	if Config.cli.has("photoonly"):            # photo mode: pose, filter, snap
+		var pm = hud.photo
+		pm.dir_override = out_dir + "/photos"
+		for d in 2:                             # a friend in the shot
+			var f = load("res://scripts/player/player.gd").new()
+			f.setup(900 + d, ["Bob", "Dave"][d], load("res://scripts/art/character.gd").player_look(d + 1), false, world)
+			world.players_node.add_child(f)
+			f.teleport(world.local_player.global_position + Vector3(-0.9 + d * 1.8, 0, -0.4))
+			f.rotation.y = world.local_player.rotation.y
+		pm.toggle()
+		pm._pose("fistpump")
+		await get_tree().create_timer(0.4).timeout
+		pm._freeze(true)
+		pm._set_filter(2)
+		await _frames(10)
+		await _snap("ph1_photo_mode_ui")
+		var path: String = await pm.snap_photo()
+		print("photo saved: %s exists=%s" % [path, FileAccess.file_exists(path)])
+		pm._set_filter(1)
+		pm.cam.global_position += Vector3(0.8, -0.6, 0.6)
+		pm._yaw += 0.3
+		await _frames(6)
+		var path2: String = await pm.snap_photo()
+		print("photo saved: %s exists=%s" % [path2, FileAccess.file_exists(path2)])
+		pm.toggle()
+		await _frames(4)
+		print("photo mode off: fp=%s cam=%s" % [world.local_player.model.fp, world.local_player.cam.current])
+		Sfx.quit_game()
+		return
 	if Config.cli.has("termonly"):             # the trading terminal with the full board
 		m.request_open("NVDUH", -1, 5_000.0, 10)
 		await get_tree().create_timer(1.0).timeout
