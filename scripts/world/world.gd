@@ -26,13 +26,12 @@ var _idle_t := 8.0
 var _ticker_offset := 0.0
 var _screen_acc := 0.0
 var _marquee_t := {}
-var _counting := 0.0
-var _count_node: Node
-var _brrt_t := 0.0
+var counters: Array = []        # public money counters (desk ones live with the trophies)
 const UI_RED := Color(1, 0.3, 0.3)
 var _trophy_sig := {}           # desk id -> signature of what's on it
 const CashArt = preload("res://scripts/art/cash_art.gd")
 const GunArt = preload("res://scripts/art/gun_art.gd")
+const MoneyCounter = preload("res://scripts/world/money_counter.gd")
 var atms: Array = []            # ATM nodes (office by the elevator, street outside the bank)
 var _spread_nodes := {}         # peer -> {node, sig}: cash laid out for the photo
 
@@ -194,7 +193,6 @@ func _process(delta: float) -> void:
 	_tick_marquees(delta)
 	_update_elevator(delta)
 	_check_studio_raid()
-	_tick_counter(delta)
 	_ticker_offset += delta
 	if builder.ticker_label:
 		builder.ticker_label.position.x = fposmod(-_ticker_offset * 2.2, 36.0) - 18.0 + 9.0
@@ -422,17 +420,14 @@ func _build_trophies(desk: int, who: String, own: Dictionary) -> void:
 	t.add_child(plate)
 	var top := 0.78
 	if own.get("counter", 0) > 0:
-		var cc := PropKit.place("CashCounter", t, Vector3(0.62, top, -0.2), -0.3)
-		# display digits on the counter + [E] to run a stack through it
-		var disp := Label3D.new()
-		disp.name = "Count"
-		disp.text = "0"
-		disp.font_size = 40
-		disp.pixel_size = 0.0012
-		disp.outline_size = 0
-		disp.modulate = Color(0.35, 1.0, 0.5)
-		disp.position = Vector3(-0.04, 0.115, 0.136)
-		cc.add_child(disp)
+		var cc := MoneyCounter.new()
+		cc.name = "CashCounter"
+		cc.kit = "CashCounter"
+		cc.display_at = Vector3(-0.23, 0, -0.04)
+		cc.pile_at = Vector3(0.02, 0, 0.26)
+		cc.position = Vector3(0.62, top, -0.2)
+		cc.rotation.y = -0.3
+		t.add_child(cc)
 		var sb := StaticBody3D.new()
 		var cs := CollisionShape3D.new()
 		var sh := BoxShape3D.new()
@@ -442,29 +437,8 @@ func _build_trophies(desk: int, who: String, own: Dictionary) -> void:
 		sb.add_child(cs)
 		sb.set_meta("interact", "counter")
 		sb.set_meta("interact_id", desk)
-		sb.set_meta("prompt", "[E] Money Counter")
+		sb.set_meta("prompt", "[E] Count your cash")
 		cc.add_child(sb)
-		var bills := CPUParticles3D.new()
-		bills.name = "Bills"
-		bills.emitting = false
-		bills.amount = 24
-		bills.lifetime = 0.5
-		var q := QuadMesh.new()
-		q.size = Vector2(0.09, 0.04)
-		bills.mesh = q
-		var bm := StandardMaterial3D.new()
-		bm.albedo_color = Color(0.5, 0.75, 0.42)
-		bm.cull_mode = BaseMaterial3D.CULL_DISABLED
-		bills.material_override = bm
-		bills.position = Vector3(0, 0.08, 0.14)
-		bills.direction = Vector3(0, 0.3, 1)
-		bills.spread = 25.0
-		bills.initial_velocity_min = 0.6
-		bills.initial_velocity_max = 1.2
-		bills.gravity = Vector3(0, -1.5, 0)
-		bills.angular_velocity_min = -360.0
-		bills.angular_velocity_max = 360.0
-		cc.add_child(bills)
 	PropKit.place("PillBottle", t, Vector3(0.3, top, -0.3), 0.4)
 	var boxes := 0
 	for k in ["roflex", "roflex_iced"]:
@@ -529,33 +503,34 @@ func _build_trophies(desk: int, who: String, own: Dictionary) -> void:
 			tr.add_child(tl)
 
 
-## Feed a stack of cash through your desk's money counter (just for the flex):
-## bills whir out, the display counts up, brrrt.
-func _run_counter(desk: int) -> void:
-	var t: Node = builder.root.get_node_or_null("Trophies_%d" % desk)
-	var cc: Node = t.get_node_or_null("CashCounter") if t else null
-	if cc == null or _counting > 0.0:
-		return
-	_counting = 2.6
-	_count_node = cc
-	(cc.get_node("Bills") as CPUParticles3D).emitting = true
-	local_player.show_cash_stack(2.6)
-	Sfx.play("brrt", -2.0)
+## A money counter by id: desk index for the desk counters, 1000+ for the
+## public ones (by the office ATM).
+func counter_node(id: int) -> Node:
+	if id >= 1000:
+		return counters[id - 1000] if id - 1000 < counters.size() else null
+	var t: Node = builder.root.get_node_or_null("Trophies_%d" % id)
+	return t.get_node_or_null("CashCounter") if t else null
 
 
-func _tick_counter(delta: float) -> void:
-	if _counting <= 0.0 or not is_instance_valid(_count_node):
+## [E] on a counter: run the cash you're carrying through it (everyone sees
+## the count). Nothing on you: it counts the house stack, $10K.
+func _run_counter(id: int) -> void:
+	var cc = counter_node(id)
+	if cc == null or cc.counting:
 		return
-	_counting -= delta
-	var n := int((2.6 - maxf(_counting, 0.0)) / 2.6 * 100.0)
-	(_count_node.get_node("Count") as Label3D).text = str(n)
-	_brrt_t -= delta
-	if _brrt_t <= 0.0:
-		_brrt_t = 0.22
-		Sfx.play("brrt", -6.0, randf_range(0.95, 1.1))
-	if _counting <= 0.0:
-		(_count_node.get_node("Bills") as CPUParticles3D).emitting = false
-		hud.show_toast("100 bills. $10,000. Counted. Feels good.", Color(0.4, 1, 0.5))
+	var cash: float = match_node.cash_of(Net.my_id())
+	if cash < 100.0:
+		cash = 10_000.0
+		hud.show_toast("Counting the house stack. Hit the ATM to run your own cash through it.", Color(1, 0.8, 0.4))
+	local_player.show_cash_stack(0.8)
+	_count_fx.rpc(id, cash)
+
+
+@rpc("any_peer", "call_local", "reliable")
+func _count_fx(id: int, amount: float) -> void:
+	var cc = counter_node(id)
+	if cc and not cc.counting:
+		cc.count(clampf(amount, 100.0, 1e12))
 
 
 func _on_state() -> void:
@@ -697,9 +672,9 @@ func _apply_graphics() -> void:
 
 ## ATM kiosk (prop "ATM" from the kit, a stand-in box until it's there).
 ## Screen / header / dispenser points match build_props.py's ATM.
-const ATM_HEADER := Vector3(0, 1.53, 0.25)
-const ATM_SCREEN := Vector3(0, 1.16, 0.25)
-const ATM_SLOT := Vector3(0, 0.93, 0.3)
+const ATM_HEADER := Vector3(0, 1.54, 0.224)     # kit ATM reference points
+const ATM_SCREEN := Vector3(0, 1.21, 0.093)
+const ATM_SLOT := Vector3(0, 0.79, 0.2275)
 
 
 func _build_atms() -> void:
@@ -725,9 +700,9 @@ func _build_atms() -> void:
 		head.text = "BAGHOLDER BANK"
 		head.font_size = 40
 		head.pixel_size = 0.0016
-		head.modulate = Color(1, 0.84, 0.3)
+		head.modulate = Color(1, 1, 1)
 		head.outline_size = 0
-		head.position = ATM_HEADER + Vector3(0, 0, 0.015)
+		head.position = ATM_HEADER + Vector3(0, 0, 0.003)
 		n.add_child(head)
 		var scr := Label3D.new()
 		scr.name = "Screen"
@@ -736,11 +711,25 @@ func _build_atms() -> void:
 		scr.pixel_size = 0.0014
 		scr.modulate = Color(0.45, 1.0, 0.7)
 		scr.outline_size = 0
-		scr.position = ATM_SCREEN + Vector3(0, 0, 0.015)
+		scr.position = ATM_SCREEN + Vector3(0, 0, 0.003)
 		n.add_child(scr)
 		var col: Node3D = builder.solid(Vector3(0.75, 1.65, 0.6), pos + Vector3(0, 0.825, 0), builder.root, rot)
 		builder.add_interact(col, "atm", i, "[E] ATM: take out / put in cash")
 		atms.append(n)
+		if i == 0:          # a counter on a stand next to the office ATM: count what you just pulled
+			var bs := Basis(Vector3.UP, rot)
+			var at: Vector3 = pos + bs * Vector3(1.05, 0, 0.05)
+			builder.box(Vector3(0.9, 0.95, 0.5), at + Vector3(0, 0.475, 0), Color(0.16, 0.16, 0.18), false, builder.root).rotation.y = rot
+			var mc := MoneyCounter.new()
+			mc.kit = "MoneyCounterPro"
+			mc.display_at = Vector3(-0.21, 0, -0.06)
+			mc.pile_at = Vector3(0.3, 0, 0.0)
+			mc.position = at + bs * Vector3(-0.14, 0.95, 0)
+			mc.rotation.y = rot
+			builder.root.add_child(mc)
+			var cb: Node3D = builder.solid(Vector3(0.9, 1.2, 0.5), at + Vector3(0, 0.6, 0), builder.root, rot)
+			builder.add_interact(cb, "counter", 1000 + counters.size(), "[E] Count your cash")
+			counters.append(mc)
 
 
 func _near_atm(node: Node3D) -> Node3D:

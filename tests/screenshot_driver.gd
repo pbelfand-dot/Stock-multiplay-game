@@ -108,6 +108,43 @@ func _run() -> void:
 			await _snap("hand_rot_%d" % k)
 		Sfx.quit_game()
 		return
+	if Config.cli.has("counteronly"):          # money counters: the one by the ATM, then your desk's
+		var p0 = world.local_player
+		m.wallet[1] = 250_000.0
+		m.owned[1]["counter"] = 1
+		m._push_state()
+		hud.root.visible = false
+		await get_tree().create_timer(1.0).timeout
+		var cc = world.counter_node(1000)
+		var cam := Camera3D.new()
+		world.add_child(cam)
+		cam.fov = 50
+		cam.current = true
+		var fwd: Vector3 = cc.global_basis.z                # the counter's front
+		cam.global_position = cc.global_position + fwd * 0.75 + Vector3(0.25, 0.45, 0) + cc.global_basis.x * 0.1
+		cam.look_at(cc.global_position + Vector3(0, 0.1, 0))
+		await _snap("k0_counter_idle")
+		world._run_counter(1000)
+		await get_tree().create_timer(1.3).timeout
+		await _snap("k1_counting")
+		await get_tree().create_timer(6.5).timeout
+		await _snap("k2_counted_250k")
+		cam.global_position = cc.global_position + fwd * 2.2 + Vector3(0.8, 0.9, 0)
+		cam.look_at(cc.global_position)
+		await _snap("k3_counter_by_atm")
+		var dc = world.counter_node(world.builder.PLAYER_DESK0)
+		if dc:
+			m.wallet[1] = 60_000.0
+			world._run_counter(world.builder.PLAYER_DESK0)
+			var f2: Vector3 = dc.global_basis.z
+			cam.global_position = dc.global_position + f2 * 0.8 + Vector3(0, 0.5, 0)
+			cam.look_at(dc.global_position + Vector3(0, 0.08, 0))
+			await get_tree().create_timer(4.0).timeout
+			await _snap("k4_desk_counter_60k")
+		else:
+			print("no desk counter")
+		Sfx.quit_game()
+		return
 	if Config.cli.has("gunonly"):              # BIG IRON: the store, gun poses, first person, a shot
 		var st = world.builder.street
 		var guns := ["pistol", "pistol", "deagle", "shotgun", "ak", "ak_gold"]
