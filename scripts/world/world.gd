@@ -83,6 +83,7 @@ func _sync_players() -> void:
 			p.teleport(spawn_point(idx))
 			if p.is_local:
 				local_player = p
+				arrive.call_deferred()          # ride up and walk out of the elevator
 		idx += 1
 	for c in players_node.get_children():
 		if not Net.players.has(int(str(c.name))):
@@ -136,9 +137,7 @@ func go_to_street() -> void:
 
 func leave_street() -> void:
 	if local_player:
-		Sfx.play("bell", -8.0, 1.6)
-		local_player.teleport(builder.elevator_pos + Vector3(0, 0, -1.5))
-		local_player.rotation.y = 0.0
+		arrive()                                # back up to 12: out of the elevator
 
 
 func in_studio(node: Node3D) -> bool:
@@ -185,6 +184,7 @@ func _process(delta: float) -> void:
 		hud.set_prompt(local_player.look_target() if not ui_blocking() else {})
 	_tick_bubbles(delta)
 	_tick_marquees(delta)
+	_update_elevator(delta)
 	_check_studio_raid()
 	_tick_counter(delta)
 	_ticker_offset += delta
@@ -594,7 +594,54 @@ func on_arrested(peer: int) -> void:
 
 func on_released(peer: int) -> void:
 	if local_player and peer == Net.my_id():
-		local_player.teleport(builder.elevator_pos)
+		arrive()                                # out on bail: back up the elevator
+
+
+# ---------------------------------------------------------------- elevator arrival
+
+const CAR_POS := Vector3(0, 0.1, OfficeBuilder.D / 2 + 1.4)
+const DOOR_OPEN_SECS := 3.6
+var _elev_open_t := 0.0          # doors stay open while > 0 (every peer runs its own doors)
+
+
+## You arrive on the trading floor: in the car, ding, the doors open, you walk
+## out. Everyone in the office sees the doors open and you walk out.
+func arrive() -> void:
+	if local_player == null:
+		return
+	if Config.cli.has("clicktest") or Config.cli.has("shots") or Config.cli.has("savecheck") \
+			or str(Config.cli.get("smoke", "")) == "host":
+		return                                  # tests that need you standing still at a spawn point
+	local_player.teleport(CAR_POS + Vector3(randf_range(-0.4, 0.4), 0, randf_range(-0.2, 0.3)))
+	local_player.rotation.y = 0.0
+	local_player.begin_arrival()
+	_p_arrive.rpc(Net.my_id())
+
+
+@rpc("any_peer", "call_local", "reliable")
+func _p_arrive(peer: int) -> void:
+	_elev_open_t = DOOR_OPEN_SECS
+	var near: bool = local_player == null or local_player.global_position.distance_to(builder.elevator_pos) < 25.0
+	if near:
+		Sfx.play("bell", -8.0 if peer == Net.my_id() else -13.0, 1.6)
+	arrivals[peer] = arrivals.get(peer, 0) + 1
+
+
+var arrivals := {}               # peer -> how many times they came out of the elevator (tests)
+
+
+func _update_elevator(delta: float) -> void:
+	if builder == null or builder.elevator_doors.is_empty():
+		return
+	_elev_open_t = maxf(_elev_open_t - delta, 0.0)
+	var opening := _elev_open_t > 0.0 and _elev_open_t < DOOR_OPEN_SECS - 0.35   # a beat after the ding
+	for door in builder.elevator_doors:
+		var cx: float = door.get_meta("closed_x")
+		var want: float = cx + signf(cx) * 1.1 if opening else cx
+		door.position.x = move_toward(door.position.x, want, delta * 1.6)
+		var open_now: bool = absf(door.position.x - cx) > 0.3
+		for sb in door.find_children("*", "StaticBody3D", true, false):
+			(sb as StaticBody3D).collision_layer = 0 if open_now else 1
 
 
 ## Graphics preset changed (or first applied): street shadows, view distance

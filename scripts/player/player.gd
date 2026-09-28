@@ -52,6 +52,9 @@ const ROLL_SPEED := 2.2
 var emote := 0              # index into EMOTES (synced)
 var _emote_t := 0.0
 var _dance_tilt := 0.0
+var _arrive_t := -1.0             # elevator arrival: seconds in (-1 = not arriving)
+const ARRIVE_WAIT := 1.2          # ding, doors slide open
+const ARRIVE_WALK := 1.9          # walk out onto the floor
 var puff: CPUParticles3D          # smoke out of the mouth (smoke emotes)
 var _puffing := false
 var _coughed := false
@@ -259,10 +262,18 @@ func _local_move(delta: float) -> void:
 	var bp: float = m.pressure_of(peer_id) if m else 0.0
 	if bp > Rules.PRESSURE_WOBBLY:   # high blood pressure: heavy legs
 		speed *= lerpf(1.0, 0.6, (bp - Rules.PRESSURE_WOBBLY) / (Rules.PRESSURE_MAX - Rules.PRESSURE_WOBBLY))
+	if _arrive_t >= 0.0:            # elevator arrival: wait for the doors, then walk out
+		_arrive_t += delta
+		input = Vector2.ZERO
+		speed = WALK * 0.62
+		if _arrive_t > ARRIVE_WAIT + ARRIVE_WALK:
+			_arrive_t = -1.0
 	if EMOTES[emote] == "dance" and (input != Vector2.ZERO or Input.is_action_just_pressed("jump")):
 		emote = 0                  # moving ends the dance
 		_emote_t = 0.0
 	var dir := (transform.basis * Vector3(input.x, 0, input.y)).normalized()
+	if _arrive_t > ARRIVE_WAIT:
+		dir = Vector3(0, 0, -1)     # straight out onto the floor (look around all you want)
 	_dive_cd = maxf(_dive_cd - delta, 0.0)
 	if diving > 0.0:
 		# committed to the dive: keep sliding, slowly lose speed
@@ -452,6 +463,19 @@ func _update_fp_emote(delta: float) -> void:
 	_emote_t = maxf(_emote_t - delta, 0.0)
 	if _emote_t <= 0.0:
 		emote = 0
+
+
+## Arriving by elevator: stand in the car while the doors open, then walk out.
+func begin_arrival() -> void:
+	_arrive_t = 0.0
+	pitch = 0.0
+	head.rotation.x = 0.0
+	if seat >= 0:
+		stand_up()
+
+
+func arriving() -> bool:
+	return _arrive_t >= 0.0
 
 
 ## Start an emote by name (hotkeys and the emote wheel). Dancing again stops it.

@@ -69,6 +69,10 @@ func _run() -> void:
 		await _street_only(world, m, hud)
 		Sfx.quit_game()
 		return
+	if Config.cli.has("elevonly"):
+		await _elevator_shots(world)
+		Sfx.quit_game()
+		return
 	if Config.cli.has("fponly"):
 		await _fp_shots(world, m, hud)
 		Sfx.quit_game()
@@ -325,6 +329,37 @@ func _quick(world, m, hud) -> void:
 
 
 ## First-person body (Content Warning style): what you see of yourself.
+## Elevator arrival: from inside the car (doors shut, then open), and a friend
+## riding up seen from the floor.
+func _elevator_shots(world) -> void:
+	var p = world.local_player
+	p.teleport(world.CAR_POS)
+	p.rotation.y = 0.0
+	p.begin_arrival()
+	await _frames(2)
+	await _snap("e1_in_car")                       # doors still shut
+	world._p_arrive(Net.my_id())
+	await get_tree().create_timer(0.9).timeout
+	await _snap("e2_doors_open")
+	await get_tree().create_timer(2.4).timeout
+	await _snap("e3_walked_out")
+	# a friend rides up while we watch from the floor
+	var d = load("res://scripts/player/player.gd").new()
+	d.setup(901, "Bob", load("res://scripts/art/character.gd").player_look(1), false, world)
+	world.players_node.add_child(d)
+	d.teleport(world.CAR_POS)
+	await get_tree().create_timer(3.0).timeout   # doors shut again
+	p.teleport(Vector3(0.6, 0.1, 9.0))
+	p.rotation.y = PI
+	world._p_arrive(901)
+	await get_tree().create_timer(1.1).timeout
+	await _snap("e4_friend_doors_open")
+	for t in 12:
+		d.net_tf(d.global_position + Vector3(0, 0, -0.25), 0.0, 0.0, 0)
+		await get_tree().create_timer(0.1).timeout
+	await _snap("e5_friend_walks_out")
+
+
 func _fp_shots(world, m, hud) -> void:
 	var p = world.local_player
 	m.careers[Net.my_id()]["xp"] = 500.0

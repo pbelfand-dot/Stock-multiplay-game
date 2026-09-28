@@ -34,6 +34,7 @@ var nav: NavigationRegion3D
 var interactables: Array = []   # [{node, type, id}]
 var spawn_points: Array = []
 var elevator_pos := Vector3(0, 0.1, 11.5)
+var elevator_doors: Array = []     # the two sliding door leaves (Node3D, meta closed_x)
 var jail_pos := Vector3(0, 0.1, 42.0)
 var tv_screen: MeshInstance3D
 var ticker_label: Label3D
@@ -282,8 +283,9 @@ func _shell() -> void:
 	# slate soffit band under the ceiling, darker wainscot + chair rail, baseboard
 	for z in [D / 2 - 0.17, -D / 2 + 0.17]:
 		box(Vector3(W, 0.3, 0.05), Vector3(0, H - 0.15, z), C_TRIM, false, root)
-		if z > 0:
-			_wainscot(Vector3(W, 0, 0.05), Vector3(0, 0, z))
+		if z > 0:   # either side of the elevator opening
+			_wainscot(Vector3(W / 2 - 1.3, 0, 0.05), Vector3(-(W / 4 + 0.65), 0, z))
+			_wainscot(Vector3(W / 2 - 1.3, 0, 0.05), Vector3(W / 4 + 0.65, 0, z))
 	for x in [-W / 2 + 0.17, W / 2 - 0.17]:
 		box(Vector3(0.05, 0.3, D), Vector3(x, H - 0.15, 0), C_TRIM, false, root)
 	_wainscot(Vector3(0, 0, D), Vector3(W / 2 - 0.17, 0, 0))
@@ -448,13 +450,33 @@ func _chair(id: int, pos: Vector3, rot: float) -> void:
 	chairs[id] = {"node": ch, "pos": pos, "rot": rot}
 
 
+## The elevator: a real car behind the south wall and two doors that slide
+## into the wall when someone arrives (World.open_elevator animates them).
 func _elevator() -> void:
 	var z := D / 2 - 0.15
-	prop("Elevator", Vector3(0, 0, z), PI)
+	prop("ElevatorFrame", Vector3(0, 0, z), PI)
+	elevator_doors.clear()
 	for dx in [-0.56, 0.56]:
-		var d := solid(Vector3(1.1, 2.3, 0.08), Vector3(dx, 1.15, z - 0.03))
+		var door := prop("ElevatorDoor", Vector3(dx, 0, D / 2), PI)
+		for mi in door.get_children():
+			mi.set_meta("no_batch", true)          # it moves
+		var d := solid(Vector3(1.1, 2.3, 0.1), Vector3(0, 1.15, 0), door)
 		add_interact(d, "elevator_down", 0, "[E] Elevator: ground floor (the street)")
+		door.set_meta("closed_x", dx)
+		elevator_doors.append(door)
 	label("12", Vector3(0, 2.46, z - 0.22), 40, Color(0.2, 1, 0.3), PI).outline_size = 0
+	# the car behind the wall (open toward the office)
+	prop("ElevatorCar", Vector3(0, 0, D / 2 + 0.15), PI)
+	solid(Vector3(2.6, 0.2, 2.8), Vector3(0, -0.1, D / 2 + 1.3))                 # floor + threshold
+	solid(Vector3(2.6, 2.6, 0.2), Vector3(0, 1.3, D / 2 + 2.55))                 # back
+	for sx in [-1.0, 1.0]:
+		solid(Vector3(0.2, 2.6, 2.4), Vector3(sx * 1.35, 1.3, D / 2 + 1.35))
+	var lt := OmniLight3D.new()
+	lt.position = Vector3(0, 2.2, D / 2 + 1.3)
+	lt.omni_range = 3.2
+	lt.light_energy = 0.9
+	lt.light_color = Color(1, 0.94, 0.82)
+	root.add_child(lt)
 
 
 func _lounge() -> void:
