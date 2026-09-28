@@ -205,6 +205,20 @@ func _coop() -> void:
 	if m.next_event != summary.tomorrow:
 		_done(false, "forecast doesn't match tomorrow's event")
 		return
+	# after hours waits for the host; ringing the bell starts tomorrow with its event
+	await get_tree().create_timer(2.0).timeout
+	if m.phase != "intermission":
+		_done(false, "the next day started without the host")
+		return
+	var tomorrow: String = summary.tomorrow
+	Config.cli.erase("day_event")          # stop forcing crashes: day 2 is whatever the forecast said
+	m.request_start()
+	if not await _wait(func(): return m.phase == "trading" and m.day == 2, 5.0):
+		_done(false, "host couldn't start day 2")
+		return
+	if m.day_event != tomorrow:
+		_done(false, "day 2 isn't the forecast event (%s vs %s)" % [m.day_event, tomorrow])
+		return
 	_done(true, "crash + halt + reopen, contracts, upgrades, Black Friday, Fed tip, milestone, forecast (tomorrow: %s)" % (
 			summary.tomorrow if summary.tomorrow != "" else "normal day"))
 

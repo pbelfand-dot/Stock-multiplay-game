@@ -41,6 +41,7 @@ Built in **Godot 4.7** — free, no accounts, no store.
 |---|---|
 | **Co-op** (default) | One shared fund (starts at $25K). Hit each day's quota (x1.5 every day) or the fund is busted. Overhead gets paid every night. See how many days you survive. |
 | **PvP** | Everyone gets their own $25K. Same market, same news. Miss the quota and you're out. Richest after 5 days wins and takes a championship trophy home for good. No catch-up help: best one wins. Snitching allowed. |
+| **Solo** | Co-op with just you. |
 
 ## Progression
 
@@ -60,7 +61,8 @@ Built in **Godot 4.7** — free, no accounts, no store.
   Tony's Rolodex, Police Scanner, Unpaid Intern, Bloomberg Terminal, Prime Broker Account.
 - **Co-op milestones.** The fund passing $100K, $250K, $1M... pays the whole desk XP.
 - **Saves are the host's.** Only the trader who started a run can load it (friends just rejoin).
-| **Solo** | Co-op with just you. |
+- **You start each day.** After the closing bell the game waits: walk around, shop, then START DAY (or
+  ENTER). SAVE GAME is on the after-hours screen and in the ESC menu (mid-day it keeps that morning).
 
 ## What's in the office
 

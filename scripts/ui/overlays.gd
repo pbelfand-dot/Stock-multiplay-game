@@ -132,7 +132,14 @@ class Mugshot extends Control:
 
 
 class Summary extends PanelContainer:
+	## After hours: the day's results. The host starts the next day from here
+	## (or ENTER), saves, or closes it to walk around and shop first.
+	signal start_pressed
+	signal save_pressed
+	signal close_pressed
+
 	var body: VBoxContainer
+	var save_lbl: Label
 
 	func _ready() -> void:
 		add_theme_stylebox_override("panel", UI.panel_box(Color(0.04, 0.06, 0.1, 0.95), UI.GOLD, 20, 5))
@@ -200,17 +207,55 @@ class Summary extends PanelContainer:
 			body.add_child(UI.lbl("TOMORROW: %s — %s" % [tv.name, tv.forecast], 22, tv.get("color", UI.GOLD), true))
 		elif not over and s.has("tomorrow"):
 			body.add_child(UI.lbl("TOMORROW: a normal day. Probably.", 20, UI.DIM))
-		if over:
-			body.add_child(UI.lbl("RUN OVER. Host: press ENTER to go back to the lobby.", 20, UI.DIM))
-		else:
-			body.add_child(UI.lbl("Next day starts shortly... hit Tony up for items.", 20, UI.DIM))
+		if not over:
+			body.add_child(UI.lbl("The market waits for you. Close this to walk around, hit Tony up, go shopping." if Net.is_server()
+					else "The host starts the next day. Close this to walk around and shop in the meantime.", 18, UI.DIM))
 		var sv: Dictionary = s.get("saved", {})
 		if sv.has("slot"):
 			body.add_child(UI.lbl(("✓ Game saved%s — CONTINUE from the main menu anytime." % (" to iCloud Drive" if sv.get("cloud", false) else ""))
 					if not over else "Run saved as finished (busted runs can't be continued).", 16, UI.GREEN if not over else UI.DIM))
 		elif sv.has("error"):
 			body.add_child(UI.lbl("Couldn't write the save file.", 16, UI.RED))
+		save_lbl = UI.lbl("", 16, UI.GREEN)
+		body.add_child(save_lbl)
+		var sp := Control.new()
+		sp.size_flags_vertical = Control.SIZE_EXPAND_FILL
+		body.add_child(sp)
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", 10)
+		body.add_child(row)
+		if Net.is_server():
+			var go := UI.btn(("BACK TO THE LOBBY  [ENTER]" if over else "START DAY %d  [ENTER]" % (int(s.day) + 1)),
+					UI.GREEN.darkened(0.3), 24)
+			go.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			go.pressed.connect(func(): start_pressed.emit())
+			row.add_child(go)
+			if not over:
+				var sv_btn := UI.btn("SAVE GAME", UI.GOLD.darkened(0.4), 22)
+				sv_btn.pressed.connect(func(): save_pressed.emit())
+				row.add_child(sv_btn)
+		else:
+			var wait := UI.lbl(("Waiting for the host..." if over else "Waiting for the host to start day %d..." % (int(s.day) + 1)), 20, UI.GOLD, true)
+			wait.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			row.add_child(wait)
+		var close := UI.btn("CLOSE  [ESC]", UI.NAVY_2, 22)
+		close.pressed.connect(func(): close_pressed.emit())
+		row.add_child(close)
 		visible = true
+
+	func show_saved(info: Dictionary) -> void:
+		if save_lbl:
+			save_lbl.text = saved_text(info)
+			save_lbl.add_theme_color_override("font_color", UI.RED if info.has("error") else UI.GREEN)
+
+	## "✓ Saved to iCloud Drive. CONTINUE picks up at day 3" (the pause menu uses it too).
+	static func saved_text(info: Dictionary) -> String:
+		if info.has("error"):
+			return str(info.error)
+		var where := " to iCloud Drive" if info.get("cloud", false) else ""
+		if info.get("mid_day", false):
+			return "✓ Saved%s: this morning's bell. CONTINUE restarts day %d (today's trades aren't in it)." % [where, int(info.next_day)]
+		return "✓ Saved%s. CONTINUE picks up at day %d." % [where, int(info.next_day)]
 
 
 class Unbox extends Control:

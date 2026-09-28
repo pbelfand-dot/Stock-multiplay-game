@@ -69,6 +69,7 @@ var popup
 var mugshot
 var summary
 var pause_menu: PanelContainer
+var pause_save_lbl: Label
 
 var event_banner: Label           # "DAY 3 — FED DAY" at the opening bell
 var _event_t := 0.0
@@ -118,6 +119,7 @@ func setup(w, m) -> void:
 	m.contract_done.connect(_on_contract_done)
 	m.shock.connect(_on_shock)
 	m.milestone.connect(_on_milestone)
+	m.saved.connect(_on_saved)
 	music = MusicDirector.new(self)
 	add_child(music)
 	emote_wheel = EmoteWheel.new(self)
@@ -406,6 +408,9 @@ void fragment() {
 	relief_lbl.modulate.a = 0.0
 	relief_panel.add_child(relief_lbl)
 	summary = Overlays.Summary.new()
+	summary.start_pressed.connect(func(): match_node.request_start())
+	summary.save_pressed.connect(func(): match_node.request_save())
+	summary.close_pressed.connect(close_modals)
 	root.add_child(summary)
 	mugshot = Overlays.Mugshot.new()
 	root.add_child(mugshot)
@@ -419,6 +424,13 @@ void fragment() {
 	var resume := UI.btn("RESUME", UI.NAVY_2, 26)
 	resume.pressed.connect(close_modals)
 	v.add_child(resume)
+	if Net.is_server():
+		var save := UI.btn("SAVE GAME", UI.GOLD.darkened(0.4), 24)
+		save.pressed.connect(func(): match_node.request_save())
+		v.add_child(save)
+	pause_save_lbl = UI.lbl("" if Net.is_server() else "The host keeps the save. Your stuff comes back when you rejoin with the same name.", 15, UI.DIM)
+	pause_save_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD
+	v.add_child(pause_save_lbl)
 	var sens_row := HBoxContainer.new()
 	v.add_child(sens_row)
 	sens_row.add_child(UI.lbl("Mouse", 20))
@@ -434,7 +446,7 @@ void fragment() {
 	sens_row.add_child(sens)
 	v.add_child(Music.volume_row(UI.lbl("Music", 20)))
 	v.add_child(Graphics.settings_box(UI))
-	v.add_child(UI.lbl("WASD move · SHIFT sprint · E interact · 1-6 items\nB emote wheel · H dance · TAB scoreboard · T chat · ENTER (host) opening bell\nP phone · In terminal: B buy · S sell · Q/E size · L leverage · C close all", 16, UI.DIM))
+	v.add_child(UI.lbl("WASD move · SHIFT sprint · E interact · 1-6 items\nB emote wheel · H dance · TAB scoreboard · T chat · ENTER (host) start the day\nP phone · In terminal: B buy · S sell · Q/E size · L leverage · C close all", 16, UI.DIM))
 	var leave := UI.btn("LEAVE OFFICE", UI.RED.darkened(0.2), 24)
 	leave.pressed.connect(func(): get_tree().root.get_node("Main").leave_game())
 	v.add_child(leave)
@@ -460,6 +472,7 @@ func _open_tailor() -> void:
 
 func is_modal_open() -> bool:
 	return terminal.visible or slots.visible or shop.visible or lux_shop.visible or pause_menu.visible or _chat_open \
+			or summary.visible \
 			or tailor != null
 
 
@@ -470,6 +483,10 @@ func close_modals() -> void:
 	lux_shop.visible = false
 	crt.visible = false
 	pause_menu.visible = false
+	if summary.visible:
+		summary.visible = false
+		if match_node.phase == "intermission":
+			Music.clear_event()                 # the payday / bad-day song ends with the summary
 	_close_chat()
 
 
@@ -545,6 +562,10 @@ func _process(delta: float) -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	if summary.visible and event.is_action_pressed("start_day") and Net.is_server():
+		match_node.request_start()              # ENTER on the after-hours summary rings the next bell
+		get_viewport().set_input_as_handled()
+		return
 	if event.is_action_pressed("pause"):
 		if is_modal_open():
 			close_modals()
@@ -604,7 +625,8 @@ func _on_state() -> void:
 			phase_lbl.text = ""
 		"intermission":
 			day_lbl.text = "AFTER HOURS"
-			phase_lbl.text = "Market closed. Next day soon."
+			phase_lbl.text = ("Market closed. Press ENTER to start day %d  ·  ESC → SAVE GAME" % (match_node.day + 1)) if Net.is_server() \
+					else "Market closed. Waiting for the host to start day %d." % (match_node.day + 1)
 		"gameover":
 			day_lbl.text = "GAME OVER"
 			phase_lbl.text = "Host: ENTER to return to lobby" if Net.is_server() else "Waiting for host..."
@@ -940,3 +962,13 @@ func _on_milestone(amount: float, xp: float) -> void:
 	rank_banner.text = "THE FUND HIT %s\n+%d XP FOR THE WHOLE DESK" % [Rules.money(amount), int(xp)]
 	rank_banner.modulate.a = 1.0
 	_rank_t = 5.0
+
+
+func _on_saved(info: Dictionary) -> void:
+	var txt: String = Overlays.Summary.saved_text(info)
+	summary.show_saved(info)
+	pause_save_lbl.text = txt
+	pause_save_lbl.add_theme_color_override("font_color", UI.RED if info.has("error") else UI.GREEN)
+	show_toast(txt, UI.RED if info.has("error") else UI.GREEN)
+	if not info.has("error"):
+		Sfx.play("coin")

@@ -57,10 +57,29 @@ func _run() -> void:
 		if not await _wait(func(): return m.phase == "trading", 20.0):
 			_done(false, "day never started")
 			return
+		# SAVE GAME mid-day keeps this morning's bell (day 0 -> CONTINUE restarts day 1)
+		var got: Array = []
+		m.saved.connect(func(info): got.append(info))
+		m.request_save()
+		if not await _wait(func(): return got.size() == 1, 3.0):
+			_done(false, "SAVE GAME did nothing")
+			return
+		if not got[0].get("mid_day", false) or int(got[0].get("next_day", 0)) != 1 or int(SaveGame.read(str(got[0].slot)).get("day", -1)) != 0:
+			_done(false, "mid-day save wrong: %s" % str(got[0]))
+			return
 		m.ledger.get_acct(0).balance = 55_555.0
 		m.inventory[1] = {"cigar": 2, "lawyer": 1}
 		if not await _wait(func(): return m.phase in ["intermission", "gameover"], 30.0):
 			_done(false, "day never ended")
+			return
+		# the next day waits for the host (no auto-start)
+		await get_tree().create_timer(3.0).timeout
+		if m.phase != "intermission" or m.day != 1:
+			_done(false, "the next day started by itself (%s, day %d)" % [m.phase, m.day])
+			return
+		m.request_save()
+		if not await _wait(func(): return got.size() == 2, 3.0) or got[1].get("mid_day", true) or int(got[1].get("next_day", 0)) != 2:
+			_done(false, "between-days save wrong: %s" % str(got))
 			return
 		var s := SaveGame.latest_open()
 		var want: float = 55_555.0 - Rules.overhead_for_day(1, 1) + _contract_pay(m)
@@ -73,7 +92,8 @@ func _run() -> void:
 		if int(s.players.get("trader", {}).get("inventory", {}).get("cigar", 0)) != 2:
 			_done(false, "items not saved: %s" % str(s.players))
 			return
-		_done(true, "day 1 saved: fund %s, cigar x2, lawyer x1 (%s)" % [Rules.money(float(s.fund)), s.slot])
+		_done(true, "SAVE GAME mid-day + after hours, day 1 saved: fund %s, cigar x2, lawyer x1, day 2 waits for the host (%s)" % [
+				Rules.money(float(s.fund)), s.slot])
 	elif phase == "3":
 		await get_tree().create_timer(1.0).timeout
 		if m.day != 0 or m.save_slot == _slot or _slot == "":

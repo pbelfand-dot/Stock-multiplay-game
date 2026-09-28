@@ -41,6 +41,7 @@ signal error_msg(msg: String)
 signal contract_done(peer: int, c: Dictionary, cash: float)
 signal shock(kind: String, stage: String)
 signal milestone(amount: float, xp: float)
+signal saved(info: Dictionary)
 
 # ---------------- mirrored state (all peers) ----------------
 var phase := "lobby"            # lobby | trading | intermission | gameover
@@ -89,6 +90,7 @@ var _day_len := Rules.DAY_SECONDS
 var _early_to := {}              # peer -> true once they got the next headline early
 var _raid_warned := {}           # police scanner: peer -> warned
 var _halt_shock := {}            # the crash that tripped the circuit breaker
+var _morning := {}               # the run as it stood at this morning's bell (what a mid-day save keeps)
 
 @onready var world = get_parent()
 
@@ -211,6 +213,8 @@ func _req_start() -> void:
 		return  # only the host rings the bell
 	if phase == "lobby":
 		_start_run()
+	elif phase == "intermission":        # after hours: the host rings the next bell when everyone's ready
+		_start_day()
 	elif phase == "gameover":
 		_reset_run()
 		_resume = {}
@@ -731,10 +735,6 @@ func _server_step(dt: float) -> void:
 		_check_bust()
 		if time_left <= 0.0:
 			_end_day()
-	elif phase == "intermission":
-		time_left -= dt
-		if time_left <= 0.0:
-			_start_day()
 
 	_s_tick.rpc(market.tick_payload(), time_left, heat, raid, pressure, halt)
 	if _dirty:
@@ -1018,6 +1018,41 @@ func snapshot(over: bool) -> Dictionary:
 		"milestones": milestones}
 
 
+## The SAVE GAME button (host only). Between days it saves right now; during
+## a trading day it saves the run as it stood at this morning's bell, since
+## a half-played day (open trades, the clock) can't be resumed.
+func request_save() -> void:
+	_req_save.rpc_id(1)
+
+
+@rpc("any_peer", "call_local", "reliable")
+func _req_save() -> void:
+	if not Net.is_server():
+		return
+	var id := _sender()
+	if id != 1:
+		_s_error.rpc_id(id, "Only the host keeps the save.")
+		return
+	var info := {}
+	if save_slot == "":
+		info = {"error": "Saving is off for this session."}
+	elif phase == "gameover":
+		info = {"error": "This run is over. Start a new one to save."}
+	else:
+		var mid_day := phase == "trading" and not _morning.is_empty()
+		var data: Dictionary = _morning.duplicate(true) if mid_day else snapshot(false)
+		if SaveGame.write(save_slot, data):
+			info = {"slot": save_slot, "cloud": SaveGame.in_cloud(), "mid_day": mid_day, "next_day": int(data.day) + 1}
+		else:
+			info = {"error": "Couldn't write the save file."}
+	_s_saved.rpc_id(id, info)
+
+
+@rpc("authority", "call_local", "reliable")
+func _s_saved(info: Dictionary) -> void:
+	saved.emit(info)
+
+
 func _autosave(over: bool) -> Dictionary:
 	if save_slot == "":
 		return {}
@@ -1175,6 +1210,7 @@ func _scanner_warnings() -> void:
 
 
 func _start_day() -> void:
+	_morning = snapshot(false)          # a mid-day SAVE GAME keeps this
 	day += 1
 	phase = "trading"
 	time_left = Rules.DAY_SECONDS
@@ -1283,8 +1319,8 @@ func _end_day() -> void:
 		summary["over"] = true
 		_s_game_over.rpc(summary)
 	else:
-		phase = "intermission"
-		time_left = Rules.INTERMISSION_SECONDS
+		phase = "intermission"               # waits for the host to start the next day
+		time_left = 0.0
 		summary["over"] = false
 		summary["next_quota"] = Rules.quota_for_day(day + 1)
 		_s_day_ended.rpc(summary)
