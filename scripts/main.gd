@@ -24,6 +24,10 @@ func _ready() -> void:
 			var drv = drv_script.new()
 			drv.name = "SmokeDriver"
 			add_child(drv)
+	if Config.cli.has("savecheck"):     # save -> continue test (sets up before the host starts)
+		var sv = load("res://tests/save_driver.gd").new()
+		sv.name = "SaveDriver"
+		add_child(sv)
 	if Config.cli.has("clicktest"):
 		var ck = load("res://tests/click_driver.gd")
 		if ck:

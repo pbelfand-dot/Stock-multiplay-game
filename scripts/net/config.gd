@@ -8,6 +8,8 @@ var last_ip := "127.0.0.1"
 var port := 7777
 var mouse_sensitivity := 0.0025
 var music_volume := 0.6      # 0..1, the soundtrack slider (0 = off)
+var cloud_saves := true      # keep run saves in iCloud Drive when the Mac has it
+var load_slot := ""          # set by CONTINUE / LOAD before hosting: the run to resume
 var suit_color := Color(0.35, 0.36, 0.4)
 var look := {}            # character look from the tailor (empty = default for your slot)
 
@@ -79,12 +81,15 @@ func load_settings() -> void:
 		port = cf.get_value("net", "port", port)
 		mouse_sensitivity = cf.get_value("input", "sens", mouse_sensitivity)
 		music_volume = cf.get_value("audio", "music", music_volume)
+		cloud_saves = cf.get_value("saves", "cloud", cloud_saves)
 		suit_color = cf.get_value("player", "suit", suit_color)
 		look = cf.get_value("player", "look", look)
 
 
 func save_settings() -> void:
 	var cf := ConfigFile.new()
+	cf.load(SAVE_PATH)          # keep the sections other systems own (graphics)
+	cf.set_value("saves", "cloud", cloud_saves)
 	cf.set_value("player", "name", player_name)
 	cf.set_value("player", "suit", suit_color)
 	cf.set_value("player", "look", look)

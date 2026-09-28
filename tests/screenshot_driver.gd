@@ -35,6 +35,9 @@ func _run() -> void:
 		await _frames(5)
 		await _snap("00b_menu_graphics")
 		gp.queue_free()
+		get_node("/root/Main/Menu")._open_saves()
+		await _frames(5)
+		await _snap("00c_menu_saves")
 		if Config.cli.has("tailor"):
 			var menu = get_node("/root/Main/Menu")
 			menu._open_tailor()

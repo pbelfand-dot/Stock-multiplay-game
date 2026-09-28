@@ -185,6 +185,12 @@ class Summary extends PanelContainer:
 			body.add_child(UI.lbl("RUN OVER. Host: press ENTER to go back to the lobby.", 20, UI.DIM))
 		else:
 			body.add_child(UI.lbl("Next day starts shortly... hit Tony up for items.", 20, UI.DIM))
+		var sv: Dictionary = s.get("saved", {})
+		if sv.has("slot"):
+			body.add_child(UI.lbl(("✓ Game saved%s — CONTINUE from the main menu anytime." % (" to iCloud Drive" if sv.get("cloud", false) else ""))
+					if not over else "Run saved as finished (busted runs can't be continued).", 16, UI.GREEN if not over else UI.DIM))
+		elif sv.has("error"):
+			body.add_child(UI.lbl("Couldn't write the save file.", 16, UI.RED))
 		visible = true
 
 

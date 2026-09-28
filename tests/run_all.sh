@@ -9,6 +9,9 @@ echo "== compile check";  "$G" --headless --path . -s tests/check_scripts.gd 2>&
 echo "== sim unit tests"; "$G" --headless --path . -s tests/test_sim.gd 2>&1 | grep -E "sim tests|FAIL" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
 echo "== terminal clicks (BUY/SELL/auto-sell)"
 "$G" --headless --path . -- --host --autostart --clicktest --port=7790 2>&1 | grep -E "\[click\]" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
+echo "== save -> continue"
+"$G" --headless --path . -- --savecheck=1 --host --autostart --day_seconds=3 --name=Trader --port=7791 2>&1 | grep -E "\[save\]" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
+"$G" --headless --path . -- --savecheck=2 --host --name=Trader --port=7791 2>&1 | grep -E "\[save\]" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
 for mode in coop pvp; do
   echo "== multiplayer smoke ($mode)"
   extra=""; [ "$mode" = pvp ] && extra="--pvp"
