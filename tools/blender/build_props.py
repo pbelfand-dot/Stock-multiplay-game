@@ -713,23 +713,49 @@ def build_tv():
 
 
 def build_elevator():
-    """Elevator bay, 2.8 wide, face +z. Origin at the wall face, floor."""
+    """Elevator bay, 2.8 wide, face +z. Origin at the wall face, floor.
+    "Elevator" has its doors baked shut (the street lobby); "ElevatorFrame" is
+    the same bay without doors, for the office where real doors slide open."""
     FRAME = (0.3, 0.31, 0.35)
     DOOR = (0.74, 0.76, 0.8)
-    rbox((0.22, 2.55, 0.16), (-1.25, 1.275, 0.08), FRAME, r=0.02)
-    rbox((0.22, 2.55, 0.16), (1.25, 1.275, 0.08), FRAME, r=0.02)
-    rbox((2.72, 0.3, 0.16), (0, 2.45, 0.08), FRAME, r=0.02)
+
+    def bay():
+        rbox((0.22, 2.55, 0.16), (-1.25, 1.275, 0.08), FRAME, r=0.02)
+        rbox((0.22, 2.55, 0.16), (1.25, 1.275, 0.08), FRAME, r=0.02)
+        rbox((2.72, 0.3, 0.16), (0, 2.45, 0.08), FRAME, r=0.02)
+        rbox((2.3, 0.02, 0.1), (0, 0.01, 0.1), (0.8, 0.82, 0.86), kind="Metal")         # threshold
+        rbox((0.62, 0.22, 0.05), (0, 2.46, 0.17), (0.05, 0.05, 0.06), r=0.015)             # floor display
+        # call panel on the right
+        rbox((0.14, 0.3, 0.02), (1.6, 1.2, 0.01), (0.7, 0.72, 0.76), r=0.01, kind="Metal")
+        for y, c in ((1.26, (1.0, 0.95, 0.6)), (1.14, (0.9, 0.9, 0.9))):
+            cyl(0.03, 0.02, (1.6, y, 0.025), c, rot=[("x", math.pi / 2)], kind="Glow" if y > 1.2 else "Gloss", segs=16)
+
+    bay()
     for x in (-0.56, 0.56):
         rbox((1.1, 2.28, 0.05), (x, 1.14, 0.03), DOOR, r=0.01, kind="Metal")
         rbox((0.02, 2.2, 0.004), (x - 0.35 * (1 if x > 0 else -1) * 0, 1.14, 0.057), (0.66, 0.68, 0.72), kind="Metal")
     rbox((0.012, 2.28, 0.06), (0, 1.14, 0.035), (0.35, 0.36, 0.4))
-    rbox((2.3, 0.02, 0.1), (0, 0.01, 0.1), (0.8, 0.82, 0.86), kind="Metal")         # threshold
-    rbox((0.62, 0.22, 0.05), (0, 2.46, 0.17), (0.05, 0.05, 0.06), r=0.015)             # floor display
-    # call panel on the right
-    rbox((0.14, 0.3, 0.02), (1.6, 1.2, 0.01), (0.7, 0.72, 0.76), r=0.01, kind="Metal")
-    for y, c in ((1.26, (1.0, 0.95, 0.6)), (1.14, (0.9, 0.9, 0.9))):
-        cyl(0.03, 0.02, (1.6, y, 0.025), c, rot=[("x", math.pi / 2)], kind="Glow" if y > 1.2 else "Gloss", segs=16)
     finish("Elevator")
+    bay()
+    finish("ElevatorFrame")
+    # one sliding door leaf (the office animates two of these)
+    rbox((1.12, 2.28, 0.05), (0, 1.14, 0), DOOR, r=0.01, kind="Metal")
+    rbox((0.9, 0.012, 0.052), (0, 1.9, 0), (0.62, 0.64, 0.68), kind="Metal")
+    rbox((0.9, 0.012, 0.052), (0, 0.4, 0), (0.62, 0.64, 0.68), kind="Metal")
+    finish("ElevatorDoor")
+    # the car: floor, wood-panel walls, brass rails, a light panel. Open at +z.
+    WOOD_P = (0.42, 0.27, 0.16)
+    rbox((2.4, 0.06, 2.3), (0, 0.03, -1.15), (0.2, 0.2, 0.22))                          # floor
+    rbox((2.4, 2.5, 0.06), (0, 1.25, -2.3), WOOD_P)                                       # back
+    for sx in (-1, 1):
+        rbox((0.06, 2.5, 2.3), (sx * 1.2, 1.25, -1.15), WOOD_P)
+        rbox((0.04, 0.04, 2.0), (sx * 1.12, 0.95, -1.2), GOLD, kind="Metal")             # rail
+    rbox((2.2, 0.04, 0.04), (0, 0.95, -2.2), GOLD, kind="Metal")
+    rbox((2.0, 0.9, 0.02), (0, 1.55, -2.26), (0.75, 0.82, 0.88), kind="Gloss")           # mirror
+    rbox((2.4, 0.06, 2.3), (0, 2.5, -1.15), (0.85, 0.85, 0.86))                          # ceiling
+    rbox((1.4, 0.02, 1.2), (0, 2.46, -1.15), (1.0, 0.96, 0.85), kind="Glow")             # light
+    rbox((0.18, 0.36, 0.02), (1.16, 1.25, -0.4), (0.7, 0.72, 0.76), kind="Metal", rot=[("y", -math.pi / 2)])
+    finish("ElevatorCar")
 
 
 # ----------------------------------------------------------------------------- building

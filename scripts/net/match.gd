@@ -9,6 +9,7 @@ const Market = preload("res://scripts/sim/market.gd")
 const News = preload("res://scripts/sim/news.gd")
 const Ledger = preload("res://scripts/sim/ledger.gd")
 const Rules = preload("res://scripts/sim/rules.gd")
+const SaveGame = preload("res://scripts/net/save_game.gd")
 
 const TICK := 0.25
 const COP_SYNC := 0.1
@@ -70,6 +71,9 @@ var _early_sent := false
 var _post_sent := false
 var _booking_no := 4298
 var _dirty := false
+var save_slot := ""              # this run autosaves here at every closing bell ("" = don't save)
+var _resume := {}                # a loaded save: players get their things back by name as they join
+var _restored := {}              # peer -> true once their saved things were handed back
 
 @onready var world = get_parent()
 
@@ -85,6 +89,7 @@ func _ready() -> void:
 			market.step(TICK)
 		market.mark_day_open()
 		_reset_run()
+		_open_save()
 		_mirror_market_full(market.full_payload())
 	else:
 		_req_sync.rpc_id(1)
@@ -169,6 +174,10 @@ func _req_start() -> void:
 		_start_run()
 	elif phase == "gameover":
 		_reset_run()
+		_resume = {}
+		_restored.clear()
+		if save_slot != "":
+			save_slot = SaveGame.new_slot(Net.mode)   # a fresh run gets a fresh save
 		_push_state()
 
 
@@ -376,7 +385,7 @@ func has_rank_for(peer: int, gate: String) -> bool:
 
 ## Tests run with --smoke and must not read or write a real career file.
 func _careers_on_disk() -> bool:
-	return Net.is_server() and not Config.cli.has("smoke")
+	return Net.is_server() and not Config.cli.has("smoke") and not Config.cli.has("savecheck")
 
 
 func _load_career(id: int) -> void:
@@ -769,6 +778,8 @@ func _ensure_peer(id: int) -> void:
 		stats[id] = {"pnl_day": 0.0, "pnl_total": 0.0, "trades": 0, "arrests": 0, "biggest": 0.0}
 	if Net.mode == "pvp" and not ledger.has(id):
 		ledger.create_account(id, Net.player_name(id), Rules.START_FUND)
+	if not _resume.is_empty() and not _restored.has(id):
+		_restore_peer(id)
 
 
 func _on_players_changed() -> void:
@@ -805,10 +816,95 @@ func _reset_run() -> void:
 
 
 func _start_run() -> void:
-	_reset_run()
-	day = 0
-	_s_toast.rpc("DING DING DING. THE MARKET IS OPEN.")
+	if _resume.is_empty():
+		_reset_run()
+		day = 0
+		_s_toast.rpc("DING DING DING. THE MARKET IS OPEN.")
+	else:   # a loaded run picks up the morning after its last closing bell
+		_s_toast.rpc("DING DING DING. Day %d — the fund is back in business." % (day + 1))
 	_start_day()
+
+
+# ---------------- save games ----------------
+
+## Server start: continue the save the menu picked, or give this run a new slot
+## (written at the first closing bell). Tests don't touch real saves.
+func _open_save() -> void:
+	save_slot = ""
+	if Config.cli.has("smoke") and not Config.cli.has("savecheck"):
+		return
+	if Config.load_slot != "":
+		var s := SaveGame.read(Config.load_slot)
+		Config.load_slot = ""
+		if not s.is_empty() and not s.get("over", false):
+			save_slot = str(s.slot)
+			_apply_save(s)
+			return
+	save_slot = SaveGame.new_slot(Net.mode)
+
+
+func _apply_save(s: Dictionary) -> void:
+	_resume = s
+	_restored.clear()
+	day = int(s.get("day", 0))
+	quota = Rules.quota_for_day(day + 1)
+	if Net.mode == "coop":
+		ledger.get_acct(0).balance = float(s.get("fund", Rules.START_FUND))
+	for id in Net.players:
+		_restore_peer(id)
+	_push_state()
+
+
+## Hand a (re)joining player their things from the save, matched by name.
+func _restore_peer(id: int) -> void:
+	_restored[id] = true
+	var p: Dictionary = _resume.get("players", {}).get(Net.player_name(id).to_lower(), {})
+	if p.is_empty():
+		return
+	inventory[id] = (p.get("inventory", {}) as Dictionary).duplicate()
+	for item in inventory[id]:
+		inventory[id][item] = int(inventory[id][item])
+	var st: Dictionary = p.get("stats", {})
+	stats[id] = {"pnl_day": 0.0, "pnl_total": float(st.get("pnl_total", 0.0)), "trades": int(st.get("trades", 0)),
+		"arrests": int(st.get("arrests", 0)), "biggest": float(st.get("biggest", 0.0))}
+	if Net.mode == "pvp":
+		if not ledger.has(id):
+			ledger.create_account(id, Net.player_name(id), Rules.START_FUND)
+		var a: Dictionary = ledger.get_acct(id)
+		a.balance = float(p.get("balance", Rules.START_FUND))
+		a.busted = bool(p.get("busted", false))
+
+
+## Everything a run needs to continue, keyed by player name. Players from the
+## save who aren't here tonight are carried over untouched.
+func snapshot(over: bool) -> Dictionary:
+	var players: Dictionary = (_resume.get("players", {}) as Dictionary).duplicate(true)
+	var names: Array = []
+	var best := 0.0
+	for id in Net.players:
+		var nm := Net.player_name(id)
+		names.append(nm)
+		var st: Dictionary = stats.get(id, {})
+		var p := {"name": nm, "inventory": inventory.get(id, {}).duplicate(),
+			"stats": {"pnl_total": st.get("pnl_total", 0.0), "trades": st.get("trades", 0),
+				"arrests": st.get("arrests", 0), "biggest": st.get("biggest", 0.0)}}
+		if Net.mode == "pvp" and ledger.has(id):
+			var a: Dictionary = ledger.get_acct(id)
+			p["balance"] = a.balance
+			p["busted"] = a.busted
+			best = maxf(best, a.balance)
+		players[nm.to_lower()] = p
+	var fund: float = ledger.get_acct(0).balance if Net.mode == "coop" else best
+	return {"mode": Net.mode, "day": day, "fund": fund, "balance": fund, "over": over,
+		"names": names, "players": players}
+
+
+func _autosave(over: bool) -> Dictionary:
+	if save_slot == "":
+		return {}
+	if not SaveGame.write(save_slot, snapshot(over)):
+		return {"error": true}
+	return {"slot": save_slot, "cloud": SaveGame.in_cloud()}
 
 
 func _start_day() -> void:
@@ -888,6 +984,7 @@ func _end_day() -> void:
 		var gain: float = maxf(st.get("pnl_day", 0.0), 0.0) / 1000.0 * Rules.XP_PER_1K + (Rules.XP_QUOTA_DAY if made else 0.0)
 		summary.xp[id] = _add_xp(id, gain, st.get("pnl_day", 0.0))
 	_save_careers()
+	summary["saved"] = _autosave(over)          # the closing bell saves the run (a busted run is marked over)
 	if over:
 		phase = "gameover"
 		summary["over"] = true

@@ -81,6 +81,9 @@ func _host() -> void:
 		_fail("no puppet for client")
 		return
 	_say("client puppet at %s" % str(pnode.global_position))
+	if not await _wait_for(func(): return get_node("/root/Main/World").arrivals.has(bob), 10.0, "client's elevator arrival"):
+		return
+	_say("saw the client ride up and come out of the elevator")
 	if Net.players[bob].get("look", {}).get("hair_style", "") != "afro" or pnode.look.get("outfit", "") != "hoodie":
 		_fail("client's tailor look didn't sync: %s" % str(Net.players[bob].get("look", {})))
 		return
@@ -121,6 +124,21 @@ func _client() -> void:
 	if not await _wait_for(func(): return not m.m_assets.is_empty() and m.phase == "trading", 30.0, "trading phase on client"):
 		return
 	_say("market mirrored: %d assets, BTC=%f, candles=%d" % [m.m_assets.size(), m.price_of("BTC"), m.m_assets[0].candles.size()])
+	# we came up in the elevator: wait until we've walked out onto the floor
+	var wl = get_node("/root/Main/World")
+	var deepest := [-INF]          # how far into the car we were (the car is behind the wall at z > D/2)
+	if not await _wait_for(func(): return wl.arrivals.has(Net.my_id()), 10.0, "elevator ride up"):
+		return
+	if not await _wait_for(func():
+			if wl.local_player:
+				deepest[0] = maxf(deepest[0], wl.local_player.global_position.z)
+			return wl.local_player != null and not wl.local_player.arriving() and deepest[0] > -INF, 10.0, "elevator walk-out"):
+		return
+	var wall: float = wl.builder.D / 2
+	if deepest[0] < wall + 0.5 or wl.local_player.global_position.z > wall - 1.0:
+		_fail("elevator arrival wrong: started at z=%.2f (car is past %.1f), ended at z=%.2f" % [deepest[0], wall, wl.local_player.global_position.z])
+		return
+	_say("rode up in the car (z=%.2f) and walked out to z=%.2f" % [deepest[0], wl.local_player.global_position.z])
 	var start_bal: float = m.my_acct().balance
 	m.request_open("BTC", 1, 10_000.0, 100)
 	if not await _wait_for(func(): return m.my_acct().get("positions", []).size() == 1, 5.0, "position open"):
