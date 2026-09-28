@@ -46,15 +46,17 @@ var held_cigar: Node3D
 var held_gun: Node3D
 var powder_fx := 0.0
 # emotes (F finger, V fist pump, Z show watch, X point) and chairs
-const EMOTES := ["", "finger", "fistpump", "watch", "point", "dance"]
+const EMOTES := ["", "finger", "fistpump", "watch", "point", "dance", "smoke_cough", "smoke_chill"]   # 3 sync bits: max 8
 const EMOTE_TIME := 2.4
 const ROLL_SPEED := 2.2
 var emote := 0              # index into EMOTES (synced)
 var _emote_t := 0.0
 var _dance_tilt := 0.0
+var puff: CPUParticles3D          # smoke out of the mouth (smoke emotes)
+var _puffing := false
+var _coughed := false
 var seat := -1              # desk chair id we're sitting in (synced), -1 = standing
 var carried_chair: Node3D
-var finger_prop: Node3D
 var zippo: Node3D
 var _zippo_t := 0.0
 var _cigar_was := 0.0
@@ -188,9 +190,6 @@ func _attach_props() -> void:
 	held_gun = Props.flex_gun()
 	held_gun.rotation = Vector3(-PI / 2, 0, 0)
 	model.prop_right.add_child(held_gun)
-	finger_prop = Props.finger(look.get("skin", Color(0.88, 0.7, 0.58)))
-	finger_prop.visible = false
-	model.prop_right.add_child(finger_prop)
 	held_cigar.visible = false
 	held_gun.visible = false
 	if is_local:
@@ -218,20 +217,7 @@ func _unhandled_input(event: InputEvent) -> void:
 	if not world.ui_blocking():
 		for i in range(1, EMOTES.size()):
 			if event.is_action_pressed("emote_" + EMOTES[i]):
-				if EMOTES[i] == "dance":
-					if seat >= 0:
-						continue
-					if EMOTES[emote] == "dance":      # press again to stop
-						emote = 0
-						_emote_t = 0.0
-						continue
-					emote = i
-					_emote_t = Character.clip_length("dance") * 3.0
-					continue
-				emote = i
-				_emote_t = EMOTE_TIME
-				if EMOTES[i] == "watch":
-					Sfx.play("coin", -4.0, 1.3)
+				play_emote(EMOTES[i])
 		if seat >= 0 and (event.is_action_pressed("jump") or event.is_action_pressed("dive")):
 			stand_up()
 	if event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
@@ -349,7 +335,9 @@ func _update_fx() -> void:
 	var cigar_on: bool = m != null and m.effect_left(peer_id, "cigar") > 0.0
 	var gun_on: bool = m != null and m.effect_left(peer_id, "moneygun") > 0.0
 	var holding_ball: bool = world != null and world.ball != null and world.ball.holder == peer_id
-	held_cigar.visible = cigar_on and not gun_on
+	var smoking_emote: bool = EMOTES[emote].begins_with("smoke_")
+	held_cigar.visible = (cigar_on or smoking_emote) and not gun_on
+	_update_puff(smoking_emote)
 	if m != null:
 		var wk: String = "iced" if m.lux_count(peer_id, "roflex_iced") > 0 else ("gold" if m.lux_count(peer_id, "roflex") > 0 else str(look.get("watch", "silver")))
 		if wk != _watch_kind:
@@ -372,7 +360,6 @@ func _update_fx() -> void:
 	model.move_speed = _speed
 	model.look_pitch(0.0 if is_local else pitch)   # our own neck stays put (the camera does the looking)
 	var jailed: bool = m != null and m.is_jailed(peer_id)
-	finger_prop.visible = EMOTES[emote] == "finger"
 	var airborne := global_position.y > 0.45
 	if diving > 0.0:
 		model.pose = "dive"
@@ -464,6 +451,62 @@ func _update_fp_emote(delta: float) -> void:
 	_emote_t = maxf(_emote_t - delta, 0.0)
 	if _emote_t <= 0.0:
 		emote = 0
+
+
+## Start an emote by name (hotkeys and the emote wheel). Dancing again stops it.
+func play_emote(e: String) -> void:
+	var i := EMOTES.find(e)
+	if i <= 0:
+		return
+	if e == "dance":
+		if seat >= 0:
+			return
+		if EMOTES[emote] == "dance":
+			emote = 0
+			_emote_t = 0.0
+			return
+		emote = i
+		_emote_t = Character.clip_length("dance") * 3.0
+		return
+	emote = i
+	# rotoscoped emotes play their whole clip once; the rest are short
+	var clip_len: float = Character.clip_length(e) if e in ["finger", "watch", "smoke_cough", "smoke_chill"] else 0.0
+	_emote_t = clip_len if clip_len > 0.0 else EMOTE_TIME
+	if e == "watch":
+		Sfx.play("coin", -4.0, 1.3)
+
+
+## Smoke emotes: puffs out of the mouth on the exhales/coughs baked into the clip.
+func _update_puff(on: bool) -> void:
+	if puff == null:
+		puff = CPUParticles3D.new()
+		puff.emitting = false
+		puff.one_shot = false
+		puff.amount = 18
+		puff.lifetime = 1.8
+		puff.direction = Vector3(0, 0.4, -1)
+		puff.spread = 22
+		puff.initial_velocity_min = 0.35
+		puff.initial_velocity_max = 0.8
+		puff.gravity = Vector3(0, 0.25, 0)
+		puff.damping_min = 0.4
+		puff.damping_max = 0.8
+		puff.scale_amount_min = 0.35
+		puff.scale_amount_max = 1.1
+		puff.mesh = smoke.mesh
+		puff.local_coords = false
+		add_child(puff)
+	var fx: Dictionary = model.clip_fx if on else {}
+	var want: bool = float(fx.get("puff", 0.0)) > 0.5
+	if model.j.has("eyes"):
+		puff.global_transform = model.j["eyes"].global_transform.translated_local(Vector3(0, -0.07, -0.06))   # the lips
+	if want != _puffing:
+		_puffing = want
+		puff.emitting = want
+	var coughing: bool = float(fx.get("cough", 0.0)) > 0.5
+	if coughing and not _coughed:
+		Sfx.play("cough", -4.0 if is_local else -10.0, randf_range(0.95, 1.08))
+	_coughed = coughing
 
 
 ## What the crosshair is pointing at: {type, id, prompt} or {}

@@ -56,6 +56,12 @@ const SOUTH := [
 		"sign": Color(0.2, 0.2, 0.2), "floor": Color(0.5, 0.5, 0.5), "wall": Color(0.75, 0.73, 0.7)},
 ]
 
+## Wall colour of each upper-floor facade (the building's mass is built in it).
+const UPPER_WALL := {"Upper_Brick": Color(0.55, 0.28, 0.2), "Upper_Stone": Color(0.78, 0.74, 0.66),
+		"Upper_Dark": Color(0.22, 0.24, 0.28), "Upper_Glass": Color(0.45, 0.55, 0.65)}
+const TOP := 31.4             # storefront (4.4) + 3 floors of 9 m
+const BLDG_DEPTH := 8.6       # facade back to the building's back wall
+
 var b                      # office builder (helpers + interactables list)
 var root: Node3D
 var spawn := ORIGIN + Vector3(-6.0, 0.25, -7.0)      # in front of the lobby
@@ -142,6 +148,7 @@ func _store(s: Dictionary, side: int) -> void:
 	b.prop(s.prop, P(x, 0, back_z), rot, root)
 	for k in 3:
 		b.prop(s.upper, P(x, 4.4 + k * 9.0, back_z), rot, root)
+	_building(x, side, UPPER_WALL[s.upper], absf(x) > 29.0)
 	# facade colliders (pillars + lintel), door gap in the middle
 	b.solid(Vector3(3.9, 4.4, 0.4), P(x - 3.05, 2.2, side * (WALK + 0.2)), root)
 	b.solid(Vector3(3.9, 4.4, 0.4), P(x + 3.05, 2.2, side * (WALK + 0.2)), root)
@@ -180,9 +187,18 @@ func _store(s: Dictionary, side: int) -> void:
 		"items":
 			_counter_shop(inner, facing, side, "items", "[E] Tony's Deli", "trader")
 			for k in 3:
-				b.prop("ShopShelf", inner.call(-3.8, 1.5 + k * 2.2), facing + PI / 2 * side, root)
+				b.prop("DeliShelf", inner.call(-4.7, 1.4 + k * 2.1), PI / 2, root)
+				b.solid(Vector3(0.5, 1.9, 2.0), inner.call(-4.7, 1.4 + k * 2.1) + Vector3(0, 0.95, 0), root)
+			for k in 2:
+				b.prop("DeliFridge", inner.call(4.6, 1.8 + k * 1.3), -PI / 2, root)
+			b.solid(Vector3(0.7, 2.0, 2.6), inner.call(4.6, 2.45) + Vector3(0, 1.0, 0), root)
+			b.prop("DeliShelf", inner.call(2.6, 4.6), facing + PI, root)
 		"tailor":
 			_counter_shop(inner, facing, side, "tailor", "[E] Get fitted (change your look)", "flex")
+			b.prop("FullMirror", inner.call(-2.0, SHOP_DEPTH - 0.4), facing + PI, root)
+			b.prop("FullMirror", inner.call(2.0, SHOP_DEPTH - 0.4), facing + PI, root)
+			b.prop("RugRound", inner.call(0, 3.8), 0.0, root)
+			b.prop("Ottoman", inner.call(0, 3.8), 0.0, root)
 			for k in 2:
 				b.prop("ClothesRack", inner.call(-3.2, 2.5 + k * 3.0), facing + PI / 2, root)
 				b.prop("ClothesRack", inner.call(3.2, 2.5 + k * 3.0), facing + PI / 2, root)
@@ -191,7 +207,9 @@ func _store(s: Dictionary, side: int) -> void:
 		"pawn":
 			_counter_shop(inner, facing, side, "pawn", "[E] Pawn your flex (50% back)", "beard")
 			for k in 3:
-				b.prop("ShopShelf", inner.call(3.8, 1.5 + k * 2.2), facing - PI / 2 * side, root)
+				b.prop("PawnShelf", inner.call(4.7, 1.4 + k * 2.2), -PI / 2, root)
+				b.solid(Vector3(0.55, 2.0, 2.2), inner.call(4.7, 1.4 + k * 2.2) + Vector3(0, 1.0, 0), root)
+			b.prop("GuitarWall", inner.call(-4.85, 3.5), PI / 2, root)
 		"casino":
 			for k in 4:
 				var sm := Node3D.new()
@@ -211,7 +229,7 @@ func _store(s: Dictionary, side: int) -> void:
 			b.prop("Plant", inner.call(-4.0, 1.0), 0.0, root)
 			b.prop("Plant", inner.call(4.0, 1.0), 0.0, root)
 			b.prop("Couch", inner.call(-3.8, 4.0), facing + PI / 2 * side, root)
-			b.npc(inner.call(3.0, 3.5), facing, "cop", "SECURITY", "idle")
+			b.npc(inner.call(3.0, 3.5), facing + PI, "cop", "SECURITY", "idle")
 			lobby_exit = P(x, 0.25, side * (WALK - 1.5))
 			spawn = lobby_exit
 		"none":
@@ -223,23 +241,30 @@ func _counter_shop(inner: Callable, facing: float, side: int, type: String, prom
 	b.prop("ShopCounter", at, facing, root)
 	var c: Node3D = b.solid(Vector3(2.4, 1.05, 0.6), at + Vector3(0, 0.52, 0), root, facing)
 	b.add_interact(c, type, 0, prompt)
-	b.npc(inner.call(0, SHOP_DEPTH - 1.2), facing, clerk, "", "idle")
+	b.npc(inner.call(0, SHOP_DEPTH - 1.2), facing + PI, clerk, "", "idle")   # npc() faces +z at 0
 
 
 func _boutique(s: Dictionary, inner: Callable, facing: float, side: int) -> void:
 	var store: String = str(s.kind).get_slice(":", 1)
 	var at: Vector3 = inner.call(0, SHOP_DEPTH - 2.0)
+	var to_door := facing + PI            # props face +z at 0; this turns them toward the door
 	b.prop("FlexCounter", at, facing, root)
 	var c: Node3D = b.solid(Vector3(2.2, 1.0, 0.7), at + Vector3(0, 0.5, 0), root, facing)
 	b.add_interact(c, "lux", ["guccero", "valmont", "prava", "crownwell", "diorelle", "chavel"].find(store),
 			"[E] Shop %s" % s.name)
-	b.npc(inner.call(0, SHOP_DEPTH - 1.0), facing, "fed" if store in ["prava", "chavel"] else "anchor", "", "idle")
-	# display: mannequins in the window + racks along the walls
+	b.npc(inner.call(0, SHOP_DEPTH - 1.0), facing + PI, "fed" if store in ["prava", "chavel"] else "anchor", "", "idle")
+	# lighting: spot tracks on the ceiling
+	for dz in [2.4, 5.2]:
+		b.prop("SpotTrack", inner.call(0, dz) + Vector3(0, 4.2, 0), 0.0, root)
+	b.prop("RugRound", inner.call(0, 3.6), 0.0, root)
+	if store == "crownwell":
+		_watch_floor(inner, to_door)
+		return
+	# clothing floor: cubby walls, a shoe wall, racks, a table, bags on plinths, a mirror
 	var looks := {
 		"guccero": {"suit": Color(0.1, 0.35, 0.2), "tie": Color(0.75, 0.08, 0.1)},
 		"valmont": {"suit": Color(0.45, 0.3, 0.17), "tie": Color(0.95, 0.8, 0.45)},
 		"prava": {"suit": Color(0.06, 0.06, 0.07), "tie": Color(0.06, 0.06, 0.07), "glasses": "shades"},
-		"crownwell": {"suit": Color(0.05, 0.28, 0.16), "watch": "gold"},
 		"diorelle": {"suit": Color(0.94, 0.91, 0.84), "tie": Color(0.2, 0.2, 0.25)},
 		"chavel": {"suit": Color(0.95, 0.95, 0.95), "outfit": "shirt", "chain": true},
 	}
@@ -247,11 +272,27 @@ func _boutique(s: Dictionary, inner: Callable, facing: float, side: int) -> void
 	lk["hair_style"] = "bald"
 	_mannequin(inner.call(-3.0, 1.3), facing, lk)
 	_mannequin(inner.call(3.0, 1.3), facing, lk)
-	b.prop("ClothesRack", inner.call(-4.0, 4.5), facing + PI / 2, root)
-	b.prop("ClothesRack", inner.call(4.0, 4.5), facing + PI / 2, root)
+	for dx in [-3.3, 3.3]:
+		b.prop("ClothesCubbies", inner.call(dx, SHOP_DEPTH - 0.3), to_door, root)
+	b.solid(Vector3(10, 2.6, 0.5), inner.call(0, SHOP_DEPTH - 0.3) + Vector3(0, 1.3, 0), root)
+	b.prop("ShoeWall", inner.call(-4.85, 4.8), PI / 2, root)
+	b.prop("FullMirror", inner.call(-4.6, 2.4), PI / 2, root)
+	b.prop("ClothesRack", inner.call(4.2, 3.0), PI / 2, root)
+	b.prop("ClothesRack", inner.call(4.2, 5.4), PI / 2, root)
+	b.prop("DisplayTable", inner.call(0, 3.4), to_door, root)
+	b.solid(Vector3(1.8, 0.8, 0.9), inner.call(0, 3.4) + Vector3(0, 0.4, 0), root, to_door)
+	var bag: String = {"guccero": "Bag_Guccero", "valmont": "LouieBag", "prava": "Bag_Prava",
+			"diorelle": "Bag_Diorelle", "chavel": "Bag_Chavel"}.get(store, "Bag_Prava")
+	for dx in [-1.9, 1.9]:
+		b.prop("BagPlinth", inner.call(dx, 2.0), 0.0, root)
+		b.prop(bag, inner.call(dx, 2.0) + Vector3(0, 1.0, 0), to_door + (0.4 if dx < 0 else -0.4), root)
+	b.prop("Ottoman", inner.call(2.2, 4.9), 0.0, root)
 
 
-## A display mannequin: a character in the store's clothes, frozen in place.
+## Crownwell: glass watch cases and lit wall displays (watch models from build_watches.py).
+func _watch_floor(inner: Callable, to_door: float) -> void:
+	pass
+
 func _mannequin(pos: Vector3, facing: float, look: Dictionary) -> void:
 	var m = Character.new()
 	m.name = "Model"
@@ -259,21 +300,59 @@ func _mannequin(pos: Vector3, facing: float, look: Dictionary) -> void:
 	look["watch"] = look.get("watch", "none")
 	m.build(look)
 	m.position = pos
-	m.rotation.y = facing + PI
+	m.rotation.y = facing          # Character faces -z at 0; `facing` points at the street
 	m.eyes_open = 0.0
 	root.add_child(m)
 	b.box(Vector3(0.6, 0.08, 0.6), pos + Vector3(0, 0.04, 0), Color(0.2, 0.2, 0.22), false, root)
 
 
+## A whole building, not just a front: the mass above the shop, side and back
+## walls, pilasters closing the gap to the next building, a roofline with a
+## parapet and a few rooftop units. Corner buildings get windows down their
+## exposed side.
+func _building(x: float, side: int, wall: Color, corner: bool) -> void:
+	var zc: float = side * (WALK + 0.4 + BLDG_DEPTH / 2)
+	var trim := wall.darkened(0.14)
+	b.box(Vector3(12, TOP - 4.4, BLDG_DEPTH), P(x, 4.4 + (TOP - 4.4) / 2, zc), wall, false, root)
+	for dx in [-5.5, 5.5]:
+		b.box(Vector3(1.0, 4.4, BLDG_DEPTH), P(x + dx, 2.2, zc), wall, false, root)              # beside the shop
+		b.box(Vector3(1.0, TOP, 0.42), P(x + dx, TOP / 2, side * (WALK + 0.21)), trim, true, root)   # pilaster
+	b.box(Vector3(12, 4.4, 0.4), P(x, 2.2, side * (WALK + 0.4 + BLDG_DEPTH - 0.2)), wall, false, root)
+	# roofline: parapet + cap, some rooftop kit
+	b.box(Vector3(12.2, 0.9, 0.35), P(x, TOP + 0.45, side * (WALK + 0.2)), trim, false, root)
+	b.box(Vector3(12.2, 0.9, 0.35), P(x, TOP + 0.45, side * (WALK + 0.4 + BLDG_DEPTH)), trim, false, root)
+	for dx in [-6.0, 6.0]:
+		b.box(Vector3(0.35, 0.9, BLDG_DEPTH + 0.4), P(x + dx, TOP + 0.45, zc), trim, false, root)
+	b.box(Vector3(2.2, 1.4, 1.6), P(x - 2.5, TOP + 0.7, zc), Color(0.62, 0.63, 0.64), false, root)   # AC unit
+	b.box(Vector3(1.2, 2.2, 1.2), P(x + 3.0, TOP + 1.1, zc + side * 1.5), Color(0.4, 0.3, 0.22), false, root)
+	if corner:   # the end of the block: windows down the exposed side
+		var sx: float = signf(x)
+		for f in 9:
+			for c in 3:
+				var zz: float = side * (WALK + 1.8 + c * 2.7)
+				b.box(Vector3(0.06, 1.8, 1.4), P(x + sx * 6.03, 6.2 + f * 3.0, zz), Color(0.55, 0.7, 0.85), false, root)
+				b.box(Vector3(0.14, 0.12, 1.6), P(x + sx * 6.05, 5.25 + f * 3.0, zz), trim, false, root)
+
+
 # ---------------------------------------------------------------- the rest of the block
 
 func _ends() -> void:
-	# end-of-block buildings close the street off (you can see the city beyond)
-	for sx in [-1, 1]:
-		var ex: float = sx * (HALF_LEN + 4.2)
-		b.box(Vector3(0.4, 30, 40), P(ex, 15, 0), Color(0.55, 0.3, 0.22), true, root)
-		for k in 8:
-			b.box(Vector3(0.05, 1.8, 1.4), P(ex - sx * 0.22, 6.0 + (k / 4) * 6.0, -9 + (k % 4) * 6.0), Color(0.55, 0.7, 0.85), false, root)
+	# the street ends in full city blocks (a facade toward the street, real mass behind)
+	var kinds := ["Upper_Stone", "Upper_Brick", "Upper_Dark", "Upper_Glass"]
+	for n in 2:
+		var sx: float = -1.0 if n == 0 else 1.0
+		var face: float = sx * (HALF_LEN + 4.2)               # street-facing wall line
+		var rot: float = -sx * PI / 2                         # facade props face back down the street
+		var up: String = kinds[n * 2]
+		var wall: Color = UPPER_WALL[up]
+		for k in 4:
+			var zz: float = -15.0 + k * 10.0
+			b.prop("Store_Empty", P(face + sx * 0.4, 0, zz), rot, root)
+			b.box(Vector3(0.3, 4.4, 10), P(face + sx * 1.2, 2.2, zz), Color(0.08, 0.08, 0.1), false, root)   # dark shop behind the glass
+			for f in 3:
+				b.prop(up, P(face + sx * 0.4, 4.4 + f * 9.0, zz), rot, root)
+		b.box(Vector3(12, TOP, 40), P(face + sx * 6.4, TOP / 2, 0), wall, true, root)
+		b.box(Vector3(0.35, 0.9, 40.2), P(face + sx * 0.2, TOP + 0.45, 0), wall.darkened(0.14), false, root)
 	b.solid(Vector3(HALF_LEN * 2, 6, 0.4), P(0, 3, -(WALK + SHOP_DEPTH + 1)), root)
 	b.solid(Vector3(HALF_LEN * 2, 6, 0.4), P(0, 3, WALK + SHOP_DEPTH + 1), root)
 

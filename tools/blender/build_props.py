@@ -1278,6 +1278,204 @@ def build_street_props():
 
 # ----------------------------------------------------------------------------- main
 
+def _open_shelf(w, h, d, frame, n, back=None):
+    """Open shelving carcass: back panel, sides, top/bottom and n shelf boards.
+    Returns the shelf-board top heights (origin floor, front +z)."""
+    back = back or frame
+    rbox((w, h, 0.03), (0, h / 2, -d / 2 + 0.015), back)
+    for sx in (-1, 1):
+        rbox((0.04, h, d), (sx * (w / 2 - 0.02), h / 2, 0), frame, r=0.01)
+    rbox((w, 0.05, d), (0, h - 0.025, 0), frame, r=0.01)
+    rbox((w, 0.1, d), (0, 0.05, 0), frame, r=0.01)
+    tops = []
+    for k in range(n):
+        y = 0.1 + (h - 0.2) * k / n
+        rbox((w - 0.08, 0.03, d - 0.03), (0, y + 0.015, 0.0), frame)
+        tops.append(y + 0.03)
+    return tops
+
+
+def _folded(x, y, z, col, n=4, w=0.3, d=0.26):
+    """A stack of folded shirts/sweaters."""
+    for i in range(n):
+        c = [min(1.0, v * (0.92 + 0.08 * (i % 2))) for v in col]
+        rbox((w, 0.045, d), (x + random.uniform(-0.01, 0.01), y + 0.0225 + i * 0.048, z), c, r=0.015)
+
+
+def _shoe(x, y, z, col, sole=(0.95, 0.95, 0.95), rot=0.0):
+    rbox((0.1, 0.06, 0.27), (x, y + 0.035, z), sole, r=0.02, rot=[("y", rot)])
+    rbox((0.095, 0.08, 0.2), (x, y + 0.1, z - 0.03), col, r=0.035, rot=[("y", rot)])
+    ell((0.047, 0.04, 0.06), (x, y + 0.075, z + 0.085), col)
+
+
+def build_store_props():
+    """Store fittings: boutique displays, a stocked deli, the pawn shop's junk."""
+    random.seed(23)
+    LAC = (0.12, 0.11, 0.1)          # dark lacquer
+    OAK = (0.62, 0.47, 0.3)
+    CREAM = (0.93, 0.9, 0.84)
+    tones = [(0.08, 0.08, 0.09), (0.93, 0.92, 0.88), (0.55, 0.12, 0.14), (0.12, 0.2, 0.42), (0.42, 0.43, 0.46),
+             (0.62, 0.48, 0.3), (0.16, 0.34, 0.2), (0.85, 0.72, 0.5)]
+
+    # --- boutique: wall of cubbies with folded clothes, shoes and bags on top
+    w, h, d = 2.8, 2.6, 0.45
+    rbox((w, h, 0.03), (0, h / 2, -d / 2 + 0.015), LAC)
+    for c in range(5):
+        rbox((0.035, h - 0.1, d), (-w / 2 + c * w / 4, h / 2 + 0.05, 0), CREAM)
+    for r in range(5):
+        rbox((w, 0.035, d), (0, 0.1 + r * 0.6, 0), CREAM)
+    rbox((w, 0.1, d), (0, 0.05, 0), LAC)
+    for c in range(4):
+        cx = -w / 2 + (c + 0.5) * w / 4
+        for r in range(3):
+            _folded(cx, 0.12 + r * 0.6, 0.02, tones[(c * 3 + r) % len(tones)], n=random.randint(3, 6), w=0.4)
+        _shoe(cx - 0.12, 1.92, 0.03, tones[(c + 2) % len(tones)], rot=0.2)
+        _shoe(cx + 0.12, 1.92, 0.03, tones[(c + 2) % len(tones)], rot=-0.2)
+    for c in range(4):   # lit strip under the top board
+        rbox((0.6, 0.02, 0.03), (-w / 2 + (c + 0.5) * w / 4, 2.48, 0.19), (1.0, 0.95, 0.85), kind="Glow")
+    finish("ClothesCubbies")
+
+    # --- boutique: low display table with folded stacks and a card
+    rbox((1.8, 0.08, 0.9), (0, 0.72, 0), LAC, r=0.02)
+    for x in (-0.78, 0.78):
+        for z in (-0.36, 0.36):
+            rbox((0.08, 0.7, 0.08), (x, 0.35, z), LAC, r=0.01)
+    rbox((1.6, 0.03, 0.7), (0, 0.25, 0), LAC)
+    for i, x in enumerate((-0.55, -0.1, 0.35)):
+        _folded(x, 0.76, -0.15, tones[i + 1], n=4, w=0.34)
+        _folded(x + 0.1, 0.76, 0.2, tones[i + 4], n=3, w=0.34)
+    rbox((0.16, 0.1, 0.01), (0.7, 0.81, 0.3), CREAM, rot=[("x", -0.3)])
+    _folded(-0.4, 0.28, 0.0, tones[0], n=3, w=0.34)
+    _folded(0.3, 0.28, 0.0, tones[3], n=3, w=0.34)
+    finish("DisplayTable")
+
+    # --- boutique: plinth for a bag (the bag prop goes on top at y=1.0)
+    cyl(0.28, 0.06, (0, 0.03, 0), LAC, segs=32)
+    cyl(0.22, 0.9, (0, 0.5, 0), CREAM, segs=32)
+    cyl(0.26, 0.05, (0, 0.975, 0), GOLD, segs=32, kind="Metal")
+    finish("BagPlinth")
+
+    # --- boutique: shoe wall (floating shelves)
+    rbox((2.0, 2.4, 0.04), (0, 1.2, -0.1), (0.2, 0.19, 0.18))
+    for r in range(5):
+        y = 0.35 + r * 0.42
+        rbox((1.9, 0.03, 0.3), (0, y, 0.05), (0.85, 0.85, 0.86), kind="Gloss")
+        rbox((1.9, 0.015, 0.02), (0, y - 0.02, 0.19), (1.0, 0.95, 0.85), kind="Glow")
+        for k in range(3):
+            col = tones[(r * 3 + k) % len(tones)]
+            _shoe(-0.6 + k * 0.6 - 0.06, y + 0.015, 0.05, col, rot=0.35)
+            _shoe(-0.6 + k * 0.6 + 0.08, y + 0.015, 0.05, col, rot=0.35)
+    finish("ShoeWall")
+
+    # --- ottoman, full-length mirror, spotlight track, round rug
+    cyl(0.42, 0.42, (0, 0.21, 0), (0.55, 0.12, 0.14), segs=32)
+    cyl(0.4, 0.06, (0, 0.44, 0), (0.6, 0.14, 0.16), segs=32)
+    for k in range(8):
+        a = k * math.pi / 4
+        ell((0.02, 0.02, 0.02), (math.cos(a) * 0.2, 0.47, math.sin(a) * 0.2), GOLD, segs=8, rings=6, kind="Metal")
+    finish("Ottoman")
+    rbox((0.72, 1.9, 0.06), (0, 1.0, 0), GOLD, r=0.02, kind="Metal")
+    rbox((0.62, 1.8, 0.02), (0, 1.0, 0.025), (0.78, 0.84, 0.9), kind="Gloss")
+    rbox((0.5, 0.05, 0.4), (0, 0.025, -0.1), LAC)
+    rod((0, 0.4, -0.02), (0, 0.05, -0.28), 0.02, LAC)
+    finish("FullMirror")
+    rbox((3.0, 0.05, 0.06), (0, -0.03, 0), (0.1, 0.1, 0.1), kind="Metal")
+    for k in range(5):
+        x = -1.2 + k * 0.6
+        rod((x, -0.05, 0), (x, -0.13, 0), 0.01, (0.1, 0.1, 0.1), segs=6, kind="Metal")
+        cyl(0.05, 0.14, (x, -0.2, 0.02), (0.1, 0.1, 0.1), segs=14, kind="Metal", rot=[("x", 0.35)])
+        cyl(0.04, 0.01, (x, -0.26, 0.045), (1.0, 0.95, 0.8), segs=14, kind="Glow", rot=[("x", 0.35)])
+    finish("SpotTrack")      # origin = ceiling mount
+    cyl(1.6, 0.012, (0, 0.006, 0), (0.85, 0.8, 0.72), segs=40)
+    torus(1.5, 0.02, (0, 0.012, 0), (0.7, 0.62, 0.45), segs=40, rsegs=4)
+    finish("RugRound")
+
+    # --- deli: stocked shelving
+    tops = _open_shelf(2.0, 1.9, 0.45, (0.85, 0.85, 0.86), 4, back=(0.72, 0.74, 0.76))
+    goods = [(0.85, 0.15, 0.12), (0.95, 0.75, 0.15), (0.2, 0.45, 0.85), (0.25, 0.65, 0.3), (0.95, 0.5, 0.15), (0.6, 0.2, 0.55)]
+    for r, y in enumerate(tops):
+        x = -0.88
+        while x < 0.85:
+            kind = (r + int((x + 1) * 3)) % 4
+            col = random.choice(goods)
+            if kind == 0:      # cans
+                for zz in (-0.1, 0.06):
+                    cyl(0.04, 0.12, (x, y + 0.06, zz), col, segs=12)
+                    cyl(0.041, 0.02, (x, y + 0.1, zz), (0.85, 0.85, 0.86), segs=12, kind="Metal")
+                x += 0.1
+            elif kind == 1:    # cereal box
+                rbox((0.18, 0.3, 0.07), (x + 0.05, y + 0.15, 0.05), col, r=0.005)
+                rbox((0.12, 0.08, 0.002), (x + 0.05, y + 0.2, 0.086), (0.97, 0.95, 0.9))
+                x += 0.21
+            elif kind == 2:    # bottles
+                cyl(0.04, 0.2, (x, y + 0.1, 0.02), col, segs=12, kind="Gloss")
+                cyl(0.018, 0.07, (x, y + 0.235, 0.02), col, segs=10, kind="Gloss")
+                cyl(0.02, 0.02, (x, y + 0.28, 0.02), (0.95, 0.95, 0.95), segs=10)
+                x += 0.1
+            else:              # chip bag
+                ell((0.09, 0.13, 0.04), (x + 0.03, y + 0.13, 0.05), col, segs=12, rings=8)
+                x += 0.19
+    finish("DeliShelf")
+    rbox((1.2, 2.0, 0.7), (0, 1.0, 0), (0.9, 0.9, 0.92), r=0.02)
+    rbox((1.1, 1.75, 0.02), (0, 1.05, 0.35), (0.7, 0.85, 0.95), kind="Gloss")
+    rbox((1.12, 0.2, 0.03), (0, 1.9, 0.35), (0.1, 0.35, 0.8))
+    for r in range(4):
+        y = 0.35 + r * 0.42
+        rbox((1.06, 0.02, 0.6), (0, y, 0), (0.95, 0.95, 0.97), kind="Glow")
+        for k in range(7):
+            cyl(0.035, 0.2, (-0.45 + k * 0.15, y + 0.11, 0.1), goods[(r + k) % len(goods)], segs=10, kind="Gloss")
+    rbox((0.04, 0.5, 0.04), (0.48, 1.05, 0.38), (0.8, 0.8, 0.82), kind="Metal")
+    finish("DeliFridge")
+
+    # --- pawn shop: shelving full of other people's bad decisions
+    tops = _open_shelf(2.2, 2.0, 0.5, (0.35, 0.28, 0.2), 4, back=(0.3, 0.3, 0.32))
+    for r, y in enumerate(tops):
+        if r == 0:     # old TVs
+            for k in range(3):
+                x = -0.65 + k * 0.65
+                rbox((0.5, 0.38, 0.38), (x, y + 0.19, 0), (0.2, 0.2, 0.22), r=0.03)
+                rbox((0.38, 0.28, 0.01), (x - 0.03, y + 0.2, 0.19), (0.25, 0.32, 0.35), kind="Gloss")
+        elif r == 1:   # boomboxes + a camera
+            for k in range(2):
+                x = -0.55 + k * 0.7
+                rbox((0.55, 0.26, 0.16), (x, y + 0.13, 0), (0.15, 0.15, 0.16), r=0.02)
+                for sx in (-1, 1):
+                    cyl(0.08, 0.02, (x + sx * 0.16, y + 0.12, 0.08), (0.3, 0.3, 0.32), segs=16, rot=[("x", math.pi / 2)], kind="Metal")
+                rod((x - 0.2, y + 0.26, 0), (x + 0.2, y + 0.26, 0), 0.012, (0.6, 0.6, 0.62), kind="Metal")
+            rbox((0.16, 0.1, 0.08), (0.8, y + 0.05, 0), (0.1, 0.1, 0.1), r=0.01)
+            cyl(0.035, 0.06, (0.8, y + 0.05, 0.07), (0.2, 0.2, 0.22), segs=12, rot=[("x", math.pi / 2)], kind="Gloss")
+        elif r == 2:   # gold: chains on a bust, trophies, a "diamond" ring box
+            ell((0.1, 0.16, 0.08), (-0.7, y + 0.16, 0), (0.1, 0.1, 0.1))
+            for k in range(3):
+                torus(0.09 - k * 0.01, 0.008, (-0.7, y + 0.2 - k * 0.04, 0.02), GOLD, segs=20, rsegs=5,
+                      rot=[("x", 1.2)], kind="Metal")
+            for k in range(2):
+                x = -0.1 + k * 0.35
+                cyl(0.06, 0.04, (x, y + 0.02, 0), (0.15, 0.1, 0.05), segs=12)
+                cyl(0.015, 0.12, (x, y + 0.1, 0), GOLD, segs=8, kind="Metal")
+                lathe([(0.0, 0.0), (0.07, 0.02), (0.08, 0.12), (0.0, 0.12)], (x, y + 0.16, 0), GOLD, segs=16, kind="Metal")
+            rbox((0.1, 0.08, 0.1), (0.75, y + 0.04, 0), (0.1, 0.1, 0.35), r=0.015)
+            ell((0.025, 0.025, 0.025), (0.75, y + 0.1, 0.01), (0.9, 0.95, 1.0), segs=8, rings=6, kind="Gloss")
+        else:          # boxed sneakers + a stack of DVDs
+            for k in range(3):
+                rbox((0.34, 0.14, 0.24), (-0.7 + k * 0.38, y + 0.07, 0), [(0.9, 0.4, 0.1), (0.15, 0.15, 0.15), (0.85, 0.85, 0.85)][k], r=0.01)
+            for k in range(8):
+                rbox((0.14, 0.02, 0.2), (0.62, y + 0.01 + k * 0.022, 0), random.choice(goods), r=0.002)
+    finish("PawnShelf")
+    rbox((2.0, 2.2, 0.03), (0, 1.2, -0.02), (0.3, 0.3, 0.32))
+    for k in range(4):
+        x = -0.72 + k * 0.48
+        col = [(0.75, 0.35, 0.12), (0.1, 0.1, 0.1), (0.8, 0.1, 0.1), (0.9, 0.85, 0.7)][k]
+        ell((0.17, 0.2, 0.05), (x, 0.9, 0.06), col)                   # body
+        ell((0.13, 0.15, 0.05), (x, 1.2, 0.06), col)
+        cyl(0.05, 0.01, (x, 1.02, 0.11), (0.05, 0.05, 0.05), segs=16, rot=[("x", math.pi / 2)])
+        rbox((0.05, 0.6, 0.025), (x, 1.62, 0.07), (0.3, 0.2, 0.12))  # neck
+        rbox((0.08, 0.14, 0.03), (x, 1.98, 0.07), (0.2, 0.14, 0.08))
+        rod((x, 2.1, 0.02), (x, 2.05, 0.08), 0.01, (0.7, 0.7, 0.72), segs=6, kind="Metal")
+    rbox((0.5, 0.14, 0.02), (0.72, 0.4, 0.0), (0.95, 0.78, 0.1))
+    finish("GuitarWall")
+
+
 def main():
     reset()
     for fn in (build_desk, build_divider, build_crt, build_keyboard, build_mouse, build_lamp, build_chair,
@@ -1287,7 +1485,7 @@ def main():
                build_tv, build_elevator, build_ceiling_light, build_window_bay, build_cell,
                build_stream_desk, build_gaming_chair, build_ring_light, build_neon_board, build_skyline,
                build_bulletin_board, build_door, build_restroom, build_floor_mess, build_coin,
-               build_luxury, build_flex_counter, build_street_props):
+               build_luxury, build_flex_counter, build_street_props, build_store_props):
         fn()
     keep = {o.name for o in KIT}
     for o in list(bpy.data.objects):

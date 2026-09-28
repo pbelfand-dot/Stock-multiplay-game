@@ -1,6 +1,6 @@
 extends Node
 ## Picks the soundtrack in a match (the song -> moment table the owner gave):
-##   VYZEE "Up Up Up"         lobby while friends join (and the main menu)
+##   VYZEE "Up Up Up"         the main menu only (fades out as you walk into the office)
 ##   twentythree "Queen St"   normal trading day / walking the city (default)
 ##   Lelo "No Contempt"       research: phone open (news, Tramp, tips), the studio
 ##   Rick Ross "Stay Schemin" high-stakes trade open (x50+, big short, all-in, comeback)
@@ -19,7 +19,8 @@ var _want_t := 0.0
 var _bed_t := 0.0                 # how long the current bed has played
 var _leader := 0                  # PvP: who was on top last check
 var _label_t := 0.0
-var _placed := false              # current bed came from a place/phase (leaving it is instant too)
+var _placed := false
+var _while := Callable()          # the current event's song lasts only while this is true              # current bed came from a place/phase (leaving it is instant too)
 
 const CHECK := 0.5
 const SETTLE := 2.5               # a new bed must be wanted this long before we switch
@@ -70,6 +71,9 @@ func _process(delta: float) -> void:
 	_check_t -= delta
 	if _check_t <= 0.0:
 		_check_t = CHECK
+		if Music._event_t > 0.0 and _while.is_valid() and not _while.call():
+			Music.clear_event()                          # the moment is over
+			_while = Callable()
 		_decide(false)
 		_check_rival()
 
@@ -80,7 +84,7 @@ func _process(delta: float) -> void:
 ## phase change, which switches right away instead of waiting.
 func bed() -> Array:
 	if m.phase == "lobby":
-		return ["vyzee", true]
+		return ["", true]                                # intro faded; quiet until the opening bell
 	var me = hud.world.local_player
 	match hud.world.street_zone(me) if me else "":
 		"lux", "casino":
@@ -147,36 +151,50 @@ func _set_bed(id: String) -> void:
 
 # ---------------------------------------------------------------- events
 
+## Play an event song for at most `hold` seconds, and stop it as soon as the
+## action is over (`while_true` returns false), e.g. you walk out of the store.
+func _event(id: String, hold: float, prio: int, while_true: Callable = Callable()) -> void:
+	Music.event(id, hold, prio)
+	if Music._event == id and is_equal_approx(Music._event_t, hold):   # it took (not outranked)
+		_while = while_true
+
+
+func _zone() -> String:
+	var me = hud.world.local_player
+	return hud.world.street_zone(me) if me else ""
+
 func _on_trade_closed(info: Dictionary) -> void:
 	if info.get("trader_id", 0) != Net.my_id():
 		return
 	var q: float = maxf(m.quota, 50000.0)
 	if not info.liquidated and (info.pnl >= 0.1 * q or info.pct >= 150.0):
-		Music.event("blue_bands", 40.0, 1)
+		_event("blue_bands", 25.0, 1)
 
 
 func _on_luxury(peer: int, _key: String) -> void:
-	if peer == Net.my_id():
-		Music.event("blue_bands", 45.0, 2)             # flexing
+	if peer == Net.my_id():                          # flexing: plays while you're still in the store
+		var z := _zone()
+		_event("blue_bands", 45.0, 2, func() -> bool: return _zone() == z)
 
 
 func _on_rank_up(peer: int, _rank: int) -> void:
 	if peer == Net.my_id():
-		Music.event("blue_bands", 30.0, 1)
+		_event("blue_bands", 15.0, 1)
 
 
 func _on_raid(target: int, active: bool) -> void:
 	if target != Net.my_id():
 		return
 	if active:
-		Music.event("type_a", 999.0, 3)
+		_event("type_a", 999.0, 3)
 	else:
 		Music.clear_event("type_a")
 
 
 func _on_slots(peer: int, _reels: Array, payout: float, bet: float) -> void:
-	if peer == Net.my_id() and payout >= bet * 10.0:
-		Music.event("blue_bands", 40.0, 2)
+	if peer == Net.my_id() and payout >= bet * 10.0:   # jackpot: until you walk away from the machines
+		var z := _zone()
+		_event("blue_bands", 30.0, 2, func() -> bool: return _zone() == z)
 
 
 ## End of day: lost money today -> "12 Stout Street" (the only time it plays).
@@ -184,6 +202,7 @@ func _on_slots(peer: int, _reels: Array, payout: float, bet: float) -> void:
 func _on_day_ended(s: Dictionary) -> void:
 	var mine: Dictionary = s.get("players", {}).get(Net.my_id(), {}).get("stats", {})
 	var pnl: float = mine.get("pnl_day", m.stats.get(Net.my_id(), {}).get("pnl_day", 0.0))
+	_while = Callable()
 	if pnl < 0.0:
 		Music.event("stout_street", 999.0, 4)
 	elif pnl > 0.0 or s.get("passed", false):
@@ -207,7 +226,7 @@ func _check_rival() -> void:
 			best_v = v
 			best = id
 	if _leader == Net.my_id() and best != Net.my_id() and best != 0:
-		Music.event("type_a", 40.0, 2)
+		_event("type_a", 25.0, 2)
 		hud.show_toast("%s just passed you. Take it back." % Net.player_name(best), Color(1, 0.55, 0.3))
 	_leader = best
 

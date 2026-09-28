@@ -1,4 +1,6 @@
 extends Node
+
+const Rules = preload("res://scripts/sim/rules.gd")
 ## End-to-end multiplayer smoke test. Launch two headless instances:
 ##   godot --headless --path . -- --host --autostart --smoke=host [--pvp]
 ##   godot --headless --path . -- --join=127.0.0.1 --name=Bob --smoke=client
@@ -164,6 +166,14 @@ func _client() -> void:
 	m.pressure[Net.my_id()] = 50.0
 	m.request_hotdog()
 	await get_tree().create_timer(1.0).timeout
+	# the office FLEX SHOP counter lists every luxury item (it once filtered everything out)
+	w.hud.open_interact({"type": "luxury", "id": 0})
+	await get_tree().process_frame
+	var rows: int = w.hud.lux_shop.list.get_child_count()
+	w.hud.close_modals()
+	if rows < Rules.LUXURY.size():
+		_fail("office flex shop shows %d of %d items" % [rows, Rules.LUXURY.size()])
+		return
 	_say("street ok, hot dog eaten (pressure now %.1f)" % m.pressure_of(Net.my_id()))
 	# soundtrack: walking into a boutique plays "Intoxicated"; getting liquidated cuts to "12 Stout Street"
 	Music.clear_event()           # the flex bought earlier is still playing "Blue Bands"

@@ -1,6 +1,6 @@
 extends Node3D
 ## Renders the rotoscoped dance at given times, to compare with the source clip:
-##   godot --path . -- --dancecheck=/tmp/out [--times=0.5,1.2,...]
+##   godot --path . -- --dancecheck=/tmp/out [--clip=dance] [--times=0.5,1.2,...]
 
 const Character = preload("res://scripts/art/character.gd")
 
@@ -29,13 +29,17 @@ func _ready() -> void:
 	c.build({"outfit": "tee", "suit": Color(0.08, 0.08, 0.09), "pants": Color(0.75, 0.75, 0.73), "hair_style": "messy",
 			"hair": Color(0.12, 0.08, 0.06), "glasses": "specs"})
 	c.rotation.y = PI            # face the camera, like the phone in the clip
-	c.pose = "dance"
+	c.pose = str(Config.cli.get("clip", "dance"))
 	add_child(c)
 	var cam := Camera3D.new()
 	cam.fov = 40
 	add_child(cam)
-	cam.position = Vector3(0, 1.0, 4.6)
-	cam.look_at(Vector3(0, 0.95, 0))
+	if Config.cli.has("zoom"):     # upper body close-up (hands)
+		cam.position = Vector3(0.35, 1.35, 1.6)
+		cam.look_at(Vector3(0, 1.2, 0))
+	else:
+		cam.position = Vector3(0, 1.0, 4.6)
+		cam.look_at(Vector3(0, 0.95, 0))
 	cam.current = true
 	var times := []
 	for s in str(Config.cli.get("times", "0.4,1.2,2.0,2.8,4.4,4.8,5.2,5.6,6.0,8.8,9.2,10.8")).split(","):
@@ -51,4 +55,4 @@ func _ready() -> void:
 
 func _process(delta: float) -> void:
 	if c:
-		c.anim_t = hold - delta     # freeze the clip at `hold`
+		c.anim_hold = hold          # freeze the clip at `hold`

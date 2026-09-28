@@ -102,7 +102,7 @@ func _title() -> String:
 		return "PAWN KING"
 	if catalog == "items":
 		return "TONY'S DELI" if store_tag == "deli" else "TONY \"THE PLUG\""
-	var st := catalog.get_slice(":", 1)
+	var st := catalog.get_slice(":", 1) if catalog.contains(":") else ""
 	return Rules.BOUTIQUE_NAMES.get(st if st != "" else "flex", "FLEX SHOP")
 
 
@@ -150,7 +150,7 @@ func _refresh_pawn(me: int) -> void:
 
 
 func _refresh_luxury(me: int, acct: Dictionary) -> void:
-	var only := catalog.get_slice(":", 1)
+	var only := catalog.get_slice(":", 1) if catalog.contains(":") else ""   # "luxury" = the office counter: everything
 	for key in Rules.LUXURY:
 		var d: Dictionary = Rules.LUXURY[key]
 		if only != "" and d.get("store", "") != only:

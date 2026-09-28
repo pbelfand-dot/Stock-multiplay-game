@@ -75,6 +75,18 @@ def save(name, x, gain=0.8):
     print("wrote", name)
 
 
+def cough():
+    """Smoker's cough: two harsh bursts (throaty buzz + breathy noise), a smaller third."""
+    def burst(d, f):
+        tt_ = t(d)
+        n = noise(d)
+        breath = lowpass(n, 0.35) - lowpass(n, 0.04)
+        voice = lowpass(saw(f * (1 - 0.25 * tt_ / d), tt_), 0.12)
+        e = np.minimum(1, tt_ / 0.008) * np.exp(-tt_ / (d * 0.35))
+        return (breath * 0.9 + voice * 0.5) * e
+    return mix([(0.0, burst(0.22, 150)), (0.3, burst(0.2, 135)), (0.62, burst(0.14, 125) * 0.6)], 0.9)
+
+
 def main():
     # Opening bell: DING DING DING
     save("bell", mix([(0.0, bell_strike(880)), (0.45, bell_strike(880)), (0.9, bell_strike(880, 2.0, 0.8))], 3.0))
@@ -161,6 +173,8 @@ def main():
         acc += sweep[i] * (v - acc)
         y[i] = acc
     save("whoosh", env(y, 0.1, 0.2), 0.6)
+
+    save("cough", cough(), 0.7)
 
     # UI click
     save("click", env(square(1200, t(0.02)), 0.0005, 0.006), 0.35)

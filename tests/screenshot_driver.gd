@@ -58,6 +58,10 @@ func _run() -> void:
 	if Config.cli.has("quick"):
 		await _quick(world, m, hud)
 		return
+	if Config.cli.has("streetonly"):
+		await _street_only(world, m, hud)
+		Sfx.quit_game()
+		return
 	if Config.cli.has("fponly"):
 		await _fp_shots(world, m, hud)
 		Sfx.quit_game()
@@ -351,6 +355,15 @@ func _fp_shots(world, m, hud) -> void:
 	m.request_use("moneygun")
 	await get_tree().create_timer(0.8).timeout
 	await _snap("fp_06_money_gun")
+	# the emote wheel (hold B)
+	hud.emote_wheel._show(true)
+	await get_tree().create_timer(1.2).timeout
+	await _snap("fp_09_emote_wheel")
+	hud.emote_wheel.sel = 2
+	hud.emote_wheel._refresh()
+	await get_tree().create_timer(0.6).timeout
+	await _snap("fp_09_emote_wheel_b")
+	hud.emote_wheel._show(false)
 	# the dance, from inside it
 	p.emote = p.EMOTES.find("dance")
 	p._emote_t = 30.0
@@ -367,3 +380,27 @@ func _fp_shots(world, m, hud) -> void:
 	aim.call(p.rotation.y, -0.6)
 	await get_tree().create_timer(0.3).timeout
 	await _snap("fp_08_sitting")
+
+
+## Just the street: outside views of the block + inside every store.
+func _street_only(world, m, hud) -> void:
+	var p = world.local_player
+	var so: Vector3 = world.builder.street.ORIGIN
+	world.go_to_street()
+	await get_tree().create_timer(0.8).timeout
+	var views := [["s01_block_east", Vector3(-28, 0.25, 0.0), -PI / 2 + 0.05, 0.28],
+			["s02_block_west", Vector3(28, 0.25, 0.0), PI / 2 - 0.05, 0.28],
+			["s03_corner", Vector3(35, 0.25, 7.5), PI * 0.75, 0.3],
+			["s04_rooftops", Vector3(0, 0.25, 0), 0.0, 0.9],
+			["s05_north_row", Vector3(0, 0.25, 6.5), 0.0, 0.2],
+			["s06_south_row", Vector3(0, 0.25, -6.5), PI, 0.2]]
+	for st in world.builder.street.NORTH + world.builder.street.SOUTH:
+		var side := -1 if world.builder.street.NORTH.has(st) else 1
+		views.append(["s1_" + str(st.kind).replace(":", "_"), Vector3(st.x, 0.25, side * 9.8), 0.0 if side < 0 else PI, -0.08])
+	for v in views:
+		p.teleport(so + v[1])
+		p.rotation.y = v[2]
+		p.pitch = v[3]
+		p.head.rotation.x = v[3]
+		await _frames(8)
+		await _snap(v[0])

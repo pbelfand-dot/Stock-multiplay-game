@@ -12,6 +12,7 @@ const Overlays = preload("res://scripts/ui/overlays.gd")
 const PhoneScript = preload("res://scripts/ui/phone.gd")
 const CrtFrame = preload("res://scripts/ui/crt_frame.gd")
 const MusicDirector = preload("res://scripts/ui/music_director.gd")
+const EmoteWheel = preload("res://scripts/ui/emote_wheel.gd")
 
 var world
 var match_node
@@ -57,6 +58,7 @@ var shop
 var lux_shop
 var phone
 var music                  # MusicDirector: picks the soundtrack
+var emote_wheel            # hold B
 var tailor
 var crt
 var _last_post := ""
@@ -106,6 +108,8 @@ func setup(w, m) -> void:
 	m.posted.connect(_on_posted)
 	music = MusicDirector.new(self)
 	add_child(music)
+	emote_wheel = EmoteWheel.new(self)
+	root.add_child(emote_wheel)
 	_on_state()
 
 
@@ -388,7 +392,7 @@ void fragment() {
 		Config.save_settings())
 	sens_row.add_child(sens)
 	v.add_child(Music.volume_row(UI.lbl("Music", 20)))
-	v.add_child(UI.lbl("WASD move · SHIFT sprint · E interact · 1-6 items\nH dance · TAB scoreboard · T chat · ENTER (host) opening bell\nP phone · In terminal: B buy · S sell · Q/E size · L leverage · C close all", 16, UI.DIM))
+	v.add_child(UI.lbl("WASD move · SHIFT sprint · E interact · 1-6 items\nB emote wheel · H dance · TAB scoreboard · T chat · ENTER (host) opening bell\nP phone · In terminal: B buy · S sell · Q/E size · L leverage · C close all", 16, UI.DIM))
 	var leave := UI.btn("LEAVE OFFICE", UI.RED.darkened(0.2), 24)
 	leave.pressed.connect(func(): get_tree().root.get_node("Main").leave_game())
 	v.add_child(leave)
