@@ -36,7 +36,7 @@ const TEMPLATES := {
 const THEMED := {"flash_crash": "short_big", "bear_market": "short_big", "bull_run": "long_big",
 	"meme_mania": "wagmi_win", "sec_audit": "clean", "crackdown": "clean", "black_friday": "flex",
 	"fed_day": "profit", "earnings": "profit", "liquidity_crunch": "streak"}
-const PAY := {1: 0.25, 2: 0.6, 3: 1.2}         # cash in money units
+const PAY := {1: 0.12, 2: 0.3, 3: 0.6}         # cash in money units (day 1: $750 / $1.9K / $3.75K)
 const XP := {1: 10.0, 2: 20.0, 3: 40.0}
 
 

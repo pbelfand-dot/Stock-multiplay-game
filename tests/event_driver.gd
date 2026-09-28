@@ -70,6 +70,9 @@ func _run() -> void:
 
 func _coop() -> void:
 	# ---- the morning: today's event, the headline, Tony's contracts
+	if Net.mode != "coop":
+		_done(false, "the crash-day run should be co-op (events are for every mode)")
+		return
 	if m.day_event != "flash_crash":
 		_done(false, "forced day event didn't take (%s)" % m.day_event)
 		return
