@@ -14,6 +14,8 @@ extends Node3D
 
 const KIT_PATH := "res://assets/characters/character_kit.glb"
 const SCALE := 0.92
+const FP_LAYER := 1 << 19   # our own head: rendered for shadows/mirrors, not by our first-person camera
+const HEAD_PIECES := ["Skull", "Lids", "Eyes", "Mouth", "Brows", "Hair_", "Beard_", "Glasses_", "Hat_"]
 const ARM_IN := 0.29      # radians: A-pose rest (20 deg) -> arms nearly at the sides
 
 ## Everything a player can customize (the tailor menu edits these).
@@ -117,6 +119,11 @@ var _rest_b := {}         # idx -> global rest basis
 var _rest_p := {}         # idx -> local rest position
 var _state := {}          # our own per-bone Euler (never read back from the skeleton)
 var _phase := 0.0
+var fp := false           # first-person body (Content Warning style): head hidden from our camera
+var anim_t := 0.0         # seconds into a clip pose (dance); restarts when the pose changes
+var _anim_pose := ""
+var anim_hold := -1.0     # tests: freeze a clip at this time
+static var _clips := {}   # clip name -> parsed JSON {fps, frames, keys}
 var _t := 0.0
 var _blink := 0.0
 var _next_blink := 2.0
@@ -268,6 +275,9 @@ func build(l: Dictionary) -> void:
 	prop_left = _aligned_attachment("Hand_L", _bone_pos("Hand_L") + Vector3(0.012, -0.075, -0.012), "GripL")
 	j["spine"] = _aligned_attachment("Spine", Vector3(0, 0.93, 0), "SpineAnchor")
 	j["head"] = _aligned_attachment("Head", _bone_pos("Head"), "HeadAnchor")
+	# between the eyes (the lids sit on them), a touch forward: where a first-person camera goes
+	var eyes := (_bone_pos("Lid_L") + _bone_pos("Lid_R")) * 0.5 if _bi.has("Lid_L") else _bone_pos("Head") + Vector3(0, 0.1, -0.08)
+	j["eyes"] = _aligned_attachment("Head", eyes + Vector3(0, 0, -0.03), "EyeAnchor")
 	bloodshot = bool(_g("bloodshot")) or bloodshot
 	_apply_eyes()
 	# POLICE lettering on the cap and the vest (front + back), Schedule I style
@@ -276,6 +286,28 @@ func build(l: Dictionary) -> void:
 	if _g("outfit") == "cop":
 		_print_on(j["spine"], "POLICE", Vector3(0, 0.37, -0.154), Vector3(0, PI, 0), Color(0.97, 0.97, 0.97), 0.0028)
 		_print_on(j["spine"], "POLICE", Vector3(0, 0.38, 0.165), Vector3.ZERO, Color(0.97, 0.97, 0.97), 0.0032)
+	if fp:
+		_apply_fp()
+
+
+## First person: keep drawing the body, arms and legs for our own camera but
+## move the head pieces to FP_LAYER (the local camera leaves it out).
+func set_first_person(on: bool) -> void:
+	fp = on
+	_apply_fp()
+
+
+func _apply_fp() -> void:
+	for mi in find_children("*", "MeshInstance3D", true, false):
+		var head_piece := false
+		for pre in HEAD_PIECES:
+			if str(mi.name).begins_with(pre):
+				head_piece = true
+		if head_piece:
+			mi.layers = FP_LAYER if fp else 1
+	if j.has("head"):
+		for l in j["head"].find_children("*", "VisualInstance3D", true, false):
+			l.layers = FP_LAYER if fp else 1
 
 
 func _print_on(anchor: Node3D, text: String, pos: Vector3, rot: Vector3, color: Color, px: float) -> void:
@@ -488,6 +520,10 @@ func _process(delta: float) -> void:
 		"bob": absf(s) * 0.035 * walk - 0.01 * walk, "hand": Vector3.ZERO, "head_rx": 0.0, "head_ry": 0.0,
 	}
 	var upper: String = pose.trim_prefix("sit_") if pose.begins_with("sit_") else pose
+	if pose != _anim_pose:
+		_anim_pose = pose
+		anim_t = 0.0
+	anim_t = anim_hold if anim_hold >= 0.0 else anim_t + delta
 	if pose.begins_with("sit"):
 		t.root_y = -0.43
 		t.hipL = Vector3(1.5, 0, 0.12)
@@ -506,22 +542,35 @@ func _process(delta: float) -> void:
 		t.elL = Vector3(0.9, 0, 0)
 		t.elR = Vector3(0.9, 0, 0)
 	match upper:
+		"dance":    # rotoscoped from the owner's clip (assets/anims/dance.json)
+			_apply_clip(t, "dance", anim_t)
 		"finger":   # the bird, right in their face
 			t.shR = Vector3(1.25, 0.25, 0.1)
 			t.elR = Vector3(1.55, 0, 0)
 			t.head_rx = -0.05
+			if fp:      # held out in front of our own camera
+				t.shR = Vector3(1.05, 0.3, 0.12)
+				t.elR = Vector3(1.05, 0, 0)
 		"fistpump":
 			var pump := absf(sin(_t * 9.0))
 			t.shR = Vector3(2.3 + pump * 0.4, 0.1, 0.2)
 			t.elR = Vector3(1.2 - pump * 0.9, 0, 0)
 			t.shL = Vector3(0.3, 0, -0.1)
 			t.spine_rx -= 0.1
+			if fp:      # pump it where we can see it (upper right of the view)
+				t.shR = Vector3(1.55 + pump * 0.45, 0.25, 0.2)
+				t.elR = Vector3(1.5 - pump * 0.7, 0, 0)
 		"watch":    # left forearm across the chest, wrist turned up, admire it
 			t.shL = Vector3(1.05, -0.55, 0.15)
 			t.elL = Vector3(1.35, 0, 0)
 			t.shR = Vector3(0.25, 0.1, 0.05)
 			t.head_rx = 0.45
 			t.head_ry = 0.3
+			if fp:      # our camera doesn't look down on its own: bring the wrist up into view
+				t.shL = Vector3(1.35, -0.65, 0.1)
+				t.elL = Vector3(1.75, 0, 0)
+				t.head_rx = 0.0
+				t.head_ry = 0.0
 		"point":
 			t.shR = Vector3(1.5, 0.05, 0.05)
 			t.elR = Vector3(0.05, 0, 0)
@@ -560,6 +609,12 @@ func _process(delta: float) -> void:
 			var puff := (sin(_t * 0.9) + 1.0) * 0.5
 			t.shR = Vector3(0.5 + puff * 0.3, 0.5, 0.1)
 			t.elR = Vector3(2.0 + puff * 0.3, 0, 0)
+			if fp:      # first person: hold it out front-right, bring it up for a puff (not through the lens)
+				t.shR = Vector3(0.75 + puff * 0.25, 0.15, 0.2)
+				t.elR = Vector3(1.2 + puff * 0.35, 0, 0)
+		"light":    # Zippo in the left hand, up in front
+			t.shL = Vector3(1.0, -0.2, -0.1)
+			t.elL = Vector3(1.3, 0, 0)
 		"hold":
 			t.shR = Vector3(1.3, -0.05, 0.1)
 			t.elR = Vector3(0.2, 0, 0)
@@ -631,6 +686,49 @@ func _process(delta: float) -> void:
 		cur = lerpf(cur, m_open, clampf(delta * 20.0, 0, 1))
 		_state["jaw"] = cur
 		skel.set_bone_pose_scale(jaw, Vector3(0.85 if talking else 1.0, cur, 1.0))
+
+
+## Keyframed pose clip (15 fps JSON baked by tools/rotoscope). Loops; each
+## key overrides the procedural pose (Vector3 eulers or floats).
+static func clip(clip_name: String) -> Dictionary:
+	if not _clips.has(clip_name):
+		var f := FileAccess.open("res://assets/anims/%s.json" % clip_name, FileAccess.READ)
+		_clips[clip_name] = JSON.parse_string(f.get_as_text()) if f else {}
+	return _clips[clip_name]
+
+
+static func clip_length(clip_name: String) -> float:
+	var c := clip(clip_name)
+	return float(c.get("frames", 0)) / float(c.get("fps", 15))
+
+
+func _apply_clip(t: Dictionary, clip_name: String, time: float) -> void:
+	var c := clip(clip_name)
+	if c.is_empty():
+		return
+	var n := int(c.frames)
+	var f := fposmod(time * float(c.fps), float(n))
+	var i0 := int(f)
+	var i1 := (i0 + 1) % n
+	var w := f - float(i0)
+	for key in c.keys:
+		var a = c.keys[key][i0]
+		var b = c.keys[key][i1]
+		if a is Array:
+			t[key] = Vector3(a[0], a[1], a[2]).lerp(Vector3(b[0], b[1], b[2]), w)
+		else:
+			t[key] = lerpf(a, b, w)
+
+
+## How far the upper body is turned from the player's facing right now (the
+## dance turns side-on); a first-person camera follows it during emotes.
+func body_yaw() -> float:
+	var y := 0.0
+	for bone in ["Hips", "Spine"]:
+		var i: int = _bi.get(bone, -1)
+		if i >= 0:
+			y += (_state.get(i, Vector3.ZERO) as Vector3).y
+	return y
 
 
 func look_pitch(p: float) -> void:

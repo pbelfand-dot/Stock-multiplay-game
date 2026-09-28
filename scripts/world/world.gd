@@ -112,6 +112,17 @@ func in_street(node: Node3D) -> bool:
 	return node != null and node.global_position.distance_to(builder.street.ORIGIN) < 90.0
 
 
+## Which shop interior a node is standing in ("lux", "casino", "pawn", ...), or "".
+func street_zone(node: Node3D) -> String:
+	if not in_street(node):
+		return ""
+	var at := Vector2(node.global_position.x, node.global_position.z)
+	for z in builder.street.zones:
+		if (z.rect as Rect2).has_point(at):
+			return z.kind
+	return ""
+
+
 func go_to_street() -> void:
 	if local_player and not match_node.is_jailed(Net.my_id()):
 		Sfx.play("bell", -8.0, 1.6)

@@ -34,9 +34,8 @@ var _has_target := false
 var cam: Camera3D
 var ray: RayCast3D
 var head: Node3D
-var body_mesh: Node3D     # the Character model (hidden for our own view)
+var body_mesh: Node3D     # the Character model (our own too: first-person body, head hidden)
 var model
-var fp_arm: Node3D
 var busy := false         # at a terminal / slot machine (synced)
 var _last_pos := Vector3.ZERO
 var _speed := 0.0
@@ -47,18 +46,18 @@ var held_cigar: Node3D
 var held_gun: Node3D
 var powder_fx := 0.0
 # emotes (F finger, V fist pump, Z show watch, X point) and chairs
-const EMOTES := ["", "finger", "fistpump", "watch", "point"]
+const EMOTES := ["", "finger", "fistpump", "watch", "point", "dance"]
 const EMOTE_TIME := 2.4
 const ROLL_SPEED := 2.2
 var emote := 0              # index into EMOTES (synced)
 var _emote_t := 0.0
+var _dance_tilt := 0.0
 var seat := -1              # desk chair id we're sitting in (synced), -1 = standing
 var carried_chair: Node3D
 var finger_prop: Node3D
 var zippo: Node3D
 var _zippo_t := 0.0
 var _cigar_was := 0.0
-var _fp_rest := Vector3(0.3, -0.28, -0.42)
 var cash_stack: Node3D
 var _cash_t := 0.0
 
@@ -98,7 +97,8 @@ func _ready() -> void:
 		ray.collision_mask = 1 | 8 | 16
 		ray.add_exception(self)
 		cam.add_child(ray)
-		body_mesh.visible = false
+		cam.cull_mask &= ~Character.FP_LAYER     # our own head isn't drawn for us (still casts a shadow)
+		model.set_first_person(true)
 		name_tag.visible = false
 	_build_fx()
 	_target_pos = global_position
@@ -167,44 +167,38 @@ func _build_fx() -> void:
 	bills.position = Vector3(0.3, 1.35, -0.5)
 	add_child(bills)
 
-	# held props: first-person arm for us, the model's right hand for others
-	if is_local:
-		fp_arm = Props.fp_arm(look)
-		fp_arm.position = Vector3(0.3, -0.28, -0.42)
-		fp_arm.rotation = Vector3(0.08, 0.12, 0)
-		cam.add_child(fp_arm)
-		fp_arm.visible = false
-		zippo = Props.zippo()
-		zippo.position = Vector3(-0.2, -0.3, -0.4)
-		zippo.rotation = Vector3(0.15, -0.3, 0.1)
-		zippo.visible = false
-		cam.add_child(zippo)
-		var grip: Node3D = fp_arm.get_node("Grip")
-		held_cigar = Props.cigar()
-		held_cigar.rotation = Vector3(0, 0.5, 0)
-		grip.add_child(held_cigar)
-		held_gun = Props.flex_gun()
-		held_gun.position = Vector3(0, -0.02, 0.02)
-		grip.add_child(held_gun)
-		# keep our own smoke small and off to the side so it doesn't blind us
+	# held props go in the model's hands (ours too: you see your own hands in first person)
+	if is_local:   # keep our own smoke small and off to the side so it doesn't blind us
 		smoke.amount = 14
 		smoke.scale_amount_min = 0.3
 		smoke.scale_amount_max = 0.7
 		smoke.position = Vector3(0.45, 1.45, -0.6)
 	else:
-		held_cigar = Props.cigar()
-		held_cigar.rotation = Vector3(-PI / 2, 0, 0)
-		model.prop_right.add_child(held_cigar)
-		held_gun = Props.flex_gun()
-		held_gun.rotation = Vector3(-PI / 2, 0, 0)
-		model.prop_right.add_child(held_gun)
-		finger_prop = Props.finger(look.get("skin", Color(0.88, 0.7, 0.58)))
-		finger_prop.visible = false
-		model.prop_right.add_child(finger_prop)
 		smoke.position = Vector3(0.1, 1.62, -0.3)
 		bills.position = Vector3(0.3, 1.35, -0.6)
+	_attach_props()
+
+
+## Cigar / money gun / finger / Zippo / cash stack live in the model's hands.
+## Called again after the Tailor rebuilds the body.
+func _attach_props() -> void:
+	held_cigar = Props.cigar()
+	held_cigar.rotation = Vector3(-PI / 2, 0, 0)
+	model.prop_right.add_child(held_cigar)
+	held_gun = Props.flex_gun()
+	held_gun.rotation = Vector3(-PI / 2, 0, 0)
+	model.prop_right.add_child(held_gun)
+	finger_prop = Props.finger(look.get("skin", Color(0.88, 0.7, 0.58)))
+	finger_prop.visible = false
+	model.prop_right.add_child(finger_prop)
 	held_cigar.visible = false
 	held_gun.visible = false
+	if is_local:
+		zippo = Props.zippo()
+		zippo.rotation = Vector3(-PI / 2, 0, 0)
+		zippo.visible = false
+		model.prop_left.add_child(zippo)
+		cash_stack = null
 
 
 ## New clothes from the Tailor: rebuild the body (and first-person arm) and
@@ -213,31 +207,9 @@ func apply_look(l: Dictionary) -> void:
 	if l == look:
 		return
 	look = l
-	model.build(look)
+	model.build(look)          # frees the old hands and everything in them
 	_watch_kind = ""
-	if is_local:
-		var old := fp_arm
-		fp_arm = Props.fp_arm(look)
-		fp_arm.position = old.position
-		fp_arm.rotation = old.rotation
-		fp_arm.visible = old.visible
-		cam.add_child(fp_arm)
-		var grip: Node3D = fp_arm.get_node("Grip")
-		held_cigar.reparent(grip, false)
-		held_gun.reparent(grip, false)
-		old.queue_free()
-	else:
-		held_cigar = Props.cigar()
-		held_cigar.rotation = Vector3(-PI / 2, 0, 0)
-		model.prop_right.add_child(held_cigar)
-		held_gun = Props.flex_gun()
-		held_gun.rotation = Vector3(-PI / 2, 0, 0)
-		model.prop_right.add_child(held_gun)
-		finger_prop = Props.finger(look.get("skin", Color(0.88, 0.7, 0.58)))
-		finger_prop.visible = false
-		model.prop_right.add_child(finger_prop)
-		held_cigar.visible = false
-		held_gun.visible = false
+	_attach_props()
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -246,6 +218,16 @@ func _unhandled_input(event: InputEvent) -> void:
 	if not world.ui_blocking():
 		for i in range(1, EMOTES.size()):
 			if event.is_action_pressed("emote_" + EMOTES[i]):
+				if EMOTES[i] == "dance":
+					if seat >= 0:
+						continue
+					if EMOTES[emote] == "dance":      # press again to stop
+						emote = 0
+						_emote_t = 0.0
+						continue
+					emote = i
+					_emote_t = Character.clip_length("dance") * 3.0
+					continue
 				emote = i
 				_emote_t = EMOTE_TIME
 				if EMOTES[i] == "watch":
@@ -290,6 +272,9 @@ func _local_move(delta: float) -> void:
 	var bp: float = m.pressure_of(peer_id) if m else 0.0
 	if bp > Rules.PRESSURE_WOBBLY:   # high blood pressure: heavy legs
 		speed *= lerpf(1.0, 0.6, (bp - Rules.PRESSURE_WOBBLY) / (Rules.PRESSURE_MAX - Rules.PRESSURE_WOBBLY))
+	if EMOTES[emote] == "dance" and (input != Vector2.ZERO or Input.is_action_just_pressed("jump")):
+		emote = 0                  # moving ends the dance
+		_emote_t = 0.0
 	var dir := (transform.basis * Vector3(input.x, 0, input.y)).normalized()
 	_dive_cd = maxf(_dive_cd - delta, 0.0)
 	if diving > 0.0:
@@ -328,8 +313,16 @@ func _local_move(delta: float) -> void:
 		if _brrt_acc <= 0.0:
 			_brrt_acc = 0.22
 			Sfx.play("brrt", -6.0, randf_range(0.9, 1.1))
-	# dive camera: drop low and roll
-	head.position.y = lerpf(head.position.y, 0.55 if diving > 0.0 else (1.22 if seat >= 0 else 1.62), delta * 10.0)
+	# the camera rides the body's eyes (sitting, diving, dancing all move it),
+	# set back a little so looking down shows your chest, not the floor in front of it
+	var eye: Vector3 = to_local(model.j["eyes"].global_position) if model.j.has("eyes") else Vector3(0, 1.62, 0)
+	var turn: float = model.body_yaw() if EMOTES[emote] == "dance" else 0.0   # the view turns with the dance
+	eye += Basis(Vector3.UP, turn) * Vector3(0, 0, 0.03)
+	head.position = head.position.lerp(eye, clampf(delta * 18.0, 0.0, 1.0))
+	head.rotation.y = lerp_angle(head.rotation.y, turn, clampf(delta * 10.0, 0.0, 1.0))
+	# dancing: tip the view down a bit so your own hands are in the shot
+	_dance_tilt = lerpf(_dance_tilt, -0.5 if EMOTES[emote] == "dance" else 0.0, clampf(delta * 5.0, 0.0, 1.0))
+	head.rotation.x = clampf(pitch + _dance_tilt, -1.45, 1.45)
 	if seat >= 0 and carried_chair:   # the chair swivels a little behind your yaw
 		carried_chair.rotation.y = lerp_angle(carried_chair.rotation.y, PI, delta * 4.0)
 	_update_fp_emote(delta)
@@ -368,17 +361,16 @@ func _update_fx() -> void:
 		smoke.emitting = cigar_on
 	if bills.emitting != raining:
 		bills.emitting = raining
-	if is_local:
-		fp_arm.visible = cigar_on or gun_on or holding_ball or emote > 0
-		return
-	# animate the remote model from what we know about this player
+	# animate the model (ours too, for the first-person body)
 	var dt := get_physics_process_delta_time()
 	var flat := global_position - _last_pos
 	flat.y = 0.0
 	_speed = lerpf(_speed, flat.length() / maxf(dt, 0.001), 0.25)
 	_last_pos = global_position
+	if is_local:
+		busy = world.ui_blocking()
 	model.move_speed = _speed
-	model.look_pitch(pitch)
+	model.look_pitch(0.0 if is_local else pitch)   # our own neck stays put (the camera does the looking)
 	var jailed: bool = m != null and m.is_jailed(peer_id)
 	finger_prop.visible = EMOTES[emote] == "finger"
 	var airborne := global_position.y > 0.45
@@ -390,6 +382,10 @@ func _update_fx() -> void:
 		model.pose = "sit_" + EMOTES[emote] if emote > 0 else ("sit_smoke" if cigar_on else "sit")
 	elif emote > 0:
 		model.pose = EMOTES[emote]
+	elif is_local and _zippo_t > 0.0:
+		model.pose = "light"
+	elif is_local and _cash_t > 0.0:
+		model.pose = "hold"
 	elif jailed:
 		model.pose = "cuffed"
 	elif gun_on:
@@ -409,6 +405,9 @@ func _update_fx() -> void:
 func sit(chair_id: int) -> void:
 	if seat >= 0 or not world.builder.chairs.has(chair_id):
 		return
+	if EMOTES[emote] == "dance":
+		emote = 0
+		_emote_t = 0.0
 	var c: Dictionary = world.builder.chairs[chair_id]
 	teleport(c.pos + Vector3(0, 0.1, 0))
 	rotation.y = c.rot + PI
@@ -438,8 +437,7 @@ func _set_seat(id: int) -> void:
 ## First-person: hold a fat cash stack out in front (money counter).
 func show_cash_stack(secs: float) -> void:
 	if cash_stack == null:
-		cash_stack = PropKit.place("Cash", cam, Vector3(0.0, -0.3, -0.42), PI / 2)
-		cash_stack.rotation.x = 0.5
+		cash_stack = PropKit.place("Cash", model.prop_right, Vector3(0.0, -0.02, -0.06), PI / 2)
 	cash_stack.visible = true
 	_cash_t = secs
 
@@ -448,8 +446,8 @@ func _update_fp_emote(delta: float) -> void:
 	if cash_stack:
 		_cash_t = maxf(_cash_t - delta, 0.0)
 		cash_stack.visible = _cash_t > 0.0
-		if cash_stack.visible:   # riffle the stack toward the counter
-			cash_stack.position = Vector3(0.0, -0.3 + sin(_cash_t * 20.0) * 0.006, -0.42 - (2.6 - _cash_t) * 0.04)
+		if cash_stack.visible:   # riffle the stack
+			cash_stack.position = Vector3(0.0, -0.02 + sin(_cash_t * 20.0) * 0.006, -0.06)
 	var m = world.match_node
 	# the Zippo: flick it open and light up whenever a fresh cigar starts
 	var cig: float = m.effect_left(peer_id, "cigar") if m else 0.0
@@ -462,33 +460,10 @@ func _update_fp_emote(delta: float) -> void:
 	if zippo.visible:
 		var fl: Node3D = zippo.get_node("Flame")
 		fl.scale = Vector3.ONE * (0.8 + randf() * 0.5)
-		zippo.position = Vector3(-0.2, -0.3 + minf(1.4 - _zippo_t, 0.25) * 0.6, -0.4)
-	# emotes in first person: the arm comes up in front of the camera
+	# emotes run out (the body plays them; you see your own hands in first person)
 	_emote_t = maxf(_emote_t - delta, 0.0)
 	if _emote_t <= 0.0:
 		emote = 0
-	var e: String = EMOTES[emote]
-	fp_arm.get_node("FingerUp").visible = e == "finger"
-	fp_arm.get_node("Watch").visible = e == "watch" or _watch_kind in ["gold", "iced"]
-	var want_pos := _fp_rest
-	var want_rot := Vector3(0.08, 0.12, 0)
-	match e:
-		"finger":
-			want_pos = Vector3(0.12, -0.12, -0.36)
-			want_rot = Vector3(1.35, 0.1, 0.05)
-		"fistpump":
-			want_pos = Vector3(0.18, -0.1 + sin(_emote_t * 18.0) * 0.06, -0.4)
-			want_rot = Vector3(1.2, 0.2, 0.2)
-		"watch":
-			want_pos = Vector3(0.05, -0.16, -0.32)
-			want_rot = Vector3(0.6, 0.9, -1.4)
-		"point":
-			want_pos = Vector3(0.2, -0.16, -0.5)
-			want_rot = Vector3(0.1, 0.05, 0)
-	if e != "":
-		fp_arm.visible = true
-	fp_arm.position = fp_arm.position.lerp(want_pos, clampf(delta * 14.0, 0, 1))
-	fp_arm.rotation = fp_arm.rotation.lerp(want_rot, clampf(delta * 14.0, 0, 1))
 
 
 ## What the crosshair is pointing at: {type, id, prompt} or {}

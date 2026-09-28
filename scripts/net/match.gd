@@ -29,6 +29,7 @@ signal day_ended(summary: Dictionary)
 signal game_over(summary: Dictionary)
 signal toast(msg: String)
 signal luxury_bought(peer: int, key: String)
+signal pawned(peer: int, key: String)
 signal relieved(peer: int, line: String)
 signal ranked_up(peer: int, rank: int)
 signal posted(ev: Dictionary)
@@ -439,6 +440,7 @@ func _req_pawn(key: String) -> void:
 	var cash: float = Rules.LUXURY[key].price * Rules.PAWN_RATE
 	ledger.adjust(acct_for(id), cash)
 	_s_toast.rpc("%s pawned a %s for %s" % [Net.player_name(id), Rules.LUXURY[key].name, Rules.money(cash)])
+	_s_pawned.rpc(id, key)
 	_save_careers()
 	_push_state()
 
@@ -671,7 +673,7 @@ func _after_close(r: Dictionary, acct: int, closer: int) -> void:
 		stats[trader_id].biggest = maxf(stats[trader_id].biggest, r.pnl)
 	if r.pct > 100.0 and heat.has(trader_id):
 		_add_heat(trader_id, Rules.HEAT_BIG_WIN)
-	_s_trade_closed.rpc({"acct": acct, "trader": pos.trader, "sym": pos.sym, "side": pos.side,
+	_s_trade_closed.rpc({"acct": acct, "trader": pos.trader, "trader_id": trader_id, "sym": pos.sym, "side": pos.side,
 		"pnl": r.pnl, "pct": r.pct, "liquidated": r.liquidated, "lev": pos.lev, "trigger": r.get("trigger", "")})
 
 
@@ -1028,6 +1030,11 @@ func _s_post(ev: Dictionary) -> void:
 @rpc("authority", "call_local", "reliable")
 func _s_luxury(peer: int, key: String) -> void:
 	luxury_bought.emit(peer, key)
+
+
+@rpc("authority", "call_local", "reliable")
+func _s_pawned(peer: int, key: String) -> void:
+	pawned.emit(peer, key)
 
 
 @rpc("authority", "call_local", "reliable")

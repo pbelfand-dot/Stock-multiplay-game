@@ -58,6 +58,10 @@ func _run() -> void:
 	if Config.cli.has("quick"):
 		await _quick(world, m, hud)
 		return
+	if Config.cli.has("fponly"):
+		await _fp_shots(world, m, hud)
+		Sfx.quit_game()
+		return
 	var p = world.local_player
 	var views := [
 		["01_spawn_bullpen", Vector3(0, 0.1, 9), 0.0, -0.05],
@@ -307,3 +311,59 @@ func _quick(world, m, hud) -> void:
 	await get_tree().create_timer(2.0).timeout
 	await _snap("q9_mugshot_side")
 	Sfx.quit_game()
+
+
+## First-person body (Content Warning style): what you see of yourself.
+func _fp_shots(world, m, hud) -> void:
+	var p = world.local_player
+	m.careers[Net.my_id()]["xp"] = 500.0
+	m.ledger.adjust(m.acct_for(Net.my_id()), 50000.0)
+	m._push_state()
+	var at := Vector3(0, 0.1, 6.5)
+	var aim := func(yaw: float, pitch: float) -> void:
+		p.rotation.y = yaw
+		p.pitch = pitch
+		p.head.rotation.x = pitch
+	p.teleport(at)
+	aim.call(0.0, 0.0)
+	await get_tree().create_timer(0.6).timeout
+	await _snap("fp_01_ahead")
+	aim.call(0.0, -1.1)
+	await get_tree().create_timer(0.4).timeout
+	await _snap("fp_02_look_down")
+	aim.call(0.0, -0.45)
+	for e in ["finger", "fistpump", "watch", "point"]:
+		p.emote = p.EMOTES.find(e)
+		p._emote_t = 3.0
+		await get_tree().create_timer(0.6).timeout
+		await _snap("fp_03_" + e)
+	p.emote = 0
+	await get_tree().create_timer(0.4).timeout
+	m.request_buy("cigar")
+	await get_tree().create_timer(0.3).timeout
+	m.request_use("cigar")
+	await get_tree().create_timer(0.35).timeout
+	await _snap("fp_04_zippo")
+	await get_tree().create_timer(2.5).timeout
+	await _snap("fp_05_cigar")
+	m.request_buy("moneygun")
+	await get_tree().create_timer(0.3).timeout
+	m.request_use("moneygun")
+	await get_tree().create_timer(0.8).timeout
+	await _snap("fp_06_money_gun")
+	# the dance, from inside it
+	p.emote = p.EMOTES.find("dance")
+	p._emote_t = 30.0
+	aim.call(0.0, -0.35)
+	for t in [1.2, 2.0, 4.8, 5.6]:
+		p.model.anim_hold = t
+		await get_tree().create_timer(1.0).timeout
+		await _snap("fp_07_dance_%.1f" % t)
+	p.model.anim_hold = -1.0
+	p.emote = 0
+	# sitting at a desk
+	p.sit(0)
+	await get_tree().create_timer(0.8).timeout
+	aim.call(p.rotation.y, -0.6)
+	await get_tree().create_timer(0.3).timeout
+	await _snap("fp_08_sitting")

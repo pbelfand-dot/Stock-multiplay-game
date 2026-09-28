@@ -73,6 +73,7 @@ func _ready() -> void:
 	var help := UI.lbl("Host shares their IP. Same Wi-Fi: use their local IP.\nDifferent houses: all install Tailscale (free) and use the host's Tailscale IP.", 16, UI.DIM)
 	help.autowrap_mode = TextServer.AUTOWRAP_WORD
 	box.add_child(help)
+	box.add_child(Music.volume_row(UI.lbl("Music", 18, UI.DIM)))
 	var quit := UI.btn("QUIT", UI.NAVY_2, 20)
 	quit.pressed.connect(func(): Sfx.quit_game())
 	box.add_child(quit)

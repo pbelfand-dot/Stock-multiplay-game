@@ -7,6 +7,7 @@ var player_name := "Trader"
 var last_ip := "127.0.0.1"
 var port := 7777
 var mouse_sensitivity := 0.0025
+var music_volume := 0.6      # 0..1, the soundtrack slider (0 = off)
 var suit_color := Color(0.35, 0.36, 0.4)
 var look := {}            # character look from the tailor (empty = default for your slot)
 
@@ -60,6 +61,7 @@ func _setup_inputs() -> void:
 	_key("emote_fistpump", [KEY_V])
 	_key("emote_watch", [KEY_Z])
 	_key("emote_point", [KEY_X])
+	_key("emote_dance", [KEY_H])
 	_key("phone", [KEY_P])
 	_key("phone_action", [KEY_G])
 	_key("dive", [KEY_C, KEY_CTRL])
@@ -75,6 +77,7 @@ func load_settings() -> void:
 		last_ip = cf.get_value("net", "ip", last_ip)
 		port = cf.get_value("net", "port", port)
 		mouse_sensitivity = cf.get_value("input", "sens", mouse_sensitivity)
+		music_volume = cf.get_value("audio", "music", music_volume)
 		suit_color = cf.get_value("player", "suit", suit_color)
 		look = cf.get_value("player", "look", look)
 
@@ -87,4 +90,5 @@ func save_settings() -> void:
 	cf.set_value("net", "ip", last_ip)
 	cf.set_value("net", "port", port)
 	cf.set_value("input", "sens", mouse_sensitivity)
+	cf.set_value("audio", "music", music_volume)
 	cf.save(SAVE_PATH)
