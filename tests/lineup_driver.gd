@@ -3,6 +3,8 @@ extends Node3D
 ##   godot --path . -- --lineup=/tmp/out
 ## Hair close-ups (every style from the front, 3/4, side and back, plus hats):
 ##   godot --path . -- --lineup=/tmp/out --hair
+## One portrait per haircut (portrait_<style>.png, 800x800):
+##   godot --path . -- --lineup=/tmp/out --hairportraits
 
 const Character = preload("res://scripts/art/character.gd")
 
@@ -22,6 +24,9 @@ func _ready() -> void:
 	var we := WorldEnvironment.new()
 	we.environment = env
 	add_child(we)
+	if Config.cli.has("hairportraits"):
+		_hairportraits(env)
+		return
 	var sun := DirectionalLight3D.new()
 	sun.rotation_degrees = Vector3(-40, 25, 0)
 	sun.light_energy = 0.75
@@ -310,4 +315,78 @@ func _run_hairgif(chars: Array) -> void:
 		get_viewport().get_texture().get_image().save_png("%s/f_%03d.png" % [out, n])
 		n += 1
 	print("lineup: hairgif %d frames" % n)
+	Sfx.quit_game()
+
+
+# ------------------------------------------------------------------ haircut portraits
+## One clean "photo" per haircut on the default trader: front 3/4 view, head and
+## shoulders, perspective camera, a soft three-point light, 800x800.
+##   godot --path . -- --lineup=/tmp/out --hairportraits
+const PORTRAIT_SIZE := 800
+const PORTRAIT_HAIR := Color(0.36, 0.22, 0.12)   # a mid brown: the cut reads better than in near-black
+
+
+func _hairportraits(env: Environment) -> void:
+	env.background_color = Color(0.3, 0.33, 0.39)
+	env.ambient_light_color = Color(0.95, 0.96, 1.0)
+	env.ambient_light_energy = 0.34
+	var key := DirectionalLight3D.new()                # warm key from above, on the camera's side
+	key.rotation_degrees = Vector3(-42, 70, 0)
+	key.light_energy = 0.62
+	key.light_color = Color(1.0, 0.96, 0.9)
+	key.shadow_enabled = true
+	key.directional_shadow_mode = DirectionalLight3D.SHADOW_ORTHOGONAL
+	key.directional_shadow_max_distance = 4.0
+	add_child(key)
+	var fill := DirectionalLight3D.new()               # cool fill from the other side
+	fill.rotation_degrees = Vector3(-10, -40, 0)
+	fill.light_energy = 0.28
+	fill.light_color = Color(0.85, 0.9, 1.0)
+	add_child(fill)
+	var rim := DirectionalLight3D.new()                # rim from behind: outlines the hair
+	rim.rotation_degrees = Vector3(-25, 160, 0)
+	rim.light_energy = 0.7
+	add_child(rim)
+	var styles: Array = Character.OPTIONS.hair_style
+	var chars := []
+	for i in styles.size():
+		var look: Dictionary = Character.preset("trader").duplicate()
+		look["hair_style"] = styles[i]
+		look["hair"] = PORTRAIT_HAIR
+		var c := Character.new()
+		c.build(look)
+		c.position = Vector3(i * 4.0, 0, 0)
+		c.rotation.y = PI                          # face the camera (+Z)
+		c.visible = false
+		add_child(c)
+		chars.append(c)
+	_run_hairportraits.call_deferred(styles, chars)
+
+
+func _run_hairportraits(styles: Array, chars: Array) -> void:
+	var vp := SubViewport.new()
+	vp.size = Vector2i(PORTRAIT_SIZE, PORTRAIT_SIZE)
+	vp.msaa_3d = Viewport.MSAA_4X
+	vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	add_child(vp)
+	var cam := Camera3D.new()
+	cam.fov = 30.0
+	vp.add_child(cam)
+	cam.current = true
+	for i in styles.size():
+		for c in chars:
+			c.visible = false
+		var ch = chars[i]
+		ch.visible = true
+		ch._next_blink = 1000.0                    # eyes open for the photo
+		var target := Vector3(ch.position.x, 1.6, 0.07)
+		# front 3/4 (the bald fringe sits behind the ear: swing further round for that one)
+		var a := deg_to_rad(62.0 if styles[i] == "bald" else 45.0)
+		cam.position = target + Vector3(sin(a), 0.12, cos(a)) * 1.72
+		cam.look_at(target + Vector3(0, 0.02, 0))
+		for k in 30:
+			await get_tree().process_frame
+		await RenderingServer.frame_post_draw
+		vp.get_texture().get_image().save_png("%s/portrait_%s.png" % [out, styles[i]])
+		print("lineup: portrait_", styles[i])
 	Sfx.quit_game()
