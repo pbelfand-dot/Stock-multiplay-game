@@ -134,12 +134,16 @@ class Mugshot extends Control:
 class Summary extends PanelContainer:
 	## After hours: the day's results. The host starts the next day from here
 	## (or ENTER), saves, or closes it to walk around and shop first.
-	signal start_pressed
+	signal start_pressed          # READY toggle (or, when the run is over, the host's back-to-lobby)
+	signal force_pressed          # host: START ANYWAY
 	signal save_pressed
 	signal close_pressed
 
 	var body: VBoxContainer
 	var save_lbl: Label
+	var ready_lbl: Label
+	var ready_btn: Button
+	var _over := false
 
 	func _ready() -> void:
 		add_theme_stylebox_override("panel", UI.panel_box(Color(0.04, 0.06, 0.1, 0.95), UI.GOLD, 20, 5))
@@ -221,27 +225,59 @@ class Summary extends PanelContainer:
 		var sp := Control.new()
 		sp.size_flags_vertical = Control.SIZE_EXPAND_FILL
 		body.add_child(sp)
+		_over = over
+		ready_lbl = UI.lbl("", 18, UI.GOLD, true)
+		ready_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD
+		body.add_child(ready_lbl)
 		var row := HBoxContainer.new()
 		row.add_theme_constant_override("separation", 10)
 		body.add_child(row)
-		if Net.is_server():
-			var go := UI.btn(("BACK TO THE LOBBY  [ENTER]" if over else "START DAY %d  [ENTER]" % (int(s.day) + 1)),
-					UI.GREEN.darkened(0.3), 24)
-			go.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-			go.pressed.connect(func(): start_pressed.emit())
-			row.add_child(go)
-			if not over:
+		ready_btn = null
+		if over:
+			if Net.is_server():
+				var back := UI.btn("BACK TO THE LOBBY  [ENTER]", UI.GREEN.darkened(0.3), 24)
+				back.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+				back.pressed.connect(func(): start_pressed.emit())
+				row.add_child(back)
+			else:
+				var wait := UI.lbl("Waiting for the host...", 20, UI.GOLD, true)
+				wait.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+				row.add_child(wait)
+		else:
+			ready_btn = UI.btn("", UI.GREEN.darkened(0.3), 24)
+			ready_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			ready_btn.pressed.connect(func(): start_pressed.emit())
+			row.add_child(ready_btn)
+			if Net.is_server():
+				if Net.players.size() > 1:
+					var force := UI.btn("START ANYWAY", UI.RED.darkened(0.35), 20)
+					force.pressed.connect(func(): force_pressed.emit())
+					row.add_child(force)
 				var sv_btn := UI.btn("SAVE GAME", UI.GOLD.darkened(0.4), 22)
 				sv_btn.pressed.connect(func(): save_pressed.emit())
 				row.add_child(sv_btn)
-		else:
-			var wait := UI.lbl(("Waiting for the host..." if over else "Waiting for the host to start day %d..." % (int(s.day) + 1)), 20, UI.GOLD, true)
-			wait.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-			row.add_child(wait)
 		var close := UI.btn("CLOSE  [ESC]", UI.NAVY_2, 22)
 		close.pressed.connect(func(): close_pressed.emit())
 		row.add_child(close)
 		visible = true
+		update_ready(s.day, {})
+
+	## Who's pressed READY: "READY 1/3 — waiting on Bob, Dave".
+	func update_ready(day_done: int, ready: Dictionary) -> void:
+		if ready_lbl == null or _over:
+			return
+		var waiting: Array = []
+		for id in Net.players:
+			if not ready.has(id):
+				waiting.append(Net.player_name(id))
+		var me_ready := ready.has(Net.my_id())
+		if ready_btn:
+			ready_btn.text = ("✓ READY — waiting  [ENTER to cancel]" if me_ready else "READY FOR DAY %d  [ENTER]" % (day_done + 1))
+		if Net.players.size() <= 1:
+			ready_lbl.text = ""
+		else:
+			ready_lbl.text = "READY %d/%d%s" % [Net.players.size() - waiting.size(), Net.players.size(),
+					("  ·  waiting on " + ", ".join(waiting)) if not waiting.is_empty() else ""]
 
 	func show_saved(info: Dictionary) -> void:
 		if save_lbl:

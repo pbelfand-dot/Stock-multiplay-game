@@ -117,6 +117,21 @@ func _host() -> void:
 		return
 	_say("client arrested; stats=%s" % str(m.stats[bob]))
 	await get_tree().create_timer(2.0).timeout
+	if Net.mode == "coop":
+		# READY-UP: the closing bell, then the host is ready but the day waits for the client
+		m.ledger.get_acct(0).balance = 1_000_000.0
+		m.time_left = 0.1
+		if not await _wait_for(func(): return m.phase == "intermission", 10.0, "closing bell"):
+			return
+		m.request_start()
+		await get_tree().create_timer(2.0).timeout
+		if m.phase != "intermission" or not m.ready_up.has(1) or m.ready_count() != 1:
+			_fail("day 2 didn't wait for the client (%s, ready %s)" % [m.phase, str(m.ready_up)])
+			return
+		_say("host READY, day 2 waits for the client (1/2)")
+		if not await _wait_for(func(): return m.phase == "trading" and m.day == 2, 30.0, "client to ready up"):
+			return
+		_say("client READY too: day 2 rang")
 	_pass()
 
 
@@ -269,4 +284,17 @@ func _client() -> void:
 	if me.global_position.z < 30.0:
 		_fail("not teleported to jail")
 		return
+	if Net.mode == "coop":
+		if not await _wait_for(func(): return m.phase == "intermission", 40.0, "closing bell"):
+			return
+		if not await _wait_for(func(): return m.ready_up.has(1), 10.0, "host to ready up"):
+			return
+		await get_tree().create_timer(4.0).timeout   # let the host see the day waiting on us
+		if m.phase != "intermission":
+			_fail("day 2 started before I was ready")
+			return
+		m.request_start()                    # ENTER: ready
+		if not await _wait_for(func(): return m.phase == "trading" and m.day == 2, 10.0, "day 2 bell"):
+			return
+		_say("readied up after the host: day 2 is open")
 	_pass()

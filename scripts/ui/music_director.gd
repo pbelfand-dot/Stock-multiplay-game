@@ -217,9 +217,16 @@ func _on_shock(kind: String, stage: String) -> void:
 		_event("type_a", 30.0, 3)
 
 
+var _last_phase := ""
+
+
 func _on_state() -> void:
-	if m.phase == "trading" and Music._event_prio >= 4:
-		Music.clear_event()                            # new day: back to the beds
+	# a new day starting (the bell) ends the day-end song; any other state
+	# update during the day must leave the music alone
+	if m.phase != _last_phase:
+		if m.phase == "trading" and Music._event_prio >= 4:
+			Music.clear_event()                        # new day: back to the beds
+		_last_phase = m.phase
 
 
 ## PvP: someone takes the lead from you -> rival music.

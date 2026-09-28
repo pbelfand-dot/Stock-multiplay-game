@@ -409,6 +409,7 @@ void fragment() {
 	relief_panel.add_child(relief_lbl)
 	summary = Overlays.Summary.new()
 	summary.start_pressed.connect(func(): match_node.request_start())
+	summary.force_pressed.connect(func(): match_node.request_force_start())
 	summary.save_pressed.connect(func(): match_node.request_save())
 	summary.close_pressed.connect(close_modals)
 	root.add_child(summary)
@@ -428,6 +429,11 @@ void fragment() {
 		var save := UI.btn("SAVE GAME", UI.GOLD.darkened(0.4), 24)
 		save.pressed.connect(func(): match_node.request_save())
 		v.add_child(save)
+		var force := UI.btn("START THE DAY NOW (skip the ready-up)", UI.RED.darkened(0.4), 20)
+		force.pressed.connect(func():
+			match_node.request_force_start()
+			close_modals())
+		v.add_child(force)
 	pause_save_lbl = UI.lbl("" if Net.is_server() else "The host keeps the save. Your stuff comes back when you rejoin with the same name.", 15, UI.DIM)
 	pause_save_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD
 	v.add_child(pause_save_lbl)
@@ -619,19 +625,21 @@ func _on_state() -> void:
 	match match_node.phase:
 		"lobby":
 			day_lbl.text = "LOBBY · %s" % ("CO-OP" if coop else "PVP")
-			phase_lbl.text = ("Press ENTER to ring the opening bell" if Net.is_server() else "Waiting for the host to ring the bell...") + "   ·   Walk up to a desk and press E"
+			phase_lbl.text = _ready_line("the opening bell") + "   ·   Walk up to a desk and press E"
 		"trading":
 			day_lbl.text = "DAY %d" % match_node.day
 			phase_lbl.text = ""
 		"intermission":
 			day_lbl.text = "AFTER HOURS"
-			phase_lbl.text = ("Market closed. Press ENTER to start day %d  ·  ESC → SAVE GAME" % (match_node.day + 1)) if Net.is_server() \
-					else "Market closed. Waiting for the host to start day %d." % (match_node.day + 1)
+			phase_lbl.text = "Market closed. " + _ready_line("day %d" % (match_node.day + 1)) \
+					+ ("  ·  ESC → SAVE GAME" if Net.is_server() else "")
 		"gameover":
 			day_lbl.text = "GAME OVER"
 			phase_lbl.text = "Host: ENTER to return to lobby" if Net.is_server() else "Waiting for host..."
 	if match_node.phase == "trading":
 		summary.visible = false
+	elif summary.visible:
+		summary.update_ready(match_node.day, match_node.ready_up)
 	var h: float = match_node.heat.get(me, 0.0)
 	heat_bar.value = h
 	heat_lbl.text = "HEAT %d" % int(h)
@@ -972,3 +980,18 @@ func _on_saved(info: Dictionary) -> void:
 	show_toast(txt, UI.RED if info.has("error") else UI.GREEN)
 	if not info.has("error"):
 		Sfx.play("coin")
+
+
+## "Press ENTER when you're ready for day 3 (1/2 ready)" / "✓ You're ready, waiting on Bob".
+func _ready_line(what: String) -> String:
+	var m = match_node
+	var n: int = Net.players.size()
+	if m.ready_up.has(Net.my_id()):
+		var waiting: Array = []
+		for id in Net.players:
+			if not m.ready_up.has(id):
+				waiting.append(Net.player_name(id))
+		return "✓ READY for %s, waiting on %s (ENTER to cancel)" % [what, ", ".join(waiting)]
+	if n <= 1:
+		return "Press ENTER for %s" % what
+	return "Press ENTER when you're ready for %s (%d/%d ready)" % [what, m.ready_count(), n]
