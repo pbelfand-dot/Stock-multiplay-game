@@ -438,8 +438,8 @@ func _wanted_pieces() -> Dictionary:
 	var gold := material(Color(1.0, 0.76, 0.25), "metal")
 	if _g("ring"):
 		w["Acc_ring"] = gold
-	if _g("chain"):
-		w["Acc_chain"] = gold
+	if _g("chain") and outfit != "cop":   # each outfit has its own chain that lies flush on it
+		w["Acc_chain_" + outfit] = gold
 	return w
 
 

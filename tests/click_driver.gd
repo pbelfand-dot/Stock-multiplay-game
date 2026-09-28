@@ -1,0 +1,118 @@
+extends Node
+## UI regression: really CLICK the terminal's BUY and SELL buttons with the
+## mouse (through the whole HUD/CRT/phone stack) and check trades happen.
+##   godot --headless --path . -- --host --autostart --clicktest
+
+var m
+var hud
+
+
+func _ready() -> void:
+	_run.call_deferred()
+
+
+func _say(s: String) -> void:
+	print("[click] ", s)
+
+
+func _done(ok: bool, why := "") -> void:
+	_say(("CLICK PASS " if ok else "CLICK FAIL: ") + why)
+	Sfx.quit_game(0 if ok else 1)
+
+
+func _click(b: Control) -> void:
+	var p := b.get_global_rect().get_center()
+	for pressed in [true, false]:
+		var ev := InputEventMouseButton.new()
+		ev.button_index = MOUSE_BUTTON_LEFT
+		ev.pressed = pressed
+		ev.position = p
+		ev.global_position = p
+		get_viewport().push_input(ev, true)
+		await get_tree().process_frame
+
+
+func _find_btn(root: Node, text: String) -> Button:
+	for n in root.find_children("*", "Button", true, false):
+		if (n as Button).text == text and n.is_visible_in_tree():
+			return n
+	return null
+
+
+func _positions() -> Array:
+	return m.my_acct().get("positions", [])
+
+
+func _run() -> void:
+	get_tree().create_timer(40.0).timeout.connect(func(): _done(false, "timeout"))
+	while get_node_or_null("/root/Main/World/Match") == null:
+		await get_tree().process_frame
+	var w = get_node("/root/Main/World")
+	m = w.match_node
+	hud = w.hud
+	while m.phase != "trading":
+		await get_tree().process_frame
+	await get_tree().create_timer(0.5).timeout
+	hud.open_interact({"type": "terminal", "id": 0})
+	for f in 20:
+		await get_tree().process_frame
+	var buy := _find_btn(hud.terminal, "BUY")
+	var sell := _find_btn(hud.terminal, "SELL")
+	if buy == null or sell == null:
+		_done(false, "no BUY/SELL button")
+		return
+	_say("BUY at %s, SELL at %s" % [buy.get_global_rect(), sell.get_global_rect()])
+	var mv := InputEventMouseMotion.new()
+	mv.position = buy.get_global_rect().get_center()
+	mv.global_position = mv.position
+	get_viewport().push_input(mv, true)
+	await get_tree().process_frame
+	var hov := get_viewport().gui_get_hovered_control()
+	_say("under the BUY button: %s (%s)" % [hov, hov.get_path() if hov else ""])
+	await _click(buy)
+	await get_tree().create_timer(0.5).timeout
+	var ps := _positions()
+	if ps.size() != 1 or ps[0].side != 1:
+		_done(false, "clicking BUY didn't open a long: %s" % str(ps))
+		return
+	_say("BUY click opened a long")
+	await _click(sell)
+	await get_tree().create_timer(0.5).timeout
+	ps = _positions()
+	if not ps.is_empty():
+		_done(false, "clicking SELL didn't sell the long: %s" % str(ps))
+		return
+	_say("SELL click sold the long")
+	await _click(sell)
+	await get_tree().create_timer(0.5).timeout
+	ps = _positions()
+	if ps.size() != 1 or ps[0].side != -1:
+		_done(false, "SELL with nothing to sell should open a short: %s" % str(ps))
+		return
+	_say("SELL with no long opened a short")
+	await _click(buy)      # buys the short back
+	await get_tree().create_timer(0.5).timeout
+	# AUTO-SELL: click + on HIGH twice (+1%) and + on LOW three times (-2%), then BUY
+	var plus: Array = []
+	for n in hud.terminal.find_children("*", "Button", true, false):
+		if (n as Button).text == "+" and n.get_parent() is HBoxContainer and n.get_parent().get_child_count() == 7:
+			plus.append(n)
+	if plus.size() != 2:
+		_done(false, "AUTO row not found")
+		return
+	for k in 2:
+		await _click(plus[0])
+	for k in 3:
+		await _click(plus[1])
+	await _click(buy)
+	await get_tree().create_timer(0.5).timeout
+	ps = _positions()
+	if ps.size() != 1 or ps[0].side != 1:
+		_done(false, "BUY with auto-sell didn't open a long: %s" % str(ps))
+		return
+	var e: float = ps[0].entry
+	if absf(ps[0].tp - e * 1.01) > e * 0.0005 or ps[0].sl <= 0.0 or ps[0].sl >= e:
+		_done(false, "auto-sell prices wrong: entry %f tp %f sl %f" % [e, ps[0].tp, ps[0].sl])
+		return
+	_say("auto-sell set: sell at %.2f (high) / %.2f (low), entry %.2f" % [ps[0].tp, ps[0].sl, e])
+	_done(true)

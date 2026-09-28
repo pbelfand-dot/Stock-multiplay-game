@@ -175,6 +175,41 @@ func request_open(sym: String, side: int, margin: float, lev: int) -> void:
 	_req_open.rpc_id(1, sym, side, margin, lev)
 
 
+## The terminal's BUY / SELL: SELL first sells the longs YOU hold on this asset
+## (BUY first buys back your shorts). With nothing to close it opens a new
+## position, with optional auto-sell up/down percentages.
+func request_order(sym: String, side: int, margin: float, lev: int, up_pct := 0.0, down_pct := 0.0) -> void:
+	_req_order.rpc_id(1, sym, side, margin, lev, up_pct, down_pct)
+
+
+@rpc("any_peer", "call_local", "reliable")
+func _req_order(sym: String, side: int, margin: float, lev: int, up_pct: float, down_pct: float) -> void:
+	if not Net.is_server():
+		return
+	var id := _sender()
+	if is_jailed(id):
+		_s_error.rpc_id(id, "You're in jail, genius.")
+		return
+	var acct := acct_for(id)
+	var closing: Array = []
+	for pos in ledger.get_acct(acct).get("positions", []):
+		if pos.sym == sym and pos.side == -side and pos.get("trader_id", id) == id:
+			closing.append(pos.pid)
+	if not closing.is_empty():
+		for pid in closing:
+			var r: Dictionary = ledger.close_position(acct, pid, market.price_of(sym))
+			if r.ok:
+				_after_close(r, acct, id)
+		_push_state()
+		return
+	var before: int = ledger.get_acct(acct).get("positions", []).size()
+	_req_open(sym, side, margin, lev)
+	var ps: Array = ledger.get_acct(acct).get("positions", [])
+	if ps.size() > before and (up_pct > 0.0 or down_pct > 0.0):
+		ledger.set_auto_pct(acct, ps[-1].pid, up_pct, down_pct)
+		_push_state()
+
+
 @rpc("any_peer", "call_local", "reliable")
 func _req_open(sym: String, side: int, margin: float, lev: int) -> void:
 	if not Net.is_server():

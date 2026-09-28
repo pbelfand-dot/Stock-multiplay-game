@@ -24,6 +24,15 @@ func _ready() -> void:
 			var drv = drv_script.new()
 			drv.name = "SmokeDriver"
 			add_child(drv)
+	if Config.cli.has("clicktest"):
+		var ck = load("res://tests/click_driver.gd")
+		if ck:
+			add_child(ck.new())
+	if Config.cli.has("fit"):
+		var fit_script = load("res://tests/fit_driver.gd")
+		if fit_script:
+			add_child(fit_script.new())
+			return
 	if Config.cli.has("lineup"):
 		var lu_script = load("res://tests/lineup_driver.gd")
 		if lu_script:

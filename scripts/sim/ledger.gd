@@ -103,6 +103,26 @@ func set_tpsl(acct_id: int, pid: int, tp: float, sl: float) -> bool:
 	return false
 
 
+## Auto-sell by price (0 = off): close if the price goes UP up_pct% or DOWN
+## down_pct% from the entry. For a long that's take-profit / stop-loss, for a
+## short it's the other way round. A stop past liquidation is pulled in just
+## before it. Returns the {tp, sl} prices that were set.
+func set_auto_pct(acct_id: int, pid: int, up_pct: float, down_pct: float) -> Dictionary:
+	for pos in accounts.get(acct_id, {}).get("positions", []):
+		if pos.pid != pid:
+			continue
+		var win_pct: float = up_pct if pos.side > 0 else down_pct
+		var loss_pct: float = down_pct if pos.side > 0 else up_pct
+		var tp: float = pos.entry * (1.0 + pos.side * win_pct / 100.0) if win_pct > 0.0 else 0.0
+		var sl := 0.0
+		if loss_pct > 0.0:
+			var room: float = absf(pos.entry - liq_price(pos))
+			sl = pos.entry - pos.side * minf(pos.entry * loss_pct / 100.0, room * 0.9)
+		set_tpsl(acct_id, pid, tp, sl)
+		return {"tp": pos.tp, "sl": pos.sl}
+	return {}
+
+
 ## Positions whose TP or SL was touched: closes them at the current price.
 ## Returns close results with "acct" and "trigger" ("TP" / "SL").
 func check_triggers(price_fn: Callable) -> Array:

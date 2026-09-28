@@ -65,7 +65,7 @@ J("head_top", 0, 0.0, 2.0)
 A_POSE = math.radians(20)   # arms angled out at rest -> clean skinning; the game lowers them
 for sd, s in (("R", 1), ("L", -1)):
     _dir = Vector((s * math.sin(A_POSE), 0, -math.cos(A_POSE)))
-    J("shoulder_" + sd, s * 0.19, -0.005, 1.465)
+    J("shoulder_" + sd, s * 0.19, -0.005, 1.415)   # low, sloped shoulders (a visible neck)
     S["elbow_" + sd] = S["shoulder_" + sd] + _dir * 0.29 + Vector((0, -0.01, 0))
     S["wrist_" + sd] = S["elbow_" + sd] + _dir * 0.27 + Vector((0, 0.01, 0))
     S["hand_end_" + sd] = S["wrist_" + sd] + _dir * 0.14 + Vector((0, 0.01, 0))
@@ -260,13 +260,117 @@ def shell_from_head(head, name, keep, offset, thickness, segs=64, rings=48, subs
 
 # ----------------------------------------------------------------------------- body
 
+def fit_to(ob, p, lift=0.004):
+    """Closest point on garment `ob` to p, pushed out along its normal by `lift`."""
+    bvh = BVHTree.FromObject(ob, bpy.context.evaluated_depsgraph_get())
+    loc, nrm, _, _ = bvh.find_nearest(Vector(p))
+    return loc + nrm * lift if loc else Vector(p)
+
+
+def collar_points(front, name, x=0.038, z=1.492):
+    """Two flat, pointed shirt-collar tips lying on the garment (not balls)."""
+    parts = []
+    for s in (1, -1):
+        bm = bmesh.new()
+        base_in = front(s * (x - 0.018), z + 0.006) + Vector((0, 0.006, 0))
+        base_out = front(s * (x + 0.024), z + 0.004) + Vector((0, 0.005, 0))
+        tip = front(s * (x + 0.006), z - 0.05) + Vector((0, 0.007, 0))
+        vs = [bm.verts.new(v) for v in ((base_in, base_out, tip) if s > 0 else (base_out, base_in, tip))]
+        bm.faces.new(vs)
+        ob = bm_to_object(bm, "CollarPt")
+        add_mod(ob, "SOLIDIFY", thickness=0.004, offset=0.0)
+        add_mod(ob, "BEVEL", width=0.0015, segments=2)
+        apply_mods(ob)
+        parts.append(ob)
+    return join(parts, name)
+
+
+def patch_on(ob, cx, cz, hw, hh, name, lift=0.0025, rows=10):
+    """A flat panel (pocket, patch) that hugs the front of garment `ob`."""
+    bvh = BVHTree.FromObject(ob, bpy.context.evaluated_depsgraph_get())
+    bm = bmesh.new()
+    grid = []
+    for r in range(rows + 1):
+        row = []
+        for c in range(rows + 1):
+            x = cx + (c / rows - 0.5) * 2 * hw
+            z = cz + (r / rows - 0.5) * 2 * hh
+            hit = bvh.ray_cast(Vector((x, 1.0, z)), Vector((0, -1, 0)))
+            p = (hit[0] + hit[1] * lift) if hit[0] else Vector((x, 0.14, z))
+            row.append(bm.verts.new(p))
+        grid.append(row)
+    for r in range(rows):
+        for c in range(rows):
+            bm.faces.new((grid[r][c], grid[r][c + 1], grid[r + 1][c + 1], grid[r + 1][c]))
+    pk = bm_to_object(bm, name)
+    add_mod(pk, "SOLIDIFY", thickness=0.004, offset=1.0)
+    apply_mods(pk)
+    return pk
+
+
+def cut_below(ob, z):
+    """Open the garment bottom flat at height z (no blobby hem between the legs)."""
+    bm = bmesh.new()
+    bm.from_mesh(ob.data)
+    geom = list(bm.verts) + list(bm.edges) + list(bm.faces)
+    bmesh.ops.bisect_plane(bm, geom=geom, plane_co=(0, 0, z), plane_no=(0, 0, 1), clear_inner=True)
+    bm.to_mesh(ob.data)
+    bm.free()
+    ob.data.update()
+
+
+def build_chain(garment, name):
+    """Gold rope chain that lies flush on `garment`. Each point is found by
+    shooting a ray from outside the body back toward the neck, so it lands on
+    the OUTERMOST surface (never under a hood or lapel), then a continuous
+    rope is swept through the points and a flat medallion hangs on the sternum."""
+    bvh = BVHTree.FromObject(garment, bpy.context.evaluated_depsgraph_get())
+
+    def shoot(target, d, lift):
+        o = target + d * 0.4
+        hit = bvh.ray_cast(o, -d)
+        if hit[0]:
+            return hit[0] + hit[1] * lift, hit[1]
+        return target, d
+
+    def on(ang, z, lift):
+        out = Vector((math.sin(ang), math.cos(ang), 0.0))
+        return shoot(Vector((0.0, 0.0, z)) + out * 0.1, out, lift)
+
+    # the chain hugs the base of the neck: aim each point at a small ring around
+    # the collar (sides/back from above, the front drape from the front)
+    pts = []
+    n = 48
+    for a in range(n + 1):
+        ang = a / n * math.tau
+        fy = math.cos(ang)
+        f = max(0.0, fy)
+        ring = Vector((math.sin(ang) * 0.1, fy * (0.085 + 0.03 * f), 1.52 - f ** 1.5 * 0.14))
+        out = Vector((math.sin(ang), fy, 0.0))
+        d = (out * (0.35 + f) + Vector((0, 0, 1.0 - 0.8 * f))).normalized()
+        p, _ = shoot(ring, d, 0.0075)
+        pts.append(p)
+    cb = Blob("Chain", res=0.0035)
+    cb.chain(pts, [0.0058] * len(pts))
+    rope = cb.to_object(name + "_rope", smooth_iter=0)
+    # flat medallion (disc) facing out from the chest, with a little bail
+    mp, nrm = on(0.0, 1.355, 0.012)
+    bm = bmesh.new()
+    bmesh.ops.create_cone(bm, cap_ends=True, cap_tris=False, segments=24, radius1=0.022, radius2=0.022, depth=0.006)
+    q = Vector((0, 0, 1)).rotation_difference(nrm)
+    bmesh.ops.transform(bm, matrix=Matrix.Translation(mp) @ q.to_matrix().to_4x4(), verts=bm.verts)
+    med = bm_to_object(bm, "Medallion")
+    bail = uv_sphere(mp + Vector((0, 0, 0.026)) + nrm * 0.002, (0.006, 0.004, 0.008), 10, 6, "Bail")
+    return join([rope, med, bail], name)
+
+
 def build_body():
     b = Blob("Body")
     b.ellipsoid((0, -0.005, 0.95), (0.15, 0.105, 0.1))              # pelvis
     b.ellipsoid((0, 0, 1.1), (0.14, 0.095, 0.13))                   # waist
     b.ellipsoid((0, 0.005, 1.33), (0.175, 0.11, 0.15))              # chest
     for s in (1, -1):
-        b.ball((s * 0.17, -0.005, 1.44), 0.065)                    # deltoid
+        b.ball((s * 0.17, -0.005, 1.395), 0.062)                   # deltoid
         b.chain([S["shoulder_R" if s > 0 else "shoulder_L"], S["elbow_R" if s > 0 else "elbow_L"],
                  S["wrist_R" if s > 0 else "wrist_L"]], [0.05, 0.043, 0.036])
         sd = "R" if s > 0 else "L"
@@ -392,7 +496,8 @@ def build_jacket():
     b.ellipsoid((0, 0.004, 1.32), (0.2, 0.135, 0.17))                # chest
     for s in (1, -1):
         sd = "R" if s > 0 else "L"
-        b.ellipsoid((s * 0.175, -0.005, 1.435), (0.085, 0.09, 0.065))  # squared shoulder pads
+        b.capsule((s * 0.07, -0.005, 1.47), (s * 0.17, -0.005, 1.405), 0.054)     # sloped shoulder line
+        b.ellipsoid((s * 0.178, -0.005, 1.39), (0.072, 0.082, 0.055))  # neat pads, below the collar
         e, wr = S["elbow_" + sd], S["wrist_" + sd]
         cuff = wr + (e - wr).normalized() * 0.035
         b.chain([S["shoulder_" + sd], e, cuff], [0.066, 0.058, 0.052])
@@ -465,14 +570,8 @@ def v_shirt(front, name, top_w=0.074, bottom_z=1.19):
     add_mod(ob, "SOLIDIFY", thickness=0.004, offset=1.0)
     add_mod(ob, "SUBSURF", levels=1)
     apply_mods(ob)
-    # collar points
-    parts = [ob]
-    for s in (1, -1):
-        cp = Blob("Collar", res=0.004)
-        p = front(s * 0.04, 1.49) + Vector((0, 0.01, 0))
-        cp.ellipsoid(p, (0.028, 0.008, 0.022), rot=Quaternion((0, 1, 0), s * 0.5))
-        parts.append(cp.to_object("CollarPt"))
-    return join(parts, name)
+    # collar points: flat tips lying on the shirt V
+    return join([ob, collar_points(front, name + "_collar")], name)
 
 
 def build_cuffs(name="Cuffs"):
@@ -503,15 +602,21 @@ def build_tie(front, long_tie=False):
     return tb.to_object("Tie_long" if long_tie else "Tie")
 
 
-def build_shirt_top(name, sleeve="long", hem=0.93, bulk=1.0):
-    """Tucked shirt / cop shirt / tee / hoodie body."""
+def build_shirt_top(name, sleeve="long", hem=0.93, bulk=1.0, hips=False):
+    """Tucked shirt / cop shirt / tee / hoodie body. hips=True: an untucked top
+    that hangs over the pants (covers the tops of the legs, no poke-through)."""
     b = Blob(name)
+    if hips:
+        b.ellipsoid((0, -0.006, hem + 0.07), (0.225, 0.15, 0.1))
+        b.ellipsoid((0, -0.004, hem + 0.17), (0.2, 0.14, 0.1))
     b.ellipsoid((0, -0.005, hem + 0.06), (0.16 * bulk, 0.115 * bulk, 0.1))
     b.ellipsoid((0, 0, 1.1), (0.152 * bulk, 0.108 * bulk, 0.15))
     b.ellipsoid((0, 0.004, 1.33), (0.188 * bulk, 0.124 * bulk, 0.16))
     for s in (1, -1):
         sd = "R" if s > 0 else "L"
-        b.ball((s * 0.172, -0.005, 1.44), 0.075 * bulk)
+        # sloped trapezius line from the collar out to a rounded shoulder cap
+        b.capsule((s * 0.06, -0.005, 1.465), (s * 0.165, -0.005, 1.4), 0.05 * bulk)
+        b.ball((s * 0.176, -0.005, 1.385), 0.062 * bulk)
         e, wr = S["elbow_" + sd], S["wrist_" + sd]
         if sleeve == "long":
             end = wr + (e - wr).normalized() * 0.03
@@ -519,7 +624,9 @@ def build_shirt_top(name, sleeve="long", hem=0.93, bulk=1.0):
         else:
             mid = S["shoulder_" + sd].lerp(e, 0.55)
             b.capsule(S["shoulder_" + sd], mid, 0.062)
-    return b.to_object(name, decimate=0.4)
+    ob = b.to_object(name, decimate=0.4)
+    cut_below(ob, hem)
+    return ob
 
 
 def build_cop():
@@ -538,7 +645,7 @@ def build_cop():
         set_color(f, (0.72, 0.72, 0.76))
         parts.append(f)
         ep = Blob("Epaulette", res=0.005)
-        ep.capsule((s * 0.08, -0.005, 1.5), (s * 0.19, -0.005, 1.49), 0.018)
+        ep.capsule((s * 0.08, -0.005, 1.48), (s * 0.19, -0.005, 1.44), 0.016)
         e = ep.to_object("Epaulette")
         set_color(e, (0.72, 0.72, 0.76))
         parts.append(e)
@@ -558,14 +665,14 @@ def build_cop():
     belt = bb.to_object("Belt")
     set_color(belt, (0.06, 0.06, 0.07))
     gear.append(belt)
-    bk = uv_sphere(shirt_front(0, 0.965) + Vector((0, 0.018, 0)), (0.028, 0.008, 0.02), 12, 8, "Buckle")
+    bk = uv_sphere(shirt_front(0, 0.965) + Vector((0, 0.012, 0)), (0.026, 0.006, 0.018), 12, 8, "Buckle")
     set_color(bk, (0.75, 0.77, 0.8))
     gear.append(bk)
     bpt = shirt_front(0.085, 1.4) + Vector((0, 0.006, 0))
     badge = uv_sphere(bpt, (0.024, 0.006, 0.03), 20, 12, "Badge")   # shield
     set_color(badge, (1.0, 0.78, 0.22))
     gear.append(badge)
-    hol = uv_sphere((0.19, -0.02, 0.9), (0.03, 0.05, 0.07), 12, 8, "Holster")
+    hol = uv_sphere(fit_to(shirt, (0.19, -0.02, 0.92), 0.02), (0.022, 0.04, 0.055), 12, 8, "Holster")
     set_color(hol, (0.06, 0.06, 0.07))
     gear.append(hol)
     return shirt, join(gear, "Gear_cop")
@@ -578,7 +685,7 @@ def build_vest():
     b.ellipsoid((0, 0.0, 1.16), (0.17, 0.126, 0.13))
     b.ellipsoid((0, 0.006, 1.33), (0.2, 0.138, 0.14))
     for s in (1, -1):
-        b.capsule((s * 0.1, 0.0, 1.42), (s * 0.14, -0.01, 1.5), 0.04)     # shoulder straps
+        b.capsule((s * 0.1, 0.0, 1.41), (s * 0.13, -0.01, 1.465), 0.038)  # shoulder straps
     b.ellipsoid((0, 0.02, 1.5), (0.085, 0.1, 0.05), neg=True)              # neck hole
     ob = b.to_object("Vest_cop", decimate=0.45)
     set_color(ob, (0.26, 0.28, 0.32))
@@ -586,7 +693,7 @@ def build_vest():
 
 
 def build_hoodie():
-    h = build_shirt_top("Hoodie_shell", "long", hem=0.86, bulk=1.12)
+    h = build_shirt_top("Hoodie_shell", "long", hem=0.83, bulk=1.1, hips=True)
     parts = [h]
     hb = Blob("Hood", res=0.008)
     for a in range(-5, 6):
@@ -595,9 +702,7 @@ def build_hoodie():
     hood = hb.to_object("Hood")
     set_color(hood, (0.9, 0.9, 0.9))
     parts.append(hood)
-    pk = Blob("Kanga", res=0.006)
-    pk.ellipsoid((0, 0.135, 1.03), (0.12, 0.012, 0.07))
-    kp = pk.to_object("Kanga")
+    kp = patch_on(h, 0.0, 0.94, 0.1, 0.055, "Kanga")
     set_color(kp, (0.85, 0.85, 0.85))
     parts.append(kp)
     for s in (1, -1):
@@ -626,11 +731,7 @@ def build_dress_shirt():
         hit = bvh.ray_cast(Vector((x, 1.0, z)), Vector((0, -1, 0)))
         return hit[0] if hit[0] else Vector((x, 0.13, z))
 
-    parts = [t]
-    for s in (1, -1):
-        cp = Blob("Collar", res=0.004)
-        cp.ellipsoid(front(s * 0.035, 1.49) + Vector((0, 0.012, 0)), (0.03, 0.008, 0.022), rot=Quaternion((0, 1, 0), s * 0.5))
-        parts.append(cp.to_object("CollarPt"))
+    parts = [t, collar_points(front, "ShirtCollar", x=0.034)]
     pl = Blob("Placket", res=0.005)
     pl.capsule(front(0, 1.45) + Vector((0, 0.002, 0)), front(0, 0.98) + Vector((0, 0.002, 0)), 0.01)
     p = pl.to_object("Placket")
@@ -642,7 +743,7 @@ def build_dress_shirt():
 
 def build_pants():
     b = Blob("Pants")
-    b.ellipsoid((0, -0.005, 0.96), (0.168, 0.122, 0.11))
+    b.ellipsoid((0, -0.008, 0.97), (0.166, 0.116, 0.1))       # seat: covers the body, stays under tops
     for sd in ("R", "L"):
         b.chain([S["hip_" + sd] + Vector((0, 0, 0.02)), S["knee_" + sd], S["ankle_" + sd] + Vector((0, 0, 0.015))],
                 [0.1, 0.078, 0.068])
@@ -986,14 +1087,6 @@ def build_accessories():
     R = Matrix.Rotation(-A_POSE, 3, "Y")
     r = uv_sphere(h + R @ Vector((-0.012, 0.03, -0.1)), (0.018, 0.012, 0.01), 12, 8, "Acc_ring")
     out["Acc_ring"] = r
-    # gold chain
-    cb = Blob("Chain", res=0.005)
-    for a in range(28):
-        ang = a / 28 * math.tau
-        y = math.cos(ang) * 0.085
-        cb.ball((math.sin(ang) * 0.09, y + 0.01, 1.47 - max(0, y) * 0.9), 0.012)
-    cb.ellipsoid((0, 0.125, 1.36), (0.025, 0.01, 0.03))
-    out["Acc_chain"] = cb.to_object("Acc_chain")
     return out
 
 
@@ -1166,7 +1259,8 @@ BUDGET = {
     "_hair": 4500, "Hair_afro": 5500, "Hair_long": 5500, "Hair_bald": 1500, "Beard_mustache": 900,
     "Beard_goatee": 1400, "Beard_full": 2500, "Beard_stubble": 1000, "Glasses_shades": 1200,
     "Glasses_specs": 1400, "Hat_cop": 3000, "Hat_headset": 2000, "Hat_headband": 1200, "Hat_beanie": 2500,
-    "Hat_cap": 2500, "Acc_watch": 700, "Acc_chain": 1000, "Hat_police": 2500, "Hat_bowler": 2200,
+    "Hat_cap": 2500, "Acc_watch": 700, "Acc_chain_suit": 1400, "Acc_chain_shirt": 1400, "Acc_chain_tee": 1400,
+    "Acc_chain_hoodie": 1400, "Hat_police": 2500, "Hat_bowler": 2200,
     "Hat_bucket": 2200, "Vest_cop": 3500,
 }
 
@@ -1213,7 +1307,10 @@ def main():
     acc = build_accessories()
     kit.append((acc["Acc_watch"], "Metal", "Forearm_L"))
     kit.append((acc["Acc_ring"], "Gold", "Hand_R"))
-    kit.append((acc["Acc_chain"], "Gold", "Chest"))
+    # gold chains fitted to each outfit so they sit flush (suit / shirt / tee / hoodie)
+    tops = {o.name: o for o, _, _ in kit}
+    for outfit, top in (("suit", "Jacket"), ("shirt", "Top_shirt"), ("tee", "Top_tee"), ("hoodie", "Top_hoodie")):
+        kit.append((build_chain(tops[top], "Acc_chain_" + outfit), "Gold", "auto"))
 
     # polygon budget per piece (a dressed character lands around 30k tris)
     for ob, role, sk in kit:
