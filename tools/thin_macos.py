@@ -29,7 +29,8 @@ def main(src: str, out_dir: str) -> None:
             ct, _, off, size, _, _ = struct.unpack(">iiQQII", data[8 + k * 32: 40 + k * 32])
         slices[ct & 0xFFFFFFFF] = data[off: off + size]
     for label, cpu in ARCHES.items():
-        out = os.path.join(out_dir, f"Bagholders-Mac-{label}.zip")
+        # the Apple Silicon one is THE download: just "Bagholders.zip"
+        out = os.path.join(out_dir, "Bagholders.zip" if label == "AppleSilicon" else f"Bagholders-{label}.zip")
         with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED, compresslevel=9) as zo:
             for info in z.infolist():
                 body = slices[cpu] if info.filename == exe else z.read(info.filename)

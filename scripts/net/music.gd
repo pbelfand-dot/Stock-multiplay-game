@@ -30,6 +30,7 @@ var _resume := {}                 # id -> seconds into the track when it was fad
 var _a: AudioStreamPlayer
 var _b: AudioStreamPlayer
 var _bus := 0
+var _closing := false             # quitting: nothing new may start (a playing stream leaks at exit)
 
 
 func _ready() -> void:
@@ -108,6 +109,8 @@ func clear_event(id: String = "") -> void:
 
 
 func _process(delta: float) -> void:
+	if _closing:
+		return
 	if _event_t > 0.0:
 		_event_t -= delta
 	var want := _event if _event_t > 0.0 else _bed
@@ -156,6 +159,7 @@ func title_of(id: String) -> String:
 
 ## Called by Sfx.quit_game so the streams are released before quitting.
 func stop_all() -> void:
+	_closing = true
 	for p in [_a, _b]:
 		p.stop()
 		p.stream = null

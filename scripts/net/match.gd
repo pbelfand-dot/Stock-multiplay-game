@@ -69,6 +69,7 @@ var event_at := -1.0            # time_left when today's announced shock hits (F
 var halt := 0.0                 # circuit breaker: seconds of trading halt left
 var contracts := {}             # peer -> [contract] (Tony's contracts for today)
 var milestones := 0             # co-op: how many fund milestones this run has hit
+var ready_up := {}                 # peer -> true: pressed ENTER, waiting for the bell (lobby / after hours)
 
 # ---------------- server-only ----------------
 var market
@@ -205,23 +206,71 @@ func request_start() -> void:
 	_req_start.rpc_id(1)
 
 
+## ENTER: in the lobby and after hours it toggles your READY; the bell rings
+## once everyone in the office is ready. After a run is over the host's
+## ENTER takes everyone back to the lobby.
 @rpc("any_peer", "call_local", "reliable")
 func _req_start() -> void:
 	if not Net.is_server():
 		return
-	if _sender() != 1:
-		return  # only the host rings the bell
-	if phase == "lobby":
-		_start_run()
-	elif phase == "intermission":        # after hours: the host rings the next bell when everyone's ready
-		_start_day()
-	elif phase == "gameover":
+	var id := _sender()
+	if phase == "lobby" or phase == "intermission":
+		set_ready(id, not ready_up.has(id))
+	elif phase == "gameover" and id == 1:
 		_reset_run()
 		_resume = {}
 		_restored.clear()
 		if save_slot != "":
 			save_slot = SaveGame.new_slot(Net.mode)   # a fresh run gets a fresh save
 		_push_state()
+
+
+## Host: START ANYWAY (somebody went AFK on the street).
+func request_force_start() -> void:
+	_req_force_start.rpc_id(1)
+
+
+@rpc("any_peer", "call_local", "reliable")
+func _req_force_start() -> void:
+	if Net.is_server() and _sender() == 1 and (phase == "lobby" or phase == "intermission"):
+		_s_toast.rpc("%s rang the bell anyway." % Net.player_name(1))
+		_ring_bell()
+
+
+func set_ready(id: int, on: bool) -> void:
+	if not Net.players.has(id):
+		return
+	if on:
+		ready_up[id] = true
+	else:
+		ready_up.erase(id)
+	var n := ready_count()
+	if Net.players.size() > 1:
+		_s_toast.rpc("%s is %s (%d/%d ready)" % [Net.player_name(id), "READY" if on else "not ready", n, Net.players.size()])
+	_check_ready()
+	_push_state()
+
+
+## How many of the players in the office are ready.
+func ready_count() -> int:
+	var n := 0
+	for id in Net.players:
+		if ready_up.has(id):
+			n += 1
+	return n
+
+
+func _check_ready() -> void:
+	if (phase == "lobby" or phase == "intermission") and not Net.players.is_empty() and ready_count() == Net.players.size():
+		_ring_bell()
+
+
+func _ring_bell() -> void:
+	ready_up.clear()
+	if phase == "lobby":
+		_start_run()
+	elif phase == "intermission":
+		_start_day()
 
 
 func request_open(sym: String, side: int, margin: float, lev: int) -> void:
@@ -903,6 +952,10 @@ func _on_players_changed() -> void:
 			heat.erase(id)
 			effects.erase(id)
 			jail.erase(id)
+	for id in ready_up.keys():
+		if not Net.players.has(id):
+			ready_up.erase(id)
+	_check_ready()                        # whoever left was the last one not ready
 	_push_state()
 
 
@@ -919,6 +972,7 @@ func _reset_run() -> void:
 	jail.clear()
 	contracts.clear()
 	milestones = 0
+	ready_up.clear()
 	_set_day_event("")
 	next_event = ""
 	if not raid.is_empty():
@@ -1333,7 +1387,7 @@ func _push_state() -> void:
 	_s_state.rpc({"phase": phase, "day": day, "time_left": time_left, "quota": quota,
 		"accounts": accounts, "heat": heat, "jail": jail, "inventory": inventory, "owned": owned, "careers": careers,
 		"effects": effects, "stats": stats, "raid": raid, "day_event": day_event, "next_event": next_event,
-		"event_at": event_at, "halt": halt, "contracts": contracts, "milestones": milestones})
+		"event_at": event_at, "halt": halt, "contracts": contracts, "milestones": milestones, "ready": ready_up})
 
 
 # ======================================================================
@@ -1361,6 +1415,7 @@ func _s_state(s: Dictionary) -> void:
 	halt = s.get("halt", 0.0)
 	contracts = s.get("contracts", {})
 	milestones = s.get("milestones", 0)
+	ready_up = s.get("ready", {})
 	state_changed.emit()
 
 

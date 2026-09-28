@@ -9,8 +9,8 @@ come out of the elevator.**
 
 The links never change. Every update to `main` replaces the files behind them:
 
-- **Mac (M1/M2/M3/M4):** [Bagholders-Mac-AppleSilicon.zip](https://github.com/pbelfand-dot/Stock-multiplay-game/releases/download/latest/Bagholders-Mac-AppleSilicon.zip)
-- **Mac (older Intel):** [Bagholders-Mac-Intel.zip](https://github.com/pbelfand-dot/Stock-multiplay-game/releases/download/latest/Bagholders-Mac-Intel.zip)
+- **Mac:** [Bagholders.zip](https://github.com/pbelfand-dot/Stock-multiplay-game/releases/download/latest/Bagholders.zip)
+- **Mac (older Intel, pre-2020):** [Bagholders-Intel.zip](https://github.com/pbelfand-dot/Stock-multiplay-game/releases/download/latest/Bagholders-Intel.zip)
 - Windows: [Bagholders-Windows.zip](https://github.com/pbelfand-dot/Stock-multiplay-game/releases/download/latest/Bagholders-Windows.zip) · Linux: [Bagholders-Linux.zip](https://github.com/pbelfand-dot/Stock-multiplay-game/releases/download/latest/Bagholders-Linux.zip)
 - All of them on one page: [releases/latest](https://github.com/pbelfand-dot/Stock-multiplay-game/releases/tag/latest)
 
@@ -61,8 +61,10 @@ Built in **Godot 4.7** — free, no accounts, no store.
   Tony's Rolodex, Police Scanner, Unpaid Intern, Bloomberg Terminal, Prime Broker Account.
 - **Co-op milestones.** The fund passing $100K, $250K, $1M... pays the whole desk XP.
 - **Saves are the host's.** Only the trader who started a run can load it (friends just rejoin).
-- **You start each day.** After the closing bell the game waits: walk around, shop, then START DAY (or
-  ENTER). SAVE GAME is on the after-hours screen and in the ESC menu (mid-day it keeps that morning).
+- **Ready-up.** After the closing bell (and in the lobby) the game waits: walk around, shop, then
+  press ENTER when you're ready. The bell rings once everyone is ready ("waiting on Bob"); the host can
+  START ANYWAY if someone went AFK. SAVE GAME is on the after-hours screen and in the ESC menu
+  (mid-day it keeps that morning).
 
 ## What's in the office
 
@@ -176,7 +178,7 @@ Each platform needs one extra step the first time:
 
 - **Windows:** it's a single `Bagholders.exe`. SmartScreen may say "unrecognized app". Click
   **More info → Run anyway**. That happens because the exe isn't code-signed.
-- **macOS:** grab **Bagholders-Mac-AppleSilicon** (M1/M2/M3/M4 Macs) or **Bagholders-Mac-Intel**
+- **macOS:** grab **Bagholders** (M1/M2/M3/M4 Macs) or **Bagholders-Intel**
   (older Macs). **Bagholders-macOS** is the universal build that works on both, at twice the size.
   - Unzip it and double-click `BAGHOLDERS.app`. macOS will say it "could not verify" the app.
   - Click **Done**, then open **System Settings → Privacy & Security**, scroll down, and click

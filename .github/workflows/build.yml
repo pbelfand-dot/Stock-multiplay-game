@@ -69,12 +69,12 @@ jobs:
           path: build/Bagholders-macOS.zip
       - uses: actions/upload-artifact@v4
         with:
-          name: Bagholders-Mac-AppleSilicon
-          path: build/Bagholders-Mac-AppleSilicon.zip
+          name: Bagholders
+          path: build/Bagholders.zip
       - uses: actions/upload-artifact@v4
         with:
-          name: Bagholders-Mac-Intel
-          path: build/Bagholders-Mac-Intel.zip
+          name: Bagholders-Intel
+          path: build/Bagholders-Intel.zip
       - uses: actions/upload-artifact@v4
         with:
           name: Bagholders-Linux
@@ -88,14 +88,17 @@ jobs:
         run: |
           cd build
           R="$GITHUB_REPOSITORY"
-          NOTES="Always the newest BAGHOLDERS build (main @ ${GITHUB_SHA::7}, $(date -u '+%Y-%m-%d %H:%M UTC')).
-          Mac with an M1/M2/M3/M4 chip: Bagholders-Mac-AppleSilicon.zip - older Intel Mac: Bagholders-Mac-Intel.zip.
+          NOTES="Always the newest BAGHOLDERS build.
+          Mac: Bagholders.zip (older Intel Macs: Bagholders-Intel.zip). Windows / Linux zips below.
           Unzip, then right-click BAGHOLDERS.app -> Open the first time."
           if ! gh release view latest --repo "$R" > /dev/null 2>&1; then
             gh release create latest --repo "$R" --target "$GITHUB_SHA" --title "BAGHOLDERS - latest build" --notes "$NOTES" --latest
           fi
           gh release upload latest --repo "$R" --clobber \
-            Bagholders-Mac-AppleSilicon.zip Bagholders-Mac-Intel.zip Bagholders-Windows.zip Bagholders-Linux.zip
+            Bagholders.zip Bagholders-Intel.zip Bagholders-Windows.zip Bagholders-Linux.zip
+          for old in Bagholders-Mac-AppleSilicon.zip Bagholders-Mac-Intel.zip; do   # the old names
+            gh release delete-asset latest "$old" --repo "$R" -y 2>/dev/null || true
+          done
           gh release edit latest --repo "$R" --notes "$NOTES" --latest
       - name: Publish release (tags only)
         if: startsWith(github.ref, 'refs/tags/v')
@@ -104,6 +107,6 @@ jobs:
           files: |
             build/Bagholders-Windows.zip
             build/Bagholders-macOS.zip
-            build/Bagholders-Mac-AppleSilicon.zip
-            build/Bagholders-Mac-Intel.zip
+            build/Bagholders.zip
+            build/Bagholders-Intel.zip
             build/Bagholders-Linux.zip

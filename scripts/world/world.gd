@@ -219,10 +219,10 @@ func _unhandled_input(event: InputEvent) -> void:
 			hud.open_interact(t)
 			get_viewport().set_input_as_handled()
 	elif event.is_action_pressed("start_day") and not ui_blocking():
-		if Net.is_server():
-			match_node.request_start()
-		elif match_node.phase == "lobby":
-			hud.show_toast("Only the host can ring the opening bell.")
+		if match_node.phase == "gameover" and not Net.is_server():
+			hud.show_toast("Waiting for the host to go back to the lobby.")
+		elif match_node.phase != "trading":
+			match_node.request_start()          # READY up (the bell rings when everyone is)
 	elif not ui_blocking() and match_node:
 		for i in 6:
 			if event.is_action_pressed("item_%d" % (i + 1)):
