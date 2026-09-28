@@ -94,6 +94,7 @@ DEFORM_SEGS = {b[0]: (S[b[1]], S[b[2]]) for b in BONES}
 
 # face features (filled after the head exists)
 FACE = {}
+HAIR_PIVOT = Vector((0.0, 0.0, 1.75))   # skull center (set once the head is placed)
 
 
 # ----------------------------------------------------------------------------- mesh helpers
@@ -1962,7 +1963,7 @@ def skin_hanging_hair(ob):
     chin = FACE["mouth"].z - 0.035          # below this the hair hangs free
     zs = [(ob.matrix_world @ v.co).z for v in ob.data.vertices]
     bottom = min(zs)
-    gh, gn, gc = (ob.vertex_groups.new(name=n) for n in ("Head", "Neck", "Chest"))
+    gh, gs, gc = (ob.vertex_groups.new(name=n) for n in ("Head", "HairSway", "Chest"))
     FOLLOW = 0.35                           # how much of a head turn the very ends still follow
     for v, z in zip(ob.data.vertices, zs):
         if z >= chin:
@@ -1972,9 +1973,43 @@ def skin_hanging_hair(ob):
         t = t * t * (3 - 2 * t)             # smoothstep: no crease at the jaw
         off = (1.0 - FOLLOW) * t            # weight handed from the head to the body
         gh.add([v.index], 1.0 - off, "REPLACE")
-        gn.add([v.index], off * 0.55, "REPLACE")
-        gc.add([v.index], off * 0.45, "REPLACE")
+        gs.add([v.index], off * 0.75, "REPLACE")     # swings (it hangs from the neck)
+        gc.add([v.index], off * 0.25, "REPLACE")
     print("  %s: head down to z=%.3f, hanging to %.3f (ends follow the head %d%%)" % (ob.name, chin, bottom, FOLLOW * 100))
+
+
+## How much of each style's outer volume bobs on HairBounce (0 = rigid).
+HAIR_BOUNCE = {"afro": 0.55, "messy": 0.4, "swoop": 0.4, "swept": 0.3, "slick": 0.25, "long": 0.2, "short": 0.12}
+
+
+def skin_hair_bounce(ob, amt):
+    """Big hair: the inner layer sits on the Head, the outer volume blends onto
+    HairBounce (more the further out it is), so it bobs a little when you move."""
+    gh, gb = (ob.vertex_groups.new(name=n) for n in ("Head", "HairBounce"))
+    rs = [((ob.matrix_world @ v.co) - HAIR_PIVOT).length for v in ob.data.vertices]
+    r_in, r_out = sorted(rs)[len(rs) // 5], max(rs)          # skip the scalp layer
+    for v, r in zip(ob.data.vertices, rs):
+        t = min(max((r - r_in) / max(r_out - r_in, 1e-4), 0.0), 1.0)
+        w = amt * t * t * (3 - 2 * t)
+        gh.add([v.index], 1.0 - w, "REPLACE")
+        if w > 0.001:
+            gb.add([v.index], w, "REPLACE")
+
+
+def skin_add_bounce(ob, amt):
+    """Move part of an already-skinned mesh's Head weight onto HairBounce
+    (outer volume only), e.g. the top layer of long hair."""
+    gh = ob.vertex_groups["Head"]
+    gb = ob.vertex_groups.new(name="HairBounce")
+    rs = [((ob.matrix_world @ v.co) - HAIR_PIVOT).length for v in ob.data.vertices]
+    r_in, r_out = sorted(rs)[len(rs) // 5], max(rs)
+    for v, r in zip(ob.data.vertices, rs):
+        wh = next((g.weight for g in v.groups if g.group == gh.index), 0.0)
+        t = min(max((r - r_in) / max(r_out - r_in, 1e-4), 0.0), 1.0)
+        w = amt * t * t * (3 - 2 * t) * wh
+        if w > 0.001:
+            gh.add([v.index], wh - w, "REPLACE")
+            gb.add([v.index], w, "REPLACE")
 
 
 def skin_split_by_side(ob, bone_r, bone_l):
@@ -2010,6 +2045,19 @@ def build_armature():
     j.head = FACE["mouth"]
     j.tail = FACE["mouth"] + Vector((0, 0, 0.04))
     j.parent = eb["Head"]
+    # hair motion (the game springs these, see Character._hair_physics):
+    #   HairSway   under the Neck, hangs down from the crown: long hair's ends swing on it
+    #   HairBounce under the Head, points up from the skull center: big hair's volume bobs on it
+    hs = arm.edit_bones.new("HairSway")
+    hs.head = HAIR_PIVOT
+    hs.tail = HAIR_PIVOT + Vector((0, 0, -0.3))
+    hs.parent = eb["Neck"]
+    hs.use_deform = True
+    hb = arm.edit_bones.new("HairBounce")
+    hb.head = HAIR_PIVOT
+    hb.tail = HAIR_PIVOT + Vector((0, 0, 0.2))
+    hb.parent = eb["Head"]
+    hb.use_deform = True
     # fingers: Thumb1..3 / Index1..3 / Middle1..3 / Ring1..3 / Pinky1..3 _R/_L under Hand_*.
     # align_roll points local +Z at the palm side, so +X rotation = curl (see HAND_SPEC)
     for sd in ("R", "L"):
@@ -2103,7 +2151,8 @@ def main():
     kit.append((build_shoes("sneaker"), "Shoes", "feet"))
     kit.append((join(SOLES, "Soles_sneaker"), "Fixed", "feet"))
     for st in ("slick", "swept", "swoop", "short", "buzz", "messy", "afro", "long", "bald"):
-        kit.append((build_hair(head, st), "Hair", "hanging" if st == "long" else "Head"))
+        kit.append((build_hair(head, st), "Hair",
+                    "hanging" if st == "long" else ("bounce" if st in HAIR_BOUNCE else "Head")))
     for st in ("mustache", "goatee", "full", "stubble"):
         kit.append((build_beard(head, st), "Hair", "Head"))
     kit.append((build_glasses("shades"), "Fixed", "Head"))
@@ -2148,6 +2197,8 @@ def main():
             ob.data.update()
     FACE["eyes"] = [M @ e for e in FACE["eyes"]]
     FACE["mouth"] = M @ FACE["mouth"]
+    global HAIR_PIVOT
+    HAIR_PIVOT = Vector((0.0, 0.0, (FACE["eyes"][0].z + FACE["eyes"][1].z) / 2 + 0.05))
     rig = build_armature()
     skin_heat(body, rig)
     for ob, role, sk in kit:
@@ -2161,6 +2212,9 @@ def main():
             skin_split_by_side(ob, "Foot_R", "Foot_L")
         elif sk == "hanging":
             skin_hanging_hair(ob)
+            skin_add_bounce(ob, HAIR_BOUNCE["long"])
+        elif sk == "bounce":
+            skin_hair_bounce(ob, HAIR_BOUNCE[ob.name[5:]])
         elif sk == "lids":
             skin_split_by_side(ob, "Lid_R", "Lid_L")
         else:

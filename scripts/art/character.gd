@@ -271,6 +271,7 @@ func build(l: Dictionary) -> void:
 		c.queue_free()
 	j.clear()
 	_bi.clear()
+	_jig.clear()
 	_state.clear()
 	if _kit == null:
 		_kit = load(KIT_PATH)
@@ -740,6 +741,61 @@ func _process(delta: float) -> void:
 		cur = lerpf(cur, m_open, clampf(delta * 20.0, 0, 1))
 		_state["jaw"] = cur
 		skel.set_bone_pose_scale(jaw, Vector3(0.85 if talking else 1.0, cur, 1.0))
+	_hair_physics(delta)
+
+
+# ------------------------------------------------------------------ hair motion
+## Two spring ("jiggle") bones from the rig: HairSway hangs from the crown under
+## the Neck (long hair's ends swing on it), HairBounce points up under the Head
+## (big hair's outer volume bobs on it). Each keeps a tip point that chases
+## where the bone would point if it were stiff, with some lag, overshoot and
+## gravity, then the bone is aimed at that tip. Walk, stop, turn, jump: the
+## hair follows a beat late and settles.
+##   [bone, length, stiffness, damping, gravity, max swing (rad)]
+const JIGGLE := [["HairSway", 0.3, 70.0, 7.5, 2.2, 0.5], ["HairBounce", 0.2, 260.0, 14.0, 1.0, 0.12]]
+var _jig := {}                    # bone idx -> {tip, vel}
+
+
+func _hair_physics(delta: float) -> void:
+	if delta <= 0.0 or delta > 0.2 or not visible:
+		return
+	for spec in JIGGLE:
+		var i: int = _bi.get(spec[0], -1)
+		if i < 0:
+			continue
+		var parent_g: Transform3D = skel.global_transform * skel.get_bone_global_pose(skel.get_bone_parent(i))
+		var rest_l: Transform3D = skel.get_bone_rest(i)
+		var bone_g := parent_g * rest_l
+		var origin := bone_g.origin
+		var rest_dir := bone_g.basis.y.normalized()        # where a stiff bone would point right now
+		var length: float = spec[1] * skel.global_transform.basis.get_scale().y
+		var target := origin + rest_dir * length
+		target += Vector3(sin(_t * 1.3 + i), 0.0, cos(_t * 0.9 + i)) * length * 0.012   # a little breeze
+		var st: Dictionary = _jig.get(i, {})
+		if st.is_empty() or (st.tip as Vector3).distance_to(target) > length * 3.0:
+			st = {"tip": target, "vel": Vector3.ZERO}              # first frame / teleported
+		var vel: Vector3 = st.vel
+		var tip: Vector3 = st.tip
+		vel += ((target - tip) * float(spec[2]) - vel * float(spec[3]) + Vector3.DOWN * float(spec[4])) * delta
+		tip += vel * delta
+		var dir := (tip - origin).normalized()
+		var ang := rest_dir.angle_to(dir)
+		if ang > float(spec[5]):                               # hair doesn't fly off the head
+			dir = rest_dir.slerp(dir, float(spec[5]) / ang)
+			vel *= 0.5
+		tip = origin + dir * length
+		st.tip = tip
+		st.vel = vel
+		_jig[i] = st
+		# aim the bone: rotate its rest direction (in the parent's space) onto dir
+		var inv := parent_g.basis.inverse()
+		var d_parent := (inv * dir).normalized()
+		var rest_y := rest_l.basis.y.normalized()
+		if rest_y.dot(d_parent) > 0.99999:
+			skel.set_bone_pose_rotation(i, _rest_q[i])
+			continue
+		var q := Quaternion(rest_y, d_parent)
+		skel.set_bone_pose_rotation(i, (q * _rest_q[i]).normalized())
 
 
 ## Keyframed pose clip (15 fps JSON baked by tools/rotoscope). Loops; each
