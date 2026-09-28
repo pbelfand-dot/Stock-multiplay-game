@@ -423,6 +423,47 @@ func _s_rank_up(peer: int, rank: int) -> void:
 	ranked_up.emit(peer, rank)
 
 
+## Pawn King: sell a luxury item back for half its price.
+func request_pawn(key: String) -> void:
+	_req_pawn.rpc_id(1, key)
+
+
+@rpc("any_peer", "call_local", "reliable")
+func _req_pawn(key: String) -> void:
+	if not Net.is_server() or not Rules.LUXURY.has(key):
+		return
+	var id := _sender()
+	if lux_count(id, key) <= 0:
+		return
+	owned[id][key] = lux_count(id, key) - 1
+	var cash: float = Rules.LUXURY[key].price * Rules.PAWN_RATE
+	ledger.adjust(acct_for(id), cash)
+	_s_toast.rpc("%s pawned a %s for %s" % [Net.player_name(id), Rules.LUXURY[key].name, Rules.money(cash)])
+	_save_careers()
+	_push_state()
+
+
+## The hot dog cart: $20, knocks your blood pressure down.
+func request_hotdog() -> void:
+	_req_hotdog.rpc_id(1)
+
+
+@rpc("any_peer", "call_local", "reliable")
+func _req_hotdog() -> void:
+	if not Net.is_server():
+		return
+	var id := _sender()
+	_ensure_peer(id)
+	var a: Dictionary = ledger.get_acct(acct_for(id))
+	if a.is_empty() or a.balance < Rules.HOTDOG_PRICE:
+		_s_error.rpc_id(id, "Can't even afford a hot dog. Rookie numbers.")
+		return
+	ledger.adjust(acct_for(id), -Rules.HOTDOG_PRICE)
+	pressure[id] = maxf(pressure_of(id) - Rules.HOTDOG_RELIEF, 0.0)
+	_s_toast.rpc_id(id, "Dirty water dog. Blood pressure -%d." % int(Rules.HOTDOG_RELIEF))
+	_push_state()
+
+
 func pressure_of(peer: int) -> float:
 	return float(pressure.get(peer, 0.0))
 

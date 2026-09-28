@@ -121,6 +121,28 @@ func _sync_players(p: Dictionary, m: String) -> void:
 	players_changed.emit()
 
 
+## The Tailor on the street: change your look mid-game, everyone sees it.
+func set_look(look: Dictionary) -> void:
+	if is_server():
+		_apply_look(1, look)
+	else:
+		_req_look.rpc_id(1, look)
+
+
+@rpc("any_peer", "reliable")
+func _req_look(look: Dictionary) -> void:
+	if is_server():
+		_apply_look(multiplayer.get_remote_sender_id(), look)
+
+
+func _apply_look(id: int, look: Dictionary) -> void:
+	if not players.has(id):
+		return
+	players[id]["look"] = Character.sanitize(look)
+	_sync_players.rpc(players, mode)
+	players_changed.emit()
+
+
 func player_name(id: int) -> String:
 	return players.get(id, {}).get("name", "???")
 

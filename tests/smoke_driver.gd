@@ -84,6 +84,10 @@ func _host() -> void:
 		return
 	if not await _wait_for(func(): return pnode.seat == 0 and pnode.emote == 1, 30.0, "client sitting + finger emote"):
 		return
+	if not await _wait_for(func(): return Net.players[bob].get("look", {}).get("hair_style", "") == "buzz" \
+			and pnode.look.get("hat", "") == "cap", 10.0, "tailor look change to sync"):
+		return
+	_say("client's tailor change synced mid-game (buzz + cap)")
 	_say("client's chair + emote synced (pose %s)" % pnode.model.pose)
 	if not await _wait_for(func(): return got.get("chat", 0) >= 3, 30.0, "client ready for the raid"):
 		return
@@ -148,6 +152,27 @@ func _client() -> void:
 	if not await _wait_for(func(): return w.ball.holder == 0, 5.0, "ball throw"):
 		return
 		_say("basketball grab + throw ok")
+	# down to the street: hot dog (blood pressure), then back up
+	w.go_to_street()
+	await get_tree().create_timer(0.4).timeout
+	if not w.in_street(w.local_player):
+		_fail("elevator didn't take us to the street")
+		return
+	m.pressure[Net.my_id()] = 50.0
+	m.request_hotdog()
+	await get_tree().create_timer(1.0).timeout
+	_say("street ok, hot dog eaten (pressure now %.1f)" % m.pressure_of(Net.my_id()))
+	w.leave_street()
+	await get_tree().create_timer(0.3).timeout
+	if w.in_street(w.local_player):
+		_fail("lobby elevator didn't bring us back up")
+		return
+	# the Tailor: change our look mid-game (buzz cut + cap); the host must see it
+	var nl: Dictionary = Config.look.duplicate()
+	nl["hair_style"] = "buzz"
+	nl["hat"] = "cap"
+	Config.look = nl
+	Net.set_look(nl)
 	# sit in a desk chair and flip the bird: the host must see both
 	var lp = w.local_player
 	lp.sit(0)
