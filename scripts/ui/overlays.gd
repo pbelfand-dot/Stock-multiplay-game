@@ -149,6 +149,7 @@ class Summary extends PanelContainer:
 			var passed: bool = s.get("passed", false)
 			body.add_child(UI.lbl("DAY %d CLOSED" % s.day, 56, UI.GOLD, true))
 			body.add_child(UI.lbl("QUOTA MET. THE FUND LIVES." if passed else "MISSED QUOTA. THE FUND IS BUSTED.", 32, UI.GREEN if passed else UI.RED, true))
+			body.add_child(UI.lbl("Overhead paid (desk rent, terminals, bottle service): -%s" % Rules.money(s.get("overhead", 0.0)), 20, UI.RED))
 			body.add_child(UI.lbl("Fund: %s   /   Quota: %s" % [Rules.money(s.balance), Rules.money(s.quota)], 26))
 			if not over:
 				body.add_child(UI.lbl("Tomorrow's quota: %s" % Rules.money(s.next_quota), 22, UI.DIM))
@@ -157,6 +158,7 @@ class Summary extends PanelContainer:
 			if over:
 				body.add_child(UI.lbl("WINNER: %s" % s.get("winner", "nobody"), 40, UI.GREEN, true))
 			body.add_child(UI.lbl("Quota: %s" % Rules.money(s.quota), 22, UI.DIM))
+			body.add_child(UI.lbl("Everyone paid overhead: -%s" % Rules.money(s.get("overhead", 0.0)), 20, UI.RED))
 			var rank := 1
 			for r in s.get("ranking", []):
 				body.add_child(UI.lbl("%d. %s  %s%s" % [rank, r.name, Rules.money(r.balance), "  (BUSTED)" if r.busted else ""], 26, UI.RED if r.busted else UI.TEXT))

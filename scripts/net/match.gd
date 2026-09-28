@@ -844,7 +844,16 @@ func _end_day() -> void:
 		for r in ledger.close_all(id, market.price_of):
 			if r.ok:
 				_after_close(r, id, r.pos.get("trader_id", 0))
-	var summary := {"day": day, "quota": quota, "mode": Net.mode, "players": {}}
+	# the bills come due before anyone checks the quota
+	var overhead := 0.0
+	if Net.mode == "coop":
+		overhead = Rules.overhead_for_day(day, Net.players.size())
+		ledger.adjust(0, -overhead)
+	else:
+		overhead = Rules.overhead_for_day(day, 1)
+		for id in ledger.accounts:
+			ledger.adjust(id, -overhead)
+	var summary := {"day": day, "quota": quota, "mode": Net.mode, "players": {}, "overhead": overhead}
 	for id in Net.players:
 		summary.players[id] = {"name": Net.player_name(id), "stats": stats.get(id, {}).duplicate()}
 	var over := false

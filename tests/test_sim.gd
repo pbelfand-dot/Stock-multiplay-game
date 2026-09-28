@@ -240,4 +240,7 @@ func test_format() -> void:
 	check(Rules.money(5000.0) == "$5,000", "money commas: " + Rules.money(5000.0))
 	check(Rules.price_str(1015.38) == "1,015.38", "price commas: " + Rules.price_str(1015.38))
 	check(Rules.price_str(0.4213) == "0.4213", "small price")
-	check(approx(Rules.quota_for_day(1), 150_000.0), "day1 quota")
+	check(approx(Rules.quota_for_day(1), Rules.START_FUND * Rules.QUOTA_GROWTH), "day1 quota")
+	check(approx(Rules.overhead_for_day(1, 2), Rules.OVERHEAD_PER_TRADER * 2), "day1 overhead for 2 traders")
+	check(Rules.overhead_for_day(3, 1) > Rules.overhead_for_day(2, 1), "overhead creeps up")
+	check(Rules.LUXURY.roflex.price > Rules.START_FUND * 5, "a Crownwell has to be saved up for")
