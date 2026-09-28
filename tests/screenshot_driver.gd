@@ -148,6 +148,18 @@ func _run() -> void:
 			cam.look_at(d.global_position + Vector3(0, 1.25, 0))
 			await _frames(4)
 			await _snap("g2_pose_%d_%s%s" % [k, guns[k], "_aim" if aim[k] else ""])
+		# do the hands cross? (the model faces -z, so its right hand should stay at +x of its left)
+		for k in guns.size():
+			var d = dudes[k]
+			var sk: Skeleton3D = d.model.skel
+			var hl: Vector3 = d.model.to_local(sk.global_transform * sk.get_bone_global_pose(sk.find_bone("Hand_L")).origin)
+			var hr: Vector3 = d.model.to_local(sk.global_transform * sk.get_bone_global_pose(sk.find_bone("Hand_R")).origin)
+			print("hands %s%s: L %s  R %s  gap_x %.3f %s" % [guns[k], "_aim" if aim[k] else "", hl, hr, hr.x - hl.x,
+					"CROSSED" if hr.x - hl.x < 0.02 else "ok"])
+			cam.global_position = d.global_position + Vector3(0.0, 2.5, -0.55)
+			cam.look_at(d.global_position + Vector3(0, 1.2, -0.45), Vector3(0, 0, -1))
+			await _frames(3)
+			await _snap("g2t_top_%d_%s%s" % [k, guns[k], "_aim" if aim[k] else ""])
 		# the store from the door
 		cam.global_position = st.P(30.0 + 2.5, 1.7, st.WALK + 0.9)
 		cam.look_at(st.P(30.0 - 1.0, 1.2, st.WALK + 0.4 + 6.5))

@@ -442,6 +442,16 @@ func _update_fx() -> void:
 
 # ---------------------------------------------------------------- guns (BIG IRON)
 
+## Where the left wrist goes on each gun (gun-local: grip at the origin, barrel
+## -z, gun's left = -x): under the handguard / pump for long guns, wrapped
+## round the left of the grip for pistols.
+const SUPPORT := {
+	"pistol": Vector3(-0.04, -0.07, 0.035), "deagle": Vector3(-0.045, -0.075, 0.04),
+	"smg": Vector3(-0.035, -0.03, -0.07), "shotgun": Vector3(-0.04, -0.07, -0.2),
+	"ak": Vector3(-0.04, -0.03, -0.15), "ak_gold": Vector3(-0.04, -0.03, -0.15),
+}
+
+
 func jailed_now(m) -> bool:
 	return m != null and m.is_jailed(peer_id)
 
@@ -488,6 +498,11 @@ func _update_gun(m, hide: bool) -> void:
 		var pt: float = pitch if aiming else (-0.55 if rifle else -0.3)
 		var dir: Vector3 = (-global_basis.z * cos(pt) + Vector3.UP * sin(pt)).normalized()
 		gun_node.global_basis = Basis.looking_at(dir, Vector3.UP)
+		# second hand on the gun: rifles always, pistols when aiming (wraps the grip)
+		var sup: Variant = SUPPORT.get(_gun_key) if (rifle or aiming) else null
+		model.left_hand_to(gun_node.global_transform * (sup as Vector3) if sup != null else null)
+	else:
+		model.left_hand_to(null)
 
 
 func _near_me(r: float) -> bool:
