@@ -5,6 +5,17 @@ You're a desk of degenerate traders at a hedge fund. Everyone trades from **one 
 **5 minutes a day** to hit a **profit quota that keeps going up**, and if you get too greedy, **the cops
 come out of the elevator.**
 
+## ⬇ Download (always the newest build)
+
+The links never change. Every update to `main` replaces the files behind them:
+
+- **Mac (M1/M2/M3/M4):** [Bagholders-Mac-AppleSilicon.zip](https://github.com/pbelfand-dot/Stock-multiplay-game/releases/download/latest/Bagholders-Mac-AppleSilicon.zip)
+- **Mac (older Intel):** [Bagholders-Mac-Intel.zip](https://github.com/pbelfand-dot/Stock-multiplay-game/releases/download/latest/Bagholders-Mac-Intel.zip)
+- Windows: [Bagholders-Windows.zip](https://github.com/pbelfand-dot/Stock-multiplay-game/releases/download/latest/Bagholders-Windows.zip) · Linux: [Bagholders-Linux.zip](https://github.com/pbelfand-dot/Stock-multiplay-game/releases/download/latest/Bagholders-Linux.zip)
+- All of them on one page: [releases/latest](https://github.com/pbelfand-dot/Stock-multiplay-game/releases/tag/latest)
+
+On a Mac: unzip it, then **right-click BAGHOLDERS.app → Open** the first time.
+
 Inspired by the *Broke Street* trailer (see [`docs/VIDEO_BREAKDOWN.md`](docs/VIDEO_BREAKDOWN.md)).
 Built in **Godot 4.7** — free, no accounts, no store.
 
