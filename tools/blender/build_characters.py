@@ -5,11 +5,11 @@ Out:  assets/characters/character_kit.glb
 
 What it builds (all skinned to ONE shared skeleton, so any combo can be worn):
   * a base "stick figure" skeleton (Hips, Spine, Chest, Neck, Head, Jaw, Lid_L/R,
-    UpperArm/Forearm/Hand, Thigh/Shin/Foot)
+    UpperArm/Forearm/Hand, Thumb/Index/Middle/Ring/Pinky 1-3, Thigh/Shin/Foot)
   * Body: smooth mannequin grown around the skeleton (metaballs)
   * Head: the trailer face (egg head, bulging tired eyes, droopy lids, dark
     bags, orange nose, thick brows, thin mouth, ears) — same for everybody
-  * Hands: chunky cartoon mitts with curled fingers + thumb
+  * Hands: chunky cartoon hands, five posable digits (3 bones each) — see HAND_SPEC
   * Clothing layers: suit jacket (lapels, pockets, buttons, collar), dress
     shirt V + cuffs, tie (normal/long), cop shirt + duty belt, hoodie, tee,
     dress shirt, slacks, dress shoes, sneakers
@@ -356,6 +356,40 @@ def patch_on(ob, cx, cz, hw, hh, name, lift=0.0025, rows=10):
     return pk
 
 
+WAIST = 1.0   # pants waistband height: a level line a little below the navel
+
+
+def cut_above(ob, z):
+    """Open the garment top flat at height z (a straight waistband line)."""
+    bm = bmesh.new()
+    bm.from_mesh(ob.data)
+    geom = list(bm.verts) + list(bm.edges) + list(bm.faces)
+    bmesh.ops.bisect_plane(bm, geom=geom, plane_co=(0, 0, z), plane_no=(0, 0, 1), clear_outer=True)
+    bm.to_mesh(ob.data)
+    bm.free()
+    ob.data.update()
+
+
+def tuck_into(ob, pants, below=WAIST + 0.012, gap=0.006):
+    """Tucked shirts: every vertex under the waistband that isn't already well
+    inside the pants is pulled in under them, so the two meet on a level line."""
+    bvh = BVHTree.FromObject(pants, bpy.context.evaluated_depsgraph_get())
+    me = ob.data
+    for v in me.vertices:
+        p = ob.matrix_world @ v.co
+        if p.z > below:
+            continue
+        loc, nrm, _, _ = bvh.find_nearest(p)
+        if loc is None:
+            continue
+        d = (p - loc).dot(nrm)
+        if d > -gap and (p - loc).length < 0.05:
+            v.co = ob.matrix_world.inverted() @ (p - nrm * (d + gap))
+    me.update()
+    shade_smooth(ob)
+    return ob
+
+
 def cut_below(ob, z):
     """Open the garment bottom flat at height z (no blobby hem between the legs)."""
     bm = bmesh.new()
@@ -511,27 +545,236 @@ def build_head():
     return head, face, m, lids, join(brows, "Brows")
 
 
+# ----------------------------------------------------------------------------- hands + fingers
+#
+# Every hand has a palm (rigid on Hand_*) and five digits. Each digit is one
+# clean tube of rings whose base is a ball centred on its first joint (MCP for
+# fingers, CMC for the thumb) and buried in the palm, so any curl just spins that
+# ball in place: nothing can tear open. Inside a digit the rings blend between
+# the two segment bones over a short span at each knuckle.
+#
+# Bone roll convention (both hands): every finger bone's local +Y runs along the
+# segment and its local +Z points to the palm side (the finger pad), so a
+# POSITIVE rotation about local +X curls the segment toward the palm (flexion).
+# For the thumb, +Z is the pad side facing the fingers: +X folds it across the palm.
+
+DIGITS = ("Thumb", "Index", "Middle", "Ring", "Pinky")
+# hand space (right hand): n = toward the back of the hand, b = toward the thumb
+# (forward), c = down the hand from the wrist.  Mirrored for the left hand.
+#   base: first joint, lens: segment lengths, r: tube radius at the 3 joints + tip,
+#   aim: first segment direction (n, b, c), pad: palm-side direction (n, b, c),
+#   bend: rest curl per segment (rad), twist: roll before each segment (rad)
+HAND_SPEC = {
+    "Index": dict(base=(0.002, 0.036, 0.085), lens=(0.033, 0.022, 0.02),
+                  r=(0.0125, 0.0117, 0.0108, 0.0100), aim=(0, 0.1, 1), bend=(0.1, 0.16, 0.1)),
+    "Middle": dict(base=(0.003, 0.012, 0.089), lens=(0.036, 0.024, 0.021),
+                   r=(0.0129, 0.0121, 0.0111, 0.0103), aim=(0, 0.02, 1), bend=(0.12, 0.18, 0.1)),
+    "Ring": dict(base=(0.002, -0.012, 0.086), lens=(0.033, 0.023, 0.02),
+                 r=(0.0124, 0.0116, 0.0106, 0.0099), aim=(0, -0.07, 1), bend=(0.14, 0.2, 0.11)),
+    "Pinky": dict(base=(0.0, -0.0345, 0.078), lens=(0.027, 0.019, 0.017),
+                  r=(0.0111, 0.0104, 0.0095, 0.0089), aim=(0, -0.17, 1), bend=(0.16, 0.22, 0.12)),
+    # the thumb is given joint by joint (CMC, MCP, IP, tip) + the pad side of each
+    # segment, fitted so that ~(0.3, 0.4, 0.5) rad of +X curl lays it across a fist
+    "Thumb": dict(pts=((-0.009, 0.024, 0.022), (-0.028, 0.046, 0.05), (-0.036, 0.052, 0.078), (-0.041, 0.05, 0.102)),
+                  pads=((-0.85, -0.48, -0.2), (-0.25, -0.96, 0.13), (-0.25, -0.96, -0.13)),
+                  r=(0.0170, 0.0143, 0.0133, 0.0121)),
+}
+FINGERS = {}   # (side, digit) -> {"pts": [4 world joints], "z": [3 palm-side axes], "x": [...], "r": radii}
+
+
+def hand_axes(sd):
+    """World axes of the hand for side sd: dorsal (back of hand), radial (thumb
+    side), distal (down the fingers). The mitten used the same frame."""
+    s = 1 if sd == "R" else -1
+    R = Matrix.Rotation(-s * A_POSE, 3, "Y")
+    return S["wrist_" + sd], R @ Vector((s, 0, 0)), R @ Vector((0, 1, 0)), R @ Vector((0, 0, -1))
+
+
+def hand_pt(sd, n, b, c):
+    w, D, B, C = hand_axes(sd)
+    return w + D * n + B * b + C * c
+
+
+def hand_vec(sd, n, b, c):
+    _, D, B, C = hand_axes(sd)
+    return (D * n + B * b + C * c).normalized()
+
+
+def build_finger_chains():
+    for sd in ("R", "L"):
+        for dg in DIGITS:
+            sp = HAND_SPEC[dg]
+            if "pts" in sp:   # explicit joints + pad directions
+                pts = [hand_pt(sd, *q) for q in sp["pts"]]
+                zs, xs = [], []
+                for k in range(3):
+                    y = (pts[k + 1] - pts[k]).normalized()
+                    z = hand_vec(sd, *sp["pads"][k])
+                    z = (z - y * z.dot(y)).normalized()
+                    zs.append(z)
+                    xs.append(y.cross(z))
+                FINGERS[(sd, dg)] = {"pts": pts, "z": zs, "x": xs, "r": sp["r"]}
+                continue
+            y = hand_vec(sd, *sp["aim"])
+            z = -hand_axes(sd)[1]                   # palm side
+            z = (z - y * z.dot(y)).normalized()
+            p = hand_pt(sd, *sp["base"])
+            pts, zs, xs = [p], [], []
+            for k in range(3):
+                f = sp["bend"][k]
+                y, z = (y * math.cos(f) + z * math.sin(f)).normalized(), (z * math.cos(f) - y * math.sin(f)).normalized()
+                p = p + y * sp["lens"][k]
+                pts.append(p)
+                zs.append(z)
+                xs.append(y.cross(z))
+            FINGERS[(sd, dg)] = {"pts": pts, "z": zs, "x": xs, "r": sp["r"]}
+
+
+def smooth01(t):
+    t = max(0.0, min(1.0, t))
+    return t * t * (3 - 2 * t)
+
+
+NAIL = (1.0, 0.9, 0.88)   # skin multiplier on the nail beds
+
+
+def digit_tube(sd, dg, nseg=12):
+    """One digit as a clean ring tube. Returns (bmesh, [per-vertex weight dicts])."""
+    F = FINGERS[(sd, dg)]
+    P, Z, X, r = F["pts"], F["z"], F["x"], F["r"]
+    Y = [(P[k + 1] - P[k]).normalized() for k in range(3)]
+    names = ["%s%d_%s" % (dg, k + 1, sd) for k in range(3)]
+    thumb = dg == "Thumb"
+    st = []   # stations: (center, x, z, lateral, palm-side, back-side, weights, nail)
+
+    def add(c, k, rr, pal=1.0, dor=1.0, w=None, x=None, z=None, nail=0.0):
+        st.append((c, X[k] if x is None else x, Z[k] if z is None else z, rr * 1.05, rr * 0.97 * pal,
+                   rr * 0.95 * dor, w or {names[k]: 1.0}, nail))
+
+    def blend(j, u):
+        """weights near joint j (between bone j-1 and bone j) at axial offset u"""
+        bw = 0.55 * r[j]
+        t = smooth01((u + bw) / (2 * bw))
+        return {names[j - 1]: 1.0 - t, names[j]: t}
+
+    # base ball, centred on the first joint (buried in the palm)
+    knuck = 1.0 if thumb else 1.16
+    a = math.radians(55)
+    add(P[0] - Y[0] * r[0] * math.cos(a), 0, r[0] * math.sin(a), dor=knuck)
+    add(P[0], 0, r[0], dor=knuck)
+    add(P[0] + Y[0] * 0.45 * r[0], 0, r[0], dor=1.0 + (knuck - 1.0) * 0.5)
+    L0 = (P[1] - P[0]).length
+    add(P[0] + Y[0] * L0 * 0.55, 0, r[0] * 0.55 + r[1] * 0.45, pal=1.03, dor=0.97)
+    for j in (1, 2):
+        rj = r[j]
+        xb = (X[j - 1] + X[j]).normalized()
+        zb = (Z[j - 1] + Z[j]).normalized()
+        add(P[j] - Y[j - 1] * 0.38 * rj, j - 1, rj * 1.01, pal=0.98, dor=1.04, w=blend(j, -0.38 * rj))
+        add(P[j], j, rj * 1.02, pal=0.95, dor=1.08, w=blend(j, 0.0), x=xb, z=zb)
+        add(P[j] + Y[j] * 0.38 * rj, j, rj * 1.0, pal=0.98, dor=1.03, w=blend(j, 0.38 * rj))
+        if j == 1:
+            L1 = (P[2] - P[1]).length
+            add(P[1] + Y[1] * L1 * 0.5, 1, r[1] * 0.5 + r[2] * 0.5, pal=1.03, dor=0.97)
+    # distal pad + rounded tip (flatter on the nail side)
+    rt = r[3]
+    ct = P[3] - Y[2] * rt
+    add(P[2] + (ct - P[2]) * 0.55, 2, (r[2] + rt) * 0.5, pal=1.05, dor=0.93, nail=0.6)
+    add(ct, 2, rt, pal=1.06, dor=0.88, nail=1.0)
+    for th in (58, 32):
+        a = math.radians(th)
+        add(ct + Y[2] * rt * math.cos(a), 2, rt * math.sin(a), pal=1.05, dor=0.9, nail=0.8 if th > 40 else 0.0)
+
+    bm = bmesh.new()
+    wts, cols = [], []
+    rings = []
+    for c, x, z, rl, rp, rd, w, nail in st:
+        ring = []
+        for i in range(nseg):
+            ph = i / nseg * math.tau
+            cs, sn = math.cos(ph), math.sin(ph)
+            ring.append(bm.verts.new(c + x * (cs * rl) + z * (sn * (rp if sn > 0 else rd))))
+            wts.append(w)
+            k = nail * max(0.0, -sn - 0.45) / 0.55
+            cols.append(tuple(1.0 + (NAIL[m] - 1.0) * min(1.0, k) for m in range(3)))
+        rings.append(ring)
+    base = bm.verts.new(P[0] - Y[0] * r[0])
+    wts.append({names[0]: 1.0})
+    cols.append((1, 1, 1))
+    tip = bm.verts.new(P[3])
+    wts.append({names[2]: 1.0})
+    cols.append((1, 1, 1))
+    for a, b in zip(rings, rings[1:]):
+        for i in range(nseg):
+            bm.faces.new((a[i], a[(i + 1) % nseg], b[(i + 1) % nseg], b[i]))
+    for i in range(nseg):
+        bm.faces.new((base, rings[0][(i + 1) % nseg], rings[0][i]))
+        bm.faces.new((tip, rings[-1][i], rings[-1][(i + 1) % nseg]))
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    return bm, wts, cols
+
+
+def weighted_object(bm, wts, cols, name):
+    """bmesh + per-vertex {bone: weight} + colors -> object with vertex groups."""
+    ob = bm_to_object(bm, name)
+    me = ob.data
+    me.color_attributes.new("Col", "FLOAT_COLOR", "POINT")
+    attr = me.color_attributes["Col"]
+    for i, c in enumerate(cols):
+        attr.data[i].color = (c[0], c[1], c[2], 1.0)
+    me.color_attributes.active_color = attr
+    groups = {}
+    for w in wts:
+        for n in w:
+            if n not in groups:
+                groups[n] = ob.vertex_groups.new(name=n)
+    for i, w in enumerate(wts):
+        tot = sum(w.values())
+        for n, v in w.items():
+            if v / tot > 0.002:
+                groups[n].add([i], v / tot, "REPLACE")
+    return ob
+
+
+def build_palm(sd, faces=420):
+    _, D, B, C = hand_axes(sd)
+    s = 1 if sd == "R" else -1
+    rot = Matrix.Rotation(-s * A_POSE, 3, "Y").to_quaternion()
+
+    def T(n, b, c):
+        return hand_pt(sd, n, b, c)
+
+    hb = Blob("Palm_" + sd, res=0.0042)
+    hb.ellipsoid(T(-0.003, 0.002, 0.05), (0.0175, 0.043, 0.036), rot=rot)          # palm body
+    hb.ellipsoid(T(-0.002, 0.002, 0.014), (0.019, 0.029, 0.02), rot=rot)          # wrist heel
+    for dg in ("Index", "Middle", "Ring", "Pinky"):                               # knuckle bar
+        p = FINGERS[(sd, dg)]["pts"][0]
+        rr = FINGERS[(sd, dg)]["r"][0]
+        hb.ellipsoid(p - C * 0.004 + D * -0.002, (0.0115, rr * 1.18, 0.013), rot=rot)
+        hb.ellipsoid(p - C * 0.012 - D * 0.009, (0.009, rr * 1.1, 0.011), rot=rot)  # pad under the knuckle
+    # thenar (thumb ball) and hypothenar (outer heel)
+    hb.capsule(T(-0.012, 0.018, 0.022), T(-0.012, 0.03, 0.05), 0.0135)
+    hb.capsule(T(-0.009, -0.026, 0.028), T(-0.009, -0.03, 0.062), 0.011)
+    palm = hb.to_object("Palm_" + sd, smooth_iter=2)
+    n = len(palm.data.polygons)
+    if n > faces:
+        add_mod(palm, "DECIMATE", ratio=faces / n, use_collapse_triangulate=True)
+        apply_mods(palm)
+        shade_smooth(palm)
+    g = palm.vertex_groups.new(name="Hand_" + sd)
+    g.add([v.index for v in palm.data.vertices], 1.0, "REPLACE")
+    set_color(palm, (1, 1, 1))
+    return palm
+
+
 def build_hands():
+    if not FINGERS:
+        build_finger_chains()
     out = []
-    for sd, s in (("R", 1), ("L", -1)):
-        w = S["wrist_" + sd]
-        R = Matrix.Rotation(-s * A_POSE, 3, "Y")
-
-        def T(p):
-            return w + R @ Vector(p)
-
-        hb = Blob("Hand_" + sd, res=0.006)
-        palm = Vector((s * 0.004, 0.006, -0.06))
-        hb.ellipsoid(T(palm), (0.03, 0.048, 0.052), rot=R.to_quaternion())
-        for dy in (-0.028, -0.009, 0.01, 0.028):
-            L = 0.056 - abs(dy) * 0.4
-            a = palm + Vector((s * 0.002, dy, -0.035))
-            b = a + Vector((-s * 0.02, 0.004, -L))          # fingers curl in toward the thigh
-            hb.capsule(T(a), T(b), 0.0145)
-        t0 = Vector((-s * 0.012, 0.04, -0.035))
-        hb.capsule(T(t0), T(t0 + Vector((-s * 0.02, 0.022, -0.04))), 0.015)   # thumb
-        hand = hb.to_object("Hand_" + sd, decimate=0.5)
-        out.append(hand)
+    for sd in ("R", "L"):
+        out.append(build_palm(sd))
+        for dg in DIGITS:
+            bm, wts, cols = digit_tube(sd, dg)
+            out.append(weighted_object(bm, wts, cols, dg + "_" + sd))
     return join(out, "Hands")
 
 
@@ -651,10 +894,15 @@ def build_tie(front, long_tie=False):
     return tb.to_object("Tie_long" if long_tie else "Tie")
 
 
-def build_shirt_top(name, sleeve="long", hem=0.93, bulk=1.0, hips=False):
+def build_shirt_top(name, sleeve="long", hem=0.93, bulk=1.0, hips=False, untucked=False):
     """Tucked shirt / cop shirt / tee / hoodie body. hips=True: an untucked top
-    that hangs over the pants (covers the tops of the legs, no poke-through)."""
+    that hangs over the pants (covers the tops of the legs, no poke-through).
+    untucked=True: a fitted top whose straight hem hangs a few cm over the
+    pants waistband (tee)."""
     b = Blob(name)
+    if untucked:
+        b.ellipsoid((0, -0.006, WAIST - 0.012), (0.186, 0.136, 0.07))
+        b.ellipsoid((0, -0.004, WAIST + 0.06), (0.172, 0.124, 0.08))
     if hips:
         b.ellipsoid((0, -0.006, hem + 0.07), (0.225, 0.15, 0.1))
         b.ellipsoid((0, -0.004, hem + 0.17), (0.2, 0.14, 0.1))
@@ -762,7 +1010,7 @@ def build_hoodie():
 
 
 def build_tee():
-    t = build_shirt_top("Tee_shell", "short")
+    t = build_shirt_top("Tee_shell", "short", hem=WAIST - 0.062, untucked=True)
     cb = Blob("TeeCollar", res=0.005)
     for a in range(20):
         ang = a / 20 * math.tau
@@ -796,7 +1044,23 @@ def build_pants():
     for sd in ("R", "L"):
         b.chain([S["hip_" + sd] + Vector((0, 0, 0.02)), S["knee_" + sd], S["ankle_" + sd] + Vector((0, 0, 0.015))],
                 [0.1, 0.078, 0.068])
-    return clear_of(b.to_object("Pants", decimate=0.4, relax=12), [BODY.get("body")], 0.005, passes=1)
+    pants = clear_of(b.to_object("Pants", decimate=0.4, relax=12), [BODY.get("body")], 0.005, passes=1)
+    cut_above(pants, WAIST)
+    # waistband: a slightly darker rolled band hugging the cut edge
+    bvh = BVHTree.FromObject(pants, bpy.context.evaluated_depsgraph_get())
+    pts = []
+    n = 40
+    for a in range(n + 1):
+        ang = a / n * math.tau
+        out = Vector((math.sin(ang), math.cos(ang), 0.0))
+        o = Vector((0, -0.008, WAIST - 0.016)) + out * 0.4
+        hit = bvh.ray_cast(o, -out)
+        pts.append((hit[0] if hit[0] else o - out * 0.26) + Vector((0, 0, 0.008)))
+    wb = Blob("Waistband", res=0.0045)
+    wb.chain(pts, [0.0125] * len(pts))
+    band = wb.to_object("Waistband", smooth_iter=1)
+    set_color(band, (0.8, 0.8, 0.8))
+    return join([pants, band], "Pants")
 
 
 def build_shoes(kind):
@@ -1131,12 +1395,43 @@ def build_accessories():
     face = uv_sphere(w - d * 0.02 + Matrix.Rotation(A_POSE, 3, "Y") @ Vector((-0.043, 0, 0)), (0.008, 0.024, 0.024), 16, 10, "Face")
     set_color(face, (1.0, 1.0, 1.0))
     out["Acc_watch"] = join([band, face], "Acc_watch")
-    # ring on the right hand
-    h = S["wrist_R"]
-    R = Matrix.Rotation(-A_POSE, 3, "Y")
-    r = uv_sphere(h + R @ Vector((-0.012, 0.03, -0.1)), (0.018, 0.012, 0.01), 12, 8, "Acc_ring")
-    out["Acc_ring"] = r
+    # gold signet ring on the right ring finger (rides on Ring1_R)
+    out["Acc_ring"] = build_ring("R", "Ring")
     return out
+
+
+def build_ring(sd, dg, at=0.42):
+    """A band hugging the proximal segment of a digit + a flat signet plate on top."""
+    F = FINGERS[(sd, dg)]
+    P, x, z, r = F["pts"], F["x"][0], F["z"][0], F["r"]
+    y = (P[1] - P[0]).normalized()
+    c = P[0] + (P[1] - P[0]) * at
+    rr = r[0] * (1 - at) + r[1] * at
+    bm = bmesh.new()
+    n, m, tube = 20, 6, 0.0022
+    grid = []
+    for i in range(n):
+        ph = i / n * math.tau
+        cs, sn = math.cos(ph), math.sin(ph)
+        # follow the finger's cross-section (a hair outside it)
+        rad = Vector((cs * (rr * 1.05 + 0.0012), sn * ((rr * 0.97 * 1.03 if sn > 0 else rr * 0.95 * 0.98) + 0.0012)))
+        out_ = (x * cs + z * sn).normalized()
+        o = c + x * rad.x + z * rad.y + out_ * tube
+        row = []
+        for j in range(m):
+            a = j / m * math.tau
+            row.append(bm.verts.new(o + out_ * (math.cos(a) * tube) + y * (math.sin(a) * tube * 1.3)))
+        grid.append(row)
+    for i in range(n):
+        for j in range(m):
+            a, b = grid[i], grid[(i + 1) % n]
+            bm.faces.new((a[j], b[j], b[(j + 1) % m], a[(j + 1) % m]))
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    band = bm_to_object(bm, "Band")
+    top = c - z * (rr * 0.95 * 0.98 + 0.0045)
+    plate = Blob("Signet", res=0.0018)
+    plate.ellipsoid(top, (0.0068, 0.0028, 0.0062), rot=Matrix((x, -z, y)).transposed().to_quaternion())
+    return join([band, plate.to_object("Signet")], "Acc_ring")
 
 
 # ----------------------------------------------------------------------------- skinning
@@ -1265,6 +1560,21 @@ def build_armature():
     j.head = FACE["mouth"]
     j.tail = FACE["mouth"] + Vector((0, 0, 0.04))
     j.parent = eb["Head"]
+    # fingers: Thumb1..3 / Index1..3 / Middle1..3 / Ring1..3 / Pinky1..3 _R/_L under Hand_*.
+    # align_roll points local +Z at the palm side, so +X rotation = curl (see HAND_SPEC)
+    for sd in ("R", "L"):
+        for dg in DIGITS:
+            F = FINGERS[(sd, dg)]
+            parent = eb["Hand_" + sd]
+            for k in range(3):
+                b = arm.edit_bones.new("%s%d_%s" % (dg, k + 1, sd))
+                b.head = F["pts"][k]
+                b.tail = F["pts"][k + 1]
+                b.align_roll(F["z"][k])
+                b.parent = parent
+                b.use_connect = k > 0
+                b.use_deform = True
+                parent = b
     bpy.ops.object.mode_set(mode="OBJECT")
     return ob
 
@@ -1302,7 +1612,7 @@ def assign(ob, role):
 # ----------------------------------------------------------------------------- main
 
 BUDGET = {
-    "Body": 3500, "Skull": 5500, "Brows": 500, "Hands": 1800, "Jacket": 5500, "Shirt_cuffs": 700,
+    "Body": 3500, "Skull": 5500, "Brows": 500, "Hands": 5000, "Jacket": 5500, "Shirt_cuffs": 700,
     "Tie": 700, "Tie_long": 800, "Top_cop": 4500, "Gear_cop": 5000, "Top_hoodie": 5000, "Top_tee": 4000,
     "Top_shirt": 4000, "Pants": 3500, "Shoes_dress": 1800, "Shoes_sneaker": 1800, "Soles_sneaker": 700,
     "_hair": 4500, "Hair_afro": 5500, "Hair_long": 5500, "Hair_bald": 1500, "Beard_mustache": 900,
@@ -1317,6 +1627,7 @@ BUDGET = {
 def main():
     reset()
     kit = []   # (object, role, skinning)
+    build_finger_chains()
     body = build_body()
     BODY["body"] = body
     kit.append((body, "Skin", "auto"))
@@ -1356,12 +1667,14 @@ def main():
         kit.append((build_hat(head, h), "Hat", "Head"))
     acc = build_accessories()
     kit.append((acc["Acc_watch"], "Metal", "Forearm_L"))
-    kit.append((acc["Acc_ring"], "Gold", "Hand_R"))
+    kit.append((acc["Acc_ring"], "Gold", "Ring1_R"))
     # outer layers never sink into the pants
     tops = {o.name: o for o, _, _ in kit}
     pants = next(o for o, _, _ in kit if o.name == "Pants")
-    for name in ("Jacket", "Top_hoodie"):
+    for name in ("Jacket", "Top_hoodie", "Top_tee"):
         clear_of(tops[name], [pants], 0.008, passes=1)
+    for name in ("Top_shirt", "Top_cop"):      # tucked in: meet the pants on a level waistline
+        tuck_into(tops[name], pants)
     # gold chains fitted to each outfit so they sit flush (suit / shirt / tee / hoodie)
     for outfit, top in (("suit", "Jacket"), ("shirt", "Top_shirt"), ("tee", "Top_tee"), ("hoodie", "Top_hoodie")):
         kit.append((build_chain(tops[top], "Acc_chain_" + outfit), "Gold", "auto"))
@@ -1393,7 +1706,7 @@ def main():
         elif sk == "auto":
             skin_transfer(ob, body)
         elif sk == "hands":
-            skin_split_by_side(ob, "Hand_R", "Hand_L")
+            pass   # built with per-segment finger weights (build_hands)
         elif sk == "feet":
             skin_split_by_side(ob, "Foot_R", "Foot_L")
         elif sk == "lids":
