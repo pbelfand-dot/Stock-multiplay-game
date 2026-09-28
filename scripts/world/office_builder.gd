@@ -253,6 +253,8 @@ func _environment() -> void:
 	sun.rotation_degrees = Vector3(-55, -30, 0)
 	sun.light_energy = 0.9
 	sun.light_cull_mask = SKY_LAYER
+	sun.name = "Sun"
+	sun.shadow_enabled = Graphics.cur.shadows      # HIGH/ULTRA: buildings shade the street
 	root.add_child(sun)
 	for p in [Vector3(-10, 3.0, -5), Vector3(8, 3.0, -5), Vector3(-10, 3.0, 7), Vector3(10, 3.0, 7)]:
 		var o := OmniLight3D.new()

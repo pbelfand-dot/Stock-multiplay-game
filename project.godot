@@ -14,6 +14,7 @@ config/features=PackedStringArray("4.7", "GL Compatibility")
 [autoload]
 
 Config="*res://scripts/net/config.gd"
+Graphics="*res://scripts/net/graphics.gd"
 Net="*res://scripts/net/net.gd"
 Sfx="*res://scripts/net/sfx.gd"
 Music="*res://scripts/net/music.gd"

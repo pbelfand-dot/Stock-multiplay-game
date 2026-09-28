@@ -74,6 +74,9 @@ func _ready() -> void:
 	help.autowrap_mode = TextServer.AUTOWRAP_WORD
 	box.add_child(help)
 	box.add_child(Music.volume_row(UI.lbl("Music", 18, UI.DIM)))
+	var gfx := UI.btn("GRAPHICS  (auto: %s)" % Graphics.detected.to_upper(), UI.NAVY_2, 18)
+	gfx.pressed.connect(func(): Graphics.popup(UI, self))
+	box.add_child(gfx)
 	var quit := UI.btn("QUIT", UI.NAVY_2, 20)
 	quit.pressed.connect(func(): Sfx.quit_game())
 	box.add_child(quit)

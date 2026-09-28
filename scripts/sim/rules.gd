@@ -1,7 +1,11 @@
 extends RefCounted
 ## Tunable game rules: money, quotas, items, heat, slots.
 
-const START_FUND := 100_000.0
+const START_FUND := 25_000.0          # start small: flex has to be earned
+## Daily overhead (desk rent, Bloomberg, bottle service), paid per trader when
+## the bell rings. It creeps up every day like lifestyle inflation does.
+const OVERHEAD_PER_TRADER := 2_000.0
+const OVERHEAD_GROWTH := 1.35
 const DAY_SECONDS := 300.0          # 5-minute trading day (like Broke Street)
 const INTERMISSION_SECONDS := 12.0
 const QUOTA_GROWTH := 1.5           # target balance multiplies each day
@@ -18,17 +22,17 @@ const SIZE_STEPS := [1_000.0, 5_000.0, 10_000.0, 25_000.0, 50_000.0, 100_000.0,
 	250_000.0, 500_000.0, 1_000_000.0, 5_000_000.0, 10_000_000.0, 50_000_000.0]
 
 const ITEMS := {
-	"cigar": {"name": "Victory Cigar", "price": 5_000.0, "heat": 5.0,
+	"cigar": {"name": "Victory Cigar", "price": 1_500.0, "heat": 5.0,
 		"desc": "Zero trading fees for 60s. Blows a smoke cloud."},
-	"powder": {"name": "Nose Candy", "price": 15_000.0, "heat": 25.0,
+	"powder": {"name": "Nose Candy", "price": 4_000.0, "heat": 25.0,
 		"desc": "Sprint x1.6 for 40s and you see headlines 6s early."},
-	"tip": {"name": "Insider Tip", "price": 25_000.0, "heat": 40.0,
+	"tip": {"name": "Insider Tip", "price": 6_000.0, "heat": 40.0,
 		"desc": "Reveals what the NEXT headline will do. Very illegal."},
-	"moneygun": {"name": "FLEX Gun", "price": 10_000.0, "heat": 0.0,
+	"moneygun": {"name": "FLEX Gun", "price": 3_000.0, "heat": 0.0,
 		"desc": "Hold LMB to make it rain. Cops stop to grab bills."},
-	"lawyer": {"name": "Saul Goodmann", "price": 30_000.0, "heat": 0.0,
+	"lawyer": {"name": "Saul Goodmann", "price": 8_000.0, "heat": 0.0,
 		"desc": "Your next arrest gets dismissed. It's all good, man."},
-	"snitch": {"name": "SEC Snitch Line", "price": 20_000.0, "heat": 0.0,
+	"snitch": {"name": "SEC Snitch Line", "price": 5_000.0, "heat": 0.0,
 		"desc": "PvP only: +60 heat on the richest rival.", "pvp_only": true},
 }
 
@@ -39,23 +43,23 @@ const ITEM_DURATION := {"cigar": 60.0, "powder": 40.0, "moneygun": 10.0}
 ## "store" = which street boutique sells it (the office FLEX SHOP sells all).
 ## "bag" = the desk-trophy prop for handbags. Brands: docs/BRANDS.md (parodies).
 const LUXURY := {
-	"supreme": {"name": "SUPRÉMO Brick", "price": 2_500.0, "max": 6, "store": "flex",
+	"supreme": {"name": "SUPRÉMO Brick", "price": 6_000.0, "max": 6, "store": "flex",
 		"desc": "It's a brick. It says SUPRÉMO. You need it."},
-	"counter": {"name": "Cash Counter", "price": 8_000.0, "max": 1, "store": "flex",
+	"counter": {"name": "Cash Counter", "price": 25_000.0, "max": 1, "store": "flex",
 		"desc": "Sits on your desk going brrrrt. Press E on it to count a stack."},
-	"guccero_bag": {"name": "GUCCERO Marmont Bag", "price": 9_000.0, "max": 3, "store": "guccero", "bag": "Bag_Guccero",
+	"guccero_bag": {"name": "GUCCERO Marmont Bag", "price": 45_000.0, "max": 3, "store": "guccero", "bag": "Bag_Guccero",
 		"desc": "Black leather, green-red web stripe. Very Milan. Very mid-cap."},
-	"prava_bag": {"name": "PRAVA Nylon Tote", "price": 7_000.0, "max": 3, "store": "prava", "bag": "Bag_Prava",
+	"prava_bag": {"name": "PRAVA Nylon Tote", "price": 32_000.0, "max": 3, "store": "prava", "bag": "Bag_Prava",
 		"desc": "Minimal. Black. Silver triangle. Costs more than it should."},
-	"louie": {"name": "LOUIS VALMONT Keepall", "price": 12_000.0, "max": 4, "store": "valmont", "bag": "LouieBag",
+	"louie": {"name": "LOUIS VALMONT Keepall", "price": 60_000.0, "max": 4, "store": "valmont", "bag": "LouieBag",
 		"desc": "Tan leather, VM monogram. Empty. Pure flex. Lines up next to your desk."},
-	"diorelle_bag": {"name": "DIORÉLLE Saddle Bag", "price": 15_000.0, "max": 3, "store": "diorelle", "bag": "Bag_Diorelle",
+	"diorelle_bag": {"name": "DIORÉLLE Saddle Bag", "price": 80_000.0, "max": 3, "store": "diorelle", "bag": "Bag_Diorelle",
 		"desc": "Cream couture from Paris. Your desk has never been this classy."},
-	"chavel_bag": {"name": "CHAVÉL Quilted Flap", "price": 22_000.0, "max": 3, "store": "chavel", "bag": "Bag_Chavel",
+	"chavel_bag": {"name": "CHAVÉL Quilted Flap", "price": 120_000.0, "max": 3, "store": "chavel", "bag": "Bag_Chavel",
 		"desc": "Black quilted leather, gold chain. The old-money flex."},
-	"roflex": {"name": "Crownwell Datejust", "price": 35_000.0, "max": 1, "store": "crownwell",
+	"roflex": {"name": "Crownwell Datejust", "price": 250_000.0, "max": 1, "store": "crownwell",
 		"desc": "Gold Crownwell Genève on your wrist + the green box on your desk."},
-	"roflex_iced": {"name": "Crownwell Iced Out", "price": 150_000.0, "max": 1, "heat": 10.0, "store": "crownwell",
+	"roflex_iced": {"name": "Crownwell Iced Out", "price": 1_500_000.0, "max": 1, "heat": 10.0, "store": "crownwell",
 		"desc": "Diamond bezel. Blinding. The SEC notices (+10 heat)."},
 }
 const BOUTIQUES := ["guccero", "valmont", "prava", "crownwell", "diorelle", "chavel"]
@@ -64,6 +68,11 @@ const BOUTIQUE_NAMES := {"guccero": "GUCCERO", "valmont": "LOUIS VALMONT", "prav
 const PAWN_RATE := 0.5          # pawn shop pays half what you paid
 const HOTDOG_PRICE := 20.0
 const HOTDOG_RELIEF := 35.0     # blood pressure points
+
+
+## What the desk pays at the end of `day` (all traders together).
+static func overhead_for_day(day: int, traders: int) -> float:
+	return OVERHEAD_PER_TRADER * maxi(traders, 1) * pow(OVERHEAD_GROWTH, maxi(day - 1, 0))
 
 
 static func quota_for_day(day: int, start: float = START_FUND) -> float:
