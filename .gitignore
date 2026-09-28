@@ -3,3 +3,4 @@
 /export/
 *.tmp
 __pycache__/
+.claude/worktrees/
