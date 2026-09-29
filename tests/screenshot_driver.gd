@@ -334,6 +334,10 @@ func _run() -> void:
 		print("hits %s, speed now %.0f mph" % [str(hits), car.mph()])
 		Sfx.quit_game()
 		return
+	if Config.cli.has("handsonly"):            # hands on the wheel mid-turn: first person, outside, a remote driver, a cabbie
+		await _hands(world, m, hud)
+		Sfx.quit_game()
+		return
 	if Config.cli.has("jitteronly"):           # how smooth is driving? per-frame camera steps at speed (run with --fixed-fps)
 		await _jitter(world, m)
 		Sfx.quit_game()
@@ -1017,6 +1021,83 @@ func _street_only(world, m, hud) -> void:
 		p.head.rotation.x = v[3]
 		await _frames(8)
 		await _snap(v[0])
+
+
+## Hands on the wheel, the wheel turned a quarter left: our own view from the
+## driver's seat, the car from outside, a remote player at the wheel of their
+## car (a puppet, as the network shows them), a cabbie.
+func _hands(world, m, hud) -> void:
+	var p0 = world.local_player
+	var key: String = Config.cli.get("drivecar", "bz_m3")
+	var tag: String = key.trim_prefix("bz_")
+	m.owned[1][key] = 1
+	m._push_state()
+	world.go_to_street()
+	await get_tree().create_timer(0.8).timeout
+	var so: Vector3 = world.builder.hood.hw.dealership_lot        # the empty lot: nothing in the way
+	var car = world.cars[Net.my_id()]
+	car.global_position = so + Vector3(0.0, 0.3, 0.0)
+	car.rotation = Vector3(0, -PI / 2, 0)
+	car.reset_physics_interpolation()
+	p0.enter_car(car)
+	hud.root.visible = false
+	p0.drive_cam.toggle()
+	p0.model.set_first_person(true)
+	await get_tree().create_timer(0.6).timeout
+	await _snap("hands_%s_fp_straight" % tag)
+	Input.action_press("move_left", float(Config.cli.get("steer", "0.12")))
+	await get_tree().create_timer(1.0).timeout
+	print("wheel turned %.0f deg (front wheels %.1f deg)" % [rad_to_deg(car.wheel_turn), rad_to_deg(car.steer)])
+	await _snap("hands_%s_fp" % tag)
+	p0.drive_cam.toggle()
+	p0.model.set_first_person(false)
+	await get_tree().create_timer(0.3).timeout
+	await _snap("hands_%s_chase" % tag)
+	var cam := Camera3D.new()
+	world.add_child(cam)
+	cam.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
+	cam.current = true
+	cam.fov = 45
+	# (window down / windshield: from outside, what you see through the glass)
+	var views := [["hands_%s_side" % tag, Vector3(-2.0, 1.45, -0.4), Vector3(-0.37, 0.95, -0.35)],
+			["hands_%s_front" % tag, Vector3(-0.5, 2.3, -3.0), Vector3(-0.37, 0.9, -0.2)],
+			["hands_%s_glass" % tag, Vector3(-4.8, 1.7, -3.2), Vector3(0, 0.8, 0)]]
+	for v in views:
+		cam.global_position = car.to_global(v[1])
+		cam.look_at(car.to_global(v[2]))
+		await get_tree().create_timer(0.3).timeout
+		await _snap(v[0])
+	Input.action_release("move_left")
+	# a remote player at the wheel of their car in the other lane (turning right), as the network shows them
+	Net.players[900] = {"name": "Bob", "color": Color.RED, "look": {}}     # (else the world tidies their car away)
+	var d = load("res://scripts/player/player.gd").new()
+	d.setup(900, "Bob", load("res://scripts/art/character.gd").player_look(2), false, world)
+	world.players_node.add_child(d)
+	var c2 = world.spawn_car(900, "bz_m5" if key != "bz_m5" else "bz_m8", so + Vector3(0.0, 0.3, 9.0), -PI / 2)
+	c2.net_state(c2.global_position, c2.quaternion, 0.0, -0.1, false)
+	d.net_tf(c2.global_position, c2.rotation.y, 0.0, 1 << 12)
+	await get_tree().create_timer(0.8).timeout
+	for v in [["hands_remote_side", Vector3(-2.0, 1.45, -0.4), Vector3(-0.37, 0.95, -0.35)],
+			["hands_remote_front", Vector3(-0.5, 2.3, -3.0), Vector3(-0.37, 0.9, -0.2)]]:
+		cam.global_position = c2.to_global(v[1])
+		cam.look_at(c2.to_global(v[2]))
+		await get_tree().create_timer(0.2).timeout
+		await _snap(v[0])
+	# a cabbie
+	Net.players[901] = {"name": "Cabbie", "color": Color.YELLOW, "look": {}}
+	var cab = world.spawn_cab(901, so + Vector3(0.0, 0.3, -9.0), -PI / 2)
+	cab.steer = 0.1
+	await get_tree().create_timer(0.8).timeout
+	cam.global_position = cab.to_global(Vector3(-2.0, 1.45, -0.4))
+	cam.look_at(cab.to_global(Vector3(-0.37, 0.95, -0.35)))
+	await get_tree().create_timer(0.2).timeout
+	await _snap("hands_cabbie_side")
+	# their car goes away under them (they left / swapped cars): the hands let go, nothing breaks
+	c2.queue_free()
+	world.cars.erase(900)
+	world.remove_cab(901, false)
+	await get_tree().create_timer(0.5).timeout
+	print("car gone under a driver: ok")
 
 
 ## Where a node is drawn this frame (interpolated ones between their ticks).

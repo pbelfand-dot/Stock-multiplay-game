@@ -53,6 +53,9 @@ var model: Node3D            # body + wheels (tilts with the road, rolls, dives)
 var body: Node3D
 var wheels: Array = []       # [pivot, spinner, front, left]
 var steering_wheel: Node3D
+var driver_model: Node3D      # an NPC at the wheel (the cabbie): its hands go on the wheel
+var _grip_r := 0.17           # the steering wheel's rim: radius / center in its own frame (see _measure_wheel)
+var _grip_c := Vector3.ZERO
 var brake_glow: Array = []   # lights that brighten on the brakes
 var brake_mats: Array = []   # real models: their tail-light surface (emission up on the brakes)
 var engine: AudioStreamPlayer3D
@@ -152,6 +155,7 @@ func _build_body() -> void:
 		t.rotation.x = PI / 2
 		t.material_override = _mat(Color(0.05, 0.05, 0.05))
 		steering_wheel.add_child(t)
+	_measure_wheel()
 	if ref.get("tail_mat", false):          # the real model's own tail lights light up
 		for mi in body.find_children("*", "MeshInstance3D", true, false):
 			var tm = (mi as MeshInstance3D).material_override
@@ -166,6 +170,42 @@ func _build_body() -> void:
 		q.position = p + Vector3(0, 0, 0.012)
 		body.add_child(q)
 		brake_glow.append(q)
+
+
+## How big the steering wheel is (every model's is its own): the rim's radius
+## and center from its meshes' bounds, in the wheel's frame (it spins about z).
+func _measure_wheel() -> void:
+	var inv := steering_wheel.global_transform.affine_inverse()
+	var box := AABB()
+	var first := true
+	for mi in steering_wheel.find_children("*", "MeshInstance3D", true, false):
+		var m: Mesh = (mi as MeshInstance3D).mesh
+		if m == null:
+			continue
+		var b: AABB = (inv * (mi as MeshInstance3D).global_transform) * m.get_aabb()
+		box = b if first else box.merge(b)
+		first = false
+	if first:
+		return
+	_grip_r = maxf(box.size.x, box.size.y) * 0.5 * 0.9       # the rim's centerline, just inside its outer edge
+	_grip_c = box.get_center()
+
+
+## Where the driver's hands hold the wheel, [left, right] wrist points (global):
+## 9 and 3 o'clock on the rim, turning with it. Past a quarter turn the rim slides
+## through the hands (a real driver shuffles) instead of crossing the arms.
+func wheel_grips() -> Array:
+	if steering_wheel == null:
+		return []
+	var a := clampf(wheel_turn, -1.6, 1.6)
+	var xf := steering_wheel.get_parent().global_transform as Transform3D    # the column (not turning)
+	var out: Array = []
+	for side in [-1.0, 1.0]:
+		var rim: Vector3 = Vector3(cos(a), sin(a), 0.0) * side         # radial direction to this hand's grip
+		var p: Vector3 = _grip_c + rim * _grip_r
+		p += rim * 0.02 + Vector3(0, -0.035, 0.07)               # the wrist: a bit out, below and toward the driver
+		out.append(xf * p)
+	return out
 
 
 ## The kit body's paint surface is white vertex colors: tint it per car.
@@ -573,6 +613,10 @@ func _visuals(dt: float) -> void:
 	wheel_turn = lerpf(wheel_turn, steer * STEER_RATIO, 1.0 - exp(-dt * 20.0))
 	if steering_wheel:
 		steering_wheel.rotation.z = wheel_turn
+	if driver_model and is_instance_valid(driver_model):
+		var g := wheel_grips()
+		driver_model.hand_to("L", g[0], Vector3(-0.5, 0.55, 0.15))
+		driver_model.hand_to("R", g[1], Vector3(0.5, 0.55, 0.15))
 	# body: roll away from the turn, dive under braking, squat on the gas
 	body.rotation.z = lerpf(body.rotation.z, clampf(_lat_acc * 0.006, -0.05, 0.05), dt * 6.0)
 	body.rotation.x = lerpf(body.rotation.x, clampf(-_long_acc * 0.004, -0.035, 0.035), dt * 6.0)

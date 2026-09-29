@@ -347,6 +347,7 @@ func spawn_cab(peer: int, pos: Vector3, yaw: float):
 	var eye: Vector3 = c.ref.eye
 	driver.position = Vector3(eye.x, eye.y - 1.19, eye.z + 0.05)
 	c.add_child(driver)
+	c.driver_model = driver
 	cabs[peer] = c
 	track_car(c, true)
 	return c

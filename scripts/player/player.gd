@@ -463,6 +463,7 @@ func _update_fx() -> void:
 	held_gun.visible = gun_on
 	_update_held_cash(m)
 	_update_gun(m, gun_on or jailed_now(m) or driving != null or _in_car)
+	_wheel_hands()
 	if smoke.emitting != cigar_on:
 		smoke.emitting = cigar_on
 	if bills.emitting != raining:
@@ -655,6 +656,10 @@ func leave_cab(at: Vector3, yaw: float) -> void:
 
 # ---------------------------------------------------------------- guns (BIG IRON)
 
+## Driving: where the elbows point (body frame, right arm; the left mirrors it): down and out.
+const WHEEL_POLE := Vector3(0.5, 0.55, 0.15)
+
+
 ## Where the left wrist goes on each gun (gun-local: grip at the origin, barrel
 ## -z, gun's left = -x): under the handguard / pump for long guns, wrapped
 ## round the left of the grip for pistols.
@@ -716,6 +721,19 @@ func _update_gun(m, hide: bool) -> void:
 		model.left_hand_to(gun_node.global_transform * (sup as Vector3) if sup != null else null)
 	else:
 		model.left_hand_to(null)
+
+
+## Behind the wheel (ours, or a remote driver's): both hands on it at 9 and 3,
+## turning with it (IK; the car knows where its rim is, see Car.wheel_grips).
+func _wheel_hands() -> void:
+	var car = driving if driving != null else (world.cars.get(peer_id) if _in_car and world else null)
+	if car != null and is_instance_valid(car):
+		var g: Array = car.wheel_grips()
+		if g.size() == 2:
+			model.hand_to("L", g[0], WHEEL_POLE * Vector3(-1, 1, 1))
+			model.hand_to("R", g[1], WHEEL_POLE)
+			return
+	model.hand_to("R", null, WHEEL_POLE)       # (the left hand: the gun code lets go of it)
 
 
 func _near_me(r: float) -> bool:
