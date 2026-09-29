@@ -3134,7 +3134,7 @@ def spec_540i():
                        (0.905, 0.705), (0.905, 0.662), (0.87, 0.626), (0.78, 0.595), (0.62, 0.562), (0.52, 0.564)],
                   r=0.012, depth=0.06, rings=[], drl=[], lens=[(0.59, 0.622, 0.015), (0.755, 0.645, 0.015)],
                   bezel=(0.05, 0.05, 0.055)),
-        front=dict(intakes=[[(0.53, 0.215), (0.815, 0.215), (0.845, 0.25), (0.85, 0.4), (0.58, 0.383),
+        front=dict(intakes=[[(0.53, 0.215), (0.775, 0.215), (0.8, 0.245), (0.805, 0.397), (0.58, 0.383),
                              (0.53, 0.355)]],
                    center=[[(-0.44, 0.215), (0.44, 0.215), (0.49, 0.345), (-0.49, 0.345)]],
                    intake_grille="mesh", center_grille="mesh", plate=(0, 0.4), plate_lift=0.016),
@@ -3151,12 +3151,12 @@ def spec_540i():
     d = dict(
         name="540i", L=L, W=1.868, H=1.466, WB=WB, TF=1.605, TR=1.63, ohf=ohf,
         tire_od=0.678, rim_in=20, tire_w=0.26,
-        flares=dict(f=(0.012, 0.22, 0.3, 0.18), r=(0.018, 0.28, 0.5, 0.2)), flare_top=0.4,
-        low_line=(0.44, 0.56, 0.006), door_tuck=0.036, kick=0.012, tuck=0.03, door_hollow=0.006, sh_a=0.72,
-        crown_p=2.5, nose_round=0.74,
-        tail_round=0.8, plan_front=(0.30, 1.8), plan_rear=(0.20, 2.0), nose_len=0.48, tail_len=0.46,
-        front=[(0.180, 0.114), (0.220, 0.041), (0.300, 0.032), (0.400, 0.025), (0.500, 0.018), (0.600, 0.050), (0.660, 0.090), (0.720, 0.150)],
-        rear=[(0.300, 0.164), (0.350, 0.077), (0.400, 0.040), (0.500, 0.000), (0.600, 0.000), (0.700, 0.040), (0.800, 0.053), (0.900, 0.046), (1.000, 0.039), (1.050, 0.050), (1.090, 0.070)],
+        flares=dict(f=(0.03, 0.25, 0.3, 0.2), r=(0.03, 0.3, 0.55, 0.22)), flare_top=0.4,
+        low_line=(0.44, 0.56, 0.006), door_tuck=0.03, kick=0.012, tuck=0.03, door_hollow=0.006, sh_a=0.72,
+        crown_p=2.5, nose_round=0.82, pocket_gap=0.03,
+        tail_round=0.86, plan_front=(0.15, 3.0), plan_rear=(0.12, 3.0), nose_len=0.48, tail_len=0.46,
+        front=[(0.17, 0.12), (0.2, 0.045), (0.24, 0.018), (0.3, 0.012), (0.36, 0.013), (0.45, 0.028), (0.54, 0.048), (0.6, 0.065), (0.66, 0.082), (0.72, 0.1)],
+        rear=[(0.300, 0.2), (0.350, 0.13), (0.400, 0.08), (0.450, 0.03), (0.500, 0.000), (0.600, 0.000), (0.700, 0.040), (0.800, 0.053), (0.900, 0.046), (1.000, 0.039), (1.050, 0.050), (1.090, 0.070)],
         dome=(zF + 0.5, zc, 0.34, 0.008),
         gh=dict(zc0=zc, kf=0.08, zh=-0.05, kh=0.05, zb0=zb, krb=0.16, zrr=1.12, krr=0.12, a_in=0.05,
                 roof=[(-0.050, 1.412), (0.000, 1.423), (0.150, 1.444), (0.300, 1.458), (0.450, 1.465), (0.600, 1.466), (0.750, 1.466), (0.900, 1.459), (1.050, 1.440), (1.200, 1.411), (1.350, 1.357)],
@@ -3183,12 +3183,12 @@ def spec_540i():
         ),
     )
     d.update(body_profile2(zF, zR, aF, aR, zc, zb, dict(
-        hood=[(-2.333, 0.720), (-2.290, 0.744), (-2.230, 0.783), (-2.140, 0.819), (-2.000, 0.857), (-1.820, 0.895), (-1.630, 0.922), (-1.410, 0.948), (-1.170, 0.972), (-0.935, 0.985)],
+        hood=[(-2.333, 0.72), (-2.307, 0.748), (-2.256, 0.772), (-2.179, 0.797), (-2.076, 0.827), (-1.96, 0.856), (-1.82, 0.889), (-1.63, 0.922), (-1.41, 0.948), (-1.17, 0.972), (-0.935, 0.985)],
         deck=[(1.905, 1.122), (2.000, 1.122), (2.110, 1.120), (2.210, 1.106), (2.310, 1.090), (2.415, 1.075), (2.520, 1.066)],
         belt=[(-0.73, 0.973), (-0.64, 0.982), (0.47, 1.01), (1.44, 1.018), (1.5, 1.02)],
         sh=[(zF, 0.76), (aF, 0.86), (0.0, 0.9), (aR, 0.93), (zR, 0.93)],
-        sill=[(-2.333, 0.210), (-1.883, 0.28), (-1.488, 0.21), (0.000, 0.21), (1.488, 0.21), (2.038, 0.32), (2.603, 0.246)],
-        bot=[(-2.333, 0.150), (-2.033, 0.2), (-1.488, 0.205), (1.488, 0.205), (1.988, 0.23), (2.603, 0.244)],
+        sill=[(-2.333, 0.18), (-1.883, 0.25), (-1.488, 0.222), (0.000, 0.222), (1.488, 0.222), (2.038, 0.32), (2.603, 0.27)],
+        bot=[(-2.333, 0.12), (-2.033, 0.16), (-1.488, 0.217), (1.488, 0.217), (1.988, 0.25), (2.603, 0.27)],
         te_nose=0.07, te_cab=0.095)))
     return d
 
@@ -3294,10 +3294,70 @@ def _tips_540i(S, x, y):
     emit(bm, (0.012, 0.012, 0.014), "Paint", recalc=False)
 
 
+def _presplit_540i(car, boxes, cuts=2):
+    """Subdivide + triangulate the shell's side faces around the side pockets (door-handle cups, gill) before the
+    carve, so every knifed piece is small and the carve's centre-in-outline test keeps / drops the right pieces
+    (on the big door quads the outer piece wraps around the cup and gets dropped with it)."""
+    bm = car.shell.bm
+    fs = []
+    for f in bm.faces:
+        c = f.calc_center_median()
+        if abs(c.x) > 0.75 and any(z0 < c.z < z1 and y0 < c.y < y1 for z0, z1, y0, y1 in boxes):
+            fs.append(f)
+    if not fs:
+        return
+    es = list({e for f in fs for e in f.edges})
+    bmesh.ops.subdivide_edges(bm, edges=es, cuts=cuts, use_grid_fill=True)
+    fs = [f for f in bm.faces if abs(f.calc_center_median().x) > 0.75 and
+          any(z0 < f.calc_center_median().z < z1 and y0 < f.calc_center_median().y < y1 for z0, z1, y0, y1 in boxes)]
+    bmesh.ops.triangulate(bm, faces=fs)
+    car.shell.cache = {}
+
+
+def _side_lamp_540i(S, poly, base, base_kind, bars, lens, frame, zmap):
+    """The wrap-around part of a lamp on the body flank (flush decals in the side view, both sides): dark housing,
+    lit / chrome bars, a smoked or clear domed lens and a thin dark bezel. zmap(z) squeezes the photo-measured side
+    outline onto the model's side-facing flank (its plan rounding starts a little further from the ends)."""
+    def m(pts):
+        return [(zmap(z), y) for z, y in pts]
+    pc = _ccw(round_poly(m(poly), 0.01, per=2))
+    S.frame(offset_poly(pc, 0.005), pc, "right", frame, "Gloss", lift=0.004, base=-0.004, mirror=True, step=0.02)
+    S.decal(pc, "right", base, base_kind, lift=0.002, rings=3, step=0.02, mirror=True, skirt=False)
+    for shp, col, kind in bars:
+        S.decal(m(shp), "right", col, kind, lift=0.0035, rings=1, step=0.02, mirror=True, skirt=False)
+    S.decal(pc, "right", lens, "Glass", lift=0.005, rings=3, step=0.02, mirror=True, skirt=False,
+            lift_fn=lambda f: 0.003 * f)
+
+
 def _extras_540i(car, S, st):
     """G30 fascia / tail details the shared builders don't draw: rounded-hexagon corona rings + the DRL eyebrow in
     the headlights, the fog-light strips and chrome flicks in the outer intakes, the reversing lamps, the boot-lid
-    split line, the black rear apron and the trapezoid tips."""
+    split line, the black rear apron and the trapezoid tips, and the lamps' wrap-around onto the flanks."""
+    sd = st["side"]
+    boxes = [(z - L_ * 0.5 - 0.03, z + L_ * 0.5 + 0.03, y - 0.05, y + 0.03) for z, y, L_ in sd["handles"]]
+    g = sd.get("gill")
+    if g:
+        boxes.append((min(p[0] for p in g["pts"]) - 0.03, max(p[0] for p in g["pts"]) + 0.03,
+                      min(p[1] for p in g["pts"]) - 0.03, max(p[1] for p in g["pts"]) + 0.03))
+    _presplit_540i(car, boxes)
+    # headlight / tail-lamp flanks (side photo: the lamps run ~0.3 / 0.5 m along the fenders)
+    _side_lamp_540i(S, [(-1.815, 0.73), (-1.845, 0.766), (-1.937, 0.77), (-2.029, 0.751), (-2.098, 0.732),
+                        (-2.175, 0.7), (-2.175, 0.615), (-2.12, 0.602), (-2.005, 0.633), (-1.936, 0.661),
+                        (-1.867, 0.689), (-1.822, 0.712)],
+                    (0.05, 0.052, 0.058), "Gloss",
+                    [([(-1.84, 0.745), (-2.1, 0.722), (-2.1, 0.713), (-1.84, 0.736)], LAMP_W, "Glow"),
+                     ([(-1.85, 0.724), (-1.95, 0.712), (-1.95, 0.706), (-1.85, 0.718)], CHROME, "Metal"),
+                     ([(-1.87, 0.706), (-1.97, 0.694), (-1.97, 0.688), (-1.87, 0.7)], CHROME, "Metal"),
+                     ([(-2.0, 0.7), (-2.12, 0.685), (-2.12, 0.64), (-2.0, 0.655)], (0.16, 0.165, 0.18), "Metal")],
+                    (0.4, 0.43, 0.47), (0.05, 0.05, 0.055), lambda z: -1.815 + (z + 1.815) * 0.56)
+    _side_lamp_540i(S, [(2.103, 0.932), (2.16, 0.955), (2.262, 0.967), (2.398, 0.975), (2.52, 0.972),
+                        (2.52, 0.795), (2.399, 0.803), (2.263, 0.82), (2.195, 0.853), (2.138, 0.898)],
+                    (0.1, 0.008, 0.012), "Glow",
+                    [([(2.125, 0.93), (2.262, 0.955), (2.52, 0.962), (2.52, 0.95), (2.262, 0.943), (2.135, 0.918)],
+                      TAIL, "Glow"),
+                     ([(2.2, 0.852), (2.4, 0.822), (2.52, 0.814), (2.52, 0.826), (2.4, 0.834), (2.21, 0.864)],
+                      TAIL_HI, "Glow")],
+                    (0.75, 0.12, 0.13), (0.03, 0.01, 0.012), lambda z: 2.103 + (z - 2.103) * 0.8)
     h = st["head"]
     V, cv = oblique(car, "front", h.get("alpha", 0.55), S)
     for (x, y, rx, ry) in ((0.59, 0.622, 0.053, 0.04), (0.755, 0.645, 0.051, 0.039)):
@@ -3308,16 +3368,16 @@ def _extras_540i(car, S, st):
     S.line(_cv(cv, [(0.5, 0.662), (0.62, 0.684), (0.8, 0.716), (0.868, 0.715), (0.89, 0.702)]), 0.008, V, LAMP_W,
            "Glow", lift=-0.008, mirror=True, step=0.015)
     # outer intakes: fog-light strip (chrome surround, silver lens, LED segments) and the chrome flick on top
-    fog = _ccw([(0.585, 0.338), (0.8, 0.346), (0.8, 0.372), (0.585, 0.364)])
+    fog = _ccw([(0.585, 0.338), (0.77, 0.345), (0.77, 0.371), (0.585, 0.364)])
     S.decal(offset_poly(fog, 0.006), "front", CHROME, "Metal", lift=-0.006, base=-0.05, rings=1, mirror=True,
             step=0.03)
     S.decal(fog, "front", (0.66, 0.68, 0.72), "Metal", lift=-0.002, base=-0.02, rings=1, mirror=True, step=0.03)
     for k in range(4):
-        x0 = 0.6 + k * 0.05
+        x0 = 0.6 + k * 0.042
         S.decal([(x0, 0.346 + k * 0.0015), (x0 + 0.032, 0.347 + k * 0.0015), (x0 + 0.032, 0.36 + k * 0.0015),
                  (x0, 0.359 + k * 0.0015)], "front", (0.92, 0.93, 0.95), "Paint", lift=0.0, base=-0.01, rings=1,
                 mirror=True, step=0.03)
-    S.line([(0.848, 0.405), (0.58, 0.388), (0.53, 0.358)], 0.011, "front", CHROME, "Metal", lift=0.008, mirror=True,
+    S.line([(0.795, 0.401), (0.58, 0.388), (0.53, 0.358)], 0.011, "front", CHROME, "Metal", lift=0.008, mirror=True,
            step=0.02)
     # tail: reversing-lamp strip in the lid half of each lamp, the lid split / shut line
     Vr, cr = oblique(car, "rear", st["tail"].get("alpha", 0.6), S)
