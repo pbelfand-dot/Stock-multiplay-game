@@ -42,10 +42,12 @@ var body: Node3D
 var wheels: Array = []       # [pivot, spinner, front, left]
 var steering_wheel: Node3D
 var brake_glow: Array = []   # lights that brighten on the brakes
+var brake_mats: Array = []   # real models: their tail-light surface (emission up on the brakes)
 var engine: AudioStreamPlayer3D
 var screech: AudioStreamPlayer3D
 var sparks: CPUParticles3D
 var _spin := 0.0
+var _spin_r := 0.0           # rear wheels (staggered sizes spin at their own rate)
 var _long_acc := 0.0
 var _lat_acc := 0.0
 var _net_pos := Vector3.ZERO
@@ -121,8 +123,9 @@ func _build_body() -> void:
 	body.add_child(sw)
 	steering_wheel = Node3D.new()
 	sw.add_child(steering_wheel)
-	if PropKit.has("Bemze_SteeringWheel"):
-		PropKit.place("Bemze_SteeringWheel", steering_wheel)
+	var steer_prop: String = ref.get("steer_prop", "Bemze_SteeringWheel")
+	if PropKit.has(steer_prop):
+		PropKit.place(steer_prop, steering_wheel)
 	else:
 		var t := MeshInstance3D.new()
 		var tm := TorusMesh.new()
@@ -132,6 +135,15 @@ func _build_body() -> void:
 		t.rotation.x = PI / 2
 		t.material_override = _mat(Color(0.05, 0.05, 0.05))
 		steering_wheel.add_child(t)
+	if ref.get("tail_mat", false):          # the real model's own tail lights light up
+		for mi in body.find_children("*", "MeshInstance3D", true, false):
+			var tm = (mi as MeshInstance3D).material_override
+			if tm is BaseMaterial3D and str(tm.resource_name).ends_with("_Tail"):
+				var own := (tm as BaseMaterial3D).duplicate() as BaseMaterial3D
+				(mi as MeshInstance3D).material_override = own
+				brake_mats.append(own)
+		if not brake_mats.is_empty():
+			return
 	for p in ref.tail:
 		var q := _glow_quad(Vector2(0.22, 0.07), Color(0.6, 0.02, 0.02))
 		q.position = p + Vector3(0, 0, 0.012)
@@ -173,6 +185,13 @@ func _build_wheels() -> void:
 		var spinner := Node3D.new()
 		side.add_child(spinner)
 		var wname: String = ref.get("wheel_prop", Rules.CARS[key].model + "_Wheel")
+		if not w[1]:
+			wname = ref.get("wheel_prop_rear", wname)
+		if w[1] and PropKit.has(ref.get("caliper_prop", "")):
+			# the front calipers steer with the wheel but don't spin (the kit's is the right one: mirror it)
+			var cal := PropKit.place(ref.caliper_prop, pivot)
+			if w[2]:
+				cal.scale.x = -1.0
 		if Rules.CARS[key].model != "" and PropKit.has(wname):
 			PropKit.place(wname, spinner)
 		else:
@@ -476,11 +495,13 @@ func net_state(pos: Vector3, rot: Quaternion, spd: float, st: float, brake: bool
 func _visuals(dt: float) -> void:
 	var r: float = ref.wheel_r
 	_spin = fmod(_spin + speed / r * dt, TAU)
+	_spin_r = fmod(_spin_r + speed / float(ref.get("wheel_r_rear", r)) * dt, TAU)
 	for w in wheels:
 		var pivot: Node3D = w[0]
 		var spinner: Node3D = w[1]
 		pivot.rotation.y = steer if w[2] else 0.0
-		spinner.rotation.x = _spin if w[3] else -_spin
+		var a := _spin if w[2] else _spin_r
+		spinner.rotation.x = a if w[3] else -a
 	if steering_wheel:
 		steering_wheel.rotation.z = steer * 7.0
 	# body: roll away from the turn, dive under braking, squat on the gas
@@ -489,6 +510,8 @@ func _visuals(dt: float) -> void:
 	var braking := in_brake > 0.05 and speed > 0.5
 	for q in brake_glow:
 		((q as MeshInstance3D).material_override as StandardMaterial3D).albedo_color = Color(1, 0.08, 0.05) if braking else Color(0.45, 0.02, 0.02)
+	for bm in brake_mats:
+		(bm as BaseMaterial3D).emission_energy_multiplier = 5.0 if braking else 0.6
 	if screech and screech.stream:                 # tires howl when you slide
 		var sl := clampf((absf(slip) - 2.5) / 8.0, 0.0, 1.0) if absf(speed) > 4.0 else 0.0
 		screech.volume_db = lerpf(screech.volume_db, -40.0 + sl * 38.0 if sl > 0.0 else -80.0, clampf(dt * 10.0, 0.0, 1.0))
