@@ -1038,13 +1038,48 @@ class Car:
                     fz = smooth01(f / 0.1) * smooth01((1 - f) / 0.15)
                     bump = (1 - d ** sk[6]) if d < 1 else 0.0
                     y += h * fz * bump
-                    if len(sk) > 7:       # sk[7]: sink the hood between / beside the strakes (a valley)
-                        y -= sk[7] * h * fz * smooth01((xc + hw * 2.2 - abs(x)) / (hw * 1.2)) * (1 - bump)
+                    if len(sk) > 7:       # sk[7]: sink the hood between the strakes (a valley toward the kidneys)
+                        y -= sk[7] * h * fz * smooth01((xc - hw * 0.6 - abs(x)) / (hw * 0.9)) * (1 - bump)
                 else:
                     fz = smooth01(f / 0.25) * smooth01((1 - f) / 0.12)
                     if d < 1:
                         y += h * fz * (1 - d * d) ** 1.5
         return y
+
+    def top_xs(self, z, xE, mode):
+        """The 14 x positions across the hood / deck top (edge -> centre). On the hood they follow the power dome's
+        edge or the strakes' flanks, so every station samples the same feature: fixed fractions of the width let the
+        features slide between samples from ring to ring, which showed up as ripples along the hood."""
+        us = (0.985, 0.955, 0.91, 0.85, 0.78, 0.7, 0.62, 0.54, 0.46, 0.38, 0.29, 0.19, 0.09, 0.0)
+        base = [xE * u for u in us]
+        if mode != "hood":
+            return base
+        sk = self.sp.get("strakes")
+        dm = self.sp.get("dome")
+        if sk:
+            xc0, xc1, hw, h, z0, z1 = sk[:6]
+            f = min(1.0, max(0.0, (z - z0) / (z1 - z0)))
+            xc = lerp(xc0, xc1, f)
+            feat = [xc + hw * 1.45, xc + hw, xc + hw * 0.55, xc, xc - hw * 0.55, xc - hw, xc - hw * 1.45]
+            inner = [feat[-1] * 0.5, 0.0]
+        elif dm:
+            dw = self.dome_w(z)
+            feat = [dw + 0.07, dw + 0.05, dw + 0.025, dw, dw - 0.03, dw - 0.07]
+            inner = [feat[-1] * 0.62, feat[-1] * 0.3, 0.0]
+        else:
+            return base
+        edge = base[:14 - len(feat) - len(inner)]
+        xs = edge + feat + inner
+        lim = xE
+        out = []
+        for i, x in enumerate(xs):                  # keep them strictly decreasing and inside the top edge
+            rem = len(xs) - 1 - i
+            x = min(x, lim - 0.004) if i else x
+            x = max(x, 0.004 * rem)
+            out.append(x)
+            lim = x
+        out[-1] = 0.0
+        return out
 
     def section(self, z, mode):
         s = self.sp
@@ -1096,11 +1131,8 @@ class Car:
                     x = min(x, x_in - 0.03 - 0.004 * k)
                 P.append((x, y))
         else:
-            us = (0.985, 0.955, 0.91, 0.85, 0.78, 0.7, 0.62, 0.54, 0.46, 0.38, 0.29, 0.19, 0.09, 0.0)
-            for k, u in enumerate(us):
-                x = xE * u
-                y = self.hood_y(x, z, mode)
-                P.append((x, y))
+            for x in self.top_xs(z, xE, mode):
+                P.append((x, self.hood_y(x, z, mode)))
         assert len(P) == NB, len(P)
         return P
 
