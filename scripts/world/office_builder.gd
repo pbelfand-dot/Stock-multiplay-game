@@ -27,6 +27,7 @@ const Props = preload("res://scripts/art/props.gd")
 const PropKit = preload("res://scripts/art/prop_kit.gd")
 const Batcher = preload("res://scripts/art/batcher.gd")
 const StreetBuilder = preload("res://scripts/world/street_builder.gd")
+const NeighborhoodBuilder = preload("res://scripts/world/neighborhood_builder.gd")   # ---- neighborhood (houses) ----
 
 var mats := {}
 var root: Node3D
@@ -50,6 +51,7 @@ const RESTROOM_DOOR_Z := 2.2
 var ball_spawn := Vector3(-16.5, 1.0, -9.5)
 var rng := RandomNumberGenerator.new()
 var street                      # StreetBuilder (outside, ground level)
+var hood                        # NeighborhoodBuilder: highway + Magnolia Heights (---- neighborhood (houses) ----)
 
 
 func mat(c: Color, emissive: float = 0.0) -> StandardMaterial3D:
@@ -113,6 +115,11 @@ func build(parent: Node3D) -> void:
 	for n in root.find_children("Model", "", true, false):
 		skip.append(n)
 	Batcher.merge_static(root, skip, 10.0)
+	# ---- neighborhood (houses) ----
+	# built after the office batch: it does its own batching / visibility ranges
+	hood = NeighborhoodBuilder.new(self)
+	hood.build()
+	# ---- /neighborhood (houses) ----
 
 
 # ------------------------------------------------------------------ helpers

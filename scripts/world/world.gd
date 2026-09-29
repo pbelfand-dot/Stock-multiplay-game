@@ -12,6 +12,7 @@ const Rules = preload("res://scripts/sim/rules.gd")
 const BallScript = preload("res://scripts/world/ball.gd")
 const PlayerLook = preload("res://scripts/art/character.gd")
 const PropKit = preload("res://scripts/art/prop_kit.gd")
+const HoodController = preload("res://scripts/world/hood_controller.gd")   # ---- neighborhood (houses) ----
 
 var builder
 var players_node: Node3D
@@ -21,6 +22,7 @@ var hud
 var tv
 var local_player
 var ball
+var hood                        # ---- neighborhood (houses) ----: HoodController (taxis, realtor, doors)
 var _bubble_t := {}
 var _idle_t := 8.0
 var _ticker_offset := 0.0
@@ -68,6 +70,12 @@ func _ready() -> void:
 	Net.players_changed.connect(_update_trophies)
 	match_node.news.connect(_on_news)
 	_sync_players()
+	# ---- neighborhood (houses) ----
+	hood = HoodController.new()
+	hood.name = "HoodController"
+	add_child(hood)
+	hood.setup(self)
+	# ---- /neighborhood (houses) ----
 
 
 # ---------------------------------------------------------------- players
@@ -138,6 +146,21 @@ func go_to_street() -> void:
 func leave_street() -> void:
 	if local_player:
 		arrive()                                # back up to 12: out of the elevator
+
+
+# ---- neighborhood (houses) ----
+## Magnolia Heights (scripts/world/hood_controller.gd does the work).
+func in_neighborhood(node: Node3D) -> bool:
+	return hood != null and hood.in_neighborhood(node)
+
+
+func go_to_neighborhood(instant := false) -> bool:
+	return hood != null and hood.go_to_neighborhood(instant)
+
+
+func go_home(instant := false) -> bool:
+	return hood != null and hood.go_home(instant)
+# ---- /neighborhood (houses) ----
 
 
 func in_studio(node: Node3D) -> bool:
@@ -215,6 +238,9 @@ func _unhandled_input(event: InputEvent) -> void:
 			local_player.sit(t.id)
 		elif t.get("type", "") == "counter":
 			_run_counter(t.id)
+		elif str(t.get("type", "")).begins_with("hood_"):   # ---- neighborhood (houses) ----
+			hood.interact(t)
+			get_viewport().set_input_as_handled()
 		elif not t.is_empty():
 			hud.open_interact(t)
 			get_viewport().set_input_as_handled()

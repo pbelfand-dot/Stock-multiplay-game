@@ -1,0 +1,398 @@
+{
+ "TCar_Coupe_Black": {
+  "H": 1.25,
+  "L": 4.5,
+  "W": 1.94,
+  "axles": [
+   1.325,
+   -1.325
+  ],
+  "color": [
+   0.05,
+   0.05,
+   0.06
+  ],
+  "kind": "nice",
+  "r": 0.34,
+  "track": 0.85,
+  "wheel": "Wheel_Car"
+ },
+ "TCar_Coupe_Red": {
+  "H": 1.25,
+  "L": 4.5,
+  "W": 1.94,
+  "axles": [
+   1.325,
+   -1.325
+  ],
+  "color": [
+   0.78,
+   0.06,
+   0.05
+  ],
+  "kind": "nice",
+  "r": 0.34,
+  "track": 0.85,
+  "wheel": "Wheel_Car"
+ },
+ "TCar_Coupe_Yellow": {
+  "H": 1.25,
+  "L": 4.5,
+  "W": 1.94,
+  "axles": [
+   1.325,
+   -1.325
+  ],
+  "color": [
+   0.95,
+   0.72,
+   0.05
+  ],
+  "kind": "nice",
+  "r": 0.34,
+  "track": 0.85,
+  "wheel": "Wheel_Car"
+ },
+ "TCar_Hatch_Blue": {
+  "H": 1.55,
+  "L": 4.1,
+  "W": 1.76,
+  "axles": [
+   1.28,
+   -1.22
+  ],
+  "color": [
+   0.25,
+   0.32,
+   0.45
+  ],
+  "kind": "car",
+  "r": 0.32,
+  "track": 0.76,
+  "wheel": "Wheel_Car"
+ },
+ "TCar_Hatch_Grey": {
+  "H": 1.55,
+  "L": 4.1,
+  "W": 1.76,
+  "axles": [
+   1.28,
+   -1.22
+  ],
+  "color": [
+   0.5,
+   0.51,
+   0.53
+  ],
+  "kind": "car",
+  "r": 0.32,
+  "track": 0.76,
+  "wheel": "Wheel_Car"
+ },
+ "TCar_Hatch_White": {
+  "H": 1.55,
+  "L": 4.1,
+  "W": 1.76,
+  "axles": [
+   1.28,
+   -1.22
+  ],
+  "color": [
+   0.88,
+   0.88,
+   0.86
+  ],
+  "kind": "car",
+  "r": 0.32,
+  "track": 0.76,
+  "wheel": "Wheel_Car"
+ },
+ "TCar_Pickup_Grey": {
+  "H": 1.95,
+  "L": 5.5,
+  "W": 2.0,
+  "axles": [
+   1.75,
+   -1.65
+  ],
+  "color": [
+   0.38,
+   0.39,
+   0.41
+  ],
+  "kind": "car",
+  "r": 0.4,
+  "track": 0.87,
+  "wheel": "Wheel_SUV"
+ },
+ "TCar_Pickup_Red": {
+  "H": 1.95,
+  "L": 5.5,
+  "W": 2.0,
+  "axles": [
+   1.75,
+   -1.65
+  ],
+  "color": [
+   0.42,
+   0.09,
+   0.08
+  ],
+  "kind": "car",
+  "r": 0.4,
+  "track": 0.87,
+  "wheel": "Wheel_SUV"
+ },
+ "TCar_Pickup_White": {
+  "H": 1.95,
+  "L": 5.5,
+  "W": 2.0,
+  "axles": [
+   1.75,
+   -1.65
+  ],
+  "color": [
+   0.9,
+   0.9,
+   0.9
+  ],
+  "kind": "car",
+  "r": 0.4,
+  "track": 0.87,
+  "wheel": "Wheel_SUV"
+ },
+ "TCar_SUV_Black": {
+  "H": 1.87,
+  "L": 4.85,
+  "W": 1.95,
+  "axles": [
+   1.425,
+   -1.425
+  ],
+  "color": [
+   0.07,
+   0.07,
+   0.08
+  ],
+  "kind": "car",
+  "r": 0.38,
+  "track": 0.855,
+  "wheel": "Wheel_SUV"
+ },
+ "TCar_SUV_Grey": {
+  "H": 1.87,
+  "L": 4.85,
+  "W": 1.95,
+  "axles": [
+   1.425,
+   -1.425
+  ],
+  "color": [
+   0.3,
+   0.31,
+   0.33
+  ],
+  "kind": "car",
+  "r": 0.38,
+  "track": 0.855,
+  "wheel": "Wheel_SUV"
+ },
+ "TCar_SUV_Silver": {
+  "H": 1.87,
+  "L": 4.85,
+  "W": 1.95,
+  "axles": [
+   1.425,
+   -1.425
+  ],
+  "color": [
+   0.66,
+   0.67,
+   0.7
+  ],
+  "kind": "car",
+  "r": 0.38,
+  "track": 0.855,
+  "wheel": "Wheel_SUV"
+ },
+ "TCar_SUV_White": {
+  "H": 1.87,
+  "L": 4.85,
+  "W": 1.95,
+  "axles": [
+   1.425,
+   -1.425
+  ],
+  "color": [
+   0.88,
+   0.88,
+   0.86
+  ],
+  "kind": "car",
+  "r": 0.38,
+  "track": 0.855,
+  "wheel": "Wheel_SUV"
+ },
+ "TCar_Sedan_Black": {
+  "H": 1.51,
+  "L": 4.7,
+  "W": 1.84,
+  "axles": [
+   1.375,
+   -1.375
+  ],
+  "color": [
+   0.08,
+   0.08,
+   0.09
+  ],
+  "kind": "car",
+  "r": 0.34,
+  "track": 0.8,
+  "wheel": "Wheel_Car"
+ },
+ "TCar_Sedan_Blue": {
+  "H": 1.51,
+  "L": 4.7,
+  "W": 1.84,
+  "axles": [
+   1.375,
+   -1.375
+  ],
+  "color": [
+   0.2,
+   0.26,
+   0.38
+  ],
+  "kind": "car",
+  "r": 0.34,
+  "track": 0.8,
+  "wheel": "Wheel_Car"
+ },
+ "TCar_Sedan_Grey": {
+  "H": 1.51,
+  "L": 4.7,
+  "W": 1.84,
+  "axles": [
+   1.375,
+   -1.375
+  ],
+  "color": [
+   0.42,
+   0.43,
+   0.45
+  ],
+  "kind": "car",
+  "r": 0.34,
+  "track": 0.8,
+  "wheel": "Wheel_Car"
+ },
+ "TCar_Sedan_Red": {
+  "H": 1.51,
+  "L": 4.7,
+  "W": 1.84,
+  "axles": [
+   1.375,
+   -1.375
+  ],
+  "color": [
+   0.45,
+   0.1,
+   0.1
+  ],
+  "kind": "car",
+  "r": 0.34,
+  "track": 0.8,
+  "wheel": "Wheel_Car"
+ },
+ "TCar_Sedan_Silver": {
+  "H": 1.51,
+  "L": 4.7,
+  "W": 1.84,
+  "axles": [
+   1.375,
+   -1.375
+  ],
+  "color": [
+   0.7,
+   0.72,
+   0.75
+  ],
+  "kind": "car",
+  "r": 0.34,
+  "track": 0.8,
+  "wheel": "Wheel_Car"
+ },
+ "TCar_Sedan_White": {
+  "H": 1.51,
+  "L": 4.7,
+  "W": 1.84,
+  "axles": [
+   1.375,
+   -1.375
+  ],
+  "color": [
+   0.9,
+   0.9,
+   0.88
+  ],
+  "kind": "car",
+  "r": 0.34,
+  "track": 0.8,
+  "wheel": "Wheel_Car"
+ },
+ "TCar_Taxi": {
+  "H": 1.51,
+  "L": 4.7,
+  "W": 1.84,
+  "axles": [
+   1.375,
+   -1.375
+  ],
+  "color": [
+   1.0,
+   0.78,
+   0.05
+  ],
+  "kind": "car",
+  "r": 0.34,
+  "track": 0.8,
+  "wheel": "Wheel_Car"
+ },
+ "TCar_Truck_Red": {
+  "H": 3.6,
+  "L": 7.6,
+  "W": 2.4,
+  "axles": [
+   2.6,
+   -1.9
+  ],
+  "color": [
+   0.93,
+   0.93,
+   0.9
+  ],
+  "kind": "truck",
+  "r": 0.5,
+  "track": 1.0,
+  "wheel": "Wheel_Truck"
+ },
+ "TCar_Truck_White": {
+  "H": 3.6,
+  "L": 7.6,
+  "W": 2.4,
+  "axles": [
+   2.6,
+   -1.9
+  ],
+  "color": [
+   0.95,
+   0.95,
+   0.95
+  ],
+  "kind": "truck",
+  "r": 0.5,
+  "track": 1.0,
+  "wheel": "Wheel_Truck"
+ }
+}
