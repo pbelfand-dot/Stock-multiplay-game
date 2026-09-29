@@ -51,6 +51,8 @@ func _match():
 
 func _run() -> void:
 	get_tree().create_timer(90.0).timeout.connect(func(): _fail("global timeout"))
+	if role != "host":
+		_watch_arrival()                 # from the first frame: the ride can start before anything below
 	if not await _wait_for(func(): return _match() != null, 15.0, "world"):
 		return
 	m = _match()
@@ -61,6 +63,19 @@ func _run() -> void:
 		await _host()
 	else:
 		await _client()
+
+
+## The client's puppet going away mid-test means the client quit (its own SMOKE line
+## says why): stop here instead of polling a freed node until the timeout.
+var _puppet_watch := true
+
+
+func _watch_puppet(pnode) -> void:
+	while is_inside_tree() and _puppet_watch:
+		await get_tree().physics_frame
+		if _puppet_watch and not is_instance_valid(pnode):
+			_fail("the client's puppet vanished mid-test (the client quit or dropped)")
+			return
 
 
 func _host() -> void:
@@ -82,6 +97,7 @@ func _host() -> void:
 		_fail("no puppet for client")
 		return
 	_say("client puppet at %s" % str(pnode.global_position))
+	_watch_puppet(pnode)
 	if not await _wait_for(func(): return get_node("/root/Main/World").arrivals.has(bob), 10.0, "client's elevator arrival"):
 		return
 	_say("saw the client ride up and come out of the elevator")
@@ -98,6 +114,7 @@ func _host() -> void:
 		return
 	_say("client's tailor change synced mid-game (buzz + cap)")
 	_say("client's chair + emote synced (pose %s)" % pnode.model.pose)
+	_puppet_watch = false                   # done with the puppet: the client may finish and leave now
 	if not await _wait_for(func(): return got.get("chat", 0) >= 3, 30.0, "client ready for the raid"):
 		return
 	_say("client's tailor look synced (afro + hoodie)")
@@ -165,6 +182,19 @@ func _watch_client_car() -> void:
 				_car_moved = maxf(_car_moved, c.global_position.distance_to(start))
 
 
+## How far into the elevator car we've been, watched from the moment we join: on a
+## loaded box the ride can start before the contracts below have arrived.
+var _deepest := -INF
+
+
+func _watch_arrival() -> void:
+	while is_inside_tree():
+		var wl = get_node_or_null("/root/Main/World")
+		if wl and wl.local_player and wl.local_player.arriving():
+			_deepest = maxf(_deepest, wl.local_player.global_position.z)
+		await get_tree().physics_frame
+
+
 func _client() -> void:
 	# (60 s: joining builds the whole 2.5 km world; on a loaded CI box that's slow)
 	if not await _wait_for(func(): return not m.m_assets.is_empty() and m.phase == "trading", 60.0, "trading phase on client"):
@@ -175,19 +205,17 @@ func _client() -> void:
 	_say("got Tony's contracts: %s" % ", ".join(m.contracts[Net.my_id()].map(func(c): return c.text)))
 	# we came up in the elevator: wait until we've walked out onto the floor
 	var wl = get_node("/root/Main/World")
-	var deepest := [-INF]          # how far into the car we were (the car is behind the wall at z > D/2)
+	# (how far into the car we were: the car is behind the wall at z > D/2)
 	if not await _wait_for(func(): return wl.arrivals.has(Net.my_id()), 10.0, "elevator ride up"):
 		return
 	if not await _wait_for(func():
-			if wl.local_player:
-				deepest[0] = maxf(deepest[0], wl.local_player.global_position.z)
-			return wl.local_player != null and not wl.local_player.arriving() and deepest[0] > -INF, 10.0, "elevator walk-out"):
+			return wl.local_player != null and not wl.local_player.arriving() and _deepest > -INF, 10.0, "elevator walk-out"):
 		return
 	var wall: float = wl.builder.D / 2
-	if deepest[0] < wall + 0.5 or wl.local_player.global_position.z > wall - 1.0:
-		_fail("elevator arrival wrong: started at z=%.2f (car is past %.1f), ended at z=%.2f" % [deepest[0], wall, wl.local_player.global_position.z])
+	if _deepest < wall + 0.5 or wl.local_player.global_position.z > wall - 1.0:
+		_fail("elevator arrival wrong: started at z=%.2f (car is past %.1f), ended at z=%.2f" % [_deepest, wall, wl.local_player.global_position.z])
 		return
-	_say("rode up in the car (z=%.2f) and walked out to z=%.2f" % [deepest[0], wl.local_player.global_position.z])
+	_say("rode up in the car (z=%.2f) and walked out to z=%.2f" % [_deepest, wl.local_player.global_position.z])
 	var start_bal: float = m.my_acct().balance
 	m.request_open("BTC", 1, 10_000.0, 100)
 	if not await _wait_for(func(): return m.my_acct().get("positions", []).size() == 1, 5.0, "position open"):
