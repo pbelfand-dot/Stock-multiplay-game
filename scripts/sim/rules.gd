@@ -105,6 +105,8 @@ const CARS := {
 	# the other makers (brand = which dealership sells it: docs/BRANDS.md parodies)
 	"mb_g63": {"name": "MERCEDEZ BANZ G63", "brand": "mercedez", "price": 185_000.0, "model": "RC_G63", "top": 62.0, "zero60": 4.3, "grip": 0.78, "mass": 2.56,
 		"paint": Color(0.3, 0.32, 0.25), "desc": "A brick with a twin-turbo V8. Tall, heavy, turns like a bank vault. Nobody cares."},
+	"mb_gronos": {"name": "MANSORRY GRONOS", "brand": "mercedez", "price": 420_000.0, "model": "RC_GRONOS", "top": 69.0, "zero60": 3.8, "grip": 0.8, "mass": 2.75,
+		"paint": Color(0.55, 0.22, 0.1), "desc": "A MERCEDEZ BANZ G the tuner got to: forged carbon, a widebody, 850 hp. Subtle as a brick through a window."},
 	"po_gt3rs": {"name": "PORSHA 911 GT3 RS", "brand": "porsha", "price": 245_000.0, "model": "RC_GT3RS", "top": 82.0, "zero60": 3.1, "grip": 1.25, "mass": 1.45,
 		"paint": Color(0.2, 0.55, 0.3), "desc": "A race car with number plates. 9000 rpm, a wing like a door, the most grip on the road."},
 	# not for sale: highway patrol (an M8 outruns it, an M3 has to lose it in traffic)
@@ -128,9 +130,9 @@ const PURSUIT_LOST_S := 6.0
 const PURSUIT_BUST_S := 2.5
 const SPEEDING_TICKET := 2_500.0
 ## A save stores the chosen ride as (index in CAR_ORDER) + 1: only ever append here.
-const CAR_ORDER := ["beater", "bz_540i", "bz_m2", "bz_m3", "bz_m4", "bz_m5", "bz_m8", "bz_m3t", "mb_g63", "po_gt3rs"]
+const CAR_ORDER := ["beater", "bz_540i", "bz_m2", "bz_m3", "bz_m4", "bz_m5", "bz_m8", "bz_m3t", "mb_g63", "po_gt3rs", "mb_gronos"]
 ## The order the showroom and the phone list them in.
-const SHOW_ORDER := ["beater", "bz_540i", "bz_m2", "bz_m3", "bz_m3t", "bz_m4", "bz_m5", "bz_m8", "mb_g63", "po_gt3rs"]
+const SHOW_ORDER := ["beater", "bz_540i", "bz_m2", "bz_m3", "bz_m3t", "bz_m4", "bz_m5", "bz_m8", "mb_g63", "mb_gronos", "po_gt3rs"]
 ## Factory paint at the dealership (a respray later costs RESPRAY).
 const PAINTS := [
 	["Alpine White", Color(0.93, 0.93, 0.92)], ["Black Sapphire", Color(0.05, 0.05, 0.07)],

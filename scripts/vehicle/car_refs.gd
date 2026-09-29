@@ -134,6 +134,14 @@ const MODELS := {
 		"box": Vector3(1.899, 1.219, 4.571), "box_center": Vector3(0.0004, 0.7959, 0.0135), "door": Vector3(-0.95, 0.86, 0.345),
 		"wheel_prop": "RC_GT3RS_Wheel", "caliper_prop": "RC_GT3RS_Caliper", "steer_prop": "RC_GT3RS_Steer",
 		"kit": true, "tail_mat": true},
+	"RC_GRONOS": {
+		"wheelbase": 2.8412, "wheel_r": 0.4248,
+		"wheels": {"FL": Vector3(-0.8795, 0.4248, -1.4206), "FR": Vector3(0.8795, 0.4248, -1.4206), "RL": Vector3(-0.8936, 0.4253, 1.4206), "RR": Vector3(0.8936, 0.4253, 1.4206)},
+		"eye": Vector3(-0.3805, 1.619, 0.1155), "wheel_hub": Vector3(-0.3805, 1.419, -0.3445), "column_tilt": -0.4727,
+		"head": [], "tail": [Vector3(-0.5575, 0.898, 2.1475), Vector3(0.2681, 1.5213, 2.0459)],
+		"box": Vector3(2.099, 1.834, 4.579), "box_center": Vector3(-0.0, 1.2468, -0.0367), "door": Vector3(-1.049, 0.86, 0.216),
+		"wheel_prop": "RC_GRONOS_Wheel", "caliper_prop": "RC_GRONOS_Caliper", "steer_prop": "RC_GRONOS_Steer",
+		"kit": true, "tail_mat": true},
 }
 
 
