@@ -28,10 +28,16 @@ func _ready() -> void:
 		var sv = load("res://tests/save_driver.gd").new()
 		sv.name = "SaveDriver"
 		add_child(sv)
+	if Config.cli.has("commutecheck"):  # wake up at home, drive the highway in, late mornings
+		add_child(load("res://tests/commute_driver.gd").new())
 	if Config.cli.has("eventcheck"):    # day events / contracts / upgrades end to end
 		var ev = load("res://tests/event_driver.gd").new()
 		ev.name = "EventDriver"
 		add_child(ev)
+	if Config.cli.has("hoodcheck") or Config.cli.has("hoodshots"):   # ---- neighborhood (houses) ----
+		var hd = load("res://tests/hood_driver.gd").new()
+		hd.name = "HoodDriver"
+		add_child(hd)
 	if Config.cli.has("clicktest"):
 		var ck = load("res://tests/click_driver.gd")
 		if ck:
@@ -45,6 +51,9 @@ func _ready() -> void:
 		var dc_script = load("res://tests/dance_driver.gd")
 		var dc = dc_script.new()
 		add_child(dc)
+		return
+	if Config.cli.has("drivecheck"):    # car handling on a test track (no match)
+		add_child(load("res://tests/drive_driver.gd").new())
 		return
 	if Config.cli.has("lineup"):
 		var lu_script = load("res://tests/lineup_driver.gd")

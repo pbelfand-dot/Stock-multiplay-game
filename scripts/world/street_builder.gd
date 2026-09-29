@@ -441,10 +441,26 @@ func _ends() -> void:
 		var wall: Color = UPPER_WALL[up]
 		for k in 4:
 			var zz: float = -15.0 + k * 10.0
+			if n == 1 and k in [1, 2]:
+				continue   # ---- neighborhood (houses): the road out east to the highway goes through here ----
 			b.prop("Store_Empty", P(face + sx * 0.4, 0, zz), rot, root)
 			b.box(Vector3(0.3, 4.4, 10), P(face + sx * 1.2, 2.2, zz), Color(0.08, 0.08, 0.1), false, root)   # dark shop behind the glass
 			for f in 3:
 				b.prop(up, P(face + sx * 0.4, 4.4 + f * 9.0, zz), rot, root)
+		if n == 1:
+			# ---- neighborhood (houses) ----
+			# the east block splits into two corner buildings with the connector road
+			# (NeighborhoodBuilder._downtown_gap) running out between them
+			for zs in [-1.0, 1.0]:
+				b.box(Vector3(12, TOP, 10.5), P(face + sx * 6.4, TOP / 2, zs * 14.75), wall, true, root)
+				b.box(Vector3(0.35, 0.9, 10.7), P(face + sx * 0.2, TOP + 0.45, zs * 14.75), wall.darkened(0.14), false, root)
+				for f in 9:   # windows down the side facing the gap
+					for c in 3:
+						var xx: float = face + sx * (1.8 + c * 3.6)
+						b.box(Vector3(1.4, 1.8, 0.06), P(xx, 6.2 + f * 3.0, zs * 9.47), Color(0.55, 0.7, 0.85), false, root)
+						b.box(Vector3(1.6, 0.12, 0.14), P(xx, 5.25 + f * 3.0, zs * 9.45), wall.darkened(0.14), false, root)
+			# ---- /neighborhood (houses) ----
+			continue
 		b.box(Vector3(12, TOP, 40), P(face + sx * 6.4, TOP / 2, 0), wall, true, root)
 		b.box(Vector3(0.35, 0.9, 40.2), P(face + sx * 0.2, TOP + 0.45, 0), wall.darkened(0.14), false, root)
 	b.solid(Vector3(HALF_LEN * 2, 6, 0.4), P(0, 3, -(WALK + SHOP_DEPTH + 1)), root)

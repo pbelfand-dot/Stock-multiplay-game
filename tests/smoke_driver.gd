@@ -67,6 +67,7 @@ func _host() -> void:
 	if not await _wait_for(func(): return Net.players.size() >= 2, 30.0, "client to join"):
 		return
 	_say("client joined: %s" % str(Net.players))
+	_watch_client_car.call_deferred()
 	if not await _wait_for(func(): return m.phase == "trading", 10.0, "trading phase"):
 		return
 	# wait for the client's trade + slot + chat
@@ -132,7 +133,28 @@ func _host() -> void:
 		if not await _wait_for(func(): return m.phase == "trading" and m.day == 2, 30.0, "client to ready up"):
 			return
 		_say("client READY too: day 2 rang")
+	if _car_moved < 8.0:
+		_fail("never saw the client's car drive (moved %.1f m)" % _car_moved)
+		return
+	_say("saw the client's car drive %.0f m down the street" % _car_moved)
 	_pass()
+
+
+var _car_moved := 0.0
+
+
+## Host: follow the client's car (streamed from their machine) the whole run.
+func _watch_client_car() -> void:
+	var w = get_node("/root/Main/World")
+	var start = null
+	while is_inside_tree():
+		await get_tree().create_timer(0.1).timeout
+		for id in w.cars:
+			if id != Net.my_id() and is_instance_valid(w.cars[id]):
+				var c = w.cars[id]
+				if start == null:
+					start = c.global_position
+				_car_moved = maxf(_car_moved, c.global_position.distance_to(start))
 
 
 func _client() -> void:
@@ -211,6 +233,30 @@ func _client() -> void:
 		_fail("office flex shop shows %d of %d items" % [rows, Rules.LUXURY.size()])
 		return
 	_say("street ok, hot dog eaten (pressure now %.1f)" % m.pressure_of(Net.my_id()))
+	# your ride's out front: get in, drive down the street, get out
+	var car = w.cars.get(Net.my_id())
+	if car == null:
+		_fail("no car parked out front")
+		return
+	var p0: Vector3 = car.global_position
+	w.local_player.enter_car(car)
+	car.in_throttle = 1.0
+	Input.action_press("move_forward")
+	await get_tree().create_timer(3.2).timeout
+	Input.action_release("move_forward")
+	Input.action_press("move_back")                   # brake to a stop (not into reverse)
+	var tb := 0.0
+	while car.speed > 0.5 and tb < 5.0:
+		await get_tree().physics_frame
+		tb += get_physics_process_delta_time()
+	Input.action_release("move_back")
+	await get_tree().create_timer(0.3).timeout
+	var went: float = car.global_position.distance_to(p0)
+	w.local_player.exit_car()
+	if went < 4.0 or w.local_player.driving != null:
+		_fail("drove %.1f m, still in the car: %s" % [went, str(w.local_player.driving != null)])
+		return
+	_say("drove the %s %.0f m and got out" % [Rules.CARS[car.key].name, went])
 	# soundtrack: walking into a boutique plays "Intoxicated"; getting liquidated cuts to "12 Stout Street"
 	Music.clear_event()           # the flex bought earlier is still playing "Blue Bands"
 	var shop: Rect2 = w.builder.street.zones[0].rect

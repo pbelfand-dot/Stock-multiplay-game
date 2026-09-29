@@ -43,7 +43,9 @@ signal shock(kind: String, stage: String)
 signal milestone(amount: float, xp: float)
 signal saved(info: Dictionary)
 signal cash_moved(peer: int, withdrawn: float, total: float)
-signal shot(peer: int, hit: Vector3)     # someone fired (hit = where the round landed)
+signal shot(peer: int, hit: Vector3)
+signal pursuit_changed(peer: int, stage: String)   # "start" / "lost" / "busted"
+signal morning(late_by: Dictionary)                 # everyone wakes up at home     # someone fired (hit = where the round landed)
 
 # ---------------- mirrored state (all peers) ----------------
 var phase := "lobby"            # lobby | trading | intermission | gameover
@@ -74,6 +76,8 @@ var milestones := 0             # co-op: how many fund milestones this run has h
 var wallet := {}                # peer -> cash on hand (out of the ATM), counts toward the quota
 var spreads := {}               # peer -> {pos, yaw, amount}: cash laid out for the photo
 var drawn := {}                 # peer -> gun key they're holding out (BIG IRON)
+var late := {}                  # this morning: peer -> seconds they overslept
+var arrived := {}               # this morning: peer -> seconds late when they got to the office (0 = on time)
 var _last_shot := {}            # server: peer -> time of their last shot (rate + "called in")
 var ready_up := {}                 # peer -> true: pressed ENTER, waiting for the bell (lobby / after hours)
 
@@ -276,7 +280,74 @@ func _ring_bell() -> void:
 	if phase == "lobby":
 		_start_run()
 	elif phase == "intermission":
+		_to_morning()
+
+
+# ---------------- the commute ----------------
+
+## Seconds between waking up and the opening bell (0 = no commute: tests,
+## or a world without the neighborhood).
+func commute_seconds() -> float:
+	if Config.cli.has("commute"):
+		return float(Config.cli.commute)
+	if Config.cli.has("autostart") or world == null or world.get("hood") == null:
+		return 0.0
+	return Rules.COMMUTE_S
+
+
+## Everyone wakes up at home; the bell rings when the commute's up.
+func _to_morning() -> void:
+	var secs := commute_seconds()
+	if secs <= 0.0:
 		_start_day()
+		return
+	phase = "morning"
+	time_left = secs
+	late.clear()
+	arrived.clear()
+	for id in Net.players:
+		var chance := Rules.LATE_CHANCE + (Rules.LATE_BP_BONUS if pressure_of(id) > 60.0 else 0.0)
+		if day >= 1 and rng.randf() < chance:
+			late[id] = minf(Rules.LATE_SLEEP, secs * 0.6)
+		if Config.cli.has("oversleep"):
+			late[id] = float(Config.cli.oversleep)
+	_s_morning.rpc(late)
+	_s_toast.rpc("Morning. The opening bell rings in %d:%02d. Get to BAGHOLDER CAPITAL." % [int(secs) / 60, int(secs) % 60])
+	_push_state()
+
+
+@rpc("authority", "call_local", "reliable")
+func _s_morning(late_by: Dictionary) -> void:
+	late = late_by
+	arrived.clear()
+	morning.emit(late_by)
+
+
+## Made it up the elevator to the trading floor.
+func request_arrived() -> void:
+	_req_arrived.rpc_id(1)
+
+
+@rpc("any_peer", "call_local", "reliable")
+func _req_arrived() -> void:
+	if not Net.is_server():
+		return
+	var id := _sender()
+	if arrived.has(id) or not (phase == "morning" or phase == "trading"):
+		return
+	if phase == "morning":
+		arrived[id] = 0.0
+		if Net.players.size() > 1:
+			_s_toast.rpc("%s made it in with %d:%02d to spare." % [Net.player_name(id), int(time_left) / 60, int(time_left) % 60])
+	else:
+		var by := _day_len - time_left
+		arrived[id] = by
+		_s_toast.rpc("%s strolled in %d:%02d LATE." % [Net.player_name(id), int(by) / 60, int(by) % 60])
+	_push_state()
+
+
+func is_late(peer: int) -> bool:
+	return phase == "trading" and not late.is_empty() and not arrived.has(peer) and commute_seconds() > 0.0
 
 
 # ---------------- cash on hand (ATM, spreads) ----------------
@@ -380,6 +451,80 @@ func _shrink_spread(id: int) -> void:
 @rpc("authority", "call_local", "reliable")
 func _s_cash(peer: int, amount: float, total: float) -> void:
 	cash_moved.emit(peer, amount, total)
+
+
+# ---------------- cars ----------------
+
+## The car you drive: the one you picked at the dealership, else your best
+## BEMZE (or your mom's sedan).
+func car_of(peer: int) -> String:
+	var ride := lux_count(peer, "ride") - 1
+	if ride >= 0 and ride < Rules.CAR_ORDER.size() and owns_car(peer, Rules.CAR_ORDER[ride]):
+		return Rules.CAR_ORDER[ride]
+	var best := "beater"
+	for k in Rules.CAR_ORDER:
+		if owns_car(peer, k):
+			best = k
+	return best
+
+
+func owns_car(peer: int, key: String) -> bool:
+	return key == "beater" or lux_count(peer, key) > 0
+
+
+func paint_of(peer: int, key: String) -> Color:
+	var i := lux_count(peer, "paint_" + key) - 1
+	return Rules.PAINTS[i][1] if i >= 0 and i < Rules.PAINTS.size() else Rules.CARS[key].paint
+
+
+## BEMZE dealership: buy a car in a factory color (it's yours for good, saved
+## with your career) / respray one you own / pick which one you drive.
+func request_buy_car(key: String, paint: int) -> void:
+	_req_car.rpc_id(1, "buy", key, paint)
+
+
+func request_respray(key: String, paint: int) -> void:
+	_req_car.rpc_id(1, "paint", key, paint)
+
+
+func request_pick_car(key: String) -> void:
+	_req_car.rpc_id(1, "pick", key, 0)
+
+
+@rpc("any_peer", "call_local", "reliable")
+func _req_car(what: String, key: String, paint: int) -> void:
+	if not Net.is_server() or not key in Rules.CAR_ORDER:
+		return
+	var id := _sender()
+	_ensure_peer(id)
+	paint = clampi(paint, 0, Rules.PAINTS.size() - 1)
+	var d: Dictionary = Rules.CARS[key]
+	match what:
+		"buy":
+			if owns_car(id, key):
+				_s_error.rpc_id(id, "You already own the %s." % d.name)
+				return
+			if not _pay(id, d.price):
+				_s_error.rpc_id(id, "The %s is %s. Go make some trades." % [d.name, Rules.money(d.price)])
+				return
+			owned[id][key] = 1
+			owned[id]["paint_" + key] = paint + 1
+			owned[id]["ride"] = Rules.CAR_ORDER.find(key) + 1
+			_s_toast.rpc("%s drove a %s %s off the BEMZE lot (%s)" % [Net.player_name(id), Rules.PAINTS[paint][0], d.name, Rules.money(d.price)])
+			_s_luxury.rpc(id, key)
+		"paint":
+			if not owns_car(id, key) or key == "beater":
+				return
+			if not _pay(id, Rules.RESPRAY):
+				_s_error.rpc_id(id, "A respray is %s." % Rules.money(Rules.RESPRAY))
+				return
+			owned[id]["paint_" + key] = paint + 1
+		"pick":
+			if not owns_car(id, key):
+				return
+			owned[id]["ride"] = Rules.CAR_ORDER.find(key) + 1
+	_save_careers()
+	_push_state()
 
 
 # ---------------- guns (BIG IRON) ----------------
@@ -673,6 +818,66 @@ func _req_buy_upgrade(key: String) -> void:
 	_push_state()
 
 
+# ---- neighborhood (houses) ----
+## Magnolia Heights homes (Rules.HOUSES). One owner per house among the players
+## in this session; owned[peer]["house_<id>"] = 1 is saved with the career.
+
+func house_owner(id: String) -> int:
+	for peer in owned:
+		if Net.players.has(peer) and int(owned[peer].get("house_" + id, 0)) > 0:
+			return peer
+	return 0
+
+
+func house_of(peer: int) -> String:
+	var own: Dictionary = owned.get(peer, {})
+	for id in Rules.HOUSES:
+		if int(own.get("house_" + id, 0)) > 0:
+			return id
+	return ""
+
+
+func request_buy_house(id: String) -> void:
+	_req_buy_house.rpc_id(1, id)
+
+
+@rpc("any_peer", "call_local", "reliable")
+func _req_buy_house(id: String) -> void:
+	if not Net.is_server():
+		return
+	var id_peer := _sender()
+	var err := buy_house(id_peer, id)
+	if err != "":
+		_s_error.rpc_id(id_peer, err)
+
+
+## Server: the whole purchase. Returns "" or why not.
+func buy_house(peer: int, id: String) -> String:
+	if not Net.is_server() or not Rules.HOUSES.has(id):
+		return "That house isn't for sale."
+	_ensure_peer(peer)
+	var def: Dictionary = Rules.HOUSES[id]
+	var owner := house_owner(id)
+	if owner == peer:
+		return "You already own %s." % def.address
+	if owner != 0:
+		return "%s is already SOLD to %s." % [def.address, Net.player_name(owner)]
+	if house_of(peer) != "":
+		return "You already own %s. One house at a time, tycoon." % Rules.HOUSES[house_of(peer)].address
+	var acct := acct_for(peer)
+	var a: Dictionary = ledger.get_acct(acct)
+	if a.is_empty() or a.balance < def.price:
+		return "Can't afford %s (%s). The bank laughed." % [def.address, Rules.money(def.price)]
+	ledger.adjust(acct, -def.price)
+	owned[peer]["house_" + id] = 1
+	_save_careers()
+	_s_toast.rpc("%s bought %s (%s) for %s. Home sweet home." % [Net.player_name(peer), def.address, def.name,
+			Rules.money(def.price)])
+	_push_state()
+	return ""
+# ---- /neighborhood (houses) ----
+
+
 # ---------------- careers (host saves them, keyed by player name) ----------------
 
 func xp_of(peer: int) -> float:
@@ -689,7 +894,8 @@ func has_rank_for(peer: int, gate: String) -> bool:
 
 ## Tests run with --smoke and must not read or write a real career file.
 func _careers_on_disk() -> bool:
-	return Net.is_server() and not Config.cli.has("smoke") and not Config.cli.has("savecheck") and not Config.cli.has("eventcheck")
+	return Net.is_server() and not Config.cli.has("smoke") and not Config.cli.has("savecheck") and not Config.cli.has("eventcheck") \
+			and not Config.cli.has("hoodcheck") and not Config.cli.has("hoodshots")   # ---- neighborhood (houses): tests ----
 
 
 func _load_career(id: int) -> void:
@@ -941,6 +1147,15 @@ func _server_step(dt: float) -> void:
 			_s_released.rpc(id)
 			_dirty = true
 
+	if phase == "morning":
+		time_left -= dt
+		if time_left <= 0.0:
+			var missing: Array = []
+			for id in Net.players:
+				if not arrived.has(id):
+					missing.append(Net.player_name(id))
+			_s_toast.rpc("DING DING DING. THE MARKET IS OPEN." + ("" if missing.is_empty() else "  LATE: " + ", ".join(missing)))
+			_start_day()
 	if phase == "trading":
 		time_left -= dt
 		_step_shocks(dt)
@@ -1102,6 +1317,29 @@ func server_cop_caught(target: int) -> void:
 	_push_state()
 
 
+## Highway patrol caught up with `target` and boxed them in: pulled over.
+## A speeding ticket off the account, a night in the cells (same jail).
+func server_pull_over(target: int) -> void:
+	if not Net.is_server() or is_jailed(target):
+		return
+	_booking_no += 1 + rng.randi() % 37
+	jail[target] = Rules.JAIL_SECONDS
+	heat[target] = 0.0
+	if stats.has(target):
+		stats[target].arrests += 1
+	var acct := acct_for(target)
+	var fine: float = maxf(ledger.get_acct(acct).get("balance", 0.0) * Rules.ARREST_FINE * 0.5, 0.0) + Rules.SPEEDING_TICKET
+	ledger.adjust(acct, -fine)
+	_s_arrested.rpc(target, _booking_no)
+	_s_toast.rpc("HIGHWAY PATROL PULLED OVER %s. Ticket + impound fees: %s." % [Net.player_name(target), Rules.money(fine)])
+	_push_state()
+
+
+@rpc("authority", "call_local", "reliable")
+func s_pursuit(target: int, stage: String) -> void:
+	pursuit_changed.emit(target, stage)
+
+
 # ---------------- run / day flow ----------------
 
 func _ensure_peer(id: int) -> void:
@@ -1177,10 +1415,10 @@ func _start_run() -> void:
 		_reset_run()
 		day = 0
 		next_event = _roll_day_event(1)
-		_s_toast.rpc("DING DING DING. THE MARKET IS OPEN.")
+		_s_toast.rpc("Day 1. Rise and grind." if commute_seconds() > 0.0 else "DING DING DING. THE MARKET IS OPEN.")
 	else:   # a loaded run picks up the morning after its last closing bell
-		_s_toast.rpc("DING DING DING. Day %d — the fund is back in business." % (day + 1))
-	_start_day()
+		_s_toast.rpc("Day %d — the fund is back in business." % (day + 1))
+	_to_morning()
 
 
 # ---------------- save games ----------------
@@ -1189,7 +1427,8 @@ func _start_run() -> void:
 ## (written at the first closing bell). Tests don't touch real saves.
 func _open_save() -> void:
 	save_slot = ""
-	if (Config.cli.has("smoke") or Config.cli.has("eventcheck")) and not Config.cli.has("savecheck"):
+	if (Config.cli.has("smoke") or Config.cli.has("eventcheck") or Config.cli.has("hoodcheck") or Config.cli.has("hoodshots")) \
+			and not Config.cli.has("savecheck"):   # ---- neighborhood (houses): tests don't save ----
 		return
 	if Config.load_slot != "":
 		var s := SaveGame.read(Config.load_slot)
@@ -1577,7 +1816,7 @@ func _push_state() -> void:
 		"accounts": accounts, "heat": heat, "jail": jail, "inventory": inventory, "owned": owned, "careers": careers,
 		"effects": effects, "stats": stats, "raid": raid, "day_event": day_event, "next_event": next_event,
 		"event_at": event_at, "halt": halt, "contracts": contracts, "milestones": milestones, "ready": ready_up,
-		"wallet": wallet, "spreads": spreads, "drawn": drawn})
+		"wallet": wallet, "spreads": spreads, "drawn": drawn, "late": late, "arrived": arrived})
 
 
 # ======================================================================
@@ -1609,6 +1848,8 @@ func _s_state(s: Dictionary) -> void:
 	wallet = s.get("wallet", {})
 	spreads = s.get("spreads", {})
 	drawn = s.get("drawn", {})
+	late = s.get("late", {})
+	arrived = s.get("arrived", {})
 	state_changed.emit()
 
 

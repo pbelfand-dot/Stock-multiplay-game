@@ -108,6 +108,108 @@ func _run() -> void:
 			await _snap("hand_rot_%d" % k)
 		Sfx.quit_game()
 		return
+	if Config.cli.has("niceonly"):             # a BEMZE out in traffic (it should drive nose first)
+		hud.root.visible = false
+		var tr = world.traffic()
+		tr.force_awake = true
+		var cam := Camera3D.new()
+		world.add_child(cam)
+		cam.current = true
+		cam.fov = 45
+		cam.global_position = world.builder.hood.hw.point(500.0, 0.0, 12.0)
+		var found := {}
+		var tt := 0.0
+		while found.is_empty() and tt < 60.0:
+			await get_tree().create_timer(0.5).timeout
+			tt += 0.5
+			for c in tr.active_cars():
+				if str(c.model).begins_with("Bemze_") and c.speed > 10.0:
+					found = c
+					break
+		if found.is_empty():
+			print("no BEMZE in traffic after 60 s")
+		else:
+			for k in 2:
+				var cc: Dictionary = {}
+				for c in tr.active_cars():
+					if c.id == found.id:
+						cc = c
+				var fwd: Vector3 = cc.forward
+				cam.global_position = cc.position + fwd * (9.0 if k == 0 else -9.0) + Vector3(3.0, 2.2, 0)
+				cam.look_at(cc.position + Vector3(0, 0.7, 0))
+				await _frames(2)
+				await _snap("nice_%d_%s" % [k, cc.model])
+		Sfx.quit_game()
+		return
+	if Config.cli.has("lotonly"):              # the BEMZE dealership off the highway
+		hud.root.visible = false
+		var lot: Vector3 = world.builder.hood.hw.dealership_lot
+		var cam := Camera3D.new()
+		world.add_child(cam)
+		cam.current = true
+		cam.fov = 70
+		world.hood.hood.traffic.force_awake = true
+		for v in [["lot_a", Vector3(-45, 9, -30), Vector3(5, 2, 0)], ["lot_b", Vector3(-25, 2.2, 8), Vector3(10, 1, 0)],
+				["lot_c", Vector3(4, 1.7, 6), Vector3(18, 0.8, -1)], ["lot_d", Vector3(8, 1.7, -4), Vector3(8, 0.5, 8)]]:
+			cam.global_position = lot + v[1]
+			cam.look_at(lot + v[2])
+			await get_tree().create_timer(1.2).timeout
+			await _snap(v[0])
+		Sfx.quit_game()
+		return
+	if Config.cli.has("dealeronly"):           # the BEMZE showroom menu
+		m.ledger.get_acct(0).balance = 150_000.0
+		m.owned[1]["bz_m2"] = 1
+		m.owned[1]["paint_bz_m2"] = 6
+		m._push_state()
+		hud.open_interact({"type": "dealer", "id": 0})
+		hud.dealer.paint["bz_m3"] = 3
+		hud.dealer._refresh()
+		await _frames(6)
+		await _snap("dl_showroom")
+		Sfx.quit_game()
+		return
+	if Config.cli.has("driveonly"):            # get in, drive down the street, chase cam, cockpit, brake lights
+		var p0 = world.local_player
+		m.owned[1]["bz_m3"] = 1
+		m._push_state()
+		world.go_to_street()
+		await get_tree().create_timer(0.8).timeout
+		var car = world.cars[Net.my_id()]
+		p0.enter_car(car)
+		await _frames(5)
+		await _snap("d0_in_car")
+		# Input.action_press drives it like the keyboard would
+		Input.action_press("move_forward")
+		await get_tree().create_timer(2.5).timeout
+		Input.action_press("move_right", 0.25)
+		await get_tree().create_timer(0.4).timeout
+		await _snap("d1_chase_accel")
+		Input.action_release("move_right")
+		await get_tree().create_timer(0.6).timeout
+		print("speed %.0f mph" % car.mph())
+		Input.action_release("move_forward")
+		Input.action_press("move_back")
+		await get_tree().create_timer(0.25).timeout
+		await _snap("d2_braking")
+		Input.action_release("move_back")
+		p0.drive_cam.toggle()
+		p0.model.set_first_person(true)
+		await get_tree().create_timer(0.5).timeout
+		await _snap("d3_cockpit")
+		# crash into the parked car ahead of us
+		p0.drive_cam.toggle()
+		p0.model.set_first_person(false)
+		hud.root.visible = false
+		Input.action_press("move_forward")
+		var hits := []
+		car.crashed.connect(func(i): hits.append(i))
+		await get_tree().create_timer(3.0).timeout
+		Input.action_release("move_forward")
+		await _snap("d4_after_driving")
+		print("hits %s, speed now %.0f mph" % [str(hits), car.mph()])
+		Sfx.quit_game()
+		return
 	if Config.cli.has("counteronly"):          # money counters: the one by the ATM, then your desk's
 		var p0 = world.local_player
 		m.wallet[1] = 250_000.0

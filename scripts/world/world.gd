@@ -12,6 +12,7 @@ const Rules = preload("res://scripts/sim/rules.gd")
 const BallScript = preload("res://scripts/world/ball.gd")
 const PlayerLook = preload("res://scripts/art/character.gd")
 const PropKit = preload("res://scripts/art/prop_kit.gd")
+const HoodController = preload("res://scripts/world/hood_controller.gd")   # ---- neighborhood (houses) ----
 
 var builder
 var players_node: Node3D
@@ -21,6 +22,7 @@ var hud
 var tv
 var local_player
 var ball
+var hood                        # ---- neighborhood (houses) ----: HoodController (taxis, realtor, doors)
 var _bubble_t := {}
 var _idle_t := 8.0
 var _ticker_offset := 0.0
@@ -32,6 +34,14 @@ var _trophy_sig := {}           # desk id -> signature of what's on it
 const CashArt = preload("res://scripts/art/cash_art.gd")
 const GunArt = preload("res://scripts/art/gun_art.gd")
 const MoneyCounter = preload("res://scripts/world/money_counter.gd")
+const CarScript = preload("res://scripts/vehicle/car.gd")
+const PursuitScript = preload("res://scripts/vehicle/pursuit.gd")
+const DealershipScript = preload("res://scripts/world/dealership.gd")
+var dealership
+var pursuit
+var cars := {}                  # peer -> their car (ours is simulated here, theirs follow the network)
+var cars_node: Node3D
+var _car_send := 0.0
 var atms: Array = []            # ATM nodes (office by the elevator, street outside the bank)
 var _spread_nodes := {}         # peer -> {node, sig}: cash laid out for the photo
 
@@ -73,8 +83,25 @@ func _ready() -> void:
 	_build_atms()
 	match_node.cash_moved.connect(_on_cash_moved)
 	match_node.shot.connect(_on_shot)
+	match_node.morning.connect(_on_morning)
+	cars_node = Node3D.new()
+	cars_node.name = "Cars"
+	add_child(cars_node)
+	pursuit = PursuitScript.new(self)
+	pursuit.name = "Pursuit"
+	add_child(pursuit)
 	match_node.state_changed.connect(_sync_spreads)
 	_sync_players()
+	# ---- neighborhood (houses) ----
+	hood = HoodController.new()
+	hood.name = "HoodController"
+	add_child(hood)
+	hood.setup(self)
+	# ---- /neighborhood (houses) ----
+	if builder.get("hood") != null and builder.hood.get("hw") != null:
+		dealership = DealershipScript.new(self)
+		dealership.build(builder.hood.hw.dealership_lot)
+		_nice_traffic()
 
 
 # ---------------------------------------------------------------- players
@@ -138,13 +165,204 @@ func go_to_street() -> void:
 		Sfx.play("bell", -8.0, 1.6)
 		local_player.teleport(builder.street.spawn)
 		local_player.rotation.y = PI
+		if not cars.has(Net.my_id()):         # your ride's parked at the curb out front
+			var st = builder.street
+			spawn_car(Net.my_id(), match_node.car_of(Net.my_id()), st.P(-12.0 + 6.0 * (Net.players.keys().find(Net.my_id()) % 4), 0.3, -1.7), -PI / 2)
 		hud.show_toast("Ground floor. The street is yours — boutiques, Tony's Deli, the Tailor, Pawn King, the casino.",
 				Color(0.95, 0.9, 0.6))
 
 
+# ---------------------------------------------------------------- the commute
+
+## Where `peer` wakes up and where their car's parked: their house, or (no
+## house yet) an unsold listing they rent until they buy one.
+func home_of(peer: int) -> Dictionary:
+	if hood == null:
+		return {}
+	var hb = builder.hood
+	var id: String = match_node.house_of(peer)
+	var rented := false
+	if id == "":
+		var free: Array = []
+		for hid in Rules.HOUSES:
+			if match_node.house_owner(hid) == 0:
+				free.append(hid)
+		free.sort()
+		var renters: Array = Net.players.keys().filter(func(p): return match_node.house_of(p) == "")
+		renters.sort()
+		var i := renters.find(peer)
+		if free.is_empty() or i < 0:
+			return {}
+		id = free[i % free.size()]
+		rented = true
+	var h: Dictionary = hb.houses[hb.buyable[id]]
+	return {"id": id, "spawn": h.spawn, "yaw": h.spawn_yaw, "drive": h.drive, "drive_yaw": h.drive_yaw,
+			"address": h.address, "rented": rented}
+
+
+## The alarm: wake up at home, your car's in the driveway, the clock's running.
+func _on_morning(late_by: Dictionary) -> void:
+	var me := Net.my_id()
+	if local_player == null:
+		return
+	local_player.exit_car(true)
+	var home := home_of(me)
+	if home.is_empty():
+		return
+	local_player.teleport(home.spawn)
+	local_player.rotation.y = home.yaw
+	spawn_car(me, match_node.car_of(me), home.drive + Vector3(0, 0.25, 0), home.drive_yaw)
+	if home.rented:
+		hud.show_toast("You rent the place at %s. Buy a house from a FOR SALE sign and it's yours." % home.address, Color(0.9, 0.85, 0.6))
+	if late_by.has(me):
+		hud.oversleep(float(late_by[me]))
+	else:
+		Sfx.play("bell", -10.0, 1.8)
+
+
+## How far the office (the BAGHOLDER CAPITAL lobby) is from us.
+func office_distance() -> float:
+	var me = local_player.driving if local_player and local_player.driving else local_player
+	return me.global_position.distance_to(builder.street.lobby_exit) if me else 0.0
+
+
+# ---------------------------------------------------------------- cars
+
+## Put `peer`'s car (a Rules.CARS key) in the world. Ours we drive; theirs
+## follow the network (and still block us).
+func traffic():
+	var hb = builder.get("hood") if builder else null
+	return hb.traffic if hb != null and hb.get("traffic") != null else null
+
+
+## Traffic brakes for (and swerves round) our cars and the cops'.
+func track_car(c, on: bool) -> void:
+	var tr = traffic()
+	if tr == null or c == null:
+		return
+	if on:
+		tr.register_obstacle(c, c.ref.box.z, c.ref.box.x)
+	else:
+		tr.unregister_obstacle(c)
+
+
+func spawn_car(peer: int, key: String, pos: Vector3, yaw: float, paint = null):
+	if cars.has(peer):
+		track_car(cars[peer], false)
+		cars[peer].queue_free()
+	var c = CarScript.new()
+	c.setup(key, peer, paint if paint is Color else match_node.paint_of(peer, key))
+	c.name = "Car_%d" % peer
+	c.position = pos
+	c.rotation.y = yaw
+	c.set_meta("interact", "car")
+	c.set_meta("interact_id", peer)
+	c.set_meta("prompt", "[E] Drive your %s" % Rules.CARS[key].name if peer == Net.my_id() else "%s's %s" % [Net.player_name(peer), Rules.CARS[key].name])
+	cars_node.add_child(c)
+	cars[peer] = c
+	track_car(c, true)
+	if peer == Net.my_id():
+		send_car(c, true)
+	return c
+
+
+## Stream our car to everyone: 20 times a second while driving, once a
+## second while it's parked (so late joiners see it too).
+func send_car(c, now := false) -> void:
+	if not now and _car_send > 0.0:
+		return
+	_car_send = 0.05 if local_player and local_player.driving == c else 1.0
+	_car_tf.rpc(c.key, c.paint, c.global_position, c.quaternion, c.speed, c.steer, c.in_brake > 0.05)
+
+
+@rpc("any_peer", "unreliable_ordered")
+func _car_tf(key: String, paint: Color, pos: Vector3, rot: Quaternion, spd: float, st: float, brake: bool) -> void:
+	var peer := multiplayer.get_remote_sender_id()
+	if not Net.players.has(peer) or not Rules.CARS.has(key):
+		return
+	var c = cars.get(peer)
+	if c == null or not is_instance_valid(c) or c.key != key or not c.paint.is_equal_approx(paint):
+		c = spawn_car(peer, key, pos, 0.0, paint)
+	c.net_state(pos, rot, spd, st, brake)
+
+
+## Now and then a BEMZE in traffic (in its factory color).
+func _nice_traffic() -> void:
+	var tr = traffic()
+	if tr == null:
+		return
+	const CarRefs = preload("res://scripts/vehicle/car_refs.gd")
+	for key in ["bz_540i", "bz_m2", "bz_m3", "bz_m4", "bz_m5", "bz_m8"]:
+		var model: String = Rules.CARS[key].model
+		if not PropKit.has(model):
+			continue
+		var r: Dictionary = CarRefs.get_ref(model)
+		var fl: Vector3 = r.wheels.FL
+		tr.add_nice_model(model, {"L": r.box.z, "W": r.box.x, "H": r.box.y, "wheel": model + "_Wheel",
+				"axles": [absf(fl.z), -absf(fl.z)], "track": absf(fl.x), "r": r.wheel_r, "kind": "nice",
+				"flip": true, "paint": Rules.CARS[key].paint})
+
+
+## Where a patrol car comes from to chase `target`: well behind it, on the
+## ground (the highway hooks this up to a lane once it exists).
+func pursuit_spawn(target) -> Transform3D:
+	var back: Vector3 = target.global_basis.z
+	back.y = 0.0
+	back = back.normalized() if back.length() > 0.1 else Vector3.BACK
+	for dist in [110.0, 70.0, 40.0]:
+		var at: Vector3 = target.global_position + back * dist
+		var q := PhysicsRayQueryParameters3D.create(at + Vector3(0, 30, 0), at + Vector3(0, -30, 0))
+		var hit := get_world_3d().direct_space_state.intersect_ray(q)
+		if not hit.is_empty() and (hit.normal as Vector3).y > 0.8:
+			return Transform3D(Basis(Vector3.UP, target.global_rotation.y), hit.position + Vector3(0, 0.3, 0))
+	return Transform3D(Basis(Vector3.UP, target.global_rotation.y), target.global_position + back * 40.0 + Vector3(0, 0.3, 0))
+
+
+@rpc("authority", "unreliable_ordered")
+func _npc_car_tf(id: int, key: String, pos: Vector3, rot: Quaternion, spd: float, st: float) -> void:
+	pursuit.net_car(id, key, pos, rot, spd, st)
+
+
+@rpc("authority", "call_remote", "reliable")
+func _npc_car_gone(id: int) -> void:
+	pursuit._remove(id)
+
+
+func _tick_cars(delta: float) -> void:
+	_car_send = maxf(_car_send - delta, 0.0)
+	var me := Net.my_id()
+	var mine = cars.get(me)
+	if mine and is_instance_valid(mine) and (local_player == null or local_player.driving != mine):
+		# bought / picked / resprayed at the dealership: the new one's parked right where the old one was
+		var want: String = match_node.car_of(me)
+		if mine.key != want or not mine.paint.is_equal_approx(match_node.paint_of(me, want)):
+			mine = spawn_car(me, want, mine.global_position + Vector3(0, 0.2, 0), mine.global_rotation.y)
+		send_car(mine)                        # parked: the slow heartbeat
+	for peer in cars.keys():                  # they left: their car goes with them
+		if not Net.players.has(peer):
+			track_car(cars[peer], false)
+			cars[peer].queue_free()
+			cars.erase(peer)
+
+
 func leave_street() -> void:
 	if local_player:
-		arrive()                                # back up to 12: out of the elevator
+		arrive()                                # back up to 12: out of the elevator (counts as made it in)
+
+
+# ---- neighborhood (houses) ----
+## Magnolia Heights (scripts/world/hood_controller.gd does the work).
+func in_neighborhood(node: Node3D) -> bool:
+	return hood != null and hood.in_neighborhood(node)
+
+
+func go_to_neighborhood(instant := false) -> bool:
+	return hood != null and hood.go_to_neighborhood(instant)
+
+
+func go_home(instant := false) -> bool:
+	return hood != null and hood.go_home(instant)
+# ---- /neighborhood (houses) ----
 
 
 func in_studio(node: Node3D) -> bool:
@@ -187,6 +405,9 @@ func near_toilet(peer: int) -> bool:
 # ---------------------------------------------------------------- per-frame
 
 func _process(delta: float) -> void:
+	_tick_cars(delta)
+	if dealership:
+		dealership.tick(delta)
 	if local_player and hud:
 		hud.set_prompt(local_player.look_target() if not ui_blocking() else {})
 	_tick_bubbles(delta)
@@ -221,6 +442,14 @@ func _unhandled_input(event: InputEvent) -> void:
 			local_player.sit(t.id)
 		elif t.get("type", "") == "counter":
 			_run_counter(t.id)
+		elif t.get("type", "") == "car":
+			if int(t.id) == Net.my_id():
+				local_player.enter_car(cars[t.id])
+			else:
+				hud.show_toast("That's %s's car." % Net.player_name(int(t.id)), Color(1, 0.8, 0.4))
+		elif str(t.get("type", "")).begins_with("hood_"):   # ---- neighborhood (houses) ----
+			hood.interact(t)
+			get_viewport().set_input_as_handled()
 		elif not t.is_empty():
 			hud.open_interact(t)
 			get_viewport().set_input_as_handled()
@@ -598,6 +827,7 @@ func _s_cops(data: Array) -> void:
 
 func on_arrested(peer: int) -> void:
 	if local_player and peer == Net.my_id():
+		local_player.exit_car(true)
 		local_player.teleport(builder.jail_pos + Vector3(randf_range(-1, 1), 0.1, randf_range(-1, 1)))
 
 
@@ -618,6 +848,8 @@ var _elev_open_t := 0.0          # doors stay open while > 0 (every peer runs it
 func arrive() -> void:
 	if local_player == null:
 		return
+	if match_node:
+		match_node.request_arrived()            # up on the trading floor = at work (the commute clock)
 	if Config.cli.has("clicktest") or Config.cli.has("shots") or Config.cli.has("savecheck") \
 			or str(Config.cli.get("smoke", "")) == "host":
 		return                                  # tests that need you standing still at a spawn point

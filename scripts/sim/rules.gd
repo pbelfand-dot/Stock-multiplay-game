@@ -81,6 +81,54 @@ const LUXURY := {
 		"rate": 0.11, "auto": true, "rifle": true, "big": true, "pellets": 1, "kick": 0.02,
 		"desc": "Gold receiver, black furniture. You're the plug now (+10 heat).", "perk": {}, "perk_txt": ""},
 }
+## Cars (BEMZE dealership, off the highway). You drive to work every day.
+## top = top speed (m/s), zero60 = 0-60 mph seconds, grip = how hard it can
+## corner before it slides (1.0 = a good sports car), mass = how much a crash
+## shoves it around (tonnes). Game speeds: highway traffic cruises ~29 m/s.
+const CARS := {
+	"beater": {"name": "Your Mom's Sedan", "price": 0.0, "model": "", "top": 50.0, "zero60": 7.8, "grip": 0.75, "mass": 1.4,
+		"paint": Color(0.55, 0.57, 0.6), "desc": "Beige interior. Check-engine light. It gets you there."},
+	"bz_540i": {"name": "BEMZE 540i", "price": 65_000.0, "model": "Bemze_540i", "top": 58.0, "zero60": 4.6, "grip": 0.85, "mass": 1.8,
+		"paint": Color(0.1, 0.12, 0.16), "desc": "The executive car. Quiet, fast, looks like money."},
+	"bz_m2": {"name": "BEMZE M2", "price": 78_000.0, "model": "Bemze_M2", "top": 63.0, "zero60": 4.0, "grip": 1.05, "mass": 1.7,
+		"paint": Color(0.1, 0.35, 0.75), "desc": "Short, wide, angry. The best cut-up car per dollar."},
+	"bz_m3": {"name": "BEMZE M3 Competition", "price": 95_000.0, "model": "Bemze_M3", "top": 69.0, "zero60": 3.5, "grip": 1.0, "mass": 1.75,
+		"paint": Color(0.2, 0.5, 0.2), "desc": "Four doors, 503 hp, zero chill."},
+	"bz_m4": {"name": "BEMZE M4 Competition", "price": 105_000.0, "model": "Bemze_M4", "top": 69.0, "zero60": 3.4, "grip": 1.0, "mass": 1.72,
+		"paint": Color(0.85, 0.55, 0.1), "desc": "The coupe. Carbon roof. The grille is a personality."},
+	"bz_m5": {"name": "BEMZE M5", "price": 140_000.0, "model": "Bemze_M5", "top": 74.0, "zero60": 3.3, "grip": 0.92, "mass": 2.4,
+		"paint": Color(0.35, 0.36, 0.38), "desc": "717 hp hybrid super-sedan. Heavy. Doesn't care."},
+	"bz_m8": {"name": "BEMZE M8 Competition", "price": 165_000.0, "model": "Bemze_M8", "top": 76.0, "zero60": 3.0, "grip": 0.95, "mass": 1.9,
+		"paint": Color(0.55, 0.05, 0.08), "desc": "The flagship GT. Fastest thing on the lot."},
+	# not for sale: highway patrol (an M8 outruns it, an M3 has to lose it in traffic)
+	"cop": {"name": "Highway Patrol", "price": 0.0, "model": "Cop_Interceptor", "top": 70.0, "zero60": 3.8, "grip": 1.0, "mass": 2.0,
+		"paint": Color(0.95, 0.95, 0.95), "desc": ""},
+}
+## The commute: every morning you wake up at home and drive in; the opening
+## bell rings COMMUTE_S later. Some mornings the alarm doesn't go off (more
+## often after a high-blood-pressure day): you sleep through LATE_SLEEP of it.
+const COMMUTE_S := 120.0       # the drive in takes ~75 s in the sedan, ~50 s cutting up in an M car
+const LATE_CHANCE := 0.25
+const LATE_BP_BONUS := 0.2         # blood pressure over 60 at the closing bell
+const LATE_SLEEP := 55.0        # overslept: ~65 s left for a ~75 s drive. Cut up or be late
+## Highway patrol: hold PURSUIT_MPH for a few seconds and a patrol car may
+## clock you; lose it (PURSUIT_LOST_M away for PURSUIT_LOST_S) or get pulled over.
+const PURSUIT_MPH := 110.0
+const PURSUIT_LOST_M := 230.0
+const PURSUIT_LOST_S := 6.0
+const PURSUIT_BUST_S := 2.5
+const SPEEDING_TICKET := 2_500.0
+const CAR_ORDER := ["beater", "bz_540i", "bz_m2", "bz_m3", "bz_m4", "bz_m5", "bz_m8"]
+## Factory paint at the dealership (a respray later costs RESPRAY).
+const PAINTS := [
+	["Alpine White", Color(0.93, 0.93, 0.92)], ["Black Sapphire", Color(0.05, 0.05, 0.07)],
+	["Brooklyn Grey", Color(0.52, 0.54, 0.56)], ["Isle Green", Color(0.1, 0.36, 0.26)],
+	["Sao Paulo Yellow", Color(0.95, 0.75, 0.1)], ["Portimao Blue", Color(0.1, 0.32, 0.72)],
+	["Toronto Red", Color(0.65, 0.06, 0.08)], ["Frozen Deep Grey", Color(0.24, 0.25, 0.27)],
+	["Sunset Orange", Color(0.95, 0.42, 0.08)], ["Dravit Grey", Color(0.38, 0.38, 0.34)],
+]
+const RESPRAY := 2_500.0
+
 ## Q cycles through the guns you own in this order.
 const GUN_ORDER := ["pistol", "shotgun", "smg", "ak", "deagle", "ak_gold"]
 const SHOT_HEAT := 3.5              # every shot outside the range
@@ -284,3 +332,26 @@ static func price_str(p: float) -> String:
 		whole += 1
 		frac = 0
 	return "%s.%02d" % [_commas(whole), frac]
+
+
+# ---- neighborhood (houses) ----
+## Magnolia Heights listings (scripts/world/neighborhood_builder.gd places them,
+## Match._req_buy_house sells them). Starter homes: a real goal next to the flex
+## (a Crownwell is $250K). One owner per house; bought ones are saved with your
+## career as owned["house_<id>"]. The spawn by each bed comes from
+## assets/props/houses_layout.json (the Blender interiors).
+const HOUSES := {
+	"tin_a": {"name": "The Tin Roof", "address": "404 Pecan St", "price": 185_000.0,
+		"desc": "Two rooms and a porch up on brick piers. Rusty roof, loud window unit, zero HOA. Every mogul starts somewhere."},
+	"shotgun_a": {"name": "The Shotgun", "address": "102 Magnolia St", "price": 240_000.0,
+		"desc": "Screened porch, ceiling fan, red steps. Front door to back door in one straight line. The floors talk."},
+	"ranch_a": {"name": "Starter Ranch", "address": "105 Magnolia St", "price": 320_000.0,
+		"desc": "Picture window, brick stoop, white shutters. The house your parents said to buy instead of options."},
+	"bungalow_a": {"name": "Craftsman Bungalow", "address": "401 Pecan St", "price": 395_000.0,
+		"desc": "Covered porch, wide eaves, good bones, big pine out front. Needs love. Has a laundry room."},
+	"ranch_b": {"name": "Corner-Lot Ranch", "address": "113 Magnolia St", "price": 460_000.0,
+		"desc": "The corner lot. Updated kitchen, steel fridge, king bed. The whole block will know you made it."},
+	"bungalow_b": {"name": "Renovated Bungalow", "address": "410 Pecan St", "price": 620_000.0,
+		"desc": "Gut-renovated on a double lot: kitchen island, stainless, a TV you can see from the highway. Top of the block."},
+}
+# ---- /neighborhood (houses) ----

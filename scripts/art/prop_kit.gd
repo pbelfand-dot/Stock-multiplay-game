@@ -7,7 +7,9 @@ extends RefCounted
 
 const KIT_PATH := "res://assets/props/props_kit.glb"
 ## Every kit loaded into the same prop table (names are unique across kits).
-const KITS := [KIT_PATH, "res://assets/props/watches_kit.glb"]   # watches: tools/blender/build_watches.py
+const KITS := [KIT_PATH, "res://assets/props/watches_kit.glb",   # watches: tools/blender/build_watches.py
+	"res://assets/props/houses_kit.glb", "res://assets/props/cars_kit.glb",   # ---- neighborhood (houses): build_houses.py / build_cars.py ----
+	"res://assets/props/bemze_kit.glb"]                               # cars + dealership: tools/blender/build_bemze.py
 
 const HAZE_COLOR := Color(0.64, 0.78, 0.94)   # the sky; far towers fade into it
 
@@ -33,6 +35,10 @@ static func material(kind: String) -> StandardMaterial3D:
 			m.metallic_specular = 0.8
 		"Glow":
 			m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		"CarPaint":   # car body: white vertex colors, tint with albedo_color on a duplicate
+			m.roughness = 0.2
+			m.metallic = 0.35
+			m.metallic_specular = 0.9
 		"Glass":   # watch crystals, vitrine panes: see-through with a glint
 			m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 			m.albedo_color = Color(1, 1, 1, 0.14)

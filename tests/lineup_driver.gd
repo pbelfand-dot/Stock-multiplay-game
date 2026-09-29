@@ -7,6 +7,9 @@ extends Node3D
 ##   godot --path . -- --lineup=/tmp/out --hairportraits
 ## Props kit review shots (three angles + one at game distance per prop):
 ##   godot --path . -- --lineup=/tmp/out --props=ATM,Gun_Rifle [--refs=/tmp/ref.json]
+## BEMZE cars assembled (body + wheels + steering wheel at the REF points), several views each:
+##   godot --path . -- --lineup=/tmp/out --cars=M3,M5 --refs=/tmp/bemze_ref.json [--carviews=side,top]
+##   (--cars=lineup: all six side by side; refs from BEMZE_REF_JSON=... tools/blender/build_bemze.py)
 
 const Character = preload("res://scripts/art/character.gd")
 const PropKit = preload("res://scripts/art/prop_kit.gd")
@@ -44,6 +47,9 @@ func _ready() -> void:
 	fm.albedo_color = Color(0.35, 0.38, 0.45)
 	floor_mi.material_override = fm
 	add_child(floor_mi)
+	if Config.cli.has("cars"):          # preview helper: BEMZE car review shots
+		_carshots.call_deferred(env, floor_mi)
+		return
 	if Config.cli.has("props"):
 		_propshots.call_deferred()
 		return
@@ -560,3 +566,139 @@ func _dot(r: float, col: Color) -> MeshInstance3D:
 	mi.material_override = m
 	add_child(mi)
 	return mi
+
+
+# ------------------------------------------------------------------ BEMZE car review shots (preview helper)
+const CAR_MODELS := ["M3", "M5", "M4", "M2", "M8", "540i"]
+
+
+func _car_prop(nm: String) -> String:
+	return nm if nm.begins_with("Cop_") else "Bemze_" + nm
+
+
+func _car(nm: String, refs: Dictionary, pos: Vector3) -> Node3D:
+	var body := PropKit.place(_car_prop(nm), self, pos)
+	var r: Dictionary = refs.get(_car_prop(nm), {})
+	if r.is_empty():
+		return body
+	var paint := PropKit.material("CarPaint")
+	for mi in body.get_children():
+		if mi is MeshInstance3D and mi.material_override == paint:
+			var m: StandardMaterial3D = paint.duplicate()
+			var c: Array = r.get("paint", [1, 1, 1])
+			m.albedo_color = Color(c[0], c[1], c[2])
+			mi.material_override = m
+	for k in ["wheel_FL", "wheel_FR", "wheel_RL", "wheel_RR"]:
+		if not r.has(k):
+			continue
+		var w := PropKit.place(str(r.wheel), body, _v3(r[k]))
+		if k.ends_with("L"):
+			w.scale = Vector3(-1, 1, 1)
+	if r.has("steering_hub"):
+		var sw := PropKit.place("Bemze_SteeringWheel", body, _v3(r.steering_hub))
+		sw.rotation.x = deg_to_rad(float(r.column_tilt_deg))
+	if r.has("lightbar_mount"):
+		for lb in r.lightbar_props:
+			PropKit.place(str(lb), body, _v3(r.lightbar_mount))
+	return body
+
+
+func _carsnap(vp: SubViewport, cam: Camera3D, pos: Vector3, look: Vector3, fov: float, file: String,
+		ortho := 0.0) -> void:
+	cam.projection = Camera3D.PROJECTION_ORTHOGONAL if ortho > 0.0 else Camera3D.PROJECTION_PERSPECTIVE
+	cam.size = maxf(ortho, 0.1)
+	cam.fov = fov
+	cam.near = 0.02
+	cam.position = pos
+	var up := Vector3.UP if absf((look - pos).normalized().y) < 0.99 else Vector3(0, 0, -1)
+	cam.look_at(look, up)
+	for k in 8:
+		await get_tree().process_frame
+	await RenderingServer.frame_post_draw
+	vp.get_texture().get_image().save_png(out + "/" + file + ".png")
+	print("lineup: ", file)
+
+
+func _carshots(env: Environment, floor_mi: MeshInstance3D) -> void:
+	var refs := {}
+	if Config.cli.has("refs"):
+		var parsed = JSON.parse_string(FileAccess.get_file_as_string(str(Config.cli.refs)))
+		if parsed is Dictionary:
+			refs = parsed
+	var sky := Sky.new()
+	var psm := ProceduralSkyMaterial.new()
+	psm.sky_top_color = Color(0.36, 0.55, 0.85)
+	psm.sky_horizon_color = Color(0.75, 0.8, 0.88)
+	psm.ground_horizon_color = Color(0.6, 0.6, 0.62)
+	psm.ground_bottom_color = Color(0.25, 0.25, 0.27)
+	sky.sky_material = psm
+	env.background_mode = Environment.BG_SKY
+	env.sky = sky
+	env.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
+	env.ambient_light_energy = 0.55
+	env.reflected_light_source = Environment.REFLECTION_SOURCE_SKY
+	(floor_mi.mesh as PlaneMesh).size = Vector2(120, 120)
+	(floor_mi.material_override as StandardMaterial3D).albedo_color = Color(0.42, 0.43, 0.45)
+	var vp := SubViewport.new()
+	vp.size = Vector2i(1600, 900)
+	vp.msaa_3d = Viewport.MSAA_4X
+	vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	add_child(vp)
+	var cam := Camera3D.new()
+	vp.add_child(cam)
+	cam.current = true
+	var list: Array = []
+	var arg := str(Config.cli.cars)
+	if arg == "lineup":
+		for i in CAR_MODELS.size():
+			_car(CAR_MODELS[i], refs, Vector3((i - 2.5) * 2.7, 0, 0))
+		await _carsnap(vp, cam, Vector3(-9.5, 3.2, -12.5), Vector3(-0.8, 0.5, 0), 38, "lineup_front34")
+		await _carsnap(vp, cam, Vector3(0, 0.8, -30), Vector3(0, 0.75, 0), 20, "lineup_front")
+		await _carsnap(vp, cam, Vector3(9.5, 3.2, 12.5), Vector3(0.8, 0.5, 0), 38, "lineup_rear34")
+		Sfx.quit_game()
+		return
+	var views := ["front34", "rear34", "side", "front", "rear", "top", "interior", "wheel", "nose", "tail",
+			"side34low", "cockpit"]
+	if Config.cli.has("carviews"):
+		views = str(Config.cli.carviews).split(",")
+	for nm in arg.split(","):
+		var car := _car(nm, refs, Vector3.ZERO)
+		var r: Dictionary = refs.get(_car_prop(nm), {})
+		var box := _aabb(car)
+		var c := box.get_center()
+		for v in views:
+			var f := "car_%s_%s" % [nm, v]
+			match v:
+				"front34":
+					await _carsnap(vp, cam, Vector3(-4.3, 1.45, -5.2), Vector3(0, 0.6, -0.2), 40, f)
+				"rear34":
+					await _carsnap(vp, cam, Vector3(4.3, 1.55, 5.4), Vector3(0, 0.6, 0.2), 40, f)
+				"side":
+					await _carsnap(vp, cam, Vector3(20, c.y, c.z), Vector3(0, c.y, c.z), 30, f, 3.3)
+				"front":
+					await _carsnap(vp, cam, Vector3(0, 0.75, -20), Vector3(0, 0.75, 0), 30, f, 1.75)
+				"rear":
+					await _carsnap(vp, cam, Vector3(0, 0.75, 20), Vector3(0, 0.75, 0), 30, f, 1.75)
+				"top":
+					await _carsnap(vp, cam, Vector3(c.x, 20, c.z), Vector3(c.x, 0, c.z), 30, f, 5.4)
+				"side34low":
+					await _carsnap(vp, cam, Vector3(-5.6, 0.55, -2.2), Vector3(0, 0.62, 0.1), 42, f)
+				"nose":
+					await _carsnap(vp, cam, Vector3(-1.4, 1.1, box.position.z - 1.6), Vector3(0, 0.62, box.position.z + 0.3), 42, f)
+				"tail":
+					await _carsnap(vp, cam, Vector3(1.4, 1.2, box.end.z + 1.7), Vector3(0, 0.75, box.end.z - 0.3), 42, f)
+				"wheel":
+					if r.has("wheel_FL"):
+						var wp := _v3(r.wheel_FL)
+						await _carsnap(vp, cam, wp + Vector3(-1.6, 0.25, -0.5), wp, 40, f)
+				"interior":
+					if r.has("eye"):
+						var e := _v3(r.eye)
+						await _carsnap(vp, cam, e, e + Vector3(0, -0.12, -1), 72, f)
+				"cockpit":
+					if r.has("eye"):
+						var e2 := _v3(r.eye)
+						await _carsnap(vp, cam, e2 + Vector3(0.55, 0.12, 0.55), e2 + Vector3(-0.1, -0.35, -0.9), 70, f)
+		car.queue_free()
+		await get_tree().process_frame
+	Sfx.quit_game()
