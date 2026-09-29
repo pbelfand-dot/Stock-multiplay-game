@@ -43,7 +43,8 @@ signal shock(kind: String, stage: String)
 signal milestone(amount: float, xp: float)
 signal saved(info: Dictionary)
 signal cash_moved(peer: int, withdrawn: float, total: float)
-signal shot(peer: int, hit: Vector3)     # someone fired (hit = where the round landed)
+signal shot(peer: int, hit: Vector3)
+signal pursuit_changed(peer: int, stage: String)   # "start" / "lost" / "busted"     # someone fired (hit = where the round landed)
 
 # ---------------- mirrored state (all peers) ----------------
 var phase := "lobby"            # lobby | trading | intermission | gameover
@@ -1174,6 +1175,29 @@ func server_cop_caught(target: int) -> void:
 	_s_toast.rpc("%s GOT ARRESTED. Fined %s." % [Net.player_name(target), Rules.money(fine)])
 	_end_raid(true)
 	_push_state()
+
+
+## Highway patrol caught up with `target` and boxed them in: pulled over.
+## A speeding ticket off the account, a night in the cells (same jail).
+func server_pull_over(target: int) -> void:
+	if not Net.is_server() or is_jailed(target):
+		return
+	_booking_no += 1 + rng.randi() % 37
+	jail[target] = Rules.JAIL_SECONDS
+	heat[target] = 0.0
+	if stats.has(target):
+		stats[target].arrests += 1
+	var acct := acct_for(target)
+	var fine: float = maxf(ledger.get_acct(acct).get("balance", 0.0) * Rules.ARREST_FINE * 0.5, 0.0) + Rules.SPEEDING_TICKET
+	ledger.adjust(acct, -fine)
+	_s_arrested.rpc(target, _booking_no)
+	_s_toast.rpc("HIGHWAY PATROL PULLED OVER %s. Ticket + impound fees: %s." % [Net.player_name(target), Rules.money(fine)])
+	_push_state()
+
+
+@rpc("authority", "call_local", "reliable")
+func s_pursuit(target: int, stage: String) -> void:
+	pursuit_changed.emit(target, stage)
 
 
 # ---------------- run / day flow ----------------

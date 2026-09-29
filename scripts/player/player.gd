@@ -483,11 +483,12 @@ func enter_car(car) -> void:
 	_seat_in_car()
 
 
-## Out the driver's door (only when it's nearly stopped).
-func exit_car() -> void:
+## Out the driver's door (only when it's nearly stopped, unless `force`:
+## pulled over / arrested).
+func exit_car(force := false) -> void:
 	if driving == null:
 		return
-	if absf(driving.speed) > 4.0:
+	if absf(driving.speed) > 4.0 and not force:
 		world.hud.show_toast("Slow down first.", Color(1, 0.6, 0.3))
 		return
 	var car = driving

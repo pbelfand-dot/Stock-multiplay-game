@@ -104,6 +104,13 @@ const CARS := {
 	"cop": {"name": "Highway Patrol", "price": 0.0, "model": "Cop_Interceptor", "top": 70.0, "zero60": 3.8, "grip": 1.0, "mass": 2.0,
 		"paint": Color(0.95, 0.95, 0.95), "desc": ""},
 }
+## Highway patrol: hold PURSUIT_MPH for a few seconds and a patrol car may
+## clock you; lose it (PURSUIT_LOST_M away for PURSUIT_LOST_S) or get pulled over.
+const PURSUIT_MPH := 110.0
+const PURSUIT_LOST_M := 230.0
+const PURSUIT_LOST_S := 6.0
+const PURSUIT_BUST_S := 2.5
+const SPEEDING_TICKET := 2_500.0
 const CAR_ORDER := ["beater", "bz_540i", "bz_m2", "bz_m3", "bz_m4", "bz_m5", "bz_m8"]
 ## Factory paint at the dealership (a respray later costs RESPRAY).
 const PAINTS := [

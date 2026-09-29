@@ -120,6 +120,7 @@ func setup(w, m) -> void:
 	m.error_msg.connect(func(e): show_toast(e, UI.RED))
 	m.chat.connect(_on_chat)
 	m.luxury_bought.connect(_on_luxury)
+	m.pursuit_changed.connect(_on_pursuit)
 	m.relieved.connect(_on_relieved)
 	m.ranked_up.connect(_on_rank_up)
 	m.posted.connect(_on_posted)
@@ -566,6 +567,57 @@ func set_prompt(t: Dictionary) -> void:
 	prompt_lbl.text = t.get("prompt", "")
 
 
+## Highway patrol on your tail: a banner with how far back they are.
+var pursuit_lbl: Label
+var _pursued := false
+
+
+func _on_pursuit(peer: int, stage: String) -> void:
+	if peer != Net.my_id():
+		if stage == "start":
+			show_toast("%s is being chased by highway patrol." % Net.player_name(peer), Color(1, 0.6, 0.3))
+		return
+	_pursued = stage == "start"
+	match stage:
+		"start":
+			Sfx.play("siren", -4.0)
+			show_toast("HIGHWAY PATROL CLOCKED YOU. Lose them: get %d m ahead for %d s. Stop and you're done." % [
+					int(Rules.PURSUIT_LOST_M), int(Rules.PURSUIT_LOST_S)], Color(1, 0.3, 0.3))
+		"lost":
+			Sfx.play("cash", -4.0)
+			show_toast("YOU LOST THEM.", Color(0.4, 1, 0.5))
+		"busted":
+			show_toast("PULLED OVER.", Color(1, 0.3, 0.3))
+
+
+func _tick_pursuit() -> void:
+	if not _pursued:
+		if pursuit_lbl:
+			pursuit_lbl.visible = false
+		return
+	if pursuit_lbl == null:
+		pursuit_lbl = UI.lbl("", 34, Color(1, 0.35, 0.3), true)
+		pursuit_lbl.anchor_left = 0.5
+		pursuit_lbl.anchor_right = 0.5
+		pursuit_lbl.offset_left = -400
+		pursuit_lbl.offset_right = 400
+		pursuit_lbl.offset_top = 110
+		pursuit_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		pursuit_lbl.add_theme_constant_override("outline_size", 10)
+		pursuit_lbl.add_theme_color_override("font_outline_color", Color(0, 0, 0))
+		root.add_child(pursuit_lbl)
+	var me = world.cars.get(Net.my_id()) if world else null
+	var near := 99999.0
+	for id in world.pursuit.npc:
+		var c = world.pursuit.npc[id]
+		if me and is_instance_valid(c):
+			near = minf(near, c.global_position.distance_to(me.global_position))
+	pursuit_lbl.visible = true
+	var blink := fmod(Time.get_ticks_msec() / 1000.0, 0.8) < 0.4
+	pursuit_lbl.modulate = Color(1, 0.3, 0.3) if blink else Color(0.4, 0.55, 1)
+	pursuit_lbl.text = "PURSUIT   ·   COPS %d m BEHIND   ·   LOSE THEM AT %d m" % [int(near), int(Rules.PURSUIT_LOST_M)] if near < 9999.0 else "PURSUIT"
+
+
 ## Speedometer while driving (bottom middle): big MPH, the car's name.
 var speedo: Label
 func _tick_speedo() -> void:
@@ -595,6 +647,7 @@ func _tick_speedo() -> void:
 
 func _process(delta: float) -> void:
 	_tick_speedo()
+	_tick_pursuit()
 	var want_mouse := is_modal_open()
 	if not DisplayServer.get_name() == "headless":
 		var mm := Input.MOUSE_MODE_VISIBLE if want_mouse else Input.MOUSE_MODE_CAPTURED

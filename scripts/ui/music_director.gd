@@ -37,6 +37,12 @@ func _ready() -> void:
 	m.raid_changed.connect(_on_raid)
 	m.slot_result.connect(_on_slots)
 	m.luxury_bought.connect(_on_luxury)
+	m.pursuit_changed.connect(func(peer, stage):
+		if peer == Net.my_id():
+			if stage == "start":
+				_event("type_a", 999.0, 3)
+			else:
+				Music.clear_event())
 	m.ranked_up.connect(_on_rank_up)
 	m.day_ended.connect(_on_day_ended)
 	m.game_over.connect(_on_day_ended)

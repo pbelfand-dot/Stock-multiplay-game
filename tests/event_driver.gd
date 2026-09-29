@@ -201,6 +201,8 @@ func _coop() -> void:
 		return
 	if not await _cars():
 		return
+	if not await _pursuit():
+		return
 
 	# ---- the closing bell: summary knows today's event and tomorrow's forecast
 	m.time_left = 0.5
@@ -408,4 +410,52 @@ func _cars() -> bool:
 		return false
 	_say("dealership: Portimao Blue M3 for $95K, no M8 on $25K, back to the sedan, Toronto Red respray")
 	a.balance = 400_000.0                              # the rest of the run isn't about the car budget
+	return true
+
+
+## Highway patrol: a chase starts (cop car with lights spawns behind you),
+## stop next to it -> pulled over (jail + ticket); a second chase: get far
+## enough away for long enough -> lost them.
+func _pursuit() -> bool:
+	var w = m.world
+	var me = w.local_player
+	var stages: Array = []
+	m.pursuit_changed.connect(func(_p, st): stages.append(st))
+	w.go_to_street()
+	await get_tree().create_timer(0.5).timeout
+	var car = w.cars.get(1)
+	me.enter_car(car)
+	w.pursuit.start(1)
+	if not await _wait(func(): return stages.has("start") and w.pursuit.npc.size() == 1, 3.0):
+		_done(false, "no pursuit / no cop car (%s)" % str(stages))
+		return false
+	var cop = w.pursuit.npc.values()[0]
+	# stopped, cop right beside us: pulled over
+	car.speed = 0.0
+	car.velocity = Vector3.ZERO
+	cop.global_position = car.global_position + car.global_basis.x * 3.0
+	var bal: float = m.ledger.get_acct(0).balance
+	if not await _wait(func(): return m.is_jailed(1), 6.0):
+		_done(false, "boxed in next to the cop but never pulled over (%s)" % str(stages))
+		return false
+	if me.driving != null or w.pursuit.npc.size() != 0 or m.ledger.get_acct(0).balance > bal - Rules.SPEEDING_TICKET + 1.0:
+		_done(false, "pull-over wrong: still driving %s, cops %d, balance %f -> %f" % [me.driving != null, w.pursuit.npc.size(), bal, m.ledger.get_acct(0).balance])
+		return false
+	_say("pursuit: boxed in -> PULLED OVER (out of the car, jailed, ticket %s)" % Rules.money(bal - m.ledger.get_acct(0).balance))
+	m.jail.erase(1)
+	m.heat[1] = 0.0
+	# round two: the cop's way back there -> lost them
+	w.pursuit._cooldown[1] = 0.0
+	w.pursuit.start(1)
+	await get_tree().create_timer(0.3).timeout
+	var cop2 = w.pursuit.npc.values()[0]
+	for c in cop2.get_children():
+		if c.get_script() == load("res://scripts/vehicle/ai_driver.gd"):
+			c.queue_free()                       # parked way back there
+	cop2.global_position = car.global_position + Vector3(400, 0, 0)
+	if not await _wait(func(): return stages.count("lost") >= 1, Rules.PURSUIT_LOST_S + 3.0):
+		_done(false, "never lost the cops from 400 m (%s)" % str(stages))
+		return false
+	_say("pursuit: 400 m ahead for %d s -> LOST THEM" % int(Rules.PURSUIT_LOST_S))
+	m.heat[1] = 0.0
 	return true

@@ -33,6 +33,8 @@ const CashArt = preload("res://scripts/art/cash_art.gd")
 const GunArt = preload("res://scripts/art/gun_art.gd")
 const MoneyCounter = preload("res://scripts/world/money_counter.gd")
 const CarScript = preload("res://scripts/vehicle/car.gd")
+const PursuitScript = preload("res://scripts/vehicle/pursuit.gd")
+var pursuit
 var cars := {}                  # peer -> their car (ours is simulated here, theirs follow the network)
 var cars_node: Node3D
 var _car_send := 0.0
@@ -80,6 +82,9 @@ func _ready() -> void:
 	cars_node = Node3D.new()
 	cars_node.name = "Cars"
 	add_child(cars_node)
+	pursuit = PursuitScript.new(self)
+	pursuit.name = "Pursuit"
+	add_child(pursuit)
 	match_node.state_changed.connect(_sync_spreads)
 	_sync_players()
 
@@ -192,6 +197,31 @@ func _car_tf(key: String, paint: Color, pos: Vector3, rot: Quaternion, spd: floa
 	if c == null or not is_instance_valid(c) or c.key != key or not c.paint.is_equal_approx(paint):
 		c = spawn_car(peer, key, pos, 0.0, paint)
 	c.net_state(pos, rot, spd, st, brake)
+
+
+## Where a patrol car comes from to chase `target`: well behind it, on the
+## ground (the highway hooks this up to a lane once it exists).
+func pursuit_spawn(target) -> Transform3D:
+	var back: Vector3 = target.global_basis.z
+	back.y = 0.0
+	back = back.normalized() if back.length() > 0.1 else Vector3.BACK
+	for dist in [110.0, 70.0, 40.0]:
+		var at: Vector3 = target.global_position + back * dist
+		var q := PhysicsRayQueryParameters3D.create(at + Vector3(0, 30, 0), at + Vector3(0, -30, 0))
+		var hit := get_world_3d().direct_space_state.intersect_ray(q)
+		if not hit.is_empty() and (hit.normal as Vector3).y > 0.8:
+			return Transform3D(Basis(Vector3.UP, target.global_rotation.y), hit.position + Vector3(0, 0.3, 0))
+	return Transform3D(Basis(Vector3.UP, target.global_rotation.y), target.global_position + back * 40.0 + Vector3(0, 0.3, 0))
+
+
+@rpc("authority", "unreliable_ordered")
+func _npc_car_tf(id: int, key: String, pos: Vector3, rot: Quaternion, spd: float, st: float) -> void:
+	pursuit.net_car(id, key, pos, rot, spd, st)
+
+
+@rpc("authority", "call_remote", "reliable")
+func _npc_car_gone(id: int) -> void:
+	pursuit._remove(id)
 
 
 func _tick_cars(delta: float) -> void:
@@ -672,6 +702,7 @@ func _s_cops(data: Array) -> void:
 
 func on_arrested(peer: int) -> void:
 	if local_player and peer == Net.my_id():
+		local_player.exit_car(true)
 		local_player.teleport(builder.jail_pos + Vector3(randf_range(-1, 1), 0.1, randf_range(-1, 1)))
 
 
