@@ -157,9 +157,10 @@ CARS["M2"] = dict(
     steer=r"Interior_Geo",
     edits={
         "BMW_M2CSG87_2025_BadgeA_DiffuseAOSO.png": [("roundel", 0.418, 0.4, 0.395), ("orange", 0.72, 0.03, 0.98, 0.2)],
-        "BMW_M2CSG87_2025_Wheel1A_DiffuseAOSO.png": [("roundel", 0.1, 0.87, 0.085), ("orange", 0.0, 0.05, 0.28, 0.15)],
-        "BMW_M2CSG87_2025_LightA_Diffuse.png": [("fill", 0.7, 0.28, 0.99, 0.37, None)],
-        "BMW_M2CSG87_2025_InteriorA_DiffuseAOSO.png": [("orange", 0.77, 0.47, 0.9, 0.52)],
+        "BMW_M2CSG87_2025_Wheel1A_DiffuseAOSO.png": [("roundel", 0.134, 0.873, 0.118), ("orange", 0.0, 0.05, 0.28, 0.15)],
+        "BMW_M2CSG87_2025_LightA_Diffuse.png": [("fill", 0.715, 0.155, 0.998, 0.255, None),
+                                                ("text", 0.715, 0.265, 0.998, 0.345, "BEMZE", (96, 96, 98), (28, 28, 30))],
+        "BMW_M2CSG87_2025_InteriorA_DiffuseAOSO.png": [("orange", 0.775, 0.5, 0.86, 0.55)],
     },
 )
 
@@ -905,7 +906,10 @@ class Car:
             steer = join(named, "steer_src")
         else:
             srcs = [o for o in self.parts if o["role"] == "body" and re.search(self.cfg["steer"], o["chain"] + "|" + o["mats"])]
-            best = None
+            # the loose pieces of the interior ahead of the driver's seat; the wheel is the set of pieces that
+            # fits in a ~0.23 m ball, makes a round ~0.36 m shape and is left / right symmetric about its middle
+            # (rims often come in several pieces; stalks and the column shroud are not symmetric)
+            pieces = []
             for ob in srcs:
                 me = ob.data
                 V = verts_np(ob)
@@ -913,49 +917,94 @@ class Car:
                     vi = np.unique(np.concatenate([np.array(me.polygons[f].vertices) for f in faces]))
                     P = V[vi]
                     lo, hi = P.min(0), P.max(0)
-                    c, s = (lo + hi) / 2, hi - lo
-                    if not (c[0] < -0.2 and 0.05 < c[1] < 0.9 and 0.6 < c[2] < 1.15):
-                        continue
-                    big = sorted(s)
-                    if not (0.3 < big[2] < 0.46 and big[1] > 0.25):
-                        continue
-                    score = big[2] + big[1] - 2 * big[0]
-                    if best is None or score > best[0]:
-                        best = (score, ob, faces, P)
+                    c = (lo + hi) / 2
+                    if c[0] < -0.12 and -0.1 < c[1] < 0.9 and 0.55 < c[2] < 1.15 and (hi - lo).max() < 0.48:
+                        pieces.append((c, P, ob, faces))
+            best = None
+            for c0, _, _, _ in pieces:
+                for it in range(3):
+                    ins = [pc for pc in pieces if np.linalg.norm(pc[1] - c0, axis=1).max() < 0.23]
+                    if not ins:
+                        break
+                    U = np.concatenate([pc[1] for pc in ins])
+                    lo, hi = U.min(0), U.max(0)
+                    c0 = (lo + hi) / 2
+                if not ins:
+                    continue
+                ext = hi - lo
+                if not (0.28 < ext[0] < 0.46 and 0.28 < ext[2] < 0.46 and ext[1] < 0.3):
+                    continue
+                # drop the pieces that have no mirror image about the middle (a stalk on one side)
+                keep = []
+                for pc in ins:
+                    m = pc[1][:: max(1, len(pc[1]) // 60)].copy()
+                    m[:, 0] = 2 * c0[0] - m[:, 0]
+                    Us = U[:: max(1, len(U) // 4000)]
+                    d = np.array([np.min(np.linalg.norm(Us - q, axis=1)) for q in m])
+                    if np.median(d) < 0.015:
+                        keep.append(pc)
+                if not keep:
+                    continue
+                U = np.concatenate([pc[1] for pc in keep])
+                ext = U.max(0) - U.min(0)
+                if not (0.28 < ext[0] < 0.46 and 0.28 < ext[2] < 0.46):
+                    continue
+                score = sum(len(pc[3]) for pc in keep) * (1.0 - abs(ext[0] - ext[2]) * 3)
+                if best is None or score > best[0]:
+                    best = (score, keep)
             if best is None:
-                raise RuntimeError("no steering wheel rim found")
-            _, rob, rfaces, P = best
-            c = (P.min(0) + P.max(0)) / 2
-            n = self._axis(P, c)
-            rad = np.linalg.norm((P - c) - np.outer((P - c) @ n, n), axis=1).max()
+                raise RuntimeError("no steering wheel found")
+            # the rim plane: the column tilt and hub that put the most points into a rim-sized tube
+            U = np.concatenate([pc[1] for pc in best[1]])
+            c0 = (U.min(0) + U.max(0)) / 2
+            near = [pc for pc in pieces if np.linalg.norm(pc[0] - c0) < 0.35]
+            A = np.concatenate([pc[1] for pc in near])
+            A = A[:: max(1, len(A) // 6000)]
+            top = None
+            for ang in np.radians(np.arange(4.0, 46.0, 1.5)):
+                n = np.array([0.0, -math.cos(ang), math.sin(ang)])
+                e1 = np.array([1.0, 0.0, 0.0])
+                e2 = np.cross(n, e1)
+                ax = (A - c0) @ n
+                u = (A - c0) @ e1
+                v = (A - c0) @ e2
+                for dax in np.arange(-0.08, 0.081, 0.01):
+                    slab = np.abs(ax - dax) < 0.025
+                    if slab.sum() < 50:
+                        continue
+                    us, vs = u[slab], v[slab]
+                    for dv in np.arange(-0.08, 0.081, 0.01):
+                        r = np.hypot(us, vs - dv)
+                        tube = (r > 0.15) & (r < 0.215)
+                        # a rim goes all the way round: angular coverage first, then how many points
+                        bins = np.unique((np.arctan2(vs[tube] - dv, us[tube]) / (2 * math.pi) * 36).astype(int) % 36)
+                        sc = len(bins) * 100000 + int(tube.sum())
+                        if top is None or sc > top[0]:
+                            top = (sc, n, c0 + n * dax + e2 * dv)
+            _, n, c = top
+            sel = {}
+            for pc in near:
+                d = pc[1] - c
+                ax = d @ n
+                rr = np.linalg.norm(d - np.outer(ax, n), axis=1)
+                inside = (ax > -0.075) & (ax < 0.05) & (rr < 0.225)
+                if inside.mean() > 0.9:
+                    sel.setdefault(pc[2].name, (pc[2], set()))[1].update(pc[3])
             picked = []
-            for ob in srcs:
-                me = ob.data
-                V = verts_np(ob)
-                sel = set()
-                for faces in loose_parts(ob):
-                    vi = np.unique(np.concatenate([np.array(me.polygons[f].vertices) for f in faces]))
-                    d = V[vi] - c
-                    ax = d @ n
-                    rr = np.linalg.norm(d - np.outer(ax, n), axis=1)
-                    inside = (rr < rad + 0.012) & (ax > -0.075) & (ax < 0.07)
-                    if inside.mean() > 0.97:
-                        sel.update(faces)
-                if sel:
-                    part = split_faces(ob, lambda p, sel=sel: p.index in sel, ob.name + "_steer")
-                    if part:
-                        picked.append(part)
+            for ob, fs in sel.values():
+                part = split_faces(ob, lambda p, fs=fs: p.index in fs, ob.name + "_steer")
+                if part:
+                    picked.append(part)
             steer = join(picked, "steer_src")
         P = verts_np(steer)
-        lo, hi = P.min(0), P.max(0)
-        # the rim: points far from the middle of the bbox give the plane
-        c = (lo + hi) / 2
-        n = self._axis(P, c)
-        # hub = the centre of the rim ring (the widest ring of points around the axis)
-        d = P - c
-        rr = np.linalg.norm(d - np.outer(d @ n, n), axis=1)
-        ring = P[rr > rr.max() * 0.8]
-        c = ring.mean(0)
+        c = (P.min(0) + P.max(0)) / 2
+        # hub = the middle of the rim (the outermost ring of points around the column axis)
+        for _ in range(3):
+            n = self._axis(P, c)
+            d = P - c
+            rr = np.linalg.norm(d - np.outer(d @ n, n), axis=1)
+            ring = P[rr > rr.max() * 0.85]
+            c = (ring.min(0) + ring.max(0)) / 2
         self.steer_src = steer
         self.steer_hub = Vector(c)
         self.steer_axis = Vector(n)
@@ -1107,7 +1156,7 @@ class Car:
             U = np.concatenate(rec["uvs"])
             lo = np.percentile(U, 0.1, axis=0)
             hi = np.percentile(U, 99.9, axis=0)
-            if (hi - lo).max() > 1.05:
+            if (hi - lo).max() > 1.12:
                 print("   [%s] %s: tiling UVs %s..%s -> sampled vertex colours" % (self.key, n, lo.round(2), hi.round(2)))
                 rec["cls"] = dict(cls, c="flat", col=None)
                 continue

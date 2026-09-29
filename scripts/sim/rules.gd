@@ -90,7 +90,7 @@ const CARS := {
 		"paint": Color(0.7, 0.72, 0.75), "desc": "Pre-owned. 180K miles, one hubcap, check-engine light. It gets you there."},
 	"bz_540i": {"name": "BEMZE 540i", "price": 65_000.0, "model": "Bemze_540i", "top": 58.0, "zero60": 4.6, "grip": 0.85, "mass": 1.8,
 		"paint": Color(0.1, 0.12, 0.16), "desc": "The executive car. Quiet, fast, looks like money."},
-	"bz_m2": {"name": "BEMZE M2", "price": 78_000.0, "model": "Bemze_M2", "top": 63.0, "zero60": 4.0, "grip": 1.05, "mass": 1.7,
+	"bz_m2": {"name": "BEMZE M2", "price": 78_000.0, "model": "RC_M2", "top": 63.0, "zero60": 4.0, "grip": 1.05, "mass": 1.7,
 		"paint": Color(0.1, 0.35, 0.75), "desc": "Short, wide, angry. The best cut-up car per dollar."},
 	"bz_m3": {"name": "BEMZE M3 Competition", "price": 95_000.0, "model": "Bemze_M3", "top": 69.0, "zero60": 3.5, "grip": 1.0, "mass": 1.75,
 		"paint": Color(0.2, 0.5, 0.2), "desc": "Four doors, 503 hp, zero chill."},
