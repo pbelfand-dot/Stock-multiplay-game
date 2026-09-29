@@ -166,7 +166,8 @@ func _watch_client_car() -> void:
 
 
 func _client() -> void:
-	if not await _wait_for(func(): return not m.m_assets.is_empty() and m.phase == "trading", 30.0, "trading phase on client"):
+	# (60 s: joining builds the whole 2.5 km world; on a loaded CI box that's slow)
+	if not await _wait_for(func(): return not m.m_assets.is_empty() and m.phase == "trading", 60.0, "trading phase on client"):
 		return
 	_say("market mirrored: %d assets, BTC=%f, candles=%d" % [m.m_assets.size(), m.price_of("BTC"), m.m_assets[0].candles.size()])
 	if not await _wait_for(func(): return m.contracts.get(Net.my_id(), []).size() >= 3, 5.0, "Tony's contracts on the client"):
