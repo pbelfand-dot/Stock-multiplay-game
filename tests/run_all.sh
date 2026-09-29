@@ -28,7 +28,7 @@ echo "== day events, contracts, upgrades, milestones"
 echo "== commute: wake up at home, drive the highway in, overslept + late"
 "$G" --headless --path . -- --commutecheck --host --autostart --commute=165 --name=Trader --port=$((P+6)) 2>&1 | grep -E "\[commute\] (COMMUTE|the AI)" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
 echo "== cabs: the taxi drives you there (hood -> BEMZE -> downtown -> home, get out early, skip)"
-"$G" --headless --path . -- --cabcheck --host --autostart --commute=0 --port=$((P+7)) 2>&1 | grep -E "\[cab\]" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
+"$G" --headless --path . -- --cabcheck --host --autostart --commute=0 --day_seconds=1800 --port=$((P+7)) 2>&1 | grep -E "\[cab\]" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
 echo "== neighborhood: build, buy a house, taxis, traffic (IDM/MOBIL), dealership lot"
 "$G" --headless --path . -- --host --autostart --hoodcheck --port=$((P+5)) 2>&1 | grep -E "\[hood\]" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
 for mode in coop pvp; do

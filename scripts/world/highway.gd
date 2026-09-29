@@ -23,7 +23,7 @@ extends RefCounted
 ## So the commute home -> office is: hood_on, westbound, dt_off, the connector
 ## (see route("home_to_office")). A third, simpler exit (dealer_off, a taper
 ## off the eastbound shoulder at station ~1980) leads to an empty lot for a
-## future car dealership (dealership_lot), linked to Levee Rd by dealer_road.
+## car dealership (dealership_lot), linked to Magnolia St (its east end, past Levee Rd) by dealer_road.
 ## Traffic never takes it.
 
 const STEP := 3.0             # centerline sample spacing; lane dashes are 1 sample on, 3 off
@@ -296,10 +296,10 @@ func _dealership() -> void:
 	dealership_lot.y = 0.0
 	dealership_rect = Rect2(dealership_lot.x - 30.0, dealership_lot.z - 20.0, 60.0, 40.0)
 	var xe := roundabout_hood.x + 140.0            # Levee Rd (see NeighborhoodBuilder._neighborhood)
-	var zn := roundabout_hood.z - 4.0              # its north end at Magnolia St
+	var zm := roundabout_hood.z                    # Magnolia St: it runs on east past Levee as the BEMZE road
 	var corner := Vector3(dealership_rect.position.x + 6.0, 0, dealership_rect.end.y)
-	var road := _make_path("dealer_road", [corner, corner + Vector3(-6, 0, 10), Vector3(xe + 6.0, 0, zn - 22.0),
-			Vector3(xe, 0, zn - 10.0), Vector3(xe, 0, zn)], V_LOCAL)
+	var road := _make_path("dealer_road", [corner, corner + Vector3(0, 0, 15), Vector3(corner.x - 15.0, 0, zm - 25.0),
+			Vector3(corner.x - 55.0, 0, zm), Vector3(xe + 4.0, 0, zm)], V_LOCAL)
 	road.next = ""
 
 
