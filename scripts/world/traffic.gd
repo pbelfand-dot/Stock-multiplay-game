@@ -268,6 +268,9 @@ func set_remote(on: bool) -> void:
 
 ## The host's traffic, packed (see NETWORK in the header): the cars on the road
 ## within `radius` of any of `centers` (all of them if none given).
+const SNAP_MAX := 100               # cars per snapshot: 4 + 100 * 12 bytes stays under the ENet MTU (1392)
+
+
 func snapshot(centers: Array = [], radius := RELEVANT) -> PackedByteArray:
 	var models := model_table()
 	var paths := _paths()
@@ -285,6 +288,12 @@ func snapshot(centers: Array = [], radius := RELEVANT) -> PackedByteArray:
 			if not near:
 				continue
 		pick.append(c)
+	if pick.size() > SNAP_MAX and not centers.is_empty():
+		# keep it one unfragmented packet: the nearest cars win (an oversized unreliable
+		# packet is lost whole on any dropped fragment, and a steady stream of them starves the link)
+		var q0: Vector3 = centers[0]
+		pick.sort_custom(func(a, b): return _cpos(a).distance_squared_to(q0) < _cpos(b).distance_squared_to(q0))
+		pick.resize(SNAP_MAX)
 	var b := PackedByteArray()
 	b.resize(4 + pick.size() * 12)
 	b.encode_float(0, sim_time)

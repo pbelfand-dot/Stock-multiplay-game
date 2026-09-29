@@ -321,7 +321,9 @@ func _sync_traffic() -> void:
 				return
 			for peer in multiplayer.get_peers():
 				var pn = player_node(peer)
-				_traffic_snap.rpc_id(peer, tr.snapshot([pn.global_position] if pn != null else [])))
+				if pn == null:
+					continue      # still loading in: no traffic yet (the whole pool won't fit a packet)
+				_traffic_snap.rpc_id(peer, tr.snapshot([pn.global_position])))
 	else:
 		tr.set_remote(true)
 
