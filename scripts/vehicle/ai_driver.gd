@@ -24,6 +24,7 @@ var _detour_side := 1.0          # -1 left, +1 right
 
 func _ready() -> void:
 	car = get_parent()
+	car.ai = true
 	_ray_c = _ray(Vector3(0, 0, -1))
 	_ray_l = _ray(Vector3(-0.45, 0, -1).normalized())
 	_ray_r = _ray(Vector3(0.45, 0, -1).normalized())

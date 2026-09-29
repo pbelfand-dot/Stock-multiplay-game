@@ -85,6 +85,16 @@ var _in_car := false
 var riding = null               # a cab we're a passenger in (World.cab / CabRide drives it)
 var _in_cab := false            # (remote) they're riding in a cab
 var _cash_t := 0.0
+var hands_off := false          # tests / screenshots: an AiDriver drives our car, we just sit in it
+# smooth motion (physics runs at 60 Hz, the screen often faster). Remote
+# puppets and anyone in a car are physics-interpolated. Our own body on foot
+# isn't (mouse look has to turn it this frame, not a tick later): it and the
+# camera are drawn between the last two ticks by hand (see _process).
+var _tick_prev := Vector3.ZERO
+var _tick_cur := Vector3.ZERO
+var _head_pos := Vector3(0, 1.62, 0)   # where the head/camera sits in the body (before that offset)
+var _target_vel := Vector3.ZERO        # remote: how they're moving (between their 20 Hz updates)
+var _target_t := 0.0
 
 
 func setup(id: int, pname: String, player_look: Dictionary, local: bool, w) -> void:
@@ -100,6 +110,7 @@ func setup(id: int, pname: String, player_look: Dictionary, local: bool, w) -> v
 func _ready() -> void:
 	collision_layer = 2
 	collision_mask = 1
+	process_physics_priority = 10      # after the cars move: seated in one, we sit where it is *now*
 	var cs := CollisionShape3D.new()
 	var cap := CapsuleShape3D.new()
 	cap.radius = 0.35
@@ -113,6 +124,7 @@ func _ready() -> void:
 	add_child(head)
 	if is_local:
 		cam = Camera3D.new()
+		cam.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
 		cam.fov = 80
 		cam.near = 0.05
 		cam.far = Graphics.cur.far
@@ -126,8 +138,11 @@ func _ready() -> void:
 		cam.cull_mask &= ~Character.FP_LAYER     # our own head isn't drawn for us (still casts a shadow)
 		model.set_first_person(true)
 		name_tag.visible = false
+		physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
 	_build_fx()
 	_target_pos = global_position
+	_tick_prev = global_position
+	_tick_cur = global_position
 
 
 func _build_body() -> void:
@@ -271,12 +286,15 @@ func _unhandled_input(event: InputEvent) -> void:
 
 func _physics_process(delta: float) -> void:
 	if is_local:
+		var start := global_position        # (a teleport since the last tick starts here: no smear)
 		if driving != null:
 			_drive_tick(delta)
 		elif riding != null:
 			_seat_in_cab(riding)
 		else:
 			_local_move(delta)
+		_tick_prev = start
+		_tick_cur = global_position
 		_send_acc += delta
 		if _send_acc >= SEND_RATE:
 			_send_acc = 0.0
@@ -292,11 +310,31 @@ func _physics_process(delta: float) -> void:
 		elif their_car != null and is_instance_valid(their_car):
 			_seat_at(their_car)
 		elif _has_target:
-			global_position = global_position.lerp(_target_pos, clampf(delta * 12.0, 0, 1))
-			if global_position.distance_to(_target_pos) > 6.0:
-				global_position = _target_pos
-			rotation.y = lerp_angle(rotation.y, _target_yaw, clampf(delta * 12.0, 0, 1))
+			# dead reckoning: keep walking the way they were going, ease toward the prediction
+			_target_t += delta
+			var want := _target_pos + _target_vel * minf(_target_t, 0.2)
+			var coast := global_position + _target_vel * delta if _target_t < 0.2 else global_position
+			global_position = coast.lerp(want, 1.0 - exp(-delta * 10.0))
+			if global_position.distance_to(want) > 6.0:
+				global_position = want
+				reset_physics_interpolation()
+			rotation.y = lerp_angle(rotation.y, _target_yaw, 1.0 - exp(-delta * 12.0))
 	_update_fx()
+
+
+## Our own body on foot: draw it (and the camera in its head) where it is
+## between the last two physics ticks, so walking is smooth at any frame rate.
+## Turning stays instant (the body isn't interpolated). In a car the body is
+## interpolated with the car instead.
+func _process(_delta: float) -> void:
+	if not is_local or model == null:
+		return
+	var off := Vector3.ZERO
+	if driving == null and riding == null and global_position.is_equal_approx(_tick_cur):
+		var f := Engine.get_physics_interpolation_fraction()
+		off = global_basis.inverse() * (_tick_prev.lerp(_tick_cur, f) - _tick_cur)
+	model.position = off
+	head.position = _head_pos + off
 
 
 func _local_move(delta: float) -> void:
@@ -378,10 +416,11 @@ func _local_move(delta: float) -> void:
 		pitch = clampf(pitch - back * 0.7, -1.45, 1.45)
 	# the camera rides the body's eyes (sitting, diving, dancing all move it),
 	# set back a little so looking down shows your chest, not the floor in front of it
-	var eye: Vector3 = to_local(model.j["eyes"].global_position) if model.j.has("eyes") else Vector3(0, 1.62, 0)
+	var eye: Vector3 = model.basis * (model.global_transform.affine_inverse() * model.j["eyes"].global_position) \
+			if model.j.has("eyes") else Vector3(0, 1.62, 0)     # (in the body's frame, whatever offset the model is drawn at)
 	var turn: float = model.body_yaw() if EMOTES[emote] == "dance" else 0.0   # the view turns with the dance
 	eye += Basis(Vector3.UP, turn) * Vector3(0, 0, 0.03)
-	head.position = head.position.lerp(eye, clampf(delta * 18.0, 0.0, 1.0))
+	_head_pos = _head_pos.lerp(eye, clampf(delta * 18.0, 0.0, 1.0))
 	head.rotation.y = lerp_angle(head.rotation.y, turn, clampf(delta * 10.0, 0.0, 1.0))
 	# dancing: tip the view down a bit so your own hands are in the shot
 	_dance_tilt = lerpf(_dance_tilt, -0.5 if EMOTES[emote] == "dance" else 0.0, clampf(delta * 5.0, 0.0, 1.0))
@@ -425,6 +464,7 @@ func _update_fx() -> void:
 	held_gun.visible = gun_on
 	_update_held_cash(m)
 	_update_gun(m, gun_on or jailed_now(m) or driving != null or _in_car)
+	_wheel_hands()
 	if smoke.emitting != cigar_on:
 		smoke.emitting = cigar_on
 	if bills.emitting != raining:
@@ -495,6 +535,7 @@ func enter_car(car) -> void:
 	model.set_first_person(false)
 	Sfx.play("click", -2.0, 0.6)
 	_seat_in_car()
+	_ride_smooth(true)
 
 
 ## Out the driver's door (only when it's nearly stopped, unless `force`:
@@ -513,6 +554,7 @@ func exit_car(force := false) -> void:
 	driving = null
 	collision_layer = 2
 	collision_mask = 1
+	_ride_smooth(false)
 	teleport(car.to_global(car.ref.door + Vector3(-0.7, 0.1, 0)))
 	rotation.y = car.global_rotation.y
 	if drive_cam:
@@ -529,7 +571,9 @@ func _drive_tick(delta: float) -> void:
 		driving = null
 		return
 	var blocked: bool = world.ui_blocking()
-	if blocked:
+	if hands_off:
+		pass                              # (an AiDriver has the wheel: tests / screenshots)
+	elif blocked:
 		car.in_throttle = 0.0
 		car.in_brake = 0.3
 		car.in_steer = 0.0
@@ -541,6 +585,17 @@ func _drive_tick(delta: float) -> void:
 		car.in_handbrake = Input.is_action_pressed("jump")
 	_seat_in_car()
 	world.send_car(car)
+
+
+## In a car our body is physics-interpolated along with it (both move on the
+## tick, so it stays glued to the seat as drawn); on foot it's drawn by hand.
+func _ride_smooth(on: bool) -> void:
+	if not is_local:
+		return
+	physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_ON if on else Node.PHYSICS_INTERPOLATION_MODE_OFF
+	model.position = Vector3.ZERO
+	head.position = _head_pos
+	reset_physics_interpolation()
 
 
 ## Our body rides in the driver's seat (everyone sees us in there).
@@ -580,6 +635,7 @@ func board_cab(cab) -> void:
 	drive_cam.follow(cab)
 	model.set_first_person(false)
 	_seat_in_cab(cab)
+	_ride_smooth(true)
 	Sfx.play("click", -2.0, 0.6)
 
 
@@ -590,6 +646,7 @@ func leave_cab(at: Vector3, yaw: float) -> void:
 	riding = null
 	collision_layer = 2
 	collision_mask = 1
+	_ride_smooth(false)
 	teleport(at)
 	rotation.y = yaw
 	if drive_cam:
@@ -601,6 +658,10 @@ func leave_cab(at: Vector3, yaw: float) -> void:
 
 
 # ---------------------------------------------------------------- guns (BIG IRON)
+
+## Driving: where the elbows point (body frame, right arm; the left mirrors it): down and out.
+const WHEEL_POLE := Vector3(0.5, 0.55, 0.15)
+
 
 ## Where the left wrist goes on each gun (gun-local: grip at the origin, barrel
 ## -z, gun's left = -x): under the handguard / pump for long guns, wrapped
@@ -663,6 +724,19 @@ func _update_gun(m, hide: bool) -> void:
 		model.left_hand_to(gun_node.global_transform * (sup as Vector3) if sup != null else null)
 	else:
 		model.left_hand_to(null)
+
+
+## Behind the wheel (ours, or a remote driver's): both hands on it at 9 and 3,
+## turning with it (IK; the car knows where its rim is, see Car.wheel_grips).
+func _wheel_hands() -> void:
+	var car = driving if driving != null else (world.cars.get(peer_id) if _in_car and world else null)
+	if car != null and is_instance_valid(car):
+		var g: Array = car.wheel_grips()
+		if g.size() == 2:
+			model.hand_to("L", g[0], WHEEL_POLE * Vector3(-1, 1, 1))
+			model.hand_to("R", g[1], WHEEL_POLE)
+			return
+	model.hand_to("R", null, WHEEL_POLE)       # (the left hand: the gun code lets go of it)
 
 
 func _near_me(r: float) -> bool:
@@ -871,10 +945,19 @@ func teleport(pos: Vector3) -> void:
 	global_position = pos
 	velocity = Vector3.ZERO
 	_target_pos = pos
+	_target_vel = Vector3.ZERO
+	_tick_prev = pos
+	_tick_cur = pos
+	if is_inside_tree():
+		reset_physics_interpolation()
 
 
 ## Called by World when this player's owner broadcasts its transform.
 func net_tf(pos: Vector3, yaw: float, p: float, flags: int) -> void:
+	if _has_target and _target_t > 0.001:
+		var v := (pos - _target_pos) / clampf(_target_t, 0.02, 1.0)
+		_target_vel = v if v.length() < 15.0 else Vector3.ZERO     # (a jump: an elevator, a taxi)
+	_target_t = 0.0
 	_target_pos = pos
 	_target_yaw = yaw
 	pitch = p

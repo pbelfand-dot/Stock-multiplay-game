@@ -1,13 +1,27 @@
 extends RefCounted
-## The highway between downtown and Magnolia Heights, described as DATA that
-## the builder (meshes + collision), the traffic sim and a future driving mode
-## all share. Nothing here makes nodes.
+## The highway: a ring road you can drive round forever, described as DATA
+## that the builder (meshes + collision), the traffic sim and the driving all
+## share. Nothing here makes nodes.
+##
+## THE LOOP (a stadium, ~7.5 km; north = -z):
+##   the DOWNTOWN LEG  x 80 -> 2560 at z ~365-416 (stations 0 .. ~2480): the
+##       downtown interchange (SB_DOWNTOWN), Magnolia Heights (SB_HOOD), the
+##       BEMZE exit (DEALER_S). Stations here are exactly what they were when
+##       this was a straight road between two tunnels.
+##   the EAST CURVE  a half circle (LOOP_R) south round to
+##   the RETURN LEG  2R south (z ~1185), back west with a couple of gentle bends
+##       (the three future dealerships go off it: FUTURE_DEALERS)
+##   the WEST CURVE  a half circle north again, through the Bagholder-Battery
+##       Tunnel (it wraps round station 0), out of the portal by downtown.
+## Stations wrap: pos(s) == pos(s + length); every s the API hands out is in
+## [0, length). The open road (outside the tunnel) is s_portal_w .. s_portal_e.
 ##
 ## MAINLINE: a smooth centerline (world x/z, y = 0) sampled every STEP metres.
-## Positions on it are (s, d): s = station (metres along the centerline, 0 at
-## the inside end of the west tunnel), d = lateral offset, + = right of the
-## eastbound direction (south). Eastbound (dir +1) drives +s on the d > 0 side,
-## westbound (dir -1) drives -s on the d < 0 side (right-hand traffic).
+## Positions on it are (s, d): s = station (metres along the centerline), d =
+## lateral offset, + = right of the "eastbound" direction (+s: east on the
+## downtown leg, west on the return leg; so + is always the loop's inside).
+## Eastbound (dir +1) drives +s on the d > 0 side, westbound (dir -1) drives -s
+## on the d < 0 side (right-hand traffic).
 ## Lanes are numbered from the median out: k = 0 fast lane, 1, 2 slow (right)
 ## lane, 3 = the auxiliary lane that exists only between an on-ramp and the
 ## next off-ramp (see `aux`). lane_d(dir, k) gives the lane's center offset.
@@ -25,6 +39,13 @@ extends RefCounted
 ## off the eastbound shoulder at station ~1980) leads to an empty lot for a
 ## car dealership (dealership_lot), linked to Magnolia St (its east end, past Levee Rd) by dealer_road.
 ## Traffic never takes it.
+##
+## FUTURE DEALERSHIPS (reserved, not built): FUTURE_DEALERS lists a station on
+## the return leg for each (Mercedez Banz, Porsha, Audy). Each is meant to be a
+## copy of the BEMZE one: _dealership() with DEALER_S -> its station (a taper
+## off the +d shoulder, i.e. the loop's inside, into a 60 x 40 m lot at
+## point(s + 70, 75)). future_lots[] has each lot's rect; the corridor city and
+## the trees already keep off them, so building one moves nothing else.
 
 const STEP := 3.0             # centerline sample spacing; lane dashes are 1 sample on, 3 off
 const PATH_STEP := 2.0
@@ -36,7 +57,16 @@ const OUT_SH := 3.0           # outer shoulder
 const AUX_SH := 2.5           # outer shoulder beside the aux lane
 const EDGE_IN := MEDIAN + IN_SH                 # 1.6: first lane line from the centerline
 const EDGE_OUT := EDGE_IN + LANE_W * LANES      # 12.7: outer edge of lane 2
-const TUNNEL := 60.0          # tunnel length at each end (cars spawn/recycle inside)
+const LOOP_R := 400.0         # the east / west curves: ~140 mph at 1 g
+const TUNNEL_OUT := 60.0      # the Bagholder-Battery Tunnel: from station length - TUNNEL_IN, round through 0,
+const TUNNEL_IN := 150.0      # out of the downtown portal at TUNNEL_OUT
+## The return leg's control points (x, z offset from its line 2R south), east -> west: a couple of lazy bends.
+const RETURN := [Vector2(2560, 0), Vector2(2420, 0), Vector2(2240, 6), Vector2(2040, 18), Vector2(1840, 24),
+		Vector2(1640, 16), Vector2(1440, 0), Vector2(1240, -14), Vector2(1040, -20), Vector2(840, -12),
+		Vector2(640, 2), Vector2(440, 8), Vector2(240, 0), Vector2(80, 0)]
+## Spots kept for the next dealerships, off the return leg's inside shoulder
+## (metres into the return leg; see the header). Built from these in _init.
+const FUTURE_DEALERS := [["Mercedez Banz", 300.0], ["Porsha", 1250.0], ["Audy", 2150.0]]
 
 ## Mainline control points (world x, z), west -> east. Catmull-Rom through these.
 const CTRL := [Vector2(80, 385), Vector2(140, 385), Vector2(300, 383), Vector2(450, 376), Vector2(600, 367),
@@ -58,8 +88,12 @@ const A_LAT := 3.2            # comfortable lateral acceleration on curves (m/s^
 var cl := PackedVector3Array()      # centerline samples (every STEP)
 var cl_t := PackedVector3Array()    # unit tangents
 var length := 0.0
-var s_portal_w := TUNNEL
+var s_portal_w := TUNNEL_OUT       # the open road: s_portal_w .. s_portal_e (the tunnel wraps round 0)
 var s_portal_e := 0.0
+var s_return := 0.0                 # where the return leg starts (end of the east curve)
+var future_lots: Array = []         # [{name, s, lot: Vector3, rect: Rect2}] (see FUTURE_DEALERS)
+var _grid := {}                     # Vector2i (GRID m cells) -> PackedInt32Array of centerline samples (locate)
+const GRID := 40.0
 var paths := {}                     # name -> RoadPath
 var aux := {}                       # dir -> {a, b, on, off}: aux lane k=3 exists for s in [a, b]
 var junction_dt := Vector3.ZERO     # where the downtown ramps meet the connector
@@ -120,12 +154,17 @@ class RoadPath:
 
 func _init() -> void:
 	_centerline()
-	s_portal_e = length - TUNNEL
+	s_portal_e = length - TUNNEL_IN
 	_interchange("dt", SB_DOWNTOWN, 1.0)
 	_interchange("hood", SB_HOOD, -1.0)
 	aux[1] = {"a": SB_DOWNTOWN + 165.0, "b": SB_HOOD - 150.0, "on": "dt_on", "off": "hood_off"}
 	aux[-1] = {"a": SB_DOWNTOWN + 150.0, "b": SB_HOOD - 165.0, "on": "hood_on", "off": "dt_off"}
 	_local_roads()
+	for fd in FUTURE_DEALERS:
+		var fs: float = s_return + float(fd[1])
+		var lot := point(fs + 70.0, 75.0)
+		lot.y = 0.0
+		future_lots.append({"name": fd[0], "s": fs, "lot": lot, "rect": Rect2(lot.x - 30.0, lot.z - 20.0, 60.0, 40.0)})
 
 
 # ------------------------------------------------------------------ mainline
@@ -165,29 +204,97 @@ static func smooth(pts: Array, step: float) -> PackedVector3Array:
 	return out
 
 
+## The loop's centerline. The downtown leg is the old straight road's spline,
+## sampled exactly as before (so its stations - the interchanges, the exits -
+## don't move); it ends at (2560, 385) heading due east and starts at (80, 385)
+## heading due east, so the east curve, the return leg and the west curve join
+## it tangent-smooth. That closing part is resampled evenly to a whole number
+## of STEPs (each ~3 m +- a millimetre).
 func _centerline() -> void:
 	var pts: Array = []
 	for c in CTRL:
 		pts.append(Vector3(c.x, 0, c.y))
-	cl = smooth(pts, STEP)
-	length = (cl.size() - 1) * STEP
-	cl_t.resize(cl.size())
-	for i in cl.size():
-		var a: Vector3 = cl[maxi(i - 1, 0)]
-		var b: Vector3 = cl[mini(i + 1, cl.size() - 1)]
-		cl_t[i] = (b - a).normalized()
+	var open := smooth(pts, STEP)
+	if open.size() > 2 and open[open.size() - 1].distance_to(open[open.size() - 2]) < STEP - 0.01:
+		open.remove_at(open.size() - 1)                 # (the short remainder: the closing part takes it)
+	var z0: float = CTRL[0].y
+	var zr := z0 + 2.0 * LOOP_R
+	var close: Array = [open[open.size() - 1], Vector3(CTRL[CTRL.size() - 1].x, 0, z0)]
+	var ce := Vector3(CTRL[CTRL.size() - 1].x, 0, z0 + LOOP_R)          # east curve: clockwise seen from above
+	var n_arc := int(PI * LOOP_R)
+	for k in range(1, n_arc + 1):
+		var a := -PI / 2.0 + PI * k / n_arc
+		close.append(ce + Vector3(cos(a), 0, sin(a)) * LOOP_R)
+	var ret: Array = []
+	for q in RETURN:
+		ret.append(Vector3(q.x, 0, zr + q.y))
+	var ret_d := smooth(ret, 1.0)
+	for k in range(1, ret_d.size()):
+		close.append(ret_d[k])
+	var cw := Vector3(CTRL[0].x, 0, z0 + LOOP_R)                          # west curve, back up to the start
+	for k in range(1, n_arc):
+		var a := PI / 2.0 + PI * k / n_arc
+		close.append(cw + Vector3(cos(a), 0, sin(a)) * LOOP_R)
+	close.append(open[0])
+	# resample the closing part to M equal steps (M * ~STEP), open[0] excluded (it's cl[0])
+	var lc := 0.0
+	for i in range(1, close.size()):
+		lc += (close[i] as Vector3).distance_to(close[i - 1])
+	var m := maxi(int(round(lc / STEP)), 2)
+	var step := lc / m
+	cl = open.duplicate()
+	var want := step
+	var acc := 0.0
+	for i in range(1, close.size()):
+		var a3: Vector3 = close[i - 1]
+		var b3: Vector3 = close[i]
+		var seg := a3.distance_to(b3)
+		while acc + seg >= want - 0.0001 and seg > 0.0 and cl.size() < open.size() + m - 1:
+			cl.append(a3.lerp(b3, clampf((want - acc) / seg, 0.0, 1.0)))
+			want += step
+		acc += seg
+	var n := cl.size()
+	length = n * STEP
+	s_return = (open.size() - 1) * STEP + (CTRL[CTRL.size() - 1].x - open[open.size() - 1].x + PI * LOOP_R) / step * STEP
+	cl_t.resize(n)
+	for i in n:
+		cl_t[i] = (cl[(i + 1) % n] - cl[(i - 1 + n) % n]).normalized()
+	for i in n:
+		var k := Vector2i(floori(cl[i].x / GRID), floori(cl[i].z / GRID))
+		var cell: PackedInt32Array = _grid.get(k, PackedInt32Array())
+		cell.append(i)
+		_grid[k] = cell                               # (packed arrays are values: store it back)
+
+
+## Station s folded into [0, length).
+func wrap_s(s: float) -> float:
+	return fposmod(s, length)
+
+
+## Signed station difference b - a the short way round (-length/2 .. length/2).
+func ds(a: float, b: float) -> float:
+	var d := fposmod(b - a, length)
+	return d - length if d > length * 0.5 else d
 
 
 func pos(s: float) -> Vector3:
-	var f := clampf(s, 0.0, length) / STEP
-	var i := mini(int(f), cl.size() - 2)
-	return cl[i].lerp(cl[i + 1], f - i)
+	var n := cl.size()
+	var f := fposmod(s, length) / STEP
+	var i := mini(int(f), n - 1)
+	return cl[i].lerp(cl[(i + 1) % n], f - i)
 
 
 func tangent(s: float) -> Vector3:
-	var f := clampf(s, 0.0, length) / STEP
-	var i := mini(int(f), cl.size() - 2)
-	return cl_t[i].lerp(cl_t[i + 1], f - i).normalized()
+	var n := cl.size()
+	var f := fposmod(s, length) / STEP
+	var i := mini(int(f), n - 1)
+	return cl_t[i].lerp(cl_t[(i + 1) % n], f - i).normalized()
+
+
+## Inside the Bagholder-Battery Tunnel (it wraps round station 0)?
+func in_tunnel(s: float) -> bool:
+	var w := wrap_s(s)
+	return w < s_portal_w or w > s_portal_e
 
 
 ## Unit vector to the right of eastbound travel (+d).
@@ -208,26 +315,47 @@ func has_aux(dir: int, s: float) -> bool:
 	return aux.has(dir) and s >= aux[dir].a and s <= aux[dir].b
 
 
-## Where on the mainline is this world point? Returns Vector2(s, d) (nearest sample).
+## Where on the mainline is this world point? Returns Vector2(s, d) (nearest
+## sample; s in [0, length)). A grid of the samples keeps it cheap: rings of
+## cells outward until nothing nearer can be left, then the whole loop.
 func locate(p: Vector3) -> Vector2:
-	var best := 0
+	var n := cl.size()
+	var best := -1
 	var bd := INF
-	var i := 0
-	while i < cl.size():
-		var dd := Vector2(cl[i].x - p.x, cl[i].z - p.z).length_squared()
-		if dd < bd:
-			bd = dd
-			best = i
-		i += 4
-	for k in range(maxi(best - 4, 0), mini(best + 5, cl.size())):
-		var dd := Vector2(cl[k].x - p.x, cl[k].z - p.z).length_squared()
-		if dd < bd:
-			bd = dd
-			best = k
-	var s := best * STEP
+	var c0 := Vector2i(floori(p.x / GRID), floori(p.z / GRID))
+	for ring in 13:
+		for i in range(-ring, ring + 1):
+			for j in range(-ring, ring + 1):
+				if maxi(absi(i), absi(j)) != ring:
+					continue
+				if not _grid.has(c0 + Vector2i(i, j)):
+					continue
+				var cell: PackedInt32Array = _grid[c0 + Vector2i(i, j)]
+				for k in cell:
+					var dd := Vector2(cl[k].x - p.x, cl[k].z - p.z).length_squared()
+					if dd < bd:
+						bd = dd
+						best = k
+		if best >= 0 and bd <= (ring * GRID) * (ring * GRID):
+			break
+	if best < 0:                          # far from the road: every 4th sample, then refine
+		best = 0
+		var i2 := 0
+		while i2 < n:
+			var dd := Vector2(cl[i2].x - p.x, cl[i2].z - p.z).length_squared()
+			if dd < bd:
+				bd = dd
+				best = i2
+			i2 += 4
+		for q in range(best - 4, best + 5):
+			var k := (q + n) % n
+			var dd := Vector2(cl[k].x - p.x, cl[k].z - p.z).length_squared()
+			if dd < bd:
+				bd = dd
+				best = k
 	var rel := p - cl[best]
-	s += rel.dot(cl_t[best])
-	return Vector2(clampf(s, 0.0, length), rel.dot(right(s)))
+	var s := wrap_s(best * STEP + rel.dot(cl_t[best]))
+	return Vector2(s, rel.dot(right(s)))
 
 
 # ------------------------------------------------------------------ ramps
@@ -479,4 +607,5 @@ func describe() -> Dictionary:
 	for n in paths:
 		ps[n] = {"length": paths[n].length, "next": paths[n].next}
 	return {"length": length, "step": STEP, "lanes": lanes, "aux": aux, "paths": ps,
-		"portals": [s_portal_w, s_portal_e], "lane_speed": LANE_SPEED, "dealership_lot": dealership_lot}
+		"portals": [s_portal_w, s_portal_e], "lane_speed": LANE_SPEED, "dealership_lot": dealership_lot,
+		"return_leg": s_return, "future_dealers": future_lots}

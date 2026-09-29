@@ -150,9 +150,7 @@ var _phase := 0.0
 var fp := false           # first-person body (Content Warning style): head hidden from our camera
 var aim_pitch := 0.0      # aiming a gun: the arms follow where you look (up +, down -)
 var pose_override := {}   # tuning: these pose keys win over the pose table
-var _ik_l: SkeletonModifier3D     # two-handed guns: IK puts the left hand on the gun
-var _ik_target: Node3D
-var _ik_pole: Node3D
+var _ik := {}                     # "L"/"R" -> {node, target, pole}: IK puts a hand on the gun / the steering wheel
 var anim_t := 0.0         # seconds into a clip pose (dance); restarts when the pose changes
 var _anim_pose := ""
 var anim_hold := -1.0     # tests: freeze a clip at this time
@@ -280,9 +278,7 @@ func build(l: Dictionary) -> void:
 	j.clear()
 	_bi.clear()
 	_jig.clear()
-	_ik_l = null
-	_ik_target = null
-	_ik_pole = null
+	_ik.clear()
 	_state.clear()
 	if _kit == null:
 		_kit = load(KIT_PATH)
@@ -449,34 +445,42 @@ func _bone_pos(bone: String) -> Vector3:
 ## out, so it holds the gun's handguard / wraps the grip instead of floating
 ## (or crossing the right arm). null lets the pose drive the arm again.
 func left_hand_to(at: Variant) -> void:
+	hand_to("L", at, Vector3(-0.55, 0.75, 0.15))
+
+
+## Either hand (side "L" / "R") to `at` (global, the wrist) by two-bone IK, the
+## elbow pointing toward `pole` (body frame, metres: e.g. down and out). null
+## hands the arm back to the pose. The driving hands use both.
+func hand_to(side: String, at: Variant, pole: Vector3) -> void:
 	if skel == null:
 		return
+	var ik: Dictionary = _ik.get(side, {})
 	if at == null:
-		if _ik_l:
-			_ik_l.active = false
+		if not ik.is_empty():
+			(ik.node as SkeletonModifier3D).active = false
 		return
-	if _ik_l == null:
-		_ik_target = Node3D.new()
-		_ik_target.name = "IKTargetL"
-		add_child(_ik_target)
-		_ik_pole = Node3D.new()
-		_ik_pole.name = "IKPoleL"
-		add_child(_ik_pole)
-		var ik := TwoBoneIK3D.new()
-		ik.name = "LeftHandIK"
-		skel.add_child(ik)
-		ik.setting_count = 1
-		ik.set_root_bone_name(0, "UpperArm_L")
-		ik.set_middle_bone_name(0, "Forearm_L")
-		ik.set_end_bone_name(0, "Hand_L")
-		ik.set_target_node(0, ik.get_path_to(_ik_target))
-		ik.set_pole_node(0, ik.get_path_to(_ik_pole))
-		_ik_l = ik
-	_ik_l.active = true
-	_ik_target.global_position = at
-	# the elbow points down and out to the left (in the body's own frame)
-	_ik_pole.position = Vector3(-0.55, 0.75, 0.15) / SCALE
-	_ik_pole.rotation = Vector3.ZERO
+	if ik.is_empty():
+		var target := Node3D.new()
+		target.name = "IKTarget" + side
+		add_child(target)
+		var pole_n := Node3D.new()
+		pole_n.name = "IKPole" + side
+		add_child(pole_n)
+		var mod := TwoBoneIK3D.new()
+		mod.name = ("Left" if side == "L" else "Right") + "HandIK"
+		skel.add_child(mod)
+		mod.setting_count = 1
+		mod.set_root_bone_name(0, "UpperArm_" + side)
+		mod.set_middle_bone_name(0, "Forearm_" + side)
+		mod.set_end_bone_name(0, "Hand_" + side)
+		mod.set_target_node(0, mod.get_path_to(target))
+		mod.set_pole_node(0, mod.get_path_to(pole_n))
+		ik = {"node": mod, "target": target, "pole": pole_n}
+		_ik[side] = ik
+	(ik.node as SkeletonModifier3D).active = true
+	(ik.target as Node3D).global_position = at
+	(ik.pole as Node3D).position = pole / SCALE
+	(ik.pole as Node3D).rotation = Vector3.ZERO
 
 
 func _aligned_attachment(bone: String, pos: Vector3, node_name: String) -> Node3D:

@@ -152,6 +152,7 @@ func _build_stage() -> void:
 	preview.rotation.y = PI
 	w.add_child(preview)
 	var cam := Camera3D.new()
+	cam.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
 	cam.position = Vector3(0, 1.2, 2.55)
 	cam.fov = 40
 	w.add_child(cam)

@@ -113,8 +113,10 @@ func _build_stage() -> void:
 	ring.material_override = rm
 	stage.add_child(ring)
 	turntable = Node3D.new()
+	turntable.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF   # spun in _process
 	stage.add_child(turntable)
 	var cam := Camera3D.new()
+	cam.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
 	cam.position = Vector3(4.6, 1.9, 5.2)
 	cam.fov = 38
 	stage.add_child(cam)

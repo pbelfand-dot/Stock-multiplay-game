@@ -80,6 +80,11 @@ func _check(ok: bool, msg: String) -> void:
 func _run() -> void:
 	var key: String = Config.cli.get("car", "bz_m3")
 	var d: Dictionary = Rules.CARS[key]
+	if Config.cli.has("handling"):
+		await _handling(key)
+		Engine.time_scale = 1.0
+		Sfx.quit_game(0)
+		return
 	await _spawn(key, Vector3(0, 0.1, 0))
 	# 0-60
 	_inputs(1, 0, 0)
@@ -152,6 +157,56 @@ func _run() -> void:
 	print("[drive] %s" % ("DRIVE PASS" if fails.is_empty() else "DRIVE FAIL: " + ", ".join(fails)))
 	Engine.time_scale = 1.0
 	Sfx.quit_game(0 if fails.is_empty() else 1)
+
+
+## How it feels, in numbers (--handling, not part of the suite): a quick tap
+## of the key at highway speed (how far it moves over, how hard it yaws), a
+## light held turn (proportional?), how fast full lock builds at 30 m/s.
+func _handling(key: String) -> void:
+	var d: Dictionary = Rules.CARS[key]
+	var v: float = minf(65.0, d.top * 0.95)
+	# a 0.15 s tap of full right at speed, then hands off for 1.5 s
+	await _spawn(key, Vector3(0, 0.1, 0))
+	car.speed = v
+	car.velocity = -car.global_basis.z * v
+	_inputs(0.4, 0, 1.0)
+	var peak_yaw := 0.0
+	var peak_g := 0.0
+	var yaw0: float = car.rotation.y
+	var t := 0.0
+	var last_yaw: float = car.rotation.y
+	while t < 1.65:
+		if t >= 0.15:
+			_inputs(0.4, 0, 0.0)
+		await get_tree().physics_frame
+		t += 1.0 / 60.0
+		peak_yaw = maxf(peak_yaw, absf(angle_difference(last_yaw, car.rotation.y)) * 60.0)
+		last_yaw = car.rotation.y
+		peak_g = maxf(peak_g, absf(car._lat_acc) / 9.8)
+	var side: float = car.global_position.x
+	print("[handling] %s tap at %.0f mph: peak yaw %.1f deg/s, peak %.2f g, heading %+.1f deg, %.2f m over after 1.5 s" % [key,
+			v * 2.237, rad_to_deg(peak_yaw), peak_g, rad_to_deg(angle_difference(yaw0, car.rotation.y)), side])
+	# a light held turn (30% right) at speed, and at 30 m/s: lateral g, steady?
+	for vv in [v, 30.0]:
+		for amt in [0.3, 1.0]:
+			await _spawn(key, Vector3(0, 0.1, 0))
+			car.speed = vv
+			car.velocity = -car.global_basis.z * vv
+			_inputs(0.5 if vv > 40.0 else 0.35, 0, amt)
+			var t90 := -1.0
+			t = 0.0
+			var gs: Array = []
+			while t < 2.0:
+				await get_tree().physics_frame
+				t += 1.0 / 60.0
+				gs.append(absf(car._lat_acc) / 9.8)
+			var g_end: float = gs[gs.size() - 1]
+			for i in gs.size():
+				if gs[i] >= g_end * 0.9:
+					t90 = i / 60.0
+					break
+			print("[handling] %s %d%% right at %.0f mph: %.2f g sideways (reached 90%% in %.2f s), slip %.1f m/s" % [key, int(amt * 100),
+					vv * 2.237, g_end, t90, car.slip])
 
 
 ## A patrol car chases a car doing big lazy S-bends at 30 m/s from 80 m back
