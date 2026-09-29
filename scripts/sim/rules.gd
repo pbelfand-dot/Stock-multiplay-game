@@ -98,7 +98,7 @@ const CARS := {
 		"paint": Color(0.85, 0.55, 0.1), "desc": "The coupe. Carbon roof. The grille is a personality."},
 	"bz_m5": {"name": "BEMZE M5", "price": 140_000.0, "model": "RC_M5", "top": 74.0, "zero60": 3.3, "grip": 0.92, "mass": 2.4,
 		"paint": Color(0.35, 0.36, 0.38), "desc": "717 hp hybrid super-sedan. Heavy. Doesn't care."},
-	"bz_m8": {"name": "BEMZE M8 Competition", "price": 165_000.0, "model": "Bemze_M8", "top": 76.0, "zero60": 3.0, "grip": 0.95, "mass": 1.9,
+	"bz_m8": {"name": "BEMZE M8 Competition", "price": 165_000.0, "model": "RC_M8", "top": 76.0, "zero60": 3.0, "grip": 0.95, "mass": 1.9,
 		"paint": Color(0.55, 0.05, 0.08), "desc": "The flagship GT. Fastest thing on the lot."},
 	# not for sale: highway patrol (an M8 outruns it, an M3 has to lose it in traffic)
 	"taxi": {"name": "Yellow Cab", "price": 0.0, "model": "TCar_Taxi", "top": 42.0, "zero60": 8.0, "grip": 0.8, "mass": 1.5,
