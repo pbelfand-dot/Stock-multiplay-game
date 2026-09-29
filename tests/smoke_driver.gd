@@ -242,11 +242,15 @@ func _client() -> void:
 	w.local_player.enter_car(car)
 	car.in_throttle = 1.0
 	Input.action_press("move_forward")
-	await get_tree().create_timer(2.0).timeout
+	await get_tree().create_timer(3.2).timeout
 	Input.action_release("move_forward")
-	Input.action_press("move_back")
-	await get_tree().create_timer(1.5).timeout
+	Input.action_press("move_back")                   # brake to a stop (not into reverse)
+	var tb := 0.0
+	while car.speed > 0.5 and tb < 5.0:
+		await get_tree().physics_frame
+		tb += get_physics_process_delta_time()
 	Input.action_release("move_back")
+	await get_tree().create_timer(0.3).timeout
 	var went: float = car.global_position.distance_to(p0)
 	w.local_player.exit_car()
 	if went < 4.0 or w.local_player.driving != null:
