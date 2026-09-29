@@ -340,6 +340,8 @@ func _check() -> void:
 		return
 	_say("colliders ok (%s on layer 1, hit by a ray); active_cars() lists %d" % [solid_car.node.name, act.size()])
 	# ---- the nice-car hook: another kit's car shows up about 1 in 12
+	var kept: Array = tr.nice_models.duplicate()      # the game's own nice cars (the BEMZE lineup) step aside for this
+	tr.nice_models.clear()
 	tr.add_nice_model("Car_Bemze")
 	var nice := 0
 	var other := 0
@@ -352,6 +354,7 @@ func _check() -> void:
 			else:
 				other += 1
 	tr.nice_models.clear()
+	tr.nice_models.append_array(kept)
 	var regular := 0
 	for i in 200:
 		tr._assign_model(probe)

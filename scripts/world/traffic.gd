@@ -72,6 +72,8 @@ const NICE_DEFAULT := ["TCar_Coupe_Red", "TCar_Coupe_Black", "TCar_Coupe_Yellow"
 ## any time; cars pick up new models when they next come out of a tunnel.
 var nice_models: Array = []
 var nice_layouts := {}          # optional: model -> {L, W, H, wheel, axles, track, r} (see cars_layout.json)
+								# (+ "flip": the kit car faces -z; + "paint": Color for its CarPaint surface)
+const FLIP := Transform3D(Basis(Vector3.UP, PI), Vector3.ZERO)
 
 
 class Car:
@@ -823,6 +825,11 @@ func _mm_for(prop: String) -> Array:
 			var mmi := MultiMeshInstance3D.new()
 			mmi.multimesh = mm
 			mmi.material_override = part[1]
+			var lay_p: Dictionary = nice_layouts.get(prop, {})
+			if lay_p.has("paint") and part[1] == PropKit.material("CarPaint"):
+				var pm := (part[1] as StandardMaterial3D).duplicate() as StandardMaterial3D
+				pm.albedo_color = lay_p.paint
+				mmi.material_override = pm
 			mmi.layers = 2              # lit by the sun like the rest of the outdoors
 			mmi.custom_aabb = AABB(Vector3(-100, -20, 100), Vector3(1400, 60, 700))
 			mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
@@ -974,8 +981,9 @@ func _draw(cp: Vector3) -> void:
 			continue
 		var i: int = counts.get(c.model, 0)
 		counts[c.model] = i + 1
+		var flip: bool = c.lay.get("flip", false)
 		for mmi in _mm_for(c.model):
-			mmi.multimesh.set_instance_transform(i, xf)
+			mmi.multimesh.set_instance_transform(i, xf * FLIP if flip else xf)
 		var w: String = c.lay.get("wheel", "")
 		if w != "":
 			var wi: int = counts.get(w, 0)
@@ -987,6 +995,8 @@ func _draw(cp: Vector3) -> void:
 			for az in c.lay.get("axles", [1.4, -1.4]):
 				for sx in [-1.0, 1.0]:
 					var wx := xf * Transform3D(Basis(Vector3.RIGHT, c.wheel), Vector3(sx * tr, r, az))
+					if flip and sx > 0.0:          # kit wheels: rim on +x; the car's +x side gets it turned round
+						wx = wx * FLIP
 					for mmi in wmm:
 						mmi.multimesh.set_instance_transform(wi + k, wx)
 					k += 1

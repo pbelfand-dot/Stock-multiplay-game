@@ -101,6 +101,7 @@ func _ready() -> void:
 	if builder.get("hood") != null and builder.hood.get("hw") != null:
 		dealership = DealershipScript.new(self)
 		dealership.build(builder.hood.hw.dealership_lot)
+		_nice_traffic()
 
 
 # ---------------------------------------------------------------- players
@@ -285,6 +286,23 @@ func _car_tf(key: String, paint: Color, pos: Vector3, rot: Quaternion, spd: floa
 	c.net_state(pos, rot, spd, st, brake)
 
 
+## Now and then a BEMZE in traffic (in its factory color).
+func _nice_traffic() -> void:
+	var tr = traffic()
+	if tr == null:
+		return
+	const CarRefs = preload("res://scripts/vehicle/car_refs.gd")
+	for key in ["bz_540i", "bz_m2", "bz_m3", "bz_m4", "bz_m5", "bz_m8"]:
+		var model: String = Rules.CARS[key].model
+		if not PropKit.has(model):
+			continue
+		var r: Dictionary = CarRefs.get_ref(model)
+		var fl: Vector3 = r.wheels.FL
+		tr.add_nice_model(model, {"L": r.box.z, "W": r.box.x, "H": r.box.y, "wheel": model + "_Wheel",
+				"axles": [absf(fl.z), -absf(fl.z)], "track": absf(fl.x), "r": r.wheel_r, "kind": "nice",
+				"flip": true, "paint": Rules.CARS[key].paint})
+
+
 ## Where a patrol car comes from to chase `target`: well behind it, on the
 ## ground (the highway hooks this up to a lane once it exists).
 func pursuit_spawn(target) -> Transform3D:
@@ -329,8 +347,7 @@ func _tick_cars(delta: float) -> void:
 
 func leave_street() -> void:
 	if local_player:
-		arrive()                                # back up to 12: out of the elevator
-		match_node.request_arrived()            # made it in (the commute clock)
+		arrive()                                # back up to 12: out of the elevator (counts as made it in)
 
 
 # ---- neighborhood (houses) ----
@@ -831,6 +848,8 @@ var _elev_open_t := 0.0          # doors stay open while > 0 (every peer runs it
 func arrive() -> void:
 	if local_player == null:
 		return
+	if match_node:
+		match_node.request_arrived()            # up on the trading floor = at work (the commute clock)
 	if Config.cli.has("clicktest") or Config.cli.has("shots") or Config.cli.has("savecheck") \
 			or str(Config.cli.get("smoke", "")) == "host":
 		return                                  # tests that need you standing still at a spawn point

@@ -128,6 +128,12 @@ Built in **Godot 4.7** — free, no accounts, no store.
 - The rest of the office: red carpet, CRT desks, city skyline, the MONEY TALKS whiteboard, the ticker
   strip and the opening bell.
 
+## The commute
+
+Every morning you wake up at home in Magnolia Heights (buy a house from a FOR SALE sign, or rent one until you do) with your car in the driveway, and you have 2:00 to get to BAGHOLDER CAPITAL downtown before the opening bell: out the neighborhood, up the on-ramp, down the highway, off at downtown, up the elevator. Some mornings the alarm doesn't go off and you have about a minute: cut up through traffic. Miss the bell and you're LATE until you're up the elevator.
+
+Hold 110+ mph and highway patrol may clock you: lose them (230 m away for 6 s) or get pulled over (jail + a ticket). Crashes cost you speed. Your mom's sedan is slow; the BEMZE dealership (its own highway exit) sells the 540i, M2, M3, M4, M5 and M8, in ten factory colors.
+
 ## Controls
 
 | Key | Action |
@@ -141,6 +147,7 @@ Built in **Godot 4.7** — free, no accounts, no store.
 | J | Flash the cash you're carrying |
 | N | Lay your cash out on the table / floor (N again picks it up) |
 | K | Photo mode (fly the camera, pose, filters, SNAP: saved to Pictures/BAGHOLDERS) |
+| E (at your car) | Get in / out. Driving: W gas · S brake/reverse · A/D steer · Space handbrake · C cockpit/chase cam |
 | 1–6 | Use items |
 | Tab | Scoreboard |
 | T | Chat |

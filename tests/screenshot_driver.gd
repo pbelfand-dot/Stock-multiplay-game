@@ -108,6 +108,39 @@ func _run() -> void:
 			await _snap("hand_rot_%d" % k)
 		Sfx.quit_game()
 		return
+	if Config.cli.has("niceonly"):             # a BEMZE out in traffic (it should drive nose first)
+		hud.root.visible = false
+		var tr = world.traffic()
+		tr.force_awake = true
+		var cam := Camera3D.new()
+		world.add_child(cam)
+		cam.current = true
+		cam.fov = 45
+		cam.global_position = world.builder.hood.hw.point(500.0, 0.0, 12.0)
+		var found := {}
+		var tt := 0.0
+		while found.is_empty() and tt < 60.0:
+			await get_tree().create_timer(0.5).timeout
+			tt += 0.5
+			for c in tr.active_cars():
+				if str(c.model).begins_with("Bemze_") and c.speed > 10.0:
+					found = c
+					break
+		if found.is_empty():
+			print("no BEMZE in traffic after 60 s")
+		else:
+			for k in 2:
+				var cc: Dictionary = {}
+				for c in tr.active_cars():
+					if c.id == found.id:
+						cc = c
+				var fwd: Vector3 = cc.forward
+				cam.global_position = cc.position + fwd * (9.0 if k == 0 else -9.0) + Vector3(3.0, 2.2, 0)
+				cam.look_at(cc.position + Vector3(0, 0.7, 0))
+				await _frames(2)
+				await _snap("nice_%d_%s" % [k, cc.model])
+		Sfx.quit_game()
+		return
 	if Config.cli.has("lotonly"):              # the BEMZE dealership off the highway
 		hud.root.visible = false
 		var lot: Vector3 = world.builder.hood.hw.dealership_lot
