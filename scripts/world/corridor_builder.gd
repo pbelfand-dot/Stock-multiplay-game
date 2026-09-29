@@ -625,7 +625,9 @@ func billboard(s: float, side: int, facing: int, bg: Color, lines: Array) -> voi
 	for k in 4:          # the lamps along the catwalk
 		var lp := c + r * lerpf(-W / 2 + 1.5, W / 2 - 1.5, k / 3.0) + n * 0.9 - Vector3(0, 0.2, 0)
 		m.bar(lp, lp + n * 0.4 + Vector3(0, 0.4, 0), 0.08, 0.08, steel)
-	m.instance(nb.g_far, nb.road_mat, "Billboard", 1200.0)
+	# (its own draw: in the far group's merge every billboard would land in one batch, the vertices
+	# being world space, and that batch's range is measured from the middle of the map)
+	m.instance(nb.g_far, nb.road_mat, "Billboard", 1200.0).set_meta("no_batch", true)
 	# the copy, top to bottom
 	var tot := 0.0
 	for ln in lines:
