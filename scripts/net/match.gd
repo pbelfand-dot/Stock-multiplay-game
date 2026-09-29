@@ -10,6 +10,7 @@ const News = preload("res://scripts/sim/news.gd")
 const Ledger = preload("res://scripts/sim/ledger.gd")
 const Rules = preload("res://scripts/sim/rules.gd")
 const SaveGame = preload("res://scripts/net/save_game.gd")
+const Brands = preload("res://scripts/sim/brands.gd")
 const DayEvents = preload("res://scripts/sim/day_events.gd")
 const Contracts = preload("res://scripts/sim/contracts.gd")
 
@@ -491,8 +492,9 @@ func paint_of(peer: int, key: String) -> Color:
 	return Rules.PAINTS[i][1] if i >= 0 and i < Rules.PAINTS.size() else Rules.CARS[key].paint
 
 
-## BEMZE dealership: buy a car in a factory color (it's yours for good, saved
-## with your career) / respray one you own / pick which one you drive.
+## The dealerships (BEMZE, and the brands round the loop: Brands): buy a car
+## in a factory color (it's yours for good, saved with your career) / respray
+## one you own / pick which one you drive.
 func request_buy_car(key: String, paint: int) -> void:
 	_req_car.rpc_id(1, "buy", key, paint)
 
@@ -524,7 +526,8 @@ func _req_car(what: String, key: String, paint: int) -> void:
 			owned[id][key] = 1
 			owned[id]["paint_" + key] = paint + 1
 			owned[id]["ride"] = Rules.CAR_ORDER.find(key) + 1
-			_s_toast.rpc("%s drove a %s %s off the BEMZE lot (%s)" % [Net.player_name(id), Rules.PAINTS[paint][0], d.name, Rules.money(d.price)])
+			_s_toast.rpc("%s drove a %s %s off the %s lot (%s)" % [Net.player_name(id), Rules.PAINTS[paint][0], d.name,
+					Brands.name_of(Brands.of(key)), Rules.money(d.price)])
 			_s_luxury.rpc(id, key)
 		"paint":
 			if not owns_car(id, key) or Rules.CARS[key].model.begins_with("TCar_"):   # the used car's paint is what it is

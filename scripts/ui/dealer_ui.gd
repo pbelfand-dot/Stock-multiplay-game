@@ -1,10 +1,13 @@
 extends PanelContainer
-## BEMZE dealership: every car on the lot with its numbers (top speed, 0-60,
-## handling), a factory color, BUY. Cars you own: DRIVE THIS (it's the one
-## waiting for you every morning) or respray it.
+## A dealership's showroom (set_brand: BEMZE, MERCEDEZ BANZ, PORSHA, AUDY):
+## every car that brand sells with its numbers (top speed, 0-60, handling), a
+## factory color, BUY. Cars you own: DRIVE THIS (it's the one waiting for you
+## every morning) or respray it. The used TOROLA is on the BEMZE lot. A brand
+## with no cars yet: an empty turntable, "new models arriving soon".
 
 const UI = preload("res://scripts/ui/ui_theme.gd")
 const Rules = preload("res://scripts/sim/rules.gd")
+const Brands = preload("res://scripts/sim/brands.gd")
 const CarScript = preload("res://scripts/vehicle/car.gd")
 
 signal closed
@@ -12,12 +15,17 @@ signal closed
 const BEMZE_BLUE := Color(0.12, 0.45, 0.85)
 
 var match_node
+var brand := "bemze"
+var col := BEMZE_BLUE            # the brand's colour: the frame, the bars, the turntable ring
 var list: VBoxContainer
 var paint := {}                  # car key -> chosen PAINTS index (for the next BUY / respray)
 var cash_lbl: Label
-var selected := "bz_m3"          # the car on the turntable
+var title_lbl: Label
+var tag_lbl: Label
+var selected := "bz_m3"          # the car on the turntable ("" = none: nothing on sale yet)
 var stage: SubViewport
 var turntable: Node3D
+var ring_mat: StandardMaterial3D
 var _shown := ""                 # key + paint currently on the turntable
 var view_lbl: Label
 
@@ -27,19 +35,42 @@ func setup(m) -> void:
 	m.state_changed.connect(_refresh)
 
 
+## Walk into this brand's showroom: its name, colours and cars (the turntable
+## starts on its `pick`, else its flagship).
+func set_brand(br: String) -> void:
+	if not Brands.BRANDS.has(br):
+		br = "bemze"
+	var cars := Brands.cars(br)
+	if br != brand or not cars.has(selected):
+		var pick: String = Brands.BRANDS[br].get("pick", "")
+		var shown := Brands.lineup(br)
+		selected = pick if cars.has(pick) else (shown[0] if not shown.is_empty() else (cars[0] if not cars.is_empty() else ""))
+	brand = br
+	col = Brands.BRANDS[br].ui
+	if title_lbl == null:
+		return
+	add_theme_stylebox_override("panel", UI.panel_box(Color(0.07, 0.08, 0.1), col, 16, 6))
+	title_lbl.text = Brands.name_of(br)
+	tag_lbl.text = "   " + str(Brands.BRANDS[br].tagline)
+	tag_lbl.add_theme_color_override("font_color", col)
+	ring_mat.albedo_color = col
+	_refresh()
+
+
 func _ready() -> void:
-	add_theme_stylebox_override("panel", UI.panel_box(Color(0.07, 0.08, 0.1), BEMZE_BLUE, 16, 6))
+	add_theme_stylebox_override("panel", UI.panel_box(Color(0.07, 0.08, 0.1), col, 16, 6))
 	UI.center(self, Vector2(1100, 860))
 	var v := VBoxContainer.new()
 	v.add_theme_constant_override("separation", 8)
 	add_child(v)
 	var head := HBoxContainer.new()
 	v.add_child(head)
-	var t := UI.lbl("BEMZE", 44, Color(1, 1, 1), true)
-	head.add_child(t)
-	var sub := UI.lbl("   THE ULTIMATE CUT-UP MACHINE", 20, BEMZE_BLUE, true)
-	sub.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	head.add_child(sub)
+	title_lbl = UI.lbl(Brands.name_of(brand), 44, Color(1, 1, 1), true)
+	head.add_child(title_lbl)
+	tag_lbl = UI.lbl("   " + str(Brands.BRANDS[brand].tagline), 20, col, true)
+	tag_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	tag_lbl.clip_text = true
+	head.add_child(tag_lbl)
 	cash_lbl = UI.lbl("", 22, UI.GOLD, true)
 	head.add_child(cash_lbl)
 	# the turntable: the selected car, spinning, in its chosen color
@@ -107,16 +138,14 @@ func _build_stage() -> void:
 	tm.inner_radius = 3.42
 	tm.outer_radius = 3.5
 	ring.mesh = tm
-	var rm := StandardMaterial3D.new()
-	rm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	rm.albedo_color = BEMZE_BLUE
-	ring.material_override = rm
+	ring_mat = StandardMaterial3D.new()
+	ring_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	ring_mat.albedo_color = col
+	ring.material_override = ring_mat
 	stage.add_child(ring)
 	turntable = Node3D.new()
-	turntable.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF   # spun in _process
 	stage.add_child(turntable)
 	var cam := Camera3D.new()
-	cam.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
 	cam.position = Vector3(4.6, 1.9, 5.2)
 	cam.fov = 38
 	stage.add_child(cam)
@@ -130,10 +159,17 @@ func _process(delta: float) -> void:
 
 
 func _show_car() -> void:
+	if selected == "" or not Rules.CARS.has(selected):
+		view_lbl.text = "The new %s lineup lands soon. The turntable's waiting." % Brands.name_of(brand)
+		if _shown != "":
+			_shown = ""
+			for c in turntable.get_children():
+				c.queue_free()
+		return
 	var me := Net.my_id()
 	var pi: int = paint.get(selected, -1)
-	var col: Color = Rules.PAINTS[pi][1] if pi >= 0 else match_node.paint_of(me, selected)
-	var sig := "%s|%s" % [selected, col.to_html()]
+	var pc: Color = Rules.PAINTS[pi][1] if pi >= 0 else match_node.paint_of(me, selected)
+	var sig := "%s|%s" % [selected, pc.to_html()]
 	var d: Dictionary = Rules.CARS[selected]
 	view_lbl.text = "%s   ·   %d MPH   ·   0-60 %.1f s   ·   %s" % [d.name, int(d.top * 2.237), d.zero60,
 			Rules.PAINTS[pi][0] if pi >= 0 else ("your color" if match_node.owns_car(me, selected) else "pick a color")]
@@ -144,7 +180,7 @@ func _show_car() -> void:
 		c.queue_free()
 	var car = CarScript.new()
 	car.preview = true
-	car.setup(selected, me, col)
+	car.setup(selected, me, pc)
 	turntable.add_child(car)
 
 
@@ -162,12 +198,25 @@ func _refresh() -> void:
 	var fastest := 0.0
 	for k in Rules.CARS:
 		fastest = maxf(fastest, Rules.CARS[k].top)
-	for key in Rules.SHOW_ORDER:
+	var cars := Brands.cars(brand)
+	if cars.is_empty():
+		var soon := PanelContainer.new()
+		soon.add_theme_stylebox_override("panel", UI.panel_box(Color(0.1, 0.12, 0.16), col.darkened(0.2), 8, 2))
+		list.add_child(soon)
+		var sv := VBoxContainer.new()
+		soon.add_child(sv)
+		var hl := UI.lbl("NEW MODELS ARRIVING SOON", 30, col.lightened(0.2), true)
+		hl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		sv.add_child(hl)
+		var sl := UI.lbl("The %s trucks are on the way. Come back with cash." % Brands.name_of(brand), 17, UI.DIM)
+		sl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		sv.add_child(sl)
+	for key in cars:
 		var d: Dictionary = Rules.CARS[key]
 		var own: bool = match_node.owns_car(me, key)
 		var row := PanelContainer.new()
 		row.add_theme_stylebox_override("panel", UI.panel_box(Color(0.1, 0.12, 0.16) if key != driving else Color(0.08, 0.16, 0.26),
-				BEMZE_BLUE if key == driving else Color(0.25, 0.28, 0.34), 8, 2))
+				col if key == driving else Color(0.25, 0.28, 0.34), 8, 2))
 		list.add_child(row)
 		var h := HBoxContainer.new()
 		h.add_theme_constant_override("separation", 14)
@@ -187,7 +236,7 @@ func _refresh() -> void:
 		tb.text = title
 		tb.alignment = HORIZONTAL_ALIGNMENT_LEFT
 		tb.add_theme_font_size_override("font_size", 24)
-		tb.add_theme_color_override("font_color", BEMZE_BLUE.lightened(0.4) if key == selected else UI.TEXT)
+		tb.add_theme_color_override("font_color", col.lightened(0.4) if key == selected else UI.TEXT)
 		var kk: String = key
 		tb.pressed.connect(func():
 			selected = kk
@@ -236,7 +285,7 @@ func _refresh() -> void:
 			btns.add_child(b)
 		else:
 			if key != driving:
-				var dr := UI.btn("DRIVE THIS", BEMZE_BLUE.darkened(0.3), 20)
+				var dr := UI.btn("DRIVE THIS", col.darkened(0.3), 20)
 				dr.custom_minimum_size.x = 220
 				dr.pressed.connect(func():
 					Sfx.play("click")
@@ -260,7 +309,7 @@ func _bar(label: String, k: float) -> Control:
 	bg.color = Color(0.2, 0.22, 0.26)
 	v.add_child(bg)
 	var fg := ColorRect.new()
-	fg.color = BEMZE_BLUE
+	fg.color = col
 	fg.size = Vector2(150 * clampf(k, 0.02, 1.0), 8)
 	bg.add_child(fg)
 	return v

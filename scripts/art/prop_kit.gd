@@ -245,6 +245,13 @@ static func mesh(prop: String) -> Mesh:
 	return parts[0][0] if not parts.is_empty() else null
 
 
+## A prop's surfaces as loaded: [[ArrayMesh, Material], ...] (to derive a variant from; don't edit them).
+static func parts(prop: String) -> Array:
+	if _parts.is_empty():
+		_load()
+	return _parts.get(prop, [])
+
+
 static func has(prop: String) -> bool:
 	if _parts.is_empty():
 		_load()
