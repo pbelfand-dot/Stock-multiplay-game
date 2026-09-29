@@ -27,8 +27,8 @@ const MODELS := {
 		"wheelbase": 2.857, "wheel_r": 0.3395,
 		"wheels": {"FL": Vector3(-0.8085, 0.3395, -1.4285), "FR": Vector3(0.8085, 0.3395, -1.4285), "RL": Vector3(-0.8025, 0.3395, 1.4285), "RR": Vector3(0.8025, 0.3395, 1.4285)},
 		"eye": Vector3(-0.37, 1.13, 0.28), "wheel_hub": Vector3(-0.37, 0.88, -0.38), "column_tilt": deg_to_rad(22),
-		"head": [Vector3(-0.6867, 0.6037, -1.9887), Vector3(0.6867, 0.6037, -1.9887)], "tail": [Vector3(-0.5571, 0.8779, 2.2131), Vector3(0.5571, 0.8779, 2.2131)],
-		"box": Vector3(1.903, 1.333, 4.794), "box_center": Vector3(0, 0.7665, 0.1085), "door": Vector3(-0.9236, 0.88, 0.19), "kit": true},
+		"head": [Vector3(-0.6867, 0.6037, -1.9887), Vector3(0.6867, 0.6037, -1.9887)], "tail": [Vector3(-0.5571, 0.8779, 2.2125), Vector3(0.5571, 0.8779, 2.2125)],
+		"box": Vector3(1.903, 1.333, 4.794), "box_center": Vector3(0, 0.7665, 0.1085), "door": Vector3(-0.9216, 0.88, 0.19), "kit": true},
 	"Bemze_M5": {
 		"wheelbase": 3.006, "wheel_r": 0.37,
 		"wheels": {"FL": Vector3(-0.842, 0.37, -1.503), "FR": Vector3(0.842, 0.37, -1.503), "RL": Vector3(-0.83, 0.37, 1.503), "RR": Vector3(0.83, 0.37, 1.503)},
