@@ -60,7 +60,7 @@ func _init(builder) -> void:
 ## Ramp samples and the infields (the land a ramp encloses with the highway).
 ## Call before anything asks ramp_near / in_infield.
 func prep() -> void:
-	for nm in ["dt_on", "dt_off", "hood_on", "hood_off", "dealer_off"]:
+	for nm in hw.ramp_names():
 		var p = hw.paths[nm]
 		for q in p.pts:
 			var k := Vector2i(floori(q.x / CELL), floori(q.z / CELL))
@@ -314,8 +314,9 @@ func build_city() -> void:
 	_hash_blockers()
 	keep_out.append(nb.hood_rect.grow(12.0))
 	keep_out.append(hw.dealership_rect.grow(10.0))
-	for fl in hw.future_lots:                          # the next dealerships go here (highway.gd FUTURE_DEALERS)
-		keep_out.append((fl.rect as Rect2).grow(25.0))
+	for dl in hw.loop_dealers():                       # the dealerships round the loop (highway.gd LOOP_DEALERS)
+		var lr: Rect2 = dl.rect                          # (+ open ground before them: you see the lot coming)
+		keep_out.append(Rect2(lr.position.x - 25.0, lr.position.y - 25.0, lr.size.x + 25.0 + 90.0, lr.size.y + 50.0))
 	keep_out.append(Rect2(-140, 120, 265, 230))       # the downtown tower field (StreetBuilder._skyline)
 	var chunks := {}                                   # Vector2i(side, bin) -> [facade RoadMesh, detail RoadMesh]
 	var mk := func(side: int, s: float) -> Array:

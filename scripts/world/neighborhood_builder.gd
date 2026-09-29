@@ -26,6 +26,7 @@ const Rules = preload("res://scripts/sim/rules.gd")
 const TrafficScript = preload("res://scripts/world/traffic.gd")
 const RealtorUI = preload("res://scripts/ui/realtor_ui.gd")
 const Corridor = preload("res://scripts/world/corridor_builder.gd")
+const Brands = preload("res://scripts/sim/brands.gd")
 
 const GROUND_Y := -0.25
 const SKY := 2                   # sun-lit render layer (the office builder's SKY_LAYER)
@@ -96,7 +97,8 @@ var road_mat: StandardMaterial3D
 var glow_mat: StandardMaterial3D
 var rng := RandomNumberGenerator.new()
 var build_ms := 0
-var dealership_marker: Marker3D      # the empty lot for the car dealership (world position = its center)
+var dealership_marker: Marker3D      # the BEMZE dealership's lot (world position = its center)
+var dealer_markers := {}             # brand -> its lot's Marker3D (all four)
 var _tree_blockers: Array = []
 var _tree_rects: Array = []
 var _lot_mesh
@@ -589,12 +591,15 @@ func _portal(m, sp: float, sg: float, H: float, W: float, PW: float, PH: float, 
 ## span with a median pier); tapers into the aux lane cross-section at the end
 ## that meets the highway.
 func _ramps() -> void:
-	for nm in ["dt_on", "dt_off", "hood_on", "hood_off", "dealer_off"]:
+	var lot_ramps: Array = ["dealer_off"]
+	for dl in hw.loop_dealers():
+		lot_ramps.append_array([dl.off, dl.on])
+	for nm in hw.ramp_names():
 		var p = hw.paths[nm]
 		var joins_end: bool = nm.ends_with("_on")      # which end meets the mainline
 		var m := RoadMesh.new()
 		var n: int = p.pts.size()
-		var run_in: bool = nm == "dealer_off"              # its pavement runs on into the lot
+		var run_in: bool = nm in lot_ramps                 # its pavement runs on into the lot (the other end)
 		var span_pier_done := false
 		var tag_run := [0.0, 0.0]
 		for i in n - 1:
@@ -672,11 +677,11 @@ func _ramps() -> void:
 				var tt := ta
 				m.quad(ee[0], ee[1], Vector3(ee[1].x, GROUND_Y, ee[1].z), Vector3(ee[0].x, GROUND_Y, ee[0].z), CONCRETE,
 						tt * (1.0 if absf(loc_a.y) >= edge else -1.0), true)
-		if run_in:
-			var e: Vector3 = p.pts[n - 1]
-			var t: Vector3 = p.tan[n - 1]
+		if run_in:                     # (an exit's far end, or a way back on's start)
+			var e: Vector3 = p.pts[0 if joins_end else n - 1]
+			var t: Vector3 = p.tan[0 if joins_end else n - 1]
 			var r := Vector3(t.x, 0, t.z).normalized().cross(Vector3.UP).normalized()
-			var e2 := e + Vector3(t.x, 0, t.z).normalized() * 5.0
+			var e2 := e + Vector3(t.x, 0, t.z).normalized() * (-5.0 if joins_end else 5.0)
 			m.quad(e + r * -2.8, e + r * 3.8, e2 + r * 3.8, e2 + r * -2.8, ASPHALT, Vector3.UP, true)
 		m.instance(g_road, road_mat, "Ramp_" + nm, 1500.0)
 		for k in range(0, n, 3):
@@ -725,7 +730,8 @@ func _local_roads() -> void:
 		_roundabout(c)
 	_junction_pad("dt")
 	_junction_pad("hood")
-	_dealership_lot()
+	for dl in hw.dealers.values():
+		_dealership_lot(dl)
 
 
 ## Where an interchange's two ramps meet the local road: one slab of asphalt
@@ -760,33 +766,41 @@ func _junction_pad(tag: String) -> void:
 	m.instance(g_road, road_mat, "JunctionPad_" + tag, 1500.0)
 
 
-## The empty lot a car dealership will go on (the owner builds it): flat
-## asphalt with a curb, a Marker3D "DealershipLot" at its center.
-func _dealership_lot() -> void:
-	var r: Rect2 = hw.dealership_rect
+## A dealership's lot (Dealership builds on it): flat asphalt with a curb, a
+## Marker3D at its center ("DealershipLot" for BEMZE's, "DealershipLot_<brand>").
+func _dealership_lot(dl: Dictionary) -> void:
+	var r: Rect2 = dl.rect
 	var m := RoadMesh.new()
 	var c := Vector3(r.get_center().x, 0.0, r.get_center().y)
 	m.box(c + Vector3(0, GROUND_Y / 2.0 - 0.1, 0), Vector3(r.size.x, -GROUND_Y + 0.2, r.size.y), ASPHALT, true)
+	# where the roads come in: the exit ramp, and the Levee Rd road (BEMZE) / the way back on
+	var ways: Array = [hw.paths[dl.off].at(hw.paths[dl.off].length)]
+	ways.append(hw.paths[dl.on].at(0.0) if dl.on != "" else Vector3(r.position.x + 6.0, 0, r.end.y))
+	ways.sort_custom(func(p, q): return p.x < q.x)
 	for e in [[Vector3(0, 0, -r.size.y / 2), Vector3(r.size.x, 0.15, 0.3)], [Vector3(0, 0, r.size.y / 2), Vector3(r.size.x, 0.15, 0.3)],
 			[Vector3(-r.size.x / 2, 0, 0), Vector3(0.3, 0.15, r.size.y)], [Vector3(r.size.x / 2, 0, 0), Vector3(0.3, 0.15, r.size.y)]]:
-		# curbs all round, with gaps where the exit ramp and the Levee Rd road come in
+		# curbs all round, with gaps where the roads come in
 		var at: Vector3 = c + e[0]
 		var sz: Vector3 = e[1]
 		if sz.x > 1.0:
-			var gap_x: float = hw.paths["dealer_off"].at(hw.paths["dealer_off"].length).x if e[0].z < 0 else r.position.x + 6.0
 			var x0 := r.position.x
-			var x1 := r.end.x
-			for seg in [[x0, gap_x - 6.0], [gap_x + 6.0, x1]]:
-				if seg[1] - seg[0] > 0.5:
-					m.box(Vector3((seg[0] + seg[1]) / 2.0, 0.075, at.z), Vector3(seg[1] - seg[0], 0.15, 0.3), CONCRETE, true)
+			for wy in ways:
+				if absf((wy as Vector3).z - at.z) < 4.0:
+					if wy.x - 6.0 - x0 > 0.5:
+						m.box(Vector3((x0 + wy.x - 6.0) / 2.0, 0.075, at.z), Vector3(wy.x - 6.0 - x0, 0.15, 0.3), CONCRETE, true)
+					x0 = wy.x + 6.0
+			if r.end.x - x0 > 0.5:
+				m.box(Vector3((x0 + r.end.x) / 2.0, 0.075, at.z), Vector3(r.end.x - x0, 0.15, 0.3), CONCRETE, true)
 		else:
 			m.box(at + Vector3(0, 0.075, 0), sz, CONCRETE, true)
 	m.instance(g_road, road_mat, "DealershipLot", 1500.0)
 	var mk := Marker3D.new()
-	mk.name = "DealershipLot"
+	mk.name = "DealershipLot" if dl.brand == "bemze" else "DealershipLot_" + dl.brand
 	mk.position = c
 	g_dyn.add_child(mk)
-	dealership_marker = mk
+	dealer_markers[dl.brand] = mk
+	if dl.brand == "bemze":
+		dealership_marker = mk
 	_tree_blockers.append([Vector2(c.x, c.z), 45.0])
 
 
@@ -839,21 +853,30 @@ func _highway_furniture() -> void:
 	# overhead guide signs: [eastbound signs], [westbound signs]
 	_gantry(GANTRIES[0], [{"over": 1.5, "w": 9.5, "shield": "278", "card": "EAST", "lines": ["Magnolia Hts", "EXIT 5  ·  1 MILE"]}],
 			[{"over": 1.5, "w": 10.5, "lines": ["Bagholder-Battery Tunnel", "TOLL $19.99 · NO CASH · NO REFUNDS"]}])
-	_gantry(GANTRIES[1], [{"over": 1.0, "w": 7.2, "shield": "278", "card": "EAST", "lines": ["Bemze Motors", "Points East"]},
+	_gantry(GANTRIES[1], [{"over": 1.0, "w": 7.2, "shield": "278", "card": "EAST", "lines": ["Bemze Motors", "Mercedez · Porsha · Audy"]},
 			{"over": 3.0, "w": 7.6, "exit": "EXIT 5", "only": true, "lines": ["Magnolia Hts", "Levee Rd"]}],
 			[{"over": 1.0, "w": 7.2, "shield": "278", "card": "WEST", "lines": ["Battery Tunnel", "Points West"]},
 			{"over": 3.0, "w": 7.6, "exit": "EXIT 2", "only": true, "lines": ["FDR Dr South", "Wall St / Downtown"]}])
 	_gantry(GANTRIES[2], [{"over": 2.0, "w": 9.0, "exit": "EXIT 6", "lines": ["Bemze Motors", "NEXT RIGHT"]}],
 			[{"over": 1.5, "w": 10.0, "shield": "278", "card": "WEST", "lines": ["LAST EXIT BEFORE TOLL", "Exit 2 · Wall St  1 MILE"]}])
 	_gantry_s = GANTRIES.duplicate()
-	# round the loop: the return leg (+s runs west here) and the way back east
+	# round the loop: the return leg (+s runs west here) and the way back east.
+	# The dealerships off it: an exit sign on the gantry before each (the first one's is g4's)
 	var g4: float = hw.s_return + 120.0
 	var g5: float = hw.s_return + 1700.0
-	_gantry(g4, [{"over": 1.5, "w": 10.0, "shield": "278", "card": "LOOP", "lines": ["Battery Tunnel", "Wall St / Downtown  4 MI"]}],
+	var dls: Array = hw.loop_dealers()
+	_gantry(g4, [{"over": 1.0, "w": 7.2, "shield": "278", "card": "LOOP", "lines": ["Battery Tunnel", "Wall St / Downtown  4 MI"]},
+			_exit_sign(dls[0], "NEXT RIGHT")],
 			[{"over": 1.5, "w": 9.5, "shield": "278", "card": "LOOP", "lines": ["Bemze Motors", "Magnolia Hts  3 MI"]}])
-	_gantry(g5, [{"over": 1.5, "w": 10.5, "lines": ["Bagholder-Battery Tunnel", "TOLL $19.99 · NO CASH · NO REFUNDS"]}],
+	_gantry(g5, [{"over": 1.0, "w": 8.2, "lines": ["Bagholder-Battery Tunnel", "TOLL $19.99 · NO CASH · NO REFUNDS"]},
+			_exit_sign(dls[2], "1/2 MILE")],
 			[{"over": 1.5, "w": 9.0, "shield": "278", "card": "LOOP", "lines": ["Points East", "Bemze Motors  2 MI"]}])
 	_gantry_s.append_array([g4, g5])
+	for k in [1, 2]:
+		var gs: float = float(dls[k].s) - 60.0
+		var ahead: Array = ["Audy", "EXIT 9  ·  1 MILE"] if k == 1 else ["Battery Tunnel", "Wall St / Downtown"]
+		_gantry(gs, [{"over": 1.0, "w": 7.2, "shield": "278", "card": "LOOP", "lines": ahead}, _exit_sign(dls[k], "NEXT RIGHT")], [])
+		_gantry_s.append(gs)
 	# concrete barriers along both edges; walls and fences on the right-of-way line
 	for dir in [1, -1]:
 		_edge_barrier(dir)
@@ -869,13 +892,30 @@ func _highway_furniture() -> void:
 			["EXIT 6 · NEXT RIGHT", 0.36, wt]])
 	_c.billboard(905.0, -1, -1, Color(0.98, 0.82, 0.1), [["HURT IN A MARGIN CALL?", 0.62, ink], ["1-800-BAG-HOLD", 0.8, Color(0.78, 0.08, 0.08)],
 			["NO FEE UNLESS WE LOSE TOO · HABLAMOS ESPAÑOL", 0.3, ink]])
-	# round the loop
-	_c.billboard(hw.s_return + 520.0, 1, 1, Color(0.1, 0.1, 0.12), [["MERCEDEZ BANZ", 0.9, wt], ["COMING SOON · THIS EXIT", 0.42, Color(0.75, 0.78, 0.82)]])
+	# round the loop: each dealership's billboard ~300 m before its exit
+	_c.billboard(float(dls[0].s) - 330.0, 1, 1, Color(0.05, 0.05, 0.06), [["MERCEDEZ BANZ", 0.9, Color(0.86, 0.88, 0.92)],
+			["THE BEST OR NOTHING. MOSTLY NOTHING.", 0.4, Color(0.62, 0.65, 0.7)], ["EXIT 7 · NEXT RIGHT", 0.36, wt]])
 	_c.billboard(hw.s_return + 980.0, -1, -1, Color(0.08, 0.62, 0.32), [["ROBINHOOD'S COUSIN", 0.72, wt], ["NOW WITH 1000X LEVERAGE", 0.52, Color(0.85, 1.0, 0.3)],
 			["WE ARE NOT A BANK", 0.38, wt]])
-	_c.billboard(hw.s_return + 1470.0, 1, 1, Color(0.85, 0.1, 0.12), [["PORSHA", 1.0, wt], ["COMING SOON · NEXT RIGHT", 0.42, wt]])
-	_c.billboard(hw.s_return + 2370.0, 1, 1, Color(0.75, 0.76, 0.78), [["AUDY", 1.0, ink], ["COMING SOON · FOUR RINGS, ZERO CHILL", 0.36, ink]])
+	_c.billboard(float(dls[1].s) - 330.0, 1, 1, Color(0.04, 0.04, 0.045), [["PORSHA", 1.0, Color(0.95, 0.78, 0.36)],
+			["THERE IS NO SUBSTITUTE. THERE IS FINANCING.", 0.36, wt], ["EXIT 8 · NEXT RIGHT", 0.36, Color(0.95, 0.78, 0.36)]])
+	_c.billboard(float(dls[2].s) - 330.0, 1, 1, Color(0.75, 0.76, 0.78), [["AUDY", 1.0, ink], ["FOUR RINGS, ZERO CHILL", 0.42, Color(0.75, 0.05, 0.08)],
+			["EXIT 9 · NEXT RIGHT", 0.36, ink]])
 	_c.billboard(2900.0, -1, -1, Color(0.5, 0.26, 0.9), [["KWIK LIVE", 1.1, wt], ["THE LOOP NEVER ENDS · NEITHER DOES THE STREAM", 0.34, Color(1.0, 0.88, 0.3)]])
+
+
+## A loop dealership's exit sign (over the shoulder its exit leaves from).
+func _exit_sign(dl: Dictionary, where: String) -> Dictionary:
+	var br: Dictionary = Brands.BRANDS[dl.brand]
+	return {"over": 3.0, "w": 7.6, "exit": "EXIT %d" % int(br.exit), "lines": [str(br.name).capitalize(), where]}
+
+
+## Is station s by a loop dealership's ramps (no tall wall there: you see the lot from the road)?
+func _by_dealer(s: float) -> bool:
+	for dl in hw.loop_dealers():
+		if s > float(dl.s) - 20.0 and s < float(dl.s) + 2.0 * Highway.OUT_AXIS + 20.0:
+			return true
+	return false
 
 
 ## Outer edge of the paved shoulder at station s (wider beside an aux lane).
@@ -1048,6 +1088,8 @@ func _row_line(dir: int) -> void:
 			for rr in WALLS[dir]:
 				if s >= rr[0] and s2 <= rr[1]:
 					wall = true
+			if dir > 0 and _by_dealer(s):
+				wall = false
 			if wall:
 				_wall_panel(m, fm, s, s2, d, dir, k)
 			else:
@@ -1786,8 +1828,8 @@ func _scatter_trees() -> void:
 	var placed := 0
 	var tries := 0
 	var keep: Array = [hw.dealership_rect.grow(8.0)]
-	for fl in hw.future_lots:
-		keep.append((fl.rect as Rect2).grow(20.0))                 # the next dealerships' lots stay clear
+	for dl in hw.loop_dealers():
+		keep.append((dl.rect as Rect2).grow(20.0))                 # the dealerships round the loop
 	while placed < 760 and tries < 14000:
 		tries += 1
 		var p := Vector3(rng.randf_range(-450.0, 3100.0), GROUND_Y, rng.randf_range(240.0, 1400.0))

@@ -39,7 +39,9 @@ const PursuitScript = preload("res://scripts/vehicle/pursuit.gd")
 const DealershipScript = preload("res://scripts/world/dealership.gd")
 const CabRideScript = preload("res://scripts/world/cab_ride.gd")
 const CharacterScript = preload("res://scripts/art/character.gd")
-var dealership
+var dealership                  # BEMZE's
+var dealerships := {}           # brand -> its Dealership (all four: BEMZE + the ones round the loop)
+var dealers_ms := 0             # how long building them took
 var pursuit
 var cars := {}                  # peer -> their car (ours is simulated here, theirs follow the network)
 var cabs := {}                  # peer -> the cab they're riding in (see CabRide; same streaming as cars)
@@ -104,8 +106,13 @@ func _ready() -> void:
 	hood.setup(self)
 	# ---- /neighborhood (houses) ----
 	if builder.get("hood") != null and builder.hood.get("hw") != null:
-		dealership = DealershipScript.new(self)
-		dealership.build(builder.hood.hw.dealership_lot)
+		var t0 := Time.get_ticks_msec()
+		for br in builder.hood.hw.dealers:
+			var dl = DealershipScript.new(self, br)
+			dl.build(builder.hood.hw.dealers[br].lot)
+			dealerships[br] = dl
+		dealership = dealerships.get("bemze")
+		dealers_ms = Time.get_ticks_msec() - t0
 		_nice_traffic()
 		_sync_traffic()
 		cab = CabRideScript.new()
@@ -516,8 +523,8 @@ func near_toilet(peer: int) -> bool:
 
 func _process(delta: float) -> void:
 	_tick_cars(delta)
-	if dealership:
-		dealership.tick(delta)
+	for br in dealerships:
+		dealerships[br].tick(delta)
 	if local_player and hud:
 		hud.set_prompt(local_player.look_target() if not ui_blocking() else {})
 	_tick_bubbles(delta)

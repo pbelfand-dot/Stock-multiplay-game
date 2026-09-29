@@ -1130,9 +1130,9 @@ func _loop(world, m, hud) -> void:
 		for q in hw.paths[pn].pts:
 			pl.append([snappedf(q.x, 0.1), snappedf(q.z, 0.1)])
 		js.paths[pn] = pl
-	for fl in hw.future_lots:
-		var r: Rect2 = fl.rect
-		js.future.append({"name": fl.name, "s": fl.s, "rect": [r.position.x, r.position.y, r.size.x, r.size.y]})
+	for dl in hw.loop_dealers():
+		var r: Rect2 = dl.rect
+		js.future.append({"name": dl.brand, "s": dl.s, "rect": [r.position.x, r.position.y, r.size.x, r.size.y]})
 	for sp in [hw.s_portal_w, hw.s_portal_e]:
 		var q: Vector3 = hw.point(sp, 0.0)
 		js.portals.append([q.x, q.z])

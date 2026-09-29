@@ -10,7 +10,7 @@ extends RefCounted
 ##       this was a straight road between two tunnels.
 ##   the EAST CURVE  a half circle (LOOP_R) south round to
 ##   the RETURN LEG  2R south (z ~1185), back west with a couple of gentle bends
-##       (the three future dealerships go off it: FUTURE_DEALERS)
+##       (three more dealerships go off it: LOOP_DEALERS)
 ##   the WEST CURVE  a half circle north again, through the Bagholder-Battery
 ##       Tunnel (it wraps round station 0), out of the portal by downtown.
 ## Stations wrap: pos(s) == pos(s + length); every s the API hands out is in
@@ -36,16 +36,21 @@ extends RefCounted
 ##   hood:      EB aux --hood_off--> hood_loop (hood road + roundabout) --hood_on--> WB aux
 ## So the commute home -> office is: hood_on, westbound, dt_off, the connector
 ## (see route("home_to_office")). A third, simpler exit (dealer_off, a taper
-## off the eastbound shoulder at station ~1980) leads to an empty lot for a
-## car dealership (dealership_lot), linked to Magnolia St (its east end, past Levee Rd) by dealer_road.
+## off the eastbound shoulder at station ~1980) leads to the BEMZE lot
+## (dealership_lot), linked to Magnolia St (its east end, past Levee Rd) by dealer_road.
 ## Traffic never takes it.
 ##
-## FUTURE DEALERSHIPS (reserved, not built): FUTURE_DEALERS lists a station on
-## the return leg for each (Mercedez Banz, Porsha, Audy). Each is meant to be a
-## copy of the BEMZE one: _dealership() with DEALER_S -> its station (a taper
-## off the +d shoulder, i.e. the loop's inside, into a 60 x 40 m lot at
-## point(s + 70, 75)). future_lots[] has each lot's rect; the corridor city and
-## the trees already keep off them, so building one moves nothing else.
+## THE LOOP DEALERSHIPS: LOOP_DEALERS puts Mercedez Banz, Porsha and Audy on
+## the return leg, each the BEMZE exit again at its own station s (a taper off
+## the +d shoulder, i.e. the loop's inside: <brand>_off, into a 60 x 40 m lot
+## at point(s + 70, 75)) plus a way back: <brand>_on, from the lot's front
+## edge 22 m on, merging onto the same shoulder (the exit mirrored). There's
+## no local road out there, so you leave the way you came: eastbound. Cabs get
+## there eastbound from downtown (route("office_to_<brand>")), go on to the
+## next one ("<brand>_to_<brand>"), or on round the loop to Magnolia Heights
+## ("<brand>_to_home"). dealers{} has all four lots: {brand, s, lot, rect,
+## off, on, stop}; `stop` is where a cab lets you out, by the showroom door.
+## The corridor city and the trees keep off the lots.
 
 const STEP := 3.0             # centerline sample spacing; lane dashes are 1 sample on, 3 off
 const PATH_STEP := 2.0
@@ -64,9 +69,14 @@ const TUNNEL_IN := 150.0      # out of the downtown portal at TUNNEL_OUT
 const RETURN := [Vector2(2560, 0), Vector2(2420, 0), Vector2(2240, 6), Vector2(2040, 18), Vector2(1840, 24),
 		Vector2(1640, 16), Vector2(1440, 0), Vector2(1240, -14), Vector2(1040, -20), Vector2(840, -12),
 		Vector2(640, 2), Vector2(440, 8), Vector2(240, 0), Vector2(80, 0)]
-## Spots kept for the next dealerships, off the return leg's inside shoulder
-## (metres into the return leg; see the header). Built from these in _init.
-const FUTURE_DEALERS := [["Mercedez Banz", 300.0], ["Porsha", 1250.0], ["Audy", 2150.0]]
+## The dealerships off the return leg's inside shoulder: [brand (Brands), metres
+## into the return leg] (see the header).
+const LOOP_DEALERS := [["mercedez", 300.0], ["porsha", 1250.0], ["audy", 2150.0]]
+## A loop dealership's exit: (station offset, d) from its exit station. The way
+## back on is this mirrored about OUT_AXIS (so it leaves the lot 22 m further on).
+const DEALER_RAMP := [Vector2(0, 14.55), Vector2(22, 15.8), Vector2(40, 19.5), Vector2(55, 26.0), Vector2(65, 34.0),
+		Vector2(69, 44.0), Vector2(70, 55.0)]
+const OUT_AXIS := 81.0
 
 ## Mainline control points (world x, z), west -> east. Catmull-Rom through these.
 const CTRL := [Vector2(80, 385), Vector2(140, 385), Vector2(300, 383), Vector2(450, 376), Vector2(600, 367),
@@ -91,7 +101,7 @@ var length := 0.0
 var s_portal_w := TUNNEL_OUT       # the open road: s_portal_w .. s_portal_e (the tunnel wraps round 0)
 var s_portal_e := 0.0
 var s_return := 0.0                 # where the return leg starts (end of the east curve)
-var future_lots: Array = []         # [{name, s, lot: Vector3, rect: Rect2}] (see FUTURE_DEALERS)
+var dealers := {}                   # brand -> {brand, s, lot: Vector3, rect: Rect2, off, on, stop} (see the header)
 var _grid := {}                     # Vector2i (GRID m cells) -> PackedInt32Array of centerline samples (locate)
 const GRID := 40.0
 var paths := {}                     # name -> RoadPath
@@ -160,11 +170,8 @@ func _init() -> void:
 	aux[1] = {"a": SB_DOWNTOWN + 165.0, "b": SB_HOOD - 150.0, "on": "dt_on", "off": "hood_off"}
 	aux[-1] = {"a": SB_DOWNTOWN + 150.0, "b": SB_HOOD - 165.0, "on": "hood_on", "off": "dt_off"}
 	_local_roads()
-	for fd in FUTURE_DEALERS:
-		var fs: float = s_return + float(fd[1])
-		var lot := point(fs + 70.0, 75.0)
-		lot.y = 0.0
-		future_lots.append({"name": fd[0], "s": fs, "lot": lot, "rect": Rect2(lot.x - 30.0, lot.z - 20.0, 60.0, 40.0)})
+	for fd in LOOP_DEALERS:
+		_loop_dealer(fd[0], s_return + float(fd[1]))
 
 
 # ------------------------------------------------------------------ mainline
@@ -429,6 +436,40 @@ func _dealership() -> void:
 	var road := _make_path("dealer_road", [corner, corner + Vector3(0, 0, 15), Vector3(corner.x - 15.0, 0, zm - 25.0),
 			Vector3(corner.x - 55.0, 0, zm), Vector3(xe + 4.0, 0, zm)], V_LOCAL)
 	road.next = ""
+	dealers["bemze"] = {"brand": "bemze", "s": DEALER_S, "lot": dealership_lot, "rect": dealership_rect, "off": "dealer_off",
+		"on": "", "stop": Vector3(corner.x + 2.0, 0, corner.z - 16.0)}
+
+
+## A dealership on the return leg (see the header): the exit, the lot, the way
+## back on. The lot is axis-aligned like BEMZE's; here the highway runs along
+## its south edge (+d is north on the return leg).
+func _loop_dealer(brand: String, fs: float) -> void:
+	var off_pts: Array = []
+	var on_pts: Array = []
+	for q in DEALER_RAMP:
+		off_pts.append(point(fs + q.x, q.y))
+		on_pts.push_front(point(fs + 2.0 * OUT_AXIS - q.x, q.y))
+	var off := _make_path(brand + "_off", off_pts, V_RAMP)
+	off.next = ""
+	var on := _make_path(brand + "_on", on_pts, V_RAMP)
+	on.next = ""                        # (no aux lane out here to join: traffic never takes these)
+	var lot := point(fs + 70.0, 75.0)
+	lot.y = 0.0
+	dealers[brand] = {"brand": brand, "s": fs, "lot": lot, "rect": Rect2(lot.x - 30.0, lot.z - 20.0, 60.0, 40.0),
+		"off": brand + "_off", "on": brand + "_on", "stop": lot + Vector3(2.0, 0, 7.0)}
+
+
+## The loop dealerships (not BEMZE), in station order.
+func loop_dealers() -> Array:
+	return dealers.values().filter(func(dl): return dl.on != "")
+
+
+## Every ramp that meets the mainline (the builders' keep-out tests, the barrier gaps).
+func ramp_names() -> Array:
+	var out: Array = ["dt_on", "dt_off", "hood_on", "hood_off", "dealer_off"]
+	for dl in loop_dealers():
+		out.append_array([dl.off, dl.on])
+	return out
 
 
 # ------------------------------------------------------------------ helpers for a driving mode
@@ -524,19 +565,100 @@ func route(which: String) -> Dictionary:
 			{"path": "dt_loop", "from": dc.y, "to": dl.length}, {"path": "dt_on"},
 			{"mainline": 1, "lane": 3, "from": aux[1].a, "to": aux[1].b}, {"path": "hood_off"},
 			{"path": "hood_loop", "from": 0.0, "to": hc.x}, {"roundabout": "hood", "exit": "east (Magnolia St)"}]
-		pts.append(Vector3(lobby.x, 0.0, 241.8))
-		_line(pts[0], Vector3(roundabout_dt.x - RB_R - 2.0, 0.0, 241.8), pts)
-		var e2: Vector3 = dl.at(dc.y) - roundabout_dt
-		_circle(roundabout_dt, PI + 0.2, TAU + atan2(-e2.z, e2.x), pts)
-		_path_points(dl, dc.y, dl.length, pts)
-		_path_points(paths["dt_on"], 0.0, paths["dt_on"].length, pts)
+		_from_office(lobby, pts)
 		_main_points(1, 3, aux[1].a, aux[1].b, pts)
-		_path_points(paths["hood_off"], 0.0, paths["hood_off"].length, pts)
-		_path_points(hl, 0.0, hc.x, pts)
-		var e3: Vector3 = hl.at(hc.x) - roundabout_hood
-		_circle(roundabout_hood, atan2(-e3.z, e3.x), atan2(-e3.z, e3.x) + PI * 0.5, pts)
-		_line(pts[pts.size() - 1], roundabout_hood + Vector3(RB_R + 20.0, 0, 1.8), pts)
+		_to_hood(pts)
+	elif which.begins_with("office_to_") and dealers.has(which.trim_prefix("office_to_")):
+		# the loop dealerships: out of downtown like the commute home, but stay on past Magnolia Heights
+		var to: Dictionary = dealers[which.trim_prefix("office_to_")]
+		seg = [{"street": "downtown", "from": lobby}, {"roundabout": "dt", "exit": "east"}, {"path": "dt_on"},
+			{"mainline": 1, "lane": 2, "from": aux[1].a, "to": to.s}, {"path": to.off}, {"lot": to.brand}]
+		_from_office(lobby, pts)
+		_main_points(1, 3, aux[1].a, aux[1].a + 100.0, pts)
+		_eb_points(aux[1].a + 100.0, aux[1].a + 250.0, lane_d(1, 3), lane_d(1, 2), pts)
+		_dealer_in(to, aux[1].a + 250.0, pts)
+	elif which.ends_with("_to_home") and dealers.has(which.trim_suffix("_to_home")) \
+			and dealers[which.trim_suffix("_to_home")].on != "":
+		# eastbound on round the loop, through the tunnel, off at Magnolia Heights
+		var from: Dictionary = dealers[which.trim_suffix("_to_home")]
+		var s_back := _dealer_out(from, pts)
+		var s_aux: float = s_back + fposmod(aux[1].b - 300.0 - s_back, length)
+		seg = [{"lot": from.brand}, {"path": from.on}, {"mainline": 1, "lane": 2, "from": s_back, "to": s_aux},
+			{"mainline": 1, "lane": 3, "from": s_aux + 150.0, "to": aux[1].b}, {"path": "hood_off"},
+			{"path": "hood_loop", "from": 0.0, "to": hc.x}, {"roundabout": "hood", "exit": "east (Magnolia St)"}]
+		_eb_points(s_back, s_aux, lane_d(1, 2), lane_d(1, 2), pts)
+		_eb_points(s_aux, s_aux + 150.0, lane_d(1, 2), lane_d(1, 3), pts)
+		_eb_points(s_aux + 150.0, s_aux + 300.0, lane_d(1, 3), lane_d(1, 3), pts)
+		_to_hood(pts)
+	elif which.contains("_to_"):
+		# one loop dealership on to the next one eastbound
+		var a: Dictionary = dealers.get(which.get_slice("_to_", 0), {})
+		var b: Dictionary = dealers.get(which.get_slice("_to_", 1), {})
+		if not a.is_empty() and not b.is_empty() and a.on != "" and b.on != "" and a != b:
+			var s_back := _dealer_out(a, pts)
+			seg = [{"lot": a.brand}, {"path": a.on}, {"mainline": 1, "lane": 2, "from": s_back, "to": b.s}, {"path": b.off},
+				{"lot": b.brand}]
+			_dealer_in(b, s_back, pts)
 	return {"segments": seg, "points": PackedVector3Array(pts)}
+
+
+## The lobby -> the downtown roundabout -> the connector -> dt_on (the start of "office_to_home").
+func _from_office(lobby: Vector3, pts: Array) -> void:
+	var dl: RoadPath = paths["dt_loop"]
+	var dc := loop_circle("dt")
+	pts.append(Vector3(lobby.x, 0.0, 241.8))
+	_line(pts[0], Vector3(roundabout_dt.x - RB_R - 2.0, 0.0, 241.8), pts)
+	var e2: Vector3 = dl.at(dc.y) - roundabout_dt
+	_circle(roundabout_dt, PI + 0.2, TAU + atan2(-e2.z, e2.x), pts)
+	_path_points(dl, dc.y, dl.length, pts)
+	_path_points(paths["dt_on"], 0.0, paths["dt_on"].length, pts)
+
+
+## hood_off -> the hood road -> round the Magnolia Heights roundabout onto Magnolia St (the end of "office_to_home").
+func _to_hood(pts: Array) -> void:
+	var hl: RoadPath = paths["hood_loop"]
+	var hc := loop_circle("hood")
+	_path_points(paths["hood_off"], 0.0, paths["hood_off"].length, pts)
+	_path_points(hl, 0.0, hc.x, pts)
+	var e3: Vector3 = hl.at(hc.x) - roundabout_hood
+	_circle(roundabout_hood, atan2(-e3.z, e3.x), atan2(-e3.z, e3.x) + PI * 0.5, pts)
+	_line(pts[pts.size() - 1], roundabout_hood + Vector3(RB_R + 20.0, 0, 1.8), pts)
+
+
+## Eastbound from s0 to s1 (s1 may run on past the seam: stations wrap),
+## easing from lateral offset d0 to d1 (a lane change, onto the shoulder).
+func _eb_points(s0: float, s1: float, d0: float, d1: float, out: Array, step := 5.0) -> void:
+	var n := maxi(int((s1 - s0) / step), 1)
+	for i in n + 1:
+		var f := float(i) / n
+		out.append(point(s0 + (s1 - s0) * f, lerpf(d0, d1, smoothstep(0.0, 1.0, f))))
+
+
+## From the right lane at s_from, eastbound (round the loop if need be) to a
+## loop dealership: onto the shoulder, up its exit, to the showroom door.
+func _dealer_in(dl: Dictionary, s_from: float, pts: Array) -> void:
+	var fs: float = s_from + fposmod(float(dl.s) - s_from, length)
+	var off: RoadPath = paths[dl.off]
+	_eb_points(s_from, fs - 70.0, lane_d(1, 2), lane_d(1, 2), pts)
+	_eb_points(fs - 70.0, fs, lane_d(1, 2), lane_d(1, 3), pts)
+	_path_points(off, 5.0, off.length, pts)
+	var stop: Vector3 = dl.stop
+	pts.append(off.at(off.length) + off.tangent(off.length) * 6.0)
+	pts.append(stop + Vector3(0, 0, 4.0))
+	pts.append(stop)
+
+
+## From in front of a loop dealership's showroom round the lot, down its way
+## back on, into the right lane. Returns the station it's in the lane at.
+func _dealer_out(dl: Dictionary, pts: Array) -> float:
+	var on: RoadPath = paths[dl.on]
+	var lot: Vector3 = dl.lot
+	var a: Vector3 = on.at(0.0)
+	pts.append_array([lot + Vector3(-2.0, 0, 3.0), lot + Vector3(-10.0, 0, 4.0), a - on.tangent(0.0) * 8.0])
+	_path_points(on, 0.0, on.length, pts)
+	var s_on: float = float(dl.s) + 2.0 * OUT_AXIS - DEALER_RAMP[0].x
+	_eb_points(s_on, s_on + 60.0, lane_d(1, 3), lane_d(1, 2), pts)
+	return s_on + 60.0
 
 
 ## out along the road's right lane, counter-clockwise around the circle, back.
@@ -608,4 +730,4 @@ func describe() -> Dictionary:
 		ps[n] = {"length": paths[n].length, "next": paths[n].next}
 	return {"length": length, "step": STEP, "lanes": lanes, "aux": aux, "paths": ps,
 		"portals": [s_portal_w, s_portal_e], "lane_speed": LANE_SPEED, "dealership_lot": dealership_lot,
-		"return_leg": s_return, "future_dealers": future_lots}
+		"return_leg": s_return, "dealers": dealers}
