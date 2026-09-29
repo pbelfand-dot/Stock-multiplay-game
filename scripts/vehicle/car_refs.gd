@@ -108,6 +108,14 @@ const MODELS := {
 		"box": Vector3(1.883, 1.31, 4.793), "box_center": Vector3(0.0, 0.8, 0.1053), "door": Vector3(-0.942, 0.86, 0.377),
 		"wheel_prop": "RC_M3_Wheel", "caliper_prop": "RC_M3_Caliper", "steer_prop": "RC_M3_Steer",
 		"kit": true, "tail_mat": true},
+	"RC_M3T": {
+		"wheelbase": 2.87, "wheel_r": 0.3627,
+		"wheels": {"FL": Vector3(-0.7886, 0.3627, -1.435), "FR": Vector3(0.7886, 0.3627, -1.435), "RL": Vector3(-0.7886, 0.3627, 1.435), "RR": Vector3(0.7886, 0.3627, 1.435)},
+		"eye": Vector3(-0.374, 1.1699, 0.271), "wheel_hub": Vector3(-0.374, 0.9099, -0.239), "column_tilt": -0.3722,
+		"head": [Vector3(-0.6341, 0.6203, -1.9813), Vector3(0.6379, 0.6203, -1.9813)], "tail": [Vector3(-0.554, 0.9179, 2.2211), Vector3(0.5578, 0.9179, 2.2211)],
+		"box": Vector3(1.897, 1.342, 4.792), "box_center": Vector3(0.002, 0.81, 0.1054), "door": Vector3(-0.949, 0.86, 0.371),
+		"wheel_prop": "RC_M3T_Wheel", "caliper_prop": "RC_M3T_Caliper", "steer_prop": "RC_M3T_Steer",
+		"kit": true, "tail_mat": true},
 }
 
 

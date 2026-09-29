@@ -315,7 +315,77 @@ CARS["M3"] = dict(
     edits={},
 )
 
-ORDER = ["M4", "M2", "M5", "M8", "M3"]
+# the M3 Touring (G81) is a Blender scene (a game mod: EU / US and G80 leftovers side by side). Keep the stock EU
+# G81; the G80's rear diffuser stays (the G81 parts have none). Missing textures (the .rar was cut short) fall
+# back to plain colours.
+M3T_DROP = (r"^m3g80law_(?!diffuser_a)|_US(\.\d+)?$|dash_b_unused_screen|logo_R_[bc]$|tailgate_top_[bc]$|taillightframe|"
+            r"law_(diff|driveshaft|halfshaft|transfercase|transmission|exhaust_[LR]|exh_muffler|fueltank|heatshield|"
+            r"lowerarm|upperarm|shock|spring|strut|subframe|swaybar|tierod|reinforcement|bumperbar|radsupport|"
+            r"undertray|hub_)")
+CARS["M3T"] = dict(
+    fbx="m3-g81/source/m3/m3 tourning.blend",
+    texdirs=["m3-g81/source/m3", "m3-g81/source/m3/int_new", "m3-g81/textures"],
+    parts=[
+        (M3T_DROP, "drop"),
+        (r"^3_Wheel|rim_04_R20", "wheel"),
+        (r"dash_steer_c|dash_paddles", "steer"),
+    ],
+    caliper_mat=r"^amdb11_caliper",
+    mats=[
+        (r"^m3g81law$", {"c": "paint"}),
+        (r"^m3g81law_(Glass|Glass_Clear|Glass_Saphir|Glass_Dark)$", {"c": "glass"}),
+        (r"^m3g81law_Glass_Red$", {"c": "glass", "tail": True}),
+        (r"^m3g81law_(Engine|Engine_Alpha|Heatshield)$", {"c": "drop"}),
+        (r"^m3g81law_(taillight|running_rear|chmsl)$", {"c": "flat", "col": (0.75, 0.04, 0.03), "r": 0.25, "m": 0.0, "emit": TAIL_EMIT, "tail": True}),
+        (r"^m3g81law_(running_front|running_us_front|headlight_low|headlight_high|platelight)$", {"c": "flat", "col": (1.0, 1.0, 0.97), "r": 0.2, "m": 0.0, "emit": (1.0, 1.0, 0.97)}),
+        (r"^m3g81law_signal_[LR]$", {"c": "flat", "col": (1.0, 0.55, 0.1), "r": 0.2, "m": 0.0, "emit": (0.5, 0.25, 0.04)}),
+        (r"^m3g81law_Lights_Common$", {"c": "flat", "col": (0.55, 0.56, 0.58), "r": 0.2, "m": 0.6}),
+        (r"^m3g81law_Badge_[ABC](\.\d+)?$", {"c": "tex", "tex": "m3g81law_Badge_B_diff.dds", "r": 0.3, "m": 0.5}),
+        (r"^m3g81law_Coloured_gloss$|Black_Gloss", {"c": "flat", "col": (0.02, 0.02, 0.022), "r": 0.2, "m": 0.1, "w": 0.6}),
+        (r"^m3g81law_(Coloured_matte(\.\d+)?|Base|02|detail|Exterior_Plastic1|Windshield_frit)$|rs6c8law_Base|Dots Stroke",
+         {"c": "flat", "col": (0.03, 0.03, 0.033), "r": 0.6, "m": 0.0, "w": 0.5}),
+        (r"Carbon", {"c": "flat", "col": (0.035, 0.035, 0.04), "r": 0.25, "m": 0.1, "w": 0.5}),
+        (r"^m3g81law_(Chrome_ext|Alu_ext(\.\d+)?)$|misc_chrome", {"c": "flat", "col": (0.6, 0.61, 0.63), "r": 0.25, "m": 0.7}),
+        (r"^mirror$", {"c": "flat", "col": (0.55, 0.58, 0.6), "r": 0.05, "m": 0.9}),
+        (r"^m3g81law_mechanical", {"c": "flat", "col": (0.2, 0.2, 0.21), "r": 0.5, "m": 0.4, "w": 0.3}),
+        (r"^m3g81law_Interior$", {"c": "tex", "tex": "m3g81law_Interior_diff.png", "r": 0.7, "m": 0.0, "w": 0.35}),
+        (r"^m3g81law_Interior_(Signs|Alpha)$", {"c": "tex", "tex": "m3g81law_Interior_diff.png", "r": 0.5, "m": 0.0, "w": 0.35}),
+        (r"^m3g81law_Interior_(20|20_alpha|Signs_20)$", {"c": "tex", "tex": "m3g81law_Interior_2020_diff.png", "r": 0.5, "m": 0.0, "w": 0.35}),
+        (r"^m3g81law_Interior_Zone1", {"c": "tex", "tex": "m3g81law_Interior_Zone1_diff.dds", "r": 0.7, "m": 0.0, "w": 0.35}),
+        (r"^m3g81law_Interior_Zone4$", {"c": "tex", "tex": "m3g81law_Interior_Zone4_diff.dds", "r": 0.7, "m": 0.0, "w": 0.35}),
+        (r"^m3g81law_Interior_Alcantara1$", {"c": "flat", "col": (0.06, 0.06, 0.065), "r": 0.9, "m": 0.0, "w": 0.35}),
+        (r"^m3g81law_Interior_(Alu|Alu_riffle)$", {"c": "flat", "col": (0.4, 0.4, 0.42), "r": 0.3, "m": 0.6, "w": 0.35}),
+        (r"^m3g81law_Interior_Ambilight$", {"c": "flat", "col": (0.9, 0.55, 0.25), "r": 0.3, "m": 0.0, "emit": (0.35, 0.2, 0.08), "w": 0.35}),
+        (r"^m3g81law_Interior_Ignition$", {"c": "flat", "col": (0.7, 0.05, 0.05), "r": 0.3, "m": 0.0}),
+        (r"^m3g81law_Interior_Logo$", {"c": "tex", "tex": "m3g81law_Interior_Logo_diff.dds", "r": 0.3, "m": 0.3}),
+        (r"^m3g81law_Seatbelt_Material$", {"c": "tex", "tex": "m3g81law_seatbelt_m_diff.dds", "r": 0.7, "m": 0.0}),
+        (r"^m3g81law_Interior_", {"c": "flat", "col": (0.05, 0.05, 0.055), "r": 0.7, "m": 0.0, "w": 0.35}),
+        (r"^m3g81law_gauges_back$", {"c": "tex", "tex": "m3g81law_gauges20.png", "r": 0.2, "m": 0.0, "emit": "self"}),
+        (r"^m3g81law_(screen|digidash_screen|gauges_b_analog)$", {"c": "flat", "col": (0.03, 0.04, 0.06), "r": 0.15, "m": 0.0, "emit": (0.06, 0.12, 0.22)}),
+        (r"^m3g81law_shiftlight", {"c": "flat", "col": (0.05, 0.05, 0.05), "r": 0.3, "m": 0.0}),
+        (r"^m3g81law_Grille(2|3B|4|6|7)$", {"c": "tex", "r": 0.5, "m": 0.1, "w": 0.6}),
+        (r"^m3g81law_Grille", {"c": "flat", "col": (0.03, 0.03, 0.033), "r": 0.5, "m": 0.1, "w": 0.6}),
+        (r"^m3g81law_Wheel1A_Badge$", {"c": "tex", "tex": "m3g81law_Wheel2B_diff.png", "r": 0.3, "m": 0.4}),
+        (r"^m3g81law_Wheel1A_(Rim|Vent|Screws|Shine)$", {"c": "flat", "col": (0.16, 0.16, 0.17), "r": 0.3, "m": 0.4}),
+        (r"^Scene_-_Root", {"c": "flat", "col": GREY_TIRE, "r": 0.9, "m": 0.0}),
+        (r"^amdb11_caliper", {"c": "flat", "col": (0.05, 0.16, 0.62), "r": 0.35, "m": 0.1}),
+        (r"^amdb11_brake", {"c": "flat", "col": (0.3, 0.3, 0.31), "r": 0.4, "m": 0.6}),
+        (r"^amdb11_", {"c": "flat", "col": (0.05, 0.05, 0.055), "r": 0.6, "m": 0.0}),
+        (r".", {"c": "flat", "col": None, "r": 0.5, "m": 0.0, "w": 0.5}),
+    ],
+    steer=None,
+    edits={
+        "m3g81law_Badge_B_diff.dds": [("orange", 0.0, 0.0, 1.0, 1.0), ("roundel", 0.267, 0.724, 0.125), ("roundel", 0.711, 0.824, 0.073)],
+        "m3g81law_Wheel2B_diff.png": [("orange", 0.0, 0.0, 1.0, 1.0), ("roundel", 0.133, 0.869, 0.124)],
+        "m3g81law_Interior_Logo_diff.dds": [("orange", 0.0, 0.0, 1.0, 1.0)],
+        "m3g81law_seatbelt_m_diff.dds": [("orange", 0.0, 0.0, 1.0, 1.0)],
+        "m3g81law_Interior_diff.png": [("orange", 0.0, 0.0, 1.0, 1.0), ("dim", 0.75, 0.3)],
+        "m3g81law_Interior_2020_diff.png": [("orange", 0.0, 0.0, 1.0, 1.0), ("dim", 0.75, 0.3)],
+        "m3g81law_gauges20.png": [("orange", 0.0, 0.0, 1.0, 1.0)],
+    },
+)
+
+ORDER = ["M4", "M2", "M5", "M8", "M3", "M3T"]
 
 # ============================================================================= helpers
 
@@ -801,13 +871,23 @@ class Car:
     def load(self):
         path = os.path.join(SRC, self.cfg["fbx"])
         before = set(bpy.data.objects)
-        bpy.ops.import_scene.fbx(filepath=path, use_custom_normals=True)
+        mats_before = set(bpy.data.materials)
+        if path.endswith(".blend"):
+            # a Blender scene: append its objects (materials and images come along)
+            with bpy.data.libraries.load(path, link=False) as (src, dst):
+                dst.objects = list(src.objects)
+            for o in dst.objects:
+                if o is not None and o.name not in bpy.context.scene.collection.objects:
+                    bpy.context.scene.collection.objects.link(o)
+            bpy.context.view_layer.update()
+        else:
+            bpy.ops.import_scene.fbx(filepath=path, use_custom_normals=True)
         new = [o for o in bpy.data.objects if o not in before]
         for m in bpy.data.materials:
-            if m.name in self.mat_info or not m.use_nodes:
+            if m in mats_before or m.name in self.mat_info or not m.use_nodes:
                 continue
             info = {"diffuse": None, "base": (1, 1, 1, 1)}
-            b = m.node_tree.nodes.get("Principled BSDF")
+            b = next((n for n in m.node_tree.nodes if n.type == "BSDF_PRINCIPLED"), None)
             if b:
                 info["base"] = tuple(b.inputs["Base Color"].default_value)
                 for l in b.inputs["Base Color"].links:
@@ -896,6 +976,18 @@ class Car:
                     print("   [%s] drop blur disc %s" % (self.key, ob["chain"].split("/")[0]))
                     bpy.data.objects.remove(ob)
                     continue
+            if role == "wheel" and self.cfg.get("caliper_mat"):
+                # a wheel object that also holds the caliper: the caliper must not spin
+                ci = {i for i, sl in enumerate(ob.material_slots) if sl.material and re.search(self.cfg["caliper_mat"], sl.material.name)}
+                if ci:
+                    cal = split_faces(ob, lambda p, ci=ci: p.material_index in ci, ob.name + "_caliper")
+                    if cal:
+                        cal["role"] = "caliper"
+                        cal["quad"] = ""
+                        keep.append(cal)
+                    if not len(ob.data.polygons):
+                        bpy.data.objects.remove(ob)
+                        continue
             ob["role"] = role
             m = re.search(r"(Front|Rear) ?([LR])\b", ob["chain"]) or re.search(r"([FR])([LR])(_|$)", ob["chain"].split("/")[0].replace("Caliper", "_"))
             ob["quad"] = ""
