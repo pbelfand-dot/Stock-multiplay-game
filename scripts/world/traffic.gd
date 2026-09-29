@@ -50,7 +50,7 @@ const PropKit = preload("res://scripts/art/prop_kit.gd")
 const SIM_HZ := 20.0
 const SNAP_HZ := 10.0           # host -> clients
 const SNAP_SNAP := 12.0         # a correction bigger than this (m) jumps instead of blending
-const POOL := 56
+const POOL := 112             # ~1 car per 22 m of highway (both ways)
 const NICE_EVERY := 12          # about one in this many cars is a "nice car"
 const LC_TIME := 2.6            # seconds to cross into the next lane
 const LC_OLD := 0.7             # until this far across, a lane-changer still minds (and blocks) its old lane
@@ -1013,7 +1013,7 @@ func _mm_for(prop: String) -> Array:
 				pm.albedo_color = lay_p.paint
 				mmi.material_override = pm
 			mmi.layers = 2              # lit by the sun like the rest of the outdoors
-			mmi.custom_aabb = AABB(Vector3(-100, -20, 100), Vector3(1400, 60, 700))
+			mmi.custom_aabb = AABB(Vector3(-100, -20, 100), Vector3(2800, 60, 800))
 			mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 			add_child(mmi)
 			out.append(mmi)
@@ -1035,7 +1035,7 @@ func _blinker_mm() -> void:
 	_blink = MultiMeshInstance3D.new()
 	_blink.multimesh = mm
 	_blink.material_override = mat
-	_blink.custom_aabb = AABB(Vector3(-100, -20, 100), Vector3(1400, 60, 700))
+	_blink.custom_aabb = AABB(Vector3(-100, -20, 100), Vector3(2800, 60, 800))
 	_blink.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(_blink)
 
@@ -1055,7 +1055,7 @@ func _box_mm(colored: bool, col: Color) -> MultiMeshInstance3D:
 	mmi.multimesh = mm
 	mmi.material_override = mat
 	mmi.layers = 2
-	mmi.custom_aabb = AABB(Vector3(-100, -20, 100), Vector3(1400, 60, 700))
+	mmi.custom_aabb = AABB(Vector3(-100, -20, 100), Vector3(2800, 60, 800))
 	mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(mmi)
 	return mmi
@@ -1104,7 +1104,7 @@ func _camera_pos() -> Vector3:
 
 
 static func _near(p: Vector3) -> bool:
-	return p.z > 120.0 and p.x > -120.0 and p.x < 1350.0 and p.z < 900.0
+	return p.z > 120.0 and p.x > -120.0 and p.x < 2750.0 and p.z < 1000.0
 
 
 func _process(delta: float) -> void:

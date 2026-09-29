@@ -22,7 +22,7 @@ extends RefCounted
 ##   hood:      EB aux --hood_off--> hood_loop (hood road + roundabout) --hood_on--> WB aux
 ## So the commute home -> office is: hood_on, westbound, dt_off, the connector
 ## (see route("home_to_office")). A third, simpler exit (dealer_off, a taper
-## off the eastbound shoulder at station ~760) leads to an empty lot for a
+## off the eastbound shoulder at station ~1980) leads to an empty lot for a
 ## future car dealership (dealership_lot), linked to Levee Rd by dealer_road.
 ## Traffic never takes it.
 
@@ -40,10 +40,12 @@ const TUNNEL := 60.0          # tunnel length at each end (cars spawn/recycle in
 
 ## Mainline control points (world x, z), west -> east. Catmull-Rom through these.
 const CTRL := [Vector2(80, 385), Vector2(140, 385), Vector2(300, 383), Vector2(450, 376), Vector2(600, 367),
-		Vector2(720, 364), Vector2(900, 366), Vector2(1040, 372), Vector2(1150, 380)]
+		Vector2(760, 362), Vector2(940, 368), Vector2(1120, 384), Vector2(1300, 402), Vector2(1480, 414),
+		Vector2(1640, 416), Vector2(1800, 410), Vector2(1980, 398), Vector2(2160, 390), Vector2(2340, 386),
+		Vector2(2480, 385), Vector2(2560, 385)]
 ## Flyover crossing stations of the two interchanges (see _interchange).
 const SB_DOWNTOWN := 132.0
-const SB_HOOD := 640.0
+const SB_HOOD := 1500.0
 ## Typical free-flow speed per lane (fast lane, middle, right lane), m/s. Each
 ## car's own desired speed is one of these +-10%; a lane also caps how fast
 ## you'll go in it (right lane slower), see Traffic._v0_of.
@@ -66,7 +68,7 @@ var roundabout_dt := Vector3(82, 0, 241)
 var roundabout_hood := Vector3.ZERO
 var dealership_lot := Vector3.ZERO    # center of the empty dealership lot (y = its surface)
 var dealership_rect := Rect2()        # its bounds on world x/z (60 x 40 m)
-const DEALER_S := 760.0               # where the dealership exit leaves the eastbound shoulder
+const DEALER_S := 1980.0              # where the dealership exit leaves the eastbound shoulder
 const RB_R := 13.5                  # roundabout outer radius (asphalt ring 6..13.5)
 const RB_LANE_R := 9.8
 

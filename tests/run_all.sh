@@ -26,7 +26,7 @@ echo "== day events, contracts, upgrades, milestones"
 "$G" --headless --path . -- --eventcheck --host --autostart --day_seconds=150 --day_event=flash_crash --name=Trader --port=$((P+2)) 2>&1 | grep -E "\[events\]" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
 "$G" --headless --path . -- --eventcheck --pvp --host --autostart --day_seconds=4 --day_event=none --name=Trader --port=$((P+3)) 2>&1 | grep -E "\[events\]" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
 echo "== commute: wake up at home, drive the highway in, overslept + late"
-"$G" --headless --path . -- --commutecheck --host --autostart --commute=120 --name=Trader --port=$((P+6)) 2>&1 | grep -E "\[commute\] (COMMUTE|the AI)" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
+"$G" --headless --path . -- --commutecheck --host --autostart --commute=165 --name=Trader --port=$((P+6)) 2>&1 | grep -E "\[commute\] (COMMUTE|the AI)" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
 echo "== cabs: the taxi drives you there (hood -> BEMZE -> downtown -> home, get out early, skip)"
 "$G" --headless --path . -- --cabcheck --host --autostart --commute=0 --port=$((P+7)) 2>&1 | grep -E "\[cab\]" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
 echo "== neighborhood: build, buy a house, taxis, traffic (IDM/MOBIL), dealership lot"

@@ -6,7 +6,7 @@ extends RefCounted
 ## Layout (world, y up, -z = north; downtown street at z = 240, x -40..40):
 ##   downtown east end --connector--> roundabout (82, 241) --> junction by the
 ##   highway: an at-grade exit from westbound + a flyover on-ramp that crosses
-##   the highway and merges eastbound. The highway (highway.gd) runs x 80..1150
+##   the highway and merges eastbound. The highway (highway.gd) runs x 80..2560
 ##   at z ~365-385 between two tunnels. At station 600 the mirror-image
 ##   interchange: an eastbound exit to the hood road and roundabout, and a
 ##   flyover on-ramp back west. Magnolia Heights is south of it: Magnolia St
@@ -258,7 +258,7 @@ func _ground() -> void:
 	for q in hw.cl:
 		zc[floori(q.x / 5.0)] = q.z
 	var hood := Rect2(hw.roundabout_hood.x - 70.0, hw.roundabout_hood.z - 50.0, 240.0, 170.0).grow(25.0)   # hood_rect (see _neighborhood)
-	var rects := [Rect2(-300, 262, 1700, 540), Rect2(-300, 60, 1700, 158), Rect2(53, 218, 1347, 44), Rect2(-300, 218, 247, 44)]
+	var rects := [Rect2(-300, 262, 3200, 640), Rect2(-300, 60, 3200, 158), Rect2(53, 218, 2847, 44), Rect2(-300, 218, 247, 44)]
 	for r: Rect2 in rects:
 		# collision: one slab per rect
 		var sb := solid(Vector3(r.size.x, 2.0, r.size.y), Vector3(r.position.x + r.size.x / 2, GROUND_Y - 1.0,
@@ -813,12 +813,14 @@ func _roundabout(c: Vector3) -> void:
 	_tree_blockers.append([Vector2(c.x, c.z), R + 8.0])
 
 
-const GANTRIES := [90.0, 395.0, 700.0]
+const GANTRIES := [90.0, Highway.SB_HOOD - 245.0, Highway.DEALER_S - 60.0]   # (stations: they move with the exits)
 const GALV := Color(0.64, 0.66, 0.66)          # galvanized steel
 ## Stretches (per direction) where the right-of-way line is a tall concrete
 ## wall with chain-link on top (the sunken-expressway look); elsewhere it's a
 ## chain-link fence. Both leave gaps wherever a ramp comes near.
-const WALLS := {1: [[300.0, 480.0], [645.0, 755.0], [870.0, 9999.0]], -1: [[290.0, 470.0], [660.0, 900.0]]}
+const WALLS := {1: [[Highway.SB_DOWNTOWN + 168.0, 700.0], [1050.0, Highway.SB_HOOD - 160.0], [Highway.SB_HOOD + 5.0, Highway.DEALER_S - 10.0],
+		[Highway.DEALER_S + 110.0, 9999.0]],
+	-1: [[Highway.SB_DOWNTOWN + 158.0, 640.0], [980.0, Highway.SB_HOOD - 170.0], [Highway.SB_HOOD + 20.0, Highway.SB_HOOD + 500.0]]}
 const ROW_D := 23.5                            # the right-of-way line (walls, fences)
 
 
@@ -830,14 +832,14 @@ func _highway_furniture() -> void:
 			prop("HwyLight", hw.point(s, 0, 0.82), yaw_of(hw.tangent(s)), g_far)
 		s += 66.0
 	# overhead guide signs: [eastbound signs], [westbound signs]
-	_gantry(GANTRIES[0], [{"over": 1.5, "w": 9.5, "shield": "278", "card": "EAST", "lines": ["Magnolia Hts", "EXIT 5  ·  1/4 MILE"]}],
+	_gantry(GANTRIES[0], [{"over": 1.5, "w": 9.5, "shield": "278", "card": "EAST", "lines": ["Magnolia Hts", "EXIT 5  ·  1 MILE"]}],
 			[{"over": 1.5, "w": 10.5, "lines": ["Bagholder-Battery Tunnel", "TOLL $19.99 · NO CASH · NO REFUNDS"]}])
 	_gantry(GANTRIES[1], [{"over": 1.0, "w": 7.2, "shield": "278", "card": "EAST", "lines": ["Bemze Motors", "Points East"]},
 			{"over": 3.0, "w": 7.6, "exit": "EXIT 5", "only": true, "lines": ["Magnolia Hts", "Levee Rd"]}],
 			[{"over": 1.0, "w": 7.2, "shield": "278", "card": "WEST", "lines": ["Battery Tunnel", "Points West"]},
 			{"over": 3.0, "w": 7.6, "exit": "EXIT 2", "only": true, "lines": ["FDR Dr South", "Wall St / Downtown"]}])
 	_gantry(GANTRIES[2], [{"over": 2.0, "w": 9.0, "exit": "EXIT 6", "lines": ["Bemze Motors", "NEXT RIGHT"]}],
-			[{"over": 1.5, "w": 10.0, "shield": "278", "card": "WEST", "lines": ["LAST EXIT BEFORE TOLL", "Exit 2 · Wall St  1/4 MILE"]}])
+			[{"over": 1.5, "w": 10.0, "shield": "278", "card": "WEST", "lines": ["LAST EXIT BEFORE TOLL", "Exit 2 · Wall St  1 MILE"]}])
 	# concrete barriers along both edges; walls and fences on the right-of-way line
 	for dir in [1, -1]:
 		_edge_barrier(dir)
@@ -1739,9 +1741,9 @@ func _scatter_trees() -> void:
 	var kinds := ["TreeOak", "TreePine", "TreeSmall", "TreePine", "TreeOak"]
 	var placed := 0
 	var tries := 0
-	while placed < 230 and tries < 4000:
+	while placed < 480 and tries < 9000:
 		tries += 1
-		var p := Vector3(rng.randf_range(60.0, 1200.0), GROUND_Y, rng.randf_range(240.0, 700.0))
+		var p := Vector3(rng.randf_range(60.0, 2600.0), GROUND_Y, rng.randf_range(240.0, 800.0))
 		var loc: Vector2 = hw.locate(p)
 		if absf(loc.y) < 30.0 or absf(loc.y) > 280.0:
 			continue

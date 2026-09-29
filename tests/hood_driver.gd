@@ -136,8 +136,8 @@ func _check() -> void:
 	_say("built: %d houses, %d for sale, highway %.0f m, %d ramp/road paths, build %d ms" % [n, hood.buyable.size(),
 			hood.hw.length, hood.hw.paths.size(), hood.build_ms])
 	var far: float = Vector2(hood.r2.x - 40.0, hood.r2.z - 240.0).length()
-	if far < 500.0 or far > 900.0:
-		_done(false, "the neighborhood is %.0f m from downtown (want ~500-800)" % far)
+	if far < 1300.0 or far > 1900.0:
+		_done(false, "the neighborhood is %.0f m from downtown (want ~1300-1900)" % far)
 		return
 	# ---- collision where you walk: the flyover deck over the highway, a porch, a house floor
 	var space: PhysicsDirectSpaceState3D = w.get_world_3d().direct_space_state
@@ -496,9 +496,9 @@ func _shots() -> void:
 	if only == "" or only == "map":
 		var cam := Camera3D.new()
 		cam.projection = Camera3D.PROJECTION_ORTHOGONAL
-		cam.size = 1250.0
+		cam.size = 1550.0
 		cam.far = 3000.0
-		cam.position = Vector3(560, 700, 420)
+		cam.position = Vector3(1320, 1200, 480)
 		w.add_child(cam)
 		cam.rotation = Vector3(-PI / 2, 0, 0)
 		cam.current = true
