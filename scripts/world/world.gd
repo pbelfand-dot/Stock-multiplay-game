@@ -36,6 +36,8 @@ const GunArt = preload("res://scripts/art/gun_art.gd")
 const MoneyCounter = preload("res://scripts/world/money_counter.gd")
 const CarScript = preload("res://scripts/vehicle/car.gd")
 const PursuitScript = preload("res://scripts/vehicle/pursuit.gd")
+const DealershipScript = preload("res://scripts/world/dealership.gd")
+var dealership
 var pursuit
 var cars := {}                  # peer -> their car (ours is simulated here, theirs follow the network)
 var cars_node: Node3D
@@ -96,6 +98,9 @@ func _ready() -> void:
 	add_child(hood)
 	hood.setup(self)
 	# ---- /neighborhood (houses) ----
+	if builder.get("hood") != null and builder.hood.get("hw") != null:
+		dealership = DealershipScript.new(self)
+		dealership.build(builder.hood.hw.dealership_lot)
 
 
 # ---------------------------------------------------------------- players
@@ -384,6 +389,8 @@ func near_toilet(peer: int) -> bool:
 
 func _process(delta: float) -> void:
 	_tick_cars(delta)
+	if dealership:
+		dealership.tick(delta)
 	if local_player and hud:
 		hud.set_prompt(local_player.look_target() if not ui_blocking() else {})
 	_tick_bubbles(delta)

@@ -42,7 +42,7 @@ func _process(dt: float) -> void:
 	var jolt := Vector3(randf_range(-1, 1), randf_range(-1, 1), 0) * _shake * 0.12
 	var sp: float = absf(car.speed)
 	if cockpit:
-		global_transform = car.global_transform * Transform3D(Basis(), car.ref.eye + Vector3(0, 0.02, -0.14))
+		global_transform = car.global_transform * Transform3D(Basis(), car.ref.eye + (Vector3(0, 0.02, 0.0) if car.ref.get("kit", false) else Vector3(0, 0.02, -0.14)))
 		rotate_object_local(Vector3.RIGHT, -0.06)
 		fov = lerpf(fov, 72.0 + sp * 0.12, clampf(dt * 3.0, 0.0, 1.0))
 		position += jolt * 0.4

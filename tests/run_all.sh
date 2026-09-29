@@ -14,8 +14,8 @@ echo "== terminal clicks (BUY/SELL/auto-sell)"
 "$G" --headless --path . -- --host --autostart --clicktest --port=$((P+0)) 2>&1 | grep -E "\[click\]" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
 echo "== save -> continue"
 "$G" --headless --path . -- --savecheck=1 --host --autostart --day_seconds=3 --name=Trader --port=$((P+1)) 2>&1 | grep -E "\[save\]" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
-"$G" --headless --path . -- --savecheck=3 --host --name=Bob --port=$((P+1)) 2>&1 | grep -E "\[save\]" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
-"$G" --headless --path . -- --savecheck=2 --host --name=Trader --port=$((P+1)) 2>&1 | grep -E "\[save\]" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
+"$G" --headless --path . -- --savecheck=3 --host --commute=0 --name=Bob --port=$((P+1)) 2>&1 | grep -E "\[save\]" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
+"$G" --headless --path . -- --savecheck=2 --host --commute=0 --name=Trader --port=$((P+1)) 2>&1 | grep -E "\[save\]" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
 echo "== hair motion (spring bones swing and settle)"
 "$G" --headless --path . -- --lineup=$T/hair --hairmotion 2>&1 | grep -E "hairmotion:" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
 echo "== car handling (0-60, top speed, brakes, grip, crashes slow you down, scrapes don't)"
@@ -38,7 +38,7 @@ for mode in coop pvp; do
   "$G" --headless --path . -- --join=127.0.0.1 --port=$((P+4)) --name=Bob --smoke=client > $T/client.log 2>&1; c=$?
   wait $hp; h=$?
   grep -h "smoke:" $T/host.log $T/client.log
-  if grep -hE "^(ERROR|SCRIPT ERROR)" $T/host.log $T/client.log; then echo "!! engine errors above"; fail=1; fi
+  if grep -hE -A2 "^(ERROR|SCRIPT ERROR)" $T/host.log $T/client.log; then echo "!! engine errors above"; fail=1; fi
   [ $c -eq 0 ] && [ $h -eq 0 ] || fail=1
 done
 [ $fail -eq 0 ] && echo "ALL TESTS PASSED" || { echo "TESTS FAILED"; exit 1; }

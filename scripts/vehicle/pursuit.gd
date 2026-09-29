@@ -9,6 +9,7 @@ extends Node
 const Rules = preload("res://scripts/sim/rules.gd")
 const CarScript = preload("res://scripts/vehicle/car.gd")
 const AiDriver = preload("res://scripts/vehicle/ai_driver.gd")
+const PropKit = preload("res://scripts/art/prop_kit.gd")
 
 var world
 var chases := {}          # server: peer -> {cop, t_far, t_close, t}
@@ -135,14 +136,21 @@ func _spawn(id: int, xf: Transform3D):
 		siren.play()
 	var bar := Node3D.new()
 	bar.name = "LightBar"
-	bar.position = Vector3(0, c.ref.box.y + 0.08, 0.1)
-	c.add_child(bar)
+	var kit := PropKit.has("Cop_LightBar")
+	bar.position = Vector3(0, 1.471, 0.25) if kit else Vector3(0, c.ref.box.y + 0.08, 0.1)
+	c.model.add_child(bar)
+	if kit:
+		PropKit.place("Cop_LightBar", bar)
 	for side in [-1, 1]:
-		var q = c._glow_quad(Vector2(0.55, 0.12), Color(1, 0.1, 0.1) if side < 0 else Color(0.1, 0.3, 1))
-		q.position = Vector3(side * 0.3, 0, 0)
-		q.rotation.x = -PI / 2
+		var q: Node3D
+		if kit:
+			q = PropKit.place("Cop_LightBar_Red" if side < 0 else "Cop_LightBar_Blue", bar)
+		else:
+			q = c._glow_quad(Vector2(0.55, 0.12), Color(1, 0.1, 0.1) if side < 0 else Color(0.1, 0.3, 1))
+			q.position = Vector3(side * 0.3, 0, 0)
+			q.rotation.x = -PI / 2
+			bar.add_child(q)
 		q.name = "Red" if side < 0 else "Blue"
-		bar.add_child(q)
 		var l := OmniLight3D.new()
 		l.light_color = Color(1, 0.1, 0.1) if side < 0 else Color(0.15, 0.3, 1)
 		l.omni_range = 9.0
@@ -172,7 +180,7 @@ func net_car(id: int, key: String, pos: Vector3, rot: Quaternion, spd: float, st
 func _lights(c, _dt: float) -> void:
 	if not is_instance_valid(c):
 		return
-	var bar: Node3D = c.get_node_or_null("LightBar")
+	var bar: Node3D = c.model.get_node_or_null("LightBar") if c.model else null
 	if bar == null:
 		return
 	var t := Time.get_ticks_msec() / 1000.0

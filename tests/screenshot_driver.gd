@@ -108,6 +108,22 @@ func _run() -> void:
 			await _snap("hand_rot_%d" % k)
 		Sfx.quit_game()
 		return
+	if Config.cli.has("lotonly"):              # the BEMZE dealership off the highway
+		hud.root.visible = false
+		var lot: Vector3 = world.builder.hood.hw.dealership_lot
+		var cam := Camera3D.new()
+		world.add_child(cam)
+		cam.current = true
+		cam.fov = 70
+		world.hood.hood.traffic.force_awake = true
+		for v in [["lot_a", Vector3(-45, 9, -30), Vector3(5, 2, 0)], ["lot_b", Vector3(-25, 2.2, 8), Vector3(10, 1, 0)],
+				["lot_c", Vector3(4, 1.7, 6), Vector3(18, 0.8, -1)], ["lot_d", Vector3(8, 1.7, -4), Vector3(8, 0.5, 8)]]:
+			cam.global_position = lot + v[1]
+			cam.look_at(lot + v[2])
+			await get_tree().create_timer(1.2).timeout
+			await _snap(v[0])
+		Sfx.quit_game()
+		return
 	if Config.cli.has("dealeronly"):           # the BEMZE showroom menu
 		m.ledger.get_acct(0).balance = 150_000.0
 		m.owned[1]["bz_m2"] = 1
