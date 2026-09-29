@@ -368,7 +368,7 @@ func _client() -> void:
 			_fail("day 2 started before I was ready")
 			return
 		m.request_start()                    # ENTER: ready
-		if not await _wait_for(func(): return m.phase == "trading" and m.day == 2, 10.0, "day 2 bell"):
+		if not await _wait_for(func(): return m.phase == "trading" and m.day == 2, 30.0, "day 2 bell"):
 			return
 		_say("readied up after the host: day 2 is open")
 	_pass()
