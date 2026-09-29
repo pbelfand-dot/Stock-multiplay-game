@@ -27,10 +27,12 @@ extends Node3D
 ## car, every registered car, the camera): cars more than DESPAWN from all of
 ## them go back to the pool, and each lane within BUBBLE (along the road) of
 ## anyone is topped up to one car per SPACING m, new cars appearing at least
-## SPAWN_MIN away from everyone (past VIS_DIST: never in view; an empty
-## bubble - you just woke up / took a cab here - fills from WARM_MIN). So the
-## pool is spent where people are, and the ~7.5 km ring costs no more than the
-## old 2.5 km road.
+## SPAWN_MIN away from everyone (past VIS_DIST: never in view). A stretch
+## round someone that's (nearly) empty fills at once: from WARM_MIN, or from
+## JUMP_MIN if they only just cut there (a cab, the elevator: nobody sees the
+## cars arrive). The ramps and roundabout loops get topped up now and then
+## (RAMP_MIN away). So the pool is spent where people are, and the ~7.5 km
+## ring costs no more than the old 2.5 km road.
 ##
 ## EXTERNAL CARS - register_obstacle(node) makes traffic treat any Node3D (a
 ## player's car, a player on foot) as a vehicle in whatever lane / ramp it's
@@ -65,7 +67,10 @@ const POOL := 176             # shared by everyone's bubbles (~90 cars each)
 const BUBBLE := 650.0         # traffic lives within this far (along the road) of anyone
 const DESPAWN := 760.0        # ... and goes back to the pool once this far (straight line) from everyone
 const SPAWN_MIN := 420.0      # new cars appear at least this far from everyone (past VIS_DIST)
-const WARM_MIN := 120.0       # an (almost) empty bubble fills from this close
+const WARM_MIN := 150.0       # an (almost) empty stretch round someone fills from this close
+const INNER := 350.0          # ... "round someone": this far either way
+const JUMP_MIN := 50.0        # ... and from this close if they only just got there (a cut: nobody sees it happen)
+const RAMP_MIN := 220.0       # a ramp / local-road loop is topped up (every 15 s) this far from everyone
 const SPACING := 105.0        # top a lane up to one car per this many m (round a player: ~40% denser than the old road)
 const RELEVANT := 700.0       # a client hears about the cars this close to its player
 const NICE_EVERY := 12          # about one in this many cars is a "nice car"
@@ -149,6 +154,8 @@ var stats := {"lane_changes": 0, "merges": 0, "exits": 0, "recycled": 0, "steps"
 var force_awake := false        # tests / screenshots
 var viewers_node: Node          # World.players_node: every player keeps a bubble of traffic round them
 var _maint_t := 0.0
+var _ramp_t := {}               # ramp / loop path -> sim_time a car was last put on it
+var _last_vs: Array = []        # where the viewers were at the last _bubble (who just jumped somewhere)
 var remote := false             # a client: cars come from the host's snapshots
 var snapshots := 0              # client: how many applied
 var _snap_t := 0.0
@@ -917,25 +924,52 @@ func _bubble() -> void:
 		return
 	var budget := 10
 	var target := int(2.0 * BUBBLE / SPACING)
+	var was: Array = _last_vs
+	_last_vs = []
+	for v in vs:
+		_last_vs.append(v.p)
 	for v in vs:
 		var sv: float = v.s
 		var v_warm := false
+		# just arrived (a cut: a cab ride, the elevator, a respawn - not driving up): fill right round them
+		var jumped := true
+		for q in was:
+			if (q as Vector3).distance_squared_to(v.p) < 120.0 * 120.0:
+				jumped = false
+				break
+		# someone just arrived (a cab, the elevator, waking up): fill their stretch now, not over seconds
+		var here := 0
+		for c in cars:
+			if not c.waiting and c.on_main and absf(hw.ds(sv, c.s)) < INNER:
+				here += 1
+		if here < target * 6 * INNER / BUBBLE * 0.4:
+			budget = maxi(budget, 60)
 		for dir in [1, -1]:
 			for lane in 3:
 				if free.is_empty() or budget <= 0:
 					return
 				var key := _key_m(dir, lane)
 				var cnt := 0
+				var inner := 0
 				for o in _lists.get(key, []):
-					if absf(hw.ds(sv, o.s)) < BUBBLE:
+					var dd := absf(hw.ds(sv, o.s))
+					if dd < BUBBLE:
 						cnt += 1
-				if cnt >= target:
+						if dd < INNER:
+							inner += 1
+				# warm: the stretch round them is (nearly) empty - they just got here (a cab, the
+				# elevator, waking up) - so fill it now, from WARM_MIN, several cars a go
+				var inner_target := target * INNER / BUBBLE
+				var warm := inner < inner_target * 0.4
+				if (cnt >= target and not warm) or cnt >= int(target * 1.3):
 					continue
-				var warm := cnt < target * 0.35
 				v_warm = v_warm or warm
-				var r_min := WARM_MIN if warm else SPAWN_MIN
-				for attempt in 4:
-					var off := rng.randf_range(r_min, BUBBLE)
+				var r_min := (JUMP_MIN if jumped else WARM_MIN) if warm else SPAWN_MIN
+				var r_max := INNER if warm else BUBBLE
+				for attempt in (24 if warm else 4):
+					if budget <= 0 or (cnt >= target and not warm) or (warm and inner >= inner_target * 0.8):
+						break
+					var off := rng.randf_range(r_min, r_max)
 					var up := rng.randf() < 0.6                  # mostly upstream: they drive into view
 					var st: float = hw.wrap_s(sv + (-off if up else off) * dir)
 					if not _clear_of(vs, hw.lane_center(dir, lane, st), r_min):
@@ -964,20 +998,27 @@ func _bubble() -> void:
 					c.v = minf(_v0_of(c), q[0].v + 2.0) if q[0] != null and q[1] - st * dir < 120.0 else _v0_of(c) * 0.95
 					_push(key, c)
 					budget -= 1
-					break
-		# an empty bubble also gets a car or two on the nearby ramps and roundabout loops
+					cnt += 1
+					inner += 1 if off < INNER else 0
+					if not warm:
+						break
+		# the nearby ramps and roundabout loops get a car or two now and then (exits feed them
+		# too, but a lap of the local road takes the best part of a minute)
 		for pn in ["dt_loop", "hood_loop", "dt_on", "hood_on"]:
-			if not v_warm:
-				break
 			if free.is_empty() or budget <= 0:
 				return
 			var path = hw.paths[pn]
-			if _lists.get(pn, []).size() >= 2:
+			if _lists.get(pn, []).size() >= 2 or sim_time < float(_ramp_t.get(pn, -1e9)) + (0.0 if v_warm else 15.0):
 				continue
-			var ps: float = path.length * (rng.randf_range(0.1, 0.35) if _lists.get(pn, []).is_empty() else rng.randf_range(0.55, 0.8))
+			var ps: float = clampf(path.length * rng.randf_range(0.05, 0.8), 40.0, path.length - 40.0)
+			var roomy := true
+			for o in _lists.get(pn, []):
+				if absf(o.s - ps) < 40.0:
+					roomy = false
 			var at: Vector3 = path.at(ps)
-			if at.distance_to(v.p) > BUBBLE or not _clear_of(vs, at, WARM_MIN):
+			if not roomy or at.distance_to(v.p) > BUBBLE or not _clear_of(vs, at, WARM_MIN if v_warm else RAMP_MIN):
 				continue
+			_ramp_t[pn] = sim_time
 			var c: Car = null
 			for f in free:
 				if not f.truck:
