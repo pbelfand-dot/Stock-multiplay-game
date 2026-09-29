@@ -676,9 +676,10 @@ class Surface:
         return loc, nor
 
     def decal(self, poly, view, col, kind="Paint", lift=0.004, rings=4, step=0.03, skirt=True, mirror=False,
-              center=None, base=-0.004, M_out=None, lift_fn=None):
+              center=None, base=-0.004, M_out=None, lift_fn=None, graze=0.28, ray_lift=False):
         """Filled polygon (car-plane coords of the view) projected onto the surface and lifted by `lift`.
-        lift_fn(ring_frac) -> extra lift (domes lenses / pillow shapes)."""
+        lift_fn(ring_frac) -> extra lift (domes lenses / pillow shapes). ray_lift: lift along the view ray instead of
+        the surface normal (pocket floors, so they meet the pocket walls)."""
         pts = resample(_ccw(poly), step)
         c = Vector(center if center is not None else centroid(pts))
         ringsp = []
@@ -699,7 +700,7 @@ class Surface:
         lifts = [lift + (lift_fn(1 - f) if lift_fn else 0.0) for f in fr for _ in range(n)]
         lifts.append(lift + (lift_fn(1.0) if lift_fn else 0.0))
         return self.project(verts2, faces, view, col, kind, lifts, outline=list(range(n)) if skirt else None,
-                            base=base, mirror=mirror)
+                            base=base, mirror=mirror, graze=graze, ray_lift=ray_lift)
 
     def frame(self, outer, inner, view, col, kind="Gloss", lift=0.01, base=-0.004, mirror=False, step=0.03):
         """A ring between two outlines with the same point count (grille surrounds, light bezels)."""
@@ -752,7 +753,7 @@ class Surface:
         return self.project(verts2, fs, view, col, kind, [lift] * len(verts2), outline=None, orient_check=True)
 
     def project(self, verts2, faces, view, col, kind, lifts, outline=None, inner_outline=None, base=-0.004,
-                mirror=False, orient_check=True, graze=0.28):
+                mirror=False, orient_check=True, graze=0.28, ray_lift=False):
         d, A, B = self.view(view)
         top = []
         bot = []
@@ -767,7 +768,7 @@ class Surface:
                 bot.append(None)
                 continue
             ok.append(True)
-            top.append(loc + nor * lf)
+            top.append(loc - d * lf if ray_lift else loc + nor * lf)
             bot.append(loc + nor * base)
         bm = bmesh.new()
         vt = [bm.verts.new(p) if p is not None else None for p in top]
@@ -1787,7 +1788,9 @@ def roundel(r, y, M=None, pos=(0, 0, 0), rot=None, ring=None):
 # and a floor (coloured by the cutter's palette class); slats, meshes, lamp graphics and lenses then go in the hole.
 
 def pocket(car, S, poly, view, depth, col=(0.018, 0.018, 0.02), kind="Paint", mirror=False, step=0.02, back=None):
-    """Queue a recess of the 2D outline `poly` (view-plane coords, see Surface.VIEWS / oblique) `depth` m deep."""
+    """Queue a recess of the 2D outline `poly` (view-plane coords, see Surface.VIEWS / oblique) `depth` m deep.
+    Two meshes per pocket: a thin knife band (+-2 cm around the panel, along the view ray) that only splits the shell,
+    and the visible walls + floor, which start ON the panel at each outline sample (so nothing pokes out in front)."""
     d, A, B = S.view(view)
     pts = resample(_ccw(poly), step)
     ts = []
@@ -1801,30 +1804,44 @@ def pocket(car, S, poly, view, depth, col=(0.018, 0.018, 0.02), kind="Paint", mi
     ts = [t if t is not None else tmin for t in ts]
     c = cls(col, kind)
     cb = cls(back, kind) if back is not None else c
+    band = 0.02
+    n = len(pts)
+    S.decal(pts, view, back if back is not None else col, kind, lift=-depth, rings=2, step=max(step, 0.035),
+            skirt=False, mirror=mirror, graze=0.0, ray_lift=True)
     for sx in ((1, -1) if mirror else (1,)):
-        bm = bmesh.new()
-        lay = bm.faces.layers.int.new("cls")
-        fg = car.sp.get("pocket_gap")        # opt-in: front cap follows the panel (no long walls at grazing corners)
-        if fg is None and not isinstance(view, str):
-            fg = 0.03                         # oblique pockets: always (a flat cap there cuts bands out of the side)
-        fr = [bm.verts.new(A * a + B * b + d * ((tmin - 0.12) if fg is None else (t - fg)))
-              for (a, b), t in zip(pts, ts)]
-        bk = [bm.verts.new(A * a + B * b + d * (t + depth)) for (a, b), t in zip(pts, ts)]
-        if sx < 0:
-            for v in fr + bk:
-                v.co.x = -v.co.x
-        n = len(pts)
-        faces = [bm.faces.new(list(reversed(fr))), bm.faces.new(bk)]
+        def P3(a, b, t):
+            p = A * a + B * b + d * t
+            return Vector((p.x * sx, p.y, p.z))
+        # knife band (walls only)
+        kb = bmesh.new()
+        k0 = [kb.verts.new(P3(a, b, t - band)) for (a, b), t in zip(pts, ts)]
+        k1 = [kb.verts.new(P3(a, b, t + band)) for (a, b), t in zip(pts, ts)]
         for i in range(n):
             j = (i + 1) % n
-            faces.append(bm.faces.new((fr[i], fr[j], bk[j], bk[i])))
-        bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+            kb.faces.new((k0[i], k0[j], k1[j], k1[i]))
+        bmesh.ops.triangulate(kb, faces=list(kb.faces))
+        # visible walls + floor
+        bm = bmesh.new()
+        lay = bm.faces.layers.int.new("cls")
+        fr = [bm.verts.new(P3(a, b, t)) for (a, b), t in zip(pts, ts)]
+        bk = [bm.verts.new(P3(a, b, t + depth)) for (a, b), t in zip(pts, ts)]
+        floor = None                          # the floor is a sunk decal (below): it follows the panel's curve
+        for i in range(n):
+            j = (i + 1) % n
+            bm.faces.new((fr[i], fr[j], bk[j], bk[i]))
+        bm.normal_update()
+        # walls face into the opening (toward the outline's centre), the floor faces back out along -d
+        cen = sum((v.co for v in fr), Vector()) / n
+        for f in bm.faces:
+            if f is floor:
+                if f.normal.dot(Vector((d.x * sx, d.y, d.z))) > 0:
+                    f.normal_flip()
+            elif f.normal.dot(cen - f.calc_center_median()) < 0:
+                f.normal_flip()
         for f in bm.faces:
             f[lay] = c
-        faces[1][lay] = cb
-        bmesh.ops.triangulate(bm, faces=[faces[0], faces[1]])   # planar pieces: the exact knife misses warped n-gons
-        car.cuts.append(dict(bm=bm, d=d, A=A, B=B, poly=pts, sx=sx, view=view, depth=depth, tmin=tmin - 0.12,
-                             tmax=max(ts) + depth, front_only=True))
+        car.cuts.append(dict(bm=bm, kb=kb, d=d, A=A, B=B, poly=pts, grown=offset_poly(pts, 0.004), sx=sx, view=view,
+                             depth=depth, tmin=tmin - band, tmax=max(ts) + depth, front_only=True))
 
 
 def _in_poly(pt, poly):
@@ -1842,9 +1859,10 @@ def _in_poly(pt, poly):
 
 
 def carve(me, cuts, S):
-    """Cut the queued pockets into a Mesher shell: knife both meshes along each other (edit-mode intersect,
-    CUT mode, nothing deleted), then drop the shell faces inside each pocket and the cutter faces in front of
-    the panel. What is left of the cutters are the pocket walls and floors (palette classes kept)."""
+    """Cut the queued pockets into a Mesher shell: knife the (triangulated) shell along each pocket's thin band
+    (edit-mode intersect, CUT mode), delete the shell faces that lie wholly inside an outline on the first panel the
+    view ray meets, drop the bands and add the pockets' walls and floors. A face the knife missed is kept whole (a paint
+    sliver at worst), never deleted past the outline (a see-through hole)."""
     if not cuts:
         return
     bm = me.bm
@@ -1854,14 +1872,12 @@ def carve(me, cuts, S):
     for f in bm.faces:
         f[pk] = -1
     for i, c in enumerate(cuts):
-        cb = c["bm"]
-        cl = cb.faces.layers.int.get("cls")
-        vm = {v: bm.verts.new(v.co) for v in cb.verts}
-        for f in cb.faces:
+        kb = c["kb"]
+        vm = {v: bm.verts.new(v.co) for v in kb.verts}
+        for f in kb.faces:
             nf = bm.faces.new([vm[v] for v in f.verts])
-            nf[lay] = f[cl]
             nf[pk] = i
-        cb.free()
+        kb.free()
     m0 = bpy.data.meshes.new("carve")
     bm.to_mesh(m0)
     bm.free()
@@ -1888,41 +1904,42 @@ def carve(me, cuts, S):
     bpy.data.meshes.remove(m0)
     lay = nb.faces.layers.int.get("cls")
     pl = nb.faces.layers.int.get("pk")
-    polys2 = []
-    for c in cuts:
-        polys2.append(c["poly"])
+
+    def local(c, p):
+        q = Vector((p.x * c["sx"], p.y, p.z))
+        return q.dot(c["A"]), q.dot(c["B"]), q.dot(c["d"])
     dead = []
     for f in nb.faces:
+        if f[pl] >= 0:
+            dead.append(f)                   # knife bands go
+            continue
         cen = f.calc_center_median()
-        k = f[pl]
-        if k < 0:
-            for c, p2 in zip(cuts, polys2):
-                q = Vector((cen.x * c["sx"], cen.y, cen.z))
-                a, b = q.dot(c["A"]), q.dot(c["B"])
-                t = q.dot(c["d"])
-                if c["tmin"] - 0.01 < t < c["tmax"] + 0.01 and _in_poly((a, b), p2):
-                    if c.get("front_only"):      # only the panel the view ray meets first (not faces behind it)
-                        loc, _n = S.hit(a, b, c["view"])
-                        if loc is None or abs((loc - (c["A"] * a + c["B"] * b)).dot(c["d"]) - t) > 0.02:
-                            continue
-                    dead.append(f)
-                    break
-        else:
-            c = cuts[k]
-            q = Vector((cen.x * c["sx"], cen.y, cen.z))
-            a, b = q.dot(c["A"]), q.dot(c["B"])
-            loc, _n = S.hit(a, b, c["view"])
-            if loc is None:
-                dead.append(f)
+        for c in cuts:
+            a, b, t = local(c, cen)
+            if not (c["tmin"] - 0.01 < t < c["tmax"] + 0.01 and _in_poly((a, b), c["poly"])):
                 continue
-            ts = (loc - (c["A"] * a + c["B"] * b)).dot(c["d"])
-            t = q.dot(c["d"])
-            if t < ts - 1e-4:
+            if c.get("front_only"):          # only the panel the view ray meets first (not faces behind it)
+                loc, _n = S.hit(a, b, c["view"])
+                if loc is None or abs((loc - (c["A"] * a + c["B"] * b)).dot(c["d"]) - t) > 0.02:
+                    continue
+            if all(_in_poly(local(c, v.co)[:2], c["grown"]) for v in f.verts):
                 dead.append(f)
+                break
     bmesh.ops.delete(nb, geom=dead, context="FACES")
     nb.faces.layers.int.remove(pl)
+    for c in cuts:                           # the visible walls + floors
+        cb_ = c["bm"]
+        cl = cb_.faces.layers.int.get("cls")
+        vm = {v: nb.verts.new(v.co) for v in cb_.verts}
+        for f in cb_.faces:
+            try:
+                nf = nb.faces.new([vm[v] for v in f.verts])
+            except ValueError:
+                continue
+            nf[lay] = f[cl]
+        cb_.free()
     me.bm = nb
-    me.layer = nb.faces.layers.int.get("cls")
+    me.layer = lay
     me.cache = {}
 
 
@@ -2512,6 +2529,11 @@ def antenna(car, st):
     """Shark-fin on the roof, above the rear window."""
     z1 = car.g["zrr"] - 0.04
     y1 = car.Yc(z1) - 0.004
+    S = getattr(car, "surf", None)
+    if S is not None:          # sit on the real surface under the fin's footprint (Yc is the roof-edge profile)
+        ys = [loc.y for loc, _n in (S.hit(0.0, z1 - 0.2 * k / 4, "top") for k in range(5)) if loc is not None]
+        if ys:
+            y1 = min(ys) - 0.003
     prof = [(z1 - 0.2, 0.0), (z1, 0.0), (z1 - 0.025, 0.045), (z1 - 0.075, 0.066), (z1 - 0.15, 0.028)]
     bm = prism_bm([(zz, yy + y1) for zz, yy in prof], -0.022, 0.022, axis="x", bevel=0.012, seg=3)
     for v in bm.verts:     # taper toward the top
@@ -3044,9 +3066,12 @@ def _det_m3():
     d["kidney"] = dict(d["kidney"], pts=[(0.022, 0.64), (0.3, 0.64), (0.345, 0.59), (0.365, 0.5), (0.355, 0.3),
                                          (0.31, 0.19), (0.24, 0.15), (0.04, 0.15), (0.022, 0.17)],
                        depth=0.13, pitch=0.042, lift=0.034, frame_w=0.018)
-    d["head"] = dict(d["head"], depth=0.06,
-                     drl=[[(0.558, 0.566), (0.572, 0.566), (0.572, 0.626), (0.632, 0.634), (0.632, 0.646), (0.558, 0.638)],
-                          [(0.76, 0.6), (0.774, 0.6), (0.774, 0.656), (0.812, 0.662), (0.812, 0.674), (0.76, 0.668)]])
+    d["head"] = dict(d["head"], depth=0.06, r=0.014,          # measured on the head-on photo (plate-calibrated)
+                     pts=[(0.4, 0.585), (0.55, 0.625), (0.7, 0.665), (0.8, 0.683), (0.862, 0.666), (0.868, 0.605),
+                          (0.8, 0.54), (0.68, 0.527), (0.52, 0.537)],
+                     drl=[[(0.755, 0.568), (0.775, 0.568), (0.775, 0.641), (0.81, 0.644), (0.81, 0.661), (0.755, 0.656)],
+                          [(0.598, 0.536), (0.618, 0.536), (0.618, 0.603), (0.646, 0.606), (0.646, 0.623), (0.598, 0.617)]],
+                     lens=[(0.72, 0.592, 0.018), (0.47, 0.583, 0.012)])
     d["front"] = dict(d["front"],
                       intakes=[[(0.37, 0.37), (0.66, 0.37), (0.7, 0.3), (0.65, 0.2), (0.35, 0.195)]],
                       trims=[([(0.795, 0.19), (0.825, 0.19), (0.835, 0.45), (0.808, 0.45)], PIANO, "Gloss")],
