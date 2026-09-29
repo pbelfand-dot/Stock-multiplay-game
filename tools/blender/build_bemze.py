@@ -2903,13 +2903,42 @@ def spec_m5():
 
 def spec_540i():
     """BMW 540i M Sport (G30, 2017) saloon: 4936 x 1868 x 1466, wheelbase 2975, track 1605 / 1630,
-    245/35 R20 f, 275/30 R20 r (one 20" wheel, 0.678 m tyre). The executive car: chrome kidneys and trim."""
+    245/35 R20 f, 275/30 R20 r (one 20" wheel, 0.678 m tyre). The executive car: chrome-framed kidneys that meet
+    the twin-corona headlights, chrome window line, L-shaped tail lamps, black apron with two trapezoid tips.
+    Fascia / tail details measured on the head-on photos (plate-calibrated); side lines on the fitted side camera."""
     WB, L, ohf = 2.975, 4.936, 0.845
     aF, aR, zF, zR = _axes(WB, L, ohf)
     zc, zb = -0.935, 1.905
+    det = dict(
+        DET_540,
+        kidney=dict(pts=[(0.015, 0.686), (0.4, 0.684), (0.445, 0.665), (0.46, 0.62), (0.428, 0.5), (0.39, 0.478),
+                         (0.03, 0.478), (0.015, 0.495)],
+                    r=[0.015, 0.03, 0.025, 0.03, 0.03, 0.03, 0.015, 0.015], frame_w=0.021, slats="v", pitch=0.028,
+                    slat_t=0.011, lift=0.03, depth=0.1, slat_back=0.016, frame=CHROME, slat_col=PIANO),
+        head=dict(pts=[(0.475, 0.575), (0.472, 0.645), (0.49, 0.667), (0.62, 0.694), (0.8, 0.727), (0.868, 0.727),
+                       (0.905, 0.705), (0.905, 0.662), (0.87, 0.626), (0.78, 0.595), (0.62, 0.562), (0.52, 0.564)],
+                  r=0.012, depth=0.06, rings=[], drl=[], lens=[(0.59, 0.622, 0.015), (0.755, 0.645, 0.015)],
+                  bezel=(0.05, 0.05, 0.055)),
+        front=dict(intakes=[[(0.53, 0.215), (0.815, 0.215), (0.845, 0.25), (0.85, 0.4), (0.58, 0.383),
+                             (0.53, 0.355)]],
+                   center=[[(-0.44, 0.215), (0.44, 0.215), (0.49, 0.345), (-0.49, 0.345)]],
+                   intake_grille="mesh", center_grille="mesh", plate=(0, 0.4), plate_lift=0.016),
+        tail=dict(pts=[(0.31, 0.818), (0.31, 0.9), (0.45, 0.93), (0.58, 0.963), (0.68, 1.005), (0.735, 1.012),
+                       (0.785, 0.995), (0.808, 0.955), (0.808, 0.895), (0.785, 0.853), (0.74, 0.838), (0.58, 0.828)],
+                  r=0.012, base=(0.1, 0.008, 0.012),
+                  glow=[[(0.33, 0.883), (0.58, 0.943), (0.7, 0.985), (0.758, 0.985), (0.786, 0.96), (0.788, 0.9),
+                         (0.775, 0.9), (0.773, 0.953), (0.752, 0.972), (0.7, 0.972), (0.58, 0.931), (0.33, 0.871)]],
+                  hi=[[(0.33, 0.832), (0.765, 0.848), (0.765, 0.86), (0.33, 0.844)]]),
+        rear=dict(reflectors=[(0.655, 0.543, 0.19, 0.02)], plate=(0, 0.84), roundel=(0, 1.013), badge_at=(0.42, 1.003),
+                  lip=[(-0.62, zR - 0.2), (0.62, zR - 0.2), (0.6, zR - 0.1), (-0.6, zR - 0.1)], lip_h=0.014),
+        exhaust=[(0.573, 0.37, 0.004, "round")], tip_out=-0.03,      # REF point only: the tips are _tips_540i
+    )
     d = dict(
         name="540i", L=L, W=1.868, H=1.466, WB=WB, TF=1.605, TR=1.63, ohf=ohf,
-        tire_od=0.678, rim_in=20, tire_w=0.26, flares=dict(f=(0.014, 0.25, 0.3, 0.2), r=(0.02, 0.3, 0.45, 0.2)), low_line=(0.46, 0.6, 0.006), nose_round=0.74,
+        tire_od=0.678, rim_in=20, tire_w=0.26,
+        flares=dict(f=(0.012, 0.22, 0.3, 0.18), r=(0.018, 0.28, 0.5, 0.2)), flare_top=0.4,
+        low_line=(0.44, 0.56, 0.006), door_tuck=0.036, kick=0.012, tuck=0.03, door_hollow=0.006, sh_a=0.72,
+        crown_p=2.5, nose_round=0.74,
         tail_round=0.8, plan_front=(0.30, 1.8), plan_rear=(0.20, 2.0), nose_len=0.48, tail_len=0.46,
         front=[(0.180, 0.114), (0.220, 0.041), (0.300, 0.032), (0.400, 0.025), (0.500, 0.018), (0.600, 0.050), (0.660, 0.090), (0.720, 0.150)],
         rear=[(0.300, 0.164), (0.350, 0.077), (0.400, 0.040), (0.500, 0.000), (0.600, 0.000), (0.700, 0.040), (0.800, 0.053), (0.900, 0.046), (1.000, 0.039), (1.050, 0.050), (1.090, 0.070)],
@@ -2918,21 +2947,24 @@ def spec_540i():
                 roof=[(-0.050, 1.412), (0.000, 1.423), (0.150, 1.444), (0.300, 1.458), (0.450, 1.465), (0.600, 1.466), (0.750, 1.466), (0.900, 1.459), (1.050, 1.440), (1.200, 1.411), (1.350, 1.357)],
                 crown=0.05, xr=[(0.0, 0.585), (1.0, 0.61)], B=(0.27, 0.33, 0.28, 0.33),
                 zC=[(0.0, 1.5), (0.3, 1.49), (0.6, 1.4), (0.85, 1.25), (1.0, 1.12)], trim=CHROME, trim_top=CHROME),
-        int=dict(INT_BLACK, seat=(0.5, 0.25, 0.11), seat2=(0.44, 0.21, 0.09), card=(0.3, 0.16, 0.08),
-                 accent=(0.7, 0.71, 0.74), carbon=False),
+        int=dict(INT_BLACK, seat=(0.86, 0.83, 0.76), seat2=(0.78, 0.75, 0.68), card=(0.8, 0.77, 0.7),
+                 accent=(0.72, 0.73, 0.76), carbon=False),
         paint=(0.12, 0.2, 0.42), paint_name="Phytonic Blue",
-        wheel=dict(style="multi", n=10, col=(0.06, 0.06, 0.065), kind="Gloss", caliper=(0.2, 0.3, 0.8), concave=0.03),
-        style=dict(DET_540, roundel_front=(0.745, zF + 0.03),
-            badge="540i", mirror=dict(z=-0.55, y=0.98, cap="paint"),
-            side=dict(gaps=[[(-0.79, 0.37), (-0.775, 0.7), (-0.753, 0.96), (-0.73, 0.99)],
-                            [(0.321, 0.36), (0.316, 1.0)],
-                            [(0.973, 0.376), (1.209, 0.539), (1.44, 1.0)],
-                            [(-0.79, 0.37), (0.973, 0.376)]],
-                      handles=[(0.163, 0.85, 0.2), (1.153, 0.905, 0.19)], handle_col=CHROME, handle_kind="Metal",
-                      gill=dict(pts=[(-1.04, 0.36), (-1.0, 0.36), (-0.8, 0.52), (-0.84, 0.52)], col=PIANO, slats=[]),
-                      trims=[([(-0.95, 0.3), (0.95, 0.3), (0.95, 0.31), (-0.95, 0.31)], CHROME, "Metal")],
-                      fuel=(1.666, 0.94)),
+        wheel=dict(style="multi", n=10, col=(0.035, 0.035, 0.04), kind="Gloss", lip=(0.05, 0.05, 0.055),
+                   caliper=(0.13, 0.13, 0.14), concave=0.045, spokes=_wheel_540i_spokes),
+        style=dict(det, roundel_front=(0.745, zF + 0.03),
+            badge="540i", mirror=dict(z=-0.51, y=0.99, cap="paint", builder=_mirror_540i),
+            side=dict(gaps=[[(-0.83, 0.31), (-0.835, 0.7), (-0.83, 0.87), (-0.79, 0.94), (-0.75, 0.975)],
+                            [(0.27, 0.31), (0.257, 0.56), (0.266, 0.8), (0.3, 0.93), (0.333, 1.0)],
+                            [(0.91, 0.315), (0.925, 0.36), (1.018, 0.515), (1.161, 0.732), (1.3, 0.93), (1.386, 1.03)],
+                            [(-0.83, 0.31), (0.91, 0.318)]],
+                      handles=[(0.097, 0.872, 0.2), (1.093, 0.917, 0.2)], handle_col=WHITE, handle_kind="CarPaint",
+                      gill=dict(pts=[(-0.862, 0.326), (-0.944, 0.326), (-1.085, 0.497), (-1.03, 0.5)], col=PIANO,
+                                slats=[], depth=0.03),
+                      fuel=(1.62, 0.96)),
+            extras=[_extras_540i],
             interior=dict(hip_z=0.05, hip_h=0.25, eye_h=0.63, hub_fwd=0.48, rear_z=0.98, tilt=21.0, bucket=False),
+            interior_extras=[_interior_540i],
         ),
     )
     d.update(body_profile2(zF, zR, aF, aR, zc, zb, dict(
@@ -2944,6 +2976,175 @@ def spec_540i():
         bot=[(-2.333, 0.150), (-2.033, 0.2), (-1.488, 0.205), (1.488, 0.205), (1.988, 0.23), (2.603, 0.244)],
         te_nose=0.07, te_cab=0.095)))
     return d
+
+
+G30_WOOD = (0.17, 0.085, 0.05)        # 540i: Fineline dark wood trim
+
+
+def _wheel_540i_spokes(M, ctx):
+    """20" M double-spoke style (black): five groups of four thin straight spokes fanning out from the hub."""
+    r0, r1, y_of, rim, rimk = ctx["r0"], ctx["r1"], ctx["y_of"], ctx["rim"], ctx["rimk"]
+    ra = r0 + 0.012
+    for g in range(5):
+        th = TAU * g / 5
+        _spoke(M, lambda u, t=th: (lerp(r0 - 0.006, ra + 0.018, u), t), lambda u: lerp(0.036, 0.042, u),
+               lambda u: 0.032, y_of, rim, rimk, samples=3)
+        for a0, a1 in ((-0.14, -0.436), (-0.045, -0.145), (0.045, 0.145), (0.14, 0.436)):
+            pa = (ra * math.sin(th + a0), -ra * math.cos(th + a0))
+            pb = (r1 * math.sin(th + a1), -r1 * math.cos(th + a1))
+
+            def path(u, pa=pa, pb=pb):
+                x, z = lerp(pa[0], pb[0], u), lerp(pa[1], pb[1], u)
+                return math.hypot(x, z), math.atan2(x, -z)
+            _spoke(M, path, lambda u: lerp(0.0125, 0.0095, u), lambda u: lerp(0.03, 0.024, u), y_of, rim, rimk,
+                   samples=6)
+
+
+def _mirror_540i(car, st):
+    """G30 door mirror: a rounded body-colour housing swept back toward its tip, flat glass face in a black frame,
+    a black foot on the door and the indicator strip along the front-bottom edge."""
+    m = st["mirror"]
+    z0, y0 = m["z"], m["y"]
+    xb = car.xE(z0) - 0.004
+    x_in = xb + 0.03
+    L = max(0.16, 1.063 - x_in)
+    N = 12
+    for sx in (-1, 1):
+        rings, gl_top, gl_bot = [], [], []
+        for k in range(N + 1):
+            u = k / N
+            e = 1.0 if u < 0.72 else math.sqrt(max(0.0, 1 - ((u - 0.72) / 0.28) ** 2))
+            e = max(e, 0.1)
+            dz = (0.05 + 0.01 * u) * e
+            dy = (0.062 + 0.006 * math.sin(math.pi * u)) * (0.35 + 0.65 * e)
+            zc = z0 + 0.06 * u * u
+            yc = y0 + 0.066 + 0.01 * u
+            x = x_in + L * u
+            ring = []
+            for j in range(20):
+                a = TAU * j / 20
+                c, s = math.cos(a), math.sin(a)
+                zz = zc - dz * c if c > 0 else zc + 0.42 * dz * min(1.0, -c * 3.0)
+                yy = yc + dy * math.copysign(abs(s) ** 0.75, s)
+                ring.append(Vector((sx * x, yy, zz)))
+            rings.append(ring if sx > 0 else list(reversed(ring)))
+            if 0 < k < N:
+                gl_top.append((x, yc + dy * 0.8, zc + 0.42 * dz))
+                gl_bot.append((x, yc - dy * 0.8, zc + 0.42 * dz))
+        emit(loft_bm(rings, cap0=True, cap1=True), WHITE, "CarPaint", sharp=1.0)
+        for off, col, kind, grow in ((0.0015, PIANO, "Gloss", 0.012), (0.003, (0.55, 0.6, 0.66), "Metal", 0.0)):
+            poly = [(x, y + grow, z) for x, y, z in gl_top] + [(x, y - grow, z) for x, y, z in reversed(gl_bot)]
+            bmg = bmesh.new()
+            vs = [bmg.verts.new(Vector((sx * x, y, z + off))) for x, y, z in poly]
+            f = bmg.faces.new(vs)
+            bmg.normal_update()
+            if f.normal.z < 0:
+                f.normal_flip()
+            emit(bmg, col, kind, recalc=False)
+        # foot: from the door skin up into the housing's inner end
+        foot = []
+        for x, zc_, zh, yb, yt in ((xb - 0.02, z0 - 0.005, 0.06, y0 - 0.035, y0 + 0.045),
+                                   (x_in + 0.02, z0 + 0.005, 0.035, y0 + 0.03, y0 + 0.09)):
+            foot.append([Vector((sx * x, yb, zc_ - zh)), Vector((sx * x, yb, zc_ + zh * 0.6)),
+                         Vector((sx * x, yt, zc_ + zh * 0.6)), Vector((sx * x, yt, zc_ - zh))])
+        emit(loft_bm(foot), PIANO, "Gloss", sharp=0.8)
+        # indicator: along the front-bottom edge of the outer half
+        u = 0.62
+        box((L * 0.34, 0.006, 0.012), (1.0, 0.55, 0.1), "Glow",
+            pos=(sx * (x_in + L * u), y0 + 0.066 + 0.01 * u - 0.05, z0 + 0.06 * u * u - 0.042), r=0.002,
+            rot=[("x", 0.6)])
+
+
+def _tips_540i(S, x, y):
+    """One trapezoid tailpipe finisher (wider at the top), chrome with a rolled lip and a dark bore, sticking
+    out of the black apron."""
+    w, h = 0.09, 0.033
+    out = _ccw(round_poly([(-w, h), (-w * 0.93, -h), (w * 0.93, -h), (w, h)], 0.014, per=3))
+    inn = offset_poly(out, -0.007)
+    loc, _n = S.hit(x, y + h * 0.7, "rear")
+    if loc is None:
+        return
+    z1 = loc.z + 0.014
+    z0 = z1 - 0.09
+    rings = []
+    for pts, zz in ((out, z0), (out, z1 - 0.004), (offset_poly(out, -0.0035), z1), (inn, z1 - 0.002),
+                    (inn, z1 - 0.03)):
+        rings.append([Vector((x + px, y + py, zz)) for px, py in pts])
+    emit(loft_bm(rings, cap0=False, cap1=False), CHROME, "Metal", sharp=0.9)
+    bm = bmesh.new()
+    f = bm.faces.new([bm.verts.new(Vector((x + px, y + py, z1 - 0.03))) for px, py in inn])
+    bm.normal_update()
+    if f.normal.z < 0:
+        f.normal_flip()
+    emit(bm, (0.012, 0.012, 0.014), "Paint", recalc=False)
+
+
+def _extras_540i(car, S, st):
+    """G30 fascia / tail details the shared builders don't draw: rounded-hexagon corona rings + the DRL eyebrow in
+    the headlights, the fog-light strips and chrome flicks in the outer intakes, the reversing lamps, the boot-lid
+    split line, the black rear apron and the trapezoid tips."""
+    h = st["head"]
+    V, cv = oblique(car, "front", h.get("alpha", 0.55), S)
+    for (x, y, rx, ry) in ((0.59, 0.622, 0.053, 0.04), (0.755, 0.645, 0.051, 0.039)):
+        hexa = [(x + rx * math.cos(TAU * k / 6), y + ry * math.sin(TAU * k / 6)) for k in range(6)]
+        outer = _ccw(round_poly(hexa, 0.013, per=3))
+        inner = offset_poly(outer, -0.0075)
+        S.frame(_cv(cv, outer), _cv(cv, inner), V, LAMP_W, "Glow", lift=-0.01, base=-0.03, mirror=True, step=0.01)
+    S.line(_cv(cv, [(0.5, 0.662), (0.62, 0.684), (0.8, 0.716), (0.868, 0.715), (0.89, 0.702)]), 0.008, V, LAMP_W,
+           "Glow", lift=-0.008, mirror=True, step=0.015)
+    # outer intakes: fog-light strip (chrome surround, silver lens, LED segments) and the chrome flick on top
+    fog = _ccw([(0.585, 0.338), (0.8, 0.346), (0.8, 0.372), (0.585, 0.364)])
+    S.decal(offset_poly(fog, 0.006), "front", CHROME, "Metal", lift=-0.006, base=-0.05, rings=1, mirror=True,
+            step=0.03)
+    S.decal(fog, "front", (0.66, 0.68, 0.72), "Metal", lift=-0.002, base=-0.02, rings=1, mirror=True, step=0.03)
+    for k in range(4):
+        x0 = 0.6 + k * 0.05
+        S.decal([(x0, 0.346 + k * 0.0015), (x0 + 0.032, 0.347 + k * 0.0015), (x0 + 0.032, 0.36 + k * 0.0015),
+                 (x0, 0.359 + k * 0.0015)], "front", (0.92, 0.93, 0.95), "Paint", lift=0.0, base=-0.01, rings=1,
+                mirror=True, step=0.03)
+    S.line([(0.848, 0.405), (0.58, 0.388), (0.53, 0.358)], 0.011, "front", CHROME, "Metal", lift=0.008, mirror=True,
+           step=0.02)
+    # tail: reversing-lamp strip in the lid half of each lamp, the lid split / shut line
+    Vr, cr = oblique(car, "rear", st["tail"].get("alpha", 0.6), S)
+    S.decal(_cv(cr, [(0.36, 0.858), (0.53, 0.866), (0.53, 0.877), (0.36, 0.869)]), Vr, (0.75, 0.76, 0.8), "Metal",
+            lift=-0.01, base=-0.03, rings=1, mirror=True, step=0.02)
+    S.line([(-0.64, 1.1), (-0.6, 1.0), (-0.582, 0.95), (-0.58, 0.83), (-0.575, 0.745), (-0.55, 0.695), (-0.5, 0.684),
+            (0.5, 0.684), (0.55, 0.695), (0.575, 0.745), (0.58, 0.83), (0.582, 0.95), (0.6, 1.0), (0.64, 1.1)],
+           0.005, "rear", (0.02, 0.02, 0.022), "Paint", lift=0.0028, step=0.02)
+    # M Sport rear apron: black, from the reflector shoulders down under the bumper
+    ap = [(0.5, 0.51), (0.57, 0.535), (0.63, 0.566), (0.76, 0.573), (0.785, 0.555), (0.787, 0.31), (0.765, 0.258)]
+    ap = ap + [(-x, y) for x, y in reversed(ap)]
+    S.decal(round_poly(_ccw(ap), 0.015, per=2), "rear", (0.03, 0.03, 0.034), "Gloss", lift=0.005, rings=6, step=0.03,
+            base=-0.01, center=(0.0, 0.4))
+    S.line([(-0.46, 0.43), (0.46, 0.43)], 0.012, "rear", (0.07, 0.07, 0.075), "Gloss", lift=0.009, step=0.04)
+    for sx in (-1, 1):
+        _tips_540i(S, sx * 0.573, 0.37)
+
+
+def _interior_540i(car, st):
+    """Fineline wood + chrome: the dash band, the console top and a strip on every door card."""
+    g = car.g
+    iz = st["interior"]
+    y_cowl = car.hood_y(0, g["zc0"], "hood")
+    z_fw = car.z_tf
+    xin = car.xE(0) - 0.09
+    dz = max(0.25, car.hub.z - iz.get("dash_gap", 0.13) - z_fw)
+    box((2 * xin - 0.1, 0.036, 0.012), G30_WOOD, "Gloss", pos=(0, y_cowl - 0.19, z_fw + dz + 0.024))
+    box((2 * xin - 0.1, 0.005, 0.014), CHROME, "Metal", pos=(0, y_cowl - 0.168, z_fw + dz + 0.024))
+    hz = iz["hip_z"]
+    cz0 = z_fw + dz - 0.1
+    cz1 = hz + 0.25
+    box((0.13, 0.006, cz1 - cz0 - 0.46), G30_WOOD, "Gloss", pos=(0, car.cf + 0.352, (cz0 + cz1) / 2 + 0.1))
+    for sx in (-1, 1):
+        box((0.008, 0.02, cz1 - cz0 - 0.3), CHROME, "Metal", pos=(sx * 0.1, car.cf + 0.33, (cz0 + cz1) / 2 + 0.05))
+        for (z0, z1) in iz.get("doors", ((z_fw + 0.2, hz + 0.3), (hz + 0.45, hz + 1.0))):
+            if z1 <= z0:
+                continue
+            zc = (z0 + z1) / 2
+            xw = sx * (car.xE(zc) - 0.1)
+            e = car.f["e"](zc)
+            box((0.012, 0.034, z1 - z0 - 0.14), G30_WOOD, "Gloss", pos=(xw - sx * 0.006, e - 0.2, zc))
+            box((0.012, 0.004, z1 - z0 - 0.14), CHROME, "Metal", pos=(xw - sx * 0.006, e - 0.18, zc))
 
 
 def spec_m8():
