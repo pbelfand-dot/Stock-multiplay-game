@@ -102,6 +102,7 @@ func _ready() -> void:
 		dealership = DealershipScript.new(self)
 		dealership.build(builder.hood.hw.dealership_lot)
 		_nice_traffic()
+		_sync_traffic()
 
 
 # ---------------------------------------------------------------- players
@@ -296,6 +297,26 @@ func _car_tf(key: String, paint: Color, pos: Vector3, rot: Quaternion, spd: floa
 	if c == null or not is_instance_valid(c) or c.key != key or not c.paint.is_equal_approx(paint):
 		c = spawn_car(peer, key, pos, 0.0, paint)
 	c.net_state(pos, rot, spd, st, brake)
+
+
+## Everyone sees the same traffic: the host simulates it and streams it.
+func _sync_traffic() -> void:
+	var tr = traffic()
+	if tr == null:
+		return
+	if Net.is_server():
+		tr.snapshot_ready.connect(func(data: PackedByteArray):
+			if multiplayer.has_multiplayer_peer() and multiplayer.get_peers().size() > 0:
+				_traffic_snap.rpc(data))
+	else:
+		tr.set_remote(true)
+
+
+@rpc("authority", "call_remote", "unreliable_ordered")
+func _traffic_snap(data: PackedByteArray) -> void:
+	var tr = traffic()
+	if tr:
+		tr.apply_snapshot(data)
 
 
 ## Now and then a BEMZE in traffic (in its factory color).

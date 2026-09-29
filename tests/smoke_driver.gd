@@ -133,6 +133,14 @@ func _host() -> void:
 		if not await _wait_for(func(): return m.phase == "trading" and m.day == 2, 30.0, "client to ready up"):
 			return
 		_say("client READY too: day 2 rang")
+	var tr = get_node("/root/Main/World").traffic()
+	if not await _wait_for(func(): return not tr.probe_result.is_empty(), 20.0, "the client's traffic probe"):
+		return
+	var pr: Dictionary = tr.probe_result
+	if pr.cars < 20 or pr.good < pr.cars * 0.9:
+		_fail("client traffic doesn't match ours: %s" % str(pr))
+		return
+	_say("client's traffic matches ours: %d/%d cars within 6 m (worst %.1f m)" % [pr.good, pr.cars, pr.worst])
 	if _car_moved < 8.0:
 		_fail("never saw the client's car drive (moved %.1f m)" % _car_moved)
 		return
@@ -262,6 +270,20 @@ func _client() -> void:
 		_fail("drove %.1f m, still in the car: %s" % [went, str(w.local_player.driving != null)])
 		return
 	_say("drove the %s %.0f m and got out" % [Rules.CARS[car.key].name, went])
+	# the traffic is the host's: we don't simulate, we draw its snapshots; the
+	# host checks our cars are where its are
+	var tr = w.traffic()
+	if not await _wait_for(func(): return tr.snapshots >= 20, 10.0, "traffic snapshots from the host (%d)" % tr.snapshots):
+		return
+	if not tr.remote or tr.stats.steps != 0:
+		_fail("the client is simulating its own traffic (remote %s, %d steps)" % [tr.remote, tr.stats.steps])
+		return
+	var shown: int = tr.cars.filter(func(c): return not c.waiting).size()
+	if shown < 20:
+		_fail("only %d traffic cars on the client" % shown)
+		return
+	tr.probe()
+	_say("traffic from the host: %d snapshots, %d cars on the road, sent a probe" % [tr.snapshots, shown])
 	# soundtrack: walking into a boutique plays "Intoxicated"; getting liquidated cuts to "12 Stout Street"
 	Music.clear_event()           # the flex bought earlier is still playing "Blue Bands"
 	var shop: Rect2 = w.builder.street.zones[0].rect
