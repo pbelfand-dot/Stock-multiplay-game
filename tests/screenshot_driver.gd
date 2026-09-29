@@ -108,6 +108,18 @@ func _run() -> void:
 			await _snap("hand_rot_%d" % k)
 		Sfx.quit_game()
 		return
+	if Config.cli.has("dealeronly"):           # the BEMZE showroom menu
+		m.ledger.get_acct(0).balance = 150_000.0
+		m.owned[1]["bz_m2"] = 1
+		m.owned[1]["paint_bz_m2"] = 6
+		m._push_state()
+		hud.open_interact({"type": "dealer", "id": 0})
+		hud.dealer.paint["bz_m3"] = 3
+		hud.dealer._refresh()
+		await _frames(6)
+		await _snap("dl_showroom")
+		Sfx.quit_game()
+		return
 	if Config.cli.has("driveonly"):            # get in, drive down the street, chase cam, cockpit, brake lights
 		var p0 = world.local_player
 		m.owned[1]["bz_m3"] = 1

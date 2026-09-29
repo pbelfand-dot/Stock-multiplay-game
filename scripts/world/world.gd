@@ -156,11 +156,11 @@ func go_to_street() -> void:
 
 ## Put `peer`'s car (a Rules.CARS key) in the world. Ours we drive; theirs
 ## follow the network (and still block us).
-func spawn_car(peer: int, key: String, pos: Vector3, yaw: float):
+func spawn_car(peer: int, key: String, pos: Vector3, yaw: float, paint = null):
 	if cars.has(peer):
 		cars[peer].queue_free()
 	var c = CarScript.new()
-	c.setup(key, peer)
+	c.setup(key, peer, paint if paint is Color else match_node.paint_of(peer, key))
 	c.name = "Car_%d" % peer
 	c.position = pos
 	c.rotation.y = yaw
@@ -180,24 +180,29 @@ func send_car(c, now := false) -> void:
 	if not now and _car_send > 0.0:
 		return
 	_car_send = 0.05 if local_player and local_player.driving == c else 1.0
-	_car_tf.rpc(c.key, c.global_position, c.quaternion, c.speed, c.steer, c.in_brake > 0.05)
+	_car_tf.rpc(c.key, c.paint, c.global_position, c.quaternion, c.speed, c.steer, c.in_brake > 0.05)
 
 
 @rpc("any_peer", "unreliable_ordered")
-func _car_tf(key: String, pos: Vector3, rot: Quaternion, spd: float, st: float, brake: bool) -> void:
+func _car_tf(key: String, paint: Color, pos: Vector3, rot: Quaternion, spd: float, st: float, brake: bool) -> void:
 	var peer := multiplayer.get_remote_sender_id()
 	if not Net.players.has(peer) or not Rules.CARS.has(key):
 		return
 	var c = cars.get(peer)
-	if c == null or not is_instance_valid(c) or c.key != key:
-		c = spawn_car(peer, key, pos, 0.0)
+	if c == null or not is_instance_valid(c) or c.key != key or not c.paint.is_equal_approx(paint):
+		c = spawn_car(peer, key, pos, 0.0, paint)
 	c.net_state(pos, rot, spd, st, brake)
 
 
 func _tick_cars(delta: float) -> void:
 	_car_send = maxf(_car_send - delta, 0.0)
-	var mine = cars.get(Net.my_id())
+	var me := Net.my_id()
+	var mine = cars.get(me)
 	if mine and is_instance_valid(mine) and (local_player == null or local_player.driving != mine):
+		# bought / picked / resprayed at the dealership: the new one's parked right where the old one was
+		var want: String = match_node.car_of(me)
+		if mine.key != want or not mine.paint.is_equal_approx(match_node.paint_of(me, want)):
+			mine = spawn_car(me, want, mine.global_position + Vector3(0, 0.2, 0), mine.global_rotation.y)
 		send_car(mine)                        # parked: the slow heartbeat
 	for peer in cars.keys():                  # they left: their car goes with them
 		if not Net.players.has(peer):

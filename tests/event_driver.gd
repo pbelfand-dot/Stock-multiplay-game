@@ -199,6 +199,8 @@ func _coop() -> void:
 		return
 	if not await _guns():
 		return
+	if not await _cars():
+		return
 
 	# ---- the closing bell: summary knows today's event and tomorrow's forecast
 	m.time_left = 0.5
@@ -371,4 +373,39 @@ func _guns() -> bool:
 	m.jail.erase(1)
 	m.heat[1] = 0.0
 	me.teleport(w.spawn_point(0))
+	return true
+
+
+## BEMZE dealership: buy in a color, it's what you drive; pick the old one;
+## respray; can't buy what you can't afford.
+func _cars() -> bool:
+	var a: Dictionary = m.ledger.get_acct(0)
+	a.balance = 120_000.0
+	m.wallet[1] = 0.0
+	if m.car_of(1) != "beater":
+		_done(false, "should start in your mom's sedan, got %s" % m.car_of(1))
+		return false
+	m.request_buy_car("bz_m3", 5)
+	if not await _wait(func(): return m.owns_car(1, "bz_m3"), 3.0):
+		_done(false, "couldn't buy the M3")
+		return false
+	if m.car_of(1) != "bz_m3" or not m.paint_of(1, "bz_m3").is_equal_approx(Rules.PAINTS[5][1]) or absf(a.balance - 25_000.0) > 1.0:
+		_done(false, "M3 purchase wrong: drive %s, paint %s, balance %f" % [m.car_of(1), m.paint_of(1, "bz_m3"), a.balance])
+		return false
+	m.request_buy_car("bz_m8", 0)                      # $165K with $25K left
+	await get_tree().create_timer(0.4).timeout
+	if m.owns_car(1, "bz_m8"):
+		_done(false, "bought an M8 it couldn't afford")
+		return false
+	m.request_pick_car("beater")
+	if not await _wait(func(): return m.car_of(1) == "beater", 3.0):
+		_done(false, "couldn't go back to the sedan")
+		return false
+	m.request_respray("bz_m3", 6)
+	m.request_pick_car("bz_m3")
+	if not await _wait(func(): return m.car_of(1) == "bz_m3" and m.paint_of(1, "bz_m3").is_equal_approx(Rules.PAINTS[6][1]), 3.0):
+		_done(false, "respray / pick failed")
+		return false
+	_say("dealership: Portimao Blue M3 for $95K, no M8 on $25K, back to the sedan, Toronto Red respray")
+	a.balance = 400_000.0                              # the rest of the run isn't about the car budget
 	return true

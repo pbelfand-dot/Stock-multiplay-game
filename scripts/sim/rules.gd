@@ -102,6 +102,15 @@ const CARS := {
 		"paint": Color(0.55, 0.05, 0.08), "desc": "The flagship GT. Fastest thing on the lot."},
 }
 const CAR_ORDER := ["beater", "bz_540i", "bz_m2", "bz_m3", "bz_m4", "bz_m5", "bz_m8"]
+## Factory paint at the dealership (a respray later costs RESPRAY).
+const PAINTS := [
+	["Alpine White", Color(0.93, 0.93, 0.92)], ["Black Sapphire", Color(0.05, 0.05, 0.07)],
+	["Brooklyn Grey", Color(0.52, 0.54, 0.56)], ["Isle Green", Color(0.1, 0.36, 0.26)],
+	["Sao Paulo Yellow", Color(0.95, 0.75, 0.1)], ["Portimao Blue", Color(0.1, 0.32, 0.72)],
+	["Toronto Red", Color(0.65, 0.06, 0.08)], ["Frozen Deep Grey", Color(0.24, 0.25, 0.27)],
+	["Sunset Orange", Color(0.95, 0.42, 0.08)], ["Dravit Grey", Color(0.38, 0.38, 0.34)],
+]
+const RESPRAY := 2_500.0
 
 ## Q cycles through the guns you own in this order.
 const GUN_ORDER := ["pistol", "shotgun", "smg", "ak", "deagle", "ak_gold"]

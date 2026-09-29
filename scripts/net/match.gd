@@ -384,13 +384,76 @@ func _s_cash(peer: int, amount: float, total: float) -> void:
 
 # ---------------- cars ----------------
 
-## The car you drive: your best BEMZE (or your mom's sedan).
+## The car you drive: the one you picked at the dealership, else your best
+## BEMZE (or your mom's sedan).
 func car_of(peer: int) -> String:
+	var ride := lux_count(peer, "ride") - 1
+	if ride >= 0 and ride < Rules.CAR_ORDER.size() and owns_car(peer, Rules.CAR_ORDER[ride]):
+		return Rules.CAR_ORDER[ride]
 	var best := "beater"
 	for k in Rules.CAR_ORDER:
-		if lux_count(peer, k) > 0:
+		if owns_car(peer, k):
 			best = k
 	return best
+
+
+func owns_car(peer: int, key: String) -> bool:
+	return key == "beater" or lux_count(peer, key) > 0
+
+
+func paint_of(peer: int, key: String) -> Color:
+	var i := lux_count(peer, "paint_" + key) - 1
+	return Rules.PAINTS[i][1] if i >= 0 and i < Rules.PAINTS.size() else Rules.CARS[key].paint
+
+
+## BEMZE dealership: buy a car in a factory color (it's yours for good, saved
+## with your career) / respray one you own / pick which one you drive.
+func request_buy_car(key: String, paint: int) -> void:
+	_req_car.rpc_id(1, "buy", key, paint)
+
+
+func request_respray(key: String, paint: int) -> void:
+	_req_car.rpc_id(1, "paint", key, paint)
+
+
+func request_pick_car(key: String) -> void:
+	_req_car.rpc_id(1, "pick", key, 0)
+
+
+@rpc("any_peer", "call_local", "reliable")
+func _req_car(what: String, key: String, paint: int) -> void:
+	if not Net.is_server() or not Rules.CARS.has(key):
+		return
+	var id := _sender()
+	_ensure_peer(id)
+	paint = clampi(paint, 0, Rules.PAINTS.size() - 1)
+	var d: Dictionary = Rules.CARS[key]
+	match what:
+		"buy":
+			if owns_car(id, key):
+				_s_error.rpc_id(id, "You already own the %s." % d.name)
+				return
+			if not _pay(id, d.price):
+				_s_error.rpc_id(id, "The %s is %s. Go make some trades." % [d.name, Rules.money(d.price)])
+				return
+			owned[id][key] = 1
+			owned[id]["paint_" + key] = paint + 1
+			owned[id]["ride"] = Rules.CAR_ORDER.find(key) + 1
+			_s_toast.rpc("%s drove a %s %s off the BEMZE lot (%s)" % [Net.player_name(id), Rules.PAINTS[paint][0], d.name, Rules.money(d.price)])
+			_s_luxury.rpc(id, key)
+		"paint":
+			if not owns_car(id, key) or key == "beater":
+				return
+			if not _pay(id, Rules.RESPRAY):
+				_s_error.rpc_id(id, "A respray is %s." % Rules.money(Rules.RESPRAY))
+				return
+			owned[id]["paint_" + key] = paint + 1
+		"pick":
+			if not owns_car(id, key):
+				return
+			owned[id]["ride"] = Rules.CAR_ORDER.find(key) + 1
+	_save_careers()
+	_push_state()
 
 
 # ---------------- guns (BIG IRON) ----------------

@@ -15,6 +15,7 @@ const MusicDirector = preload("res://scripts/ui/music_director.gd")
 const EmoteWheel = preload("res://scripts/ui/emote_wheel.gd")
 const PhotoMode = preload("res://scripts/ui/photo_mode.gd")
 const AtmUi = preload("res://scripts/ui/atm_ui.gd")
+const DealerUi = preload("res://scripts/ui/dealer_ui.gd")
 const DayEvents = preload("res://scripts/sim/day_events.gd")
 const Contracts = preload("res://scripts/sim/contracts.gd")
 
@@ -65,6 +66,7 @@ var music                  # MusicDirector: picks the soundtrack
 var emote_wheel            # hold B
 var photo                  # K: photo mode
 var atm                    # BAGHOLDER BANK ATM
+var dealer                 # BEMZE dealership
 var cash_lbl: Label
 var tailor
 var crt
@@ -425,6 +427,11 @@ void fragment() {
 	atm.visible = false
 	atm.closed.connect(close_modals)
 	root.add_child(atm)
+	dealer = DealerUi.new()
+	dealer.setup(match_node)
+	dealer.visible = false
+	dealer.closed.connect(close_modals)
+	root.add_child(dealer)
 	summary = Overlays.Summary.new()
 	summary.start_pressed.connect(func(): match_node.request_start())
 	summary.force_pressed.connect(func(): match_node.request_force_start())
@@ -496,7 +503,7 @@ func _open_tailor() -> void:
 
 func is_modal_open() -> bool:
 	return terminal.visible or slots.visible or shop.visible or lux_shop.visible or pause_menu.visible or _chat_open \
-			or atm.visible \
+			or atm.visible or (dealer != null and dealer.visible) \
 			or summary.visible or (photo != null and photo.active) \
 			or tailor != null
 
@@ -509,6 +516,8 @@ func close_modals() -> void:
 	crt.visible = false
 	pause_menu.visible = false
 	atm.visible = false
+	if dealer:
+		dealer.visible = false
 	if summary.visible:
 		summary.visible = false
 		if match_node.phase == "intermission":
@@ -543,6 +552,10 @@ func open_interact(t: Dictionary) -> void:
 			shop.visible = true
 		"tailor":
 			_open_tailor()
+		"dealer":
+			dealer.visible = true
+			dealer._refresh()
+			Sfx.play("click")
 		"atm":
 			atm.visible = true
 			atm._refresh()
