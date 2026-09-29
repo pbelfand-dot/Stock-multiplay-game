@@ -19,7 +19,7 @@ echo "== day events, contracts, upgrades, milestones"
 "$G" --headless --path . -- --eventcheck --host --autostart --day_seconds=150 --day_event=flash_crash --name=Trader --port=7792 2>&1 | grep -E "\[events\]" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
 "$G" --headless --path . -- --eventcheck --pvp --host --autostart --day_seconds=4 --day_event=none --name=Trader --port=7793 2>&1 | grep -E "\[events\]" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
 echo "== neighborhood: build, buy a house, taxis, traffic (IDM/MOBIL), dealership lot"
-"$G" --headless --path . -- --host --autostart --hoodcheck --port=7794 2>&1 | grep -E "\[hood\]" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
+"$G" --headless --path . -- --host --autostart --hoodcheck --port=$((20000 + RANDOM % 30000)) 2>&1 | grep -E "\[hood\]" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
 for mode in coop pvp; do
   echo "== multiplayer smoke ($mode)"
   extra=""; [ "$mode" = pvp ] && extra="--pvp"
