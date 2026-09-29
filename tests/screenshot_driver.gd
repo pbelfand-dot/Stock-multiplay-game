@@ -108,6 +108,24 @@ func _run() -> void:
 			await _snap("hand_rot_%d" % k)
 		Sfx.quit_game()
 		return
+	if Config.cli.has("desksonly"):            # the desk CRTs showing the live trading screens
+		hud.root.visible = false
+		await get_tree().create_timer(3.0).timeout
+		var cam := Camera3D.new()
+		world.add_child(cam)
+		cam.current = true
+		cam.fov = 60
+		var d0: Vector3 = world.builder.desks[5]
+		cam.global_position = d0 + Vector3(-1.8, 1.7, 2.6)
+		cam.look_at(d0 + Vector3(0.6, 1.0, -0.2))
+		await _frames(4)
+		await _snap("desk_a_row")
+		cam.global_position = d0 + Vector3(0.0, 1.25, 0.9)
+		cam.look_at(d0 + Vector3(0, 1.08, -0.1))
+		await _frames(4)
+		await _snap("desk_b_close")
+		Sfx.quit_game()
+		return
 	if Config.cli.has("niceonly"):             # a BEMZE out in traffic (it should drive nose first)
 		hud.root.visible = false
 		var tr = world.traffic()

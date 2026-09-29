@@ -537,19 +537,51 @@ func _on_market_tick() -> void:
 		_update_desk_screens()
 
 
-func _update_desk_screens() -> void:
-	var assets: Array = match_node.m_assets
-	if assets.is_empty():
-		return
+## Every desk CRT gets a live little trading terminal (desk_screen.gd): three
+## shared screens, each on its own ticker, spread across the floor.
+const DeskScreen = preload("res://scripts/ui/desk_screen.gd")
+var _desk_screens_built := false
+
+
+func _build_desk_screens() -> void:
+	_desk_screens_built = true
+	var mats: Array = []
+	for k in 3:
+		var vp := SubViewport.new()
+		vp.size = Vector2i(480, 360)
+		vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+		vp.disable_3d = true
+		add_child(vp)
+		var ds := DeskScreen.new()
+		ds.match_node = match_node
+		ds.slot = k
+		ds.size = Vector2(480, 360)
+		vp.add_child(ds)
+		var m := StandardMaterial3D.new()
+		m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		m.albedo_texture = vp.get_texture()
+		mats.append(m)
 	for it in builder.interactables:
 		if it.type != "terminal":
 			continue
 		var l: Label3D = it.node.get_node_or_null("ScreenText")
 		if l:
-			var a: Dictionary = assets[it.id % assets.size()]
-			var ch: float = (a.price / a.open_day - 1.0) * 100.0
-			l.text = "%s\n%s\n%s%.2f%%" % [a.sym, Rules.price_str(a.price), "+" if ch >= 0 else "", ch]
-			l.modulate = Color(0.3, 1, 0.45) if ch >= 0 else Color(1, 0.35, 0.3)
+			l.visible = false
+		var q := MeshInstance3D.new()
+		var qm := QuadMesh.new()
+		qm.size = Vector2(0.4, 0.3)
+		q.mesh = qm
+		q.material_override = mats[int(it.id) % mats.size()]
+		q.position = Vector3(0, 0.055, 0.281)
+		q.set_meta("no_batch", true)
+		q.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		q.visibility_range_end = 40.0
+		it.node.add_child(q)
+
+
+func _update_desk_screens() -> void:
+	if not _desk_screens_built:
+		_build_desk_screens()
 
 
 func _on_slot_result(peer: int, reels: Array, payout: float, bet: float) -> void:
