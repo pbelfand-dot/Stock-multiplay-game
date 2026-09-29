@@ -882,6 +882,9 @@ class Car:
         self.Yc = curve(g["roof"])
         self.xr = curve(g["xr"])
         self.zC = curve(g["zC"])
+        rwb = g.get("rw_base", s.get("rw_base"))
+        if rwb:          # opt-in narrow rear window: the closed deck starts just behind the DLO (under the sail)
+            self.z_tr = min(self.z_tr, self.zC(0.0) + g.get("deck_start", s.get("deck_start", 0.1)))
         self.carbon_roof = s.get("carbon_roof", False)
         self._fl = self._flare_prm()
         self._wmax = 0.0
@@ -1222,6 +1225,9 @@ class Car:
             if ma == "hood" and za > gz0 and h >= I_E + 1:
                 return dark                    # cowl under the windshield
             if ma == "deck" and za < gz1 and h >= I_E + 1:
+                rwb = self.gk("rw_base")
+                if rwb and abs(full[k][0][i].x) > rwb + 0.03:
+                    return paint               # opt-in narrow rear window: the deck beside it is body
                 return dark                    # parcel shelf under the rear window
             return paint
 
@@ -1245,12 +1251,28 @@ class Car:
         return me
 
     # ---- greenhouse
+    def gk(self, key, default=None):
+        """Greenhouse option: gh[key], else the spec's top-level key, else default."""
+        return self.g.get(key, self.sp.get(key, default))
+
+    def n_rc(self):
+        return 8 if self.gk("c_blend") else 4
+
     def gh_half(self, t):
         """Right half of the greenhouse ring at height fraction t (0 belt, 1 roof edge): front centre ->
-        rear centre, with the DLO breakpoints (A, B0, B1, C, rear corner) at fixed indices."""
+        rear centre, with the DLO breakpoints (A, B0, B1, C, rear corner) at fixed indices.
+        Opt-in (gh or spec keys): roof_crown / roof_p (cross-car roof crown), dlo_round=(r_bottom, r_top) m (rounded
+        rear DLO corners; with a forward-leaning zC this reads as the Hofmeister kink), c_blend=0..1 (C-pillar wraps
+        into the rear window / deck: the share of the C-pillar, DLO edge -> rear-window base, that is one smooth
+        plan-view curve instead of a flat sail and a tight corner)."""
         g = self.g
         bow = math.sin(math.pi * min(t, 1.0))
         r = lerp(g.get("rb", 0.07), g.get("rt", 0.1), t)
+        crown = self.gk("roof_crown", g["crown"])
+        rp = self.gk("roof_p", 2.0)
+        cb = self.gk("c_blend")
+        rr_ = r
+        nrc = self.n_rc()
 
         def xs(z):
             xb = self.xE(z) - 0.012
@@ -1258,10 +1280,10 @@ class Car:
             return lerp(xb, self.xr(z), t) + g.get("bow_s", 0.025) * bow
 
         def y_side(z):
-            return lerp(self.f["e"](z) - 0.004, self.Yc(z) - g["crown"], t)
+            return lerp(self.f["e"](z) - 0.004, self.Yc(z) - crown, t)
 
         def roof_y(x, z):
-            return self.Yc(z) - g["crown"] * min(1.0, (x / max(self.xr(z), 0.1)) ** 2)
+            return self.Yc(z) - crown * min(1.0, abs(x / max(self.xr(z), 0.1)) ** rp)
 
         def front(x):
             z0 = g["zc0"] + g["kf"] * x * x
@@ -1295,38 +1317,74 @@ class Car:
             y = lerp(yfe, yA, 1 - math.cos(ph)) if k < 4 else yA
             H.append(Vector((x if k < 4 else xA, y, z)))
         zguess_r = g["zb0"] + (g["zrr"] - g["zb0"]) * t
-        x_end_r = xs(zguess_r) - r
+        x_end_r = xs(zguess_r) - rr_
+        if self.gk("rw_base"):          # opt-in: narrower rear window at the deck (fastback taper), full at the roof
+            x_end_r = lerp(min(x_end_r, self.gk("rw_base")), x_end_r, t ** self.gk("rw_p", 1.3))
         zre, yre = rear(x_end_r)
-        zRs = zre - r
-        zc = min(self.zC(t), zRs - 0.05)
+        zRs = zre - rr_
+        zc = self.zC(t)
+        dr = self.gk("dlo_round")
+        if dr:
+            tb, tt = 0.3, 0.3
+            if t < tb:
+                zc -= dr[0] * (1 - math.sqrt(max(0.0, 1 - ((tb - t) / tb) ** 2)))
+            if t > 1 - tt:
+                zc -= dr[1] * (1 - math.sqrt(max(0.0, 1 - ((t - 1 + tt) / tt) ** 2)))
+        zc = min(zc, zRs - 0.05)
         if g.get("B"):
             b0 = lerp(g["B"][0], g["B"][2], t)
             b1 = lerp(g["B"][1], g["B"][3], t)
         else:
             b0 = lerp(zA, zc, g.get("b_frac", 0.62))
             b1 = b0 + 0.004
-        for za, zb, cnt in ((zA, b0, 6), (b0, b1, 1), (b1, zc, 6), (zc, zRs, 3)):
+        segs = ((zA, b0, 6), (b0, b1, 1), (b1, zc, 6)) + (() if cb else ((zc, zRs, 3),))
+        for za, zb, cnt in segs:
             for k in range(1, cnt + 1):
                 z = lerp(za, zb, k / cnt)
                 H.append(Vector((xs(z), y_side(z), z)))
-        yRs = H[-1].y
-        xRs = H[-1].x
-        for k in range(1, 5):
-            ph = (math.pi / 2) * k / 4
-            x = (xRs - r) + r * math.cos(ph)
-            z = zRs + r * math.sin(ph)
-            y = lerp(yRs, yre, 1 - math.cos(ph))
-            H.append(Vector((x, y, z)) if k < 4 else Vector((x_end_r, yre, zre)))
+        if cb:
+            # the whole C-pillar as one plan-view quadratic Bezier: from the side line at the blend start, through the
+            # side line's point level with the rear-window base, to the rear-window corner (tangent across the car)
+            ntot = 3 + nrc
+            zbs = lerp(zc, zre, 1.0 - min(1.0, cb))
+            ns = 0 if zbs - zc < 0.02 else 2
+            for k in range(1, ns + 1):
+                z = lerp(zc, zbs, k / ns)
+                H.append(Vector((xs(z), y_side(z), z)))
+            P0 = Vector((xs(zbs), zbs))
+            zq = lerp(zbs, zre, self.gk("c_q", 0.55))
+            Q = Vector((xs(zq), zq))
+            P2 = Vector((x_end_r, zre))
+            nb = ntot - ns
+            for k in range(1, nb + 1):
+                u = k / nb
+                p = P0 * (1 - u) ** 2 + Q * (2 * u * (1 - u)) + P2 * u * u
+                x, z = p.x, p.y
+                y = lerp(y_side(z), rear(x)[1], smooth01(u))
+                H.append(Vector((x, y, z)) if k < nb else Vector((x_end_r, yre, zre)))
+        else:
+            yRs = H[-1].y
+            xRs = H[-1].x
+            for k in range(1, nrc + 1):
+                ph = (math.pi / 2) * k / nrc
+                x = (xRs - rr_) + rr_ * math.cos(ph)
+                z = zRs + rr_ * math.sin(ph)
+                y = lerp(yRs, yre, 1 - math.cos(ph))
+                H.append(Vector((x, y, z)) if k < nrc else Vector((x_end_r, yre, zre)))
         for k in range(5, -1, -1):
             x = x_end_r * k / 6
             z, y = rear(x)
             H.append(Vector((x, y, z)))
-        assert len(H) == 37, len(H)
+        assert len(H) == 33 + nrc, len(H)
         return H
 
     def build_greenhouse(self):
         g = self.g
         ts = [0.0, 0.045, 0.1, 0.25, 0.45, 0.65, 0.82, 0.93, 0.96, 1.0]
+        if self.gk("dlo_round") or self.gk("c_blend"):      # opt-in: more rows for the rounded corners / blend
+            ts = [0.0, 0.045, 0.075, 0.11, 0.16, 0.23, 0.32, 0.45, 0.6, 0.73, 0.83, 0.9, 0.93, 0.96, 1.0]
+        crown = self.gk("roof_crown", g["crown"])
+        rp = self.gk("roof_p", 2.0)
         halves = [self.gh_half(t) for t in ts]
         edge = halves[-1]
         zmid = (g["zh"] + g["zrr"]) / 2
@@ -1335,7 +1393,7 @@ class Car:
             for p in edge:
                 z = zmid + (p.z - zmid) * (1 - (1 - s) * g.get("roof_pz", 0.22))
                 x = p.x * s
-                y = self.Yc(z) - g["crown"] * min(1.0, (x / max(self.xr(z), 0.1)) ** 2)
+                y = self.Yc(z) - crown * min(1.0, abs(x / max(self.xr(z), 0.1)) ** rp)
                 ring.append(Vector((x, y, z)))
             halves.append(ring)
         full = []
@@ -1351,10 +1409,12 @@ class Car:
         trim_top = cls(g.get("trim_top", PIANO), "Gloss" if g.get("trim_top", PIANO) == PIANO else "Metal")
         frit = cls(PIANO, "Gloss")
         nt = len(ts)
-        cats = ["ws"] * 6 + ["A"] * 4 + ["gF"] * 6 + ["B"] + ["gR"] * 6 + ["C"] * 3 + ["Rc"] * 4 + ["bl"] * 6
+        nrc = self.n_rc()
+        cats = ["ws"] * 6 + ["A"] * 4 + ["gF"] * 6 + ["B"] + ["gR"] * 6 + ["C"] * 3 + ["Rc"] * nrc + ["bl"] * 6
+        NH = len(cats)             # = points per half - 1
 
         def cfn(k, i):
-            h = i if i < 36 else 71 - i
+            h = i if i < NH else 2 * NH - 1 - i
             c = cats[h]
             if k >= nt - 1:
                 return roofc if (self.carbon_roof and k >= nt) else paint
@@ -1558,7 +1618,7 @@ def build_wheel(name, sp):
     # brake disc + caliper (inside the barrel)
     rd = min(sp.get("disc_r", 0.19), rr - 0.045)
     yd = y_face - conc - 0.075
-    revolve([(0.1, yd - 0.016), (rd, yd - 0.016), (rd, yd + 0.016), (0.1, yd + 0.016)], (0.46, 0.47, 0.5), "Metal", 48,
+    revolve([(0.1, yd - 0.016), (rd, yd - 0.016), (rd, yd + 0.016), (0.1, yd + 0.016)], wd.get("disc_col", (0.46, 0.47, 0.5)), "Metal", 48,
             M=M, closed=True)
     revolve([(0.1, yd - 0.02), (0.1, yd + 0.03), (0.0, yd + 0.03)], (0.2, 0.2, 0.21), "Metal", 32, M=M)
     for k in range(12):     # cross-drill / slot marks
@@ -1713,6 +1773,8 @@ def pocket(car, S, poly, view, depth, col=(0.018, 0.018, 0.02), kind="Paint", mi
         bm = bmesh.new()
         lay = bm.faces.layers.int.new("cls")
         fg = car.sp.get("pocket_gap")        # opt-in: front cap follows the panel (no long walls at grazing corners)
+        if fg is None and not isinstance(view, str):
+            fg = 0.03                         # oblique pockets: always (a flat cap there cuts bands out of the side)
         fr = [bm.verts.new(A * a + B * b + d * ((tmin - 0.12) if fg is None else (t - fg)))
               for (a, b), t in zip(pts, ts)]
         bk = [bm.verts.new(A * a + B * b + d * (t + depth)) for (a, b), t in zip(pts, ts)]
@@ -1728,9 +1790,9 @@ def pocket(car, S, poly, view, depth, col=(0.018, 0.018, 0.02), kind="Paint", mi
         for f in bm.faces:
             f[lay] = c
         faces[1][lay] = cb
-        bmesh.ops.triangulate(bm, faces=[faces[1]])
+        bmesh.ops.triangulate(bm, faces=[faces[0], faces[1]])   # planar pieces: the exact knife misses warped n-gons
         car.cuts.append(dict(bm=bm, d=d, A=A, B=B, poly=pts, sx=sx, view=view, depth=depth, tmin=tmin - 0.12,
-                             tmax=max(ts) + depth, front_only=fg is not None))
+                             tmax=max(ts) + depth, front_only=True))
 
 
 def _in_poly(pt, poly):
@@ -1755,6 +1817,7 @@ def carve(me, cuts, S):
         return
     bm = me.bm
     lay = me.layer
+    bmesh.ops.triangulate(bm, faces=list(bm.faces))   # warped shell quads make the exact knife skip faces
     pk = bm.faces.layers.int.new("pk")
     for f in bm.faces:
         f[pk] = -1
@@ -2114,10 +2177,51 @@ def shut_lines(car, S):
            step=0.08)
 
 
+def door_lines(car, dl):
+    """Opt-in door cut line (style.side.door_line: a dict or a list of dicts), in side-view (z, y) metres:
+      zf, zr   front / rear edge z (at the bottom);  yb: bottom edge y (default the sill + 0.1)
+      top      how far below the beltline (panel top edge) the line ends (default 0.03)
+      lean_f, lean_r: how much the front / rear edge leans rearward toward the top (m)
+      r        bottom corner radius (0.05);  arch: True = the rear edge wraps around the rear wheel arch at
+      arch_gap from the arch lip (a sedan's rear door / a coupe door that reaches the arch).
+    Returns polylines (open: front-top -> bottom -> rear-top)."""
+    out = []
+    for d in (dl if isinstance(dl, (list, tuple)) else [dl]):
+        zf, zr = d["zf"], d["zr"]
+        yb = d.get("yb", car.f["ys"]((zf + zr) / 2) + 0.1)
+        top = d.get("top", 0.03)
+        lf, lr = d.get("lean_f", 0.03), d.get("lean_r", 0.0)
+        yt_f = car.f["e"](zf + lf) - top
+        yt_r = car.f["e"](zr + lr) - top
+        pts = [(zf + lf, yt_f), (zf, yb)]
+        rs = [0.0, d.get("r", 0.05)]
+        R2 = car.Ra + d.get("arch_gap", 0.05)
+        if d.get("arch") and abs(zr - car.aR) < R2:
+            a0 = math.atan2(yb - car.Rt, -math.sqrt(max(0.0, R2 * R2 - (yb - car.Rt) ** 2)))
+            yz = car.Rt + math.sqrt(max(0.0, R2 * R2 - (zr - car.aR) ** 2))
+            a1 = math.atan2(yz - car.Rt, zr - car.aR)
+            n = 8
+            for k in range(n + 1):
+                a = lerp(a0, a1, k / n)
+                pts.append((car.aR + R2 * math.cos(a), car.Rt + R2 * math.sin(a)))
+                rs.append(0.0)
+            pts.append((zr + lr, yt_r))
+            rs.append(0.0)
+        else:
+            pts += [(zr, yb), (zr + lr, yt_r)]
+            rs += [d.get("r", 0.05), 0.0]
+        out.append(round_poly(pts, rs, per=4))
+    return out
+
+
 def side_details(car, S, st):
     shut_lines(car, S)
     sd = st["side"]
-    for pl in sd.get("gaps", []):
+    gaps = list(sd.get("gaps", []))
+    if sd.get("door_line"):
+        gaps = gaps if sd.get("keep_gaps") else []      # door_line replaces the hand-drawn gaps
+        gaps += door_lines(car, sd["door_line"])
+    for pl in gaps:
         S.line(pl, 0.005, "right", (0.02, 0.02, 0.022), "Paint", lift=0.0025, mirror=True, step=0.05)
     for (z, y, L_) in sd.get("handles", []):
         # a flush pull handle: a dark finger pocket in the door skin and the handle bar standing proud of it
@@ -2294,7 +2398,7 @@ def diffuser_ramp(car, S, rr):
             continue
         c = f.calc_center_median()
         n = f.normal
-        if c.z > zr0 and abs(c.x) < xw and c.y < y1 and (n.y < -0.4 or (n.z > 0.3 and _in_poly((c.x, c.y), d))):
+        if c.z > zr0 and abs(c.x) < xw and c.y < y1 and (n.y < -0.4 or (n.z > 0.05 and _in_poly((c.x, c.y), d))):
             f[me.layer] = blk
     col = rr.get("diff_col", PIANO)
     ybump = car.f["bot"](car.zR - 0.05)
@@ -2805,11 +2909,11 @@ def _wheel_m3_spokes(M, c):
     for i in range(5):
         t0 = TAU * i / 5
         for s in (-1, 1):
-            _spoke(M, lambda u, s=s, t0=t0: (lerp(r0, rf + 0.01, u), t0 + s * lerp(0.05, 0.13, u)),
-                   lambda u: lerp(0.024, 0.019, u), lambda u: lerp(0.036, 0.03, u), y_of, rim, rimk, samples=5)
+            _spoke(M, lambda u, s=s, t0=t0: (lerp(r0, rf + 0.01, u), t0 + s * lerp(0.2, 0.3, u)),
+                   lambda u: lerp(0.022, 0.016, u), lambda u: lerp(0.036, 0.03, u), y_of, rim, rimk, samples=5)
             for b in (-1, 1):
-                _spoke(M, lambda u, s=s, b=b, t0=t0: (lerp(rf, r1, u), t0 + s * 0.13 + b * lerp(0.0, 0.085, u ** 0.8)),
-                       lambda u: lerp(0.014, 0.012, u), lambda u: 0.026, y_of, rim, rimk, samples=5)
+                _spoke(M, lambda u, s=s, b=b, t0=t0: (lerp(rf, r1, u), t0 + s * lerp(0.3, 0.314, u) + b * lerp(0.0, 0.157, u ** 0.7)),
+                       lambda u: lerp(0.012, 0.011, u), lambda u: 0.026, y_of, rim, rimk, samples=5)
     # the rim's inner step ring (the spokes land on it)
     yr = y_of(r1) - 0.004
     revolve([(r1 - 0.012, yr - 0.02), (r1 - 0.012, yr + 0.004), (r1 + 0.004, yr + 0.006), (r1 + 0.004, yr - 0.02)],
@@ -2950,7 +3054,7 @@ def spec_m3():
         int=dict(INT_BLACK, seat=(0.8, 0.36, 0.08), seat2=(0.07, 0.07, 0.075), card=(0.1, 0.1, 0.11)),
         paint=(0.09, 0.36, 0.25), paint_name="Isle of Man Green",
         wheel=dict(style="double", n=5, col=(0.13, 0.13, 0.14), kind="Metal", caliper=(0.07, 0.07, 0.08),
-                   concave=0.06, spokes=_wheel_m3_spokes),
+                   concave=0.06, spokes=_wheel_m3_spokes, disc_col=(0.66, 0.64, 0.6)),
         pocket_gap=0.03, door_tuck=0.036, door_tuck_end=0.01, tuck=0.016, kick=0.016, sh_a=0.62, crown_p=2.6,
         style=dict(_det_m3(), roundel_front=(0.69, zF + 0.03),
                    rear=dict(_det_m3()["rear"], lip=[(-0.62, zR - 0.21), (0.62, zR - 0.21), (0.6, zR - 0.1), (-0.6, zR - 0.1)]),
