@@ -57,8 +57,8 @@ const MODELS := {
 		"wheelbase": 2.975, "wheel_r": 0.339,
 		"wheels": {"FL": Vector3(-0.8025, 0.339, -1.4875), "FR": Vector3(0.8025, 0.339, -1.4875), "RL": Vector3(-0.815, 0.339, 1.4875), "RR": Vector3(0.815, 0.339, 1.4875)},
 		"eye": Vector3(-0.37, 1.15, 0.23), "wheel_hub": Vector3(-0.37, 0.89, -0.43), "column_tilt": deg_to_rad(21),
-		"head": [Vector3(-0.6909, 0.6694, -1.9451), Vector3(0.6909, 0.6694, -1.9451)], "tail": [Vector3(-0.5717, 0.9249, 2.4299), Vector3(0.5717, 0.9249, 2.4299)],
-		"box": Vector3(1.868, 1.366, 4.936), "box_center": Vector3(0, 0.783, 0.1355), "door": Vector3(-0.916, 0.85, 0.163), "kit": true},
+		"head": [Vector3(-0.6937, 0.6457, -2.1029), Vector3(0.6937, 0.6457, -2.1029)], "tail": [Vector3(-0.6309, 0.916, 2.4884), Vector3(0.6309, 0.916, 2.4884)],
+		"box": Vector3(1.868, 1.366, 4.936), "box_center": Vector3(0, 0.783, 0.1355), "door": Vector3(-0.9082, 0.872, 0.097), "kit": true},
 	"Cop_Interceptor": {
 		"wheelbase": 3.052, "wheel_r": 0.3635,
 		"wheels": {"FL": Vector3(-0.805, 0.3635, -1.526), "FR": Vector3(0.805, 0.3635, -1.526), "RL": Vector3(-0.809, 0.3635, 1.526), "RR": Vector3(0.809, 0.3635, 1.526)},

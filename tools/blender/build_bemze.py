@@ -3270,10 +3270,11 @@ def spec_540i():
                        (0.905, 0.705), (0.905, 0.662), (0.87, 0.626), (0.78, 0.595), (0.62, 0.562), (0.52, 0.564)],
                   r=0.012, depth=0.06, rings=[], drl=[], lens=[(0.59, 0.622, 0.015), (0.755, 0.645, 0.015)],
                   bezel=(0.05, 0.05, 0.055)),
-        front=dict(intakes=[[(0.53, 0.215), (0.775, 0.215), (0.8, 0.245), (0.805, 0.397), (0.58, 0.383),
+        front=dict(intakes=[[(0.53, 0.215), (0.815, 0.215), (0.84, 0.25), (0.845, 0.4), (0.58, 0.383),
                              (0.53, 0.355)]],
                    center=[[(-0.44, 0.215), (0.44, 0.215), (0.49, 0.345), (-0.49, 0.345)]],
-                   intake_grille="mesh", center_grille="mesh", plate=(0, 0.4), plate_lift=0.016),
+                   intake_grille="mesh", center_grille="mesh", plate=(0, 0.4), plate_lift=0.016,
+                   trims_c=[([(-0.7, 0.135), (0.7, 0.135), (0.73, 0.178), (-0.73, 0.178)], PIANO, "Gloss")]),
         tail=dict(pts=[(0.31, 0.818), (0.31, 0.9), (0.45, 0.93), (0.58, 0.963), (0.68, 1.005), (0.735, 1.012),
                        (0.785, 0.995), (0.808, 0.955), (0.808, 0.895), (0.785, 0.853), (0.74, 0.838), (0.58, 0.828)],
                   r=0.012, base=(0.1, 0.008, 0.012),
@@ -3297,8 +3298,8 @@ def spec_540i():
         gh=dict(zc0=zc, kf=0.08, zh=-0.05, kh=0.05, zb0=zb, krb=0.16, zrr=1.2, krr=0.0, bow_r=0.0, bow_ry=0.0, a_in=0.05,
                 roof=[(-0.050, 1.412), (0.000, 1.423), (0.150, 1.444), (0.300, 1.458), (0.450, 1.465), (0.600, 1.466), (0.750, 1.466), (0.900, 1.459), (1.050, 1.440), (1.200, 1.411), (1.350, 1.357)],
                 crown=0.05, xr=[(0.0, 0.585), (1.0, 0.61)], B=(0.27, 0.33, 0.28, 0.33),
-                zC=[(0.0, 1.41), (0.28, 1.46), (0.54, 1.47), (0.76, 1.44), (0.93, 1.37), (1.0, 1.3)], trim=CHROME, trim_top=CHROME,
-                roof_crown=0.06, dlo_round=(0.08, 0.08), c_blend=0.6, rw_base=0.62),
+                zC=[(0.0, 1.4), (0.28, 1.45), (0.54, 1.44), (0.76, 1.37), (0.93, 1.24), (1.0, 1.14)], trim=CHROME, trim_top=CHROME,
+                roof_crown=0.06, dlo_round=(0.08, 0.12), c_blend=0.6, rw_base=0.62),
         int=dict(INT_BLACK, seat=(0.86, 0.83, 0.76), seat2=(0.78, 0.75, 0.68), card=(0.8, 0.77, 0.7),
                  accent=(0.72, 0.73, 0.76), carbon=False),
         paint=(0.12, 0.2, 0.42), paint_name="Phytonic Blue",
@@ -3322,7 +3323,7 @@ def spec_540i():
     d.update(body_profile2(zF, zR, aF, aR, zc, zb, dict(
         hood=[(-2.333, 0.72), (-2.307, 0.748), (-2.256, 0.772), (-2.179, 0.797), (-2.076, 0.827), (-1.96, 0.856), (-1.82, 0.889), (-1.63, 0.922), (-1.41, 0.948), (-1.17, 0.972), (-0.935, 0.985)],
         deck=[(1.905, 1.122), (2.000, 1.122), (2.110, 1.120), (2.210, 1.106), (2.310, 1.090), (2.415, 1.075), (2.520, 1.066)],
-        belt=[(-0.73, 0.973), (-0.64, 0.982), (0.47, 1.01), (1.44, 1.018), (1.5, 1.02)],
+        belt=[(-0.73, 0.973), (-0.64, 0.98), (0.33, 1.002), (1.0, 1.028), (1.44, 1.046), (1.5, 1.048)],
         sh=[(zF, 0.76), (aF, 0.86), (0.0, 0.9), (aR, 0.93), (zR, 0.93)],
         sill=[(-2.333, 0.18), (-1.883, 0.25), (-1.488, 0.222), (0.000, 0.222), (1.488, 0.222), (2.038, 0.32), (2.603, 0.27)],
         bot=[(-2.333, 0.12), (-2.033, 0.16), (-1.488, 0.217), (1.488, 0.217), (1.988, 0.25), (2.603, 0.27)],
@@ -3431,7 +3432,7 @@ def _tips_540i(S, x, y):
     emit(bm, (0.012, 0.012, 0.014), "Paint", recalc=False)
 
 
-def _presplit_540i(car, boxes, cuts=2):
+def _presplit_540i(car, boxes, cuts=1):
     """Subdivide + triangulate the shell's side faces around the side pockets (door-handle cups, gill) before the
     carve, so every knifed piece is small and the carve's centre-in-outline test keeps / drops the right pieces
     (on the big door quads the outer piece wraps around the cup and gets dropped with it)."""
@@ -3458,11 +3459,11 @@ def _side_lamp_540i(S, poly, base, base_kind, bars, lens, frame, zmap):
     def m(pts):
         return [(zmap(z), y) for z, y in pts]
     pc = _ccw(round_poly(m(poly), 0.01, per=2))
-    S.frame(offset_poly(pc, 0.005), pc, "right", frame, "Gloss", lift=0.004, base=-0.004, mirror=True, step=0.02)
-    S.decal(pc, "right", base, base_kind, lift=0.002, rings=3, step=0.02, mirror=True, skirt=False)
+    S.frame(offset_poly(pc, 0.005), pc, "right", frame, "Gloss", lift=0.004, base=-0.004, mirror=True, step=0.03)
+    S.decal(pc, "right", base, base_kind, lift=0.002, rings=2, step=0.03, mirror=True, skirt=False)
     for shp, col, kind in bars:
         S.decal(m(shp), "right", col, kind, lift=0.0035, rings=1, step=0.02, mirror=True, skirt=False)
-    S.decal(pc, "right", lens, "Glass", lift=0.005, rings=3, step=0.02, mirror=True, skirt=False,
+    S.decal(pc, "right", lens, "Glass", lift=0.005, rings=2, step=0.03, mirror=True, skirt=False,
             lift_fn=lambda f: 0.003 * f)
 
 
@@ -3526,7 +3527,7 @@ def _extras_540i(car, S, st):
     # M Sport rear apron: black, from the reflector shoulders down under the bumper
     ap = [(0.5, 0.51), (0.57, 0.535), (0.63, 0.566), (0.76, 0.573), (0.785, 0.555), (0.787, 0.31), (0.765, 0.258)]
     ap = ap + [(-x, y) for x, y in reversed(ap)]
-    S.decal(round_poly(_ccw(ap), 0.015, per=2), "rear", (0.03, 0.03, 0.034), "Gloss", lift=0.005, rings=6, step=0.03,
+    S.decal(round_poly(_ccw(ap), 0.015, per=2), "rear", (0.03, 0.03, 0.034), "Gloss", lift=0.005, rings=4, step=0.04,
             base=-0.01, center=(0.0, 0.4))
     S.line([(-0.46, 0.43), (0.46, 0.43)], 0.012, "rear", (0.07, 0.07, 0.075), "Gloss", lift=0.009, step=0.04)
     for sx in (-1, 1):
