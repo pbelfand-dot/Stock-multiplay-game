@@ -3473,7 +3473,7 @@ def spec_540i():
         DET_540,
         kidney=dict(pts=[(0.015, 0.686), (0.4, 0.684), (0.445, 0.665), (0.46, 0.62), (0.428, 0.5), (0.39, 0.478),
                          (0.03, 0.478), (0.015, 0.495)],
-                    r=[0.015, 0.03, 0.025, 0.03, 0.03, 0.03, 0.015, 0.015], frame_w=0.021, slats="v", pitch=0.028,
+                    r=[0.015, 0.03, 0.025, 0.03, 0.03, 0.03, 0.015, 0.015], frame_w=0.021, slats="v", pitch=0.032,
                     slat_t=0.011, lift=0.03, depth=0.1, slat_back=0.016, frame=CHROME, slat_col=PIANO),
         head=dict(pts=[(0.475, 0.575), (0.472, 0.645), (0.49, 0.667), (0.62, 0.694), (0.8, 0.727), (0.868, 0.727),
                        (0.905, 0.705), (0.905, 0.662), (0.87, 0.626), (0.78, 0.595), (0.62, 0.562), (0.52, 0.564)],
@@ -3482,7 +3482,7 @@ def spec_540i():
         front=dict(intakes=[[(0.53, 0.215), (0.815, 0.215), (0.84, 0.25), (0.845, 0.4), (0.58, 0.383),
                              (0.53, 0.355)]],
                    center=[[(-0.44, 0.215), (0.44, 0.215), (0.49, 0.345), (-0.49, 0.345)]],
-                   intake_grille="mesh", center_grille="mesh", plate=(0, 0.4), plate_lift=0.016,
+                   intake_grille="mesh", center_grille="slats", plate=(0, 0.4), plate_lift=0.016,
                    trims_c=[([(-0.7, 0.135), (0.7, 0.135), (0.73, 0.178), (-0.73, 0.178)], PIANO, "Gloss")]),
         tail=dict(pts=[(0.31, 0.818), (0.31, 0.9), (0.45, 0.93), (0.58, 0.963), (0.68, 1.005), (0.735, 1.012),
                        (0.785, 0.995), (0.808, 0.955), (0.808, 0.895), (0.785, 0.853), (0.74, 0.838), (0.58, 0.828)],
@@ -3499,8 +3499,8 @@ def spec_540i():
         tire_od=0.678, rim_in=20, tire_w=0.26,
         flares=dict(f=(0.03, 0.25, 0.3, 0.2), r=(0.03, 0.3, 0.55, 0.22)), flare_top=0.4,
         low_line=(0.44, 0.56, 0.006), door_tuck=0.03, kick=0.012, tuck=0.03, door_hollow=0.006, sh_a=0.72,
-        crown_p=2.5, nose_round=0.82, pocket_gap=0.03,
-        tail_round=0.86, plan_front=(0.15, 3.0), plan_rear=(0.12, 3.0), nose_len=0.48, tail_len=0.46,
+        crown_p=2.5, nose_round=0.86, pocket_gap=0.03,
+        tail_round=0.86, plan_front=(0.1, 3.0), plan_rear=(0.12, 3.0), nose_len=0.48, tail_len=0.46,
         front=[(0.17, 0.12), (0.2, 0.045), (0.24, 0.018), (0.3, 0.012), (0.36, 0.013), (0.45, 0.028), (0.54, 0.048), (0.6, 0.065), (0.66, 0.082), (0.72, 0.1)],
         rear=[(0.300, 0.2), (0.350, 0.13), (0.400, 0.08), (0.450, 0.03), (0.500, 0.000), (0.600, 0.000), (0.700, 0.040), (0.800, 0.053), (0.900, 0.046), (1.000, 0.039), (1.050, 0.050), (1.090, 0.070)],
         dome=(zF + 0.5, zc, 0.34, 0.008),
@@ -3583,8 +3583,8 @@ def _mirror_540i(car, st):
             yc = y0 + 0.066 + 0.01 * u
             x = x_in + L * u
             ring = []
-            for j in range(20):
-                a = TAU * j / 20
+            for j in range(16):
+                a = TAU * j / 16
                 c, s = math.cos(a), math.sin(a)
                 zz = zc - dz * c if c > 0 else zc + 0.42 * dz * min(1.0, -c * 3.0)
                 yy = yc + dy * math.copysign(abs(s) ** 0.75, s)
@@ -3641,26 +3641,6 @@ def _tips_540i(S, x, y):
     emit(bm, (0.012, 0.012, 0.014), "Paint", recalc=False)
 
 
-def _presplit_540i(car, boxes, cuts=1):
-    """Subdivide + triangulate the shell's side faces around the side pockets (door-handle cups, gill) before the
-    carve, so every knifed piece is small and the carve's centre-in-outline test keeps / drops the right pieces
-    (on the big door quads the outer piece wraps around the cup and gets dropped with it)."""
-    bm = car.shell.bm
-    fs = []
-    for f in bm.faces:
-        c = f.calc_center_median()
-        if abs(c.x) > 0.75 and any(z0 < c.z < z1 and y0 < c.y < y1 for z0, z1, y0, y1 in boxes):
-            fs.append(f)
-    if not fs:
-        return
-    es = list({e for f in fs for e in f.edges})
-    bmesh.ops.subdivide_edges(bm, edges=es, cuts=cuts, use_grid_fill=True)
-    fs = [f for f in bm.faces if abs(f.calc_center_median().x) > 0.75 and
-          any(z0 < f.calc_center_median().z < z1 and y0 < f.calc_center_median().y < y1 for z0, z1, y0, y1 in boxes)]
-    bmesh.ops.triangulate(bm, faces=fs)
-    car.shell.cache = {}
-
-
 def _side_lamp_540i(S, poly, base, base_kind, bars, lens, frame, zmap):
     """The wrap-around part of a lamp on the body flank (flush decals in the side view, both sides): dark housing,
     lit / chrome bars, a smoked or clear domed lens and a thin dark bezel. zmap(z) squeezes the photo-measured side
@@ -3668,11 +3648,11 @@ def _side_lamp_540i(S, poly, base, base_kind, bars, lens, frame, zmap):
     def m(pts):
         return [(zmap(z), y) for z, y in pts]
     pc = _ccw(round_poly(m(poly), 0.01, per=2))
-    S.frame(offset_poly(pc, 0.005), pc, "right", frame, "Gloss", lift=0.004, base=-0.004, mirror=True, step=0.03)
-    S.decal(pc, "right", base, base_kind, lift=0.002, rings=2, step=0.03, mirror=True, skirt=False)
+    S.frame(offset_poly(pc, 0.005), pc, "right", frame, "Gloss", lift=0.004, base=-0.004, mirror=True, step=0.04)
+    S.decal(pc, "right", base, base_kind, lift=0.002, rings=2, step=0.04, mirror=True, skirt=False)
     for shp, col, kind in bars:
         S.decal(m(shp), "right", col, kind, lift=0.0035, rings=1, step=0.02, mirror=True, skirt=False)
-    S.decal(pc, "right", lens, "Glass", lift=0.005, rings=2, step=0.03, mirror=True, skirt=False,
+    S.decal(pc, "right", lens, "Glass", lift=0.005, rings=2, step=0.04, mirror=True, skirt=False,
             lift_fn=lambda f: 0.003 * f)
 
 
@@ -3680,13 +3660,6 @@ def _extras_540i(car, S, st):
     """G30 fascia / tail details the shared builders don't draw: rounded-hexagon corona rings + the DRL eyebrow in
     the headlights, the fog-light strips and chrome flicks in the outer intakes, the reversing lamps, the boot-lid
     split line, the black rear apron and the trapezoid tips, and the lamps' wrap-around onto the flanks."""
-    sd = st["side"]
-    boxes = [(z - L_ * 0.5 - 0.03, z + L_ * 0.5 + 0.03, y - 0.05, y + 0.03) for z, y, L_ in sd["handles"]]
-    g = sd.get("gill")
-    if g:
-        boxes.append((min(p[0] for p in g["pts"]) - 0.03, max(p[0] for p in g["pts"]) + 0.03,
-                      min(p[1] for p in g["pts"]) - 0.03, max(p[1] for p in g["pts"]) + 0.03))
-    _presplit_540i(car, boxes)
     # headlight / tail-lamp flanks (side photo: the lamps run ~0.3 / 0.5 m along the fenders)
     _side_lamp_540i(S, [(-1.815, 0.73), (-1.845, 0.766), (-1.937, 0.77), (-2.029, 0.751), (-2.098, 0.732),
                         (-2.175, 0.7), (-2.175, 0.615), (-2.12, 0.602), (-2.005, 0.633), (-1.936, 0.661),
@@ -3711,9 +3684,9 @@ def _extras_540i(car, S, st):
         hexa = [(x + rx * math.cos(TAU * k / 6), y + ry * math.sin(TAU * k / 6)) for k in range(6)]
         outer = _ccw(round_poly(hexa, 0.013, per=3))
         inner = offset_poly(outer, -0.0075)
-        S.frame(_cv(cv, outer), _cv(cv, inner), V, LAMP_W, "Glow", lift=-0.01, base=-0.03, mirror=True, step=0.01)
+        S.frame(_cv(cv, outer), _cv(cv, inner), V, LAMP_W, "Glow", lift=-0.01, base=-0.03, mirror=True, step=0.016)
     S.line(_cv(cv, [(0.5, 0.662), (0.62, 0.684), (0.8, 0.716), (0.868, 0.715), (0.89, 0.702)]), 0.008, V, LAMP_W,
-           "Glow", lift=-0.008, mirror=True, step=0.015)
+           "Glow", lift=-0.008, mirror=True, step=0.03)
     # outer intakes: fog-light strip (chrome surround, silver lens, LED segments) and the chrome flick on top
     fog = _ccw([(0.585, 0.338), (0.77, 0.345), (0.77, 0.371), (0.585, 0.364)])
     S.decal(offset_poly(fog, 0.006), "front", CHROME, "Metal", lift=-0.006, base=-0.05, rings=1, mirror=True,
@@ -3734,10 +3707,10 @@ def _extras_540i(car, S, st):
             (0.5, 0.684), (0.55, 0.695), (0.575, 0.745), (0.58, 0.83), (0.582, 0.95), (0.6, 1.0), (0.64, 1.1)],
            0.005, "rear", (0.02, 0.02, 0.022), "Paint", lift=0.0028, step=0.02)
     # M Sport rear apron: black, from the reflector shoulders down under the bumper
-    ap = [(0.5, 0.51), (0.57, 0.535), (0.63, 0.566), (0.76, 0.573), (0.785, 0.555), (0.787, 0.31), (0.765, 0.258)]
+    ap = [(0.5, 0.51), (0.57, 0.535), (0.63, 0.562), (0.74, 0.566), (0.765, 0.545), (0.768, 0.31), (0.745, 0.258)]
     ap = ap + [(-x, y) for x, y in reversed(ap)]
-    S.decal(round_poly(_ccw(ap), 0.015, per=2), "rear", (0.03, 0.03, 0.034), "Gloss", lift=0.005, rings=4, step=0.04,
-            base=-0.01, center=(0.0, 0.4))
+    S.decal(round_poly(_ccw(ap), 0.015, per=2), "rear", (0.03, 0.03, 0.034), "Gloss", lift=0.005, rings=3, step=0.05,
+            base=-0.01, center=(0.0, 0.4), graze=0.08)
     S.line([(-0.46, 0.43), (0.46, 0.43)], 0.012, "rear", (0.07, 0.07, 0.075), "Gloss", lift=0.009, step=0.04)
     for sx in (-1, 1):
         _tips_540i(S, sx * 0.573, 0.37)
