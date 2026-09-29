@@ -30,6 +30,13 @@ CARS (real dimensions, metres; see SPECS). Every car is four props:
 Reference points (wheel centres, eye, steering hub, lights, exhausts, collision box, door handle, plates)
 are printed and written to $BEMZE_REF_JSON.
 
+SHAPES are fitted to real side / front / rear photos of each car (not stored in the repo): the side-profile
+lists (hood, deck, roof, belt, shoulder, sill, underbody, nose / tail end profiles), glasshouse breakpoints and door
+cut lines are in car metres, measured on the side photo with a calibrated camera (hub centres + real wheelbase)
+and refined until the rendered silhouette overlaps the photo's (IoU ~0.95-0.98). Grilles, lamps, intakes,
+diffusers and tailpipes come from the head-on photos, calibrated on the 520 mm number plate (DET_* blocks).
+$BEMZE_OUT overrides the output path (quick subset builds); $BEMZE_PROF_JSON dumps the profile inputs.
+
 DEALERSHIP (origin on the floor, front = +Z): Dealer_Showroom, Dealer_Turntable, Dealer_Pylon,
 Dealer_LotLight, Dealer_Flag, Dealer_Desk, Dealer_KeyBox.
 """
@@ -44,7 +51,7 @@ from mathutils import Matrix, Vector
 from mathutils.bvhtree import BVHTree
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-OUT = os.path.join(HERE, "..", "..", "assets", "props", "bemze_kit.glb")
+OUT = os.environ.get("BEMZE_OUT") or os.path.join(HERE, "..", "..", "assets", "props", "bemze_kit.glb")
 TAU = 2 * math.pi
 
 PARTS = []   # parts of the prop being built
@@ -966,8 +973,8 @@ class Car:
         bot = self.f["bot"](z)
         ys = self.f["ys"](z)
         ya = self.ya(z)
-        ysh = self.f["ysh"](z)
         e = self.f["e"](z)
+        ysh = min(self.f["ysh"](z), e - 0.06)     # the shoulder crease always sits below the panel top edge
         te = self.f["te"](z)
         w = self.w(z)
         track = s["TF"] if z < 0 else s["TR"]
@@ -1027,6 +1034,17 @@ class Car:
         r0 = self.sp.get("tail_round", 0.86)
         rings = []
 
+        psF = self.sp.get("plan_front", (0.2, 2.2))     # (corner setback m, exponent): nose plan rounding
+        psR = self.sp.get("plan_rear", (0.14, 2.4))
+        w_tipF = max(self.w(zF), 0.3)
+        w_tipR = max(self.w(zR), 0.3)
+
+        def setback(x, front, u=0.0):
+            s, pw = psF if front else psR
+            wt = (w_tipF * f0) if front else (w_tipR * r0)
+            r = min(1.0, abs(x) / wt)
+            return s * r ** pw * (1 - u) ** 1.6
+
         def warp_ring(zs, mode, u, front):
             sec = self.section(zs, mode)
             out = []
@@ -1036,6 +1054,7 @@ class Car:
                 for x, y in sec:
                     zf = zF + self.front_off(y)
                     zz = zf + (zs - zF) * ((z_end - zf) / (z_end - zF))
+                    zz = min(zz + setback(x * fac, True, u), z_end - 0.004 * (1 - u))
                     out.append((x * fac, y, zz))
             else:
                 fac = r0 + (1 - r0) * math.sqrt(max(0.0, 1 - (1 - u) ** 2))
@@ -1043,13 +1062,14 @@ class Car:
                 for x, y in sec:
                     zr = zR - self.rear_off(y)
                     zz = zr - (zR - zs) * ((zr - z_beg) / (zR - z_beg))
+                    zz = max(zz - setback(x * fac, False, u), z_beg + 0.004 * (1 - u))
                     out.append((x * fac, y, zz))
             return out
 
         us = [0.0, 0.015, 0.05, 0.1, 0.17, 0.26, 0.37, 0.5, 0.65, 0.82, 1.0]
         tip = warp_ring(zF, "hood", 0.0, True)
         for sc in (0.0, 0.3, 0.55, 0.75, 0.9):
-            rings.append(([(x * sc, y, z) for x, y, z in tip], "cap"))
+            rings.append(([(x * sc, y, z - setback(x, True) + setback(x * sc, True)) for x, y, z in tip], "cap"))
         for u in us:
             rings.append((warp_ring(zF + nl * u, "hood", u, True), "hood"))
         zs = set()
@@ -1076,7 +1096,7 @@ class Car:
             rings.append((warp_ring(zR - tl * u, "deck", u, False), "deck"))
         tipr = rings[-1][0]
         for sc in (0.9, 0.75, 0.55, 0.3, 0.0):
-            rings.append(([(x * sc, y, z) for x, y, z in tipr], "cap"))
+            rings.append(([(x * sc, y, z + setback(x, False) - setback(x * sc, False)) for x, y, z in tipr], "cap"))
         return rings
 
     # ---- the shell
@@ -1661,15 +1681,23 @@ def kidneys(car, S, st):
                 "Gloss", lift=lift, rings=1)
 
 
-def oblique(car, end, alpha):
+def oblique(car, end, alpha, S=None):
     """A projection from the front-right / rear-right quarter: it lands on both the end face and the
-    corner, so wrap-around lamps come out whole. Returns (view, conv) where conv maps end-view (x, y) to it."""
+    corner, so wrap-around lamps come out whole. Returns (view, conv) where conv maps end-view (x, y) to it.
+    With the surface S, each point first finds the panel depth with a straight end-view ray, so the oblique ray
+    passes exactly through the measured (x, y) on the rounded nose / tail."""
     ca, sa = math.cos(alpha), math.sin(alpha)
-    if end == "rear":
-        z0 = car.zR
-        return ((-sa, 0, -ca), (ca, 0, -sa), (0, 1, 0)), (lambda x, y: (x * ca - z0 * sa, y))
-    z0 = car.zF
-    return ((-sa, 0, ca), (ca, 0, sa), (0, 1, 0)), (lambda x, y: (x * ca + z0 * sa, y))
+    rear = end == "rear"
+    z0 = car.zR if rear else car.zF
+
+    def zs(x, y):
+        if S is None:
+            return z0
+        loc, _n = S.hit(x, y, end)
+        return loc.z if loc is not None else z0
+    if rear:
+        return ((-sa, 0, -ca), (ca, 0, -sa), (0, 1, 0)), (lambda x, y: (x * ca - zs(x, y) * sa, y))
+    return ((-sa, 0, ca), (ca, 0, sa), (0, 1, 0)), (lambda x, y: (x * ca + zs(x, y) * sa, y))
 
 
 def _cv(conv, pts):
@@ -1678,7 +1706,7 @@ def _cv(conv, pts):
 
 def headlights(car, S, st):
     h = st["head"]
-    V, cv = oblique(car, "front", h.get("alpha", 0.55))
+    V, cv = oblique(car, "front", h.get("alpha", 0.55), S)
     poly = round_poly(h["pts"], h.get("r", 0.012), per=3)
     S.decal(_cv(cv, offset_poly(_ccw(poly), 0.006)), V, h.get("bezel", (0.1, 0.1, 0.11)), "Paint", lift=0.005, rings=2,
             step=0.03, mirror=True)
@@ -1693,6 +1721,9 @@ def headlights(car, S, st):
                 step=0.01, mirror=True)
     for shp in h.get("blue", []):
         S.decal(_cv(cv, shp), V, LAMP_BLUE, "Glow", lift=0.011, rings=1, step=0.015, mirror=True)
+    for (x, y, r) in h.get("rings", []):        # corona / hexagon DRL rings
+        S.frame(_cv(cv, ellipse(x, y, r, r * 0.92, 6, math.pi / 6)), _cv(cv, ellipse(x, y, r * 0.74, r * 0.68, 6, math.pi / 6)),
+                V, LAMP_W, "Glow", lift=0.012, mirror=True, step=0.01)
     c = centroid(h["pts"])
     loc, _n = S.hit(*cv(c[0], c[1]), V)
     return loc
@@ -1700,7 +1731,7 @@ def headlights(car, S, st):
 
 def taillights(car, S, st):
     t = st["tail"]
-    V, cv = oblique(car, "rear", t.get("alpha", 0.6))
+    V, cv = oblique(car, "rear", t.get("alpha", 0.6), S)
     poly = round_poly(t["pts"], t.get("r", 0.012), per=3)
     S.decal(_cv(cv, offset_poly(_ccw(poly), 0.006)), V, (0.05, 0.015, 0.018), "Paint", lift=0.005, rings=2, step=0.03,
             mirror=True)
@@ -1748,7 +1779,7 @@ def mirrors(car, st):
     xE = car.w(z0) - car.f["te"](z0)
     L = m.get("len", 0.23)
     cap = m.get("cap", "paint")
-    sc = m.get("scale", 0.86)
+    sc = m.get("scale", 1.0)
     for sx in (-1, 1):
         n0 = len(PARTS)
         rings = []
@@ -1940,14 +1971,49 @@ def rear_details(car, S, st):
         S.text("BEMZE", 0.03, "rear", rr["script_at"], CHROME, "Metal", lift=0.004, spacing=1.15)
     lip = rr.get("lip")
     if lip:
-        S.decal(lip, "top", lip_col(car), "CarPaint" if not car.sp.get("carbon_lip") else "Gloss", lift=0.018, rings=2,
-                step=0.04, lift_fn=lambda f: 0.0)
+        lip_spoiler(car, S, lip, lip_col(car), "CarPaint" if not car.sp.get("carbon_lip") else "Gloss",
+                    h=rr.get("lip_h", 0.026))
     tips = exhausts(car, S, st)
     return tl, ploc, tips
 
 
 def lip_col(car):
     return CARBON if car.sp.get("carbon_lip") else WHITE
+
+
+def lip_spoiler(car, S, lip, col, kind, h=0.026):
+    """Boot-lid lip spoiler: a thin wedge that sits on the lid's trailing edge and kicks up (lip = the old top-view
+    footprint polygon: its half-width and z range)."""
+    w = max(abs(p[0]) for p in lip)
+    za = min(p[1] for p in lip)
+    zb = max(p[1] for p in lip) + 0.06
+    rings = []
+    for k in range(25):
+        x = w * (-1 + 2 * k / 24)
+        taper = 1 - 0.55 * (abs(x) / w) ** 6
+        hits = []
+        for j in range(24):
+            z = lerp(za, zb, j / 23)
+            loc, nor = S.hit(x, z, "top")
+            if loc is None or nor.y < 0.35 or (hits and loc.y < hits[-1].y - 0.02):
+                if hits:
+                    break           # past the lid's trailing edge
+                continue
+            hits.append(loc)
+        if len(hits) < 2:
+            continue
+        pa, pb = hits[max(0, len(hits) - 9)], hits[-1]
+        hh = h * taper
+        up = Vector((0, 1, 0))
+        rings.append([pa + up * 0.002, pb + up * 0.002 + Vector((0, 0, 0.006)), pb + up * hh + Vector((0, 0, 0.022)),
+                      pa.lerp(pb, 0.55) + up * (hh * 0.45)])
+    if len(rings) < 3:
+        return
+    ys = sorted(r[0].y for r in rings)
+    ymed = ys[len(ys) // 2]
+    rings = [r for r in rings if r[0].y > ymed - 0.04 and r[1].y > ymed - 0.06]
+    bm = loft_bm(rings, cap0=True, cap1=True)
+    emit(bm, col, kind, sharp=0.8)
 
 
 def antenna(car, st):
@@ -2027,28 +2093,68 @@ def interior(car, st):
     for vx in (-0.62, -0.13, 0.13, 0.62):
         box((0.14 if abs(vx) < 0.3 else 0.1, 0.045, 0.02), (0.02, 0.02, 0.022), "Gloss",
             pos=(vx, y_cowl - 0.155, z_fw + dz - 0.003))
-    # BMW-style curved display: cluster behind the wheel + central screen, one glass slab angled to the driver
+    # BMW Curved Display: ONE glass panel from behind the wheel to the centre, bending toward the driver
     sy = y_cowl + 0.06
     szz = z_fw + dz - 0.1
-    for (x0, x1, yaw) in ((xd - 0.2, xd + 0.2, 0.0), (xd + 0.2, 0.12, -0.28)):
-        cx = (x0 + x1) / 2
-        wdt = abs(x1 - x0)
-        M = T((cx, sy, szz - 0.02 + (0.03 if yaw else 0.0)), [("x", -0.2), ("y", yaw)])
-        box((wdt + 0.01, 0.13, 0.025), (0.03, 0.03, 0.035), "Gloss", M=M, r=0.008)
-        box((wdt - 0.02, 0.11, 0.004), (0.02, 0.035, 0.07), "Glow", M=M, pos=(0, 0, 0.0135))
-        if yaw == 0.0:      # cluster: tacho arc + speed + shift lights
-            for k in range(14):
-                a = -2.3 + 4.6 * k / 13
-                col = (1.0, 0.35, 0.1) if k > 10 else (0.9, 0.9, 0.95)
-                box((0.006, 0.02, 0.003), col, "Glow", M=M, pos=(0.09 * math.sin(a) - 0.06, 0.012 + 0.045 * math.cos(a), 0.016),
-                    rot=[("z", -a)])
-            box((0.07, 0.03, 0.003), (0.95, 0.95, 1.0), "Glow", M=M, pos=(0.08, 0.0, 0.016))
-            box((0.12, 0.006, 0.003), (1.0, 0.45, 0.1), "Glow", M=M, pos=(0.0, 0.05, 0.016))
-        else:               # infotainment: map-ish tiles
-            for k, (tx, ty, tw, th, tc) in enumerate(((-0.06, 0.0, 0.12, 0.09, (0.12, 0.3, 0.2)),
-                                                      (0.06, 0.02, 0.1, 0.05, (0.2, 0.35, 0.6)),
-                                                      (0.06, -0.03, 0.1, 0.03, (0.8, 0.5, 0.2)))):
-                box((tw, th, 0.003), tc, "Glow", M=M, pos=(tx, ty, 0.016))
+    lean = -0.2                                   # top edge leans away from the driver
+    up = Vector((0, math.cos(lean), math.sin(lean)))
+    n_seg = 12
+    xs0, L_flat, L_bend, ang1 = xd - 0.21, 0.36, 0.36, -0.34
+    pts, dirs = [], []
+    p = Vector((xs0, sy - 0.065, szz - 0.02))
+    step = (L_flat + L_bend) / n_seg
+    for i in range(n_seg + 1):
+        u = i * step
+        yaw = 0.0 if u <= L_flat else ang1 * (u - L_flat) / L_bend
+        d = Vector((math.cos(yaw), 0, -math.sin(yaw)))
+        pts.append(p.copy())
+        dirs.append(d)
+        p = p + d * step
+    H_, TH = 0.13, 0.024
+    rings_b, rings_g = [], []
+    for p, d in zip(pts, dirs):
+        nrm = up.cross(d).normalized()            # toward the driver (+z-ish)
+        if nrm.z < 0:
+            nrm = -nrm
+        rings_b.append([p - nrm * TH, p + nrm * 0.004, p + up * H_ + nrm * 0.004, p + up * H_ - nrm * TH])
+        rings_g.append((p + up * 0.012 + nrm * 0.0055, p + up * (H_ - 0.012) + nrm * 0.0055))
+    emit(loft_bm(rings_b, cap0=True, cap1=True), (0.03, 0.03, 0.035), "Gloss", sharp=0.5)
+    bmg = bmesh.new()
+    vv = [(bmg.verts.new(lo), bmg.verts.new(hi)) for lo, hi in rings_g[:]]
+    vv[0] = (bmg.verts.new(rings_g[0][0] + dirs[0] * 0.012), bmg.verts.new(rings_g[0][1] + dirs[0] * 0.012))
+    vv[-1] = (bmg.verts.new(rings_g[-1][0] - dirs[-1] * 0.012), bmg.verts.new(rings_g[-1][1] - dirs[-1] * 0.012))
+    for i in range(len(vv) - 1):
+        bmg.faces.new((vv[i][0], vv[i + 1][0], vv[i + 1][1], vv[i][1]))
+    bmg.normal_update()
+    if sum(f.normal.z for f in bmg.faces) < 0:
+        bmesh.ops.reverse_faces(bmg, faces=bmg.faces)
+    emit(bmg, (0.02, 0.035, 0.07), "Glow", recalc=False)
+
+    def seg_M(u):                                 # frame on the panel at arc length u (x along, y up, +z out)
+        k = min(n_seg - 1, int(u / step))
+        d = dirs[k]
+        p0 = pts[k] + d * (u - k * step) + up * (H_ / 2)
+        nrm = up.cross(d).normalized()
+        if nrm.z < 0:
+            nrm = -nrm
+        return Matrix((tuple(d) + (0,), tuple(up) + (0,), tuple(nrm) + (0,), (0, 0, 0, 1))).transposed().copy() \
+            if False else Matrix(((d.x, up.x, nrm.x, p0.x), (d.y, up.y, nrm.y, p0.y), (d.z, up.z, nrm.z, p0.z),
+                                  (0, 0, 0, 1)))
+    M = seg_M(0.21)                               # the cluster, straight ahead of the driver
+    for k in range(14):
+        a = -2.3 + 4.6 * k / 13
+        col = (1.0, 0.35, 0.1) if k > 10 else (0.9, 0.9, 0.95)
+        box((0.006, 0.02, 0.003), col, "Glow", M=M, pos=(0.09 * math.sin(a) - 0.06, 0.012 + 0.045 * math.cos(a), 0.0075),
+            rot=[("z", -a)])
+    box((0.07, 0.03, 0.003), (0.95, 0.95, 1.0), "Glow", M=M, pos=(0.08, 0.0, 0.0075))
+    box((0.12, 0.006, 0.003), (1.0, 0.45, 0.1), "Glow", M=M, pos=(0.0, 0.05, 0.0075))
+    M = seg_M(0.56)                               # infotainment: map, tiles
+    for (tx, ty, tw, th, tc) in ((-0.06, 0.0, 0.14, 0.09, (0.12, 0.3, 0.2)), (0.07, 0.02, 0.1, 0.05, (0.2, 0.35, 0.6)),
+                                 (0.07, -0.03, 0.1, 0.03, (0.8, 0.5, 0.2))):
+        box((tw, th, 0.003), tc, "Glow", M=M, pos=(tx, ty, 0.0075))
+    # carbon trim band across the dash under the screen, with the centre vents
+    box((2 * xin - 0.06, 0.05, 0.03), CARBON if it.get("carbon", True) else it["accent"], "Gloss",
+        pos=(0, y_cowl - 0.19, z_fw + dz + 0.005))
     # centre console with shifter, iDrive knob, armrest
     cz0 = z_fw + dz - 0.1
     cz1 = hz + 0.25
@@ -2161,6 +2267,35 @@ def body_profile(zF, zR, aF, aR, zc, zb, k):
     return dict(top=sorted(top), e=sorted(e), bot=bot, ys=ys, ysh=ysh, te=te)
 
 
+def body_profile2(zF, zR, aF, aR, zc, zb, P):
+    """Side-profile curves from point lists measured on the reference photos (car coordinates, metres):
+      hood  [(z, y)] centre-line hood top from the nose (z ~ zF) back to the windshield base (zc)
+      deck  [(z, y)] centre-line boot lid from the rear window base (zb) to the tail (z ~ zR)
+      belt  [(z, y)] beltline (side-glass sill) from the A-pillar base to the C-pillar
+      sh    [(z, y)] shoulder crease;  sill [(z, y)] rocker / skirt bottom;  bot [(z, y)] underbody
+      hood_crown / deck_crown: how far the panel edge sits below the centre line; te_*: edge insets."""
+    hood, deck, belt = sorted(P["hood"]), sorted(P["deck"]), sorted(P["belt"])
+    hc = P.get("hood_crown", 0.075)             # the fender tops sit this far below the hood centre at the nose
+    top, e = [], []
+    for z, y in hood:
+        f = smooth01((z - hood[0][0]) / max(1e-3, zc - hood[0][0]))
+        top.append((z, y))
+        e.append((z, min(y - 0.012, lerp(y - hc, belt[0][1], f ** 2))))
+    mid = (zc + zb) / 2
+    top.append((mid, max(hood[-1][1], deck[0][1]) + 0.02))
+    e += [p for p in belt if hood[-1][0] + 0.05 < p[0] < deck[0][0] - 0.05]
+    dc = P.get("deck_crown", 0.03)
+    for k, (z, y) in enumerate(deck):
+        top.append((z, y))
+        f = smooth01((z - deck[0][0]) / 0.35)
+        e.append((z, min(y - 0.012, lerp(min(belt[-1][1] + 0.008, y - 0.02), y - dc, f))))
+    tc = P["te_cab"]
+    te = [(zF, P.get("te_nose", 0.05)), (aF, P.get("te_nose", 0.05) + 0.02), (zc, tc - 0.025), (0, tc), (aR, tc),
+          (zR, tc - 0.035)]
+    return dict(top=sorted(top), e=sorted(e), bot=sorted(P["bot"]), ys=sorted(P["sill"]), ysh=sorted(P["sh"]), te=te,
+                _hood=hood, _deck=deck)
+
+
 def _axes(WB, L, ohf):
     aF, aR = -WB / 2, WB / 2
     return aF, aR, aF - ohf, aR + (L - WB - ohf)
@@ -2181,69 +2316,173 @@ def _gaps_coupe(fr, rr, y0=0.295, belt=1.0):
             [(fr, y0), (rr + 0.02, y0)]]
 
 
-M3_FRONT = dict(
-    kidney=dict(pts=[(0.03, 0.748), (0.255, 0.738), (0.262, 0.42), (0.2, 0.33), (0.07, 0.325), (0.035, 0.36)],
-                r=[0.02, 0.04, 0.05, 0.05, 0.03, 0.02], frame_w=0.018, slats="hh", pitch=0.045, lift=0.035),
-    head=dict(pts=[(0.29, 0.705), (0.33, 0.748), (0.6, 0.738), (0.77, 0.724), (0.835, 0.705), (0.83, 0.66),
-                   (0.63, 0.66), (0.5, 0.655), (0.37, 0.645), (0.3, 0.66)],
-              drl=[[(0.66, 0.672), (0.672, 0.672), (0.672, 0.702), (0.8, 0.705), (0.8, 0.716), (0.66, 0.714)],
-                   [(0.46, 0.667), (0.472, 0.667), (0.472, 0.71), (0.62, 0.713), (0.62, 0.724), (0.46, 0.722)]],
-              lens=[(0.73, 0.687, 0.014), (0.54, 0.688, 0.015)],
-              blue=[[(0.36, 0.655), (0.44, 0.662), (0.44, 0.668), (0.36, 0.661)]]),
-    front=dict(intakes=[[(0.4, 0.25), (0.69, 0.25), (0.73, 0.33), (0.72, 0.57), (0.64, 0.6), (0.42, 0.44)]],
-               center=[[(-0.36, 0.215), (0.36, 0.215), (0.3, 0.34), (-0.3, 0.34)]],
-               trims_c=[([(-0.74, 0.195), (0.74, 0.195), (0.78, 0.232), (-0.78, 0.232)], PIANO, "Gloss")],
-               plate=(0, 0.285)),
+# Front / rear details per car, measured on the head-on reference photos (end-view coordinates in metres:
+# x = the car's right side (+x), y = height; calibrated on the 520 x 110 mm number plate).
+DET_M3 = dict(   # G80 M3 LCI (and the G82 M4 nose): tall vertical kidneys, slim headlights with twin inverted-L DRLs
+    kidney=dict(pts=[(0.022, 0.64), (0.3, 0.64), (0.345, 0.59), (0.36, 0.5), (0.35, 0.33), (0.31, 0.23), (0.24, 0.195),
+                     (0.04, 0.195), (0.022, 0.215)],
+                r=[0.02, 0.05, 0.05, 0.06, 0.06, 0.05, 0.04, 0.02, 0.02], frame_w=0.016, slats="hh", pitch=0.045,
+                lift=0.03),
+    head=dict(pts=[(0.406, 0.596), (0.557, 0.657), (0.818, 0.686), (0.834, 0.64), (0.818, 0.596), (0.694, 0.55),
+                   (0.49, 0.555)], r=0.012,
+              drl=[[(0.568, 0.566), (0.58, 0.566), (0.58, 0.622), (0.622, 0.628), (0.622, 0.636), (0.568, 0.63)],
+                   [(0.768, 0.604), (0.779, 0.604), (0.779, 0.652), (0.808, 0.656), (0.808, 0.664), (0.768, 0.66)]],
+              lens=[(0.68, 0.605, 0.018), (0.49, 0.58, 0.012)]),
+    front=dict(intakes=[[(0.325, 0.355), (0.636, 0.352), (0.659, 0.268), (0.603, 0.19), (0.26, 0.192)]],
+               center=[],
+               trims=[([(0.795, 0.19), (0.825, 0.19), (0.835, 0.43), (0.808, 0.43)], PIANO, "Gloss")],
+               trims_c=[([(-0.8, 0.14), (0.8, 0.14), (0.82, 0.175), (-0.82, 0.175)], PIANO, "Gloss")],
+               plate=(0, 0.4)),
+    tail=dict(pts=[(0.3, 0.86), (0.33, 0.9), (0.72, 0.935), (0.76, 0.915), (0.76, 0.86), (0.7, 0.835), (0.33, 0.84)],
+              base=(0.14, 0.01, 0.015),
+              glow=[[(0.34, 0.845), (0.72, 0.848), (0.752, 0.87), (0.752, 0.905), (0.738, 0.905), (0.735, 0.875),
+                     (0.71, 0.862), (0.36, 0.86)]],
+              hi=[[(0.4, 0.895), (0.7, 0.915), (0.7, 0.921), (0.4, 0.901)]]),
+    rear=dict(diffuser=[(-0.62, 0.2), (0.62, 0.2), (0.66, 0.4), (-0.66, 0.4)], fins=[-0.15, 0.0, 0.15],
+              reflectors=[(0.78, 0.59, 0.02, 0.13)], plate=(0, 0.74), roundel=(0, 0.925), badge_at=(0.4, 0.95)),
+    exhaust=[(0.27, 0.29, 0.05, "round"), (0.39, 0.29, 0.05, "round")],
+)
+DET_M4 = dict(DET_M3,   # G82: same nose; laser taillights, tall bumper reflectors
+    tail=dict(pts=[(0.305, 0.861), (0.354, 0.902), (0.735, 0.928), (0.789, 0.897), (0.789, 0.812), (0.611, 0.819),
+                   (0.392, 0.848)],
+              base=(0.08, 0.005, 0.01),
+              glow=[[(0.31, 0.855), (0.74, 0.83), (0.775, 0.84), (0.78, 0.89), (0.765, 0.89), (0.76, 0.85), (0.74, 0.845),
+                     (0.33, 0.866)]]),
+    rear=dict(diffuser=[(-0.62, 0.18), (0.62, 0.18), (0.66, 0.43), (-0.66, 0.43)], fins=[-0.14, 0.0, 0.14],
+              reflectors=[(0.8, 0.46, 0.02, 0.22)], plate=(0, 0.79), roundel=(0, 0.94), badge_at=(0.39, 0.93)),
+    exhaust=[(0.28, 0.29, 0.052, "round"), (0.395, 0.29, 0.052, "round")],
+)
+DET_M2 = dict(   # G87: wide horizontal frameless kidneys, upright headlights, big square intakes
+    kidney=dict(pts=[(0.035, 0.655), (0.42, 0.655), (0.43, 0.48), (0.035, 0.475)], r=[0.03, 0.04, 0.05, 0.03],
+                frame_w=0.012, slats="h", pitch=0.03, slat_t=0.012, lift=0.02),
+    head=dict(pts=[(0.511, 0.59), (0.531, 0.646), (0.823, 0.706), (0.876, 0.674), (0.863, 0.58), (0.543, 0.561)],
+              r=0.02,
+              drl=[[(0.54, 0.572), (0.85, 0.59), (0.85, 0.602), (0.555, 0.585), (0.555, 0.63), (0.54, 0.63)]],
+              lens=[(0.72, 0.64, 0.02)]),
+    front=dict(intakes=[[(0.477, 0.38), (0.823, 0.38), (0.823, 0.14), (0.477, 0.14)]],
+               center=[[(-0.44, 0.14), (0.44, 0.14), (0.44, 0.33), (-0.44, 0.33)]],
+               trims_c=[([(-0.78, 0.115), (0.78, 0.115), (0.8, 0.145), (-0.8, 0.145)], PIANO, "Gloss")],
+               plate=(0, 0.42), plate_lift=0.02),
+    tail=dict(pts=[(0.505, 0.869), (0.516, 0.939), (0.724, 0.997), (0.804, 0.951), (0.804, 0.882), (0.782, 0.847)],
+              base=(0.12, 0.01, 0.015),
+              glow=[[(0.53, 0.905), (0.73, 0.955), (0.785, 0.93), (0.785, 0.9), (0.772, 0.9), (0.77, 0.922), (0.73, 0.94),
+                     (0.53, 0.892)]]),
+    rear=dict(diffuser=[(-0.55, 0.24), (0.55, 0.24), (0.58, 0.49), (-0.58, 0.49)], fins=[-0.12, 0.0, 0.12],
+              trims=[([(0.755, 0.48), (0.81, 0.48), (0.81, 0.74), (0.755, 0.74)], PIANO, "Gloss")],
+              reflectors=[(0.782, 0.62, 0.018, 0.16)], plate=(0, 0.8), roundel=(0, 0.962), badge_at=(0.41, 0.962)),
+    exhaust=[(0.28, 0.34, 0.05, "round"), (0.385, 0.34, 0.05, "round")],
+)
+DET_M5 = dict(   # G90: huge kidneys with the lit contour, slim headlights with vertical DRL bars
+    kidney=dict(pts=[(0.018, 0.735), (0.46, 0.74), (0.43, 0.52), (0.33, 0.465), (0.05, 0.46), (0.018, 0.5)],
+                r=[0.02, 0.04, 0.04, 0.03, 0.02, 0.02], frame_w=0.014, slats="hh", pitch=0.05, lift=0.03, glow=True),
+    head=dict(pts=[(0.527, 0.664), (0.537, 0.733), (0.829, 0.833), (0.807, 0.733)], r=0.01,
+              drl=[[(0.795, 0.745), (0.808, 0.745), (0.812, 0.822), (0.8, 0.82)],
+                   [(0.66, 0.705), (0.672, 0.705), (0.676, 0.78), (0.664, 0.778)]],
+              lens=[(0.74, 0.76, 0.014), (0.6, 0.72, 0.012)]),
+    front=dict(intakes=[[(0.503, 0.44), (0.9, 0.44), (0.88, 0.2), (0.62, 0.183)]],
+               center=[[(-0.66, 0.14), (0.66, 0.14), (0.62, 0.29), (-0.62, 0.29)]],
+               trims_c=[([(-0.82, 0.12), (0.82, 0.12), (0.84, 0.15), (-0.84, 0.15)], PIANO, "Gloss")],
+               plate=(0, 0.35), plate_lift=0.016),
+    tail=dict(pts=[(0.313, 0.96), (0.339, 1.005), (0.765, 1.045), (0.84, 0.969), (0.791, 0.934), (0.326, 0.93)],
+              base=(0.1, 0.008, 0.012),
+              glow=[[(0.345, 0.992), (0.78, 1.018), (0.78, 1.026), (0.345, 1.0)],
+                    [(0.345, 0.94), (0.8, 0.95), (0.8, 0.958), (0.345, 0.948)]]),
+    rear=dict(diffuser=[(-0.72, 0.22), (0.72, 0.22), (0.78, 0.43), (0.45, 0.52), (-0.45, 0.52), (-0.78, 0.43)],
+              fins=[-0.2, 0.0, 0.2], reflectors=[(0.87, 0.58, 0.02, 0.2)], plate=(0, 0.83), roundel=(0, 1.035),
+              badge_at=(0.51, 1.035)),
+    exhaust=[(0.49, 0.376, 0.048, "round"), (0.6, 0.376, 0.048, "round")],
+)
+DET_M8 = dict(   # F92: one wide kidney frame with a divider and vertical double bars, hex headlights
+    kidney=dict(pts=[(-0.41, 0.632), (0.41, 0.632), (0.499, 0.55), (0.423, 0.454), (-0.423, 0.454), (-0.499, 0.55)],
+                r=[0.03, 0.03, 0.03, 0.05, 0.05, 0.03], frame_w=0.016, slats="vv", pitch=0.045, lift=0.03,
+                single=True, divider=True),
+    head=dict(pts=[(0.487, 0.614), (0.573, 0.647), (0.809, 0.718), (0.82, 0.657), (0.766, 0.593), (0.508, 0.568)],
+              drl=[[(0.53, 0.59), (0.72, 0.61), (0.74, 0.66), (0.728, 0.662), (0.712, 0.62), (0.53, 0.602)],
+                   [(0.6, 0.63), (0.78, 0.67), (0.795, 0.705), (0.783, 0.706), (0.77, 0.68), (0.6, 0.642)]],
+              lens=[(0.66, 0.63, 0.013), (0.745, 0.665, 0.012)],
+              blue=[[(0.5, 0.59), (0.54, 0.595), (0.54, 0.603), (0.5, 0.598)]]),
+    front=dict(intakes=[[(0.528, 0.476), (0.809, 0.476), (0.8, 0.26), (0.55, 0.228)]],
+               center=[[(-0.35, 0.197), (0.35, 0.197), (0.34, 0.31), (-0.34, 0.31)]],
+               trims_c=[([(-0.78, 0.12), (0.78, 0.12), (0.8, 0.16), (-0.8, 0.16)], CARBON, "Gloss")],
+               plate=(0, 0.37), plate_lift=0.016),
+    tail=dict(pts=[(0.321, 0.899), (0.353, 0.933), (0.742, 0.975), (0.797, 0.943), (0.797, 0.878), (0.657, 0.867),
+                   (0.343, 0.867)],
+              base=(0.12, 0.01, 0.015),
+              glow=[[(0.35, 0.874), (0.76, 0.88), (0.785, 0.9), (0.785, 0.94), (0.772, 0.94), (0.77, 0.905), (0.75, 0.892),
+                     (0.35, 0.886)]],
+              hi=[[(0.4, 0.915), (0.72, 0.945), (0.72, 0.951), (0.4, 0.921)]]),
+    rear=dict(diffuser=[(-0.74, 0.3), (0.74, 0.3), (0.76, 0.48), (-0.76, 0.48)], fins=[-0.15, 0.0, 0.15],
+              reflectors=[(0.79, 0.62, 0.02, 0.15)], plate=(0, 0.67), roundel=(0, 0.9), badge_at=(0.24, 0.85)),
+    exhaust=[(0.505, 0.38, 0.049, "round"), (0.62, 0.38, 0.049, "round")],
+)
+DET_540 = dict(  # G30 540i M Sport: chrome kidneys that meet the headlights, twin corona rings, trapezoid tailpipes
+    kidney=dict(pts=[(0.02, 0.7), (0.43, 0.7), (0.45, 0.66), (0.42, 0.5), (0.39, 0.49), (0.03, 0.49), (0.02, 0.52)],
+                r=[0.02, 0.03, 0.03, 0.03, 0.03, 0.02, 0.02], frame_w=0.016, slats="v", pitch=0.032, lift=0.028,
+                frame=CHROME, slat_col=CHROME),
+    head=dict(pts=[(0.457, 0.62), (0.47, 0.66), (0.62, 0.73), (0.87, 0.77), (0.93, 0.74), (0.91, 0.66), (0.75, 0.6),
+                   (0.52, 0.575)],
+              r=0.015, rings=[(0.6, 0.665, 0.042), (0.77, 0.7, 0.042)],
+              drl=[[(0.5, 0.7), (0.86, 0.755), (0.86, 0.763), (0.5, 0.708)]], bezel=(0.5, 0.52, 0.55)),
+    front=dict(intakes=[[(0.541, 0.26), (0.894, 0.26), (0.894, 0.453), (0.6, 0.45)]],
+               center=[[(-0.46, 0.222), (0.46, 0.222), (0.44, 0.33), (-0.44, 0.33)]],
+               plate=(0, 0.4), plate_lift=0.016),
+    tail=dict(pts=[(0.316, 0.924), (0.339, 0.97), (0.697, 1.023), (0.801, 0.993), (0.801, 0.913), (0.72, 0.831),
+                   (0.328, 0.82)],
+              glow=[[(0.34, 0.885), (0.75, 0.9), (0.78, 0.94), (0.78, 0.975), (0.768, 0.975), (0.765, 0.945),
+                     (0.745, 0.912), (0.34, 0.897)],
+                    [(0.35, 0.845), (0.7, 0.85), (0.7, 0.858), (0.35, 0.855)]]),
+    rear=dict(trims_c=[([(-0.62, 0.57), (0.62, 0.57), (0.62, 0.58), (-0.62, 0.58)], CHROME, "Metal")],
+              diffuser=[(-0.66, 0.29), (0.66, 0.29), (0.68, 0.56), (-0.68, 0.56)], fins=[],
+              reflectors=[(0.74, 0.5, 0.1, 0.02)], plate=(0, 0.84), roundel=(0, 1.02), badge_at=(0.43, 1.0)),
+    exhaust=[(0.575, 0.37, 0.055, "trap")], tip_out=-0.01,
 )
 
 
 def spec_m3():
     """BMW M3 Competition (G80) saloon: 4794 x 1903 x 1433, wheelbase 2857, track 1617 / 1605,
-    275/35 R19 front, 285/30 R20 rear (modelled as one 20" wheel, 0.679 m tyre)."""
+    275/35 R19 front, 285/30 R20 rear (modelled as one 20" wheel, 0.679 m tyre).
+    Side profile, glasshouse and door lines measured on the reference side photo."""
     WB, L, ohf = 2.857, 4.794, 0.86
     aF, aR, zF, zR = _axes(WB, L, ohf)
-    zc, zb = -1.0, 1.66
+    zc, zb = -0.80, 1.94
     d = dict(
         name="M3", L=L, W=1.903, H=1.433, WB=WB, TF=1.617, TR=1.605, ohf=ohf,
-        tire_od=0.679, rim_in=20, tire_w=0.275, flare=0.022, low_line=(0.42, 0.52, 0.008),
-        front=[(0.17, 0.02), (0.24, 0.0), (0.45, 0.0), (0.65, 0.008), (0.72, 0.022), (0.765, 0.05),
-               (0.8, 0.12), (0.9, 0.4)],
-        rear=[(0.28, 0.1), (0.4, 0.03), (0.55, 0.0), (0.75, 0.008), (0.95, 0.035), (1.02, 0.06), (1.07, 0.1)],
+        tire_od=0.679, rim_in=20, tire_w=0.275, flare=0.034, flare_f=0.75, low_line=(0.42, 0.71, 0.01),
+        nose_round=0.74, tail_round=0.8, plan_front=(0.30, 1.8), plan_rear=(0.20, 2.0), nose_len=0.48, tail_len=0.46,
+        front=[(0.100, 0.219), (0.130, 0.092), (0.170, 0.033), (0.220, 0.009), (0.350, 0.014), (0.500, 0.000), (0.600, 0.006), (0.660, 0.021), (0.720, 0.050)],
+        rear=[(0.150, 0.195), (0.200, 0.156), (0.300, 0.060), (0.400, 0.003), (0.500, 0.001), (0.600, 0.060), (0.700, 0.128), (0.800, 0.169), (0.900, 0.164), (0.970, 0.135), (1.020, 0.136)],
         dome=(zF + 0.45, zc, 0.3, 0.018),
-        gh=dict(zc0=zc, kf=0.14, zh=-0.12, kh=0.12, zb0=zb, krb=0.16, zrr=1.0, krr=0.12, a_in=0.05,
-                roof=[(-0.15, 1.375), (0.1, 1.418), (0.4, 1.433), (0.72, 1.418), (1.0, 1.372)],
-                crown=0.045, xr=[(0.0, 0.665), (0.9, 0.645)], B=(0.15, 0.23, 0.11, 0.19),
-                zC=[(0.0, 1.24), (0.2, 1.34), (1.0, 0.9)]),
+        gh=dict(zc0=zc, kf=0.08, zh=-0.05, kh=0.04, zb0=zb, krb=0.14, zrr=1.2, krr=0.1, a_in=0.04,
+                roof=[(-0.060, 1.392), (0.100, 1.416), (0.250, 1.429), (0.400, 1.433), (0.550, 1.433), (0.700, 1.433), (0.850, 1.428), (1.000, 1.411), (1.150, 1.388), (1.300, 1.333)],
+                crown=0.045, xr=[(0.0, 0.585), (0.9, 0.61)], B=(0.30, 0.53, 0.33, 0.54),
+                zC=[(0.0, 1.47), (0.1, 1.51), (0.25, 1.49), (0.55, 1.37), (0.8, 1.2), (1.0, 1.0)]),
         int=dict(INT_BLACK, seat=(0.8, 0.36, 0.08), seat2=(0.07, 0.07, 0.075), card=(0.1, 0.1, 0.11)),
         paint=(0.09, 0.36, 0.25), paint_name="Isle of Man Green",
         wheel=dict(style="y", n=5, col=(0.3, 0.31, 0.33), caliper=(0.1, 0.25, 0.75), concave=0.045),
-        style=dict(M3_FRONT,
-                   badge="M3", roundel_front=(0.787, zF + 0.16),
-                   tail=dict(pts=[(0.38, 0.955), (0.6, 0.985), (0.84, 0.985), (0.885, 0.965), (0.89, 0.86), (0.8, 0.835),
-                                  (0.62, 0.845), (0.5, 0.9), (0.4, 0.915)],
-                             glow=[[(0.6, 0.868), (0.85, 0.862), (0.862, 0.968), (0.838, 0.968), (0.832, 0.89), (0.6, 0.894)],
-                                   [(0.42, 0.925), (0.6, 0.945), (0.6, 0.965), (0.42, 0.942)]],
-                             hi=[[(0.61, 0.878), (0.83, 0.873), (0.83, 0.879), (0.61, 0.884)]]),
-                   rear=dict(diffuser=[(-0.7, 0.19), (0.7, 0.19), (0.74, 0.42), (0.5, 0.45), (-0.5, 0.45), (-0.74, 0.42)],
-                             fins=[-0.28, -0.14, 0.0, 0.14, 0.28],
-                             reflectors=[(0.8, 0.5, 0.03, 0.12)], plate=(0, 0.62), roundel=(0, 0.97),
-                             badge_at=(0.42, 0.85),
-                             lip=[(-0.62, zR - 0.21), (0.62, zR - 0.21), (0.6, zR - 0.1), (-0.6, zR - 0.1)]),
-                   exhaust=[(0.44, 0.3, 0.048, "round"), (0.57, 0.3, 0.048, "round")],
-                   mirror=dict(z=-0.76, y=0.94, cap="carbon"),
-                   side=dict(gaps=_gaps_sedan(-0.99, 0.21, 0.99),
-                             handles=[(0.02, 0.87, 0.17), (0.92, 0.89, 0.16)],
-                             gill=dict(pts=[(-1.12, 0.7), (-0.97, 0.71), (-0.97, 0.775), (-1.1, 0.77)],
-                                       slats=[[(-1.1, 0.722), (-0.99, 0.726), (-0.99, 0.732), (-1.1, 0.728)]],
-                                       badge="M3", badge_at=(-1.035, 0.752)),
-                             skirt=[(-1.0, 0.18), (1.02, 0.18), (1.02, 0.225), (-1.0, 0.225)],
+        style=dict(DET_M3, roundel_front=(0.69, zF + 0.03), rear=dict(DET_M3["rear"], lip=[(-0.62, zR - 0.21), (0.62, zR - 0.21), (0.6, zR - 0.1), (-0.6, zR - 0.1)]),
+                   badge="M3", hood_vents=[[(0.12, zF + 0.34), (0.31, zF + 0.31), (0.3, zF + 0.4), (0.13, zF + 0.42)]],
+                   mirror=dict(z=-0.62, y=0.99, cap="carbon"),
+                   side=dict(gaps=[[(-0.738, 0.345), (-0.735, 0.72), (-0.722, 0.9), (-0.708, 1.0)],
+                                   [(0.33, 0.33), (0.337, 1.0)],
+                                   [(0.82, 0.341), (1.017, 0.459), (1.113, 0.652), (1.153, 0.827), (1.162, 1.0)],
+                                   [(-0.738, 0.345), (0.82, 0.341)]],
+                             handles=[(0.19, 0.88, 0.17), (1.12, 0.9, 0.16)],
+                             gill=dict(pts=[(-0.852, 0.817), (-0.769, 0.82), (-0.947, 0.601), (-0.984, 0.706)],
+                                       slats=[[(-0.84, 0.8), (-0.8, 0.8), (-0.9, 0.68), (-0.93, 0.7)]],
+                                       badge="M3", badge_at=(-0.86, 0.76)),
+                             skirt=[(-1.0, 0.18), (1.02, 0.18), (1.02, 0.29), (-1.0, 0.29)],
                              fuel=(1.62, 0.86)),
-                   interior=dict(hip_z=-0.1, hip_h=0.24, rear_z=0.8, tilt=22.0),
+                   interior=dict(hip_z=0.1, hip_h=0.24, hub_fwd=0.48, rear_z=0.95, tilt=22.0),
                    ),
     )
-    d.update(body_profile(zF, zR, aF, aR, zc, zb, dict(
-        nose=0.775, cowl=0.965, belt_f=0.940, belt_r=0.998, deck=1.055, tail=1.045, sh_f=0.8, sh_r=0.88,
-        clear=0.13, sill=0.185, rear_bot=0.3, te_nose=0.04, te_cab=0.068)))
+    d.update(body_profile2(zF, zR, aF, aR, zc, zb, dict(
+        hood=[(-2.288, 0.691), (-2.245, 0.735), (-2.203, 0.774), (-2.133, 0.818), (-2.035, 0.861), (-1.895, 0.900), (-1.714, 0.937), (-1.518, 0.956), (-1.283, 0.973), (-1.042, 0.989), (-0.800, 1.008)],
+        deck=[(1.940, 1.052), (2.011, 1.054), (2.084, 1.051), (2.158, 1.044), (2.232, 1.040), (2.306, 1.029), (2.370, 0.994)],
+        belt=[(-0.62, 1.005), (-0.3, 1.024), (0.3, 1.03), (0.9, 1.028), (1.5, 1.03)],
+        sh=[(zF, 0.72), (aF, 0.86), (0.0, 0.9), (aR, 0.925), (zR, 0.93)],
+        sill=[(-2.288, 0.200), (-1.839, 0.219), (-1.429, 0.181), (0.000, 0.181), (1.429, 0.181), (1.979, 0.276), (2.505, 0.300)],
+        bot=[(-2.288, 0.140), (-1.988, 0.204), (-1.429, 0.177), (1.429, 0.177), (1.929, 0.204), (2.505, 0.300)],
+        te_nose=0.07, te_cab=0.1)))
     return d
 
 
@@ -2252,54 +2491,47 @@ def spec_m4():
     (one 20" wheel, 0.679 m tyre). Same nose as the M3, frameless coupe glass, carbon roof."""
     WB, L, ohf = 2.857, 4.794, 0.86
     aF, aR, zF, zR = _axes(WB, L, ohf)
-    zc, zb = -0.98, 1.74
+    zc, zb = -0.86, 1.98
     d = dict(
         name="M4", L=L, W=1.887, H=1.393, WB=WB, TF=1.617, TR=1.605, ohf=ohf,
-        tire_od=0.679, rim_in=20, tire_w=0.275, flare=0.024, low_line=(0.42, 0.55, 0.009), carbon_roof=True,
+        tire_od=0.679, rim_in=20, tire_w=0.275, flare=0.036, flare_f=0.75, low_line=(0.5, 0.8, 0.01), carbon_roof=True,
+        nose_round=0.74, tail_round=0.8, plan_front=(0.30, 1.8), plan_rear=(0.20, 2.0), nose_len=0.48, tail_len=0.46,
         carbon_lip=True,
-        front=[(0.17, 0.02), (0.24, 0.0), (0.45, 0.0), (0.65, 0.008), (0.72, 0.022), (0.765, 0.05),
-               (0.8, 0.12), (0.9, 0.4)],
-        rear=[(0.28, 0.1), (0.4, 0.03), (0.55, 0.0), (0.75, 0.008), (0.95, 0.035), (1.02, 0.06), (1.07, 0.1)],
+        front=[(0.100, 0.165), (0.130, 0.110), (0.170, 0.064), (0.220, 0.040), (0.350, 0.035), (0.500, 0.017), (0.600, 0.025), (0.660, 0.042), (0.720, 0.069)],
+        rear=[(0.200, 0.270), (0.250, 0.200), (0.300, 0.119), (0.350, 0.055), (0.400, 0.015), (0.500, 0.000), (0.600, 0.042), (0.700, 0.103), (0.800, 0.139), (0.900, 0.140), (0.980, 0.120), (1.040, 0.120)],
         dome=(zF + 0.45, zc, 0.3, 0.02),
-        gh=dict(zc0=zc, kf=0.14, zh=-0.06, kh=0.12, zb0=zb, krb=0.2, zrr=0.93, krr=0.14, a_in=0.05,
-                roof=[(-0.08, 1.335), (0.18, 1.382), (0.42, 1.393), (0.68, 1.372), (0.93, 1.322)],
-                crown=0.045, xr=[(0.0, 0.655), (0.9, 0.625)], B=(0.54, 0.57, 0.46, 0.48),
-                zC=[(0.0, 1.16), (0.25, 1.25), (1.0, 0.78)], rb=0.08),
+        gh=dict(zc0=zc, kf=0.08, zh=-0.05, kh=0.04, zb0=zb, krb=0.2, zrr=1.0, krr=0.12, a_in=0.04,
+                roof=[(-0.050, 1.372), (0.150, 1.389), (0.300, 1.392), (0.450, 1.393), (0.600, 1.387), (0.750, 1.372), (0.900, 1.352), (1.050, 1.321), (1.200, 1.261)],
+                crown=0.05, xr=[(0.0, 0.575), (0.9, 0.595)], B=(0.57, 0.63, 0.56, 0.63),
+                zC=[(0.0, 1.36), (0.4, 1.25), (0.65, 1.02), (0.85, 0.8), (1.0, 0.7)], rb=0.08),
         int=dict(INT_BLACK, seat=(0.1, 0.1, 0.11), seat2=(0.75, 0.1, 0.08)),
         paint=(0.95, 0.74, 0.06), paint_name="Sao Paulo Yellow",
         wheel=dict(style="double", n=5, col=(0.07, 0.07, 0.08), kind="Gloss", caliper=(0.8, 0.07, 0.07),
                    concave=0.05),
-        style=dict(M3_FRONT,
-                   badge="M4", roundel_front=(0.787, zF + 0.16),
-                   tail=dict(pts=[(0.36, 0.96), (0.58, 0.99), (0.84, 0.99), (0.885, 0.97), (0.89, 0.87), (0.78, 0.845),
-                                  (0.6, 0.86), (0.48, 0.91), (0.38, 0.925)],
-                             base=(0.14, 0.01, 0.015),
-                             glow=[[(0.58, 0.885), (0.855, 0.872), (0.866, 0.972), (0.842, 0.972), (0.836, 0.897),
-                                    (0.58, 0.91)]],
-                             hi=[[(0.4, 0.935), (0.58, 0.955), (0.58, 0.962), (0.4, 0.942)],
-                                 [(0.6, 0.93), (0.8, 0.935), (0.8, 0.94), (0.6, 0.935)]]),
-                   rear=dict(diffuser=[(-0.72, 0.19), (0.72, 0.19), (0.76, 0.43), (0.52, 0.46), (-0.52, 0.46),
-                                       (-0.76, 0.43)],
-                             fins=[-0.3, -0.15, 0.0, 0.15, 0.3],
-                             reflectors=[(0.8, 0.5, 0.03, 0.13)], plate=(0, 0.62), roundel=(0, 0.975),
-                             badge_at=(0.42, 0.86),
-                             lip=[(-0.64, zR - 0.22), (0.64, zR - 0.22), (0.62, zR - 0.1), (-0.62, zR - 0.1)]),
-                   exhaust=[(0.45, 0.3, 0.05, "round"), (0.58, 0.3, 0.05, "round")],
-                   mirror=dict(z=-0.74, y=0.94, cap="carbon"),
-                   side=dict(gaps=_gaps_coupe(-0.99, 0.62),
-                             handles=[(0.42, 0.875, 0.17)],
-                             gill=dict(pts=[(-1.12, 0.7), (-0.97, 0.71), (-0.97, 0.775), (-1.1, 0.77)],
-                                       slats=[[(-1.1, 0.722), (-0.99, 0.726), (-0.99, 0.732), (-1.1, 0.728)]],
-                                       badge="M4", badge_at=(-1.035, 0.752)),
-                             skirt=[(-1.0, 0.18), (1.02, 0.18), (1.02, 0.225), (-1.0, 0.225)],
+        style=dict(DET_M4, roundel_front=(0.66, zF + 0.03), rear=dict(DET_M4["rear"], lip=[(-0.64, zR - 0.22), (0.64, zR - 0.22), (0.62, zR - 0.1), (-0.62, zR - 0.1)]),
+                   badge="M4", hood_vents=[[(0.12, zF + 0.34), (0.31, zF + 0.31), (0.3, zF + 0.4), (0.13, zF + 0.42)]],
+                   mirror=dict(z=-0.47, y=0.95, cap="carbon"),
+                   side=dict(gaps=[[(-0.729, 0.328), (-0.74, 0.7), (-0.751, 0.882), (-0.745, 0.93)],
+                                   [(0.46, 0.328), (0.589, 0.406), (0.62, 0.66), (0.573, 0.978)],
+                                   [(-0.729, 0.328), (0.46, 0.328)]],
+                             handles=[(0.39, 0.85, 0.17)],
+                             gill=dict(pts=[(-0.877, 0.798), (-0.807, 0.803), (-0.981, 0.582), (-0.998, 0.658)],
+                                       slats=[[(-0.865, 0.78), (-0.83, 0.78), (-0.95, 0.64), (-0.97, 0.66)]],
+                                       badge="M4", badge_at=(-0.9, 0.74)),
+                             skirt=[(-1.0, 0.17), (1.02, 0.17), (1.02, 0.26), (-1.0, 0.26)],
                              fuel=(1.62, 0.87)),
-                   interior=dict(hip_z=-0.05, hip_h=0.23, eye_h=0.6, rear_z=0.8, rear_h=0.2, tilt=22.0,
-                                 doors=((-0.72, 0.55),)),
+                   interior=dict(hip_z=0.12, hip_h=0.23, eye_h=0.6, hub_fwd=0.48, rear_z=0.95, rear_h=0.2, tilt=22.0,
+                                 doors=((-0.62, 0.5),)),
                    ),
     )
-    d.update(body_profile(zF, zR, aF, aR, zc, zb, dict(
-        nose=0.775, cowl=0.96, belt_f=0.935, belt_r=1.008, deck=1.05, tail=1.04, sh_f=0.8, sh_r=0.885,
-        clear=0.125, sill=0.18, rear_bot=0.3, te_nose=0.04, te_cab=0.068)))
+    d.update(body_profile2(zF, zR, aF, aR, zc, zb, dict(
+        hood=[(-2.288, 0.609), (-2.249, 0.668), (-2.208, 0.722), (-2.140, 0.766), (-2.045, 0.816), (-1.910, 0.863), (-1.734, 0.899), (-1.544, 0.920), (-1.321, 0.939), (-1.090, 0.956), (-0.860, 0.984)],
+        deck=[(1.980, 1.058), (2.048, 1.048), (2.115, 1.041), (2.183, 1.041), (2.251, 1.043), (2.318, 1.032), (2.380, 1.009)],
+        belt=[(-0.70, 0.93), (-0.08, 0.95), (0.56, 0.982), (0.88, 1.007), (1.27, 1.05), (1.36, 1.085)],
+        sh=[(zF, 0.7), (aF, 0.83), (0.0, 0.87), (aR, 0.9), (zR, 0.9)],
+        sill=[(-2.288, 0.190), (-1.839, 0.267), (-1.429, 0.177), (0.000, 0.177), (1.429, 0.177), (1.979, 0.263), (2.505, 0.300)],
+        bot=[(-2.288, 0.130), (-1.988, 0.184), (-1.429, 0.173), (1.429, 0.173), (1.929, 0.201), (2.505, 0.300)],
+        te_nose=0.07, te_cab=0.1)))
     return d
 
 
@@ -2308,58 +2540,42 @@ def spec_m2():
     285/30 R20 r (one 20" wheel, 0.679 m tyre). Short, boxy, squared-off wide arches."""
     WB, L, ohf = 2.747, 4.58, 0.79
     aF, aR, zF, zR = _axes(WB, L, ohf)
-    zc, zb = -0.93, 1.56
+    zc, zb = -0.62, 1.72
     d = dict(
         name="M2", L=L, W=1.887, H=1.403, WB=WB, TF=1.617, TR=1.59, ohf=ohf,
-        tire_od=0.679, rim_in=20, tire_w=0.275, flare=0.038, flare_len=1.55, arch_p=2.8, low_line=(0.44, 0.5, 0.01),
-        crease_dip=0.015, nose_round=0.8, tail_round=0.88, plan_taper=(0.02, 0.02), nose_len=0.4,
-        front=[(0.17, 0.018), (0.24, 0.0), (0.45, 0.0), (0.68, 0.008), (0.76, 0.024), (0.8, 0.055), (0.85, 0.13),
-               (0.95, 0.4)],
-        rear=[(0.28, 0.08), (0.4, 0.02), (0.55, 0.0), (0.8, 0.005), (0.95, 0.025), (1.02, 0.05), (1.06, 0.09)],
+        tire_od=0.679, rim_in=20, tire_w=0.275, flare=0.038, flare_len=1.55, arch_p=2.8, low_line=(0.44, 0.62, 0.01),
+        crease_dip=0.015, nose_round=0.74, tail_round=0.8, plan_taper=(0.02, 0.02), nose_len=0.48, tail_len=0.46,
+        plan_front=(0.26, 2.0), plan_rear=(0.18, 2.2),
+        front=[(0.120, 0.039), (0.160, 0.000), (0.300, 0.000), (0.450, 0.017), (0.600, 0.037), (0.680, 0.046), (0.720, 0.068), (0.760, 0.111)],
+        rear=[(0.150, 0.228), (0.220, 0.108), (0.300, 0.057), (0.400, 0.012), (0.500, 0.000), (0.600, 0.041), (0.700, 0.093), (0.800, 0.137), (0.900, 0.171), (1.000, 0.173), (1.050, 0.183)],
         dome=(zF + 0.4, zc, 0.32, 0.016),
-        gh=dict(zc0=zc, kf=0.12, zh=-0.1, kh=0.1, zb0=zb, krb=0.16, zrr=0.86, krr=0.12, a_in=0.05,
-                roof=[(-0.12, 1.355), (0.12, 1.395), (0.38, 1.403), (0.62, 1.385), (0.86, 1.342)],
-                crown=0.045, xr=[(0.0, 0.655), (0.9, 0.635)], B=(0.48, 0.51, 0.42, 0.44),
-                zC=[(0.0, 1.08), (0.25, 1.16), (1.0, 0.72)], rb=0.08),
+        gh=dict(zc0=zc, kf=0.08, zh=0.1, kh=0.05, zb0=zb, krb=0.16, zrr=1.2, krr=0.12, a_in=0.04,
+                roof=[(0.100, 1.377), (0.300, 1.399), (0.500, 1.403), (0.700, 1.403), (0.900, 1.386), (1.050, 1.360), (1.200, 1.333), (1.350, 1.265)],
+                crown=0.05, xr=[(0.0, 0.575), (0.9, 0.595)], B=(0.54, 0.61, 0.54, 0.61),
+                zC=[(0.0, 1.3), (0.4, 1.2), (0.7, 1.0), (0.9, 0.8), (1.0, 0.72)], rb=0.08),
         int=dict(INT_BLACK, seat=(0.09, 0.09, 0.1), seat2=(0.12, 0.35, 0.8)),
         paint=(0.16, 0.45, 0.82), paint_name="Zandvoort Blue",
         wheel=dict(style="vee", n=5, col=(0.2, 0.21, 0.23), caliper=(0.8, 0.07, 0.07), concave=0.04),
-        style=dict(
-            badge="M2", roundel_front=(0.81, zF + 0.17),
-            kidney=dict(pts=[(0.03, 0.665), (0.3, 0.665), (0.315, 0.475), (0.04, 0.475)], r=[0.03, 0.035, 0.035, 0.03],
-                        frame_w=0.01, slats="h", pitch=0.034, slat_t=0.012, lift=0.022),
-            head=dict(pts=[(0.34, 0.74), (0.7, 0.75), (0.8, 0.735), (0.8, 0.66), (0.62, 0.625), (0.38, 0.655)],
-                      r=0.02,
-                      drl=[[(0.6, 0.64), (0.616, 0.64), (0.64, 0.735), (0.624, 0.735)],
-                           [(0.47, 0.652), (0.486, 0.652), (0.51, 0.735), (0.494, 0.735)],
-                           [(0.52, 0.728), (0.73, 0.735), (0.73, 0.742), (0.52, 0.735)]],
-                      lens=[(0.7, 0.69, 0.018), (0.55, 0.69, 0.016)]),
-            front=dict(intakes=[[(0.46, 0.25), (0.74, 0.25), (0.79, 0.31), (0.77, 0.58), (0.66, 0.56), (0.47, 0.44)]],
-                       center=[[(-0.38, 0.22), (0.38, 0.22), (0.4, 0.43), (-0.4, 0.43)]],
-                       trims_c=[([(-0.74, 0.195), (0.74, 0.195), (0.78, 0.23), (-0.78, 0.23)], PIANO, "Gloss")],
-                       plate=(0, 0.33), plate_lift=0.02),
-            tail=dict(pts=[(0.44, 0.97), (0.84, 0.975), (0.88, 0.95), (0.88, 0.87), (0.7, 0.86), (0.46, 0.92)],
-                      glow=[[(0.62, 0.885), (0.86, 0.885), (0.865, 0.96), (0.845, 0.96), (0.842, 0.905), (0.62, 0.905)],
-                            [(0.47, 0.93), (0.6, 0.945), (0.6, 0.96), (0.47, 0.945)]],
-                      hi=[[(0.63, 0.925), (0.83, 0.925), (0.83, 0.93), (0.63, 0.93)]]),
-            rear=dict(diffuser=[(-0.7, 0.19), (0.7, 0.19), (0.72, 0.4), (-0.72, 0.4)], fins=[-0.24, -0.08, 0.08, 0.24],
-                      reflectors=[(0.8, 0.52, 0.03, 0.14), (0.74, 0.52, 0.012, 0.12)], plate=(0, 0.6),
-                      roundel=(0, 0.985), badge_at=(0.44, 0.86),
-                      lip=[(-0.6, zR - 0.2), (0.6, zR - 0.2), (0.58, zR - 0.1), (-0.58, zR - 0.1)]),
-            exhaust=[(0.44, 0.29, 0.046, "round"), (0.56, 0.29, 0.046, "round")],
-            mirror=dict(z=-0.68, y=0.94, cap="carbon"),
-            side=dict(gaps=_gaps_coupe(-0.94, 0.56),
-                      handles=[(0.36, 0.87, 0.17)],
+        style=dict(DET_M2, roundel_front=(0.725, zF + 0.03), rear=dict(DET_M2["rear"], lip=[(-0.6, zR - 0.2), (0.6, zR - 0.2), (0.58, zR - 0.1), (-0.58, zR - 0.1)]),
+            badge="M2", mirror=dict(z=-0.47, y=0.98, cap="carbon"),
+            side=dict(gaps=[[(-0.713, 0.337), (-0.72, 0.7), (-0.735, 0.947)],
+                            [(0.578, 0.381), (0.639, 0.623), (0.608, 1.0)],
+                            [(-0.713, 0.337), (0.578, 0.337)]],
+                      handles=[(0.38, 0.86, 0.17)],
                       skirt=[(-0.95, 0.18), (0.96, 0.18), (0.96, 0.23), (-0.95, 0.23)],
                       fuel=(1.52, 0.86)),
-            hood_vents=[[(0.2, zF + 0.3), (0.33, zF + 0.3), (0.35, zF + 0.42), (0.22, zF + 0.42)]],
-            interior=dict(hip_z=-0.06, hip_h=0.23, eye_h=0.61, rear_z=0.72, rear_h=0.2, tilt=22.0,
-                          doors=((-0.66, 0.5),)),
+            interior=dict(hip_z=0.12, hip_h=0.23, eye_h=0.61, hub_fwd=0.48, rear_z=0.92, rear_h=0.2, tilt=22.0,
+                          doors=((-0.6, 0.5),)),
         ),
     )
-    d.update(body_profile(zF, zR, aF, aR, zc, zb, dict(
-        nose=0.805, cowl=0.965, belt_f=0.940, belt_r=0.978, deck=1.04, tail=1.035, sh_f=0.81, sh_r=0.87,
-        clear=0.125, sill=0.19, rear_bot=0.3, te_nose=0.038, te_cab=0.066, hood_pow=1.25)))
+    d.update(body_profile2(zF, zR, aF, aR, zc, zb, dict(
+        hood=[(-2.163, 0.712), (-2.114, 0.730), (-2.043, 0.762), (-1.913, 0.812), (-1.714, 0.852), (-1.500, 0.892), (-1.200, 0.928), (-0.900, 0.952), (-0.620, 0.973)],
+        deck=[(1.720, 1.040), (1.850, 1.037), (2.000, 1.028), (2.100, 1.032), (2.200, 1.050), (2.260, 1.060)],
+        belt=[(-0.57, 0.997), (-0.15, 1.01), (0.59, 1.018), (0.95, 1.075), (1.296, 1.151)],
+        sh=[(zF, 0.72), (aF, 0.84), (0.0, 0.87), (aR, 0.9), (zR, 0.9)],
+        sill=[(-2.163, 0.210), (-1.714, 0.178), (-1.373, 0.189), (0.000, 0.189), (1.373, 0.189), (1.923, 0.248), (2.417, 0.300)],
+        bot=[(-2.163, 0.140), (-1.863, 0.169), (-1.373, 0.185), (1.373, 0.185), (1.873, 0.146), (2.417, 0.280)],
+        te_nose=0.07, te_cab=0.1)))
     return d
 
 
@@ -2368,114 +2584,86 @@ def spec_m5():
     295/35 R21 r (one 21" wheel, 0.74 m tyre). Big, flared arches, glowing kidney contour."""
     WB, L, ohf = 3.006, 5.096, 0.94
     aF, aR, zF, zR = _axes(WB, L, ohf)
-    zc, zb = -1.05, 1.82
+    zc, zb = -0.88, 2.04
     d = dict(
         name="M5", L=L, W=1.97, H=1.51, WB=WB, TF=1.684, TR=1.66, ohf=ohf,
-        tire_od=0.74, rim_in=21, tire_w=0.295, flare=0.04, flare_len=2.0, low_line=(0.46, 0.56, 0.008),
-        nose_round=0.8,
-        front=[(0.18, 0.018), (0.26, 0.0), (0.45, 0.0), (0.68, 0.008), (0.77, 0.024), (0.82, 0.055), (0.86, 0.12),
-               (0.95, 0.38)],
-        rear=[(0.3, 0.1), (0.42, 0.03), (0.6, 0.0), (0.8, 0.006), (0.98, 0.03), (1.06, 0.06), (1.1, 0.1)],
+        tire_od=0.74, rim_in=21, tire_w=0.295, flare=0.04, flare_len=2.0, low_line=(0.46, 0.66, 0.008),
+        nose_round=0.74, tail_round=0.8, plan_front=(0.32, 1.8), plan_rear=(0.20, 2.0), nose_len=0.48, tail_len=0.46,
+        front=[(0.120, 0.094), (0.160, 0.054), (0.220, 0.031), (0.300, 0.032), (0.400, 0.020), (0.500, 0.009), (0.600, 0.051), (0.700, 0.091), (0.760, 0.108), (0.800, 0.145)],
+        rear=[(0.300, 0.368), (0.350, 0.209), (0.400, 0.044), (0.450, 0.000), (0.500, 0.000), (0.600, 0.097), (0.700, 0.157), (0.800, 0.194), (0.900, 0.217), (1.000, 0.204), (1.060, 0.172), (1.100, 0.244)],
         dome=(zF + 0.5, zc, 0.34, 0.012),
-        gh=dict(zc0=zc, kf=0.13, zh=-0.1, kh=0.12, zb0=zb, krb=0.16, zrr=1.15, krr=0.12, a_in=0.06,
-                roof=[(-0.12, 1.45), (0.2, 1.497), (0.55, 1.51), (0.9, 1.493), (1.17, 1.447)],
-                crown=0.045, xr=[(0.0, 0.685), (1.0, 0.665)], B=(0.2, 0.29, 0.16, 0.25),
-                zC=[(0.0, 1.38), (0.2, 1.48), (1.0, 1.02)]),
+        gh=dict(zc0=zc, kf=0.08, zh=0.0, kh=0.05, zb0=zb, krb=0.16, zrr=1.25, krr=0.12, a_in=0.05,
+                roof=[(0.000, 1.465), (0.200, 1.486), (0.350, 1.493), (0.500, 1.495), (0.650, 1.494), (0.800, 1.492), (0.950, 1.491), (1.100, 1.478), (1.250, 1.448), (1.400, 1.397)],
+                crown=0.05, xr=[(0.0, 0.61), (1.0, 0.635)], B=(0.3, 0.34, 0.3, 0.34),
+                zC=[(0.0, 1.62), (0.2, 1.59), (0.6, 1.47), (0.8, 1.3), (1.0, 1.15)]),
         int=dict(INT_BLACK, seat=(0.55, 0.07, 0.07), seat2=(0.08, 0.08, 0.085)),
         paint=(0.08, 0.28, 0.66), paint_name="Marina Bay Blue",
         wheel=dict(style="multi", n=10, col=(0.16, 0.16, 0.18), caliper=(0.1, 0.25, 0.75), concave=0.05),
-        style=dict(
-            badge="M5", roundel_front=(0.845, zF + 0.19),
-            kidney=dict(pts=[(0.03, 0.8), (0.33, 0.79), (0.37, 0.67), (0.34, 0.575), (0.06, 0.575), (0.03, 0.62)],
-                        r=[0.03, 0.04, 0.03, 0.04, 0.03, 0.03], frame_w=0.016, slats="hh", pitch=0.05, lift=0.03,
-                        glow=True),
-            head=dict(pts=[(0.4, 0.81), (0.8, 0.8), (0.88, 0.78), (0.87, 0.745), (0.64, 0.745), (0.44, 0.765)],
-                      drl=[[(0.55, 0.752), (0.565, 0.752), (0.58, 0.8), (0.565, 0.8)],
-                           [(0.72, 0.75), (0.735, 0.75), (0.75, 0.796), (0.735, 0.796)],
-                           [(0.45, 0.8), (0.84, 0.792), (0.84, 0.798), (0.45, 0.806)]],
-                      lens=[(0.65, 0.772, 0.014), (0.8, 0.768, 0.013)]),
-            front=dict(intakes=[[(0.5, 0.26), (0.78, 0.26), (0.81, 0.35), (0.79, 0.6), (0.7, 0.63), (0.52, 0.45)]],
-                       center=[[(-0.44, 0.22), (0.44, 0.22), (0.4, 0.44), (-0.4, 0.44)]],
-                       trims_c=[([(-0.8, 0.2), (0.8, 0.2), (0.84, 0.235), (-0.84, 0.235)], PIANO, "Gloss")],
-                       plate=(0, 0.33), plate_lift=0.016),
-            tail=dict(pts=[(0.42, 1.035), (0.9, 1.03), (0.94, 1.0), (0.935, 0.945), (0.64, 0.955), (0.44, 0.99)],
-                      glow=[[(0.64, 0.965), (0.91, 0.957), (0.915, 1.02), (0.895, 1.02), (0.892, 0.975), (0.64, 0.98)],
-                            [(0.45, 1.0), (0.62, 1.012), (0.62, 1.022), (0.45, 1.01)]],
-                      hi=[[(0.65, 1.0), (0.88, 0.995), (0.88, 1.0), (0.65, 1.005)]]),
-            rear=dict(diffuser=[(-0.72, 0.2), (0.72, 0.2), (0.76, 0.44), (-0.76, 0.44)], fins=[-0.26, -0.13, 0.0, 0.13, 0.26],
-                      reflectors=[(0.84, 0.52, 0.03, 0.14)], plate=(0, 0.64), roundel=(0, 1.06), badge_at=(0.46, 0.9),
-                      lip=[(-0.64, zR - 0.22), (0.64, zR - 0.22), (0.62, zR - 0.1), (-0.62, zR - 0.1)]),
-            exhaust=[(0.5, 0.32, 0.05, "round"), (0.63, 0.32, 0.05, "round")],
-            mirror=dict(z=-0.8, y=0.99, cap="carbon"),
-            side=dict(gaps=_gaps_sedan(-1.08, 0.28, 1.06, belt=1.04),
-                      handles=[(0.1, 0.9, 0.2), (1.0, 0.92, 0.19)], handle_col=CHROME, handle_kind="Metal",
-                      gill=dict(pts=[(-1.2, 0.74), (-1.08, 0.745), (-1.08, 0.78), (-1.19, 0.776)],
-                                slats=[], badge="M5", badge_at=(-1.14, 0.76)),
-                      skirt=[(-1.08, 0.2), (1.08, 0.2), (1.08, 0.24), (-1.08, 0.24)],
-                      fuel=(1.78, 0.91)),
-            interior=dict(hip_z=-0.08, hip_h=0.25, eye_h=0.63, rear_z=0.9, tilt=21.0),
+        style=dict(DET_M5, roundel_front=(0.79, zF + 0.04), rear=dict(DET_M5["rear"], lip=[(-0.64, zR - 0.22), (0.64, zR - 0.22), (0.62, zR - 0.1), (-0.62, zR - 0.1)]),
+            badge="M5", mirror=dict(z=-0.55, y=1.02, cap="carbon"),
+            side=dict(gaps=[[(-0.84, 0.346), (-0.835, 0.7), (-0.829, 0.96), (-0.8, 1.0)],
+                            [(0.297, 0.355), (0.343, 1.04)],
+                            [(1.106, 0.362), (1.281, 0.721), (1.422, 1.064)],
+                            [(-0.84, 0.346), (1.106, 0.362)]],
+                      handles=[(0.09, 0.9, 0.2), (1.075, 0.925, 0.19)], handle_col=CHROME, handle_kind="Metal",
+                      skirt=[(-1.1, 0.2), (1.1, 0.2), (1.1, 0.27), (-1.1, 0.27)],
+                      fuel=(1.63, 0.99)),
+            interior=dict(hip_z=0.08, hip_h=0.25, eye_h=0.63, hub_fwd=0.48, rear_z=1.0, tilt=21.0),
         ),
     )
-    d.update(body_profile(zF, zR, aF, aR, zc, zb, dict(
-        nose=0.84, cowl=1.02, belt_f=0.985, belt_r=1.043, deck=1.09, tail=1.08, sh_f=0.84, sh_r=0.93,
-        clear=0.13, sill=0.2, rear_bot=0.32, te_nose=0.04, te_cab=0.075)))
+    d.update(body_profile2(zF, zR, aF, aR, zc, zb, dict(
+        hood=[(-2.443, 0.772), (-2.380, 0.783), (-2.336, 0.815), (-2.262, 0.861), (-2.159, 0.895), (-2.012, 0.920), (-1.820, 0.949), (-1.614, 0.974), (-1.373, 1.003), (-1.126, 1.026), (-0.880, 1.058)],
+        deck=[(2.040, 1.133), (2.114, 1.115), (2.187, 1.096), (2.261, 1.080), (2.334, 1.069), (2.408, 1.055), (2.480, 1.037)],
+        belt=[(-0.78, 0.995), (-0.44, 1.025), (0.38, 1.058), (1.27, 1.082), (1.6, 1.09)],
+        sh=[(zF, 0.8), (aF, 0.9), (0.0, 0.94), (aR, 0.97), (zR, 0.97)],
+        sill=[(-2.443, 0.200), (-1.993, 0.185), (-1.503, 0.17), (0.000, 0.17), (1.503, 0.17), (2.053, 0.36), (2.653, 0.330)],
+        bot=[(-2.443, 0.140), (-2.143, 0.12), (-1.503, 0.165), (1.503, 0.165), (2.003, 0.240), (2.653, 0.320)],
+        te_nose=0.07, te_cab=0.105)))
     return d
 
 
 def spec_540i():
-    """BMW 540i (G60) saloon: 5060 x 1900 x 1515, wheelbase 2995, track 1625 / 1655, 245/45 R19 f,
-    275/40 R19 r (one 19" wheel, 0.703 m tyre). The smooth executive car: chrome trim, vertical slats."""
-    WB, L, ohf = 2.995, 5.06, 0.93
+    """BMW 540i M Sport (G30, 2017) saloon: 4936 x 1868 x 1466, wheelbase 2975, track 1605 / 1630,
+    245/35 R20 f, 275/30 R20 r (one 20" wheel, 0.678 m tyre). The executive car: chrome kidneys and trim."""
+    WB, L, ohf = 2.975, 4.936, 0.845
     aF, aR, zF, zR = _axes(WB, L, ohf)
-    zc, zb = -1.05, 1.82
+    zc, zb = -0.935, 1.905
     d = dict(
-        name="540i", L=L, W=1.9, H=1.515, WB=WB, TF=1.625, TR=1.655, ohf=ohf,
-        tire_od=0.703, rim_in=19, tire_w=0.255, flare=0.012, low_line=(0.46, 0.56, 0.006), nose_round=0.8,
-        front=[(0.18, 0.018), (0.26, 0.0), (0.45, 0.0), (0.68, 0.008), (0.77, 0.024), (0.82, 0.055), (0.86, 0.12),
-               (0.95, 0.38)],
-        rear=[(0.3, 0.1), (0.42, 0.03), (0.6, 0.0), (0.8, 0.006), (0.98, 0.03), (1.06, 0.06), (1.1, 0.1)],
+        name="540i", L=L, W=1.868, H=1.466, WB=WB, TF=1.605, TR=1.63, ohf=ohf,
+        tire_od=0.678, rim_in=20, tire_w=0.26, flare=0.018, low_line=(0.46, 0.6, 0.006), nose_round=0.74,
+        tail_round=0.8, plan_front=(0.30, 1.8), plan_rear=(0.20, 2.0), nose_len=0.48, tail_len=0.46,
+        front=[(0.180, 0.114), (0.220, 0.041), (0.300, 0.032), (0.400, 0.025), (0.500, 0.018), (0.600, 0.050), (0.660, 0.090), (0.720, 0.150)],
+        rear=[(0.300, 0.164), (0.350, 0.077), (0.400, 0.040), (0.500, 0.000), (0.600, 0.000), (0.700, 0.040), (0.800, 0.053), (0.900, 0.046), (1.000, 0.039), (1.050, 0.050), (1.090, 0.070)],
         dome=(zF + 0.5, zc, 0.34, 0.008),
-        gh=dict(zc0=zc, kf=0.13, zh=-0.1, kh=0.12, zb0=zb, krb=0.16, zrr=1.15, krr=0.12, a_in=0.06,
-                roof=[(-0.12, 1.455), (0.2, 1.502), (0.55, 1.515), (0.9, 1.498), (1.17, 1.452)],
-                crown=0.045, xr=[(0.0, 0.665), (1.0, 0.645)], B=(0.2, 0.29, 0.16, 0.25),
-                zC=[(0.0, 1.38), (0.2, 1.48), (1.0, 1.02)], trim=CHROME, trim_top=CHROME),
+        gh=dict(zc0=zc, kf=0.08, zh=-0.05, kh=0.05, zb0=zb, krb=0.16, zrr=1.12, krr=0.12, a_in=0.05,
+                roof=[(-0.050, 1.412), (0.000, 1.423), (0.150, 1.444), (0.300, 1.458), (0.450, 1.465), (0.600, 1.466), (0.750, 1.466), (0.900, 1.459), (1.050, 1.440), (1.200, 1.411), (1.350, 1.357)],
+                crown=0.05, xr=[(0.0, 0.585), (1.0, 0.61)], B=(0.27, 0.33, 0.28, 0.33),
+                zC=[(0.0, 1.5), (0.3, 1.49), (0.6, 1.4), (0.85, 1.25), (1.0, 1.12)], trim=CHROME, trim_top=CHROME),
         int=dict(INT_BLACK, seat=(0.5, 0.25, 0.11), seat2=(0.44, 0.21, 0.09), card=(0.3, 0.16, 0.08),
-                 accent=(0.7, 0.71, 0.74)),
+                 accent=(0.7, 0.71, 0.74), carbon=False),
         paint=(0.12, 0.2, 0.42), paint_name="Phytonic Blue",
-        wheel=dict(style="double", n=5, col=(0.74, 0.75, 0.77), caliper=(0.24, 0.24, 0.26), concave=0.025),
-        style=dict(
-            badge="540i", roundel_front=(0.845, zF + 0.19),
-            kidney=dict(pts=[(0.03, 0.805), (0.27, 0.8), (0.29, 0.62), (0.25, 0.55), (0.05, 0.55), (0.03, 0.6)],
-                        r=[0.03, 0.04, 0.04, 0.04, 0.03, 0.03], frame_w=0.016, slats="v", pitch=0.032, lift=0.028,
-                        frame=CHROME, slat_col=CHROME, glow=True),
-            head=dict(pts=[(0.36, 0.81), (0.78, 0.8), (0.86, 0.78), (0.85, 0.745), (0.62, 0.742), (0.4, 0.765)],
-                      drl=[[(0.52, 0.752), (0.535, 0.752), (0.55, 0.8), (0.535, 0.8)],
-                           [(0.7, 0.75), (0.715, 0.75), (0.73, 0.795), (0.715, 0.795)],
-                           [(0.41, 0.8), (0.82, 0.792), (0.82, 0.798), (0.41, 0.806)]],
-                      lens=[(0.62, 0.772, 0.014), (0.78, 0.768, 0.013)], bezel=(0.5, 0.52, 0.55)),
-            front=dict(intakes=[[(0.56, 0.27), (0.8, 0.27), (0.83, 0.33), (0.78, 0.46), (0.6, 0.43)]],
-                       center=[[(-0.42, 0.22), (0.42, 0.22), (0.38, 0.4), (-0.38, 0.4)]],
-                       trims=[([(0.56, 0.47), (0.8, 0.49), (0.8, 0.5), (0.56, 0.48)], CHROME, "Metal")],
-                       plate=(0, 0.32), plate_lift=0.016),
-            tail=dict(pts=[(0.4, 1.035), (0.88, 1.03), (0.93, 1.0), (0.925, 0.955), (0.62, 0.96), (0.42, 0.99)],
-                      glow=[[(0.62, 0.968), (0.9, 0.962), (0.905, 1.02), (0.885, 1.02), (0.882, 0.978), (0.62, 0.982)],
-                            [(0.43, 1.0), (0.6, 1.012), (0.6, 1.022), (0.43, 1.01)]]),
-            rear=dict(trims_c=[([(-0.62, 0.36), (0.62, 0.36), (0.62, 0.37), (-0.62, 0.37)], CHROME, "Metal")],
-                      diffuser=[(-0.66, 0.22), (0.66, 0.22), (0.68, 0.34), (-0.68, 0.34)], fins=[],
-                      reflectors=[(0.82, 0.5, 0.025, 0.12)], plate=(0, 0.64), roundel=(0, 1.06), badge_at=(0.5, 0.92),
-                      script_at=(-0.5, 0.92)),
-            exhaust=[(0.46, 0.24, 0.035, "round")], tip_out=-0.02,
-            mirror=dict(z=-0.8, y=0.99, cap="paint"),
-            side=dict(gaps=_gaps_sedan(-1.08, 0.28, 1.06, belt=1.04),
-                      handles=[(0.1, 0.9, 0.2), (1.0, 0.92, 0.19)], handle_col=CHROME, handle_kind="Metal",
+        wheel=dict(style="multi", n=10, col=(0.06, 0.06, 0.065), kind="Gloss", caliper=(0.2, 0.3, 0.8), concave=0.03),
+        style=dict(DET_540, roundel_front=(0.745, zF + 0.03),
+            badge="540i", mirror=dict(z=-0.55, y=0.98, cap="paint"),
+            side=dict(gaps=[[(-0.79, 0.37), (-0.775, 0.7), (-0.753, 0.96), (-0.73, 0.99)],
+                            [(0.321, 0.36), (0.316, 1.0)],
+                            [(0.973, 0.376), (1.209, 0.539), (1.44, 1.0)],
+                            [(-0.79, 0.37), (0.973, 0.376)]],
+                      handles=[(0.163, 0.85, 0.2), (1.153, 0.905, 0.19)], handle_col=CHROME, handle_kind="Metal",
+                      gill=dict(pts=[(-1.04, 0.36), (-1.0, 0.36), (-0.8, 0.52), (-0.84, 0.52)], col=PIANO, slats=[]),
                       trims=[([(-0.95, 0.3), (0.95, 0.3), (0.95, 0.31), (-0.95, 0.31)], CHROME, "Metal")],
-                      fuel=(1.78, 0.91)),
-            interior=dict(hip_z=-0.08, hip_h=0.25, eye_h=0.63, rear_z=0.9, tilt=21.0, bucket=False),
+                      fuel=(1.666, 0.94)),
+            interior=dict(hip_z=0.05, hip_h=0.25, eye_h=0.63, hub_fwd=0.48, rear_z=0.98, tilt=21.0, bucket=False),
         ),
     )
-    d.update(body_profile(zF, zR, aF, aR, zc, zb, dict(
-        nose=0.84, cowl=1.02, belt_f=0.985, belt_r=1.043, deck=1.09, tail=1.08, sh_f=0.84, sh_r=0.93,
-        clear=0.14, sill=0.21, rear_bot=0.33, te_nose=0.04, te_cab=0.07)))
+    d.update(body_profile2(zF, zR, aF, aR, zc, zb, dict(
+        hood=[(-2.333, 0.720), (-2.290, 0.744), (-2.230, 0.783), (-2.140, 0.819), (-2.000, 0.857), (-1.820, 0.895), (-1.630, 0.922), (-1.410, 0.948), (-1.170, 0.972), (-0.935, 0.985)],
+        deck=[(1.905, 1.122), (2.000, 1.122), (2.110, 1.120), (2.210, 1.106), (2.310, 1.090), (2.415, 1.075), (2.520, 1.066)],
+        belt=[(-0.73, 0.973), (-0.64, 0.982), (0.47, 1.01), (1.44, 1.018), (1.5, 1.02)],
+        sh=[(zF, 0.76), (aF, 0.86), (0.0, 0.9), (aR, 0.93), (zR, 0.93)],
+        sill=[(-2.333, 0.210), (-1.883, 0.28), (-1.488, 0.21), (0.000, 0.21), (1.488, 0.21), (2.038, 0.32), (2.603, 0.246)],
+        bot=[(-2.333, 0.150), (-2.033, 0.2), (-1.488, 0.205), (1.488, 0.205), (1.988, 0.23), (2.603, 0.244)],
+        te_nose=0.07, te_cab=0.095)))
     return d
 
 
@@ -2484,62 +2672,46 @@ def spec_m8():
     275/35 R20 f, 285/35 R20 r (one 20" wheel, 0.705 m tyre). Long low GT, single-frame kidney."""
     WB, L, ohf = 2.827, 4.867, 0.94
     aF, aR, zF, zR = _axes(WB, L, ohf)
-    zc, zb = -0.86, 1.72
+    zc, zb = -0.76, 1.76
     d = dict(
         name="M8", L=L, W=1.907, H=1.362, WB=WB, TF=1.627, TR=1.631, ohf=ohf,
-        tire_od=0.705, rim_in=20, tire_w=0.285, flare=0.03, flare_len=2.0, low_line=(0.4, 0.52, 0.01),
-        carbon_roof=True, nose_round=0.78, tail_round=0.86,
-        front=[(0.16, 0.02), (0.24, 0.0), (0.42, 0.0), (0.58, 0.01), (0.66, 0.03), (0.71, 0.065), (0.75, 0.13),
-               (0.85, 0.42)],
-        rear=[(0.28, 0.1), (0.4, 0.03), (0.55, 0.0), (0.75, 0.008), (0.92, 0.035), (0.97, 0.06), (1.01, 0.1)],
+        tire_od=0.705, rim_in=20, tire_w=0.285, flare=0.036, flare_len=2.0, low_line=(0.557, 0.823, 0.01),
+        carbon_roof=True, nose_round=0.74, tail_round=0.8, plan_front=(0.34, 1.7), plan_rear=(0.22, 2.0),
+        nose_len=0.48, tail_len=0.46,
+        front=[(0.140, 0.135), (0.180, 0.041), (0.300, 0.032), (0.400, 0.021), (0.500, 0.007), (0.600, 0.025), (0.660, 0.030), (0.700, 0.035), (0.740, 0.061)],
+        rear=[(0.250, 0.264), (0.300, 0.099), (0.350, 0.014), (0.400, 0.000), (0.500, 0.000), (0.600, 0.032), (0.700, 0.095), (0.800, 0.168), (0.900, 0.204), (0.980, 0.162), (1.030, 0.161)],
         dome=(zF + 0.5, zc, 0.3, 0.016),
-        gh=dict(zc0=zc, kf=0.16, zh=0.02, kh=0.12, zb0=zb, krb=0.22, zrr=0.86, krr=0.14, a_in=0.05,
-                roof=[(0.0, 1.31), (0.25, 1.352), (0.48, 1.362), (0.7, 1.34), (0.88, 1.29)],
-                crown=0.045, xr=[(0.0, 0.645), (0.9, 0.615)], B=(0.54, 0.57, 0.46, 0.48),
-                zC=[(0.0, 1.12), (0.28, 1.2), (1.0, 0.72)], rb=0.08),
+        gh=dict(zc0=zc, kf=0.08, zh=0.1, kh=0.05, zb0=zb, krb=0.22, zrr=0.75, krr=0.14, a_in=0.04,
+                roof=[(0.100, 1.345), (0.250, 1.360), (0.400, 1.362), (0.550, 1.357), (0.700, 1.342), (0.850, 1.318), (1.000, 1.290)],
+                crown=0.06, xr=[(0.0, 0.56), (0.9, 0.585)], B=(0.56, 0.63, 0.56, 0.63),
+                zC=[(0.0, 1.32), (0.3, 1.25), (0.6, 1.1), (0.85, 0.85), (1.0, 0.75)], rb=0.08),
         int=dict(INT_BLACK, seat=(0.75, 0.74, 0.72), seat2=(0.08, 0.08, 0.085), card=(0.12, 0.12, 0.13)),
         paint=(0.5, 0.03, 0.05), paint_name="Motegi Red",
         wheel=dict(style="vee", n=5, col=(0.17, 0.17, 0.19), caliper=(0.86, 0.62, 0.12), concave=0.05),
-        style=dict(
-            badge="M8", roundel_front=(0.745, zF + 0.17),
-            kidney=dict(pts=[(-0.3, 0.63), (0.3, 0.63), (0.37, 0.47), (0.33, 0.43), (-0.33, 0.43), (-0.37, 0.47)],
-                        r=[0.03, 0.03, 0.03, 0.04, 0.04, 0.03], frame_w=0.016, slats="hh", pitch=0.04, lift=0.03,
-                        single=True, divider=True),
-            head=dict(pts=[(0.38, 0.625), (0.44, 0.66), (0.78, 0.7), (0.84, 0.69), (0.83, 0.655), (0.7, 0.64),
-                           (0.46, 0.615)],
-                      drl=[[(0.5, 0.628), (0.513, 0.628), (0.513, 0.655), (0.62, 0.667), (0.62, 0.676), (0.5, 0.664)],
-                           [(0.65, 0.645), (0.663, 0.645), (0.663, 0.672), (0.78, 0.686), (0.78, 0.694), (0.65, 0.681)]],
-                      lens=[(0.57, 0.64, 0.011), (0.72, 0.66, 0.011)],
-                      blue=[[(0.43, 0.623), (0.48, 0.626), (0.48, 0.632), (0.43, 0.629)]]),
-            front=dict(intakes=[[(0.44, 0.2), (0.72, 0.2), (0.75, 0.3), (0.73, 0.54), (0.66, 0.58), (0.47, 0.41)]],
-                       center=[[(-0.36, 0.2), (0.36, 0.2), (0.33, 0.39), (-0.33, 0.39)]],
-                       trims_c=[([(-0.74, 0.18), (0.74, 0.18), (0.78, 0.215), (-0.78, 0.215)], PIANO, "Gloss")],
-                       plate=(0, 0.3), plate_lift=0.016),
-            tail=dict(pts=[(0.34, 0.955), (0.84, 0.955), (0.9, 0.93), (0.895, 0.875), (0.64, 0.885), (0.38, 0.925)],
-                      glow=[[(0.6, 0.895), (0.87, 0.888), (0.875, 0.945), (0.855, 0.945), (0.852, 0.905), (0.6, 0.91)],
-                            [(0.36, 0.935), (0.58, 0.94), (0.58, 0.948), (0.36, 0.943)]],
-                      hi=[[(0.61, 0.925), (0.85, 0.922), (0.85, 0.927), (0.61, 0.93)]]),
-            rear=dict(diffuser=[(-0.72, 0.19), (0.72, 0.19), (0.76, 0.42), (0.5, 0.44), (-0.5, 0.44), (-0.76, 0.42)],
-                      fins=[-0.3, -0.15, 0.0, 0.15, 0.3],
-                      reflectors=[(0.8, 0.5, 0.03, 0.12)], plate=(0, 0.6), roundel=(0, 0.96), badge_at=(0.44, 0.85),
-                      lip=[(-0.66, zR - 0.2), (0.66, zR - 0.2), (0.62, zR - 0.09), (-0.62, zR - 0.09)]),
-            exhaust=[(0.47, 0.3, 0.048, "round"), (0.6, 0.3, 0.048, "round")],
-            mirror=dict(z=-0.62, y=0.9, cap="carbon"),
-            side=dict(gaps=_gaps_coupe(-0.98, 0.62, belt=0.97),
-                      handles=[(0.4, 0.84, 0.17)], handle_col=CHROME, handle_kind="Metal",
-                      gill=dict(pts=[(-1.1, 0.64), (-0.95, 0.66), (-0.94, 0.72), (-1.08, 0.71)],
-                                slats=[[(-1.08, 0.668), (-0.96, 0.678), (-0.96, 0.684), (-1.08, 0.674)],
-                                       [(-1.08, 0.688), (-0.96, 0.698), (-0.96, 0.704), (-1.08, 0.694)]],
-                                badge="M8", badge_at=(-1.02, 0.70)),
-                      skirt=[(-0.98, 0.17), (1.0, 0.17), (1.0, 0.215), (-0.98, 0.215)],
+        style=dict(DET_M8, roundel_front=(0.69, zF + 0.03), rear=dict(DET_M8["rear"], lip=[(-0.66, zR - 0.2), (0.66, zR - 0.2), (0.62, zR - 0.09), (-0.62, zR - 0.09)]),
+            badge="M8", mirror=dict(z=-0.47, y=0.95, cap="carbon"),
+            side=dict(gaps=[[(-0.744, 0.384), (-0.74, 0.7), (-0.725, 0.909)],
+                            [(0.598, 0.371), (0.66, 0.693), (0.634, 0.97)],
+                            [(-0.744, 0.384), (0.598, 0.371)]],
+                      handles=[(0.43, 0.877, 0.17)], handle_col=CHROME, handle_kind="Metal",
+                      gill=dict(pts=[(-0.896, 0.763), (-0.842, 0.768), (-0.79, 0.392), (-0.83, 0.47), (-0.921, 0.647),
+                                     (-0.969, 0.672)],
+                                slats=[[(-0.93, 0.66), (-0.78, 0.7), (-0.78, 0.71), (-0.93, 0.67)]],
+                                badge="M8", badge_at=(-0.86, 0.72)),
+                      skirt=[(-0.98, 0.16), (1.0, 0.16), (1.0, 0.215), (-0.98, 0.215)],
                       fuel=(1.62, 0.85)),
-            interior=dict(hip_z=0.1, hip_h=0.21, eye_h=0.58, rear_z=0.85, rear_h=0.18, tilt=23.0,
+            interior=dict(hip_z=0.15, hip_h=0.21, eye_h=0.58, hub_fwd=0.48, rear_z=0.95, rear_h=0.18, tilt=23.0,
                           doors=((-0.6, 0.55),)),
         ),
     )
-    d.update(body_profile(zF, zR, aF, aR, zc, zb, dict(
-        nose=0.745, cowl=0.935, belt_f=0.905, belt_r=0.968, deck=1.0, tail=0.99, sh_f=0.77, sh_r=0.86,
-        clear=0.12, sill=0.175, rear_bot=0.29, te_nose=0.04, te_cab=0.07, hood_pow=1.25)))
+    d.update(body_profile2(zF, zR, aF, aR, zc, zb, dict(
+        hood=[(-2.353, 0.655), (-2.290, 0.735), (-2.244, 0.785), (-2.169, 0.830), (-2.063, 0.866), (-1.913, 0.900), (-1.717, 0.932), (-1.506, 0.954), (-1.259, 0.973), (-1.010, 0.990), (-0.760, 1.013)],
+        deck=[(1.760, 1.080), (1.867, 1.060), (1.970, 1.047), (2.073, 1.043), (2.177, 1.045), (2.280, 1.037), (2.380, 0.975)],
+        belt=[(-0.58, 0.939), (0.01, 0.959), (0.6, 0.987), (1.04, 1.013), (1.32, 1.123)],
+        sh=[(zF, 0.68), (aF, 0.8), (0.0, 0.86), (aR, 0.9), (zR, 0.9)],
+        sill=[(-2.353, 0.180), (-1.903, 0.320), (-1.413, 0.183), (0.000, 0.183), (1.413, 0.183), (1.964, 0.315), (2.514, 0.290)],
+        bot=[(-2.353, 0.120), (-2.054, 0.258), (-1.413, 0.179), (1.413, 0.179), (1.913, 0.224), (2.514, 0.290)],
+        te_nose=0.07, te_cab=0.105)))
     return d
 
 
@@ -2561,7 +2733,7 @@ def spec_cop():
         return COP_BLACK
 
     d = dict(
-        name="Interceptor", prop="Cop_Interceptor", L=L, W=1.905, H=1.481, WB=WB, TF=1.61, TR=1.618, ohf=ohf,
+        name="Interceptor", prop="Cop_Interceptor", plan_front=(0.0, 2.0), plan_rear=(0.0, 2.0), L=L, W=1.905, H=1.481, WB=WB, TF=1.61, TR=1.618, ohf=ohf,
         tire_od=0.727, rim_in=18, tire_w=0.245, flare=0.018, low_line=(0.5, 0.6, 0.012), crease_dip=0.012,
         nose_round=0.8, tail_round=0.9, plan_taper=(0.02, 0.02), livery=livery, fin_col=COP_BLACK,
         front=[(0.2, 0.03), (0.3, 0.004), (0.5, 0.0), (0.7, 0.01), (0.8, 0.035), (0.84, 0.07), (0.88, 0.15),
@@ -2573,7 +2745,7 @@ def spec_cop():
                 crown=0.045, xr=[(0.0, 0.645), (1.0, 0.625)], B=(0.22, 0.3, 0.18, 0.26),
                 zC=[(0.0, 1.3), (0.25, 1.34), (1.0, 0.98)]),
         int=dict(INT_BLACK, seat=(0.1, 0.1, 0.11), seat2=(0.14, 0.14, 0.15), card=(0.1, 0.1, 0.11),
-                 accent=(0.4, 0.41, 0.44)),
+                 accent=(0.4, 0.41, 0.44), carbon=False),
         paint=COP_BLACK, paint_name="black-and-white livery (baked)",
         wheel=dict(style="steel", n=1, col=(0.05, 0.05, 0.055), kind="Gloss", caliper=(0.2, 0.2, 0.22), concave=0.0),
         style=dict(
@@ -2598,7 +2770,7 @@ def spec_cop():
                       reflectors=[(0.84, 0.5, 0.025, 0.1)], plate=(0, 0.66), roundel=None, badge_at=(0.5, 0.8),
                       script_at=None),
             exhaust=[(0.55, 0.32, 0.045, "round")],
-            mirror=dict(z=-0.72, y=1.03, cap="paint", housing=(COP_BLACK, "Gloss")),
+            mirror=dict(z=-0.72, y=1.03, cap="paint", housing=(COP_BLACK, "Gloss"), scale=0.86),
             side=dict(gaps=_gaps_sedan(-1.05, 0.28, 1.1, belt=1.06),
                       handles=[(0.1, 0.9, 0.18), (1.02, 0.92, 0.17)], handle_col=COP_BLACK, handle_kind="Gloss",
                       skirt=None, fuel=(1.8, 0.92)),
@@ -2735,6 +2907,14 @@ def build_car(sp):
     if st.get("police"):
         tag("police")
         police_extras(car, st)
+    if os.environ.get("BEMZE_PROF_JSON"):       # the measured side-profile inputs (for the photo-fit tooling)
+        pj = os.environ["BEMZE_PROF_JSON"]
+        allp = json.load(open(pj)) if os.path.exists(pj) else {}
+        allp[name] = {"front": sp["front"], "rear": sp["rear"], "roof": sp["gh"]["roof"], "hood": sp.get("_hood"),
+                      "deck": sp.get("_deck"), "ys": sp["ys"], "bot": sp["bot"], "zF": car.zF, "zR": car.zR,
+                      "aF": car.aF, "aR": car.aR, "Ra": car.Ra,
+                      "mirror_z": st["mirror"]["z"], "zrr": sp["gh"]["zrr"], "H": sp["H"]}
+        json.dump(allp, open(pj, "w"))
     if "--stats" in sys.argv:
         print("STATS", name, {k: v for k, v in STATS.items()})
     STATS.clear()
