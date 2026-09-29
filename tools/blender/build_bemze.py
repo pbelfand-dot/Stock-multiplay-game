@@ -1163,10 +1163,14 @@ class Car:
             if front:
                 fac = f0 + (1 - f0) * math.sqrt(max(0.0, 1 - (1 - u) ** 2))
                 z_end = zF + nl
-                for x, y in sec:
+                hf = self.sp.get("hood_follow")
+                for k, (x, y) in enumerate(sec):
                     zf = zF + self.front_off(y)
                     zz = zf + (zs - zF) * ((z_end - zf) / (z_end - zF))
                     zz = min(zz + setback(x * fac, True, u), z_end - 0.004 * (1 - u))
+                    if hf and k > I_E:     # opt-in: the hood top keeps its own height where the plan rounding moved it
+                        yf = min(self.hood_y(x * fac, zz, "hood"), self.f["top"](zz) - 0.004)
+                        y = lerp(y, yf, hf * smooth01((k - I_E) / 3.0) * smooth01(u / 0.12))
                     out.append((x * fac, y, zz))
             else:
                 fac = r0 + (1 - r0) * math.sqrt(max(0.0, 1 - (1 - u) ** 2))
@@ -3076,9 +3080,9 @@ def _det_m3():
                       intakes=[[(0.37, 0.37), (0.66, 0.37), (0.7, 0.3), (0.65, 0.2), (0.35, 0.195)]],
                       trims=[([(0.795, 0.19), (0.825, 0.19), (0.835, 0.45), (0.808, 0.45)], PIANO, "Gloss")],
                       center=[],
-                      trims_c=[], splitter=None, plate_lift=0.045,
+                      trims_c=[], splitter=(0.72, 0.15, 0.014, 0.03), plate_lift=0.045,
                       intake_mesh=(0.032, 0.026, 0.005, 0.035))
-    d["rear"] = dict(d["rear"], diff_mode="ramp", diffuser=[(-0.56, 0.235), (0.56, 0.235), (0.68, 0.36), (-0.68, 0.36)],
+    d["rear"] = dict(d["rear"], diff_mode="ramp", diffuser=[(-0.5, 0.215), (0.5, 0.215), (0.6, 0.26), (0.68, 0.36), (-0.68, 0.36), (-0.6, 0.26)],
                      fins=[-0.52, -0.14, 0.0, 0.14, 0.52], fin_len=0.55, fin_out=-0.02,
                      reflectors=[(0.83, 0.43, 0.018, 0.24)],
                      diff_len=0.25, diff_rec=0.06, diff_taper=0.3)
@@ -3103,16 +3107,17 @@ def spec_m3():
         nose_round=0.74, tail_round=0.8, plan_front=(0.30, 1.8), plan_rear=(0.20, 2.0), nose_len=0.48, tail_len=0.46,
         front=[(0.100, 0.219), (0.130, 0.092), (0.170, 0.033), (0.220, 0.009), (0.350, 0.014), (0.500, 0.000), (0.600, 0.0), (0.660, 0.01), (0.720, 0.036)],
         rear=[(0.150, 0.16), (0.200, 0.1), (0.300, 0.025), (0.400, 0.0), (0.500, 0.001), (0.600, 0.060), (0.700, 0.128), (0.800, 0.169), (0.900, 0.164), (0.970, 0.135), (1.020, 0.136)],
-        strakes=(0.2, 0.3, 0.1, 0.02, zF + 0.3, zc - 0.05, 3.0, 1.2),
+        strakes=(0.19, 0.3, 0.1, 0.02, zF + 0.36, zc - 0.05, 3.0, 0.5),
         gh=dict(zc0=zc, kf=0.08, zh=-0.05, kh=0.04, zb0=zb, krb=0.14, zrr=1.17, krr=0.1, a_in=0.04,
                 roof=[(-0.060, 1.392), (0.100, 1.416), (0.250, 1.429), (0.400, 1.433), (0.550, 1.433), (0.700, 1.433), (0.850, 1.426), (1.000, 1.405), (1.150, 1.378), (1.300, 1.318)],
                 crown=0.045, xr=[(0.0, 0.585), (0.9, 0.61)], B=(0.30, 0.53, 0.33, 0.54),
-                zC=[(0.0, 1.47), (0.1, 1.51), (0.25, 1.49), (0.55, 1.37), (0.8, 1.2), (1.0, 1.0)]),
+                zC=[(0.0, 1.47), (0.1, 1.51), (0.25, 1.49), (0.55, 1.37), (0.8, 1.2), (1.0, 1.0)],
+                roof_crown=0.045, dlo_round=(0.06, 0.08), c_blend=0.6, rw_base=0.6),
         int=dict(INT_BLACK, seat=(0.8, 0.36, 0.08), seat2=(0.07, 0.07, 0.075), card=(0.1, 0.1, 0.11)),
         paint=(0.09, 0.36, 0.25), paint_name="Isle of Man Green",
         wheel=dict(style="double", n=5, col=(0.13, 0.13, 0.14), kind="Metal", caliper=(0.07, 0.07, 0.08),
                    concave=0.06, spokes=_wheel_m3_spokes, disc_col=(0.66, 0.64, 0.6)),
-        pocket_gap=0.03, door_tuck=0.036, door_tuck_end=0.01, tuck=0.016, kick=0.016, sh_a=0.62, crown_p=2.6,
+        hood_follow=1.0, pocket_gap=0.03, door_tuck=0.036, door_tuck_end=0.01, tuck=0.016, kick=0.04, sh_a=0.62, crown_p=2.6,
         style=dict(_det_m3(), roundel_front=(0.69, zF + 0.03),
                    rear=dict(_det_m3()["rear"], lip=[(-0.62, zR - 0.21), (0.62, zR - 0.21), (0.6, zR - 0.1), (-0.6, zR - 0.1)]),
                    badge="M3", interior_extras=[console_carbon],
