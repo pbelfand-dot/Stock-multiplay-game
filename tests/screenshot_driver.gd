@@ -182,7 +182,7 @@ func _run() -> void:
 			await get_tree().create_timer(0.5).timeout
 			tt += 0.5
 			for c in tr.active_cars():
-				if str(c.model).begins_with("Bemze_") and c.speed > 10.0:
+				if (str(c.model).begins_with("Bemze_") or str(c.model).begins_with("RC_")) and c.speed > 10.0:
 					found = c
 					break
 		if found.is_empty():
@@ -226,6 +226,53 @@ func _run() -> void:
 		hud.dealer._refresh()
 		await _frames(6)
 		await _snap("dl_showroom")
+		Sfx.quit_game()
+		return
+	if Config.cli.has("carcloseonly"):         # one car parked in the street: close static views in the game's light
+		var key: String = Config.cli.get("drivecar", "bz_m4")
+		m.owned[1][key] = 1
+		m._push_state()
+		world.go_to_street()
+		await get_tree().create_timer(0.8).timeout
+		var car = world.cars[Net.my_id()]
+		car.global_position += car.global_basis.x * float(Config.cli.get("shift", "3.4"))   # out of the parking row
+		hud.root.visible = false
+		var cam := Camera3D.new()
+		world.add_child(cam)
+		cam.current = true
+		cam.fov = 50
+		car.steer = 0.45                       # front wheels (and the steering wheel) turned left
+		car.speed = 0.6
+		car.in_brake = 1.0                     # brake lights on
+		await get_tree().create_timer(0.3).timeout
+		car.speed = 0.0
+		var views := [["cc_front34", Vector3(-3.2, 1.5, -4.4), Vector3(0, 0.6, -0.3)], ["cc_rear34", Vector3(3.4, 1.6, 4.6), Vector3(0, 0.6, 0.3)],
+				["cc_side", Vector3(-6.5, 1.0, 0.0), Vector3(0, 0.6, 0)], ["cc_wheel", Vector3(-2.2, 0.7, -2.9), Vector3(-0.8, 0.35, -1.4)],
+				["cc_top", Vector3(0.01, 7.5, 0.5), Vector3(0, 0.5, 0)],
+				["cc_wheel_l", Vector3(-2.6, 0.55, -1.2), Vector3(-0.8, 0.35, -1.2)], ["cc_wheel_r", Vector3(2.6, 0.55, 1.4), Vector3(0.8, 0.35, 1.4)]]
+		for v in views:
+			cam.global_position = car.to_global(v[1])
+			cam.look_at(car.to_global(v[2]))
+			await get_tree().create_timer(0.3).timeout
+			await _snap(v[0])
+		# the tail lights off the brakes, same close rear view
+		car.in_brake = 0.0
+		cam.global_position = car.to_global(Vector3(1.2, 1.3, 5.2))
+		cam.look_at(car.to_global(Vector3(0, 0.8, 2.0)))
+		await get_tree().create_timer(0.3).timeout
+		await _snap("cc_tail_off")
+		car.in_brake = 1.0
+		car.speed = 0.6                        # (brake lights need the car rolling)
+		await get_tree().create_timer(0.1).timeout
+		await _snap("cc_tail_on")
+		car.speed = 0.0
+		# the cockpit: the driver's eyes, looking ahead (the steering wheel still turned)
+		cam.fov = 72
+		cam.global_transform = car.global_transform * Transform3D(Basis(), car.ref.eye + Vector3(0, 0.02, 0))
+		cam.rotate_object_local(Vector3.RIGHT, -0.06)
+		cam.near = 0.05
+		await get_tree().create_timer(0.3).timeout
+		await _snap("cc_cockpit")
 		Sfx.quit_game()
 		return
 	if Config.cli.has("driveonly"):            # get in, drive down the street, chase cam, cockpit, brake lights

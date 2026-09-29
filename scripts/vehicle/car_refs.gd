@@ -65,6 +65,17 @@ const MODELS := {
 		"eye": Vector3(-0.37, 1.17, 0.13), "wheel_hub": Vector3(-0.37, 0.9, -0.55), "column_tilt": deg_to_rad(21),
 		"head": [Vector3(-0.746, 0.779, -2.4247), Vector3(0.746, 0.779, -2.4247)], "tail": [Vector3(-0.533, 0.912, 2.6336), Vector3(0.533, 0.912, 2.6336)],
 		"box": Vector3(1.905, 1.381, 5.1), "box_center": Vector3(0, 0.7905, 0.094), "door": Vector3(-0.9378, 0.9, 0.1), "kit": true},
+	# ---- the owner's real models (tools/blender/build_realcars.py -> realcars_kit.glb; numbers from its report).
+	# Own wheels (+ rear ones when staggered), front calipers that steer, the steering wheel cut from the
+	# interior, tail lights that are the model's own (tail_mat: car.gd brightens that surface on the brakes).
+	"RC_M4": {
+		"wheelbase": 2.851, "wheel_r": 0.3483, "wheel_r_rear": 0.3487,
+		"wheels": {"FL": Vector3(-0.7994, 0.3486, -1.4255), "FR": Vector3(0.7994, 0.3486, -1.4255), "RL": Vector3(-0.7914, 0.3489, 1.4255), "RR": Vector3(0.7914, 0.3489, 1.4255)},
+		"eye": Vector3(-0.375, 1.132, 0.2416), "wheel_hub": Vector3(-0.375, 0.872, -0.2584), "column_tilt": -0.3652,
+		"head": [Vector3(-0.6925, 0.6564, -1.9622), Vector3(0.6925, 0.6564, -1.9622)], "tail": [Vector3(-0.6328, 0.8561, 2.241), Vector3(0.6328, 0.8561, 2.241)],
+		"box": Vector3(1.883, 1.267, 4.793), "box_center": Vector3(0.0, 0.7655, 0.105), "door": Vector3(-0.941, 0.86, 0.342),
+		"wheel_prop": "RC_M4_Wheel", "wheel_prop_rear": "RC_M4_WheelR", "caliper_prop": "RC_M4_Caliper", "steer_prop": "RC_M4_Steer",
+		"kit": true, "tail_mat": true},
 }
 
 
