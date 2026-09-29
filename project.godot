@@ -29,6 +29,7 @@ window/stretch/aspect="expand"
 [physics]
 
 common/physics_ticks_per_second=60
+common/physics_interpolation=true
 
 [rendering]
 

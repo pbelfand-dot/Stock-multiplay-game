@@ -1062,8 +1062,8 @@ func _box_mm(colored: bool, col: Color) -> MultiMeshInstance3D:
 
 
 ## Where a car is drawn right now (between sim steps; plus a client's fading correction).
-func _xf(c, with_vis := true) -> Transform3D:
-	var xf := car_transform(c, c.v * _acc)
+func _xf(c, with_vis := true, lag := 0.0) -> Transform3D:
+	var xf := car_transform(c, c.v * (_acc - lag))
 	if with_vis:
 		xf.origin += c.vis
 	return xf
@@ -1170,10 +1170,13 @@ func _draw(cp: Vector3) -> void:
 	var blinks := 0
 	var lods := 0
 	var flash := fmod(sim_time, 0.7) < 0.35
+	# physics objects (your car, the camera on it) are drawn interpolated, a tick
+	# behind the sim: draw traffic at that same moment so it lines up with them
+	var lag := 1.0 / Engine.physics_ticks_per_second if get_tree().physics_interpolation else 0.0
 	for c in cars:
 		if c.waiting:
 			continue
-		var xf := _xf(c)
+		var xf := _xf(c, true, lag)
 		var d2 := xf.origin.distance_squared_to(cp)
 		if d2 > VIS_DIST * VIS_DIST:
 			continue

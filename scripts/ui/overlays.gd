@@ -84,6 +84,7 @@ class Mugshot extends Control:
 		model.rotation.y = PI
 		w.add_child(model)
 		var cam := Camera3D.new()
+		cam.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
 		cam.position = Vector3(0, 1.4, 1.55)
 		cam.fov = 42
 		w.add_child(cam)
@@ -341,6 +342,7 @@ class Unbox extends Control:
 		l.rotation_degrees = Vector3(-50, 30, 0)
 		world3d.add_child(l)
 		var cam := Camera3D.new()
+		cam.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
 		cam.position = Vector3(0, 0.46, 0.44)
 		cam.rotation_degrees = Vector3(-44, 0, 0)
 		cam.fov = 34

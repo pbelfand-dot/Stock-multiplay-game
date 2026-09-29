@@ -88,6 +88,7 @@ func _ready() -> void:
 		model.set_silhouette(Color(0.96, 0.96, 0.96))
 		vp.add_child(model)
 		var cam := Camera3D.new()
+		cam.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
 		cam.fov = 34
 		vp.add_child(cam)
 		cam.position = Vector3(0, 1.05, 3.7)

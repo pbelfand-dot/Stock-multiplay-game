@@ -160,6 +160,7 @@ func _enter() -> void:
 	visible = true
 	hud.root.visible = false                    # the whole game HUD (photo mode lives on its own layer)
 	cam = Camera3D.new()
+	cam.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF         # flown in _process
 	cam.fov = fov_slider.value
 	cam.near = 0.03
 	cam.far = p.cam.far

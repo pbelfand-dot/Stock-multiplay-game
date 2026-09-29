@@ -226,6 +226,7 @@ func _build_studio() -> void:
 	key.light_energy = 0.75
 	studio.add_child(key)
 	cam = Camera3D.new()
+	cam.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
 	cam.position = Vector3(0, 1.55, 2.1)
 	cam.fov = 38
 	studio.add_child(cam)

@@ -334,6 +334,10 @@ func _run() -> void:
 		print("hits %s, speed now %.0f mph" % [str(hits), car.mph()])
 		Sfx.quit_game()
 		return
+	if Config.cli.has("jitteronly"):           # how smooth is driving? per-frame camera steps at speed (run with --fixed-fps)
+		await _jitter(world, m)
+		Sfx.quit_game()
+		return
 	if Config.cli.has("counteronly"):          # money counters: the one by the ATM, then your desk's
 		var p0 = world.local_player
 		m.wallet[1] = 250_000.0
@@ -1013,3 +1017,140 @@ func _street_only(world, m, hud) -> void:
 		p.head.rotation.x = v[3]
 		await _frames(8)
 		await _snap(v[0])
+
+
+## Where a node is drawn this frame (interpolated ones between their ticks).
+func _drawn(n: Node3D) -> Transform3D:
+	return n.get_global_transform_interpolated() if n.is_physics_interpolated_and_enabled() else n.global_transform
+
+
+## Runs last in each frame's _process: hands the frame to `cb` (what gets drawn).
+class Sampler:
+	extends Node
+	var cb: Callable
+
+	func _process(_d: float) -> void:
+		cb.call()
+
+
+## Smoothness at speed, frame by frame (run with --fixed-fps 120 or 144, so a
+## frame is a fixed slice of game time): how far the chase / cockpit camera
+## moves each frame vs how far the car went (1.0 = perfectly even; a 60 Hz
+## step under a 120 Hz render shows as 0, 2, 0, 2), the same for a remote car
+## fed 20 Hz network updates, and how far the driver's body sits from the
+## seat of the car as drawn.
+func _jitter(world, m) -> void:
+	var p0 = world.local_player
+	var key: String = Config.cli.get("drivecar", "bz_m3")
+	m.owned[1][key] = 1
+	m._push_state()
+	world.go_to_street()
+	await get_tree().create_timer(0.8).timeout
+	var fps := float(Engine.max_fps if Engine.max_fps > 0 else 120)
+	if Config.cli.has("fixed-fps"):
+		fps = float(Config.cli["fixed-fps"])
+	# on foot first: sprint down the sidewalk, first-person camera steps
+	var walk: Array = []
+	var wst := {"last": null}
+	Input.action_press("move_forward")
+	Input.action_press("sprint")
+	await get_tree().create_timer(0.4).timeout
+	var ws := Sampler.new()
+	ws.process_priority = 100000
+	ws.cb = func() -> void:
+		var e: Vector3 = _drawn(p0.cam).origin
+		if wst.last != null and walk.size() < int(fps) and p0.velocity.length() > 3.0:
+			walk.append(e.distance_to(wst.last) / (p0.velocity.length() / fps))
+		wst.last = e
+	add_child(ws)
+	for i in int(fps * 1.2):
+		await get_tree().process_frame
+	ws.queue_free()
+	Input.action_release("move_forward")
+	Input.action_release("sprint")
+	var car = world.cars[Net.my_id()]
+	p0.enter_car(car)
+	var hw = world.builder.hood.hw
+	var tr = world.traffic()
+	if tr:                       # just us on the road
+		tr.set_process(false)
+		tr.set_physics_process(false)
+	var s0 := 520.0
+	var fwd: Vector3 = hw.forward(1, s0)
+	car.global_position = hw.lane_center(1, 1, s0) + Vector3(0, 0.3, 0)
+	car.rotation = Vector3(0, atan2(-fwd.x, -fwd.z), 0)
+	car.speed = 40.0
+	car.velocity = fwd * 40.0
+	car.reset_physics_interpolation()
+	# a "remote" car two lanes over, fed our transform 20x a second like the network would
+	var rc = load("res://scripts/vehicle/car.gd").new()
+	rc.setup("bz_m5", 999)
+	rc.position = car.global_position + hw.right(s0) * 7.4
+	world.cars_node.add_child(rc)
+	Input.action_press("move_forward", 0.55)
+	await get_tree().create_timer(1.0).timeout
+	var rows := {}
+	for mode in ["chase", "cockpit"]:
+		if (mode == "cockpit") != p0.drive_cam.cockpit:
+			p0.drive_cam.toggle()
+			p0.model.set_first_person(p0.drive_cam.cockpit)
+		await get_tree().create_timer(0.5).timeout
+		var cam: Camera3D = p0.drive_cam
+		var st := {"cam": [], "remote": [], "seat": [], "last_cam": null, "last_rc": null, "n": 0}
+		var smp := Sampler.new()
+		smp.process_priority = 100000
+		smp.cb = func() -> void:
+			if st.n >= int(fps * 2.0):                # done (the view is about to switch)
+				return
+			var cxf: Transform3D = _drawn(car)
+			var step: float = car.velocity.length() / fps
+			var cp: Vector3 = _drawn(cam).origin
+			var rp: Vector3 = _drawn(rc).origin
+			if st.last_cam != null and step > 0.05:
+				st.cam.append(cp.distance_to(st.last_cam) / step)
+				st.remote.append(rp.distance_to(st.last_rc) / step)
+			st.last_cam = cp
+			st.last_rc = rp
+			var eye: Vector3 = car.ref.eye
+			var want: Vector3 = cxf * Vector3(eye.x, eye.y - 1.19, eye.z + 0.05)
+			st.seat.append(_drawn(p0.model).origin.distance_to(want))
+			st.n += 1
+			if st.n % int(fps / 20.0) == 0:           # the network tick
+				rc.net_state(car.global_position + hw.right(hw.locate(car.global_position).x) * 7.4, car.quaternion, car.speed,
+						car.steer, false)
+		add_child(smp)
+		while st.n < int(fps * 2.0):
+			await get_tree().process_frame
+		smp.queue_free()
+		rows[mode] = st
+	Input.action_release("move_forward")
+	var stats := func(all: Array) -> String:
+		var a: Array = all.slice(12)             # (settled: the view just switched)
+		var srt: Array = a.duplicate()
+		srt.sort()
+		var mean := 0.0
+		for v in a:
+			mean += v
+		mean /= maxf(a.size(), 1)
+		var sd := 0.0
+		var stalls := 0
+		for v in a:
+			sd += (v - mean) * (v - mean)
+			if v < 0.25:
+				stalls += 1
+		sd = sqrt(sd / maxf(a.size(), 1))
+		return "mean %.3f  sd %.3f (%.0f%%)  p5 %.2f  p95 %.2f  max %.2f  stalled frames %d/%d" % [mean, sd, 100.0 * sd / maxf(mean, 0.001),
+				srt[int(srt.size() * 0.05)], srt[int(srt.size() * 0.95)], srt[srt.size() - 1], stalls, a.size()]
+	print("jitter @ %.0f fps, physics %d Hz, interpolation %s, %s at %.0f mph" % [fps, Engine.physics_ticks_per_second,
+			str(get_tree().physics_interpolation), key, car.mph()])
+	print("  on foot first-person camera step / body step: %s" % stats.call(walk))
+	for mode in rows:
+		var st: Dictionary = rows[mode]
+		print("  %-7s camera step / car step: %s" % [mode, stats.call(st.cam)])
+		print("  %-7s remote car (20 Hz):     %s" % [mode, stats.call(st.remote)])
+		var worst := 0.0
+		var avg := 0.0
+		for v in st.seat:
+			worst = maxf(worst, v)
+			avg += v
+		print("  %-7s driver off the seat: avg %.3f m, worst %.3f m" % [mode, avg / maxf(st.seat.size(), 1), worst])

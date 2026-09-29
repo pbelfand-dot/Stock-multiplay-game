@@ -586,6 +586,7 @@ func _build_kwik() -> void:
 	cam_vp.render_target_update_mode = SubViewport.UPDATE_DISABLED
 	add_child(cam_vp)
 	cam = Camera3D.new()
+	cam.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
 	cam.fov = 62
 	cam_vp.add_child(cam)
 	var stream := TextureRect.new()
