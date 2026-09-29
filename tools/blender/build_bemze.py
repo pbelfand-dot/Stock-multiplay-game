@@ -2765,31 +2765,204 @@ def spec_m3():
     return d
 
 
+def _stroke_m4(pts, w):
+    """A polyline thickened to a closed outline `w` wide (lamp light guides drawn as strokes)."""
+    n = len(pts)
+    L, R = [], []
+    for i in range(n):
+        p0 = Vector(pts[max(0, i - 1)])
+        p1 = Vector(pts[i])
+        p2 = Vector(pts[min(n - 1, i + 1)])
+        t0 = (p1 - p0) if (p1 - p0).length > 1e-9 else (p2 - p1)
+        t1 = (p2 - p1) if (p2 - p1).length > 1e-9 else t0
+        n0 = Vector((-t0.y, t0.x)).normalized()
+        n1 = Vector((-t1.y, t1.x)).normalized()
+        m = (n0 + n1).normalized()
+        c = max(0.5, m.dot(n1))
+        q = m * (w / 2 / c)
+        L.append((p1.x + q.x, p1.y + q.y))
+        R.append((p1.x - q.x, p1.y - q.y))
+    return L + list(reversed(R))
+
+
+# G82 M4 fascia, measured on the head-on photos (end-view metres, calibrated on the 520 mm plate).
+DET_M4_G82 = dict(
+    kidney=dict(pts=[(0.036, 0.64), (0.3, 0.64), (0.336, 0.6), (0.35, 0.5), (0.343, 0.38), (0.318, 0.29),
+                     (0.275, 0.225), (0.235, 0.19), (0.05, 0.19), (0.036, 0.21)],
+                r=[0.02, 0.05, 0.05, 0.06, 0.06, 0.05, 0.04, 0.03, 0.02, 0.02], frame_w=0.014, slats="h",
+                pitch=0.052, slat_t=0.016, lift=0.02, depth=0.13, slat_back=0.008),
+    head=dict(pts=[(0.406, 0.593), (0.48, 0.626), (0.563, 0.65), (0.66, 0.672), (0.74, 0.686), (0.812, 0.69),
+                   (0.826, 0.662), (0.82, 0.61), (0.795, 0.572), (0.738, 0.551), (0.607, 0.542), (0.476, 0.552)],
+              r=0.01, alpha=0.62, depth=0.06,
+              drl=[_stroke_m4([(0.793, 0.655), (0.782, 0.605), (0.772, 0.582), (0.755, 0.572), (0.66, 0.566),
+                               (0.648, 0.578)], 0.013),
+                   _stroke_m4([(0.636, 0.643), (0.627, 0.6), (0.617, 0.572), (0.6, 0.561), (0.51, 0.556),
+                               (0.498, 0.566)], 0.013)],
+              lens=[(0.712, 0.622, 0.017), (0.585, 0.612, 0.015)],
+              blue=[[(0.7, 0.648), (0.745, 0.652), (0.745, 0.658), (0.7, 0.655)],
+                    [(0.57, 0.636), (0.61, 0.64), (0.61, 0.646), (0.57, 0.643)]]),
+    front=dict(intakes=[[(0.365, 0.345), (0.58, 0.345), (0.648, 0.26), (0.615, 0.19), (0.3, 0.186),
+                         (0.33, 0.26)]],
+               center=[],
+               vents=[([(0.786, 0.25), (0.816, 0.25), (0.824, 0.44), (0.814, 0.52), (0.798, 0.48)], 0.15, 0.05)],
+               trims_c=[([(-0.78, 0.128), (0.78, 0.128), (0.8, 0.165), (-0.8, 0.165)], PIANO, "Gloss")],
+               splitter=(0.7, 0.136, 0.02, 0.012),
+               plate=(0, 0.4), plate_lift=0.024),
+    tail=dict(pts=[(0.288, 0.861), (0.338, 0.879), (0.603, 0.902), (0.749, 0.925), (0.78, 0.92), (0.806, 0.875),
+                   (0.806, 0.795), (0.79, 0.783), (0.63, 0.81), (0.539, 0.833), (0.302, 0.847)],
+              alpha=0.62, depth=0.045, base=(0.07, 0.05, 0.055), base_kind="Gloss",
+              glow=[_stroke_m4([(0.35, 0.862), (0.594, 0.866), (0.64, 0.852), (0.694, 0.833), (0.76, 0.826)],
+                               0.017),
+                    _stroke_m4([(0.772, 0.82), (0.776, 0.86), (0.779, 0.906)], 0.02)],
+              hi=[_stroke_m4([(0.62, 0.845), (0.7, 0.825)], 0.006)]),
+    rear=dict(diffuser=[(-0.64, 0.3), (0.64, 0.3), (0.8, 0.3), (0.84, 0.335), (0.72, 0.37), (0.56, 0.435),
+                        (-0.56, 0.435), (-0.72, 0.37), (-0.84, 0.335), (-0.8, 0.3)],
+              diff_depth=0.13, diff_col=CARBON, fins=[-0.52, -0.13, 0.0, 0.13, 0.52],
+              reflectors=[(0.786, 0.475, 0.018, 0.21)], plate=(0, 0.79), roundel=(0, 0.93), badge_at=(0.39, 0.92)),
+    exhaust=[(0.286, 0.322, 0.047, "round"), (0.4, 0.322, 0.047, "round")], tip_out=0.07,
+    tip_col=(0.08, 0.08, 0.085),
+)
+
+
+def _wheel_m4(M, c):
+    """826M-style forged 20": five Y double-spokes, gloss black with machined faces, polished lip."""
+    r0, r1, y_of = c["r0"], c["r1"], c["y_of"]
+    rim, kind = c["rim"], c["rimk"]
+    face = (0.66, 0.67, 0.7)
+    rm = r0 + (r1 - r0) * 0.3
+    for i in range(5):
+        t0 = TAU * i / 5
+        _spoke(M, lambda u, t0=t0: (lerp(r0, rm, u), t0 + 0.02 * u), lambda u: lerp(0.05, 0.044, u),
+               lambda u: 0.034, y_of, rim, kind, samples=3)
+        for s in (-1, 1):
+            def path(u, s=s, t0=t0):
+                return lerp(rm - 0.012, r1, u), t0 + 0.02 + s * lerp(0.03, 0.15, u ** 0.85) + 0.05 * u
+            _spoke(M, path, lambda u: lerp(0.024, 0.019, u), lambda u: 0.03, y_of, rim, kind, samples=6)
+            _spoke(M, path, lambda u: lerp(0.011, 0.008, u), lambda u: 0.004, lambda r: y_of(r) + 0.0035, face,
+                   "Metal", samples=6)
+
+
+def _mirror_m4(car, st):
+    """M-style door mirrors: gloss-black angular housing on two thin arms from the door's front corner."""
+    m = st["mirror"]
+    z0, y0 = m["z"], m["y"]
+    xb = car.xE(z0)
+    x0 = xb + 0.075
+    x1 = min(xb + 0.29, car.sp["W"] / 2 + 0.105)
+    col = m.get("col", PIANO)
+    prof = [(0.0, 0.032, 0.03), (0.08, 0.05, 0.05), (0.25, 0.057, 0.06), (0.5, 0.058, 0.062), (0.75, 0.055, 0.058),
+            (0.9, 0.046, 0.05), (0.97, 0.03, 0.033), (1.0, 0.013, 0.015)]
+    for sx in (-1, 1):
+        rings = []
+        for s, dz, dy in prof:
+            x = sx * lerp(x0, x1, s)
+            zc = z0 + 0.03 * s            # the housing sweeps back toward its tip
+            yc = y0 + 0.045 + 0.02 * s
+            ring = []
+            for k in range(18):
+                a = TAU * k / 18
+                zz = -dz * math.cos(a)
+                yy = dy * math.sin(a)
+                if zz > dz * 0.4:          # flat glass face toward the rear
+                    zz = dz * 0.4 + (zz - dz * 0.4) * 0.12
+                if yy < 0:                 # sharper lower edge: the M mirror's wedge underside
+                    zz -= 0.25 * dz * (-yy / dy) ** 2
+                ring.append(Vector((x, yc + yy, zc + zz)))
+            rings.append(ring if sx > 0 else list(reversed(ring)))
+        emit(loft_bm(rings, cap0=True, cap1=True), col, "Gloss", sharp=1.0)
+        # glass
+        gp = []
+        for k in range(16):
+            a = TAU * k / 16
+            s = 0.5 + 0.43 * math.cos(a)
+            gp.append(Vector((sx * lerp(x0, x1, s), y0 + 0.045 + 0.02 * s + 0.042 * math.sin(a),
+                              z0 + 0.03 * s + 0.4 * 0.052 + 0.002)))
+        bmg = bmesh.new()
+        f = bmg.faces.new([bmg.verts.new(p) for p in gp])
+        bmg.normal_update()
+        if f.normal.z < 0:
+            f.normal_flip()
+        emit(bmg, (0.55, 0.6, 0.66), "Metal", recalc=False)
+        # twin arms from the door (sail) to the housing
+        for dy, dz in ((0.018, -0.012), (-0.02, 0.014)):
+            rod((sx * (xb - 0.02), y0 + dy - 0.015, z0 + dz), (sx * (x0 + 0.03), y0 + 0.045 + dy * 0.8, z0 + dz * 0.6),
+                0.009, col, "Gloss", segs=8, r2=0.007)
+        box((0.05, 0.06, 0.11), col, "Gloss", pos=(sx * (xb - 0.01), y0 - 0.005, z0 + 0.005), r=0.012)   # sail base
+        box((0.08, 0.005, 0.012), (1.0, 0.55, 0.1), "Glow", pos=(sx * lerp(x0, x1, 0.6), y0 + 0.002, z0 - 0.02),
+            r=0.002)
+
+
+def _extras_m4(car, S, st):
+    """The boot lid's U-shaped shut line, a smoked cover over the taillights, the carbon skirt blades."""
+    lid = [(0.556, 0.765), (0.54, 0.72), (0.52, 0.69), (0.46, 0.648), (0.38, 0.627), (0.2, 0.617), (0.0, 0.615)]
+    lid = lid + [(-x, y) for x, y in reversed(lid[:-1])]
+    S.line(lid, 0.005, "rear", (0.02, 0.02, 0.022), "Paint", lift=0.0025, step=0.03)
+    t = st["tail"]                  # smoked outer lens over the shared red one: dark lamp, bright light guides
+    V, cv = oblique(car, "rear", t["alpha"], S)
+    S.decal(_cv(cv, _ccw(round_poly(t["pts"], 0.012, per=3))), V, (0.11, 0.1, 0.11), "Glass", lift=0.006, rings=3,
+            step=0.025, mirror=True, skirt=False, lift_fn=lambda f: 0.003 * f)
+    S.decal([(-0.95, 0.175), (1.0, 0.175), (1.0, 0.2), (-0.95, 0.2)], "right", CARBON, "Gloss", lift=0.018,
+            base=-0.004, rings=1, step=0.05, mirror=True)                                   # carbon skirt blades
+
+
+M4_BLUE = (0.25, 0.44, 0.56)     # Yas Marina blue merino
+
+
+def _console_m4(car, st):
+    """Carbon centre console panels and blue / carbon door cards (G82 Competition cockpit)."""
+    iz = st["interior"]
+
+    hz = iz["hip_z"]
+    cf = car.cf
+    zc0 = car.z_tf + 0.35
+    zc1 = hz + 0.25
+    for sx in (-1, 1):       # carbon console side walls
+        box((0.006, 0.2, zc1 - zc0 - 0.1), CARBON, "Gloss", pos=(sx * 0.103, cf + 0.2, (zc0 + zc1) / 2 + 0.05))
+    box((0.17, 0.008, 0.26), CARBON, "Gloss", pos=(0, cf + 0.352, zc0 + 0.28))
+    box((0.05, 0.012, 0.03), (0.8, 0.05, 0.05), "Gloss", pos=(0.05, cf + 0.36, zc0 + 0.38), r=0.004)   # M1/M2 start
+    for sx in (-1, 1):
+        for (z0, z1) in iz.get("doors", ()):
+            zc = (z0 + z1) / 2
+            xw = sx * (car.xE(zc) - 0.085)
+            e = car.f["e"](zc)
+            box((0.01, 0.2, z1 - z0 - 0.12), M4_BLUE, "Paint", pos=(xw, e - 0.33, zc + 0.02), r=0.004)
+            box((0.012, 0.035, z1 - z0 - 0.2), CARBON, "Gloss", pos=(xw - sx * 0.004, e - 0.2, zc), r=0.004)
+            box((0.012, 0.004, z1 - z0 - 0.3), (0.4, 0.7, 1.0), "Glow", pos=(xw - sx * 0.008, e - 0.225, zc))
+
+
+
 def spec_m4():
     """BMW M4 Competition (G82) coupe: 4794 x 1887 x 1393, wheelbase 2857, track 1617 / 1605, 19"/20"
-    (one 20" wheel, 0.679 m tyre). Same nose as the M3, frameless coupe glass, carbon roof."""
+    (one 20" wheel, 0.679 m tyre). Tall kidneys, laser taillights, quad tips, carbon roof, pronounced haunches."""
     WB, L, ohf = 2.857, 4.794, 0.86
     aF, aR, zF, zR = _axes(WB, L, ohf)
     zc, zb = -0.86, 1.98
     d = dict(
         name="M4", L=L, W=1.887, H=1.393, WB=WB, TF=1.617, TR=1.605, ohf=ohf,
-        tire_od=0.679, rim_in=20, tire_w=0.275, flares=dict(f=(0.03, 0.25, 0.3, 0.2), r=(0.048, 0.3, 0.75, 0.3)), low_line=(0.5, 0.8, 0.01), carbon_roof=True,
-        nose_round=0.74, tail_round=0.8, plan_front=(0.30, 1.8), plan_rear=(0.20, 2.0), nose_len=0.48, tail_len=0.46,
+        tire_od=0.679, rim_in=20, tire_w=0.275,
+        flares=dict(f=(0.034, 0.25, 0.34, 0.2), r=(0.056, 0.3, 0.95, 0.3)), flare_top=0.5,
+        door_tuck=0.04, kick=0.018, sh_a=0.6, crown_p=2.2, door_hollow=0.006,
+        low_line=(0.5, 0.8, 0.01), carbon_roof=True,
+        nose_round=0.74, tail_round=0.8, plan_front=(0.2, 2.2), plan_rear=(0.20, 2.0), nose_len=0.48, tail_len=0.46,
         carbon_lip=True,
-        front=[(0.100, 0.165), (0.130, 0.110), (0.170, 0.064), (0.220, 0.040), (0.350, 0.035), (0.500, 0.017), (0.600, 0.025), (0.660, 0.042), (0.720, 0.069)],
-        rear=[(0.200, 0.270), (0.250, 0.200), (0.300, 0.119), (0.350, 0.055), (0.400, 0.015), (0.500, 0.000), (0.600, 0.042), (0.700, 0.103), (0.800, 0.139), (0.900, 0.140), (0.980, 0.120), (1.040, 0.120)],
-        strakes=(0.16, 0.3, 0.1, 0.024, zF + 0.3, zc - 0.04),
+        front=[(0.100, 0.165), (0.130, 0.110), (0.170, 0.064), (0.220, 0.040), (0.350, 0.035), (0.500, 0.017), (0.600, 0.018), (0.660, 0.026), (0.720, 0.048)],
+        rear=[(0.200, 0.270), (0.250, 0.200), (0.300, 0.119), (0.350, 0.055), (0.400, 0.015), (0.500, 0.004), (0.600, 0.058), (0.700, 0.112), (0.800, 0.139), (0.900, 0.140), (0.980, 0.120), (1.040, 0.120)],
+        strakes=(0.18, 0.34, 0.09, 0.034, zF + 0.3, zc - 0.03),
         gh=dict(zc0=zc, kf=0.08, zh=-0.05, kh=0.04, zb0=zb, krb=0.2, zrr=1.0, krr=0.12, a_in=0.04,
                 roof=[(-0.050, 1.372), (0.150, 1.389), (0.300, 1.392), (0.450, 1.393), (0.600, 1.387), (0.750, 1.372), (0.900, 1.352), (1.050, 1.321), (1.200, 1.261)],
                 crown=0.05, xr=[(0.0, 0.575), (0.9, 0.595)], B=(0.57, 0.63, 0.56, 0.63),
-                zC=[(0.0, 1.36), (0.4, 1.25), (0.65, 1.02), (0.85, 0.8), (1.0, 0.7)], rb=0.08),
-        int=dict(INT_BLACK, seat=(0.1, 0.1, 0.11), seat2=(0.75, 0.1, 0.08)),
+                zC=[(0.0, 1.36), (0.4, 1.25), (0.65, 1.02), (0.85, 0.8), (1.0, 0.7)], rb=0.08, bow_ry=-0.01),
+        int=dict(INT_BLACK, seat=M4_BLUE, seat2=(0.05, 0.05, 0.055), card=M4_BLUE, accent=(0.6, 0.61, 0.64)),
         paint=(0.95, 0.74, 0.06), paint_name="Sao Paulo Yellow",
-        wheel=dict(style="double", n=5, col=(0.07, 0.07, 0.08), kind="Gloss", caliper=(0.8, 0.07, 0.07),
-                   concave=0.05),
-        style=dict(DET_M4, roundel_front=(0.66, zF + 0.03), rear=dict(DET_M4["rear"], lip=[(-0.64, zR - 0.22), (0.64, zR - 0.22), (0.62, zR - 0.1), (-0.62, zR - 0.1)]),
+        wheel=dict(style="double", n=5, col=(0.05, 0.05, 0.055), kind="Gloss", caliper=(0.1, 0.24, 0.62),
+                   lip=(0.78, 0.79, 0.82), concave=0.05, spokes=_wheel_m4),
+        style=dict(DET_M4_G82, roundel_front=(0.66, zF + 0.03),
+                   rear=dict(DET_M4_G82["rear"], lip=[(-0.64, zR - 0.22), (0.64, zR - 0.22), (0.62, zR - 0.1), (-0.62, zR - 0.1)],
+                             lip_h=0.032),
                    badge="M4",
-                   mirror=dict(z=-0.47, y=0.95, cap="carbon"),
+                   mirror=dict(z=-0.47, y=0.95, builder=_mirror_m4),
+                   extras=[_extras_m4],
+                   interior_extras=[_console_m4],
                    side=dict(gaps=[[(-0.729, 0.328), (-0.74, 0.7), (-0.751, 0.882), (-0.745, 0.93)],
                                    [(0.46, 0.328), (0.589, 0.406), (0.62, 0.66), (0.573, 0.978)],
                                    [(-0.729, 0.328), (0.46, 0.328)]],
@@ -2804,13 +2977,13 @@ def spec_m4():
                    ),
     )
     d.update(body_profile2(zF, zR, aF, aR, zc, zb, dict(
-        hood=[(-2.288, 0.609), (-2.249, 0.668), (-2.208, 0.722), (-2.140, 0.766), (-2.045, 0.816), (-1.910, 0.863), (-1.734, 0.899), (-1.544, 0.920), (-1.321, 0.939), (-1.090, 0.956), (-0.860, 0.984)],
+        hood=[(-2.288, 0.609), (-2.249, 0.668), (-2.208, 0.722), (-2.140, 0.766), (-2.045, 0.816), (-1.910, 0.855), (-1.734, 0.887), (-1.544, 0.908), (-1.321, 0.928), (-1.090, 0.949), (-0.860, 0.984)],
         deck=[(1.980, 1.058), (2.048, 1.048), (2.115, 1.041), (2.183, 1.041), (2.251, 1.043), (2.318, 1.032), (2.380, 1.009)],
         belt=[(-0.70, 0.93), (-0.08, 0.95), (0.56, 0.982), (0.88, 1.007), (1.27, 1.05), (1.36, 1.085)],
         sh=[(zF, 0.7), (aF, 0.83), (0.0, 0.87), (aR, 0.9), (zR, 0.9)],
         sill=[(-2.288, 0.190), (-1.839, 0.267), (-1.429, 0.177), (0.000, 0.177), (1.429, 0.177), (1.979, 0.263), (2.505, 0.300)],
-        bot=[(-2.288, 0.130), (-1.988, 0.184), (-1.429, 0.173), (1.429, 0.173), (1.929, 0.201), (2.505, 0.300)],
-        te_nose=0.07, te_cab=0.1)))
+        bot=[(-2.288, 0.130), (-1.988, 0.184), (-1.429, 0.173), (1.429, 0.173), (1.929, 0.201), (2.25, 0.24), (2.505, 0.27)],
+        te_nose=0.07, te_cab=0.1, hood_crown=0.11)))
     return d
 
 
