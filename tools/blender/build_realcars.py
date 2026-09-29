@@ -492,7 +492,57 @@ CARS["GT3RS"] = dict(
     },
 )
 
-ORDER = ["M4", "M2", "M5", "M8", "M3", "M3T", "G63", "GT3RS"]
+# the Mansory Gronos (G500 base, "Black Desert"): a tuner car, so its widebody, forged-carbon panels, roof lights and
+# forged wheels ARE the car. The copper paint (phong2) is the tintable paint; the Forza wheels' rims are gone (the
+# tires and discs stay under the Mansory rims)
+CARS["GRONOS"] = dict(
+    fbx="2017-mansory-gronos-g500-black-desert-g63/source/FINAL_MODEL_Ma_BD.fbx", scale=100.0,
+    texdirs=["2017-mansory-gronos-g500-black-desert-g63/textures", "2017-mansory-gronos-g500-black-desert-g63/source"],
+    plate_txt="MANSORRY", steer_z=(0.8, 1.5), eye_up=0.2, eye_back=0.46, eye_rest=0.08,   # (upright seat, the headrest close behind)
+    parts=[
+        (r"Suspension[FR]5", "drop"),
+        (r"Calliper", "caliper"),
+        (r"3DWheel", "wheel"),
+        (r"SteeringWheel5", "steer"),
+    ],
+    mats=[
+        (r"^phong2$", {"c": "paint"}),
+        (r"M_CarPaint_Max_025|^carbin$|M_InteriorTiled_Common", {"c": "flat", "col": (0.035, 0.035, 0.04), "r": 0.25, "m": 0.1, "w": 0.7}),
+        (r"^glass$|LightGlassNormal_(Outer)?(HeadLight)?Clear", {"c": "glass"}),
+        (r"LightGlassNormal_OuterRed", {"c": "glass", "tail": True}),
+        (r"M_LightBucket_HeadLightSetC", {"c": "tex", "r": 0.2, "m": 0.3, "w": 0.7, "emit": "Car_MercedesBenz_AMGG63_2017_Light_Headlights_SetC_E.png"}),
+        (r"M_LightBucket_Max", {"c": "tex", "r": 0.2, "m": 0.3, "w": 0.7, "emit": "Car_MercedesBenz_AMGG63_2017_Light_SetA_E.png", "tailred": True}),
+        (r"M_Interior_Max", {"c": "tex", "r": 0.7, "m": 0.0, "w": 0.4}),
+        (r"M_InteriorTiledSimple", {"c": "flat", "col": None, "r": 0.7, "m": 0.0, "w": 0.4}),
+        (r"M_Badge_SetC", {"c": "tex", "r": 0.3, "m": 0.5}),           # (replaced by the emblem below)
+        (r"M_Badge_Max", {"c": "drop"}),                              # AMG / V8 BITURBO / G63 / star / MANSORY cards
+        (r"M_Grille", {"c": "tex", "r": 0.5, "m": 0.1, "w": 0.6}),
+        (r"M_Chassis|M_Engine|Default_Material", {"c": "flat", "col": (0.05, 0.05, 0.055), "r": 0.7, "m": 0.1, "w": 0.3}),
+        (r"Mirror", {"c": "flat", "col": (0.55, 0.58, 0.6), "r": 0.05, "m": 0.9}),
+        (r"ChromeSmooth", {"c": "flat", "col": (0.6, 0.61, 0.63), "r": 0.25, "m": 0.8}),
+        (r"PlasticRoughBlack", {"c": "flat", "col": (0.03, 0.03, 0.033), "r": 0.6, "m": 0.0, "w": 0.5}),
+        (r"PlasticSmoothBlack", {"c": "flat", "col": BLACK_GLOSS, "r": 0.3, "m": 0.1, "w": 0.5}),
+        (r"CallipersCallip_20b6442", {"c": "flat", "col": (0.2, 0.2, 0.21), "r": 0.4, "m": 0.2}),       # the AMG on them
+        (r"CallipersCallip|^calip_C2", {"c": "flat", "col": (0.06, 0.06, 0.065), "r": 0.35, "m": 0.3}),
+        (r"Wheel1A_3D", {"c": "tex", "r": 0.6, "m": 0.2}),
+        (r"^r:Rim_2$", {"c": "flat", "col": (0.08, 0.08, 0.085), "r": 0.3, "m": 0.6}),                   # forged, black
+        (r"^r:Rim_4$", {"c": "flat", "col": (0.5, 0.5, 0.52), "r": 0.2, "m": 0.8}),
+        (r"^r:Logo", {"c": "flat", "col": (0.12, 0.12, 0.13), "r": 0.3, "m": 0.5}),
+        (r"^r:nuts", {"c": "flat", "col": (0.5, 0.5, 0.52), "r": 0.3, "m": 0.8}),
+        (r".", {"c": "flat", "col": None, "r": 0.5, "m": 0.1, "w": 0.5}),
+    ],
+    steer=None,
+    emblems=[
+        {"on": r"M_Badge_SetC", "maker": "mansorry", "scale": 0.75},      # the M crest on the grille
+    ],
+    edits={
+        "MercedesAMG_G63SUV_2020_Wheel2A_DiffuseAOSO.png": [("emblem", 0.135, 0.865, 0.12, "mercedez", (18, 18, 20)),
+                                                            ("fill", 0.0, 0.1, 0.14, 0.73, None)],
+        "Interior_D.png": [("emblem", 0.3, 0.125, 0.032, "mercedez", (35, 35, 38)), ("fill", 0.68, 0.165, 0.77, 0.185, (30, 30, 32))],
+    },
+)
+
+ORDER = ["M4", "M2", "M5", "M8", "M3", "M3T", "G63", "GT3RS", "GRONOS"]
 
 # ============================================================================= helpers
 
@@ -696,7 +746,8 @@ def draw_roundel(size):
 
 def draw_emblem(size, kind):
     """The parody makers' emblems, RGBA size x size (docs/BRANDS.md): MERCEDEZ BANZ a four-pointed star in a
-    ring, PORSHA a quartered shield, AUDY three linked rings (chrome on the badge's own background)."""
+    ring, PORSHA a quartered shield, AUDY three linked rings, the tuner MANSORRY an M in a ring (chrome on the
+    badge's own background)."""
     S = size * 4
     im = Image.new("RGBA", (S, S), (0, 0, 0, 0))
     d = ImageDraw.Draw(im)
@@ -728,6 +779,14 @@ def draw_emblem(size, kind):
         im.paste(q, (0, 0), m)
         d.polygon(shield(0.4), fill=gold)
         d.text((c, c - r * 0.04), "P", font=font(r * 0.42), fill=blk, anchor="mm")
+    elif kind == "mansorry":
+        # the tuner (MANSORRY, a MERCEDEZ BANZ tuner): a serif M in a ring
+        w = max(3, int(S * 0.06))
+        d.ellipse((c - r, c - r, c + r, c + r), outline=chrome, width=w)
+        serif = next((f for f in ("/usr/share/fonts/truetype/dejavu/DejaVuSerif-Bold.ttf",
+                                  "/usr/share/fonts/truetype/liberation/LiberationSerif-Bold.ttf") if os.path.exists(f)), None)
+        f = ImageFont.truetype(serif, int(r * 1.1)) if serif else font(r * 1.1)
+        d.text((c, c + r * 0.04), "M", font=f, fill=chrome, anchor="mm")
     elif kind == "audy":
         w = max(3, int(S * 0.035))
         rr = r * 0.36
@@ -1266,8 +1325,39 @@ class Car:
         `kr` of `at` go, and a disc with the parody emblem goes on the surface found looking back along `dir` (the
         way it faces) from `probe` m out. `chain` names the disc like the parts it sits on (the steering wheel's hub)."""
         for i, e in enumerate(self.cfg.get("emblems", [])):
-            at, dr = Vector(e["at"]), Vector(e["dir"]).normalized()
             n_kill = 0
+            if e.get("on"):
+                # a badge card of its own material (`on`, the ones within `within` of `near`): the disc takes its
+                # place, its size and the way it faces; the card goes
+                e = dict(e, probe=0)
+                near = Vector(e.get("near", (0, 0, 0)))
+                cs, ns, pts = Vector(), Vector(), []
+                area = 0.0
+                for ob in self.parts:
+                    me = ob.data
+                    names = [s.material.name if s.material else "" for s in ob.material_slots]
+                    V = verts_np(ob)
+                    pick = {p.index for p in me.polygons if p.material_index < len(names)
+                            and re.search(e["on"], names[p.material_index]) and (p.center - near).length < e.get("within", 99.0)}
+                    for f in pick:
+                        p = me.polygons[f]
+                        cs += p.center * p.area
+                        ns += p.normal * p.area
+                        area += p.area
+                        pts.append(V[list(p.vertices)])
+                    if pick:
+                        delete_faces(ob, lambda p, pick=pick: p.index not in pick)
+                        n_kill += len(pick)
+                if not area:
+                    print("[%s] emblem %d: no %s faces" % (self.key, i, e["on"]))
+                    continue
+                c0 = cs / area
+                P = np.concatenate(pts) - np.array(c0)
+                n0 = ns.normalized()
+                rad = float(np.max(np.linalg.norm(P - np.outer(P @ np.array(n0), np.array(n0)), axis=1)))
+                e["at"], e["dir"] = tuple(c0), tuple(n0)
+                e.setdefault("r", rad * e.get("scale", 0.8))
+            at, dr = Vector(e["at"]), Vector(e["dir"]).normalized()
             if e.get("kill"):
                 rx, kr = e["kill"]
                 for ob in self.parts:
@@ -1912,7 +2002,7 @@ class Car:
                 eye.z -= 0.01
                 continue
             back = bvh.ray_cast(eye, Vector((0, -1, 0)), 1.0)
-            if back[0] is not None and back[3] < 0.2:
+            if back[0] is not None and back[3] < self.cfg.get("eye_rest", 0.2):
                 eye.y += 0.01
                 continue
             break
