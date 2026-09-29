@@ -45,6 +45,12 @@ static func material(kind: String) -> StandardMaterial3D:
 			m.albedo_color = Color(1, 1, 1, 0.14)
 			m.roughness = 0.05
 			m.metallic_specular = 1.0
+		"CarGlass":   # the traffic kit's windows (see _kit_car_windows): a light smoky tint, like RC_Glass
+			m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+			m.vertex_color_use_as_albedo = false
+			m.albedo_color = Color(0.14, 0.17, 0.21, 0.32)
+			m.roughness = 0.05
+			m.metallic_specular = 1.0
 	_mats[kind] = m
 	return m
 
@@ -96,8 +102,139 @@ static func _load_kit(path: String) -> void:
 			var src := mesh.surface_get_material(s)
 			var kind := src.resource_name.get_slice(".", 0) if src else "Paint"
 			list.append([st.commit(), real_material(src) if kind.begins_with("RC_") else material(kind)])
+		if path.ends_with("cars_kit.glb") and str(mi.name).begins_with("TCar_"):
+			list = _kit_car_windows(list)
 		_parts[str(mi.name)] = list
 	inst.free()
+
+
+const KIT_GLASS := Color(0.1, 0.13, 0.17)       # tools/blender/build_cars.py GLASS: the greenhouse's colour
+
+
+## The traffic kit's cars (build_cars.py: the beater, the cabs, all the
+## traffic) were built with a solid dark greenhouse. Split those faces out of
+## the Gloss surface as see-through tinted glass, and put what you'd see
+## through it behind: seat backs and headrests (front row, a rear bench when
+## the cabin's long enough) and the top of the dash. One more surface per car
+## (the glass); the interior joins the Paint one.
+static func _kit_car_windows(list: Array) -> Array:
+	var gi := -1
+	for i in list.size():
+		if list[i][1] == material("Gloss"):
+			gi = i
+	if gi < 0:
+		return list
+	var arr := (list[gi][0] as ArrayMesh).surface_get_arrays(0)
+	var v: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
+	var nrm: PackedVector3Array = arr[Mesh.ARRAY_NORMAL]
+	var col: PackedColorArray = arr[Mesh.ARRAY_COLOR]
+	var idx: PackedInt32Array = arr[Mesh.ARRAY_INDEX] if arr[Mesh.ARRAY_INDEX] != null else PackedInt32Array(range(v.size()))
+	if col.size() != v.size():
+		return list
+	var body := SurfaceTool.new()
+	body.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var glass := SurfaceTool.new()
+	glass.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var box := AABB()
+	var n_glass := 0
+	var is_glass := func(c: Color) -> bool:
+		return absf(c.r - KIT_GLASS.r) + absf(c.g - KIT_GLASS.g) + absf(c.b - KIT_GLASS.b) < 0.03
+	var tri_glass: Array = []
+	for t in range(0, idx.size() - 2, 3):
+		var g: bool = is_glass.call(col[idx[t]]) and is_glass.call(col[idx[t + 1]]) and is_glass.call(col[idx[t + 2]])
+		tri_glass.append(g)
+		if g:
+			for k in 3:
+				box = AABB(v[idx[t + k]], Vector3.ZERO) if n_glass == 0 else box.expand(v[idx[t + k]])
+				n_glass += 1
+	if n_glass == 0:
+		return list
+	for t in range(0, idx.size() - 2, 3):
+		var g: bool = tri_glass[t / 3]
+		if not g:
+			# the B-pillar is a body-coloured slab right across the cabin: keep its ends (the
+			# pillars), drop its front and back faces so you can see through the car
+			var across := true
+			for k in 3:
+				var q := v[idx[t + k]]
+				if absf(nrm[idx[t + k]].z) < 0.9 or q.y < box.position.y + 0.005 or q.y > box.end.y - 0.005 \
+						or q.z < box.position.z or q.z > box.end.z:
+					across = false
+			if across:
+				continue
+		var st := glass if g else body
+		for k in 3:
+			var i := idx[t + k]
+			st.set_normal(nrm[i])
+			st.set_color(col[i])
+			st.add_vertex(v[i])
+	var out := list.duplicate()
+	out[gi] = [body.commit(), material("Gloss")]
+	out.append([glass.commit(), material("CarGlass")])
+	# the cabin behind the glass (the kit's nose is +z): seats, headrests, dash (into the Paint surface)
+	var pi := -1
+	for i in out.size():
+		if out[i][1] == material("Paint"):
+			pi = i
+	var inside := SurfaceTool.new()
+	inside.begin(Mesh.PRIMITIVE_TRIANGLES)
+	if pi >= 0:
+		_tris_into(inside, out[pi][0])
+	var belt := box.position.y
+	var z0 := box.position.z
+	var z1 := box.end.z
+	var lg := box.size.z
+	var xw := box.size.x / 2.0 - 0.06
+	var roof := box.end.y - 0.08
+	var seat := Color(0.13, 0.13, 0.14)
+	var dash := Color(0.08, 0.08, 0.09)
+	var zf := z1 - 0.62 * lg
+	for sx in [-1.0, 1.0]:
+		_kit_box(inside, Vector3(sx * xw * 0.5, belt + 0.1, zf), Vector3(xw * 0.78, 0.5, 0.12), seat)
+		_kit_box(inside, Vector3(sx * xw * 0.5, minf(belt + 0.45, roof - 0.09), zf - 0.02), Vector3(0.26, 0.17, 0.1), seat)
+	if lg > 2.2:
+		var zr := z0 + 0.32
+		_kit_box(inside, Vector3(0, belt + 0.06, zr), Vector3(xw * 1.8, 0.42, 0.14), seat)
+		for sx in [-1.0, 1.0]:
+			_kit_box(inside, Vector3(sx * xw * 0.5, minf(belt + 0.36, roof - 0.08), zr - 0.02), Vector3(0.24, 0.14, 0.1), seat)
+	_kit_box(inside, Vector3(0, belt + 0.02, z1 - 0.42), Vector3(xw * 1.95, 0.12, 0.32), dash)
+	if pi >= 0:
+		out[pi] = [inside.commit(), material("Paint")]
+	else:
+		out.append([inside.commit(), material("Paint")])
+	return out
+
+
+## Every triangle of a (vertex-coloured) mesh's first surface into a SurfaceTool, unindexed.
+static func _tris_into(st: SurfaceTool, m: ArrayMesh) -> void:
+	var arr := m.surface_get_arrays(0)
+	var v: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
+	var nrm: PackedVector3Array = arr[Mesh.ARRAY_NORMAL]
+	var col: PackedColorArray = arr[Mesh.ARRAY_COLOR]
+	var idx: PackedInt32Array = arr[Mesh.ARRAY_INDEX] if arr[Mesh.ARRAY_INDEX] != null else PackedInt32Array(range(v.size()))
+	for i in idx:
+		st.set_normal(nrm[i])
+		st.set_color(col[i] if i < col.size() else Color.WHITE)
+		st.add_vertex(v[i])
+
+
+## An axis-aligned box (center c, size sz) of one colour into a SurfaceTool.
+static func _kit_box(st: SurfaceTool, c: Vector3, sz: Vector3, color: Color) -> void:
+	var h := sz / 2.0
+	for f in [[Vector3.RIGHT, Vector3.UP, Vector3.BACK], [Vector3.LEFT, Vector3.UP, Vector3.FORWARD],
+			[Vector3.UP, Vector3.BACK, Vector3.RIGHT], [Vector3.DOWN, Vector3.FORWARD, Vector3.RIGHT],
+			[Vector3.BACK, Vector3.UP, Vector3.LEFT], [Vector3.FORWARD, Vector3.UP, Vector3.RIGHT]]:
+		var n: Vector3 = f[0]
+		var a: Vector3 = f[1]
+		var b: Vector3 = f[2]
+		var o := c + n * h
+		var ea := a * h
+		var eb := b * h
+		var q := [o - ea - eb, o + ea - eb, o + ea + eb, o - ea + eb]
+		for k in [0, 2, 1, 0, 3, 2]:
+			st.set_normal(n)
+			st.set_color(color)
+			st.add_vertex(q[k])
 
 
 ## The first surface mesh of a prop (e.g. for particle meshes).

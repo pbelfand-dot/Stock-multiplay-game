@@ -16,11 +16,13 @@ const GENERIC := {
 	"door": Vector3(-0.95, 0.9, 0.0),
 }
 const MODELS := {
-	# the used TOROLA: the traffic kit's sedan (built nose to +z, shared Wheel_Car)
+	# the used TOROLA: the traffic kit's sedan (built nose to +z, shared Wheel_Car). Its cabin is the kit's
+	# (glass + seat backs from PropKit._kit_car_windows) over a solid tub at the beltline (0.97): you sit a
+	# little high so the wheel and your hands clear it
 	"TCar_Sedan_Silver": {
 		"wheelbase": 2.75, "wheel_r": 0.34, "flip": true, "wheel_prop": "Wheel_Car",
 		"wheels": {"FL": Vector3(-0.8, 0.34, -1.375), "FR": Vector3(0.8, 0.34, -1.375), "RL": Vector3(-0.8, 0.34, 1.375), "RR": Vector3(0.8, 0.34, 1.375)},
-		"eye": Vector3(-0.36, 1.2, 0.2), "wheel_hub": Vector3(-0.36, 0.95, -0.3), "column_tilt": deg_to_rad(22),
+		"eye": Vector3(-0.36, 1.27, 0.2), "wheel_hub": Vector3(-0.36, 1.03, -0.3), "column_tilt": deg_to_rad(22),
 		"head": [Vector3(-0.6, 0.7, -2.33), Vector3(0.6, 0.7, -2.33)], "tail": [Vector3(-0.62, 0.85, 2.34), Vector3(0.62, 0.85, 2.34)],
 		"box": Vector3(1.84, 1.45, 4.7), "box_center": Vector3(0, 0.78, 0), "door": Vector3(-0.92, 0.9, 0.1), "kit": true},
 	"Bemze_M3": {
