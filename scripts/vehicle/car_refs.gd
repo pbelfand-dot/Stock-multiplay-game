@@ -150,6 +150,14 @@ const MODELS := {
 		"box": Vector3(1.913, 1.194, 4.532), "box_center": Vector3(0.0072, 0.7176, 0.0096), "door": Vector3(-0.956, 0.86, 0.295),
 		"wheel_prop": "RC_911TS_Wheel", "wheel_prop_rear": "RC_911TS_WheelR", "caliper_prop": "RC_911TS_Caliper", "steer_prop": "RC_911TS_Steer",
 		"kit": true, "tail_mat": true},
+	"RC_RS6": {
+		"wheelbase": 2.9285, "wheel_r": 0.3664,
+		"wheels": {"FL": Vector3(-0.8234, 0.3664, -1.4643), "FR": Vector3(0.8234, 0.3664, -1.4642), "RL": Vector3(-0.8134, 0.3664, 1.4642), "RR": Vector3(0.8134, 0.3664, 1.4643)},
+		"eye": Vector3(-0.38, 1.1727, 0.1282), "wheel_hub": Vector3(-0.38, 0.9127, -0.3918), "column_tilt": -0.3597,
+		"head": [], "tail": [Vector3(-0.6171, 0.8635, 2.326), Vector3(0.6134, 0.8664, 2.3236)],
+		"box": Vector3(1.949, 1.352, 4.993), "box_center": Vector3(0.0, 0.8196, 0.0744), "door": Vector3(-0.975, 0.86, 0.228),
+		"wheel_prop": "RC_RS6_Wheel", "caliper_prop": "RC_RS6_Caliper", "steer_prop": "RC_RS6_Steer",
+		"kit": true, "tail_mat": true},
 }
 
 
