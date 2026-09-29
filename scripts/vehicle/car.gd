@@ -1,7 +1,14 @@
 extends CharacterBody3D
 ## A car you can drive: arcade highway handling (a cut-up game, not a sim).
-##   * steering is a bicycle model (wheelbase + front wheel angle), with less
-##     lock the faster you go
+##   * steering is a bicycle model (wheelbase + front wheel angle). The key
+##     eases the wheel in (slower the faster you go) and it self-centres when
+##     you let go; full lock is always "about as hard as the tires can turn"
+##     at the speed you're doing, so a tap at 150 mph is a lane change, not a
+##     spin, and full lock at 20 mph is a U-turn
+##   * the nose follows with a little inertia (heavy cars turn in lazier), and
+##     weight transfer: braking loads the front (the nose bites, the tail gets
+##     light), the gas loads the rear (a big-power car's tail steps out if you
+##     floor it slow in a turn)
 ##   * the tires can only pull `grip` g sideways: ask for more and the car
 ##     slides; the handbrake lets the rear go (drift)
 ##   * hitting anything bleeds off speed (the harder / more head-on, the more)
@@ -20,6 +27,8 @@ signal crashed(impact: float)
 const G := 9.8
 const MPH := 2.23694
 const CLEARANCE := 0.3        # the body rides this high: seams, curbs, ramp lips go under it
+const MAX_LOCK := 0.6         # front wheels at full lock (rad), parking speeds
+const STEER_RATIO := 12.0     # steering wheel turns per front wheel turn: 0.6 rad of lock = ~410 deg of wheel
 
 var key := "beater"
 var owner_peer := 0
@@ -31,10 +40,13 @@ var in_throttle := 0.0
 var in_brake := 0.0
 var in_steer := 0.0          # -1 left .. +1 right
 var in_handbrake := false
+var ai := false              # an AiDriver has the wheel (robot hands: no easing in)
+var steer_ai := 0.0
 
 var speed := 0.0             # m/s along the nose (-z); negative = reversing
 var slip := 0.0              # m/s sideways (sliding / drifting)
 var steer := 0.0             # front wheel angle, radians (+ = left)
+var wheel_turn := 0.0        # the steering wheel's angle, radians (+ = left): STEER_RATIO x the front wheels
 var crash_t := 0.0           # > 0: just hit something
 var ref: Dictionary
 var model: Node3D            # body + wheels (tilts with the road, rolls, dives)
@@ -50,9 +62,14 @@ var _spin := 0.0
 var _spin_r := 0.0           # rear wheels (staggered sizes spin at their own rate)
 var _long_acc := 0.0
 var _lat_acc := 0.0
+var _steer_in := 0.0         # the driver's hands: in_steer eased in / back to centre
+var _yaw_rate := 0.0
 var _net_pos := Vector3.ZERO
 var _net_rot := Quaternion.IDENTITY
 var _has_net := false
+var _net_vel := Vector3.ZERO     # remote: how it was moving at the last update (dead reckoning)
+var _net_yaw_rate := 0.0
+var _net_t := 0.0                # seconds since the last update
 var _last_hit := 0.0
 var grounded := true
 var debug_hits := false
@@ -294,11 +311,28 @@ func _physics_process(dt: float) -> void:
 	if simulate:
 		_drive(dt)
 	elif _has_net:
-		global_position = global_position.lerp(_net_pos, clampf(dt * 12.0, 0.0, 1.0))
-		if global_position.distance_to(_net_pos) > 8.0:
-			global_position = _net_pos
-		quaternion = quaternion.slerp(_net_rot, clampf(dt * 12.0, 0.0, 1.0))
+		_follow_net(dt)
 	_visuals(dt)
+
+
+## Remote cars: dead reckoning. Between updates (20 a second) keep rolling at
+## the last speed and turn rate from the last known spot; each step blend a
+## little toward that prediction, so a new update is a gentle nudge, not a
+## step (the physics interpolation does the rest between ticks).
+func _follow_net(dt: float) -> void:
+	_net_t += dt
+	var ahead := minf(_net_t, 0.3)                    # (a lost packet: don't coast off forever)
+	var want_pos := _net_pos + _net_vel * ahead
+	var want_rot := Quaternion(Vector3.UP, _net_yaw_rate * ahead) * _net_rot
+	var coast := global_position + _net_vel * dt
+	if coast.distance_to(want_pos) > 8.0:             # teleported (the lot, a respawn): jump
+		global_position = want_pos
+		quaternion = want_rot
+		reset_physics_interpolation()
+		return
+	var k := 1.0 - exp(-dt * 6.0)
+	global_position = coast.lerp(want_pos, k)
+	quaternion = (Quaternion(Vector3.UP, _net_yaw_rate * dt) * quaternion).slerp(want_rot, k).normalized()
 
 
 func _drive(dt: float) -> void:
@@ -310,22 +344,44 @@ func _drive(dt: float) -> void:
 	var ctrl := 0.3 if mushy else 1.0
 	var flat := Vector3(velocity.x, 0.0, velocity.z)
 	var before := speed
-	# ---- steering: fast hands at low speed, a light touch at 150 mph
 	var sp := flat.length()
-	var lock := lerpf(0.6, 0.06, pow(clampf(sp / top, 0.0, 1.0), 0.55))
-	var target := -in_steer * lock * (0.5 if mushy else 1.0)
-	steer = move_toward(steer, target, (2.2 if absf(target) > absf(steer) else 3.5) * dt)
+	# how nimble: light cars react quicker (M2 ~1, the M5 ~0.75, the beater quick but gripless)
+	var agility := clampf(1.75 / float(d.mass), 0.72, 1.2)
+	# weight transfer: + = braking (load on the nose), - = accelerating (load on the tail)
+	var load_f := clampf(-_long_acc / G, -0.4, 0.8) if not ai else 0.0
+	# ---- the hands: ease the wheel in (slower at speed), let it spring back to centre
+	var want_in := in_steer * (0.5 if mushy else 1.0)
+	var going_out := absf(want_in) > absf(_steer_in) and (_steer_in == 0.0 or signf(want_in) == signf(_steer_in))
+	var rate := lerpf(4.5, 2.4, clampf(sp / 55.0, 0.0, 1.0)) * agility if going_out else 6.0
+	_steer_in = move_toward(_steer_in, want_in, rate * dt)
+	# ---- full lock = what the tires can hold at this speed (a touch past it: push and it slides)
 	var wb: float = ref.wheelbase
+	var lock := minf(MAX_LOCK, atan(wb * grip * G * 1.15 / maxf(sp * sp, 0.01)))
+	steer = -_steer_in * lock
+	if ai:     # the AI's steering loops are tuned on the old direct wheel: keep it for them
+		var ai_lock := lerpf(MAX_LOCK, 0.06, pow(clampf(sp / top, 0.0, 1.0), 0.55))
+		var ai_target := -in_steer * ai_lock * (0.5 if mushy else 1.0)
+		steer = move_toward(steer_ai, ai_target, (2.2 if absf(ai_target) > absf(steer_ai) else 3.5) * dt)
+		steer_ai = steer
+		_steer_in = -steer / maxf(ai_lock, 0.001)
 	var want := speed / wb * tan(steer)
-	var lim: float = grip * G / maxf(sp, 2.0)             # the yaw rate the tires can hold
-	var yaw := clampf(want, -lim * 1.12, lim * 1.12)
+	var lim: float = grip * G / maxf(sp, 2.0) * 1.12 * (1.0 + 0.2 * maxf(load_f, 0.0))   # braking: the nose bites
+	var yaw_t := clampf(want, -lim, lim)
 	if in_handbrake and sp > 6.0:
-		yaw = want * 1.35                                  # rear lets go: it rotates more than it turns
+		# rear lets go: it rotates more than it turns (and keeps rotating with the wheel held)
+		yaw_t = want * 1.35 + (0.0 if ai else -_steer_in * 0.9 * clampf(sp / 12.0, 0.0, 1.0) * signf(speed))
+	# the body takes a moment to rotate (heavier = lazier)
+	_yaw_rate = yaw_t if ai else lerpf(_yaw_rate, yaw_t, 1.0 - exp(-dt * 16.0 * agility))
+	var yaw := _yaw_rate
 	rotate_y(yaw * dt)
 	var fwd := -global_basis.z
 	# ---- the tires pull the velocity round to where the nose points (no free
 	# speed, no lost speed) as hard as the grip allows; past that it slides
 	var hold := grip * G * (0.22 if in_handbrake else (0.45 if mushy else 1.25))
+	hold *= 1.0 - 0.15 * maxf(load_f, 0.0)                 # braking hard in a turn: the tail goes light
+	var power := clampf((4.6 - float(d.zero60)) / 2.5, 0.0, 0.4) if not ai else 0.0   # M3/M4/M8 a lot, the 540i / beater none
+	var f0 := (-global_basis.z).dot(flat)
+	hold *= 1.0 - power * in_throttle * absf(_steer_in) * clampf(1.0 - f0 / (0.45 * top), 0.0, 1.0)
 	if sp > 0.05:
 		var dir := flat / sp
 		var aim := fwd if dir.dot(fwd) >= 0.0 else -fwd          # reversing: pull toward the tail
@@ -479,14 +535,25 @@ func _crash_fx(impact: float) -> void:
 
 ## Remote cars: where the driver's machine says it is.
 func net_state(pos: Vector3, rot: Quaternion, spd: float, st: float, brake: bool) -> void:
+	if _has_net and _net_t > 0.001:
+		# how it's moving: the velocity from the last two updates (it slides, it
+		# climbs ramps), the turn rate from how far the nose swung between them
+		var gap := clampf(_net_t, 0.02, 2.0)
+		var v := (pos - _net_pos) / gap
+		_net_vel = v if v.length() < 120.0 else Vector3.ZERO
+		var yaw_d := angle_difference(_net_rot.get_euler().y, rot.get_euler().y)
+		_net_yaw_rate = clampf(yaw_d / gap, -3.0, 3.0)
 	_net_pos = pos
 	_net_rot = rot
+	_net_t = 0.0
 	speed = spd
 	steer = st
 	in_brake = 1.0 if brake else 0.0
 	if not _has_net:
 		global_position = pos
 		quaternion = rot
+		if is_inside_tree():
+			reset_physics_interpolation()
 	_has_net = true
 
 
@@ -502,8 +569,10 @@ func _visuals(dt: float) -> void:
 		pivot.rotation.y = steer if w[2] else 0.0
 		var a := _spin if w[2] else _spin_r
 		spinner.rotation.x = a if w[3] else -a
+	# the steering wheel: the front wheels' angle through the steering ratio (smoothed)
+	wheel_turn = lerpf(wheel_turn, steer * STEER_RATIO, 1.0 - exp(-dt * 20.0))
 	if steering_wheel:
-		steering_wheel.rotation.z = steer * 7.0
+		steering_wheel.rotation.z = wheel_turn
 	# body: roll away from the turn, dive under braking, squat on the gas
 	body.rotation.z = lerpf(body.rotation.z, clampf(_lat_acc * 0.006, -0.05, 0.05), dt * 6.0)
 	body.rotation.x = lerpf(body.rotation.x, clampf(-_long_acc * 0.004, -0.035, 0.035), dt * 6.0)
