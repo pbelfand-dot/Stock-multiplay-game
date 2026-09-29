@@ -126,6 +126,14 @@ const MODELS := {
 		"box": Vector3(1.956, 1.773, 4.866), "box_center": Vector3(0.0, 1.0477, 0.0703), "door": Vector3(-0.978, 0.86, 0.251),
 		"wheel_prop": "RC_G63_Wheel", "caliper_prop": "RC_G63_Caliper", "steer_prop": "RC_G63_Steer",
 		"kit": true, "tail_mat": true},
+	"RC_GT3RS": {
+		"wheelbase": 2.4557, "wheel_r": 0.3879,
+		"wheels": {"FL": Vector3(-0.7697, 0.3879, -1.2278), "FR": Vector3(0.7697, 0.3879, -1.2278), "RL": Vector3(-0.7697, 0.3879, 1.2278), "RR": Vector3(0.7697, 0.3879, 1.2278)},
+		"eye": Vector3(-0.3435, 1.0455, 0.2449), "wheel_hub": Vector3(-0.3435, 0.8555, -0.2451), "column_tilt": -0.3314,
+		"head": [Vector3(-0.6979, 0.7644, -1.6905), Vector3(0.6987, 0.7644, -1.6905)], "tail": [Vector3(-0.5058, 0.8332, 1.9965), Vector3(0.507, 0.8328, 1.9965)],
+		"box": Vector3(1.899, 1.219, 4.571), "box_center": Vector3(0.0004, 0.7959, 0.0135), "door": Vector3(-0.95, 0.86, 0.345),
+		"wheel_prop": "RC_GT3RS_Wheel", "caliper_prop": "RC_GT3RS_Caliper", "steer_prop": "RC_GT3RS_Steer",
+		"kit": true, "tail_mat": true},
 }
 
 
