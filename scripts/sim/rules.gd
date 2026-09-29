@@ -94,6 +94,8 @@ const CARS := {
 		"paint": Color(0.1, 0.35, 0.75), "desc": "Short, wide, angry. The best cut-up car per dollar."},
 	"bz_m3": {"name": "BEMZE M3 Competition", "price": 95_000.0, "model": "RC_M3", "top": 69.0, "zero60": 3.5, "grip": 1.0, "mass": 1.75,
 		"paint": Color(0.2, 0.5, 0.2), "desc": "Four doors, 503 hp, zero chill."},
+	"bz_m3t": {"name": "BEMZE M3 Touring", "price": 98_000.0, "model": "RC_M3T", "top": 68.0, "zero60": 3.6, "grip": 1.0, "mass": 1.86,
+		"paint": Color(0.16, 0.3, 0.52), "desc": "The M3 with a dog box. 503 hp, room for the golf clubs, still zero chill."},
 	"bz_m4": {"name": "BEMZE M4 Competition", "price": 105_000.0, "model": "RC_M4", "top": 69.0, "zero60": 3.4, "grip": 1.0, "mass": 1.72,
 		"paint": Color(0.85, 0.55, 0.1), "desc": "The coupe. Carbon roof. The grille is a personality."},
 	"bz_m5": {"name": "BEMZE M5", "price": 140_000.0, "model": "RC_M5", "top": 74.0, "zero60": 3.3, "grip": 0.92, "mass": 2.4,
@@ -120,7 +122,10 @@ const PURSUIT_LOST_M := 230.0
 const PURSUIT_LOST_S := 6.0
 const PURSUIT_BUST_S := 2.5
 const SPEEDING_TICKET := 2_500.0
-const CAR_ORDER := ["beater", "bz_540i", "bz_m2", "bz_m3", "bz_m4", "bz_m5", "bz_m8"]
+## A save stores the chosen ride as (index in CAR_ORDER) + 1: only ever append here.
+const CAR_ORDER := ["beater", "bz_540i", "bz_m2", "bz_m3", "bz_m4", "bz_m5", "bz_m8", "bz_m3t"]
+## The order the showroom and the phone list them in.
+const SHOW_ORDER := ["beater", "bz_540i", "bz_m2", "bz_m3", "bz_m3t", "bz_m4", "bz_m5", "bz_m8"]
 ## Factory paint at the dealership (a respray later costs RESPRAY).
 const PAINTS := [
 	["Alpine White", Color(0.93, 0.93, 0.92)], ["Black Sapphire", Color(0.05, 0.05, 0.07)],
