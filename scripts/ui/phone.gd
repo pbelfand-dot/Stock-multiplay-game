@@ -6,7 +6,7 @@ extends Control
 ##           and @TradingMemes filler
 ##   KWIK    the KWIK LIVE stream from the studio (and a ride there)
 ##   BANK    the fund / your account, cash on hand, today's P&L, open positions
-##   MAPS    the commute: you, home, the office and BEMZE on a live map
+##   MAPS    the commute: you, home, the office and the dealerships on a live map
 ##   RIDES   your cars (pick today's), or a cab
 ##   TONY    today's contracts, as texts from Tony
 ##   HOMES   your place and the Magnolia Heights listings
@@ -16,6 +16,7 @@ extends Control
 
 const UI = preload("res://scripts/ui/ui_theme.gd")
 const Rules = preload("res://scripts/sim/rules.gd")
+const Brands = preload("res://scripts/sim/brands.gd")
 const Ledger = preload("res://scripts/sim/ledger.gd")
 
 ## speaker -> [display name, handle, avatar color, verified]
@@ -705,7 +706,7 @@ func _build_maps() -> void:
 	var legend := HBoxContainer.new()
 	legend.add_theme_constant_override("separation", 10)
 	v.add_child(legend)
-	for k in [["YOU", Color(0.3, 0.7, 1.0)], ["HOME", Color(0.3, 0.9, 0.4)], ["OFFICE", UI.GOLD], ["BEMZE", Color(0.5, 0.7, 1.0)]]:
+	for k in [["YOU", Color(0.3, 0.7, 1.0)], ["HOME", Color(0.3, 0.9, 0.4)], ["OFFICE", UI.GOLD], ["DEALERS", Color(0.75, 0.78, 0.84)]]:
 		legend.add_child(UI.lbl("● " + k[0], 14, k[1], true))
 	map_lbl = UI.lbl("", 17, UI.TEXT, true)
 	map_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -728,11 +729,13 @@ func _tick_maps() -> void:
 
 
 ## The commute on a little map: the drive to work, home, the office, the
-## dealership, the other traders, and you (an arrow, the way you're facing).
+## dealerships (BEMZE, and the three round the loop), the other traders, and
+## you (an arrow, the way you're facing). The loop underneath, for scale.
 class MapView extends Control:
 	var phone
 	var _pts: PackedVector3Array
 	var _back: PackedVector3Array
+	var _loop := PackedVector3Array()
 	var _box := Rect2()
 
 	func _ready() -> void:
@@ -751,8 +754,13 @@ class MapView extends Control:
 		_box = Rect2(Vector2(_pts[0].x, _pts[0].z), Vector2.ZERO)
 		for p in _pts:
 			_box = _box.expand(Vector2(p.x, p.z))
-		_box = _box.expand(Vector2(w.builder.hood.hw.dealership_lot.x, w.builder.hood.hw.dealership_lot.z))
+		var hw = w.builder.hood.hw
+		for br in hw.dealers:
+			_box = _box.expand(Vector2(hw.dealers[br].lot.x, hw.dealers[br].lot.z))
 		_box = _box.grow(45.0)
+		for i in range(0, hw.cl.size(), 8):
+			_loop.append(hw.cl[i])
+		_loop.append(hw.cl[0])
 		return true
 
 	func to_map(p: Vector3) -> Vector2:
@@ -779,7 +787,11 @@ class MapView extends Control:
 		for i in range(1, 8):
 			draw_line(Vector2(size.x * i / 8.0, 0), Vector2(size.x * i / 8.0, size.y), Color(1, 1, 1, 0.03), 1.0)
 			draw_line(Vector2(0, size.y * i / 8.0), Vector2(size.x, size.y * i / 8.0), Color(1, 1, 1, 0.03), 1.0)
-		# the roads: back route under, the way to work on top (blue, like GPS)
+		# the roads: the loop, the back route, the way to work on top (blue, like GPS)
+		var ring := PackedVector2Array()
+		for p in _loop:
+			ring.append(to_map(p))
+		draw_polyline(ring, Color(0.27, 0.29, 0.32), 4.0, true)
 		for route in [_back, _pts]:
 			var line := PackedVector2Array()
 			for p in route:
@@ -792,8 +804,10 @@ class MapView extends Control:
 		# places
 		var office: Vector3 = w.builder.street.lobby_exit
 		var home: Dictionary = w.home_of(Net.my_id())
-		var dealer: Vector3 = w.builder.hood.hw.dealership_lot
-		_pin(dealer, Color(0.5, 0.7, 1.0), "BEMZE")
+		var hw = w.builder.hood.hw
+		for br in hw.dealers:
+			var nm: String = Brands.name_of(br).get_slice(" ", 0)          # (MERCEDEZ BANZ -> MERCEDEZ: room on the map)
+			_pin(hw.dealers[br].lot, Color(0.5, 0.7, 1.0) if br == "bemze" else Brands.BRANDS[br].ui, nm)
 		if not home.is_empty():
 			_pin(home.spawn, Color(0.3, 0.9, 0.4), "HOME")
 		_pin(office, UI.GOLD, "OFFICE")
@@ -831,7 +845,7 @@ func _tick_rides() -> void:
 	var m = world.match_node
 	var me := Net.my_id()
 	var driving: String = m.car_of(me)
-	var owned: Array = Rules.SHOW_ORDER.filter(func(k): return m.owns_car(me, k))
+	var owned: Array = Brands.all_cars().filter(func(k): return m.owns_car(me, k))
 	var sig := "%s|%s|%s" % [driving, str(owned), m.phase]
 	if sig == _sig:
 		return
@@ -877,7 +891,8 @@ func _tick_rides() -> void:
 	else:
 		if rush:
 			rides_box.add_child(_wrap(UI.lbl("Rush hour: bumper to bumper, %s on the meter." % Rules.money(Rules.CAB_FARE), 15, Color(1, 0.8, 0.4))))
-		for d in [["downtown", "To the office (downtown)"], ["home", "Home"], ["hood", "Magnolia Heights"], ["dealer", "BEMZE Motors"]]:
+		for d in [["downtown", "To the office (downtown)"], ["home", "Home"], ["hood", "Magnolia Heights"], ["dealer", "BEMZE Motors"],
+				["mercedez", "Mercedez Banz"], ["porsha", "Porsha Centre"], ["audy", "Audy"]]:
 			if d[0] == "home" and m.house_of(me) == "":
 				continue
 			var b := UI.btn(d[1], Color(0.55, 0.45, 0.08), 17)
