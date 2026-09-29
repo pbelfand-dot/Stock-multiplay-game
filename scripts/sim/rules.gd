@@ -102,6 +102,9 @@ const CARS := {
 		"paint": Color(0.35, 0.36, 0.38), "desc": "717 hp hybrid super-sedan. Heavy. Doesn't care."},
 	"bz_m8": {"name": "BEMZE M8 Competition", "price": 165_000.0, "model": "RC_M8", "top": 76.0, "zero60": 3.0, "grip": 0.95, "mass": 1.9,
 		"paint": Color(0.55, 0.05, 0.08), "desc": "The flagship GT. Fastest thing on the lot."},
+	# the other makers (brand = which dealership sells it: docs/BRANDS.md parodies)
+	"mb_g63": {"name": "MERCEDEZ BANZ G63", "brand": "mercedez", "price": 185_000.0, "model": "RC_G63", "top": 62.0, "zero60": 4.3, "grip": 0.78, "mass": 2.56,
+		"paint": Color(0.3, 0.32, 0.25), "desc": "A brick with a twin-turbo V8. Tall, heavy, turns like a bank vault. Nobody cares."},
 	# not for sale: highway patrol (an M8 outruns it, an M3 has to lose it in traffic)
 	"taxi": {"name": "Yellow Cab", "price": 0.0, "model": "TCar_Taxi", "top": 42.0, "zero60": 8.0, "grip": 0.8, "mass": 1.5,
 		"paint": Color(1.0, 0.78, 0.05), "desc": ""},
@@ -123,9 +126,9 @@ const PURSUIT_LOST_S := 6.0
 const PURSUIT_BUST_S := 2.5
 const SPEEDING_TICKET := 2_500.0
 ## A save stores the chosen ride as (index in CAR_ORDER) + 1: only ever append here.
-const CAR_ORDER := ["beater", "bz_540i", "bz_m2", "bz_m3", "bz_m4", "bz_m5", "bz_m8", "bz_m3t"]
+const CAR_ORDER := ["beater", "bz_540i", "bz_m2", "bz_m3", "bz_m4", "bz_m5", "bz_m8", "bz_m3t", "mb_g63"]
 ## The order the showroom and the phone list them in.
-const SHOW_ORDER := ["beater", "bz_540i", "bz_m2", "bz_m3", "bz_m3t", "bz_m4", "bz_m5", "bz_m8"]
+const SHOW_ORDER := ["beater", "bz_540i", "bz_m2", "bz_m3", "bz_m3t", "bz_m4", "bz_m5", "bz_m8", "mb_g63"]
 ## Factory paint at the dealership (a respray later costs RESPRAY).
 const PAINTS := [
 	["Alpine White", Color(0.93, 0.93, 0.92)], ["Black Sapphire", Color(0.05, 0.05, 0.07)],

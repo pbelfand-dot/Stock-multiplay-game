@@ -14,6 +14,8 @@ const SUIT_COLORS := [
 	Color(0.15, 0.3, 0.2), Color(0.5, 0.42, 0.3), Color(0.3, 0.2, 0.45),
 ]
 
+const LOAD_TIMEOUT_MS := 30000   # how long a silent peer (loading the world) stays connected
+
 var players := {}        # peer_id -> {name, color}
 var mode := "coop"       # "coop" | "pvp"
 var in_session := false
@@ -71,8 +73,15 @@ func _color_for(index: int) -> Color:
 	return SUIT_COLORS[index % SUIT_COLORS.size()]
 
 
-func _on_peer_connected(_id: int) -> void:
-	pass  # clients register themselves once connected
+func _on_peer_connected(id: int) -> void:
+	# clients register themselves once connected. Building the world freezes a joining
+	# game for several seconds (more on a slow machine): ENet's default drops a peer that
+	# goes 5 s without an ack, so the host would quietly lose them mid-load. Allow 30 s.
+	var enet := multiplayer.multiplayer_peer as ENetMultiplayerPeer
+	if enet:
+		var pp := enet.get_peer(id)
+		if pp:
+			pp.set_timeout(32, LOAD_TIMEOUT_MS, LOAD_TIMEOUT_MS * 2)
 
 
 func _on_peer_disconnected(id: int) -> void:
