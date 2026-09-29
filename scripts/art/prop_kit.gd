@@ -9,7 +9,8 @@ const KIT_PATH := "res://assets/props/props_kit.glb"
 ## Every kit loaded into the same prop table (names are unique across kits).
 const KITS := [KIT_PATH, "res://assets/props/watches_kit.glb",   # watches: tools/blender/build_watches.py
 	"res://assets/props/houses_kit.glb", "res://assets/props/cars_kit.glb",   # ---- neighborhood (houses): build_houses.py / build_cars.py ----
-	"res://assets/props/bemze_kit.glb"]                               # cars + dealership: tools/blender/build_bemze.py
+	"res://assets/props/bemze_kit.glb",                               # cars + dealership: tools/blender/build_bemze.py
+	"res://assets/props/realcars_kit.glb"]                            # the owner's real BEMZE models: build_realcars.py
 
 const HAZE_COLOR := Color(0.64, 0.78, 0.94)   # the sky; far towers fade into it
 
@@ -48,6 +49,34 @@ static func material(kind: String) -> StandardMaterial3D:
 	return m
 
 
+## A real-car material (build_realcars.py): the imported textures (atlas: albedo, metal/rough, emission),
+## times the vertex colours (sRGB) that tint the plain parts. RC_Glass: see-through, both sides.
+## RC_<car>_Tail is the brake-light surface (car.gd brightens a copy of it on the brakes).
+static func real_material(src: Material) -> Material:
+	var key := src.resource_name.get_slice(".", 0)
+	if _mats.has(key):
+		return _mats[key]
+	var m := (src as BaseMaterial3D).duplicate() as BaseMaterial3D
+	m.vertex_color_use_as_albedo = true
+	m.vertex_color_is_srgb = true
+	m.albedo_color = Color(1, 1, 1, 1)
+	m.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
+	if key == "RC_Glass":
+		m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		m.cull_mode = BaseMaterial3D.CULL_DISABLED
+		m.metallic = 0.0
+		m.roughness = 0.05
+		m.metallic_specular = 1.0
+	else:
+		m.transparency = BaseMaterial3D.TRANSPARENCY_DISABLED
+		m.metallic_specular = 0.5
+		if m.emission_enabled:
+			m.emission_energy_multiplier = 0.6 if key.ends_with("_Tail") else 1.6
+	m.resource_name = key
+	_mats[key] = m
+	return m
+
+
 static func _load() -> void:
 	for path in KITS:
 		_load_kit(path)
@@ -66,7 +95,7 @@ static func _load_kit(path: String) -> void:
 			st.append_from(mesh, s, mi.transform)
 			var src := mesh.surface_get_material(s)
 			var kind := src.resource_name.get_slice(".", 0) if src else "Paint"
-			list.append([st.commit(), material(kind)])
+			list.append([st.commit(), real_material(src) if kind.begins_with("RC_") else material(kind)])
 		_parts[str(mi.name)] = list
 	inst.free()
 

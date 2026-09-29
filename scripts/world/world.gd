@@ -398,7 +398,7 @@ func _nice_traffic() -> void:
 			continue
 		var r: Dictionary = CarRefs.get_ref(model)
 		var fl: Vector3 = r.wheels.FL
-		tr.add_nice_model(model, {"L": r.box.z, "W": r.box.x, "H": r.box.y, "wheel": model + "_Wheel",
+		tr.add_nice_model(model, {"L": r.box.z, "W": r.box.x, "H": r.box.y, "wheel": r.get("wheel_prop", model + "_Wheel"),
 				"axles": [absf(fl.z), -absf(fl.z)], "track": absf(fl.x), "r": r.wheel_r, "kind": "nice",
 				"flip": true, "paint": Rules.CARS[key].paint})
 
