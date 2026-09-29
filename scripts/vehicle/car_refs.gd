@@ -27,8 +27,8 @@ const MODELS := {
 		"wheelbase": 2.857, "wheel_r": 0.3395,
 		"wheels": {"FL": Vector3(-0.8085, 0.3395, -1.4285), "FR": Vector3(0.8085, 0.3395, -1.4285), "RL": Vector3(-0.8025, 0.3395, 1.4285), "RR": Vector3(0.8025, 0.3395, 1.4285)},
 		"eye": Vector3(-0.37, 1.13, 0.28), "wheel_hub": Vector3(-0.37, 0.88, -0.38), "column_tilt": deg_to_rad(22),
-		"head": [Vector3(-0.6596, 0.6114, -1.9816), Vector3(0.6596, 0.6114, -1.9816)], "tail": [Vector3(-0.5571, 0.8779, 2.2172), Vector3(0.5571, 0.8779, 2.2172)],
-		"box": Vector3(1.903, 1.333, 4.794), "box_center": Vector3(0, 0.7665, 0.1085), "door": Vector3(-0.9175, 0.88, 0.19), "kit": true},
+		"head": [Vector3(-0.6596, 0.6114, -1.9882), Vector3(0.6596, 0.6114, -1.9882)], "tail": [Vector3(-0.5571, 0.8779, 2.2131), Vector3(0.5571, 0.8779, 2.2131)],
+		"box": Vector3(1.903, 1.333, 4.794), "box_center": Vector3(0, 0.7665, 0.1085), "door": Vector3(-0.9236, 0.88, 0.19), "kit": true},
 	"Bemze_M5": {
 		"wheelbase": 3.006, "wheel_r": 0.37,
 		"wheels": {"FL": Vector3(-0.842, 0.37, -1.503), "FR": Vector3(0.842, 0.37, -1.503), "RL": Vector3(-0.83, 0.37, 1.503), "RR": Vector3(0.83, 0.37, 1.503)},
@@ -63,8 +63,8 @@ const MODELS := {
 		"wheelbase": 3.052, "wheel_r": 0.3635,
 		"wheels": {"FL": Vector3(-0.805, 0.3635, -1.526), "FR": Vector3(0.805, 0.3635, -1.526), "RL": Vector3(-0.809, 0.3635, 1.526), "RR": Vector3(0.809, 0.3635, 1.526)},
 		"eye": Vector3(-0.37, 1.17, 0.13), "wheel_hub": Vector3(-0.37, 0.9, -0.55), "column_tilt": deg_to_rad(21),
-		"head": [Vector3(-0.746, 0.779, -2.4232), Vector3(0.746, 0.779, -2.4232)], "tail": [Vector3(-0.533, 0.912, 2.6326), Vector3(0.533, 0.912, 2.6326)],
-		"box": Vector3(1.905, 1.381, 5.1), "box_center": Vector3(0, 0.7905, 0.094), "door": Vector3(-0.9345, 0.9, 0.1), "kit": true},
+		"head": [Vector3(-0.746, 0.779, -2.4247), Vector3(0.746, 0.779, -2.4247)], "tail": [Vector3(-0.533, 0.912, 2.6336), Vector3(0.533, 0.912, 2.6336)],
+		"box": Vector3(1.905, 1.381, 5.1), "box_center": Vector3(0, 0.7905, 0.094), "door": Vector3(-0.9378, 0.9, 0.1), "kit": true},
 }
 
 

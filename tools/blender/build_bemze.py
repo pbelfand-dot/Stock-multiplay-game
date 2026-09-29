@@ -1558,7 +1558,7 @@ def build_wheel(name, sp):
     # brake disc + caliper (inside the barrel)
     rd = min(sp.get("disc_r", 0.19), rr - 0.045)
     yd = y_face - conc - 0.075
-    revolve([(0.1, yd - 0.016), (rd, yd - 0.016), (rd, yd + 0.016), (0.1, yd + 0.016)], (0.46, 0.47, 0.5), "Metal", 48,
+    revolve([(0.1, yd - 0.016), (rd, yd - 0.016), (rd, yd + 0.016), (0.1, yd + 0.016)], wd.get("disc_col", (0.46, 0.47, 0.5)), "Metal", 48,
             M=M, closed=True)
     revolve([(0.1, yd - 0.02), (0.1, yd + 0.03), (0.0, yd + 0.03)], (0.2, 0.2, 0.21), "Metal", 32, M=M)
     for k in range(12):     # cross-drill / slot marks
@@ -2294,7 +2294,7 @@ def diffuser_ramp(car, S, rr):
             continue
         c = f.calc_center_median()
         n = f.normal
-        if c.z > zr0 and abs(c.x) < xw and c.y < y1 and (n.y < -0.4 or (n.z > 0.3 and _in_poly((c.x, c.y), d))):
+        if c.z > zr0 and abs(c.x) < xw and c.y < y1 and (n.y < -0.4 or (n.z > 0.05 and _in_poly((c.x, c.y), d))):
             f[me.layer] = blk
     col = rr.get("diff_col", PIANO)
     ybump = car.f["bot"](car.zR - 0.05)
@@ -2805,11 +2805,11 @@ def _wheel_m3_spokes(M, c):
     for i in range(5):
         t0 = TAU * i / 5
         for s in (-1, 1):
-            _spoke(M, lambda u, s=s, t0=t0: (lerp(r0, rf + 0.01, u), t0 + s * lerp(0.05, 0.13, u)),
-                   lambda u: lerp(0.024, 0.019, u), lambda u: lerp(0.036, 0.03, u), y_of, rim, rimk, samples=5)
+            _spoke(M, lambda u, s=s, t0=t0: (lerp(r0, rf + 0.01, u), t0 + s * lerp(0.2, 0.3, u)),
+                   lambda u: lerp(0.022, 0.016, u), lambda u: lerp(0.036, 0.03, u), y_of, rim, rimk, samples=5)
             for b in (-1, 1):
-                _spoke(M, lambda u, s=s, b=b, t0=t0: (lerp(rf, r1, u), t0 + s * 0.13 + b * lerp(0.0, 0.085, u ** 0.8)),
-                       lambda u: lerp(0.014, 0.012, u), lambda u: 0.026, y_of, rim, rimk, samples=5)
+                _spoke(M, lambda u, s=s, b=b, t0=t0: (lerp(rf, r1, u), t0 + s * lerp(0.3, 0.314, u) + b * lerp(0.0, 0.157, u ** 0.7)),
+                       lambda u: lerp(0.012, 0.011, u), lambda u: 0.026, y_of, rim, rimk, samples=5)
     # the rim's inner step ring (the spokes land on it)
     yr = y_of(r1) - 0.004
     revolve([(r1 - 0.012, yr - 0.02), (r1 - 0.012, yr + 0.004), (r1 + 0.004, yr + 0.006), (r1 + 0.004, yr - 0.02)],
@@ -2917,7 +2917,7 @@ def _det_m3():
                       center=[],
                       trims_c=[], splitter=None, plate_lift=0.045,
                       intake_mesh=(0.032, 0.026, 0.005, 0.035))
-    d["rear"] = dict(d["rear"], diff_mode="ramp", diffuser=[(-0.56, 0.235), (0.56, 0.235), (0.68, 0.36), (-0.68, 0.36)],
+    d["rear"] = dict(d["rear"], diff_mode="ramp", diffuser=[(-0.56, 0.235), (0.56, 0.235), (0.68, 0.43), (0.45, 0.45), (-0.45, 0.45), (-0.68, 0.43)],
                      fins=[-0.52, -0.14, 0.0, 0.14, 0.52], fin_len=0.55, fin_out=-0.02,
                      reflectors=[(0.83, 0.43, 0.018, 0.24)],
                      diff_len=0.25, diff_rec=0.06, diff_taper=0.3)
@@ -2950,7 +2950,7 @@ def spec_m3():
         int=dict(INT_BLACK, seat=(0.8, 0.36, 0.08), seat2=(0.07, 0.07, 0.075), card=(0.1, 0.1, 0.11)),
         paint=(0.09, 0.36, 0.25), paint_name="Isle of Man Green",
         wheel=dict(style="double", n=5, col=(0.13, 0.13, 0.14), kind="Metal", caliper=(0.07, 0.07, 0.08),
-                   concave=0.06, spokes=_wheel_m3_spokes),
+                   concave=0.06, spokes=_wheel_m3_spokes, disc_col=(0.66, 0.64, 0.6)),
         pocket_gap=0.03, door_tuck=0.036, door_tuck_end=0.01, tuck=0.016, kick=0.016, sh_a=0.62, crown_p=2.6,
         style=dict(_det_m3(), roundel_front=(0.69, zF + 0.03),
                    rear=dict(_det_m3()["rear"], lip=[(-0.62, zR - 0.21), (0.62, zR - 0.21), (0.6, zR - 0.1), (-0.6, zR - 0.1)]),
