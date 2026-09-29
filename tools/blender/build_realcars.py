@@ -625,7 +625,57 @@ CARS["RS6"] = dict(
     },
 )
 
-ORDER = ["M4", "M2", "M5", "M8", "M3", "M3T", "G63", "GT3RS", "GRONOS", "911TS", "RS6"]
+# the R8 (first generation, 4.2 FSI) is a game model: low poly, a full cabin with the analog gauges (needles are their
+# own parts), DDS textures (PNG copies in textures/)
+CARS["R8"] = dict(
+    fbx="2007-audi-r8-42-fsi-quattro/source/FINAL_07_1.fbx", scale=100.0,
+    texdirs=["2007-audi-r8-42-fsi-quattro/textures", "2007-audi-r8-42-fsi-quattro/source"], plate_txt="AUDY",
+    parts=[
+        (r"kit03_", "drop"),                                   # a second gauge glass
+        (r"_caliper_", "caliper"),
+        (r"_(wheel|tire|disc)_", "wheel"),
+        (r"steeringwheel_cpit", "steer"),
+    ],
+    tire=r"_tire_",
+    mats=[
+        (r"^audi_r8_paint$", {"c": "paint"}),
+        (r"^generic_windows$|^generic_light_glass$", {"c": "glass"}),
+        (r"^generic_glass_black$", {"c": "flat", "col": (0.02, 0.02, 0.025), "r": 0.1, "m": 0.2}),
+        (r"^audi_r8_alu_body$", {"c": "flat", "col": (0.62, 0.63, 0.65), "r": 0.25, "m": 0.8}),     # the side blades
+        (r"^audi_r8_badges$", {"c": "tex", "r": 0.3, "m": 0.6}),
+        (r"^audi_r8_lights$", {"c": "tex", "r": 0.2, "m": 0.2, "tailred": True, "emit": "audi_r8_lights_glow.png", "w": 0.8}),
+        (r"^audi_r8_misc$", {"c": "tex", "r": 0.5, "m": 0.2, "w": 0.6}),
+        (r"^audi_r8_engine$", {"c": "tex", "r": 0.4, "m": 0.5, "w": 0.5}),
+        (r"^chrome_[SR]$", {"c": "flat", "col": (0.6, 0.61, 0.63), "r": 0.2, "m": 0.9}),
+        (r"^generic_chassis$", {"c": "flat", "col": (0.05, 0.05, 0.055), "r": 0.7, "m": 0.1, "w": 0.3}),
+        (r"^mirror$", {"c": "flat", "col": (0.55, 0.58, 0.6), "r": 0.05, "m": 0.9}),
+        (r"^audi_r8_wheel$", {"c": "tex", "r": 0.35, "m": 0.6}),
+        (r"^generic_(tyre|tread)$", {"c": "flat", "col": GREY_TIRE, "r": 0.9, "m": 0.0}),
+        (r"^audi_r8_disc$", {"c": "flat", "col": (0.3, 0.3, 0.31), "r": 0.4, "m": 0.6}),
+        (r"gauges1$", {"c": "tex", "r": 0.3, "m": 0.0, "emit": "audi_r8_gauges_glow.png", "w": 0.5}),
+        (r"steeringwheel", {"c": "tex", "r": 0.6, "m": 0.0, "tex": "audi_r8_steeringwheel_diffuse.png"}),
+        (r"cockpit1$|cockpit_glow1$|cockpit_skin1$", {"c": "tex", "r": 0.6, "m": 0.0, "tex": "audi_r8_cockpit_diffuse.png", "w": 0.5}),
+        (r"generic_lcd1$", {"c": "flat", "col": (0.03, 0.04, 0.06), "r": 0.15, "m": 0.0, "emit": (0.06, 0.12, 0.22)}),
+        (r"^audi_r8_interior$", {"c": "tex", "r": 0.6, "m": 0.0}),
+        (r"audi_r8_cockpit:", {"c": "flat", "col": None, "r": 0.7, "m": 0.0, "w": 0.4}),      # leathers, carpet ...
+        (r".", {"c": "flat", "col": None, "r": 0.5, "m": 0.1, "w": 0.5}),
+    ],
+    steer=None,
+    emblems=[   # the rings on the steering-wheel hub
+        {"at": (-0.353, 0.4917, 0.7825), "dir": (0.0, -0.9207, 0.3903), "r": 0.042, "maker": "audy", "probe": 0.12,
+         "role": "steer"},
+    ],
+    edits={
+        # the four rings -> AUDY's three; "quattro" blanked; the MMI splash and the wheel caps
+        "audi_r8_badges_diffuse.png": [("fill", 0.0, 0.7, 0.77, 1.0, (0, 0, 0)), ("strip", 0.0, 0.7, 0.77, 1.0, "audy", (0, 0, 0)),
+                                       ("fill", 0.72, 0.64, 0.98, 0.7, (0, 0, 0))],
+        "audi_r8_cockpit_diffuse.png": [("fill", 0.66, 0.235, 0.9, 0.275, (60, 60, 62)), ("strip", 0.125, 0.128, 0.265, 0.175, "audy", (40, 42, 60)),
+                                        ("fill", 0.265, 0.13, 0.53, 0.158, (58, 62, 92)), ("fill", 0.24, 0.295, 0.42, 0.315, (22, 22, 24))],
+        "audi_r8_wheel_diffuse_00.png": [("fill", 0.455, 0.465, 0.545, 0.52, (72, 72, 74))],
+    },
+)
+
+ORDER = ["M4", "M2", "M5", "M8", "M3", "M3T", "G63", "GT3RS", "GRONOS", "911TS", "RS6", "R8"]
 
 # ============================================================================= helpers
 
@@ -884,6 +934,18 @@ def draw_emblem(size, kind):
 def brand_edit(im, op):
     W, H = im.size
     kind = op[0]
+    if kind == "strip":
+        # ("strip", x0, y0, x1, y1, maker, bg): a wide badge (the AUDY rings) fitted into the rectangle
+        _, fx0, fy0, fx1, fy1, maker, bg = op
+        x0, y0, x1, y1 = int(fx0 * W), int(fy0 * H), int(fx1 * W), int(fy1 * H)
+        w, h = x1 - x0, y1 - y0
+        em = draw_emblem(512, maker)
+        bh = int(512 * h / w)
+        em = em.crop((0, 256 - bh // 2, 512, 256 - bh // 2 + bh)).resize((w, h), Image.LANCZOS)
+        base = Image.new("RGBA", (w, h), tuple(bg) + (255,))
+        base.alpha_composite(em)
+        im.paste(base, (x0, y0))
+        return im
     if kind == "emblem":
         # ("emblem", cx, cy, r, maker[, bg[, "flipv"]]): the old logo's disc painted over (bg: a colour, or None = the
         # median of the disc's rim), the maker's emblem on top (flipv: upside down, for textures mapped flipped)
@@ -1519,7 +1581,7 @@ class Car:
             link(ob)
             ob["chain"] = e.get("chain", "emblem%d" % i)
             ob["mats"] = mname
-            ob["role"] = "body"
+            ob["role"] = e.get("role", "body")          # ("steer": on a steering wheel that is its own part)
             ob["quad"] = ""
             self.parts.append(ob)
             print("[%s] emblem %s at %s: %d faces of the old badge gone, disc on %s" % (
