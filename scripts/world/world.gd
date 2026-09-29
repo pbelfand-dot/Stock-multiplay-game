@@ -328,7 +328,9 @@ func _sync_traffic() -> void:
 				return
 			for peer in multiplayer.get_peers():
 				var pn = player_node(peer)
-				_traffic_snap.rpc_id(peer, tr.snapshot([pn.global_position] if pn != null else [])))
+				if pn == null:
+					continue      # still loading in: no traffic yet (the whole pool won't fit a packet)
+				_traffic_snap.rpc_id(peer, tr.snapshot([pn.global_position])))
 	else:
 		tr.set_remote(true)
 
@@ -405,7 +407,7 @@ func _nice_traffic() -> void:
 	if tr == null:
 		return
 	const CarRefs = preload("res://scripts/vehicle/car_refs.gd")
-	for key in ["bz_540i", "bz_m2", "bz_m3", "bz_m3t", "bz_m4", "bz_m5", "bz_m8", "mb_g63"]:
+	for key in ["bz_540i", "bz_m2", "bz_m3", "bz_m3t", "bz_m4", "bz_m5", "bz_m8", "mb_g63", "po_gt3rs"]:
 		var model: String = Rules.CARS[key].model
 		if not PropKit.has(model):
 			continue

@@ -121,8 +121,17 @@ func _ready() -> void:
 		_open_save()
 		_mirror_market_full(market.full_payload())
 	else:
-		_req_sync.rpc_id(1)
+		_ask_for_sync()
 	Net.players_changed.connect(_on_players_changed)
+
+
+## Joining: ask the host for the market until it arrives. On a loaded host the first
+## request (or its answer) can go missing while both sides are still building the world,
+## and without the market the client would sit in the lobby forever.
+func _ask_for_sync() -> void:
+	while m_assets.is_empty() and is_inside_tree() and multiplayer.has_multiplayer_peer():
+		_req_sync.rpc_id(1)
+		await get_tree().create_timer(2.0).timeout
 
 
 # ======================================================================

@@ -441,7 +441,58 @@ CARS["G63"] = dict(
     },
 )
 
-ORDER = ["M4", "M2", "M5", "M8", "M3", "M3T", "G63"]
+# the GT3 RS is a game mod in a Sketchfab glb (metres, every option in the file): keep the stock RS (black trim,
+# the RS's PDK shifter, dark exhaust tips, 9000 rpm gauges, no rear seats), drop the drivetrain / suspension
+GT3RS_DROP = (r"/TwiXeR_992_(brakelines|brakepedal|bumperbar_[FR]|clutchpedal|coilover_(F|RL|RR)|coolantlines|diff_F|"
+              r"driveshaft|engine|exhaust|exhaust_TT|exhausttip_3_chrome|fuellines|fueltank|gaspedal|halfshaft_(e_)?[FR]|"
+              r"heatshield|hub_[FR]|intake_TT|lowerarm_[FR]|muffler|muffler_custom|pushrod_R|pushrod_triangle_R|radiator|"
+              r"radiators_small|steeringbox|subframe_[FR]|swaybar_[FR]|tierod_F|trailingarm_R|transaxle|upperarm_[FR]|"
+              r"needle_tacho|dash_clock|door_[LR]_chrome_end|chrome_dash_accessories|shifter_(base|boot|knob)_M|seats_R|"
+              r"body\.005)/")
+CARS["GT3RS"] = dict(
+    fbx="2023-porsche-911-gt3-rs-992/source/porsche_gt3_rs.glb", fit_length=4.572,
+    texdirs=[], plate_txt="PORSHA", tire=r"Scene_-_Root", body_tris=80000,     # (many small flat-coloured parts: 80k keeps it ~5 MB)
+    parts=[
+        (GT3RS_DROP, "drop"),
+        (r"^TwiXeR_992_gt3rs_bumper_R_TwiXeR_992_antichrome\.001", "drop"),       # the PORSCHE letters on the tail
+        (r"^Object_4\.|chrome_wheels_20x9|amdb11_brakedisc", "wheel"),
+        (r"/TwiXeR_992_steer_3/", "steer"),
+    ],
+    caliper_mat=r"^amdb11_caliper",
+    mats=[
+        (r"^TwiXeR_992_carPaint\.003$", {"c": "paint"}),
+        (r"^TwiXeR_992_(glass\.00[24]|glass_int\.001|antichrome\.002)$", {"c": "glass"}),
+        (r"^TwiXeR_992_(brakelight|taillight)", {"c": "flat", "col": (0.75, 0.04, 0.03), "r": 0.25, "m": 0.0, "emit": TAIL_EMIT, "tail": True}),
+        (r"^TwiXeR_992_headlight_high", {"c": "flat", "col": (1.0, 1.0, 0.97), "r": 0.2, "m": 0.0, "emit": (1.0, 1.0, 0.97)}),
+        (r"^TwiXeR_992_led_lights", {"c": "flat", "col": (0.32, 0.33, 0.35), "r": 0.25, "m": 0.8}),        # the lamp bowls
+        (r"^TwiXeR_992_red\.001$", {"c": "flat", "col": (0.5, 0.03, 0.03), "r": 0.3, "m": 0.0}),              # rear reflectors
+        (r"^amdb11_caliper", {"c": "flat", "col": (0.62, 0.04, 0.04), "r": 0.35, "m": 0.1}),
+        (r"^amdb11_|metal_radiator", {"c": "flat", "col": (0.3, 0.3, 0.31), "r": 0.4, "m": 0.6}),
+        (r"^Scene_-_Root", {"c": "flat", "col": GREY_TIRE, "r": 0.9, "m": 0.0}),
+        (r"^TwiXeR_992_wheels_chrome_1$", {"c": "flat", "col": (0.13, 0.13, 0.14), "r": 0.3, "m": 0.6}),
+        (r"^TwiXeR_992_GT3RS_black$", {"c": "flat", "col": (0.05, 0.05, 0.055), "r": 0.3, "m": 0.4}),
+        (r"^TwiXeR_992_(headlight_1\.001_1|carbon_roof\.001|symbols_1\.003)$", {"c": "flat", "col": (0.035, 0.035, 0.04), "r": 0.25, "m": 0.1, "w": 0.6}),
+        (r"^TwiXeR_992_(headlight_1\.001_0|ID06_stitch_001)$", {"c": "tex", "r": 0.3, "m": 0.5}),            # the crests
+        (r"^TwiXeR_992_(symbols_6|gauges_9000\.001_0)$", {"c": "tex", "r": 0.3, "m": 0.0, "emit": "self", "w": 0.4}),
+        (r"^TwiXeR_992_gauges_screen", {"c": "tex", "r": 0.2, "m": 0.0, "emit": "self", "w": 0.4}),
+        (r"^TwiXeR_992_symbols", {"c": "flat", "col": (0.08, 0.08, 0.085), "r": 0.5, "m": 0.0, "w": 0.4}),
+        # the cabin: black leather / Alcantara, the RS's red belts and stitching
+        (r"^TwiXeR_992_ID08_fabric_002_B60000FF|^TwiXeR_992_seat_leather_2", {"c": "flat", "col": (0.45, 0.04, 0.04), "r": 0.7, "m": 0.0, "w": 0.4}),
+        (r"^TwiXeR_992_ID03_stitch_001_111111FF", {"c": "flat", "col": (0.3, 0.04, 0.04), "r": 0.7, "m": 0.0, "w": 0.4}),
+        (r"^TwiXeR_992_(int_chrome|gauges_chrome|dash_clock_1)", {"c": "flat", "col": (0.35, 0.35, 0.37), "r": 0.3, "m": 0.7, "w": 0.4}),
+        (r"^TwiXeR_992_(seat_leather|upper_leather|carpet|ID0|Interior_D|plastic|rubbertrim|speakers|seatbelt|gps_screen)",
+         {"c": "flat", "col": (0.05, 0.05, 0.055), "r": 0.7, "m": 0.0, "w": 0.4}),
+        (r".", {"c": "flat", "col": None, "r": 0.45, "m": 0.2, "w": 0.5}),
+    ],
+    steer=None,
+    edits={
+        # the crest (the hood, the steering wheel)
+        "Image_2.png": [("fill", 0.0, 0.0, 1.0, 1.0, (8, 8, 9)), ("emblem", 0.5, 0.5, 0.42, "porsha", (8, 8, 9), "flipv")],
+        "Image_6.png": [("fill", 0.0, 0.0, 1.0, 1.0, (8, 8, 9)), ("emblem", 0.5, 0.5, 0.42, "porsha", (8, 8, 9), "flipv")],
+    },
+)
+
+ORDER = ["M4", "M2", "M5", "M8", "M3", "M3T", "G63", "GT3RS"]
 
 # ============================================================================= helpers
 
@@ -692,8 +743,8 @@ def brand_edit(im, op):
     W, H = im.size
     kind = op[0]
     if kind == "emblem":
-        # ("emblem", cx, cy, r, maker[, bg]): the old logo's disc painted over (bg: a colour, or None = the median of
-        # the disc's rim), the maker's emblem on top
+        # ("emblem", cx, cy, r, maker[, bg[, "flipv"]]): the old logo's disc painted over (bg: a colour, or None = the
+        # median of the disc's rim), the maker's emblem on top (flipv: upside down, for textures mapped flipped)
         _, cx, cy, r, maker = op[:5]
         s = max(4, int(2 * r * W))
         x, y = int(cx * W - s / 2), int(cy * H - s / 2)
@@ -703,7 +754,10 @@ def brand_edit(im, op):
             edge = np.concatenate([a[0], a[-1], a[:, 0], a[:, -1]])
             bg = tuple(int(v) for v in np.median(edge, axis=0))
         base = Image.new("RGBA", (s, s), tuple(bg) + (255,))
-        base.alpha_composite(draw_emblem(s, maker))
+        em = draw_emblem(s, maker)
+        if len(op) > 6 and op[6] == "flipv":
+            em = em.transpose(Image.FLIP_TOP_BOTTOM)
+        base.alpha_composite(em)
         mask = Image.new("L", (s, s), 0)
         ImageDraw.Draw(mask).ellipse((0, 0, s - 1, s - 1), fill=255)
         im.paste(base, (x, y), mask)
@@ -1519,7 +1573,7 @@ class Car:
         if cal:
             props["RC_%s_Caliper" % K] = (cal, Vector(hf["c"]), 1500)
         body += [o for o in self.parts if o["role"] == "caliper" and o["quad"][0] == "R"]
-        props["RC_%s" % K] = (body, Vector((0, 0, 0)), 90000)
+        props["RC_%s" % K] = (body, Vector((0, 0, 0)), self.cfg.get("body_tris", 90000))
         props["RC_%s_Steer" % K] = ([self.steer_src], self.steer_hub, 3000)
         # the rest (left wheels / calipers) are not needed
         used = {o.name for v in props.values() for o in v[0]}
