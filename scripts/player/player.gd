@@ -341,10 +341,11 @@ func _local_move(delta: float) -> void:
 	# basketball throw takes priority over the money gun
 	var ball = world.ball
 	var holding: bool = ball != null and ball.holder == peer_id
-	if holding and not blocked and Input.is_action_just_pressed("fire"):
+	var busy_hands: bool = blocked or world.phone_up()   # clicks on the phone aren't shots
+	if holding and not busy_hands and Input.is_action_just_pressed("fire"):
 		ball.request_throw(-cam.global_basis.z)
 	# money gun
-	raining = (not holding and not blocked and m != null and m.effect_left(peer_id, "moneygun") > 0.0
+	raining = (not holding and not busy_hands and m != null and m.effect_left(peer_id, "moneygun") > 0.0
 		and Input.is_action_pressed("fire"))
 	if raining:
 		_brrt_acc -= delta
@@ -353,7 +354,7 @@ func _local_move(delta: float) -> void:
 			Sfx.play("brrt", -6.0, randf_range(0.9, 1.1))
 	# BIG IRON: click fires (hold for the automatics), right click aims
 	_shot_cd = maxf(_shot_cd - delta, 0.0)
-	if gun_node and _gun_key != "" and not holding and not blocked and seat < 0:
+	if gun_node and _gun_key != "" and not holding and not busy_hands and seat < 0:
 		var d: Dictionary = Rules.LUXURY[_gun_key]
 		var trig: bool = Input.is_action_pressed("fire") if d.auto else Input.is_action_just_pressed("fire")
 		if trig and _shot_cd <= 0.0:

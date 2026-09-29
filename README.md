@@ -148,6 +148,7 @@ Hold 110+ mph and highway patrol may clock you: lose them (230 m away for 6 s) o
 | N | Lay your cash out on the table / floor (N again picks it up) |
 | K | Photo mode (fly the camera, pose, filters, SNAP: saved to Pictures/BAGHOLDERS) |
 | E (at your car) | Get in / out. Driving: W gas · S brake/reverse · A/D steer · Space handbrake · C cockpit/chase cam |
+| P | Phone (works at the terminal too; P or Esc puts it away). Home screen apps: FEED (Tramp posts before the TV), KWIK LIVE (stream + ride to the studio), BANK (fund, cash, today's P&L, open positions), MAPS (live commute map), RIDES (pick your car or call a cab), TONY (today's contracts as texts), HOMES (your place + listings), CAMERA (photo mode) |
 | 1–6 | Use items |
 | Tab | Scoreboard |
 | T | Chat |

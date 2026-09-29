@@ -143,6 +143,11 @@ func ui_blocking() -> bool:
 	return hud != null and (hud.is_modal_open() or hud.busy())
 
 
+## The phone's out (you can still walk, but the mouse is on the apps).
+func phone_up() -> bool:
+	return hud != null and hud.phone != null and hud.phone.open
+
+
 # ---------------------------------------------------------------- KWIK studio
 
 func in_street(node: Node3D) -> bool:
