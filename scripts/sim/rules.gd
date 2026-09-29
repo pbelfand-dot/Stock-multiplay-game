@@ -122,7 +122,10 @@ const PURSUIT_LOST_M := 230.0
 const PURSUIT_LOST_S := 6.0
 const PURSUIT_BUST_S := 2.5
 const SPEEDING_TICKET := 2_500.0
-const CAR_ORDER := ["beater", "bz_540i", "bz_m2", "bz_m3", "bz_m3t", "bz_m4", "bz_m5", "bz_m8"]
+## A save stores the chosen ride as (index in CAR_ORDER) + 1: only ever append here.
+const CAR_ORDER := ["beater", "bz_540i", "bz_m2", "bz_m3", "bz_m4", "bz_m5", "bz_m8", "bz_m3t"]
+## The order the showroom and the phone list them in.
+const SHOW_ORDER := ["beater", "bz_540i", "bz_m2", "bz_m3", "bz_m3t", "bz_m4", "bz_m5", "bz_m8"]
 ## Factory paint at the dealership (a respray later costs RESPRAY).
 const PAINTS := [
 	["Alpine White", Color(0.93, 0.93, 0.92)], ["Black Sapphire", Color(0.05, 0.05, 0.07)],
