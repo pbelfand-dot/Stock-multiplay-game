@@ -178,11 +178,19 @@ func _run() -> void:
 		cam.global_position = world.builder.hood.hw.point(500.0, 0.0, 12.0)
 		var found := {}
 		var tt := 0.0
+		# cars only change model in the tunnels: put the --drivecar model on a few of them now
+		var want: String = Rules.CARS.get(Config.cli.get("drivecar", ""), {}).get("model", "")
+		if want != "" and tr.nice_models.has(want):
+			var k := 0
+			for c in tr.cars:
+				if not c.waiting and c.nice == false and k % 6 == 0:
+					tr._apply_model(c, want)
+				k += 1
 		while found.is_empty() and tt < 60.0:
 			await get_tree().create_timer(0.5).timeout
 			tt += 0.5
 			for c in tr.active_cars():
-				if (str(c.model).begins_with("Bemze_") or str(c.model).begins_with("RC_")) and c.speed > 10.0:
+				if (str(c.model) == want if want != "" else (str(c.model).begins_with("Bemze_") or str(c.model).begins_with("RC_"))) and c.speed > 10.0:
 					found = c
 					break
 		if found.is_empty():
@@ -225,7 +233,16 @@ func _run() -> void:
 		hud.dealer.paint["bz_m3"] = 3
 		hud.dealer._refresh()
 		await _frames(6)
+		# the balance jump pops the "fund hit" banner over the menu: clear it
+		hud._rank_t = 0.0
+		hud.rank_banner.modulate.a = 0.0
+		await _frames(2)
 		await _snap("dl_showroom")
+		for key in ["bz_m4", "bz_m2", "bz_m5", "bz_m8"]:     # each real model on the turntable
+			hud.dealer.selected = key
+			hud.dealer._refresh()
+			await get_tree().create_timer(0.6).timeout
+			await _snap("dl_" + key)
 		Sfx.quit_game()
 		return
 	if Config.cli.has("carcloseonly"):         # one car parked in the street: close static views in the game's light
