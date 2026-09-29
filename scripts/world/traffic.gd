@@ -1113,6 +1113,7 @@ func _consider_lane_change(c) -> void:
 		c.from_lane = c.lane
 		c.lane = best_k
 		c.lc_t = 0.0
+		_push(_key_m(c.dir, best_k), c)     # (now: so a car from the far side can't take the same gap this step)
 		c.lc_cool = 0.3 if must != 0 else rng.randf_range(3.0, 6.0)   # heading for an exit: keep going over
 		c.lane_changes += 1
 		stats.lane_changes += 1
