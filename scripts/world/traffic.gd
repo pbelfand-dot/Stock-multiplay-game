@@ -70,7 +70,7 @@ const REGULAR := {
 	"TCar_Sedan_Silver": 5, "TCar_Sedan_White": 4, "TCar_Sedan_Black": 3, "TCar_Sedan_Grey": 4, "TCar_Sedan_Blue": 2,
 	"TCar_Sedan_Red": 2, "TCar_Hatch_Grey": 3, "TCar_Hatch_Blue": 2, "TCar_Hatch_White": 2,
 	"TCar_SUV_Black": 3, "TCar_SUV_White": 3, "TCar_SUV_Silver": 3, "TCar_SUV_Grey": 2,
-	"TCar_Pickup_White": 2, "TCar_Pickup_Grey": 2, "TCar_Pickup_Red": 1, "TCar_Taxi": 1,
+	"TCar_Pickup_White": 2, "TCar_Pickup_Grey": 2, "TCar_Pickup_Red": 1, "TCar_Taxi": 7,      # New York: yellow cabs everywhere
 	"TCar_Truck_White": 3, "TCar_Truck_Red": 2,
 }
 const NICE_DEFAULT := ["TCar_Coupe_Red", "TCar_Coupe_Black", "TCar_Coupe_Yellow"]
