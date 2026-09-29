@@ -219,6 +219,9 @@ CARS["M8"] = dict(
     fbx="8d80d7d5-bmw-m8-f92-coupe-competition/source/M8.fbx", scale=1.0,
     texdirs=["8d80d7d5-bmw-m8-f92-coupe-competition/textures"],
     parts=[
+        # the file has no stock rear diffuser / exhaust tips (only the tuner kits'): the Keyvany diffuser and one
+        # pair of its tips fill the gap under the stock rear bumper; every other kit part goes
+        (r"^keyvany_(diffuser_R_c|muffler_[LR]2)", "body"),
         (M8_DROP, "drop"),
         (r"^m8f92_Caliper(LF|RF|LR|RR)", "caliper"),
         (r"^m8f92_(Wheel_|brakedisc_)", "wheel"),
@@ -256,6 +259,7 @@ CARS["M8"] = dict(
         (r"^m8f92_screen$", {"c": "tex", "tex": "M_bootscreen.png", "r": 0.2, "m": 0.0, "emit": "self"}),
         (r"^mirror\.001$", {"c": "flat", "col": (0.55, 0.58, 0.6), "r": 0.05, "m": 0.9}),
         (r"^m8f92_disc$", {"c": "flat", "col": (0.3, 0.3, 0.31), "r": 0.4, "m": 0.6}),
+        (r"^m8f92_rim$", {"c": "flat", "col": (0.3, 0.3, 0.31), "r": 0.35, "m": 0.3}),       # Competition wheels: dark grey
         (r"^m8f92_Calliper_Color$", {"c": "flat", "col": (0.05, 0.16, 0.62), "r": 0.35, "m": 0.1}),
         (r"^m8f92_Calliper_Textured$", {"c": "flat", "col": DARK, "r": 0.5, "m": 0.1}),
         (r"^m8f92_CalliperBadge$", {"c": "flat", "col": (0.9, 0.9, 0.9), "r": 0.4, "m": 0.0}),
@@ -264,11 +268,15 @@ CARS["M8"] = dict(
     ],
     faces=[
         (r"^m8f92_brakedisc", r"^m8f92$", "m8f92_disc"),
+        (r"^m8f92_Wheel_04", r"^m8f92_Coloured$", "m8f92_rim"),
     ],
     steer=None,
     edits={
-        "m8f92_Badge_diff.png": [],
-        "m8f92_Badge_blk_diff.png": [],
+        "m8f92_Badge_diff.png": [("roundel", 0.25, 0.26, 0.238), ("orange", 0.0, 0.0, 1.0, 1.0)],
+        "m8f92_Badge_blk_diff.png": [("roundel", 0.255, 0.25, 0.224), ("orange", 0.0, 0.0, 1.0, 1.0)],
+        "M_bootscreen.png": [("orange", 0.0, 0.0, 1.0, 1.0)],
+        "m8f92_Light_diff.png": [("fill", 0.665, 0.215, 0.885, 0.295, None), ("fill", 0.015, 0.455, 0.365, 0.54, None)],
+        "m8f92_Interior_diff.png": [("orange", 0.0, 0.9, 1.0, 0.98)],
     },
 )
 
@@ -1169,7 +1177,7 @@ class Car:
             U = np.concatenate(rec["uvs"])
             lo = np.percentile(U, 0.1, axis=0)
             hi = np.percentile(U, 99.9, axis=0)
-            if (hi - lo).max() > 1.12 and ((U > -0.03) & (U < 1.03)).all(1).mean() > 0.97:
+            if (hi - lo).max() > 1.12 and (((U > -0.03) & (U < 1.03)).all(1).mean() > 0.97 or (hi - lo).max() < 1.35):
                 # a few faces spill over the tile edge: clamp them to it
                 lo, hi = np.clip(lo, 0.0, 1.0), np.clip(hi, 0.0, 1.0)
             if (hi - lo).max() > 1.12:
@@ -1347,15 +1355,17 @@ class Car:
 
     def _write(self, ob, out_uv, out_col, slot, slot_names):
         me = ob.data
-        while me.uv_layers:
-            me.uv_layers.remove(me.uv_layers[0])
+        # (by name: python references to attributes go stale as soon as one is removed)
+        for name in [a.name for a in me.color_attributes]:
+            me.color_attributes.remove(me.color_attributes[name])
+        for name in [l.name for l in me.uv_layers]:
+            me.uv_layers.remove(me.uv_layers[name])
         uvl = me.uv_layers.new(name="UVMap")
         uvl.data.foreach_set("uv", out_uv.reshape(-1).astype(np.float32))
-        for a in list(me.color_attributes):
-            me.color_attributes.remove(a)
         ca = me.color_attributes.new("Col", "FLOAT_COLOR", "CORNER")
         ca.data.foreach_set("color", out_col.reshape(-1).astype(np.float32))
         me.color_attributes.active_color = ca
+        me.color_attributes.render_color_index = me.color_attributes.active_color_index
         me.materials.clear()
         for s in slot_names:
             me.materials.append(BMATS.get(s) or bl_mat(s))
