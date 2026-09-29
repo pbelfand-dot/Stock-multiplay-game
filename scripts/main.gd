@@ -32,6 +32,10 @@ func _ready() -> void:
 		var ev = load("res://tests/event_driver.gd").new()
 		ev.name = "EventDriver"
 		add_child(ev)
+	if Config.cli.has("hoodcheck") or Config.cli.has("hoodshots"):   # ---- neighborhood (houses) ----
+		var hd = load("res://tests/hood_driver.gd").new()
+		hd.name = "HoodDriver"
+		add_child(hd)
 	if Config.cli.has("clicktest"):
 		var ck = load("res://tests/click_driver.gd")
 		if ck:

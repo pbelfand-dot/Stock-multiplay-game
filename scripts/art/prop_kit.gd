@@ -7,7 +7,8 @@ extends RefCounted
 
 const KIT_PATH := "res://assets/props/props_kit.glb"
 ## Every kit loaded into the same prop table (names are unique across kits).
-const KITS := [KIT_PATH, "res://assets/props/watches_kit.glb"]   # watches: tools/blender/build_watches.py
+const KITS := [KIT_PATH, "res://assets/props/watches_kit.glb",   # watches: tools/blender/build_watches.py
+	"res://assets/props/houses_kit.glb", "res://assets/props/cars_kit.glb"]   # ---- neighborhood (houses): build_houses.py / build_cars.py ----
 
 const HAZE_COLOR := Color(0.64, 0.78, 0.94)   # the sky; far towers fade into it
 

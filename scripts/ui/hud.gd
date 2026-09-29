@@ -506,7 +506,8 @@ func is_modal_open() -> bool:
 	return terminal.visible or slots.visible or shop.visible or lux_shop.visible or pause_menu.visible or _chat_open \
 			or atm.visible or (dealer != null and dealer.visible) \
 			or summary.visible or (photo != null and photo.active) \
-			or tailor != null
+			or tailor != null \
+			or (world != null and world.get("hood") != null and world.hood.ui_open())   # ---- neighborhood (houses) ----
 
 
 func close_modals() -> void:
@@ -519,6 +520,8 @@ func close_modals() -> void:
 	atm.visible = false
 	if dealer:
 		dealer.visible = false
+	if world != null and world.get("hood") != null:   # ---- neighborhood (houses) ----
+		world.hood.close_ui()
 	if summary.visible:
 		summary.visible = false
 		if match_node.phase == "intermission":

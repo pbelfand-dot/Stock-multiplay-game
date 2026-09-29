@@ -325,3 +325,26 @@ static func price_str(p: float) -> String:
 		whole += 1
 		frac = 0
 	return "%s.%02d" % [_commas(whole), frac]
+
+
+# ---- neighborhood (houses) ----
+## Magnolia Heights listings (scripts/world/neighborhood_builder.gd places them,
+## Match._req_buy_house sells them). Starter homes: a real goal next to the flex
+## (a Crownwell is $250K). One owner per house; bought ones are saved with your
+## career as owned["house_<id>"]. The spawn by each bed comes from
+## assets/props/houses_layout.json (the Blender interiors).
+const HOUSES := {
+	"tin_a": {"name": "The Tin Roof", "address": "404 Pecan St", "price": 185_000.0,
+		"desc": "Two rooms and a porch up on brick piers. Rusty roof, loud window unit, zero HOA. Every mogul starts somewhere."},
+	"shotgun_a": {"name": "The Shotgun", "address": "102 Magnolia St", "price": 240_000.0,
+		"desc": "Screened porch, ceiling fan, red steps. Front door to back door in one straight line. The floors talk."},
+	"ranch_a": {"name": "Starter Ranch", "address": "105 Magnolia St", "price": 320_000.0,
+		"desc": "Picture window, brick stoop, white shutters. The house your parents said to buy instead of options."},
+	"bungalow_a": {"name": "Craftsman Bungalow", "address": "401 Pecan St", "price": 395_000.0,
+		"desc": "Covered porch, wide eaves, good bones, big pine out front. Needs love. Has a laundry room."},
+	"ranch_b": {"name": "Corner-Lot Ranch", "address": "113 Magnolia St", "price": 460_000.0,
+		"desc": "The corner lot. Updated kitchen, steel fridge, king bed. The whole block will know you made it."},
+	"bungalow_b": {"name": "Renovated Bungalow", "address": "410 Pecan St", "price": 620_000.0,
+		"desc": "Gut-renovated on a double lot: kitchen island, stainless, a TV you can see from the highway. Top of the block."},
+}
+# ---- /neighborhood (houses) ----

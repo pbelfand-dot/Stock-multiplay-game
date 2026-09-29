@@ -748,6 +748,66 @@ func _req_buy_upgrade(key: String) -> void:
 	_push_state()
 
 
+# ---- neighborhood (houses) ----
+## Magnolia Heights homes (Rules.HOUSES). One owner per house among the players
+## in this session; owned[peer]["house_<id>"] = 1 is saved with the career.
+
+func house_owner(id: String) -> int:
+	for peer in owned:
+		if Net.players.has(peer) and int(owned[peer].get("house_" + id, 0)) > 0:
+			return peer
+	return 0
+
+
+func house_of(peer: int) -> String:
+	var own: Dictionary = owned.get(peer, {})
+	for id in Rules.HOUSES:
+		if int(own.get("house_" + id, 0)) > 0:
+			return id
+	return ""
+
+
+func request_buy_house(id: String) -> void:
+	_req_buy_house.rpc_id(1, id)
+
+
+@rpc("any_peer", "call_local", "reliable")
+func _req_buy_house(id: String) -> void:
+	if not Net.is_server():
+		return
+	var id_peer := _sender()
+	var err := buy_house(id_peer, id)
+	if err != "":
+		_s_error.rpc_id(id_peer, err)
+
+
+## Server: the whole purchase. Returns "" or why not.
+func buy_house(peer: int, id: String) -> String:
+	if not Net.is_server() or not Rules.HOUSES.has(id):
+		return "That house isn't for sale."
+	_ensure_peer(peer)
+	var def: Dictionary = Rules.HOUSES[id]
+	var owner := house_owner(id)
+	if owner == peer:
+		return "You already own %s." % def.address
+	if owner != 0:
+		return "%s is already SOLD to %s." % [def.address, Net.player_name(owner)]
+	if house_of(peer) != "":
+		return "You already own %s. One house at a time, tycoon." % Rules.HOUSES[house_of(peer)].address
+	var acct := acct_for(peer)
+	var a: Dictionary = ledger.get_acct(acct)
+	if a.is_empty() or a.balance < def.price:
+		return "Can't afford %s (%s). The bank laughed." % [def.address, Rules.money(def.price)]
+	ledger.adjust(acct, -def.price)
+	owned[peer]["house_" + id] = 1
+	_save_careers()
+	_s_toast.rpc("%s bought %s (%s) for %s. Home sweet home." % [Net.player_name(peer), def.address, def.name,
+			Rules.money(def.price)])
+	_push_state()
+	return ""
+# ---- /neighborhood (houses) ----
+
+
 # ---------------- careers (host saves them, keyed by player name) ----------------
 
 func xp_of(peer: int) -> float:
@@ -764,7 +824,8 @@ func has_rank_for(peer: int, gate: String) -> bool:
 
 ## Tests run with --smoke and must not read or write a real career file.
 func _careers_on_disk() -> bool:
-	return Net.is_server() and not Config.cli.has("smoke") and not Config.cli.has("savecheck") and not Config.cli.has("eventcheck")
+	return Net.is_server() and not Config.cli.has("smoke") and not Config.cli.has("savecheck") and not Config.cli.has("eventcheck") \
+			and not Config.cli.has("hoodcheck") and not Config.cli.has("hoodshots")   # ---- neighborhood (houses): tests ----
 
 
 func _load_career(id: int) -> void:
@@ -1287,7 +1348,8 @@ func _start_run() -> void:
 ## (written at the first closing bell). Tests don't touch real saves.
 func _open_save() -> void:
 	save_slot = ""
-	if (Config.cli.has("smoke") or Config.cli.has("eventcheck")) and not Config.cli.has("savecheck"):
+	if (Config.cli.has("smoke") or Config.cli.has("eventcheck") or Config.cli.has("hoodcheck") or Config.cli.has("hoodshots")) \
+			and not Config.cli.has("savecheck"):   # ---- neighborhood (houses): tests don't save ----
 		return
 	if Config.load_slot != "":
 		var s := SaveGame.read(Config.load_slot)
