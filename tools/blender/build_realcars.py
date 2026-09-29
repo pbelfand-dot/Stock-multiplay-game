@@ -542,7 +542,48 @@ CARS["GRONOS"] = dict(
     },
 )
 
-ORDER = ["M4", "M2", "M5", "M8", "M3", "M3T", "G63", "GT3RS", "GRONOS"]
+# the 911 Turbo S (992) is a Blender scene with generic names (Plane.0xx / Material.0xx), plain colours only
+CARS["911TS"] = dict(
+    fbx="porsche-911-turbo-s/source/source/Porsche2020.blend", fit_length=4.535,
+    texdirs=["porsche-911-turbo-s/source/source/texture"], plate_txt="PORSHA", tire=r"Material\.036",
+    parts=[
+        (r"^Text", "drop"),                                   # PORSCHE / turbo S lettering (tail, calipers, lamps)
+        (r"^Plane\.04[6-9]\b", "caliper"),
+        (r"^Circle", "wheel"),
+    ],
+    mats=[
+        (r"^Material\.024$", {"c": "paint"}),
+        (r"^Material\.026$", {"c": "glass"}),
+        (r"^Material\.019$", {"c": "glass", "tail": True}),                              # the tail-light band
+        (r"^ts_headlens$", {"c": "glass"}),
+        (r"^Material\.0(10|20|22)$", {"c": "glass"}),                                  # head-lamp lenses
+        (r"^Material\.0(07|11)$", {"c": "flat", "col": (0.75, 0.04, 0.03), "r": 0.25, "m": 0.0, "emit": TAIL_EMIT, "tail": True}),
+        (r"^Material\.015$", {"c": "flat", "col": (1.0, 1.0, 0.97), "r": 0.2, "m": 0.0, "emit": (1.0, 1.0, 0.97)}),
+        (r"^Material\.005$", {"c": "flat", "col": (0.9, 0.9, 0.88), "r": 0.2, "m": 0.0, "emit": (0.7, 0.7, 0.68)}),
+        (r"^Material\.017$", {"c": "flat", "col": (0.6, 0.61, 0.63), "r": 0.1, "m": 0.9}),                  # reflectors
+        (r"^Material\.030$", {"c": "flat", "col": (0.85, 0.72, 0.08), "r": 0.35, "m": 0.1}),               # PCCB calipers
+        (r"^Material\.0(35|21)$", {"c": "flat", "col": (0.3, 0.3, 0.31), "r": 0.4, "m": 0.6}),             # discs
+        (r"^Material\.036$", {"c": "flat", "col": GREY_TIRE, "r": 0.9, "m": 0.0}),
+        (r"^Material\.032$", {"c": "flat", "col": (0.05, 0.05, 0.055), "r": 0.4, "m": 0.3}),
+        (r"^Material\.0(25|31)$", {"c": "flat", "col": (0.42, 0.43, 0.45), "r": 0.3, "m": 0.7}),           # the rims
+        (r"^Material\.038$", {"c": "flat", "col": (0.55, 0.58, 0.6), "r": 0.05, "m": 0.9}),                # mirror glass
+        (r"^Material\.053$", {"c": "tex", "r": 0.3, "m": 0.5}),                                           # (the crest: below)
+        (r"^Material\.012$", {"c": "flat", "col": (0.85, 0.85, 0.85), "r": 0.4, "m": 0.0}),
+        (r"^Dots Stroke", {"c": "drop"}),
+        (r".", {"c": "flat", "col": None, "r": 0.5, "m": 0.1, "w": 0.5}),
+    ],
+    faces=[(r"^Plane\.0(22|13)$", r"^Material\.019$", "ts_headlens")],      # the same lens material in the head lamps
+    steer=None,
+    # the model has no cabin (a dark tub behind the glass): the GT3 RS's 992 cabin goes in (same car underneath)
+    donor={"car": "GT3RS", "box": (-0.74, 0.74, -1.0, 0.95, 0.12, 1.3),
+           "skip": r"carPaint|glass|antichrome\.002|carbon_roof|Scene_-_Root|amdb11|headlight_1\.001_1"},
+    emblems=[
+        {"on": r"^Material\.053$", "maker": "porsha", "scale": 0.9},      # the crest on the bonnet
+    ],
+    edits={},
+)
+
+ORDER = ["M4", "M2", "M5", "M8", "M3", "M3T", "G63", "GT3RS", "GRONOS", "911TS"]
 
 # ============================================================================= helpers
 
@@ -1097,6 +1138,7 @@ class Car:
         self.mat_info = {}      # source material name -> {"diffuse": file, "base": rgba}
         self.parts = []         # [object] with ob["role"], ob["quad"], ob["chain"]
         self.ref = {}
+        self.donor = None       # a car whose cabin this one borrows (see merge_donor)
 
     # ---------------------------------------------------------------- import
     def load(self):
@@ -1182,6 +1224,8 @@ class Car:
     def mat_class(self, mname, obname=""):
         if mname.startswith("RC_Emblem_"):
             return {"c": "tex", "r": 0.25, "m": 0.6}
+        if self.donor and mname in self.donor.mat_info:
+            return self.donor.mat_class(mname, obname)
         for rx, c in self.cfg["mats"]:
             if re.search(rx, mname):
                 return c
@@ -1740,8 +1784,50 @@ class Car:
     def texture_for(self, mname, cls):
         if cls.get("plate"):
             return plate_image(txt=self.cfg.get("plate_txt", "BEMZE"))
+        if self.donor and mname in self.donor.mat_info:
+            return self.donor.texture_for(mname, cls)
         f = cls.get("tex") or self.mat_info.get(mname, {}).get("diffuse")
         return self.tex.get(f) if f else None
+
+    def merge_donor(self):
+        """A model without a cabin borrows one: the donor car (same generation, same wheelbase) is loaded and
+        normalised the same way, and its faces inside `box` (normalised Blender coords: the cabin), minus the
+        `skip` materials (its paint, glass ...), join this car; its steering wheel comes along as the steer part."""
+        dc = self.cfg.get("donor")
+        if not dc:
+            return
+        d = Car(dc["car"])
+        d.load()
+        d.classify()
+        d.normalise()
+        x0, x1, y0, y1, z0, z1 = dc["box"]
+        n = 0
+        for ob in list(d.parts):
+            if ob["role"] not in ("body", "steer"):
+                continue
+            names = [s.material.name if s.material else "" for s in ob.material_slots]
+
+            def inside(p, names=names):
+                c = p.center
+                nm = names[p.material_index] if p.material_index < len(names) else ""
+                return x0 < c.x < x1 and y0 < c.y < y1 and z0 < c.z < z1 and not re.search(dc["skip"], nm)
+            if ob["role"] == "steer":
+                part = ob
+            else:
+                part = split_faces(ob, inside, ob.name + "_cabin")
+            if part is None:
+                continue
+            part["role"] = ob["role"]
+            part["quad"] = ""
+            part["chain"] = "donor/" + ob["chain"]
+            part["mats"] = ob["mats"]
+            self.parts.append(part)
+            n += tris(part)
+        for ob in d.parts:
+            if alive(ob) and ob not in self.parts:
+                bpy.data.objects.remove(ob)
+        self.donor = d
+        print("[%s] cabin from %s: %d tris" % (self.key, dc["car"], n))
 
     def bake_materials(self, props, atlas_size, mat_name):
         """Final materials for `props` (all sharing one atlas): UVs into the atlas, vertex colours, slots."""
@@ -2157,6 +2243,7 @@ def main():
         car.load()
         car.classify()
         car.normalise()
+        car.merge_donor()
         car.claim_wheel_parts()
         car.add_emblems()
         car.fix_roundels()

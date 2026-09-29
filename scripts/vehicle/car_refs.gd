@@ -142,6 +142,14 @@ const MODELS := {
 		"box": Vector3(2.099, 1.834, 4.579), "box_center": Vector3(-0.0, 1.2468, -0.0367), "door": Vector3(-1.049, 0.86, 0.216),
 		"wheel_prop": "RC_GRONOS_Wheel", "caliper_prop": "RC_GRONOS_Caliper", "steer_prop": "RC_GRONOS_Steer",
 		"kit": true, "tail_mat": true},
+	"RC_911TS": {
+		"wheelbase": 2.4423, "wheel_r": 0.3343, "wheel_r_rear": 0.3478,
+		"wheels": {"FL": Vector3(-0.7602, 0.3353, -1.2212), "FR": Vector3(0.7567, 0.3353, -1.2212), "RL": Vector3(-0.7721, 0.3478, 1.2212), "RR": Vector3(0.7757, 0.3478, 1.2212)},
+		"eye": Vector3(-0.3435, 1.1055, 0.1949), "wheel_hub": Vector3(-0.3435, 0.8555, -0.2451), "column_tilt": -0.3314,
+		"head": [Vector3(-0.7043, 0.6679, -1.6398), Vector3(0.6991, 0.6679, -1.6398)], "tail": [Vector3(-0.5267, 0.7244, 1.9466), Vector3(0.5274, 0.7241, 1.9455)],
+		"box": Vector3(1.913, 1.194, 4.532), "box_center": Vector3(0.0072, 0.7176, 0.0096), "door": Vector3(-0.956, 0.86, 0.295),
+		"wheel_prop": "RC_911TS_Wheel", "wheel_prop_rear": "RC_911TS_WheelR", "caliper_prop": "RC_911TS_Caliper", "steer_prop": "RC_911TS_Steer",
+		"kit": true, "tail_mat": true},
 }
 
 

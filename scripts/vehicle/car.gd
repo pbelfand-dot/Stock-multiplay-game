@@ -420,6 +420,8 @@ func _drive(dt: float) -> void:
 	var hold := grip * G * (0.22 if in_handbrake else (0.45 if mushy else 1.25))
 	hold *= 1.0 - 0.15 * maxf(load_f, 0.0)                 # braking hard in a turn: the tail goes light
 	var power := clampf((4.6 - float(d.zero60)) / 2.5, 0.0, 0.4) if not ai else 0.0   # M3/M4/M8 a lot, the 540i / beater none
+	if d.get("awd", false):
+		power *= 0.4                                        # four-wheel drive: the fronts pull it straight
 	var f0 := (-global_basis.z).dot(flat)
 	hold *= 1.0 - power * in_throttle * absf(_steer_in) * clampf(1.0 - f0 / (0.45 * top), 0.0, 1.0)
 	if sp > 0.05:
