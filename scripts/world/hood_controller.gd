@@ -257,6 +257,7 @@ func open_taxi(stand: int) -> void:
 	var mine: String = m.house_of(me())
 	if mine != "":
 		opts.append(["home", "MY HOUSE — %s" % house(mine).address])
+	opts.append(["dealer", "BEMZE MOTORS — the dealership off the highway"])
 	world.hud.close_modals()
 	ui.open_taxi(hood.taxi[stand].name, opts)
 
@@ -275,6 +276,12 @@ func ride(dest: String, instant := false) -> bool:
 	if rush and m.car_of(me()) != "":
 		world.hud.show_toast("Rush hour: no cabs for you. Your car's in the driveway. DRIVE.", Color(1, 0.6, 0.3))
 		return false
+	# a real cab: it pulls up here and drives you there (CabRide); instant = the old fade (tests)
+	if not instant and world.cab != null and p.driving == null and world.cab.plan(dest).size() >= 4:
+		if rush:
+			m.request_cab()      # no car: the meter runs (and rush hour's slow)
+		close_ui()
+		return world.cab.start(dest, rush)
 	if rush:                     # no car: the cab crawls through rush hour and the meter runs
 		m.request_cab()
 		world.hud.blackout(Rules.CAB_RIDE_S, "In a cab. Bumper to bumper.\nThe meter says $%d." % int(Rules.CAB_FARE))
@@ -304,6 +311,9 @@ func _dest(dest: String) -> Dictionary:
 			return {"pos": hood.taxi[0].pos, "yaw": hood.taxi[0].yaw, "name": "downtown"}
 		"hood":
 			return {"pos": hood.taxi[1].pos, "yaw": hood.taxi[1].yaw, "name": "Magnolia Heights"}
+		"dealer":
+			var dr: PackedVector3Array = hood.hw.paths["dealer_road"].pts
+			return {"pos": dr[0] + Vector3(-2.0, 0.3, -8.0), "yaw": 0.0, "name": "BEMZE Motors"}
 		"home":
 			var id: String = m.house_of(me())
 			if id == "":
@@ -325,6 +335,8 @@ func _arrive(p, where: Dictionary) -> void:
 		world.hud.show_toast("You wake up at home. The alarm clock says you're LATE.", Color(1.0, 0.5, 0.4))
 	elif where.name == "downtown":
 		world.hud.show_toast("Downtown. The BAGHOLDER CAPITAL lobby is up the block.", Color(0.95, 0.9, 0.6))
+	elif where.name == "BEMZE Motors":
+		world.hud.show_toast("BEMZE Motors. Sales is inside, at the desk.", Color(0.5, 0.75, 1.0))
 	else:
 		world.hud.show_toast("Magnolia Heights. Starter homes, cheap-ish. Look for the FOR SALE signs.", Color(0.7, 1.0, 0.7))
 

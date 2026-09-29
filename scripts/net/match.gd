@@ -910,7 +910,7 @@ func has_rank_for(peer: int, gate: String) -> bool:
 func _careers_on_disk() -> bool:
 	return Net.is_server() and not Config.cli.has("smoke") and not Config.cli.has("savecheck") and not Config.cli.has("eventcheck") \
 			and not Config.cli.has("hoodcheck") and not Config.cli.has("hoodshots") \
-			and not Config.cli.has("commutecheck") and not Config.cli.has("shots")   # tests never touch the real careers
+			and not Config.cli.has("commutecheck") and not Config.cli.has("shots") and not Config.cli.has("cabcheck")   # tests never touch the real careers
 
 
 func _load_career(id: int) -> void:

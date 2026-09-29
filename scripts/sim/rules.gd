@@ -101,6 +101,8 @@ const CARS := {
 	"bz_m8": {"name": "BEMZE M8 Competition", "price": 165_000.0, "model": "Bemze_M8", "top": 76.0, "zero60": 3.0, "grip": 0.95, "mass": 1.9,
 		"paint": Color(0.55, 0.05, 0.08), "desc": "The flagship GT. Fastest thing on the lot."},
 	# not for sale: highway patrol (an M8 outruns it, an M3 has to lose it in traffic)
+	"taxi": {"name": "Yellow Cab", "price": 0.0, "model": "TCar_Taxi", "top": 42.0, "zero60": 8.0, "grip": 0.8, "mass": 1.5,
+		"paint": Color(1.0, 0.78, 0.05), "desc": ""},
 	"cop": {"name": "Highway Patrol", "price": 0.0, "model": "Cop_Interceptor", "top": 70.0, "zero60": 3.8, "grip": 1.0, "mass": 2.0,
 		"paint": Color(0.95, 0.95, 0.95), "desc": ""},
 }

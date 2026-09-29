@@ -1316,10 +1316,11 @@ func _taxi_stands() -> void:
 		t3.outline_size = 6
 		var front := Basis(Vector3.UP, rot) * Vector3(0, 0, 1)
 		taxi.append({"pos": pos + front * 1.4 + Vector3(0, 0.15, 0), "yaw": rot + PI, "name": spots[i][2]})
-		# a cab waiting at the curb
-		var cab_at := pos + front * 3.4
-		parked_car("TCar_Taxi", Vector3(cab_at.x - 2.0, 0.0, cab_at.z), PI / 2, g_dyn)
-		solid(Vector3(4.6, 1.5, 1.9), Vector3(cab_at.x - 2.0, 0.75, cab_at.z), 0.0, g_road)
+		# a cab waiting at the curb downtown (on Magnolia St it would sit in the lane the real cabs drive)
+		if i == 0:
+			var cab_at := pos + front * 3.4
+			parked_car("TCar_Taxi", Vector3(cab_at.x - 2.0, 0.0, cab_at.z), PI / 2, g_dyn)
+			solid(Vector3(4.6, 1.5, 1.9), Vector3(cab_at.x - 2.0, 0.75, cab_at.z), 0.0, g_road)
 	# spawn facing along the sidewalk: downtown looks west down the block, the hood east down Magnolia
 	taxi[0].yaw = PI / 2
 	taxi[1].yaw = -PI / 2
