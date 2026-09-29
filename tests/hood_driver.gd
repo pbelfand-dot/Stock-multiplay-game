@@ -68,6 +68,46 @@ func _run() -> void:
 
 # ================================================================== checks
 
+## Walk every road path cars drive; raycast down at the lane center and both
+## tire tracks every 2 m. Returns ["path@station(offset)", ...] where the ray
+## lands on the ground slab (y < -0.1) or nothing (a hole).
+func _road_gaps(space: PhysicsDirectSpaceState3D) -> Array:
+	var hw = hood.hw
+	var out: Array = []
+	var tracks := {}
+	for nm in hw.paths:
+		tracks[nm] = hw.paths[nm]
+	for r in ["home_to_office", "office_to_home"]:
+		var pts: PackedVector3Array = hw.route(r).points
+		tracks[r] = pts
+	for nm in tracks:
+		var pts: PackedVector3Array = tracks[nm].pts if tracks[nm] is Object else tracks[nm]
+		var run := 0
+		for i in pts.size() - 1:                 # segments (a path's very end sits on a mesh edge)
+			var a: Vector3 = pts[maxi(i - 1, 0)]
+			var b: Vector3 = pts[mini(i + 1, pts.size() - 1)]
+			var t := Vector3(b.x - a.x, 0, b.z - a.z).normalized()
+			if t == Vector3.ZERO:
+				continue
+			var r := t.cross(Vector3.UP)
+			var bad := ""
+			for off in [-0.9, 0.0, 0.9]:
+				var at: Vector3 = pts[i].lerp(b, 0.37) + r * off    # between the mesh's seams
+				var q := PhysicsRayQueryParameters3D.create(at + Vector3(0, 2.5, 0), at + Vector3(0, -3.0, 0))
+				var hit := space.intersect_ray(q)
+				if hit.is_empty() or hit.position.y < at.y - 0.1:
+					bad = "%s@%d/%d(%.1f) %s hit %s" % [nm, i, pts.size(), off, str(Vector3i(at)),
+							"nothing" if hit.is_empty() else "%s y=%.2f (want %.2f)" % [hit.collider.name, hit.position.y, at.y]]
+					break
+			if bad != "":
+				run += 1
+				if run == 1:
+					out.append(bad)
+			else:
+				run = 0
+	return out
+
+
 func _check() -> void:
 	var p = w.local_player
 	var me := Net.my_id()
@@ -111,6 +151,14 @@ func _check() -> void:
 			_done(false, "nothing to stand on at the %s (%s)" % [k, str(from)])
 			return
 		_say("ground at the %s: y=%.2f" % [k, hit.position.y])
+	# ---- the roads connect: under every tire track on every path cars take
+	# (ramps, local roads, the roundabout loops, the commute both ways) there's
+	# pavement, not the grass 25 cm down
+	var gaps := _road_gaps(space)
+	if not gaps.is_empty():
+		_done(false, "%d spots with no road under the lane, e.g. %s" % [gaps.size(), str(gaps)])
+		return
+	_say("roads connect: pavement under every lane of every path")
 	# ---- the realtor: open a listing for a house nobody owns
 	var idx: int = hood.buyable["ranch_a"]
 	w.hood.interact({"type": "hood_sign", "id": idx})
@@ -468,6 +516,17 @@ func _shots() -> void:
 		cam.position = hw.point(Highway.SB_HOOD - 60.0, 40.0, 400.0)
 		await _frames(4)
 		await _snap("h00d_map_hood_interchange")
+		# close-ups of every place two roads meet
+		cam.size = 70.0
+		var joins := {"h00e_join_dt_roundabout": hw.roundabout_dt, "h00f_join_dt_ramps": hw.junction_dt,
+			"h00g_join_hood_ramps": hw.junction_hood, "h00h_join_hood_roundabout": hw.roundabout_hood,
+			"h00i_join_dealer_exit": hw.paths["dealer_off"].at(hw.paths["dealer_off"].length),
+			"h00j_join_dealer_levee": hw.paths["dealer_road"].at(hw.paths["dealer_road"].length)}
+		for k in joins:
+			var at: Vector3 = joins[k]
+			cam.position = Vector3(at.x, 150.0, at.z)
+			await _frames(4)
+			await _snap(k)
 		cam.current = false
 		cam.queue_free()
 		w.local_player.cam.current = true
