@@ -147,6 +147,58 @@ func _run() -> void:
 	_inputs(0, 0, 0.8, true)
 	await _secs(0.8)
 	_check(absf(car.slip) > 2.0, "handbrake slide: %.1f m/s sideways" % car.slip)
+	if key == "bz_m3":
+		await _pursuit()
 	print("[drive] %s" % ("DRIVE PASS" if fails.is_empty() else "DRIVE FAIL: " + ", ".join(fails)))
 	Engine.time_scale = 1.0
 	Sfx.quit_game(0 if fails.is_empty() else 1)
+
+
+## A patrol car chases a car doing big lazy S-bends at 30 m/s from 80 m back
+## (it has to catch up); then a wall between them (it has to get round it).
+func _pursuit() -> void:
+	var AI = load("res://scripts/vehicle/ai_driver.gd")
+	await _spawn("bz_m3", Vector3(1000, 0.1, 0))
+	var runner = car
+	car = null
+	var cop = Car.new()
+	cop.setup("cop", 99)
+	cop.simulate = true
+	cop.position = Vector3(1000, 0.1, 80)
+	add_child(cop)
+	var ai = AI.new()
+	ai.target = runner
+	cop.add_child(ai)
+	runner.speed = 30.0
+	runner.velocity = -runner.global_basis.z * 30.0
+	var closest := 999.0
+	var t := 0.0
+	while t < 20.0:
+		await get_tree().physics_frame
+		t += 1.0 / 60.0
+		runner.in_throttle = 0.6 if runner.speed < 30.0 else 0.0
+		runner.in_steer = sin(t * 0.6) * 0.35
+		closest = minf(closest, cop.global_position.distance_to(runner.global_position))
+	_check(closest < 12.0, "patrol car caught up from 80 m back (closest %.1f m)" % closest)
+	# the target stops behind a wall: the cop has to go round
+	runner.speed = 0.0
+	runner.velocity = Vector3.ZERO
+	runner.in_throttle = 0.0
+	runner.in_brake = 1.0
+	runner.in_steer = 0.0
+	var rp: Vector3 = runner.global_position
+	cop.global_position = rp + Vector3(0, 0.05, 45)
+	cop.rotation.y = 0.0
+	cop.speed = 0.0
+	cop.velocity = Vector3.ZERO
+	_wall(rp + Vector3(0, 1, 22), Vector3(14, 2, 1))
+	var got := 999.0
+	t = 0.0
+	while t < 20.0:
+		await get_tree().physics_frame
+		t += 1.0 / 60.0
+		got = minf(got, cop.global_position.distance_to(runner.global_position))
+	_check(got < 9.0 and runner.global_position.z > cop.global_position.z - 30.0,
+			"patrol car got round a wall to a stopped car (closest %.1f m)" % got)
+	cop.queue_free()
+	runner.queue_free()

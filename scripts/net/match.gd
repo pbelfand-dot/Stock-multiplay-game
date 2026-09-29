@@ -422,7 +422,7 @@ func request_pick_car(key: String) -> void:
 
 @rpc("any_peer", "call_local", "reliable")
 func _req_car(what: String, key: String, paint: int) -> void:
-	if not Net.is_server() or not Rules.CARS.has(key):
+	if not Net.is_server() or not key in Rules.CAR_ORDER:
 		return
 	var id := _sender()
 	_ensure_peer(id)
