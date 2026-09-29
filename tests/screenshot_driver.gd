@@ -108,6 +108,31 @@ func _run() -> void:
 			await _snap("hand_rot_%d" % k)
 		Sfx.quit_game()
 		return
+	if Config.cli.has("cabonly"):              # a real cab ride: pulls up, you in the back, the cabbie drives
+		var hb = world.builder.hood
+		world.local_player.teleport(hb.taxi[1].pos)
+		await get_tree().create_timer(0.5).timeout
+		world.hood.ride("downtown")
+		await get_tree().create_timer(1.0).timeout
+		await _snap("cab_a_pulling_out")
+		await get_tree().create_timer(5.0).timeout
+		await _snap("cab_b_roundabout")
+		await get_tree().create_timer(12.0).timeout
+		await _snap("cab_c_highway")
+		var c = world.cab.cab
+		var cam := Camera3D.new()
+		world.add_child(cam)
+		cam.fov = 40
+		c.get_parent().get_tree().paused = false
+		for k in 2:
+			cam.global_position = c.to_global(Vector3(4.5, 1.6, 0.8) if k == 0 else Vector3(0.0, 2.2, 7.0))
+			cam.look_at(c.to_global(Vector3(0, 0.8, 0.3)))
+			cam.current = true
+			await _frames(1)
+			await _snap("cab_d_close_%d" % k)
+		cam.current = false
+		Sfx.quit_game()
+		return
 	if Config.cli.has("phoneonly"):            # the phone: home screen + every app, then over the terminal
 		while m.phase != "trading":
 			await get_tree().process_frame

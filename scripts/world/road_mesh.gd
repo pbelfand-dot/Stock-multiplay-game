@@ -6,6 +6,7 @@ extends RefCounted
 var st := SurfaceTool.new()
 var faces := PackedVector3Array()     # collision triangles
 var count := 0
+var uvs := false                      # set before the first quad: every vertex gets a UV (quad_uv; plain quads get 0, 0)
 
 
 func _init() -> void:
@@ -26,8 +27,33 @@ func quad(a: Vector3, b: Vector3, c: Vector3, d: Vector3, col: Color, up: Vector
 	var nn := up.normalized()
 	st.set_color(col)
 	st.set_normal(nn)
+	if uvs:
+		st.set_uv(Vector2.ZERO)
 	for v in [a, b, c, a, c, d]:
 		st.add_vertex(v)
+	count += 1
+	if collide:
+		faces.append_array(PackedVector3Array([a, b, c, a, c, d]))
+
+
+## Textured quad (needs `uvs = true`): ua..ud are the corners' UVs.
+func quad_uv(a: Vector3, b: Vector3, c: Vector3, d: Vector3, ua: Vector2, ub: Vector2, uc: Vector2, ud: Vector2,
+		col: Color, up: Vector3, collide := false) -> void:
+	var n := (b - a).cross(c - a)
+	if n.dot(up) > 0.0:
+		var t := b
+		b = d
+		d = t
+		var tu := ub
+		ub = ud
+		ud = tu
+	st.set_color(col)
+	st.set_normal(up.normalized())
+	var vs := [a, b, c, a, c, d]
+	var us := [ua, ub, uc, ua, uc, ud]
+	for i in 6:
+		st.set_uv(us[i])
+		st.add_vertex(vs[i])
 	count += 1
 	if collide:
 		faces.append_array(PackedVector3Array([a, b, c, a, c, d]))
@@ -41,6 +67,8 @@ func tri(a: Vector3, b: Vector3, c: Vector3, col: Color, up: Vector3, collide :=
 		c = t
 	st.set_color(col)
 	st.set_normal(up.normalized())
+	if uvs:
+		st.set_uv(Vector2.ZERO)
 	for v in [a, b, c]:
 		st.add_vertex(v)
 	if collide:
@@ -85,6 +113,23 @@ func commit(mat: Material) -> ArrayMesh:
 
 func empty() -> bool:
 	return count == 0
+
+
+## A 4-sided bar from a to b (pipes, rails, arms, braces): `w` wide, `h` tall.
+func bar(a: Vector3, b: Vector3, w: float, h: float, col: Color, collide := false) -> void:
+	var f := (b - a).normalized()
+	var side := f.cross(Vector3.UP)
+	if side.length_squared() < 1e-6:
+		side = Vector3.RIGHT
+	side = side.normalized() * (w / 2.0)
+	var up := side.cross(f).normalized() * (h / 2.0)
+	if up.y < 0.0:
+		up = -up
+	var q := [side + up, -side + up, -side - up, side - up]
+	for i in 4:
+		var p0: Vector3 = q[i]
+		var p1: Vector3 = q[(i + 1) % 4]
+		quad(a + p0, b + p0, b + p1, a + p1, col if i != 2 else col.darkened(0.2), (p0 + p1).normalized(), collide)
 
 
 ## A MeshInstance3D (+ a static body from the collision faces, if any) under parent.

@@ -37,9 +37,14 @@ const MoneyCounter = preload("res://scripts/world/money_counter.gd")
 const CarScript = preload("res://scripts/vehicle/car.gd")
 const PursuitScript = preload("res://scripts/vehicle/pursuit.gd")
 const DealershipScript = preload("res://scripts/world/dealership.gd")
+const CabRideScript = preload("res://scripts/world/cab_ride.gd")
+const CharacterScript = preload("res://scripts/art/character.gd")
 var dealership
 var pursuit
 var cars := {}                  # peer -> their car (ours is simulated here, theirs follow the network)
+var cabs := {}                  # peer -> the cab they're riding in (see CabRide; same streaming as cars)
+var cab                         # CabRide: our own cab ride (scripts/world/cab_ride.gd)
+var _cab_send := 0.0
 var cars_node: Node3D
 var _car_send := 0.0
 var atms: Array = []            # ATM nodes (office by the elevator, street outside the bank)
@@ -102,6 +107,11 @@ func _ready() -> void:
 		dealership = DealershipScript.new(self)
 		dealership.build(builder.hood.hw.dealership_lot)
 		_nice_traffic()
+		_sync_traffic()
+		cab = CabRideScript.new()
+		cab.name = "CabRide"
+		add_child(cab)
+		cab.setup(self)
 
 
 # ---------------------------------------------------------------- players
@@ -298,6 +308,84 @@ func _car_tf(key: String, paint: Color, pos: Vector3, rot: Quaternion, spd: floa
 	c.net_state(pos, rot, spd, st, brake)
 
 
+## Everyone sees the same traffic: the host simulates it and streams it.
+func _sync_traffic() -> void:
+	var tr = traffic()
+	if tr == null:
+		return
+	if Net.is_server():
+		tr.snapshot_ready.connect(func(data: PackedByteArray):
+			if multiplayer.has_multiplayer_peer() and multiplayer.get_peers().size() > 0:
+				_traffic_snap.rpc(data))
+	else:
+		tr.set_remote(true)
+
+
+@rpc("authority", "call_remote", "unreliable_ordered")
+func _traffic_snap(data: PackedByteArray) -> void:
+	var tr = traffic()
+	if tr:
+		tr.apply_snapshot(data)
+
+
+## A yellow cab (with a cabbie at the wheel) for `peer`'s ride. Ours the AI
+## drives here; theirs follow the network.
+func spawn_cab(peer: int, pos: Vector3, yaw: float):
+	remove_cab(peer, false)
+	var c = CarScript.new()
+	c.setup("taxi", peer)
+	c.name = "Cab_%d" % peer
+	c.position = pos
+	c.rotation.y = yaw
+	cars_node.add_child(c)
+	var driver = CharacterScript.new()
+	driver.name = "Cabbie"
+	driver.build(CharacterScript.full_look({"outfit": "tee", "suit": Color(0.22, 0.24, 0.2), "pants": Color(0.2, 0.2, 0.24),
+			"hat": "cap", "hat_color": Color(0.95, 0.75, 0.1), "beard": "stubble", "hair": Color(0.1, 0.08, 0.06),
+			"skin": Color(0.72, 0.52, 0.38), "watch": "none", "ring": false}))
+	driver.pose = "drive"
+	var eye: Vector3 = c.ref.eye
+	driver.position = Vector3(eye.x, eye.y - 1.19, eye.z + 0.05)
+	c.add_child(driver)
+	cabs[peer] = c
+	track_car(c, true)
+	return c
+
+
+func remove_cab(peer: int, tell := true) -> void:
+	var c = cabs.get(peer)
+	if c != null and is_instance_valid(c):
+		track_car(c, false)
+		c.queue_free()
+	cabs.erase(peer)
+	if tell and peer == Net.my_id() and multiplayer.has_multiplayer_peer():
+		_cab_gone.rpc()
+
+
+## Stream our cab like our car (20x a second while we ride).
+func send_cab(c) -> void:
+	if _cab_send > 0.0 or not multiplayer.has_multiplayer_peer():
+		return
+	_cab_send = 0.05
+	_cab_tf.rpc(c.global_position, c.quaternion, c.speed, c.steer, c.in_brake > 0.05)
+
+
+@rpc("any_peer", "unreliable_ordered")
+func _cab_tf(pos: Vector3, rot: Quaternion, spd: float, st: float, brake: bool) -> void:
+	var peer := multiplayer.get_remote_sender_id()
+	if not Net.players.has(peer):
+		return
+	var c = cabs.get(peer)
+	if c == null or not is_instance_valid(c):
+		c = spawn_cab(peer, pos, 0.0)
+	c.net_state(pos, rot, spd, st, brake)
+
+
+@rpc("any_peer", "reliable")
+func _cab_gone() -> void:
+	remove_cab(multiplayer.get_remote_sender_id(), false)
+
+
 ## Now and then a BEMZE in traffic (in its factory color).
 func _nice_traffic() -> void:
 	var tr = traffic()
@@ -342,6 +430,10 @@ func _npc_car_gone(id: int) -> void:
 
 func _tick_cars(delta: float) -> void:
 	_car_send = maxf(_car_send - delta, 0.0)
+	_cab_send = maxf(_cab_send - delta, 0.0)
+	for peer in cabs.keys():
+		if not Net.players.has(peer):
+			remove_cab(peer, false)
 	var me := Net.my_id()
 	var mine = cars.get(me)
 	if mine and is_instance_valid(mine) and (local_player == null or local_player.driving != mine):

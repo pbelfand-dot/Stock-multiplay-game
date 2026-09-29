@@ -876,7 +876,7 @@ func _tick_rides() -> void:
 	else:
 		if rush:
 			rides_box.add_child(_wrap(UI.lbl("Rush hour: bumper to bumper, %s on the meter." % Rules.money(Rules.CAB_FARE), 15, Color(1, 0.8, 0.4))))
-		for d in [["downtown", "To the office (downtown)"], ["home", "Home"], ["hood", "Magnolia Heights"]]:
+		for d in [["downtown", "To the office (downtown)"], ["home", "Home"], ["hood", "Magnolia Heights"], ["dealer", "BEMZE Motors"]]:
 			if d[0] == "home" and m.house_of(me) == "":
 				continue
 			var b := UI.btn(d[1], Color(0.55, 0.45, 0.08), 17)

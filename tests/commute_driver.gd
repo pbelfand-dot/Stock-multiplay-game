@@ -58,6 +58,10 @@ func _run() -> void:
 	if not w.hood.ride("downtown"):
 		_done(false, "no cab without a car in the morning")
 		return
+	if not w.cab.active or me.riding == null:
+		_done(false, "no cab came (active %s, riding %s)" % [w.cab.active, me.riding])
+		return
+	w.cab.skip()                  # skip the ride: in rush hour the minutes still go by (a blackout)
 	if not await _wait(func(): return m.ledger.get_acct(0).balance <= bal0 - Rules.CAB_FARE + 0.5, 3.0) or not w.hud.busy():
 		_done(false, "cab fare / ride wrong: %f -> %f, riding %s" % [bal0, m.ledger.get_acct(0).balance, w.hud.busy()])
 		return

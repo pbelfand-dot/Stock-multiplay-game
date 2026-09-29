@@ -69,6 +69,8 @@ const MODELS := {
 
 
 static func get_ref(model: String) -> Dictionary:
+	if model == "TCar_Taxi":
+		model = "TCar_Sedan_Silver"          # the yellow cab is the same traffic-kit sedan
 	var r: Dictionary = GENERIC.duplicate(true)
 	for k in MODELS.get(model, {}):
 		r[k] = MODELS[model][k]

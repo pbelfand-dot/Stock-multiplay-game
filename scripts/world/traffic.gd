@@ -1,6 +1,9 @@
 extends Node3D
-## Highway traffic: a microscopic simulation, client-side for now (every peer
-## runs its own; nothing is networked).
+## Highway traffic: a microscopic simulation. The HOST runs it (for everyone:
+## it stays awake while any player or player car is near the highway) and
+## broadcasts a snapshot SNAP_HZ times a second; clients don't simulate, they
+## coast each car along its lane / ramp between snapshots and blend out the
+## small corrections (see NETWORK below). Single player = the host.
 ##
 ## CAR FOLLOWING - the Intelligent Driver Model (IDM). Every car has its own
 ## desired speed (its lane's typical speed +-10%, Highway.LANE_SPEED: 35 / 31.5
@@ -35,14 +38,18 @@ extends Node3D
 ## cars into one MultiMesh per (model, surface) and per wheel type (~50 draw
 ## calls for the pool); colliders only wake up within BODY_DIST of the camera.
 ##
-## FUTURE (networked cut-up mode): per-car state is tiny (path/lane, s, v,
-## lane-change progress): the host could run this and broadcast
-## [id, lane, s, v] at ~5 Hz for clients to extrapolate.
+## NETWORK - per car 12 bytes: id, model (index into model_table()), flags
+## (waiting / on the mainline / eastbound), lane + the lane it's leaving, path
+## (index into the sorted Highway.paths names), s (f32), speed (cm/s, u16),
+## lane-change progress (u8). snapshot() packs them, apply_snapshot() unpacks
+## on a client (`remote` = true). The world sends them (World._traffic_snap).
 
 const Highway = preload("res://scripts/world/highway.gd")
 const PropKit = preload("res://scripts/art/prop_kit.gd")
 
 const SIM_HZ := 20.0
+const SNAP_HZ := 10.0           # host -> clients
+const SNAP_SNAP := 12.0         # a correction bigger than this (m) jumps instead of blending
 const POOL := 56
 const NICE_EVERY := 12          # about one in this many cars is a "nice car"
 const LC_TIME := 2.6            # seconds to cross into the next lane
@@ -63,7 +70,7 @@ const REGULAR := {
 	"TCar_Sedan_Silver": 5, "TCar_Sedan_White": 4, "TCar_Sedan_Black": 3, "TCar_Sedan_Grey": 4, "TCar_Sedan_Blue": 2,
 	"TCar_Sedan_Red": 2, "TCar_Hatch_Grey": 3, "TCar_Hatch_Blue": 2, "TCar_Hatch_White": 2,
 	"TCar_SUV_Black": 3, "TCar_SUV_White": 3, "TCar_SUV_Silver": 3, "TCar_SUV_Grey": 2,
-	"TCar_Pickup_White": 2, "TCar_Pickup_Grey": 2, "TCar_Pickup_Red": 1, "TCar_Taxi": 1,
+	"TCar_Pickup_White": 2, "TCar_Pickup_Grey": 2, "TCar_Pickup_Red": 1, "TCar_Taxi": 7,      # New York: yellow cabs everywhere
 	"TCar_Truck_White": 3, "TCar_Truck_Red": 2,
 }
 const NICE_DEFAULT := ["TCar_Coupe_Red", "TCar_Coupe_Black", "TCar_Coupe_Yellow"]
@@ -108,6 +115,7 @@ class Car:
 	var node: Node3D            # traffic: its AnimatableBody3D; obstacle: the registered node
 	var shape: CollisionShape3D
 	var lane_changes := 0
+	var vis := Vector3.ZERO     # client: where it was drawn minus where the host says (blends to 0)
 
 	func prog() -> float:       # distance along the direction of travel (mainline)
 		return s * dir
@@ -121,6 +129,11 @@ var awake := false
 var sim_time := 0.0
 var stats := {"lane_changes": 0, "merges": 0, "exits": 0, "recycled": 0, "steps": 0, "missed_exits": 0}
 var force_awake := false        # tests / screenshots
+var remote := false             # a client: cars come from the host's snapshots
+var snapshots := 0              # client: how many applied
+var _snap_t := 0.0
+var _path_names: Array = []
+signal snapshot_ready(data: PackedByteArray)
 var _acc := 0.0
 var _lists := {}                # "m<dir>_<lane>" / path name -> Array[Car] sorted by progress
 var _mm := {}                   # prop -> Array[MultiMeshInstance3D] (one per surface)
@@ -199,6 +212,170 @@ func car_of(body: Node) -> Car:
 	return null
 
 
+# ------------------------------------------------------------------ network
+
+## Every model a car can be, in an order all peers agree on (the nice ones are
+## added the same way everywhere, see World._nice_traffic).
+func model_table() -> Array:
+	var out: Array = REGULAR.keys()
+	for m in NICE_DEFAULT + nice_models:
+		if not out.has(m):
+			out.append(m)
+	return out
+
+
+func _paths() -> Array:
+	if _path_names.is_empty():
+		_path_names = hw.paths.keys()
+		_path_names.sort()
+	return _path_names
+
+
+## A client: stop simulating, hide everything until the host's first snapshot.
+func set_remote(on: bool) -> void:
+	remote = on
+	if on:
+		for c in cars:
+			c.waiting = true
+
+
+## The host's traffic, packed (see NETWORK in the header).
+func snapshot() -> PackedByteArray:
+	var models := model_table()
+	var paths := _paths()
+	var b := PackedByteArray()
+	b.resize(4 + cars.size() * 12)
+	b.encode_float(0, sim_time)
+	var o := 4
+	for c in cars:
+		b.encode_u8(o, c.id)
+		b.encode_u8(o + 1, maxi(models.find(c.model), 0))
+		b.encode_u8(o + 2, (1 if c.waiting else 0) | (2 if c.on_main else 0) | (4 if c.dir > 0 else 0))
+		b.encode_u8(o + 3, c.lane | (c.from_lane << 2))
+		b.encode_u8(o + 4, 255 if c.on_main or c.path == null else paths.find(str(c.path.name)))
+		b.encode_float(o + 5, c.s)
+		b.encode_u16(o + 9, clampi(int(c.v * 100.0), 0, 65535))
+		b.encode_u8(o + 11, int(clampf(c.lc_t, 0.0, 1.0) * 255.0))
+		o += 12
+	return b
+
+
+## A client: take the host's word for every car. Where a car was already
+## drawn close by, keep drawing it there and let the difference fade out.
+func apply_snapshot(b: PackedByteArray) -> void:
+	if b.size() < 4:
+		return
+	var models := model_table()
+	var paths := _paths()
+	var o := 4
+	while o + 12 <= b.size():
+		var id := b.decode_u8(o)
+		if id >= cars.size():
+			o += 12
+			continue
+		var c: Car = cars[id]
+		var fl := b.decode_u8(o + 2)
+		var was_shown := not c.waiting
+		var before := _xf(c) if was_shown else Transform3D()
+		if fl & 1:
+			c.waiting = true
+			o += 12
+			continue
+		var mi := b.decode_u8(o + 1)
+		var model: String = models[mi] if mi < models.size() else REGULAR.keys()[0]
+		if model != c.model:
+			_apply_model(c, model)
+			was_shown = false
+		c.waiting = false
+		c.on_main = (fl & 2) != 0
+		c.dir = 1 if (fl & 4) != 0 else -1
+		var ln := b.decode_u8(o + 3)
+		c.lane = ln & 3
+		c.from_lane = (ln >> 2) & 3
+		var pi := b.decode_u8(o + 4)
+		c.path = null if c.on_main or pi >= paths.size() else hw.paths[paths[pi]]
+		if not c.on_main and c.path == null:
+			c.waiting = true
+			o += 12
+			continue
+		c.s = b.decode_float(o + 5)
+		c.v = b.decode_u16(o + 9) / 100.0
+		c.lc_t = b.decode_u8(o + 11) / 255.0
+		var err := before.origin - _xf(c, false).origin if was_shown else Vector3.ZERO
+		c.vis = err if err.length() < SNAP_SNAP else Vector3.ZERO
+		o += 12
+	snapshots += 1
+
+
+## A client between snapshots: roll each car on along its lane / ramp at its
+## speed (no decisions; the next snapshot has them).
+func _coast(dt: float) -> void:
+	var fade := exp(-dt * 4.0)
+	for c in cars:
+		if c.waiting:
+			continue
+		c.vis *= fade
+		var ds: float = c.v * dt
+		c.wheel = fmod(c.wheel + ds / float(c.lay.get("r", 0.34)), TAU)
+		if c.on_main:
+			c.s = clampf(c.s + ds * c.dir, 0.0, hw.length)
+			if c.lc_t < 1.0:
+				c.lc_t = minf(c.lc_t + dt / LC_TIME * clampf(c.v / 8.0, 0.35, 1.0), 1.0)
+				if c.lc_t >= 1.0:
+					c.from_lane = c.lane
+			continue
+		c.s += ds
+		if c.s >= c.path.length:
+			var over: float = c.s - c.path.length
+			if c.path.next == "aux":
+				var dir: int = c.path.aux_dir
+				c.on_main = true
+				c.dir = dir
+				c.lane = 3
+				c.from_lane = 3
+				c.lc_t = 1.0
+				c.s = (hw.aux[dir].a if dir > 0 else hw.aux[dir].b) + over * dir
+				c.path = null
+			elif c.path.next != "" and hw.paths.has(c.path.next):
+				c.path = hw.paths[c.path.next]
+				c.s = over
+			else:
+				c.s = c.path.length
+
+
+## Test hook (smoke test): a client sends where it draws each car; the host
+## compares with its own and keeps the result in `probe_result`.
+var probe_result := {}
+
+
+func probe() -> void:
+	var pts := PackedFloat32Array()
+	for c in cars:
+		if not c.waiting:
+			var p := _xf(c).origin
+			pts.append_array([float(c.id), p.x, p.z])
+	_probe.rpc_id(1, pts)
+
+
+@rpc("any_peer", "reliable")
+func _probe(pts: PackedFloat32Array) -> void:
+	var n := 0
+	var good := 0
+	var worst := 0.0
+	var i := 0
+	while i + 2 < pts.size():
+		var c: Car = cars[int(pts[i])] if int(pts[i]) < cars.size() else null
+		if c != null and not c.waiting:
+			var p := _xf(c).origin
+			var e := Vector2(p.x - pts[i + 1], p.z - pts[i + 2]).length()
+			n += 1
+			worst = maxf(worst, e)
+			if e < 6.0:
+				good += 1
+		i += 3
+	probe_result = {"cars": n, "good": good, "worst": worst, "from": multiplayer.get_remote_sender_id()}
+
+
 # ------------------------------------------------------------------ pool
 
 func _pick_regular() -> String:
@@ -224,7 +401,12 @@ func _nice_list() -> Array:
 ## (Re)choose what this car is. Only called while it's out of sight (spawn / tunnel).
 func _assign_model(c: Car) -> void:
 	c.nice = rng.randi_range(1, NICE_EVERY) == 1
-	c.model = _nice_list()[rng.randi() % _nice_list().size()] if c.nice else _pick_regular()
+	_apply_model(c, _nice_list()[rng.randi() % _nice_list().size()] if c.nice else _pick_regular())
+
+
+func _apply_model(c: Car, model: String) -> void:
+	c.model = model
+	c.nice = not REGULAR.has(model)
 	var lay: Dictionary = nice_layouts.get(c.model, _layout.get(c.model, {}))
 	if lay.is_empty():   # another kit's car: size it from its mesh, wheels are part of the body
 		var ab := AABB()
@@ -879,6 +1061,14 @@ func _box_mm(colored: bool, col: Color) -> MultiMeshInstance3D:
 	return mmi
 
 
+## Where a car is drawn right now (between sim steps; plus a client's fading correction).
+func _xf(c, with_vis := true) -> Transform3D:
+	var xf := car_transform(c, c.v * _acc)
+	if with_vis:
+		xf.origin += c.vis
+	return xf
+
+
 func car_transform(c, lead := 0.0) -> Transform3D:
 	var fwd: Vector3
 	var p: Vector3
@@ -913,9 +1103,19 @@ func _camera_pos() -> Vector3:
 	return cam.global_position if cam else Vector3(1e6, 0, 1e6)
 
 
+static func _near(p: Vector3) -> bool:
+	return p.z > 120.0 and p.x > -120.0 and p.x < 1350.0 and p.z < 900.0
+
+
 func _process(delta: float) -> void:
 	var cp := _camera_pos()
-	var near := cp.z > 120.0 and cp.x > -120.0 and cp.x < 1350.0 and cp.z < 900.0
+	var near := _near(cp)
+	if not near and not remote:
+		# the host simulates for everyone: any player (on foot or in a car) near the highway
+		for o in obstacles:
+			if is_instance_valid(o.node) and _near(o.node.global_position):
+				near = true
+				break
 	awake = force_awake or near
 	for arr in _mm.values():
 		for mmi in arr:
@@ -923,16 +1123,26 @@ func _process(delta: float) -> void:
 	_blink.visible = awake
 	_lod_body.visible = awake
 	_lod_cab.visible = awake
-	if not awake:
-		return
-	_acc += delta
-	var n := 0
-	while _acc >= 1.0 / SIM_HZ and n < 4:
-		_acc -= 1.0 / SIM_HZ
-		step(1.0 / SIM_HZ)
-		n += 1
-	if n == 4:
+	if remote:
 		_acc = 0.0
+		_coast(delta)                      # (also while asleep: we're ready when we look)
+		if not awake:
+			return
+	else:
+		if not awake:
+			return
+		_acc += delta
+		var n := 0
+		while _acc >= 1.0 / SIM_HZ and n < 4:
+			_acc -= 1.0 / SIM_HZ
+			step(1.0 / SIM_HZ)
+			n += 1
+		if n == 4:
+			_acc = 0.0
+		_snap_t -= delta
+		if _snap_t <= 0.0:
+			_snap_t = 1.0 / SNAP_HZ
+			snapshot_ready.emit(snapshot())
 	if DisplayServer.get_name() == "headless":
 		return
 	_draw(cp)
@@ -945,7 +1155,7 @@ func _physics_process(_dt: float) -> void:
 	for c in cars:
 		var want := false
 		if on and not c.waiting:
-			var xf := car_transform(c, c.v * _acc)
+			var xf := _xf(c)
 			want = xf.origin.distance_squared_to(cp) < BODY_DIST * BODY_DIST
 			if want:
 				c.node.global_transform = xf
@@ -963,7 +1173,7 @@ func _draw(cp: Vector3) -> void:
 	for c in cars:
 		if c.waiting:
 			continue
-		var xf := car_transform(c, c.v * _acc)
+		var xf := _xf(c)
 		var d2 := xf.origin.distance_squared_to(cp)
 		if d2 > VIS_DIST * VIS_DIST:
 			continue

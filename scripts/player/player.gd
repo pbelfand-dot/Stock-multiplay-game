@@ -82,6 +82,8 @@ var photo_aim := false            # photo mode: hold the aim for the shot
 var driving = null
 var drive_cam: Camera3D
 var _in_car := false
+var riding = null               # a cab we're a passenger in (World.cab / CabRide drives it)
+var _in_cab := false            # (remote) they're riding in a cab
 var _cash_t := 0.0
 
 
@@ -271,16 +273,25 @@ func _physics_process(delta: float) -> void:
 	if is_local:
 		if driving != null:
 			_drive_tick(delta)
+		elif riding != null:
+			_seat_in_cab(riding)
 		else:
 			_local_move(delta)
 		_send_acc += delta
 		if _send_acc >= SEND_RATE:
 			_send_acc = 0.0
 			var flags := (1 if raining else 0) | (2 if diving > 0.0 else 0) | (4 if world.ui_blocking() else 0) \
-					| (emote << 3) | ((seat + 1) << 7) | ((1 << 12) if driving != null else 0)
+					| (emote << 3) | ((seat + 1) << 7) | ((1 << 12) if driving != null else 0) \
+					| ((1 << 13) if riding != null else 0)
 			world._p_tf.rpc(global_position, rotation.y, pitch, flags)
 	else:
-		if _has_target:
+		var their_car = world.cars.get(peer_id) if _in_car else null
+		var their_cab = world.cabs.get(peer_id) if _in_cab else null
+		if their_cab != null and is_instance_valid(their_cab):
+			_seat_in_cab(their_cab)           # glued to their cab's back seat (no lag behind it at 70 mph)
+		elif their_car != null and is_instance_valid(their_car):
+			_seat_at(their_car)
+		elif _has_target:
 			global_position = global_position.lerp(_target_pos, clampf(delta * 12.0, 0, 1))
 			if global_position.distance_to(_target_pos) > 6.0:
 				global_position = _target_pos
@@ -430,7 +441,9 @@ func _update_fx() -> void:
 	model.look_pitch(0.0 if is_local else pitch)   # our own neck stays put (the camera does the looking)
 	var jailed: bool = m != null and m.is_jailed(peer_id)
 	var airborne := global_position.y > 0.45
-	if driving != null or _in_car:
+	if riding != null or _in_cab:
+		model.pose = "sit"
+	elif driving != null or _in_car:
 		model.pose = "drive"
 	elif diving > 0.0:
 		model.pose = "dive"
@@ -532,11 +545,59 @@ func _drive_tick(delta: float) -> void:
 
 ## Our body rides in the driver's seat (everyone sees us in there).
 func _seat_in_car() -> void:
-	var car = driving
+	_seat_at(driving)
+
+
+func _seat_at(car) -> void:
 	var eye: Vector3 = car.ref.eye
 	global_position = car.to_global(Vector3(eye.x, eye.y - 1.19, eye.z + 0.05))
 	rotation = Vector3(0, car.global_rotation.y, 0)
 	velocity = Vector3.ZERO
+
+
+## The back seat, behind the front passenger.
+func _seat_in_cab(cab) -> void:
+	var eye: Vector3 = cab.ref.eye
+	global_position = cab.to_global(Vector3(-eye.x, eye.y - 1.19 - 0.4, eye.z + 1.0))
+	rotation = Vector3(0, cab.global_rotation.y, 0)
+	velocity = Vector3.ZERO
+
+
+## Into the back of a cab: the camera follows the cab, the driver drives.
+func board_cab(cab) -> void:
+	if driving != null or cab == null:
+		return
+	if EMOTES[emote] != "":
+		emote = 0
+		_emote_t = 0.0
+	stand_up()
+	riding = cab
+	collision_layer = 0
+	collision_mask = 0
+	if drive_cam == null:
+		drive_cam = DriveCam.new()
+		world.add_child(drive_cam)
+	drive_cam.follow(cab)
+	model.set_first_person(false)
+	_seat_in_cab(cab)
+	Sfx.play("click", -2.0, 0.6)
+
+
+## Out of the cab onto the curb at `at`.
+func leave_cab(at: Vector3, yaw: float) -> void:
+	if riding == null:
+		return
+	riding = null
+	collision_layer = 2
+	collision_mask = 1
+	teleport(at)
+	rotation.y = yaw
+	if drive_cam:
+		drive_cam.queue_free()
+		drive_cam = null
+	cam.current = true
+	model.set_first_person(true)
+	Sfx.play("click", -2.0, 0.5)
 
 
 # ---------------------------------------------------------------- guns (BIG IRON)
@@ -823,6 +884,7 @@ func net_tf(pos: Vector3, yaw: float, p: float, flags: int) -> void:
 	emote = (flags >> 3) & 15
 	_set_seat(((flags >> 7) & 31) - 1)
 	_in_car = flags & (1 << 12) != 0
+	_in_cab = flags & (1 << 13) != 0
 	if not _has_target:
 		global_position = pos
 		_has_target = true
