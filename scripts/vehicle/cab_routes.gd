@@ -74,7 +74,7 @@ static func _graph(hw, home: Dictionary) -> Dictionary:
 			street.call(row[i][0], row[i + 1][0], [Vector3(row[i][1], 0, row_z[1]), Vector3(row[i + 1][1], 0, row_z[1])])
 	street.call("ml", "pl", [Vector3(xe, 0, zm), Vector3(xe, 0, zp)])                 # Levee Rd
 	street.call("pd", "ring", [Vector3(r2.x, 0, zp), Vector3(r2.x, 0, zm + rb)])      # Delta Ave
-	var dr: Array = Array(hw.paths["dealer_road"].pts)                                # lot corner -> Levee's north end
+	var dr: Array = Array(hw.paths["dealer_road"].pts)                                # lot corner -> the east end of Magnolia St
 	var lot := [Vector3(dr[0].x + 2.0, 0, dr[0].z - 16.0)]
 	var to_lot: Array = [Vector3(xe, 0, zm)]
 	var rev := dr.duplicate()

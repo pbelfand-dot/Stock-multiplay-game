@@ -4,7 +4,8 @@ extends Node
 ## whole way (no "shortcut" skip), you're in the back the whole time, you get
 ## out at the destination and the cab leaves. Then "let me out here" (E) and
 ## SPACE (skip).
-##   godot --headless --path . -- --cabcheck --host --autostart --commute=0
+##   godot --headless --path . -- --cabcheck --host --autostart --commute=0 --day_seconds=1800
+##   (a long day: the rides take ~6 game minutes and the closing bell's summary would block E)
 
 var w
 var m
@@ -35,7 +36,7 @@ func _wait(cond: Callable, secs: float) -> bool:
 
 
 func _run() -> void:
-	get_tree().create_timer(300.0).timeout.connect(func(): _done(false, "global timeout"))
+	get_tree().create_timer(900.0).timeout.connect(func(): _done(false, "global timeout"))
 	if not await _wait(func(): return get_node_or_null("/root/Main/World/Match") != null, 30.0):
 		_done(false, "no match")
 		return
@@ -67,9 +68,12 @@ func _run() -> void:
 			L += w.cab.path[i].distance_to(w.cab.path[i + 1])
 		var t0 := Time.get_ticks_msec()
 		var in_back := true
-		while w.cab.active and (Time.get_ticks_msec() - t0) < 90000:
+		var last_at := Vector3.ZERO
+		while w.cab.active and (Time.get_ticks_msec() - t0) < 150000:
 			await get_tree().physics_frame
 			var c = w.cab.cab
+			if c != null and is_instance_valid(c):
+				last_at = c.global_position
 			if c != null and is_instance_valid(c) and p.global_position.distance_to(c.global_position) > 3.0:
 				in_back = false
 		var game_s := (Time.get_ticks_msec() - t0) / 1000.0 * Engine.time_scale
@@ -77,7 +81,7 @@ func _run() -> void:
 			_done(false, "%s -> %s: still driving after %.0f s (cab at %s)" % [from, leg[0], game_s, w.cab.cab.global_position])
 			return
 		if w.cab.skipped or w.cab.driven < L * 0.8:
-			_done(false, "%s -> %s: the cab didn't drive it (drove %.0f of %.0f m, skipped %s)" % [from, leg[0], w.cab.driven, L, w.cab.skipped])
+			_done(false, "%s -> %s: the cab didn't drive it (drove %.0f of %.0f m, skipped %s, last at %s)" % [from, leg[0], w.cab.driven, L, w.cab.skipped, last_at])
 			return
 		if not in_back or p.riding != null:
 			_done(false, "%s -> %s: we weren't in the back the whole ride / still in the cab" % [from, leg[0]])
@@ -101,7 +105,8 @@ func _run() -> void:
 	ev.pressed = true
 	Input.parse_input_event(ev)
 	if not await _wait(func(): return not w.cab.active, 15.0):
-		_done(false, "E didn't stop the cab")
+		_done(false, "E didn't stop the cab (stopping %s, speed %.1f, at %s, from %s)" % [w.cab._stopping,
+				w.cab.cab.speed if w.cab.cab else -1.0, w.cab.cab.global_position if w.cab.cab else Vector3.ZERO, w.cab.where_am_i()])
 		return
 	if p.global_position.distance_to(lot) < 60.0 or p.riding != null:
 		_done(false, "\"let me out here\" still took us to BEMZE")
