@@ -108,6 +108,22 @@ func _run() -> void:
 			await _snap("hand_rot_%d" % k)
 		Sfx.quit_game()
 		return
+	if Config.cli.has("phoneonly"):            # the phone: home screen + every app, then over the terminal
+		while m.phase != "trading":
+			await get_tree().process_frame
+		m.wallet[1] = 12_500.0
+		m._s_post({"speaker": "TRAMP", "role": "PRESIDENT", "headline": "TRAMP: WE ARE IN WAR", "day": 1})
+		await get_tree().create_timer(1.0).timeout
+		for a in ["home", "feed", "kwik", "bank", "maps", "rides", "tony", "homes"]:
+			hud.phone.open_app(a)
+			await get_tree().create_timer(1.2).timeout
+			await _snap("phone_" + a)
+		hud.open_interact({"type": "terminal", "id": 0})
+		hud.phone.open_app("home")
+		await get_tree().create_timer(1.0).timeout
+		await _snap("phone_over_terminal")
+		Sfx.quit_game()
+		return
 	if Config.cli.has("desksonly"):            # the desk CRTs showing the live trading screens
 		hud.root.visible = false
 		await get_tree().create_timer(3.0).timeout
@@ -598,14 +614,21 @@ func _run() -> void:
 	# the phone feed with a Tramp post dropping before the TV has it
 	p.teleport(Vector3(0, 0.1, 6))
 	p.rotation.y = 0.0
-	hud.phone.toggle()
+	hud.phone.open_app("home")
+	await get_tree().create_timer(0.8).timeout
+	await _snap("32_phone_home")
+	hud.phone.open_app("feed")
 	m._s_post({"speaker": "TRAMP", "role": "PRESIDENT", "headline": "TRAMP: WE ARE IN WAR", "day": 1})
 	await get_tree().create_timer(0.8).timeout
 	await _snap("32_phone_feed")
-	hud.phone.toggle()
+	hud.phone.open_app("kwik")
 	await get_tree().create_timer(2.5).timeout
 	await _snap("33_phone_kwik")
-	hud.phone.toggle()
+	for a in ["bank", "maps", "rides", "tony", "homes"]:
+		hud.phone.open_app(a)
+		await get_tree().create_timer(0.8).timeout
+		await _snap("34_phone_" + a)
+	hud.phone.close()
 	# the street outside: elevator down, then a tour of the block and the stores
 	var so: Vector3 = world.builder.street.ORIGIN
 	world.go_to_street()

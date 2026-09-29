@@ -126,4 +126,53 @@ func _run() -> void:
 		_done(false, "auto-sell prices wrong: entry %f tp %f sl %f" % [e, ps[0].tp, ps[0].sl])
 		return
 	_say("auto-sell set: sell at %.2f (high) / %.2f (low), entry %.2f" % [ps[0].tp, ps[0].sl, e])
+	if not await _phone_at_terminal():
+		return
 	_done(true)
+
+
+func _key(code: Key) -> void:
+	for pressed in [true, false]:
+		var ev := InputEventKey.new()
+		ev.keycode = code
+		ev.physical_keycode = code
+		ev.pressed = pressed
+		get_viewport().push_input(ev)
+		await get_tree().process_frame
+
+
+## The phone at the terminal: P takes it out and puts it away, ESC puts it
+## away (and leaves the terminal up), tapping app icons opens them and doesn't
+## trade, and every app draws.
+func _phone_at_terminal() -> bool:
+	var phone = hud.phone
+	var n0 := _positions().size()
+	await _key(KEY_P)
+	if not phone.open or not hud.terminal.visible:
+		_done(false, "P at the terminal didn't take the phone out (open %s, terminal %s)" % [phone.open, hud.terminal.visible])
+		return false
+	await get_tree().create_timer(0.6).timeout          # it slides up
+	await _click(phone.find_child("app_bank", true, false))
+	await get_tree().create_timer(0.7).timeout
+	if phone.app != "bank" or _positions().size() != n0:
+		_done(false, "tapping BANK: app %s, positions %d -> %d" % [phone.app, n0, _positions().size()])
+		return false
+	_say("P took the phone out at the terminal, tapped BANK")
+	for a in ["home", "feed", "kwik", "maps", "rides", "tony", "homes", "bank"]:
+		phone.open_app(a)
+		for f in 45:
+			await get_tree().process_frame
+		if phone.app != a:
+			_done(false, "couldn't open %s" % a)
+			return false
+	await _key(KEY_P)
+	if phone.open or not hud.terminal.visible:
+		_done(false, "P at the terminal didn't put the phone away (open %s, terminal %s)" % [phone.open, hud.terminal.visible])
+		return false
+	await _key(KEY_P)
+	await _key(KEY_ESCAPE)
+	if phone.open or not hud.terminal.visible:
+		_done(false, "ESC should put the phone away first (open %s, terminal %s)" % [phone.open, hud.terminal.visible])
+		return false
+	_say("every app opened; P and ESC put the phone away, the terminal stayed up")
+	return true

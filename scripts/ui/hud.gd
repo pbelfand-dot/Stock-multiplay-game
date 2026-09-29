@@ -394,6 +394,7 @@ func _build_modals() -> void:
 	root.add_child(unbox)
 	phone = PhoneScript.new()
 	phone.world = world
+	phone.hud = self
 	root.add_child(phone)
 	# blood pressure: red, pulsing vignette + the restroom fade
 	bp_vignette = ColorRect.new()
@@ -484,6 +485,7 @@ void fragment() {
 	v.add_child(leave)
 	pause_menu.visible = false
 	root.add_child(pause_menu)
+	root.move_child(phone, pause_menu.get_index())   # the phone sits over the terminal / ATM / showroom
 	popup = PopupScript.new()
 	root.add_child(popup)
 	root.move_child(mugshot, -1)
@@ -652,7 +654,7 @@ func _process(delta: float) -> void:
 	_tick_speedo()
 	_tick_sleep(delta)
 	_tick_pursuit()
-	var want_mouse := is_modal_open()
+	var want_mouse: bool = is_modal_open() or phone.open   # the phone's apps are clickable
 	if not DisplayServer.get_name() == "headless":
 		var mm := Input.MOUSE_MODE_VISIBLE if want_mouse else Input.MOUSE_MODE_CAPTURED
 		if Input.mouse_mode != mm and get_window().has_focus():
@@ -699,17 +701,19 @@ func _unhandled_input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 		return
 	if event.is_action_pressed("pause"):
-		if is_modal_open():
+		if phone.open:
+			phone.close()                       # ESC puts the phone away first
+		elif is_modal_open():
 			close_modals()
 		else:
 			pause_menu.visible = true
 		get_viewport().set_input_as_handled()
-	elif event.is_action_pressed("phone") and not is_modal_open():
-		phone.toggle()
+	elif event.is_action_pressed("phone") and not _chat_open and not summary.visible and not pause_menu.visible \
+			and (phone.open or photo == null or not photo.active):
+		phone.toggle()                          # works at the terminal too
 		get_viewport().set_input_as_handled()
-	elif event.is_action_pressed("phone_action") and phone.open and phone.app == "kwik" and not is_modal_open():
-		world.go_to_studio()
-		phone.toggle()
+	elif event.is_action_pressed("phone_action") and phone.open and phone.app == "kwik":
+		phone.go_to_studio()
 		get_viewport().set_input_as_handled()
 	elif event.is_action_pressed("chat") and not is_modal_open():
 		_chat_open = true
