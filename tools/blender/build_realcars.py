@@ -94,6 +94,8 @@ FONT_PATHS = ["/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
 GREY_TIRE = (0.045, 0.045, 0.05)
 DARK = (0.03, 0.03, 0.035)
 BLACK_GLOSS = (0.015, 0.015, 0.018)
+WINDOW_TINT = (0.62, 0.68, 0.72, 0.2)   # sRGB tint + alpha of window glass (clear: the seats and driver show)
+TAIL_EMIT = (0.6, 0.03, 0.02)   # the tail lamps' glow (the game scales it up on the brakes)
 
 CARS = {}
 
@@ -141,7 +143,7 @@ CARS["M2"] = dict(
     ],
     mats=[
         (r"Paint_Material", {"c": "paint"}),
-        (r"Window_Material|Glass_Light", {"c": "glass", "col": (0.05, 0.06, 0.07), "a": 0.55}),
+        (r"Window_Material|Glass_Light", {"c": "glass"}),
         (r"Red_glass", {"c": "glass", "tail": True}),
         (r"Base_Material", {"c": "flat", "col": BLACK_GLOSS, "r": 0.6, "m": 0.0, "w": 0.5}),
         (r"Coloured_Material", {"c": "flat", "col": None, "r": 0.45, "m": 0.1, "w": 0.6}),
@@ -176,7 +178,7 @@ CARS["M5"] = dict(
     ],
     mats=[
         (r"Paint_Material", {"c": "paint"}),
-        (r"Window_Material", {"c": "glass", "col": (0.05, 0.06, 0.07), "a": 0.55}),
+        (r"Window_Material", {"c": "glass"}),
         (r"red_glass", {"c": "glass", "tail": True}),
         (r"Base_Material", {"c": "flat", "col": BLACK_GLOSS, "r": 0.6, "m": 0.0, "w": 0.5}),
         (r"Coloured_Material", {"c": "flat", "col": None, "r": 0.45, "m": 0.1, "w": 0.6}),
@@ -229,7 +231,7 @@ CARS["M8"] = dict(
     ],
     mats=[
         (r"^m8f92_CarPaint2?$", {"c": "paint"}),
-        (r"^m8f92_glass$", {"c": "glass", "col": (0.05, 0.06, 0.07), "a": 0.55}),
+        (r"^m8f92_glass$", {"c": "glass"}),
         (r"^m8f92_glass_red$", {"c": "glass", "tail": True}),
         (r"^m8f92_(Engine|EngineA)$|^mirror_dummy", {"c": "drop"}),
         (r"^m8f92_Coloured$", {"c": "flat", "col": (0.025, 0.025, 0.028), "r": 0.45, "m": 0.05, "w": 0.6}),
@@ -280,7 +282,40 @@ CARS["M8"] = dict(
     },
 )
 
-ORDER = ["M4", "M2", "M5", "M8"]
+# the M3 (G80) comes merged by colour: one object per material all over the car, plain colours, no textures
+# (the roundels are geometry). The wheels are claimed back out of those objects by the tires' cylinders.
+ORANGE_F = (1.0, 0.45, 0.05)
+CARS["M3"] = dict(
+    fbx="m3-g80/source/bmw m3.fbx", fit_length=4.794,
+    texdirs=["m3-g80/textures"],
+    parts=[
+        (r"^model_23[/|]", "wheel"),                    # the four tires
+    ],
+    claim_wheels={"caliper": r"^Material\.009$"},
+    roundel={"blue": r"^Material\.007$", "white": r"^Material\.010$", "black": "Material.028"},
+    plate_mat=r"^Material\.016$",
+    mats=[
+        (r"^Material\.001$", {"c": "paint"}),
+        (r"^Material\.0(26|18)$", {"c": "glass"}),
+        (r"^Material\.009$", {"c": "flat", "col": (0.6, 0.04, 0.04), "r": 0.35, "m": 0.1}),                 # calipers
+        (r"^Material\.022$", {"c": "flat", "col": (0.75, 0.04, 0.03), "r": 0.25, "m": 0.0, "emit": TAIL_EMIT, "tail": True}),
+        (r"^Material\.027$", {"c": "flat", "col": (1.0, 1.0, 0.97), "r": 0.2, "m": 0.0, "emit": (1.0, 1.0, 0.97)}),   # DRLs
+        (r"^Material\.0(07|11)$", {"c": "flat", "col": ORANGE_F, "r": 0.3, "m": 0.2}),                    # roundel quarters
+        (r"^Material\.010$", {"c": "flat", "col": (0.96, 0.96, 0.94), "r": 0.3, "m": 0.2}),
+        (r"^Material\.016$", {"c": "tex", "plate": True, "r": 0.4, "m": 0.0}),
+        (r"^Material\.024$", {"c": "flat", "col": (0.75, 0.76, 0.78), "r": 0.25, "m": 0.8}),
+        (r"^Material\.003$", {"c": "flat", "col": (0.45, 0.46, 0.48), "r": 0.3, "m": 0.5}),                # rims
+        (r"^Material\.029$", {"c": "flat", "col": (0.72, 0.3, 0.08), "r": 0.7, "m": 0.0, "w": 0.3}),        # orange leather
+        (r"^Material\.0(28|25)$", {"c": "flat", "col": None, "r": 0.7, "m": 0.0, "w": 0.3}),              # interior
+        (r"^Material\.030$", {"c": "flat", "col": (0.03, 0.04, 0.06), "r": 0.15, "m": 0.0, "emit": (0.06, 0.12, 0.22)}),   # screens
+        (r"^Material\.021$", {"c": "flat", "col": (0.035, 0.035, 0.04), "r": 0.25, "m": 0.1}),             # carbon roof
+        (r".", {"c": "flat", "col": None, "r": 0.45, "m": 0.1, "w": 0.5}),
+    ],
+    steer=r".",
+    edits={},
+)
+
+ORDER = ["M4", "M2", "M5", "M8", "M3"]
 
 # ============================================================================= helpers
 
@@ -295,6 +330,11 @@ def gd(v):
 def srgb_to_lin(c):
     c = np.asarray(c, dtype=np.float64)
     return np.where(c <= 0.04045, c / 12.92, ((c + 0.055) / 1.055) ** 2.4)
+
+
+def lin_to_srgb(c):
+    c = np.clip(np.asarray(c, dtype=np.float64), 0, 1)
+    return np.where(c <= 0.0031308, c * 12.92, 1.055 * c ** (1 / 2.4) - 0.055)
 
 
 def reset():
@@ -544,7 +584,6 @@ def plate_image(w=512, h=256):
     return np.asarray(im, dtype=np.float32) / 255.0
 
 
-TAIL_EMIT = (0.6, 0.03, 0.02)   # the tail lamps' glow (the game scales it up on the brakes)
 LENS_Z = 0.9          # glass faces lower than this (m) are head / tail lamp lenses, not windows
 _SOFT = {}
 
@@ -776,7 +815,16 @@ class Car:
                         info["diffuse"] = l.from_node.image.filepath
             self.mat_info[m.name] = info
         dg = bpy.context.evaluated_depsgraph_get()
-        M = Matrix.Rotation(math.pi, 4, "Z") @ Matrix.Scale(self.cfg["scale"], 4)
+        scale = self.cfg.get("scale", 1.0)
+        if self.cfg.get("fit_length"):
+            # models at an arbitrary scale: size them to the real car's length
+            ys = []
+            for ob in new:
+                if ob.type == "MESH" and len(ob.data.polygons):
+                    ys += [(ob.matrix_world @ Vector(b)).y for b in ob.bound_box]
+            scale = self.cfg["fit_length"] / (max(ys) - min(ys))
+            print("[%s] scale %.5f (fit to %.3f m)" % (self.key, scale, self.cfg["fit_length"]))
+        M = Matrix.Rotation(math.pi, 4, "Z") @ Matrix.Scale(scale, 4)
         out = []
         for ob in new:
             if ob.type != "MESH" or len(ob.data.polygons) == 0:
@@ -895,6 +943,117 @@ class Car:
         print("[%s] roles: %s" % (self.key, ", ".join("%s %d" % kv for kv in sorted(roles.items()))))
 
     # ---------------------------------------------------------------- origin + wheels
+    def claim_wheel_parts(self):
+        """Models merged by material (one object = that colour all over the car): the loose pieces that sit
+        inside a tire's cylinder are that wheel's rim / disc / caliper."""
+        cw = self.cfg.get("claim_wheels")
+        if not cw:
+            return
+        n_claim = 0
+        for ob in [o for o in self.parts if o["role"] == "body"]:
+            me = ob.data
+            V = verts_np(ob)
+            names = [s.material.name if s.material else "" for s in ob.material_slots]
+            pick = {}
+            for faces in loose_parts(ob):
+                vi = np.unique(np.concatenate([np.array(me.polygons[f].vertices) for f in faces]))
+                P = V[vi]
+                for q, h in self.hubs.items():
+                    c = h["c"]
+                    d = P - c
+                    inside = (np.abs(d[:, 0]) < h["width"] / 2 + 0.03) & (np.hypot(d[:, 1], d[:, 2]) < h["r"] * 0.99)
+                    if inside.mean() > 0.97:
+                        mi = me.polygons[faces[0]].material_index
+                        role = "caliper" if re.search(cw.get("caliper", "x^"), names[mi] if mi < len(names) else "") else "wheel"
+                        pick.setdefault((role, q), set()).update(faces)
+                        break
+            if not pick:
+                continue
+            for (role, q), fs in pick.items():        # every piece from the untouched mesh (face indices hold)
+                part = copy_ob(ob, "%s_%s%s" % (ob.name, role, q))
+                delete_faces(part, lambda p, fs=fs: p.index in fs)
+                part["role"], part["quad"] = role, q
+                self.parts.append(part)
+                n_claim += len(fs)
+            taken = set().union(*pick.values())
+            delete_faces(ob, lambda p: p.index not in taken)
+        self.parts = [o for o in self.parts if alive(o) and len(o.data.polygons)]
+        print("[%s] claimed %d faces into the wheels / calipers" % (self.key, n_claim))
+
+    def fix_roundels(self):
+        """Roundels modelled as geometry: blue quarters -> orange, the white letters round the ring -> black
+        (white quarters stay)."""
+        rc = self.cfg.get("roundel")
+        if not rc:
+            return
+        blue, white = [], []
+        for ob in self.parts:
+            me = ob.data
+            names = [s.material.name if s.material else "" for s in ob.material_slots]
+            V = verts_np(ob)
+            for faces in loose_parts(ob):
+                mi = me.polygons[faces[0]].material_index
+                n = names[mi] if mi < len(names) else ""
+                if re.search(rc["blue"], n) or re.search(rc["white"], n):
+                    vi = np.unique(np.concatenate([np.array(me.polygons[f].vertices) for f in faces]))
+                    P = V[vi]
+                    (blue if re.search(rc["blue"], n) else white).append((ob, faces, P.mean(0), P))
+        # roundel centres: blue quarters close together
+        centres = []
+        for _, _, c, P in blue:
+            for cc in centres:
+                if np.linalg.norm(cc[0] - c) < 0.08:
+                    cc[1].append(P)
+                    break
+            else:
+                centres.append([c, [P]])
+        rounds = []
+        for c, Ps in centres:
+            A = np.concatenate(Ps)
+            m = (A.min(0) + A.max(0)) / 2
+            rounds.append((m, np.linalg.norm(A - m, axis=1).max()))
+        black = bpy.data.materials.get(rc["black"])
+        n_let = 0
+        for ob, faces, c, P in white:
+            if not rounds:
+                break
+            d, R = min(((np.linalg.norm(c - m), R) for m, R in rounds), key=lambda t: t[0])
+            if 1.25 * R < d < 3.0 * R:           # out on the ring: a letter
+                if black.name not in [s.material.name for s in ob.material_slots if s.material]:
+                    ob.data.materials.append(black)
+                bi = [s.material.name if s.material else "" for s in ob.material_slots].index(black.name)
+                for f in faces:
+                    ob.data.polygons[f].material_index = bi
+                n_let += 1
+        print("[%s] roundels: %d, letters blanked: %d" % (self.key, len(rounds), n_let))
+
+    def plate_uvs(self):
+        """Number plates without usable UVs: project the plate image straight on (each plate one piece)."""
+        rx = self.cfg.get("plate_mat")
+        if not rx:
+            return
+        for ob in self.parts:
+            me = ob.data
+            names = [s.material.name if s.material else "" for s in ob.material_slots]
+            if not any(re.search(rx, n) for n in names):
+                continue
+            if not me.uv_layers:
+                me.uv_layers.new(name="UV0")
+            uvl = me.uv_layers[0].data
+            V = verts_np(ob)
+            for faces in loose_parts(ob):
+                mi = me.polygons[faces[0]].material_index
+                if not re.search(rx, names[mi] if mi < len(names) else ""):
+                    continue
+                vi = np.unique(np.concatenate([np.array(me.polygons[f].vertices) for f in faces]))
+                lo, hi = V[vi].min(0), V[vi].max(0)
+                front = (lo[1] + hi[1]) / 2 > 0
+                for f in faces:
+                    for li in me.polygons[f].loop_indices:
+                        x, _, z = V[me.loops[li].vertex_index]
+                        u = (x - lo[0]) / max(hi[0] - lo[0], 1e-6)
+                        uvl[li].uv = ((1.0 - u) if front else u, (z - lo[2]) / max(hi[2] - lo[2], 1e-6))
+
     def normalise(self):
         hubs = {}
         for q in ("FL", "FR", "RL", "RR"):
@@ -1262,13 +1421,17 @@ class Car:
                     out_col[li, 3] = cls.get("a", 0.5)
                     fz = np.array([me.polygons[f].center.z for f in fl])
                     low = fz < LENS_Z
+                    # windows: clear, a light tint (you see the seats and the driver from outside)
+                    out_col[li, :3] = WINDOW_TINT[:3]
+                    out_col[li, 3] = WINDOW_TINT[3]
                     red = np.zeros(len(li), bool)
                     img = self.texture_for(n, cls) if cls.get("sample") else None
                     if img is not None:
-                        # tint and opacity from the model's glass texture (dark windows, clear / red lenses)
+                        # the model's glass texture: its dark frit borders stay dark, red lenses are brake lights
                         t = sample(img, uv0)
-                        out_col[li, :3] = t[:, :3] * 0.6
-                        out_col[li, 3] = np.clip(t[:, 3], 0.08, 0.8)
+                        frit = (t[:, 3] > 0.9) & (t[:, :3].max(1) < 0.15)
+                        out_col[li[frit], :3] = t[frit, :3]
+                        out_col[li[frit], 3] = 0.95
                         red = (t[:, 0] > 0.25) & (t[:, 0] > 2.0 * t[:, 1]) & low
                     elif not cls.get("keep"):
                         # below the beltline it's a lamp lens: nearly clear
@@ -1302,7 +1465,8 @@ class Car:
                         if img is not None:
                             col = sample(img, uv0)[:, :3]
                         else:
-                            col = np.tile(np.array(self.mat_info.get(n, {}).get("base", (0.5, 0.5, 0.5, 1))[:3]), (len(li), 1))
+                            base = np.array(self.mat_info.get(n, {}).get("base", (0.5, 0.5, 0.5, 1))[:3])
+                            col = np.tile(lin_to_srgb(base), (len(li), 1))       # (material colours are linear)
                     else:
                         col = np.tile(np.array(cls["col"], float), (len(li), 1))
                     out_col[li, :3] = col
@@ -1509,6 +1673,9 @@ def main():
         car.load()
         car.classify()
         car.normalise()
+        car.claim_wheel_parts()
+        car.fix_roundels()
+        car.plate_uvs()
         car.cut_steering_wheel()
         car.build_props()
         body = [car.props[n] for n in car.props if not re.search(r"_Wheel", n)]
