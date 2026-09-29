@@ -134,6 +134,10 @@ Every morning you wake up at home in Magnolia Heights (buy a house from a FOR SA
 
 Hold 110+ mph and highway patrol may clock you: lose them (230 m away for 6 s) or get pulled over (jail + a ticket). Crashes cost you speed. You start with no car: a cab from the Magnolia roundabout costs $300 and crawls through rush hour, so your first buy is the used TOROLA ($8K) at the BEMZE dealership (its own highway exit), which also sells the 540i, M2, M3, M4, M5 and M8 in ten factory colors.
 
+Cabs are real: call one at a taxi stand or from the phone's RIDES app and a yellow cab pulls up where you are (downtown, Magnolia St, your house, the BEMZE lot), you ride in the back and the cabbie drives you to downtown, Magnolia Heights, home or BEMZE on the real roads and highway. SPACE skips the ride (in rush hour the minutes still go by), E gets you out wherever you are.
+
+The highway is a New York expressway (brick walk-ups with water towers, Jersey barriers, green exit signs, potholes, yellow cabs) and its traffic is the same for everyone: the host runs it and streams it to the other players.
+
 ## Controls
 
 | Key | Action |
