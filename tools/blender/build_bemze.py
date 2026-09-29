@@ -859,11 +859,11 @@ class Car:
         self.zF = self.aF - s["ohf"]
         self.zR = self.aR + (s["L"] - s["WB"] - s["ohf"])
         self.Rt = s["tire_od"] / 2
-        self.Ra = self.Rt + s.get("arch_gap", 0.035)
+        self.Ra = self.Rt + s.get("arch_gap", 0.028)
         self.f = {k: curve(s[k]) for k in ("bot", "ys", "ysh", "e", "top", "te")}
         self.front_off = curve(s["front"])      # (y, dz) nose profile: z = zF + dz
         self.rear_off = curve(s["rear"])        # (y, dz) tail profile: z = zR - dz
-        self.nose_len = min(s.get("nose_len", 0.42), s["ohf"] - self.Ra - 0.03)
+        self.nose_len = min(s.get("nose_len", 0.34), s["ohf"] - self.Ra - 0.03)
         self.tail_len = min(s.get("tail_len", 0.34), (self.zR - self.aR) - self.Ra - 0.03)
         self.cf = s.get("cabin_floor", 0.27)
         g = s["gh"]
@@ -903,20 +903,29 @@ class Car:
                 return max(ys, h)
         return ys
 
+    def low_y(self, z):
+        lo = self.sp.get("low_line")
+        if not lo:
+            return self.f["ys"](z) + 0.25
+        return lerp(lo[0], lo[1], min(1.0, max(0.0, (z - self.aF) / self.WB)))
+
     def side_x(self, y, z, w, ys, ysh, e, te):
+        """Body side half-width at height y: rocker tuck, the lower door step (a crisp character line
+        rising toward the rear), a slight concave door face, the shoulder crease at ysh, and the upper
+        side leaning in to the beltline."""
         x = w
-        hb = 0.16
+        hb = 0.12
         if y < ys + hb:
-            x -= self.sp.get("tuck", 0.022) * (1 - (y - ys) / hb) ** 2
-        dip = self.sp.get("crease_dip", 0.013) * smooth01((z - self.zF - 0.25) / 0.6) * smooth01((self.zR - z - 0.2) / 0.5)
-        x -= dip * math.exp(-((y - (ysh - 0.045)) / 0.045) ** 2)
-        lo = self.sp.get("low_line")          # lower character line (rising toward the rear)
-        if lo:
-            yl = lerp(lo[0], lo[1], min(1.0, max(0.0, (z - self.aF) / self.WB)))
-            fz = smooth01((z - self.aF - self.Ra) / 0.3) * smooth01((self.aR - self.Ra - z) / 0.3)
-            x -= lo[2] * fz * (1.0 if y > yl else math.exp(-((y - yl) / 0.03) ** 2))
+            x -= self.sp.get("tuck", 0.014) * (1 - (y - ys) / hb) ** 2
+        lo = self.sp.get("low_line")
+        yl = self.low_y(z)
+        fz = smooth01((z - self.aF - self.Ra) / 0.25) * smooth01((self.aR - self.Ra - z) / 0.25)
+        if lo and y > yl + 0.002:
+            x -= lo[2] * fz
+        if yl < y < ysh:          # slightly hollow door face between the two lines
+            x -= self.sp.get("door_hollow", 0.006) * fz * math.sin(math.pi * (y - yl) / (ysh - yl))
         if y > ysh:
-            x -= te * ((y - ysh) / max(e - ysh, 1e-3)) ** 1.5
+            x -= te * ((y - ysh) / max(e - ysh, 1e-3)) ** 1.25
         return x
 
     def mode(self, z):
@@ -926,19 +935,29 @@ class Car:
             return "deck"
         return "cabin"
 
+    def dome_w(self, z):
+        dm = self.sp.get("dome")
+        if not dm:
+            return None
+        z0, z1, dw, dh = dm
+        return dw * lerp(0.62, 1.0, min(1.0, max(0.0, (z - z0) / (z1 - z0))))
+
     def hood_y(self, x, z, mode=None):
-        """Height of the hood / deck surface at (x, z) (centre crown + power dome)."""
+        """Height of the hood / deck surface at (x, z): centre crown + a stepped power dome whose crisp
+        edges converge toward the nose."""
         e = self.f["e"](z)
         top = self.f["top"](z)
         xE = self.w(z) - self.f["te"](z)
         u = min(1.0, abs(x) / max(xE, 1e-3))
-        y = e + (top - e) * (1 - u * u) ** 0.9
+        y = e + (top - e) * (1 - u ** 2.2)
         dm = self.sp.get("dome")
         if dm and (mode or self.mode(z)) == "hood":
             z0, z1, dw, dh = dm
             if z0 < z < z1:
-                fz = smooth01((z - z0) / 0.25) * smooth01((z1 - z) / 0.12)
-                fx = 1 - smooth01((abs(x) - dw + 0.05) / 0.1)
+                dw = self.dome_w(z)
+                fz = smooth01((z - z0) / 0.3) * smooth01((z1 - z) / 0.1)
+                ax = abs(x)
+                fx = 1.0 if ax <= dw - 0.012 else (0.0 if ax >= dw + 0.03 else (dw + 0.03 - ax) / 0.042)
                 y += dh * fz * fx
         return y
 
@@ -953,20 +972,28 @@ class Car:
         w = self.w(z)
         track = s["TF"] if z < 0 else s["TR"]
         x_in = min(track / 2 - s["tire_w"] / 2 - 0.05, w - 0.16)
+
+        def sx(y):
+            return self.side_x(y, z, w, ys, ysh, e, te)
         P = [(0.0, bot), (x_in, bot), (x_in, ya)]
-        P.append((self.side_x(ya, z, w, ys, ysh, e, te) - 0.03, ya))
-        y4 = ya + 0.012
-        P.append((self.side_x(y4, z, w, ys, ysh, e, te) - 0.008, y4))
-        top_side = ysh - 0.03
-        for f in (0.1, 0.3, 0.52, 0.8, 1.0):
-            y = y4 + (top_side - y4) * f
-            P.append((self.side_x(y, z, w, ys, ysh, e, te), y))
-        P.append((w - 0.001, ysh))
-        for g in (0.45, 0.8):
+        P.append((sx(ya) - 0.022, ya))
+        y4 = ya + 0.01
+        P.append((sx(y4) - 0.005, y4))
+        yl = self.low_y(z)
+        targets = [yl - 0.07, yl, yl + 0.012, lerp(yl, ysh, 0.55), ysh - 0.022]
+        prev = y4
+        for j, yt in enumerate(targets):          # indices 5..9 (6 / 7 = lower crease step)
+            room = (ysh - 0.006) - prev
+            y = max(yt, prev + min(0.008, room / (6 - j)))
+            y = min(y, ysh - 0.006 * (5 - j))
+            P.append((sx(y), y))
+            prev = y
+        P.append((w, ysh))                          # 10: shoulder crease
+        for g in (0.4, 0.78):
             y = ysh + (e - ysh) * g
-            P.append((self.side_x(y, z, w, ys, ysh, e, te), y))
+            P.append((sx(y), y))
         xE = w - te
-        P.append((xE, e))
+        P.append((xE, e))                           # 13: top edge
         if mode == "cabin":
             cf = self.cf
             inner = [(xE - 0.045, e - 0.004), (xE - 0.065, e - 0.06), (xE - 0.075, e - 0.2),
@@ -978,11 +1005,15 @@ class Car:
                 out.append((x, y))
             P.extend(out)
         else:
-            xs = [xE - 0.025, xE - 0.07, xE * 0.72, xE * 0.55, xE * 0.4, xE * 0.24, xE * 0.1, 0.0]
+            dw = self.dome_w(z) if mode == "hood" else None
+            if dw is None:
+                dw = 0.38 * xE
+            dw = min(dw, 0.55 * xE)
+            xs = [xE - 0.018, xE - 0.055, xE * 0.8, xE * 0.62, dw + 0.03, dw - 0.012, dw * 0.5, 0.0]
             for k, x in enumerate(xs):
                 y = self.hood_y(x, z, mode)
                 if k == 0:
-                    y = max(y, e + 0.008)
+                    y = max(y, e + 0.006)
                 P.append((x, y))
         assert len(P) == NB, len(P)
         return P
@@ -992,7 +1023,7 @@ class Car:
         """[(ring points [(x, y, z)], kind)] front to rear, including the collapsed nose/tail caps."""
         zF, zR = self.zF, self.zR
         nl, tl = self.nose_len, self.tail_len
-        f0 = self.sp.get("nose_round", 0.74)
+        f0 = self.sp.get("nose_round", 0.8)
         r0 = self.sp.get("tail_round", 0.86)
         rings = []
 
@@ -1095,6 +1126,21 @@ class Car:
             return paint
 
         me.loft([r for r, _m in full], cfn)
+        # crisp character lines: shoulder crease, lower door step, power-dome edges
+        sharp = [10, 6, 7] + ([18, 19] if self.sp.get("dome") else [])
+        n = len(full[0][0])
+        for k in range(len(full) - 1):
+            if full[k][1] == "cap" or full[k + 1][1] == "cap":
+                continue
+            for h in sharp:
+                for i in (h, n - h):
+                    va = me.cache.get(tuple(round(c, 5) for c in full[k][0][i]))
+                    vb = me.cache.get(tuple(round(c, 5) for c in full[k + 1][0][i]))
+                    if va is None or vb is None or va is vb:
+                        continue
+                    ed = me.bm.edges.get((va, vb))
+                    if ed is not None:
+                        ed.smooth = False
         self.shell = me
         return me
 
@@ -2092,7 +2138,7 @@ def body_profile(zF, zR, aF, aR, zc, zb, k):
     cr1 = max(0.012, cowl - k["belt_f"])
     for f in (0.0, 0.08, 0.22, 0.42, 0.65, 0.85, 1.0):
         z = zF + (zc - zF) * f
-        y = nose + (cowl - nose) * (1 - (1 - f) ** k.get("hood_pow", 1.7))
+        y = nose + (cowl - nose) * (1 - (1 - f) ** k.get("hood_pow", 1.35))
         top.append((z, y))
         e.append((z, y - lerp(k.get("hood_crown", 0.045), cr1, smooth01(f))))
     mid = (zc + zb) / 2
@@ -2160,13 +2206,13 @@ def spec_m3():
     d = dict(
         name="M3", L=L, W=1.903, H=1.433, WB=WB, TF=1.617, TR=1.605, ohf=ohf,
         tire_od=0.679, rim_in=20, tire_w=0.275, flare=0.022, low_line=(0.42, 0.52, 0.008),
-        front=[(0.17, 0.035), (0.24, 0.006), (0.4, 0.0), (0.6, 0.012), (0.7, 0.035), (0.76, 0.075),
-               (0.8, 0.16), (0.9, 0.4)],
+        front=[(0.17, 0.02), (0.24, 0.0), (0.45, 0.0), (0.65, 0.008), (0.72, 0.022), (0.765, 0.05),
+               (0.8, 0.12), (0.9, 0.4)],
         rear=[(0.28, 0.1), (0.4, 0.03), (0.55, 0.0), (0.75, 0.008), (0.95, 0.035), (1.02, 0.06), (1.07, 0.1)],
         dome=(zF + 0.45, zc, 0.3, 0.018),
         gh=dict(zc0=zc, kf=0.14, zh=-0.12, kh=0.12, zb0=zb, krb=0.16, zrr=1.0, krr=0.12, a_in=0.05,
-                roof=[(-0.15, 1.395), (0.15, 1.425), (0.45, 1.433), (0.8, 1.418), (1.05, 1.39)],
-                crown=0.055, xr=[(0.0, 0.62), (0.9, 0.6)], B=(0.15, 0.23, 0.11, 0.19),
+                roof=[(-0.15, 1.375), (0.1, 1.418), (0.4, 1.433), (0.72, 1.418), (1.0, 1.372)],
+                crown=0.045, xr=[(0.0, 0.665), (0.9, 0.645)], B=(0.15, 0.23, 0.11, 0.19),
                 zC=[(0.0, 1.24), (0.2, 1.34), (1.0, 0.9)]),
         int=dict(INT_BLACK, seat=(0.8, 0.36, 0.08), seat2=(0.07, 0.07, 0.075), card=(0.1, 0.1, 0.11)),
         paint=(0.09, 0.36, 0.25), paint_name="Isle of Man Green",
@@ -2196,8 +2242,8 @@ def spec_m3():
                    ),
     )
     d.update(body_profile(zF, zR, aF, aR, zc, zb, dict(
-        nose=0.775, cowl=0.965, belt_f=0.955, belt_r=1.02, deck=1.055, tail=1.045, sh_f=0.8, sh_r=0.88,
-        clear=0.13, sill=0.185, rear_bot=0.3, te_nose=0.05, te_cab=0.125)))
+        nose=0.775, cowl=0.965, belt_f=0.940, belt_r=0.998, deck=1.055, tail=1.045, sh_f=0.8, sh_r=0.88,
+        clear=0.13, sill=0.185, rear_bot=0.3, te_nose=0.04, te_cab=0.068)))
     return d
 
 
@@ -2211,13 +2257,13 @@ def spec_m4():
         name="M4", L=L, W=1.887, H=1.393, WB=WB, TF=1.617, TR=1.605, ohf=ohf,
         tire_od=0.679, rim_in=20, tire_w=0.275, flare=0.024, low_line=(0.42, 0.55, 0.009), carbon_roof=True,
         carbon_lip=True,
-        front=[(0.17, 0.035), (0.24, 0.006), (0.4, 0.0), (0.6, 0.012), (0.7, 0.035), (0.76, 0.075),
-               (0.8, 0.16), (0.9, 0.4)],
+        front=[(0.17, 0.02), (0.24, 0.0), (0.45, 0.0), (0.65, 0.008), (0.72, 0.022), (0.765, 0.05),
+               (0.8, 0.12), (0.9, 0.4)],
         rear=[(0.28, 0.1), (0.4, 0.03), (0.55, 0.0), (0.75, 0.008), (0.95, 0.035), (1.02, 0.06), (1.07, 0.1)],
         dome=(zF + 0.45, zc, 0.3, 0.02),
         gh=dict(zc0=zc, kf=0.14, zh=-0.06, kh=0.12, zb0=zb, krb=0.2, zrr=0.93, krr=0.14, a_in=0.05,
-                roof=[(-0.08, 1.352), (0.2, 1.388), (0.45, 1.393), (0.72, 1.378), (0.95, 1.34)],
-                crown=0.055, xr=[(0.0, 0.61), (0.9, 0.58)], B=(0.54, 0.57, 0.46, 0.48),
+                roof=[(-0.08, 1.335), (0.18, 1.382), (0.42, 1.393), (0.68, 1.372), (0.93, 1.322)],
+                crown=0.045, xr=[(0.0, 0.655), (0.9, 0.625)], B=(0.54, 0.57, 0.46, 0.48),
                 zC=[(0.0, 1.16), (0.25, 1.25), (1.0, 0.78)], rb=0.08),
         int=dict(INT_BLACK, seat=(0.1, 0.1, 0.11), seat2=(0.75, 0.1, 0.08)),
         paint=(0.95, 0.74, 0.06), paint_name="Sao Paulo Yellow",
@@ -2252,8 +2298,8 @@ def spec_m4():
                    ),
     )
     d.update(body_profile(zF, zR, aF, aR, zc, zb, dict(
-        nose=0.775, cowl=0.96, belt_f=0.95, belt_r=1.03, deck=1.05, tail=1.04, sh_f=0.8, sh_r=0.885,
-        clear=0.125, sill=0.18, rear_bot=0.3, te_nose=0.05, te_cab=0.125)))
+        nose=0.775, cowl=0.96, belt_f=0.935, belt_r=1.008, deck=1.05, tail=1.04, sh_f=0.8, sh_r=0.885,
+        clear=0.125, sill=0.18, rear_bot=0.3, te_nose=0.04, te_cab=0.068)))
     return d
 
 
@@ -2267,13 +2313,13 @@ def spec_m2():
         name="M2", L=L, W=1.887, H=1.403, WB=WB, TF=1.617, TR=1.59, ohf=ohf,
         tire_od=0.679, rim_in=20, tire_w=0.275, flare=0.038, flare_len=1.55, arch_p=2.8, low_line=(0.44, 0.5, 0.01),
         crease_dip=0.015, nose_round=0.8, tail_round=0.88, plan_taper=(0.02, 0.02), nose_len=0.4,
-        front=[(0.17, 0.03), (0.24, 0.004), (0.45, 0.0), (0.65, 0.01), (0.74, 0.03), (0.8, 0.07), (0.85, 0.15),
+        front=[(0.17, 0.018), (0.24, 0.0), (0.45, 0.0), (0.68, 0.008), (0.76, 0.024), (0.8, 0.055), (0.85, 0.13),
                (0.95, 0.4)],
         rear=[(0.28, 0.08), (0.4, 0.02), (0.55, 0.0), (0.8, 0.005), (0.95, 0.025), (1.02, 0.05), (1.06, 0.09)],
         dome=(zF + 0.4, zc, 0.32, 0.016),
         gh=dict(zc0=zc, kf=0.12, zh=-0.1, kh=0.1, zb0=zb, krb=0.16, zrr=0.86, krr=0.12, a_in=0.05,
-                roof=[(-0.12, 1.37), (0.15, 1.398), (0.4, 1.403), (0.65, 1.39), (0.88, 1.355)],
-                crown=0.05, xr=[(0.0, 0.61), (0.9, 0.59)], B=(0.48, 0.51, 0.42, 0.44),
+                roof=[(-0.12, 1.355), (0.12, 1.395), (0.38, 1.403), (0.62, 1.385), (0.86, 1.342)],
+                crown=0.045, xr=[(0.0, 0.655), (0.9, 0.635)], B=(0.48, 0.51, 0.42, 0.44),
                 zC=[(0.0, 1.08), (0.25, 1.16), (1.0, 0.72)], rb=0.08),
         int=dict(INT_BLACK, seat=(0.09, 0.09, 0.1), seat2=(0.12, 0.35, 0.8)),
         paint=(0.16, 0.45, 0.82), paint_name="Zandvoort Blue",
@@ -2312,8 +2358,8 @@ def spec_m2():
         ),
     )
     d.update(body_profile(zF, zR, aF, aR, zc, zb, dict(
-        nose=0.805, cowl=0.965, belt_f=0.955, belt_r=1.0, deck=1.04, tail=1.035, sh_f=0.81, sh_r=0.87,
-        clear=0.125, sill=0.19, rear_bot=0.3, te_nose=0.045, te_cab=0.12, hood_pow=1.5)))
+        nose=0.805, cowl=0.965, belt_f=0.940, belt_r=0.978, deck=1.04, tail=1.035, sh_f=0.81, sh_r=0.87,
+        clear=0.125, sill=0.19, rear_bot=0.3, te_nose=0.038, te_cab=0.066, hood_pow=1.25)))
     return d
 
 
@@ -2326,14 +2372,14 @@ def spec_m5():
     d = dict(
         name="M5", L=L, W=1.97, H=1.51, WB=WB, TF=1.684, TR=1.66, ohf=ohf,
         tire_od=0.74, rim_in=21, tire_w=0.295, flare=0.04, flare_len=2.0, low_line=(0.46, 0.56, 0.008),
-        nose_round=0.76,
-        front=[(0.18, 0.03), (0.26, 0.004), (0.45, 0.0), (0.65, 0.012), (0.75, 0.035), (0.8, 0.07), (0.84, 0.13),
+        nose_round=0.8,
+        front=[(0.18, 0.018), (0.26, 0.0), (0.45, 0.0), (0.68, 0.008), (0.77, 0.024), (0.82, 0.055), (0.86, 0.12),
                (0.95, 0.38)],
         rear=[(0.3, 0.1), (0.42, 0.03), (0.6, 0.0), (0.8, 0.006), (0.98, 0.03), (1.06, 0.06), (1.1, 0.1)],
         dome=(zF + 0.5, zc, 0.34, 0.012),
         gh=dict(zc0=zc, kf=0.13, zh=-0.1, kh=0.12, zb0=zb, krb=0.16, zrr=1.15, krr=0.12, a_in=0.06,
-                roof=[(-0.12, 1.47), (0.25, 1.503), (0.6, 1.51), (0.95, 1.497), (1.2, 1.465)],
-                crown=0.06, xr=[(0.0, 0.64), (1.0, 0.62)], B=(0.2, 0.29, 0.16, 0.25),
+                roof=[(-0.12, 1.45), (0.2, 1.497), (0.55, 1.51), (0.9, 1.493), (1.17, 1.447)],
+                crown=0.045, xr=[(0.0, 0.685), (1.0, 0.665)], B=(0.2, 0.29, 0.16, 0.25),
                 zC=[(0.0, 1.38), (0.2, 1.48), (1.0, 1.02)]),
         int=dict(INT_BLACK, seat=(0.55, 0.07, 0.07), seat2=(0.08, 0.08, 0.085)),
         paint=(0.08, 0.28, 0.66), paint_name="Marina Bay Blue",
@@ -2371,8 +2417,8 @@ def spec_m5():
         ),
     )
     d.update(body_profile(zF, zR, aF, aR, zc, zb, dict(
-        nose=0.84, cowl=1.02, belt_f=1.0, belt_r=1.065, deck=1.09, tail=1.08, sh_f=0.84, sh_r=0.93,
-        clear=0.13, sill=0.2, rear_bot=0.32, te_nose=0.05, te_cab=0.135)))
+        nose=0.84, cowl=1.02, belt_f=0.985, belt_r=1.043, deck=1.09, tail=1.08, sh_f=0.84, sh_r=0.93,
+        clear=0.13, sill=0.2, rear_bot=0.32, te_nose=0.04, te_cab=0.075)))
     return d
 
 
@@ -2384,14 +2430,14 @@ def spec_540i():
     zc, zb = -1.05, 1.82
     d = dict(
         name="540i", L=L, W=1.9, H=1.515, WB=WB, TF=1.625, TR=1.655, ohf=ohf,
-        tire_od=0.703, rim_in=19, tire_w=0.255, flare=0.012, low_line=(0.46, 0.56, 0.006), nose_round=0.76,
-        front=[(0.18, 0.03), (0.26, 0.004), (0.45, 0.0), (0.65, 0.012), (0.75, 0.035), (0.8, 0.07), (0.84, 0.13),
+        tire_od=0.703, rim_in=19, tire_w=0.255, flare=0.012, low_line=(0.46, 0.56, 0.006), nose_round=0.8,
+        front=[(0.18, 0.018), (0.26, 0.0), (0.45, 0.0), (0.68, 0.008), (0.77, 0.024), (0.82, 0.055), (0.86, 0.12),
                (0.95, 0.38)],
         rear=[(0.3, 0.1), (0.42, 0.03), (0.6, 0.0), (0.8, 0.006), (0.98, 0.03), (1.06, 0.06), (1.1, 0.1)],
         dome=(zF + 0.5, zc, 0.34, 0.008),
         gh=dict(zc0=zc, kf=0.13, zh=-0.1, kh=0.12, zb0=zb, krb=0.16, zrr=1.15, krr=0.12, a_in=0.06,
-                roof=[(-0.12, 1.475), (0.25, 1.508), (0.6, 1.515), (0.95, 1.502), (1.2, 1.47)],
-                crown=0.06, xr=[(0.0, 0.62), (1.0, 0.6)], B=(0.2, 0.29, 0.16, 0.25),
+                roof=[(-0.12, 1.455), (0.2, 1.502), (0.55, 1.515), (0.9, 1.498), (1.17, 1.452)],
+                crown=0.045, xr=[(0.0, 0.665), (1.0, 0.645)], B=(0.2, 0.29, 0.16, 0.25),
                 zC=[(0.0, 1.38), (0.2, 1.48), (1.0, 1.02)], trim=CHROME, trim_top=CHROME),
         int=dict(INT_BLACK, seat=(0.5, 0.25, 0.11), seat2=(0.44, 0.21, 0.09), card=(0.3, 0.16, 0.08),
                  accent=(0.7, 0.71, 0.74)),
@@ -2428,8 +2474,8 @@ def spec_540i():
         ),
     )
     d.update(body_profile(zF, zR, aF, aR, zc, zb, dict(
-        nose=0.84, cowl=1.02, belt_f=1.0, belt_r=1.065, deck=1.09, tail=1.08, sh_f=0.84, sh_r=0.93,
-        clear=0.14, sill=0.21, rear_bot=0.33, te_nose=0.05, te_cab=0.13)))
+        nose=0.84, cowl=1.02, belt_f=0.985, belt_r=1.043, deck=1.09, tail=1.08, sh_f=0.84, sh_r=0.93,
+        clear=0.14, sill=0.21, rear_bot=0.33, te_nose=0.04, te_cab=0.07)))
     return d
 
 
@@ -2442,14 +2488,14 @@ def spec_m8():
     d = dict(
         name="M8", L=L, W=1.907, H=1.362, WB=WB, TF=1.627, TR=1.631, ohf=ohf,
         tire_od=0.705, rim_in=20, tire_w=0.285, flare=0.03, flare_len=2.0, low_line=(0.4, 0.52, 0.01),
-        carbon_roof=True, nose_round=0.72, tail_round=0.84,
-        front=[(0.16, 0.035), (0.24, 0.006), (0.4, 0.0), (0.55, 0.012), (0.64, 0.04), (0.7, 0.09), (0.74, 0.16),
+        carbon_roof=True, nose_round=0.78, tail_round=0.86,
+        front=[(0.16, 0.02), (0.24, 0.0), (0.42, 0.0), (0.58, 0.01), (0.66, 0.03), (0.71, 0.065), (0.75, 0.13),
                (0.85, 0.42)],
         rear=[(0.28, 0.1), (0.4, 0.03), (0.55, 0.0), (0.75, 0.008), (0.92, 0.035), (0.97, 0.06), (1.01, 0.1)],
         dome=(zF + 0.5, zc, 0.3, 0.016),
         gh=dict(zc0=zc, kf=0.16, zh=0.02, kh=0.12, zb0=zb, krb=0.22, zrr=0.86, krr=0.14, a_in=0.05,
-                roof=[(0.0, 1.325), (0.28, 1.358), (0.5, 1.362), (0.72, 1.345), (0.88, 1.305)],
-                crown=0.05, xr=[(0.0, 0.6), (0.9, 0.57)], B=(0.54, 0.57, 0.46, 0.48),
+                roof=[(0.0, 1.31), (0.25, 1.352), (0.48, 1.362), (0.7, 1.34), (0.88, 1.29)],
+                crown=0.045, xr=[(0.0, 0.645), (0.9, 0.615)], B=(0.54, 0.57, 0.46, 0.48),
                 zC=[(0.0, 1.12), (0.28, 1.2), (1.0, 0.72)], rb=0.08),
         int=dict(INT_BLACK, seat=(0.75, 0.74, 0.72), seat2=(0.08, 0.08, 0.085), card=(0.12, 0.12, 0.13)),
         paint=(0.5, 0.03, 0.05), paint_name="Motegi Red",
@@ -2492,8 +2538,8 @@ def spec_m8():
         ),
     )
     d.update(body_profile(zF, zR, aF, aR, zc, zb, dict(
-        nose=0.745, cowl=0.935, belt_f=0.92, belt_r=0.99, deck=1.0, tail=0.99, sh_f=0.77, sh_r=0.86,
-        clear=0.12, sill=0.175, rear_bot=0.29, te_nose=0.05, te_cab=0.13, hood_pow=1.5)))
+        nose=0.745, cowl=0.935, belt_f=0.905, belt_r=0.968, deck=1.0, tail=0.99, sh_f=0.77, sh_r=0.86,
+        clear=0.12, sill=0.175, rear_bot=0.29, te_nose=0.04, te_cab=0.07, hood_pow=1.25)))
     return d
 
 
@@ -2524,7 +2570,7 @@ def spec_cop():
         dome=(zF + 0.5, zc, 0.36, 0.012),
         gh=dict(zc0=zc, kf=0.13, zh=-0.1, kh=0.12, zb0=zb, krb=0.18, zrr=1.12, krr=0.12, a_in=0.06,
                 roof=[(-0.1, 1.44), (0.3, 1.477), (0.6, 1.481), (0.9, 1.466), (1.15, 1.43)],
-                crown=0.05, xr=[(0.0, 0.6), (1.0, 0.58)], B=(0.22, 0.3, 0.18, 0.26),
+                crown=0.045, xr=[(0.0, 0.645), (1.0, 0.625)], B=(0.22, 0.3, 0.18, 0.26),
                 zC=[(0.0, 1.3), (0.25, 1.34), (1.0, 0.98)]),
         int=dict(INT_BLACK, seat=(0.1, 0.1, 0.11), seat2=(0.14, 0.14, 0.15), card=(0.1, 0.1, 0.11),
                  accent=(0.4, 0.41, 0.44)),
@@ -2560,8 +2606,8 @@ def spec_cop():
         ),
     )
     d.update(body_profile(zF, zR, aF, aR, zc, zb, dict(
-        nose=0.85, cowl=1.03, belt_f=1.02, belt_r=1.085, deck=1.1, tail=1.09, sh_f=0.86, sh_r=0.95,
-        clear=0.15, sill=0.22, rear_bot=0.34, te_nose=0.05, te_cab=0.13, hood_pow=1.4)))
+        nose=0.85, cowl=1.03, belt_f=1.005, belt_r=1.063, deck=1.1, tail=1.09, sh_f=0.86, sh_r=0.95,
+        clear=0.15, sill=0.22, rear_bot=0.34, te_nose=0.04, te_cab=0.07, hood_pow=1.2)))
     return d
 
 
