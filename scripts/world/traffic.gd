@@ -20,8 +20,17 @@ extends Node3D
 ## an exit are mandatory, with a relaxed threshold. Blinkers flash meanwhile.
 ## RAMPS - the flyover on-ramps feed the auxiliary lane (lane 3); cars merge
 ## left from it; exiting cars move into it and leave on the off-ramp; the local
-## road's roundabout turns them round onto the on-ramp. Cars spawn / recycle
-## only inside the two end tunnels, so nothing ever pops in or out in view.
+## road's roundabout turns them round onto the on-ramp.
+## THE LOOP - the highway is a ring (stations wrap at hw.length): leaders,
+## gaps and "how far to my exit" are all measured the short way forward round
+## it. Traffic lives in a BUBBLE round everyone (every player, on foot or in a
+## car, every registered car, the camera): cars more than DESPAWN from all of
+## them go back to the pool, and each lane within BUBBLE (along the road) of
+## anyone is topped up to one car per SPACING m, new cars appearing at least
+## SPAWN_MIN away from everyone (past VIS_DIST: never in view; an empty
+## bubble - you just woke up / took a cab here - fills from WARM_MIN). So the
+## pool is spent where people are, and the ~7.5 km ring costs no more than the
+## old 2.5 km road.
 ##
 ## EXTERNAL CARS - register_obstacle(node) makes traffic treat any Node3D (a
 ## player's car, a player on foot) as a vehicle in whatever lane / ramp it's
@@ -38,7 +47,9 @@ extends Node3D
 ## cars into one MultiMesh per (model, surface) and per wheel type (~50 draw
 ## calls for the pool); colliders only wake up within BODY_DIST of the camera.
 ##
-## NETWORK - per car 12 bytes: id, model (index into model_table()), flags
+## NETWORK - each client gets the cars within RELEVANT m of its player only
+## (so a packet stays ~1 KB however big the pool; cars it stops hearing about
+## are put away on its side). Per car 12 bytes: id, model (index into model_table()), flags
 ## (waiting / on the mainline / eastbound), lane + the lane it's leaving, path
 ## (index into the sorted Highway.paths names), s (f32), speed (cm/s, u16),
 ## lane-change progress (u8). snapshot() packs them, apply_snapshot() unpacks
@@ -50,7 +61,13 @@ const PropKit = preload("res://scripts/art/prop_kit.gd")
 const SIM_HZ := 20.0
 const SNAP_HZ := 10.0           # host -> clients
 const SNAP_SNAP := 12.0         # a correction bigger than this (m) jumps instead of blending
-const POOL := 112             # ~1 car per 22 m of highway (both ways)
+const POOL := 176             # shared by everyone's bubbles (~90 cars each)
+const BUBBLE := 650.0         # traffic lives within this far (along the road) of anyone
+const DESPAWN := 760.0        # ... and goes back to the pool once this far (straight line) from everyone
+const SPAWN_MIN := 420.0      # new cars appear at least this far from everyone (past VIS_DIST)
+const WARM_MIN := 120.0       # an (almost) empty bubble fills from this close
+const SPACING := 105.0        # top a lane up to one car per this many m (round a player: ~40% denser than the old road)
+const RELEVANT := 700.0       # a client hears about the cars this close to its player
 const NICE_EVERY := 12          # about one in this many cars is a "nice car"
 const LC_TIME := 2.6            # seconds to cross into the next lane
 const LC_OLD := 0.7             # until this far across, a lane-changer still minds (and blocks) its old lane
@@ -60,7 +77,7 @@ const A_TH := 0.25              # MOBIL threshold (m/s^2)
 const KEEP_RIGHT := 0.25        # bias toward the right lanes
 const MAX_DECEL := 9.0          # physical braking limit
 const B_CURVE := 1.8            # how hard drivers brake for a curve ahead
-const EXIT_P := 0.28            # share of cars that take the next exit
+const EXIT_P := 0.32            # share of cars that take the next exit (the ramps and local roads see more)
 const LOOK := 250.0             # how far ahead a car looks for its leader
 const VIS_DIST := 360.0         # cars farther than this from the camera aren't drawn
 const BODY_DIST := 220.0        # colliders only near the camera
@@ -76,11 +93,12 @@ const REGULAR := {
 const NICE_DEFAULT := ["TCar_Coupe_Red", "TCar_Coupe_Black", "TCar_Coupe_Yellow"]
 
 ## Kit prop names for the occasional nice car. Append to it (or add_nice_model)
-## any time; cars pick up new models when they next come out of a tunnel.
+## any time; cars pick up new models when they next come out of the pool.
 var nice_models: Array = []
 var nice_layouts := {}          # optional: model -> {L, W, H, wheel, axles, track, r} (see cars_layout.json)
 								# (+ "flip": the kit car faces -z; + "paint": Color for its CarPaint surface)
 const FLIP := Transform3D(Basis(Vector3.UP, PI), Vector3.ZERO)
+const LOOP_AABB := AABB(Vector3(-700, -20, 100), Vector3(4000, 60, 1450))   # the whole ring (+ ramps): never culled
 
 
 class Car:
@@ -129,11 +147,13 @@ var awake := false
 var sim_time := 0.0
 var stats := {"lane_changes": 0, "merges": 0, "exits": 0, "recycled": 0, "steps": 0, "missed_exits": 0}
 var force_awake := false        # tests / screenshots
+var viewers_node: Node          # World.players_node: every player keeps a bubble of traffic round them
+var _maint_t := 0.0
 var remote := false             # a client: cars come from the host's snapshots
 var snapshots := 0              # client: how many applied
 var _snap_t := 0.0
 var _path_names: Array = []
-signal snapshot_ready(data: PackedByteArray)
+signal snapshot_ready()         # time to send (World packs one per client: snapshot([their position]))
 var _acc := 0.0
 var _lists := {}                # "m<dir>_<lane>" / path name -> Array[Car] sorted by progress
 var _mm := {}                   # prop -> Array[MultiMeshInstance3D] (one per surface)
@@ -239,15 +259,30 @@ func set_remote(on: bool) -> void:
 			c.waiting = true
 
 
-## The host's traffic, packed (see NETWORK in the header).
-func snapshot() -> PackedByteArray:
+## The host's traffic, packed (see NETWORK in the header): the cars on the road
+## within `radius` of any of `centers` (all of them if none given).
+func snapshot(centers: Array = [], radius := RELEVANT) -> PackedByteArray:
 	var models := model_table()
 	var paths := _paths()
+	var pick: Array = []
+	for c in cars:
+		if c.waiting:
+			continue
+		if not centers.is_empty():
+			var p := _cpos(c)
+			var near := false
+			for q in centers:
+				if p.distance_squared_to(q) < radius * radius:
+					near = true
+					break
+			if not near:
+				continue
+		pick.append(c)
 	var b := PackedByteArray()
-	b.resize(4 + cars.size() * 12)
+	b.resize(4 + pick.size() * 12)
 	b.encode_float(0, sim_time)
 	var o := 4
-	for c in cars:
+	for c in pick:
 		b.encode_u8(o, c.id)
 		b.encode_u8(o + 1, maxi(models.find(c.model), 0))
 		b.encode_u8(o + 2, (1 if c.waiting else 0) | (2 if c.on_main else 0) | (4 if c.dir > 0 else 0))
@@ -262,17 +297,20 @@ func snapshot() -> PackedByteArray:
 
 ## A client: take the host's word for every car. Where a car was already
 ## drawn close by, keep drawing it there and let the difference fade out.
+## Cars not in it are off the road (or out of our range): put away.
 func apply_snapshot(b: PackedByteArray) -> void:
 	if b.size() < 4:
 		return
 	var models := model_table()
 	var paths := _paths()
+	var seen := {}
 	var o := 4
 	while o + 12 <= b.size():
 		var id := b.decode_u8(o)
 		if id >= cars.size():
 			o += 12
 			continue
+		seen[id] = true
 		var c: Car = cars[id]
 		var fl := b.decode_u8(o + 2)
 		var was_shown := not c.waiting
@@ -304,6 +342,9 @@ func apply_snapshot(b: PackedByteArray) -> void:
 		var err := before.origin - _xf(c, false).origin if was_shown else Vector3.ZERO
 		c.vis = err if err.length() < SNAP_SNAP else Vector3.ZERO
 		o += 12
+	for c in cars:
+		if not seen.has(c.id):
+			c.waiting = true
 	snapshots += 1
 
 
@@ -318,7 +359,7 @@ func _coast(dt: float) -> void:
 		var ds: float = c.v * dt
 		c.wheel = fmod(c.wheel + ds / float(c.lay.get("r", 0.34)), TAU)
 		if c.on_main:
-			c.s = clampf(c.s + ds * c.dir, 0.0, hw.length)
+			c.s = hw.wrap_s(c.s + ds * c.dir)
 			if c.lc_t < 1.0:
 				c.lc_t = minf(c.lc_t + dt / LC_TIME * clampf(c.v / 8.0, 0.35, 1.0), 1.0)
 				if c.lc_t >= 1.0:
@@ -398,7 +439,7 @@ func _nice_list() -> Array:
 	return out if not out.is_empty() else NICE_DEFAULT
 
 
-## (Re)choose what this car is. Only called while it's out of sight (spawn / tunnel).
+## (Re)choose what this car is. Only called while it's out of sight (back in the pool).
 func _assign_model(c: Car) -> void:
 	c.nice = rng.randi_range(1, NICE_EVERY) == 1
 	_apply_model(c, _nice_list()[rng.randi() % _nice_list().size()] if c.nice else _pick_regular())
@@ -466,37 +507,7 @@ func _spawn_pool() -> void:
 		_assign_model(c)
 		_roll(c)
 		cars.append(c)
-	# a few (never trucks) start on the ramps and loops, the rest spread over the lanes
-	var ramp_names := ["dt_loop", "hood_loop", "dt_on", "hood_on", "dt_loop", "hood_loop"]
-	var on_ramps := {}
-	for c in cars:
-		if ramp_names.is_empty():
-			break
-		if c.truck:
-			continue
-		var n: String = ramp_names.pop_back()
-		var path = hw.paths[n]
-		var taken: Array = on_ramps.get(n, [])
-		c.on_main = false
-		c.path = path
-		c.s = path.length * (0.2 + 0.35 * taken.size())
-		c.v = path.limit_ahead(c.s, 20.0) * 0.8
-		taken.append(c)
-		on_ramps[n] = taken
-	var per_lane := {}
-	for c in cars:
-		if not c.on_main:
-			continue
-		c.dir = 1 if c.id % 2 == 0 else -1
-		c.lane = [1, 2, 2][rng.randi() % 3] if c.truck else rng.randi_range(0, 2)
-		c.from_lane = c.lane
-		var key := "%d_%d" % [c.dir, c.lane]
-		var at: float = per_lane.get(key, rng.randf_range(20.0, 60.0))
-		c.s = at if c.dir > 0 else hw.length - at
-		per_lane[key] = at + rng.randf_range(40.0, 130.0)
-		if per_lane[key] > hw.length - 20.0:
-			c.waiting = true
-		c.v = _v0_of(c) * 0.9
+		c.waiting = true              # in the pool: the bubbles round the players put it on the road
 	_rebuild_lists()
 
 
@@ -518,8 +529,7 @@ func _locate_obstacles(dt: float) -> void:
 		o.waiting = true
 		var loc: Vector2 = hw.locate(pos)
 		var ad := absf(loc.y)
-		if ad > Highway.EDGE_IN - 0.4 and ad < Highway.EDGE_OUT + Highway.LANE_W and absf(pos.y) < 2.5 \
-				and loc.x > 1.0 and loc.x < hw.length - 1.0:
+		if ad > Highway.EDGE_IN - 0.4 and ad < Highway.EDGE_OUT + Highway.LANE_W and absf(pos.y) < 2.5:
 			var dir := 1 if loc.y > 0.0 else -1
 			var k := clampi(int((ad - Highway.EDGE_IN) / Highway.LANE_W), 0, 3)
 			if k == 3 and not hw.has_aux(dir, loc.x):
@@ -621,33 +631,41 @@ static func idm(c, v: float, gap: float, v_lead: float, v0: float) -> float:
 	return c.a * (free - (ss / g) * (ss / g))
 
 
-## First car ahead of progress `pr` in list k (skipping `me`), and its progress.
+## First car ahead of progress `pr` in list k (skipping `me`), and its progress
+## (on the mainline: measured forward round the loop, so it can be > the loop).
 func _ahead(k: String, pr: float, me, main: bool) -> Array:
 	var arr: Array = _lists.get(k, [])
 	var best = null
-	var bp := INF
+	var bd := INF
+	var L: float = hw.length
 	for o in arr:
 		if o == me:
 			continue
-		var op: float = o.prog() if main else o.s
-		if op > pr and op < bp:
-			bp = op
+		var d: float = fposmod(o.prog() - pr, L) if main else o.s - pr
+		if d > 0.0 and d < bd:
+			bd = d
 			best = o
-	return [best, bp]
+	return [best, pr + bd]
 
 
 func _behind(k: String, pr: float, me, main: bool) -> Array:
 	var arr: Array = _lists.get(k, [])
 	var best = null
-	var bp := -INF
+	var bd := INF
+	var L: float = hw.length
 	for o in arr:
 		if o == me:
 			continue
-		var op: float = o.prog() if main else o.s
-		if op <= pr and op > bp:
-			bp = op
+		var d: float = fposmod(pr - o.prog(), L) if main else pr - o.s
+		if d >= 0.0 and d < bd:
+			bd = d
 			best = o
-	return [best, bp]
+	return [best, pr - bd]
+
+
+## How far ahead (forward round the loop, in car c's direction) station `at` is.
+func _to(c, at: float) -> float:
+	return fposmod((at - c.s) * c.dir, hw.length)
 
 
 ## The car (or registered obstacle) this one follows: [leader or null, gap, leader speed].
@@ -678,7 +696,10 @@ func leader_of(c) -> Array:
 func _leader_main(c, lane: int) -> Array:
 	var pr: float = c.prog()
 	var r := _ahead(_key_m(c.dir, lane), pr, c, true)
-	if r[0] != null:
+	var aux_rest := INF
+	if lane == 3 and hw.aux.has(c.dir):
+		aux_rest = ((hw.aux[c.dir].b if c.dir > 0 else hw.aux[c.dir].a) - c.s) * c.dir
+	if r[0] != null and r[1] - pr <= aux_rest + 1.0:      # (the aux lane ends: nobody "ahead" round the loop in it)
 		return [r[0], r[1] - pr - (r[0].L + c.L) / 2.0, r[0].v]
 	if lane == 3 and hw.aux.has(c.dir):   # the aux lane runs onto the off-ramp
 		var ex: float = hw.aux[c.dir].b if c.dir > 0 else hw.aux[c.dir].a
@@ -720,7 +741,7 @@ func _v0_of(c) -> float:
 		v0 = minf(v0, float(Highway.LANE_SPEED[c.lane]) * 1.1)
 		if c.exit_wanted and hw.aux.has(c.dir):   # your exit's coming up: ease off, find the gap
 			var ex1: float = hw.aux[c.dir].b if c.dir > 0 else hw.aux[c.dir].a
-			var d1: float = (ex1 - c.s) * c.dir
+			var d1: float = _to(c, ex1)
 			if d1 > 0.0 and d1 < 320.0:
 				v0 = minf(v0, float(Highway.LANE_SPEED[2]) * (0.85 if c.lane == 2 else 0.95))
 	if c.lane == 3 and hw.aux.has(c.dir):
@@ -770,7 +791,7 @@ func step(dt: float) -> void:
 		c.v = v1
 		c.wheel = fmod(c.wheel + ds / float(c.lay.get("r", 0.34)), TAU)
 		if c.on_main:
-			c.s += ds * c.dir
+			c.s = hw.wrap_s(c.s + ds * c.dir)
 			if c.lc_t < 1.0:   # slower sideways when crawling (you steer, you don't slide)
 				c.lc_t = minf(c.lc_t + dt / LC_TIME * clampf(c.v / 8.0, 0.35, 1.0), 1.0)
 				if c.lc_t >= 1.0:
@@ -778,15 +799,18 @@ func step(dt: float) -> void:
 		else:
 			c.s += ds
 		_transitions(c)
-	_rebuild_lists()            # lane changes this step moved cars: respawn must see where they are
-	_try_respawn()
+	_rebuild_lists()            # lane changes this step moved cars: the bubble must see where they are
+	_maint_t -= dt
+	if _maint_t <= 0.0:
+		_maint_t = 0.25
+		_bubble()
 
 
 func _transitions(c) -> void:
 	if c.on_main:
 		if hw.aux.has(c.dir) and c.exit_wanted and c.lane != 3:
 			var ex0: float = hw.aux[c.dir].b if c.dir > 0 else hw.aux[c.dir].a
-			if (c.s - ex0) * c.dir >= 0.0:       # missed it: maybe next time
+			if _to(c, ex0) > hw.length - 60.0:  # just went past it: next time round
 				c.exit_wanted = false
 				stats.missed_exits += 1
 		if c.lane == 3 and hw.aux.has(c.dir):
@@ -799,11 +823,6 @@ func _transitions(c) -> void:
 				c.exit_wanted = false
 				stats.exits += 1
 				return
-		if (c.dir > 0 and c.s >= hw.length - 4.0) or (c.dir < 0 and c.s <= 4.0):
-			c.waiting = true                     # deep in a tunnel: back to the pool as a new car
-			_assign_model(c)
-			_roll(c)
-			stats.recycled += 1
 		return
 	if c.s < c.path.length:
 		return
@@ -825,44 +844,155 @@ func _transitions(c) -> void:
 		c.s = over
 
 
-## Put waiting cars back at a tunnel entrance with room to spare (new model,
-## new driver: this is the only place cars change, deep inside a tunnel).
-func _try_respawn() -> void:
-	for c in cars:
-		if not c.waiting:
+## Roughly where a car is (the centerline under it on the mainline): cheap, for range checks.
+func _cpos(c) -> Vector3:
+	return hw.pos(c.s) if c.on_main else c.path.at(c.s)
+
+
+## Everyone traffic should be alive round: the camera, every registered car
+## (and whatever it's watching), every player; each with their station, if
+## they're anywhere near the loop. [{p: Vector3, s: float}]
+func _viewers() -> Array:
+	var pts: Array = []
+	var cp := _camera_pos()
+	if cp.x < 1e5:
+		pts.append(cp)
+	for o in obstacles:
+		if is_instance_valid(o.node):
+			pts.append(o.node.global_position)
+	if viewers_node != null and is_instance_valid(viewers_node):
+		for n in viewers_node.get_children():
+			if n is Node3D:
+				pts.append((n as Node3D).global_position)
+	var out: Array = []
+	for p in pts:
+		var dup := false
+		for v in out:
+			if (v.p as Vector3).distance_squared_to(p) < 60.0 * 60.0:
+				dup = true
+				break
+		if dup or not _near(p):
 			continue
-		var entries := [[1, 0], [1, 1], [1, 2], [-1, 0], [-1, 1], [-1, 2]]
-		for i in range(entries.size() - 1, 0, -1):   # seeded shuffle: the sim is reproducible
-			var j := rng.randi_range(0, i)
-			var t = entries[i]
-			entries[i] = entries[j]
-			entries[j] = t
-		var placed := false
-		for e in entries:
-			var dir: int = e[0]
-			var lane: int = e[1]
-			if c.truck and lane == 0:
+		var loc: Vector2 = hw.locate(p)
+		if absf(loc.y) < 900.0:
+			out.append({"p": p, "s": loc.x})
+	return out
+
+
+func _recycle(c: Car) -> void:
+	c.waiting = true                 # back to the pool as a new car (new model, new driver)
+	c.vis = Vector3.ZERO
+	_assign_model(c)
+	_roll(c)
+	stats.recycled += 1
+
+
+## Is world point p at least `r` from every viewer?
+func _clear_of(vs: Array, p: Vector3, r: float) -> bool:
+	for v in vs:
+		if (v.p as Vector3).distance_squared_to(p) < r * r:
+			return false
+	return true
+
+
+## The bubbles (a few times a second): put away cars nobody's near; top each
+## lane near anyone up to one car per SPACING, out of sight (see the header).
+func _bubble() -> void:
+	var vs := _viewers()
+	for c in cars:
+		if c.waiting:
+			continue
+		var p := _cpos(c)
+		var near := false
+		for v in vs:
+			if (v.p as Vector3).distance_squared_to(p) < DESPAWN * DESPAWN:
+				near = true
+				break
+		if not near:
+			_recycle(c)
+	if vs.is_empty():
+		return
+	var free: Array = cars.filter(func(c): return c.waiting)
+	if free.is_empty():
+		return
+	var budget := 10
+	var target := int(2.0 * BUBBLE / SPACING)
+	for v in vs:
+		var sv: float = v.s
+		var v_warm := false
+		for dir in [1, -1]:
+			for lane in 3:
+				if free.is_empty() or budget <= 0:
+					return
+				var key := _key_m(dir, lane)
+				var cnt := 0
+				for o in _lists.get(key, []):
+					if absf(hw.ds(sv, o.s)) < BUBBLE:
+						cnt += 1
+				if cnt >= target:
+					continue
+				var warm := cnt < target * 0.35
+				v_warm = v_warm or warm
+				var r_min := WARM_MIN if warm else SPAWN_MIN
+				for attempt in 4:
+					var off := rng.randf_range(r_min, BUBBLE)
+					var up := rng.randf() < 0.6                  # mostly upstream: they drive into view
+					var st: float = hw.wrap_s(sv + (-off if up else off) * dir)
+					if not _clear_of(vs, hw.lane_center(dir, lane, st), r_min):
+						continue
+					var q := _ahead(key, st * dir, null, true)
+					var qb := _behind(key, st * dir, null, true)
+					if (q[0] != null and q[1] - st * dir < 45.0) or (qb[0] != null and st * dir - qb[1] < 45.0):
+						continue
+					var c: Car = null
+					for f in free:
+						if not (f.truck and lane == 0):
+							c = f
+							break
+					if c == null:
+						break
+					free.erase(c)
+					c.waiting = false
+					c.on_main = true
+					c.path = null
+					c.dir = dir
+					c.lane = lane
+					c.from_lane = lane
+					c.lc_t = 1.0
+					c.lc_cool = rng.randf_range(0.5, 2.0)
+					c.s = st
+					c.v = minf(_v0_of(c), q[0].v + 2.0) if q[0] != null and q[1] - st * dir < 120.0 else _v0_of(c) * 0.95
+					_push(key, c)
+					budget -= 1
+					break
+		# an empty bubble also gets a car or two on the nearby ramps and roundabout loops
+		for pn in ["dt_loop", "hood_loop", "dt_on", "hood_on"]:
+			if not v_warm:
+				break
+			if free.is_empty() or budget <= 0:
+				return
+			var path = hw.paths[pn]
+			if _lists.get(pn, []).size() >= 2:
 				continue
-			var s_in: float = 6.0 if dir > 0 else hw.length - 6.0
-			var q := _ahead(_key_m(dir, lane), s_in * dir - 30.0, null, true)
-			var gap: float = (q[1] - s_in * dir) if q[0] != null else 1e6
-			if gap < 70.0:
+			var ps: float = path.length * (rng.randf_range(0.1, 0.35) if _lists.get(pn, []).is_empty() else rng.randf_range(0.55, 0.8))
+			var at: Vector3 = path.at(ps)
+			if at.distance_to(v.p) > BUBBLE or not _clear_of(vs, at, WARM_MIN):
 				continue
+			var c: Car = null
+			for f in free:
+				if not f.truck:
+					c = f
+					break
+			if c == null:
+				continue
+			free.erase(c)
 			c.waiting = false
-			c.on_main = true
-			c.path = null
-			c.dir = dir
-			c.lane = lane
-			c.from_lane = lane
-			c.lc_t = 1.0
-			c.s = s_in
-			c.v = minf(_v0_of(c), q[0].v + 2.0) if q[0] != null else _v0_of(c) * 0.95
-			_push(_key_m(dir, lane), c)
-			_lists[_key_m(dir, lane)].sort_custom(func(x, y): return x.prog() < y.prog())
-			placed = true
-			break
-		if not placed:
-			return          # the tunnels are full this step; try again next one
+			c.on_main = false
+			c.path = path
+			c.s = ps
+			c.v = path.limit_ahead(ps, 20.0) * 0.8
+			_push(pn, c)
+			budget -= 1
 
 
 func _lane_ok(c, k: int) -> bool:
@@ -884,7 +1014,7 @@ func _consider_lane_change(c) -> void:
 		must = -1            # merging from the on-ramp
 	elif c.exit_wanted and hw.aux.has(c.dir):
 		var ex: float = hw.aux[c.dir].b if c.dir > 0 else hw.aux[c.dir].a
-		var dist: float = (ex - c.s) * c.dir
+		var dist: float = _to(c, ex)
 		if dist > 0.0 and dist < 900.0 and c.lane < 3:
 			must = 1
 	elif c.truck and c.lane == 0:
@@ -1013,7 +1143,7 @@ func _mm_for(prop: String) -> Array:
 				pm.albedo_color = lay_p.paint
 				mmi.material_override = pm
 			mmi.layers = 2              # lit by the sun like the rest of the outdoors
-			mmi.custom_aabb = AABB(Vector3(-100, -20, 100), Vector3(2800, 60, 800))
+			mmi.custom_aabb = LOOP_AABB
 			mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 			add_child(mmi)
 			out.append(mmi)
@@ -1035,7 +1165,7 @@ func _blinker_mm() -> void:
 	_blink = MultiMeshInstance3D.new()
 	_blink.multimesh = mm
 	_blink.material_override = mat
-	_blink.custom_aabb = AABB(Vector3(-100, -20, 100), Vector3(2800, 60, 800))
+	_blink.custom_aabb = LOOP_AABB
 	_blink.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(_blink)
 
@@ -1055,7 +1185,7 @@ func _box_mm(colored: bool, col: Color) -> MultiMeshInstance3D:
 	mmi.multimesh = mm
 	mmi.material_override = mat
 	mmi.layers = 2
-	mmi.custom_aabb = AABB(Vector3(-100, -20, 100), Vector3(2800, 60, 800))
+	mmi.custom_aabb = LOOP_AABB
 	mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(mmi)
 	return mmi
@@ -1104,7 +1234,7 @@ func _camera_pos() -> Vector3:
 
 
 static func _near(p: Vector3) -> bool:
-	return p.z > 120.0 and p.x > -120.0 and p.x < 2750.0 and p.z < 1000.0
+	return p.z > 120.0 and p.x > -700.0 and p.x < 3300.0 and p.z < 1550.0
 
 
 func _process(delta: float) -> void:
@@ -1142,7 +1272,7 @@ func _process(delta: float) -> void:
 		_snap_t -= delta
 		if _snap_t <= 0.0:
 			_snap_t = 1.0 / SNAP_HZ
-			snapshot_ready.emit(snapshot())
+			snapshot_ready.emit()
 	if DisplayServer.get_name() == "headless":
 		return
 	_draw(cp)

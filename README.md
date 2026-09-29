@@ -136,7 +136,7 @@ Hold 110+ mph and highway patrol may clock you: lose them (230 m away for 6 s) o
 
 Cabs are real: call one at a taxi stand or from the phone's RIDES app and a yellow cab pulls up where you are (downtown, Magnolia St, your house, the BEMZE lot), you ride in the back and the cabbie drives you to downtown, Magnolia Heights, home or BEMZE on the real roads and highway. SPACE skips the ride (in rush hour the minutes still go by), E gets you out wherever you are.
 
-The highway is a New York expressway (brick walk-ups with water towers, Jersey barriers, green exit signs, potholes, yellow cabs) and its traffic is the same for everyone: the host runs it and streams it to the other players.
+The highway is a New York expressway (brick walk-ups with water towers, Jersey barriers, green exit signs, potholes, yellow cabs) and a 7.5 km loop: past BEMZE it curves round and comes back along a second leg and through the Bagholder-Battery Tunnel to downtown, so you can keep driving forever. Its traffic is the same for everyone: the host runs it round every player and streams each one the cars near them.
 
 ## Controls
 

@@ -80,6 +80,15 @@ func _road_gaps(space: PhysicsDirectSpaceState3D) -> Array:
 	for r in ["home_to_office", "office_to_home"]:
 		var pts: PackedVector3Array = hw.route(r).points
 		tracks[r] = pts
+	# every lane all the way round the loop (through the tunnel, over the seam at station 0)
+	for dir in [1, -1]:
+		for k in Highway.LANES:
+			var lane := PackedVector3Array()
+			var st := 0.0
+			while st <= hw.length + 6.0:
+				lane.append(hw.lane_center(dir, k, st))
+				st += 6.0
+			tracks["loop%+d_lane%d" % [dir, k]] = lane
 	for nm in tracks:
 		var pts: PackedVector3Array = tracks[nm].pts if tracks[nm] is Object else tracks[nm]
 		var run := 0
@@ -158,7 +167,7 @@ func _check() -> void:
 	if not gaps.is_empty():
 		_done(false, "%d spots with no road under the lane, e.g. %s" % [gaps.size(), str(gaps)])
 		return
-	_say("roads connect: pavement under every lane of every path")
+	_say("roads connect: pavement under every lane of every path, and all 6 lanes the whole way round the %.1f km loop" % (hood.hw.length / 1000.0))
 	# ---- the realtor: open a listing for a house nobody owns
 	var idx: int = hood.buyable["ranch_a"]
 	w.hood.interact({"type": "hood_sign", "id": idx})

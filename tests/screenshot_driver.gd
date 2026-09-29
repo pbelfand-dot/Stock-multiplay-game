@@ -178,7 +178,7 @@ func _run() -> void:
 		cam.global_position = world.builder.hood.hw.point(500.0, 0.0, 12.0)
 		var found := {}
 		var tt := 0.0
-		# cars only change model in the tunnels: put the --drivecar model on a few of them now
+		# cars only change model while they're in the pool: put the --drivecar model on a few of them now
 		var want: String = Rules.CARS.get(Config.cli.get("drivecar", ""), {}).get("model", "")
 		if want != "" and tr.nice_models.has(want):
 			var k := 0
@@ -332,6 +332,10 @@ func _run() -> void:
 		Input.action_release("move_forward")
 		await _snap("d4_after_driving")
 		print("hits %s, speed now %.0f mph" % [str(hits), car.mph()])
+		Sfx.quit_game()
+		return
+	if Config.cli.has("looponly"):             # the ring road: a map, aerials, driving round it (chase + cockpit), the tunnel
+		await _loop(world, m, hud)
 		Sfx.quit_game()
 		return
 	if Config.cli.has("handsonly"):            # hands on the wheel mid-turn: first person, outside, a remote driver, a cabbie
@@ -1098,6 +1102,114 @@ func _hands(world, m, hud) -> void:
 	world.remove_cab(901, false)
 	await get_tree().create_timer(0.5).timeout
 	print("car gone under a driver: ok")
+
+
+## The loop: its layout as data (loop_map.json, for a map), aerial views, then
+## a lap-ish drive (an AiDriver at the wheel, us sitting in it) with chase and
+## cockpit shots on the east curve, the return leg, the tunnel, and a count of
+## the traffic round us.
+func _loop(world, m, hud) -> void:
+	var hb = world.builder.hood
+	var hw = hb.hw
+	hud.root.visible = false
+	var js := {"length": hw.length, "cl": [], "paths": {}, "hood": [hb.hood_rect.position.x, hb.hood_rect.position.y, hb.hood_rect.size.x, hb.hood_rect.size.y],
+		"lot": [hw.dealership_rect.position.x, hw.dealership_rect.position.y, 60, 40], "future": [], "portals": [], "return": hw.s_return,
+		"stations": {}}
+	for q in hw.cl:
+		js.cl.append([snappedf(q.x, 0.1), snappedf(q.z, 0.1)])
+	for pn in hw.paths:
+		var pl: Array = []
+		for q in hw.paths[pn].pts:
+			pl.append([snappedf(q.x, 0.1), snappedf(q.z, 0.1)])
+		js.paths[pn] = pl
+	for fl in hw.future_lots:
+		var r: Rect2 = fl.rect
+		js.future.append({"name": fl.name, "s": fl.s, "rect": [r.position.x, r.position.y, r.size.x, r.size.y]})
+	for sp in [hw.s_portal_w, hw.s_portal_e]:
+		var q: Vector3 = hw.point(sp, 0.0)
+		js.portals.append([q.x, q.z])
+	for st in [0.0, hw.SB_DOWNTOWN, hw.SB_HOOD, hw.DEALER_S, hw.s_return]:
+		var q2: Vector3 = hw.point(st, 0.0)
+		js.stations[str(int(st))] = [q2.x, q2.z]
+	var f := FileAccess.open(out_dir + "/loop_map.json", FileAccess.WRITE)
+	f.store_string(JSON.stringify(js))
+	f.close()
+	print("MAP loop_map.json: %.0f m loop" % hw.length)
+	# aerials: nothing culled by distance for these
+	var cam := Camera3D.new()
+	world.add_child(cam)
+	cam.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
+	cam.current = true
+	cam.far = 9000.0
+	var ranges := {}
+	for gi in hb.root.find_children("*", "GeometryInstance3D", true, false):
+		ranges[gi] = gi.visibility_range_end
+		gi.visibility_range_end = 0.0
+	for v in [["loop_00_aerial", Vector3(1320, 2300, 2900), Vector3(1320, 0, 760), 48.0],
+			["loop_01_east_curve", Vector3(3350, 520, 1250), Vector3(2750, 0, 790), 50.0],
+			["loop_02_west_curve_tunnel", Vector3(-650, 380, 1150), Vector3(-80, 0, 560), 50.0],
+			["loop_03_return_leg", Vector3(1900, 260, 1420), Vector3(1250, 0, 1150), 55.0]]:
+		cam.global_position = v[1]
+		cam.look_at(v[2])
+		cam.fov = v[3]
+		await get_tree().create_timer(0.6).timeout
+		await _snap(v[0])
+	for gi in ranges:
+		if is_instance_valid(gi):
+			gi.visibility_range_end = ranges[gi]
+	cam.queue_free()
+	# drive it: we sit in our car, an AiDriver has the wheel down the middle lane
+	var p0 = world.local_player
+	var key: String = Config.cli.get("drivecar", "bz_m3")
+	m.owned[1][key] = 1
+	m._push_state()
+	world.go_to_street()
+	await get_tree().create_timer(0.8).timeout
+	var car = world.cars[Net.my_id()]
+	p0.enter_car(car)
+	p0.hands_off = true
+	var legs := [["east", 2350.0, 1700.0, 52.0, [[3.0, "loop_10_east_curve_chase", false], [5.5, "loop_11_east_curve_cockpit", true],
+			[14.0, "loop_12_return_leg_chase", false], [17.0, "loop_13_return_leg_cockpit", true]]],
+		["tunnel", hw.s_portal_e - 420.0, 700.0, 40.0, [[8.0, "loop_14_into_the_tunnel", false], [11.5, "loop_15_in_the_tunnel", true],
+			[15.0, "loop_16_out_by_downtown", false]]]]
+	var AiScript = load("res://scripts/vehicle/ai_driver.gd")
+	for leg in legs:
+		var s0: float = leg[1]
+		var path := PackedVector3Array()
+		var st := 0.0
+		while st < leg[2]:
+			path.append(hw.lane_center(1, 1, s0 + st))
+			st += 6.0
+		var fwd: Vector3 = hw.forward(1, s0)
+		car.global_position = path[0] + Vector3(0, 0.3, 0)
+		car.rotation = Vector3(0, atan2(-fwd.x, -fwd.z), 0)
+		car.speed = 30.0
+		car.velocity = fwd * 30.0
+		car.reset_physics_interpolation()
+		var ai = AiScript.new()
+		ai.mode = "path"
+		ai.path = path
+		ai.cruise = leg[3]
+		car.add_child(ai)
+		var t0 := 0.0
+		for shot in leg[4]:
+			if (shot[2] as bool) != p0.drive_cam.cockpit:
+				p0.drive_cam.toggle()
+				p0.model.set_first_person(p0.drive_cam.cockpit)
+			await get_tree().create_timer(shot[0] - t0).timeout
+			t0 = shot[0]
+			var loc: Vector2 = hw.locate(car.global_position)
+			var near := 0
+			var tr = world.traffic()
+			for c in tr.active_cars():
+				if (c.position as Vector3).distance_to(car.global_position) < 360.0:
+					near += 1
+			print("%s: %.0f mph at station %.0f, %.1f m off the centerline, %d traffic cars within 360 m (%d on the road)" % [shot[1],
+					car.mph(), loc.x, loc.y, near, tr.active_cars().size()])
+			await _snap(shot[1])
+		ai.queue_free()
+		car.ai = false
+	p0.hands_off = false
 
 
 ## Where a node is drawn this frame (interpolated ones between their ticks).

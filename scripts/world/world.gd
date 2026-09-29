@@ -313,10 +313,15 @@ func _sync_traffic() -> void:
 	var tr = traffic()
 	if tr == null:
 		return
+	tr.viewers_node = players_node          # traffic lives round every player
 	if Net.is_server():
-		tr.snapshot_ready.connect(func(data: PackedByteArray):
-			if multiplayer.has_multiplayer_peer() and multiplayer.get_peers().size() > 0:
-				_traffic_snap.rpc(data))
+		# each client gets the cars near its own player (one small packet, however big the pool)
+		tr.snapshot_ready.connect(func():
+			if not multiplayer.has_multiplayer_peer():
+				return
+			for peer in multiplayer.get_peers():
+				var pn = player_node(peer)
+				_traffic_snap.rpc_id(peer, tr.snapshot([pn.global_position] if pn != null else [])))
 	else:
 		tr.set_remote(true)
 

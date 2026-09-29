@@ -1,8 +1,9 @@
 extends RefCounted
 ## The city along the highway: what makes the drive read as New York. Rows of
 ## brick walk-ups, warehouses and housing-project slabs behind the highway
-## walls (30-145 m out from the centerline), cut by cross streets, with rooftop
-## water towers, fire escapes, painted ghost signs and billboards. Plus the bits
+## walls (30-145 m out from the centerline, all the way round the loop), cut
+## by cross streets, with rooftop water towers, fire escapes, painted ghost
+## signs and billboards. Plus the bits
 ## the highway builder shares: graffiti tags, the brick facade and chain-link
 ## materials, and "is this spot clear of the ramps?" tests.
 ##
@@ -313,6 +314,8 @@ func build_city() -> void:
 	_hash_blockers()
 	keep_out.append(nb.hood_rect.grow(12.0))
 	keep_out.append(hw.dealership_rect.grow(10.0))
+	for fl in hw.future_lots:                          # the next dealerships go here (highway.gd FUTURE_DEALERS)
+		keep_out.append((fl.rect as Rect2).grow(25.0))
 	keep_out.append(Rect2(-140, 120, 265, 230))       # the downtown tower field (StreetBuilder._skyline)
 	var chunks := {}                                   # Vector2i(side, bin) -> [facade RoadMesh, detail RoadMesh]
 	var mk := func(side: int, s: float) -> Array:

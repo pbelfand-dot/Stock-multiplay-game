@@ -85,6 +85,7 @@ var _in_car := false
 var riding = null               # a cab we're a passenger in (World.cab / CabRide drives it)
 var _in_cab := false            # (remote) they're riding in a cab
 var _cash_t := 0.0
+var hands_off := false          # tests / screenshots: an AiDriver drives our car, we just sit in it
 # smooth motion (physics runs at 60 Hz, the screen often faster). Remote
 # puppets and anyone in a car are physics-interpolated. Our own body on foot
 # isn't (mouse look has to turn it this frame, not a tick later): it and the
@@ -570,7 +571,9 @@ func _drive_tick(delta: float) -> void:
 		driving = null
 		return
 	var blocked: bool = world.ui_blocking()
-	if blocked:
+	if hands_off:
+		pass                              # (an AiDriver has the wheel: tests / screenshots)
+	elif blocked:
 		car.in_throttle = 0.0
 		car.in_brake = 0.3
 		car.in_steer = 0.0

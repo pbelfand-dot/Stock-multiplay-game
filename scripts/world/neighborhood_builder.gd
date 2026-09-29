@@ -6,8 +6,9 @@ extends RefCounted
 ## Layout (world, y up, -z = north; downtown street at z = 240, x -40..40):
 ##   downtown east end --connector--> roundabout (82, 241) --> junction by the
 ##   highway: an at-grade exit from westbound + a flyover on-ramp that crosses
-##   the highway and merges eastbound. The highway (highway.gd) runs x 80..2560
-##   at z ~365-385 between two tunnels. At station 600 the mirror-image
+##   the highway and merges eastbound. The highway (highway.gd) is a loop: its
+##   downtown leg runs x 80..2560 at z ~365-416, curves south round to a return
+##   leg at z ~1185 and back up through the Bagholder-Battery Tunnel. At station 1500 the mirror-image
 ##   interchange: an eastbound exit to the hood road and roundabout, and a
 ##   flyover on-ramp back west. Magnolia Heights is south of it: Magnolia St
 ##   (east from the roundabout), Delta Ave (south), Pecan St, Levee Rd.
@@ -135,8 +136,7 @@ func build() -> Node3D:
 	_c.prep()
 	_ground()
 	_mainline()
-	_tunnel(true)
-	_tunnel(false)
+	_tunnel()
 	_ramps()
 	_local_roads()
 	_highway_furniture()
@@ -168,15 +168,6 @@ static func _json(path: String) -> Dictionary:
 
 
 # ================================================================== helpers
-
-## Mainline point that keeps going straight past the ends (tunnel hills).
-func _pt(s: float, d: float, y := 0.0) -> Vector3:
-	if s < 0.0:
-		return hw.point(0.0, d, y) + hw.tangent(0.0) * s
-	if s > hw.length:
-		return hw.point(hw.length, d, y) + hw.tangent(hw.length) * (s - hw.length)
-	return hw.point(s, d, y)
-
 
 static func yaw_of(dir: Vector3) -> float:
 	return atan2(dir.x, dir.z)
@@ -254,11 +245,22 @@ func parked_car(model: String, pos: Vector3, yaw: float, parent: Node3D = null) 
 ## either side) the corridor is city: gravel, bare dirt, weedy vacant lots,
 ## old paved lots. The hood keeps its grass.
 func _ground() -> void:
-	var zc := {}                      # the highway's z per 5 m of x (it runs west-east)
-	for q in hw.cl:
-		zc[floori(q.x / 5.0)] = q.z
+	# how far every 20 m cell is from the highway (the loop), out to ~220 m: stamp
+	# the cells round every 8th centerline sample
+	var near := {}
+	var ci := 0
+	while ci < hw.cl.size():
+		var q: Vector3 = hw.cl[ci]
+		var qc := Vector2i(floori(q.x / 20.0), floori(q.z / 20.0))
+		for a in range(-11, 12):
+			for bb in range(-11, 12):
+				var k := qc + Vector2i(a, bb)
+				var dk := Vector2((k.x + 0.5) * 20.0 - q.x, (k.y + 0.5) * 20.0 - q.z).length()
+				if dk < near.get(k, 1e9):
+					near[k] = dk
+		ci += 8
 	var hood := Rect2(hw.roundabout_hood.x - 70.0, hw.roundabout_hood.z - 50.0, 240.0, 170.0).grow(25.0)   # hood_rect (see _neighborhood)
-	var rects := [Rect2(-300, 262, 3200, 640), Rect2(-300, 60, 3200, 158), Rect2(53, 218, 2847, 44), Rect2(-300, 218, 247, 44)]
+	var rects := [Rect2(-620, 262, 3900, 1250), Rect2(-620, 60, 3900, 158), Rect2(53, 218, 3227, 44), Rect2(-620, 218, 567, 44)]
 	for r: Rect2 in rects:
 		# collision: one slab per rect
 		var sb := solid(Vector3(r.size.x, 2.0, r.size.y), Vector3(r.position.x + r.size.x / 2, GROUND_Y - 1.0,
@@ -286,10 +288,9 @@ func _ground() -> void:
 						c = c.darkened(rng.randf_range(0.0, 0.06))
 						var cx := (x0 + x1) / 2.0
 						var cz := (z0 + z1) / 2.0
-						var hk := floori(cx / 5.0)
 						var urban := 0.0
-						if zc.has(hk) and not hood.has_point(Vector2(cx, cz)):
-							urban = 1.0 - smoothstep(140.0, 210.0, absf(cz - zc[hk]))
+						if not hood.has_point(Vector2(cx, cz)):
+							urban = 1.0 - smoothstep(140.0, 210.0, near.get(Vector2i(floori(cx / 20.0), floori(cz / 20.0)), 1e9))
 						if urban > 0.0:
 							# lot by lot (~30 x 20 m), not cell by cell
 							var n2 := _hash(floori(cx / 30.0) * 7919 + floori(cz / 20.0) * 104729)
@@ -319,7 +320,7 @@ func _ground() -> void:
 ## lane, faded paint. Cracks, cold-patched potholes and steel plates go on a
 ## thin overlay mesh that only draws close up (far away it would z-fight).
 func _mainline() -> void:
-	var n := hw.cl.size()
+	var n := hw.cl.size()                   # a loop: n segments, the last one back to sample 0
 	var chunk := 50
 	var i0 := 0
 	var patches := {1: [], -1: []}      # dir -> [[s0, s1, k0, k1, color]] (k -1 inner shoulder .. 4 outer shoulder)
@@ -331,9 +332,19 @@ func _mainline() -> void:
 			var k1 := k0 if wr.randf() < 0.7 else mini(k0 + 1, 4)
 			var col: Color = [Color(0.1, 0.1, 0.11), Color(0.22, 0.22, 0.23), Color(0.29, 0.29, 0.29), Color(0.14, 0.14, 0.15)][wr.randi() % 4]
 			patches[dir].append([s, s + wr.randf_range(6.0, 45.0), k0, k1, col])
-	while i0 < n - 1:
+	# which patches touch each sample (so a sample only looks through its own few, not the loop's hundreds)
+	var cover := {1: [], -1: []}
+	for dir in [1, -1]:
+		var cv: Array = cover[dir]
+		cv.resize(n)
+		for i in n:
+			cv[i] = []
+		for pt in patches[dir]:
+			for i in range(maxi(int(pt[0] / Highway.STEP) - 1, 0), mini(int(pt[1] / Highway.STEP) + 1, n)):
+				(cv[i] as Array).append(pt)
+	while i0 < n:
 		var m := RoadMesh.new()
-		var i1 := mini(i0 + chunk, n - 1)
+		var i1 := mini(i0 + chunk, n)
 		for i in range(i0, i1):
 			var sa := i * Highway.STEP
 			var sb := (i + 1) * Highway.STEP
@@ -341,7 +352,7 @@ func _mainline() -> void:
 			var dash := i % 4 == 0
 			for dir in [1, -1]:
 				var aux: bool = hw.has_aux(dir, sm)
-				var P: Array = patches[dir]
+				var P: Array = cover[dir][i]
 				var strips: Array = []   # [d0, d1, color]
 				var e0 := Highway.EDGE_IN
 				var edge_fade := 0.12 + 0.3 * (sin(sm * 0.031 + dir) * 0.5 + 0.5)
@@ -486,20 +497,21 @@ func _wear(s0: float, s1: float) -> void:
 		m.instance(g_road, road_mat, "Wear", 220.0).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 
 
-## Tunnel + portal + the hill it goes through. west=true: s 0..60, else the east end.
-func _tunnel(west: bool) -> void:
-	var sp: float = hw.s_portal_w if west else hw.s_portal_e     # portal face station
-	var se: float = 0.0 if west else hw.length                    # inner end
-	var sg := -1.0 if west else 1.0                               # direction from portal into the hill
+## The Bagholder-Battery Tunnel: two bores from the portal on the west curve
+## (s_portal_e) round through station 0 to the portal by downtown
+## (s_portal_w), under a grassy hill, a portal face with wing walls at each end.
+func _tunnel() -> void:
+	var s0: float = hw.s_portal_e
+	var s1: float = hw.s_portal_w + hw.length          # (stations wrap: s1 is past the end of the loop)
 	var m := RoadMesh.new()
 	var gm := RoadMesh.new()
 	var H := 7.5
 	var W := Highway.EDGE_OUT + Highway.OUT_SH + 0.3
 	var dark := Color(0.3, 0.3, 0.32)
-	var steps := int(absf(sp - se) / Highway.STEP)
+	var steps := int(ceil((s1 - s0) / Highway.STEP))
 	for i in steps:
-		var sa := sp + sg * i * Highway.STEP
-		var sb := sp + sg * (i + 1) * Highway.STEP
+		var sa := s0 + i * Highway.STEP
+		var sb := minf(sa + Highway.STEP, s1)
 		for dd in [-W, W]:
 			m.quad(hw.point(sa, dd, 0), hw.point(sb, dd, 0), hw.point(sb, dd, H), hw.point(sa, dd, H), dark.darkened(0.1),
 					hw.right(sa) * -signf(dd), true)
@@ -514,12 +526,41 @@ func _tunnel(west: bool) -> void:
 				var t := hw.tangent(sa) * 1.2
 				var r := hw.right(sa) * 0.35
 				gm.quad(c - t - r, c + t - r, c + t + r, c - t + r, Color(1, 0.9, 0.7), Vector3.DOWN)
-	# the far end is black: cars appear out of the dark
-	m.quad(hw.point(se, -W, 0), hw.point(se, W, 0), hw.point(se, W, H), hw.point(se, -W, H), Color(0.02, 0.02, 0.02),
-			hw.tangent(se) * sg * -1.0, true)
-	# portal face (thick concrete wall with two bores), wing walls and the hill
 	var PW := 26.0
 	var PH := 12.0
+	var top := 13.0
+	var outer := 52.0
+	for pe in [[hw.s_portal_w, -1.0], [hw.s_portal_e, 1.0]]:
+		_portal(m, pe[0], pe[1], H, W, PW, PH, top, outer)
+	# the hill: a mesa over the bores from portal to portal, its sides sloping down to the ground
+	var sl := func(a: Vector3, bb: Vector3, c: Vector3, dd: Vector3, up: Vector3) -> void:
+		m.quad(a, bb, c, dd, GRASS.darkened(rng.randf_range(0.0, 0.08)), up, true)
+	var n := int(ceil((s1 - s0) / 12.0))
+	for k in n:
+		var sa := lerpf(s0, s1, float(k) / n)
+		var sb := lerpf(s0, s1, float(k + 1) / n)
+		sl.call(hw.point(sa, -PW, top), hw.point(sa, PW, top), hw.point(sb, PW, top), hw.point(sb, -PW, top), Vector3.UP)
+		for side in [-1.0, 1.0]:
+			sl.call(hw.point(sa, side * PW, top), hw.point(sb, side * PW, top), hw.point(sb, side * outer, GROUND_Y),
+					hw.point(sa, side * outer, GROUND_Y), Vector3.UP)
+	m.instance(g_road, road_mat, "Tunnel", 1500.0)
+	gm.instance(g_road, glow_mat, "TunnelLights", 400.0)
+	# trees on top of the hill, and nothing else growing / built on it
+	for k in 22:
+		var s := lerpf(s0, s1, rng.randf())
+		prop(["TreePine", "TreeOak", "TreeSmall"][k % 3], hw.point(s, rng.randf_range(-PW + 3.0, PW - 3.0), top),
+				rng.randf_range(0, TAU), g_far, rng.randf_range(0.8, 1.2))
+	var s := s0
+	while s <= s1:
+		var c := hw.point(s, 0)
+		_tree_blockers.append([Vector2(c.x, c.z), 62.0])
+		s += 25.0
+
+
+## A portal at station sp (sg: the way into the hill, -1 / +1 in s): the thick
+## concrete face with its two bores, the cap, wing walls down the hill's sides,
+## grime and tags along its foot.
+func _portal(m, sp: float, sg: float, H: float, W: float, PW: float, PH: float, top: float, outer: float) -> void:
 	var face := func(d0: float, d1: float, y0: float, y1: float) -> void:
 		m.quad(hw.point(sp, d0, y0), hw.point(sp, d1, y0), hw.point(sp, d1, y1), hw.point(sp, d0, y1), CONCRETE,
 				hw.tangent(sp) * -sg)
@@ -527,58 +568,20 @@ func _tunnel(west: bool) -> void:
 	face.call(W, PW, 0.0, PH)
 	face.call(-W, W, H, PH)
 	face.call(-0.4, 0.4, 0.0, H)
-	var cap := hw.point(sp, 0, PH)
 	m.quad(hw.point(sp, -PW - 0.5, PH), hw.point(sp, PW + 0.5, PH), hw.point(sp, PW + 0.5, PH + 0.6),
 			hw.point(sp, -PW - 0.5, PH + 0.6), CONCRETE_D, hw.tangent(sp) * -sg)
-	# the hill: a mesa over the tunnel whose slopes run down to the ground
-	var top := 13.0
-	var back := 40.0
-	var sb2 := sp + sg * (absf(sp - se) + back)
-	var outer := 52.0
-	var g := func(s: float, d: float, y: float) -> Vector3:
-		return _pt(s, d, y)
-	var sl := func(a: Vector3, bb: Vector3, c: Vector3, dd: Vector3, up: Vector3) -> void:
-		var col := GRASS.darkened(rng.randf_range(0.0, 0.08))
-		m.quad(a, bb, c, dd, col, up, true)
-	# top + portal-side cliff (the portal wall), side slopes, back slope
-	var n := 8
-	for k in n:
-		var s0 := lerpf(sp, sb2, float(k) / n)
-		var s1 := lerpf(sp, sb2, float(k + 1) / n)
-		sl.call(g.call(s0, -PW, top), g.call(s0, PW, top), g.call(s1, PW, top), g.call(s1, -PW, top), Vector3.UP)
-		for side in [-1.0, 1.0]:
-			sl.call(g.call(s0, side * PW, top), g.call(s1, side * PW, top), g.call(s1, side * outer, GROUND_Y),
-					g.call(s0, side * outer, GROUND_Y), Vector3.UP)
 	for side in [-1.0, 1.0]:   # triangular wing walls beside the portal
-		m.tri(g.call(sp, side * PW, top), g.call(sp, side * outer, GROUND_Y), g.call(sp, side * PW, GROUND_Y), CONCRETE_D,
+		m.tri(hw.point(sp, side * PW, top), hw.point(sp, side * outer, GROUND_Y), hw.point(sp, side * PW, GROUND_Y), CONCRETE_D,
 				hw.tangent(sp) * -sg, true)
 	face.call(-PW, PW, PH + 0.6, top)
-	# grime down the portal and tags along its foot
 	for side in [-1.0, 1.0]:
 		var d0: float = side * (W + 0.6) if side > 0 else -PW + 0.6
 		var o := hw.point(sp, d0, 0.0)
 		var tt := hw.right(sp)
-		m.quad(o + tt * -0.2 + hw.tangent(sp) * -sg * 0.02, o + tt * (PW - W - 1.0) + hw.tangent(sp) * -sg * 0.02,
-				o + tt * (PW - W - 1.0) + Vector3(0, 0.9, 0) + hw.tangent(sp) * -sg * 0.02,
-				o + tt * -0.2 + Vector3(0, 0.9, 0) + hw.tangent(sp) * -sg * 0.02, CONCRETE.darkened(0.3), hw.tangent(sp) * -sg)
+		var out := hw.tangent(sp) * -sg * 0.02
+		m.quad(o + tt * -0.2 + out, o + tt * (PW - W - 1.0) + out, o + tt * (PW - W - 1.0) + Vector3(0, 0.9, 0) + out,
+				o + tt * -0.2 + Vector3(0, 0.9, 0) + out, CONCRETE.darkened(0.3), hw.tangent(sp) * -sg)
 		Corridor.graffiti(m, o, tt, hw.tangent(sp) * -sg, PW - W - 1.2, 0.4, 3.2, 3, wr)
-	var s_end := sb2 + sg * 55.0
-	sl.call(g.call(sb2, -PW, top), g.call(sb2, PW, top), g.call(s_end, PW, GROUND_Y), g.call(s_end, -PW, GROUND_Y), Vector3.UP)
-	for side in [-1.0, 1.0]:
-		sl.call(g.call(sb2, side * PW, top), g.call(s_end, side * PW, GROUND_Y), g.call(s_end, side * outer, GROUND_Y),
-				g.call(sb2, side * outer, GROUND_Y), Vector3.UP)
-	m.instance(g_road, road_mat, "Tunnel", 1500.0)
-	gm.instance(g_road, glow_mat, "TunnelLights", 400.0)
-	# trees on top of the hill
-	for k in 14:
-		var s := lerpf(sp, sb2, rng.randf())
-		var d := rng.randf_range(-PW + 3.0, PW - 3.0)
-		prop(["TreePine", "TreeOak", "TreeSmall"][k % 3], g.call(s, d, top), rng.randf_range(0, TAU), g_far,
-				rng.randf_range(0.8, 1.2))
-	# invisible stop at the inner end so nobody walks out of the world
-	var ce := hw.point(se + sg * -2.0, 0, 4)
-	solid(Vector3(40, 10, 1), ce, yaw_of(hw.tangent(se)), g_road)
-	_tree_blockers.append([Vector2(hw.point((sp + sb2) / 2, 0).x, hw.point((sp + sb2) / 2, 0).z), 110.0])
 
 
 ## Ramp decks: a lane with shoulders; parapets when raised; retaining walls
@@ -814,13 +817,15 @@ func _roundabout(c: Vector3) -> void:
 
 
 const GANTRIES := [90.0, Highway.SB_HOOD - 245.0, Highway.DEALER_S - 60.0]   # (stations: they move with the exits)
+var _gantry_s: Array = []      # every gantry's station (these + the ones round the loop)
 const GALV := Color(0.64, 0.66, 0.66)          # galvanized steel
 ## Stretches (per direction) where the right-of-way line is a tall concrete
 ## wall with chain-link on top (the sunken-expressway look); elsewhere it's a
 ## chain-link fence. Both leave gaps wherever a ramp comes near.
 const WALLS := {1: [[Highway.SB_DOWNTOWN + 168.0, 700.0], [1050.0, Highway.SB_HOOD - 160.0], [Highway.SB_HOOD + 5.0, Highway.DEALER_S - 10.0],
 		[Highway.DEALER_S + 110.0, 9999.0]],
-	-1: [[Highway.SB_DOWNTOWN + 158.0, 640.0], [980.0, Highway.SB_HOOD - 170.0], [Highway.SB_HOOD + 20.0, Highway.SB_HOOD + 500.0]]}
+	-1: [[Highway.SB_DOWNTOWN + 158.0, 640.0], [980.0, Highway.SB_HOOD - 170.0], [Highway.SB_HOOD + 20.0, Highway.SB_HOOD + 500.0],
+		[2520.0, 3500.0], [4300.0, 5100.0], [5700.0, 9999.0]]}     # (round the loop: the curves' outsides, stretches of the return leg)
 const ROW_D := 23.5                            # the right-of-way line (walls, fences)
 
 
@@ -840,6 +845,15 @@ func _highway_furniture() -> void:
 			{"over": 3.0, "w": 7.6, "exit": "EXIT 2", "only": true, "lines": ["FDR Dr South", "Wall St / Downtown"]}])
 	_gantry(GANTRIES[2], [{"over": 2.0, "w": 9.0, "exit": "EXIT 6", "lines": ["Bemze Motors", "NEXT RIGHT"]}],
 			[{"over": 1.5, "w": 10.0, "shield": "278", "card": "WEST", "lines": ["LAST EXIT BEFORE TOLL", "Exit 2 · Wall St  1 MILE"]}])
+	_gantry_s = GANTRIES.duplicate()
+	# round the loop: the return leg (+s runs west here) and the way back east
+	var g4: float = hw.s_return + 120.0
+	var g5: float = hw.s_return + 1700.0
+	_gantry(g4, [{"over": 1.5, "w": 10.0, "shield": "278", "card": "LOOP", "lines": ["Battery Tunnel", "Wall St / Downtown  4 MI"]}],
+			[{"over": 1.5, "w": 9.5, "shield": "278", "card": "LOOP", "lines": ["Bemze Motors", "Magnolia Hts  3 MI"]}])
+	_gantry(g5, [{"over": 1.5, "w": 10.5, "lines": ["Bagholder-Battery Tunnel", "TOLL $19.99 · NO CASH · NO REFUNDS"]}],
+			[{"over": 1.5, "w": 9.0, "shield": "278", "card": "LOOP", "lines": ["Points East", "Bemze Motors  2 MI"]}])
+	_gantry_s.append_array([g4, g5])
 	# concrete barriers along both edges; walls and fences on the right-of-way line
 	for dir in [1, -1]:
 		_edge_barrier(dir)
@@ -855,6 +869,13 @@ func _highway_furniture() -> void:
 			["EXIT 6 · NEXT RIGHT", 0.36, wt]])
 	_c.billboard(905.0, -1, -1, Color(0.98, 0.82, 0.1), [["HURT IN A MARGIN CALL?", 0.62, ink], ["1-800-BAG-HOLD", 0.8, Color(0.78, 0.08, 0.08)],
 			["NO FEE UNLESS WE LOSE TOO · HABLAMOS ESPAÑOL", 0.3, ink]])
+	# round the loop
+	_c.billboard(hw.s_return + 520.0, 1, 1, Color(0.1, 0.1, 0.12), [["MERCEDEZ BANZ", 0.9, wt], ["COMING SOON · THIS EXIT", 0.42, Color(0.75, 0.78, 0.82)]])
+	_c.billboard(hw.s_return + 980.0, -1, -1, Color(0.08, 0.62, 0.32), [["ROBINHOOD'S COUSIN", 0.72, wt], ["NOW WITH 1000X LEVERAGE", 0.52, Color(0.85, 1.0, 0.3)],
+			["WE ARE NOT A BANK", 0.38, wt]])
+	_c.billboard(hw.s_return + 1470.0, 1, 1, Color(0.85, 0.1, 0.12), [["PORSHA", 1.0, wt], ["COMING SOON · NEXT RIGHT", 0.42, wt]])
+	_c.billboard(hw.s_return + 2370.0, 1, 1, Color(0.75, 0.76, 0.78), [["AUDY", 1.0, ink], ["COMING SOON · FOUR RINGS, ZERO CHILL", 0.36, ink]])
+	_c.billboard(2900.0, -1, -1, Color(0.5, 0.26, 0.9), [["KWIK LIVE", 1.1, wt], ["THE LOOP NEVER ENDS · NEITHER DOES THE STREAM", 0.34, Color(1.0, 0.88, 0.3)]])
 
 
 ## Outer edge of the paved shoulder at station s (wider beside an aux lane).
@@ -892,7 +913,7 @@ func _gantry(s: float, eb: Array, wb: Array) -> void:
 		for spec in side[1]:
 			var dc: float = dir * (Highway.EDGE_IN + Highway.LANE_W * float(spec.get("over", 1.5)))
 			_guide_sign(m, hw.point(s - dir * 0.75, dc, 6.5), -t * dir, spec)
-	m.instance(g_far, road_mat, "Gantry", 900.0)
+	m.instance(g_road, road_mat, "Gantry", 900.0)     # (its own node: the far group's batches span the whole loop)
 
 
 ## A green guide sign facing `fwd` (toward the traffic reading it), its bottom
@@ -964,7 +985,7 @@ func _shield(m, P: Callable, sc: Vector2, k: float) -> void:
 ## comes within 7.5 m (diverges, merges, the gores), with a yellow crash
 ## cushion on each run's end that faces oncoming traffic.
 func _edge_barrier(dir: int) -> void:
-	var m := RoadMesh.new()
+	var bins := {}
 	var i := int(ceil(hw.s_portal_w / Highway.STEP))
 	var i_end := int(hw.s_portal_e / Highway.STEP)
 	var run := false
@@ -972,6 +993,7 @@ func _edge_barrier(dir: int) -> void:
 	while i < i_end:
 		var sa := i * Highway.STEP
 		var sb := sa + Highway.STEP
+		var m = _bin(bins, sa)
 		var ea := _edge(dir, sa)
 		var ok := is_equal_approx(ea, _edge(dir, sb))
 		var d := dir * (ea + 0.42)
@@ -988,7 +1010,7 @@ func _edge_barrier(dir: int) -> void:
 			run = false
 		prev_d = d
 		i += 1
-	m.instance(g_far, road_mat, "Barrier", 900.0).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_flush(bins, road_mat, "Barrier", 900.0, false)
 
 
 ## A crash cushion off the end of a barrier at station s, reaching 3 m toward `way` (+-1 in s).
@@ -1007,8 +1029,8 @@ func _cushion(m, s: float, d: float, way: float) -> void:
 ## The right-of-way line ROW_D out: tall concrete walls (grime, streaks, tags,
 ## chain-link on top) in the WALLS stretches, a chain-link fence elsewhere.
 func _row_line(dir: int) -> void:
-	var m := RoadMesh.new()
-	var fm := RoadMesh.new()
+	var mb := {}
+	var fb := {}
 	var d := dir * ROW_D
 	var s := hw.s_portal_w + 3.0
 	var k := 0
@@ -1020,6 +1042,8 @@ func _row_line(dir: int) -> void:
 			if _c.ramp_near(p, 9.0) or _c.in_infield(p):
 				ok = false
 		if ok:
+			var m = _bin(mb, s)
+			var fm = _bin(fb, s)
 			var wall := false
 			for rr in WALLS[dir]:
 				if s >= rr[0] and s2 <= rr[1]:
@@ -1030,9 +1054,8 @@ func _row_line(dir: int) -> void:
 				_fence_panel(m, fm, s, s2, d, dir, 2.4, GROUND_Y)
 		s = s2
 		k += 1
-	m.instance(g_far, road_mat, "Walls", 900.0).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	if not fm.empty():
-		fm.instance(g_road, _c.fence_mat(), "ChainLink", 260.0).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_flush(mb, road_mat, "Walls", 900.0, false)
+	_flush(fb, _c.fence_mat(), "ChainLink", 260.0, false)
 
 
 func _wall_panel(m, fm, s: float, s2: float, d: float, dir: int, k: int) -> void:
@@ -1078,18 +1101,20 @@ func _fence_panel(m, fm, s: float, s2: float, d: float, dir: int, h: float, y0: 
 ## Cobra-head street lights on galvanized poles behind the barriers, staggered
 ## side to side, sodium-orange lenses.
 func _cobra_lights() -> void:
-	var m := RoadMesh.new()
-	var gm := RoadMesh.new()
+	var mb := {}
+	var gb := {}
 	for dir in [1, -1]:
 		var s := hw.s_portal_w + 25.0 + (27.0 if dir < 0 else 0.0)
 		while s < hw.s_portal_e - 15.0:
 			var ok := absf(s - Highway.SB_DOWNTOWN) > 14.0 and absf(s - Highway.SB_HOOD) > 14.0
-			for g in GANTRIES:
+			for g in _gantry_s:
 				if absf(s - g) < 10.0:
 					ok = false
 			var dp: float = dir * (_edge(dir, s) + 1.4)
 			var base := hw.point(s, dp, GROUND_Y)
 			if ok and not _c.ramp_near(base, 6.5, 4.0):
+				var m = _bin(mb, s)
+				var gm = _bin(gb, s)
 				var t := hw.tangent(s)
 				var inw: Vector3 = -hw.right(s) * dir            # toward the road
 				m.obox(base, t, Vector3(0.28, 10.6 - GROUND_Y, 0.28), GALV, true)
@@ -1107,8 +1132,27 @@ func _cobra_lights() -> void:
 				var lb := h0 + inw * 0.85 - Vector3(0, 0.18, 0)
 				gm.quad(la - r, lb - r, lb + r, la + r, Color(1.0, 0.72, 0.38), Vector3.DOWN)
 			s += 54.0
-	m.instance(g_far, road_mat, "CobraLights", 900.0)
-	gm.instance(g_far, glow_mat, "CobraLenses", 400.0)
+	_flush(mb, road_mat, "CobraLights", 900.0)
+	_flush(gb, glow_mat, "CobraLenses", 400.0)
+
+
+## Long furniture (barriers, walls, fences, lights) is built in ~200 m pieces
+## of highway, each its own node: a visibility range is measured to a mesh's
+## middle, so one mesh round the whole loop would vanish everywhere but there.
+func _bin(bins: Dictionary, s: float):
+	var k := int(hw.wrap_s(s) / 200.0)
+	if not bins.has(k):
+		bins[k] = RoadMesh.new()
+	return bins[k]
+
+
+func _flush(bins: Dictionary, mat: Material, nm: String, range_end: float, shadow := true) -> void:
+	for k in bins:
+		if bins[k].empty():
+			continue
+		var mi: MeshInstance3D = bins[k].instance(g_road, mat, "%s_%d" % [nm, k], range_end)
+		if not shadow:
+			mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 
 
 # ================================================================== neighborhood
@@ -1741,16 +1785,19 @@ func _scatter_trees() -> void:
 	var kinds := ["TreeOak", "TreePine", "TreeSmall", "TreePine", "TreeOak"]
 	var placed := 0
 	var tries := 0
-	while placed < 480 and tries < 9000:
+	var keep: Array = [hw.dealership_rect.grow(8.0)]
+	for fl in hw.future_lots:
+		keep.append((fl.rect as Rect2).grow(20.0))                 # the next dealerships' lots stay clear
+	while placed < 760 and tries < 14000:
 		tries += 1
-		var p := Vector3(rng.randf_range(60.0, 2600.0), GROUND_Y, rng.randf_range(240.0, 800.0))
+		var p := Vector3(rng.randf_range(-450.0, 3100.0), GROUND_Y, rng.randf_range(240.0, 1400.0))
 		var loc: Vector2 = hw.locate(p)
 		if absf(loc.y) < 30.0 or absf(loc.y) > 280.0:
 			continue
 		if p.x < 60.0 and absf(p.z - 240.0) < 30.0:
 			continue
 		var ok := true
-		for tr in _tree_rects:
+		for tr in _tree_rects + keep:
 			if (tr as Rect2).has_point(Vector2(p.x, p.z)):
 				ok = false
 		for bl in _tree_blockers:
@@ -1763,7 +1810,7 @@ func _scatter_trees() -> void:
 		placed += 1
 	# a few low bushes along the sound wall on the neighborhood side
 	var s := 620.0
-	while s < hw.s_portal_e - 80.0:
+	while s < 2400.0:
 		prop("BushDark" if int(s) % 2 else "Bush", hw.point(s, 26.5, GROUND_Y), rng.randf_range(0, TAU), g_mid, 1.4)
 		s += 9.0
 
