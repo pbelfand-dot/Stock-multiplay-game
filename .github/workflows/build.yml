@@ -59,26 +59,8 @@ jobs:
           cp macos/Bagholders.zip Bagholders-macOS.zip
           python3 ../tools/thin_macos.py macos/Bagholders.zip .
           ls -la
-      - uses: actions/upload-artifact@v4
-        with:
-          name: Bagholders-Windows
-          path: build/Bagholders-Windows.zip
-      - uses: actions/upload-artifact@v4
-        with:
-          name: Bagholders-macOS
-          path: build/Bagholders-macOS.zip
-      - uses: actions/upload-artifact@v4
-        with:
-          name: Bagholders
-          path: build/Bagholders.zip
-      - uses: actions/upload-artifact@v4
-        with:
-          name: Bagholders-Intel
-          path: build/Bagholders-Intel.zip
-      - uses: actions/upload-artifact@v4
-        with:
-          name: Bagholders-Linux
-          path: build/Bagholders-Linux.zip
+      # (no workflow artifacts: they filled the account's storage quota and the
+      # failed upload skipped the release update. The release IS the download.)
       # One permanent download link: the "latest" release always holds the
       # newest build of main under the SAME file names (only the contents change).
       - name: Update the "latest" download (main only)
