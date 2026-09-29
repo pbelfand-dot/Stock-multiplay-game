@@ -32,6 +32,10 @@ var _trophy_sig := {}           # desk id -> signature of what's on it
 const CashArt = preload("res://scripts/art/cash_art.gd")
 const GunArt = preload("res://scripts/art/gun_art.gd")
 const MoneyCounter = preload("res://scripts/world/money_counter.gd")
+const CarScript = preload("res://scripts/vehicle/car.gd")
+var cars := {}                  # peer -> their car (ours is simulated here, theirs follow the network)
+var cars_node: Node3D
+var _car_send := 0.0
 var atms: Array = []            # ATM nodes (office by the elevator, street outside the bank)
 var _spread_nodes := {}         # peer -> {node, sig}: cash laid out for the photo
 
@@ -73,6 +77,9 @@ func _ready() -> void:
 	_build_atms()
 	match_node.cash_moved.connect(_on_cash_moved)
 	match_node.shot.connect(_on_shot)
+	cars_node = Node3D.new()
+	cars_node.name = "Cars"
+	add_child(cars_node)
 	match_node.state_changed.connect(_sync_spreads)
 	_sync_players()
 
@@ -138,8 +145,64 @@ func go_to_street() -> void:
 		Sfx.play("bell", -8.0, 1.6)
 		local_player.teleport(builder.street.spawn)
 		local_player.rotation.y = PI
+		if not cars.has(Net.my_id()):         # your ride's parked at the curb out front
+			var st = builder.street
+			spawn_car(Net.my_id(), match_node.car_of(Net.my_id()), st.P(-12.0 + 6.0 * (Net.players.keys().find(Net.my_id()) % 4), 0.3, -1.7), -PI / 2)
 		hud.show_toast("Ground floor. The street is yours — boutiques, Tony's Deli, the Tailor, Pawn King, the casino.",
 				Color(0.95, 0.9, 0.6))
+
+
+# ---------------------------------------------------------------- cars
+
+## Put `peer`'s car (a Rules.CARS key) in the world. Ours we drive; theirs
+## follow the network (and still block us).
+func spawn_car(peer: int, key: String, pos: Vector3, yaw: float):
+	if cars.has(peer):
+		cars[peer].queue_free()
+	var c = CarScript.new()
+	c.setup(key, peer)
+	c.name = "Car_%d" % peer
+	c.position = pos
+	c.rotation.y = yaw
+	c.set_meta("interact", "car")
+	c.set_meta("interact_id", peer)
+	c.set_meta("prompt", "[E] Drive your %s" % Rules.CARS[key].name if peer == Net.my_id() else "%s's %s" % [Net.player_name(peer), Rules.CARS[key].name])
+	cars_node.add_child(c)
+	cars[peer] = c
+	if peer == Net.my_id():
+		send_car(c, true)
+	return c
+
+
+## Stream our car to everyone: 20 times a second while driving, once a
+## second while it's parked (so late joiners see it too).
+func send_car(c, now := false) -> void:
+	if not now and _car_send > 0.0:
+		return
+	_car_send = 0.05 if local_player and local_player.driving == c else 1.0
+	_car_tf.rpc(c.key, c.global_position, c.quaternion, c.speed, c.steer, c.in_brake > 0.05)
+
+
+@rpc("any_peer", "unreliable_ordered")
+func _car_tf(key: String, pos: Vector3, rot: Quaternion, spd: float, st: float, brake: bool) -> void:
+	var peer := multiplayer.get_remote_sender_id()
+	if not Net.players.has(peer) or not Rules.CARS.has(key):
+		return
+	var c = cars.get(peer)
+	if c == null or not is_instance_valid(c) or c.key != key:
+		c = spawn_car(peer, key, pos, 0.0)
+	c.net_state(pos, rot, spd, st, brake)
+
+
+func _tick_cars(delta: float) -> void:
+	_car_send = maxf(_car_send - delta, 0.0)
+	var mine = cars.get(Net.my_id())
+	if mine and is_instance_valid(mine) and (local_player == null or local_player.driving != mine):
+		send_car(mine)                        # parked: the slow heartbeat
+	for peer in cars.keys():                  # they left: their car goes with them
+		if not Net.players.has(peer):
+			cars[peer].queue_free()
+			cars.erase(peer)
 
 
 func leave_street() -> void:
@@ -187,6 +250,7 @@ func near_toilet(peer: int) -> bool:
 # ---------------------------------------------------------------- per-frame
 
 func _process(delta: float) -> void:
+	_tick_cars(delta)
 	if local_player and hud:
 		hud.set_prompt(local_player.look_target() if not ui_blocking() else {})
 	_tick_bubbles(delta)
@@ -221,6 +285,11 @@ func _unhandled_input(event: InputEvent) -> void:
 			local_player.sit(t.id)
 		elif t.get("type", "") == "counter":
 			_run_counter(t.id)
+		elif t.get("type", "") == "car":
+			if int(t.id) == Net.my_id():
+				local_player.enter_car(cars[t.id])
+			else:
+				hud.show_toast("That's %s's car." % Net.player_name(int(t.id)), Color(1, 0.8, 0.4))
 		elif not t.is_empty():
 			hud.open_interact(t)
 			get_viewport().set_input_as_handled()

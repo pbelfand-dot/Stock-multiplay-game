@@ -86,7 +86,7 @@ const LUXURY := {
 ## corner before it slides (1.0 = a good sports car), mass = how much a crash
 ## shoves it around (tonnes). Game speeds: highway traffic cruises ~29 m/s.
 const CARS := {
-	"beater": {"name": "Your Mom's Sedan", "price": 0.0, "model": "", "top": 46.0, "zero60": 9.5, "grip": 0.72, "mass": 1.4,
+	"beater": {"name": "Your Mom's Sedan", "price": 0.0, "model": "", "top": 50.0, "zero60": 7.8, "grip": 0.75, "mass": 1.4,
 		"paint": Color(0.55, 0.57, 0.6), "desc": "Beige interior. Check-engine light. It gets you there."},
 	"bz_540i": {"name": "BEMZE 540i", "price": 65_000.0, "model": "Bemze_540i", "top": 58.0, "zero60": 4.6, "grip": 0.85, "mass": 1.8,
 		"paint": Color(0.1, 0.12, 0.16), "desc": "The executive car. Quiet, fast, looks like money."},

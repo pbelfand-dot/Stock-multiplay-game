@@ -13,6 +13,7 @@ const Character = preload("res://scripts/art/character.gd")
 const Props = preload("res://scripts/art/props.gd")
 const CashArt = preload("res://scripts/art/cash_art.gd")
 const GunArt = preload("res://scripts/art/gun_art.gd")
+const DriveCam = preload("res://scripts/vehicle/drive_cam.gd")
 const PropKit = preload("res://scripts/art/prop_kit.gd")
 
 var peer_id := 1
@@ -77,6 +78,10 @@ var _shot_cd := 0.0
 var _aim_t := 0.0                 # > 0: arms up, aiming (after a shot, or holding right click)
 var _kick := 0.0                  # recoil still settling (radians of camera pitch)
 var photo_aim := false            # photo mode: hold the aim for the shot
+# driving: the car we're in (ours: we simulate it) / a remote player's "in a car" flag
+var driving = null
+var drive_cam: Camera3D
+var _in_car := false
 var _cash_t := 0.0
 
 
@@ -235,6 +240,16 @@ func apply_look(l: Dictionary) -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if not is_local or world == null:
 		return
+	if driving != null:                  # in the car: E gets out, C switches the camera
+		if world.ui_blocking():
+			return
+		if event.is_action_pressed("interact"):
+			exit_car()
+			get_viewport().set_input_as_handled()
+		elif event.is_action_pressed("dive") and drive_cam:
+			drive_cam.toggle()
+			model.set_first_person(drive_cam.cockpit)
+		return
 	if not world.ui_blocking():
 		for i in range(1, EMOTES.size()):
 			var act: String = "emote_" + EMOTES[i]
@@ -254,12 +269,15 @@ func _unhandled_input(event: InputEvent) -> void:
 
 func _physics_process(delta: float) -> void:
 	if is_local:
-		_local_move(delta)
+		if driving != null:
+			_drive_tick(delta)
+		else:
+			_local_move(delta)
 		_send_acc += delta
 		if _send_acc >= SEND_RATE:
 			_send_acc = 0.0
 			var flags := (1 if raining else 0) | (2 if diving > 0.0 else 0) | (4 if world.ui_blocking() else 0) \
-					| (emote << 3) | ((seat + 1) << 7)
+					| (emote << 3) | ((seat + 1) << 7) | ((1 << 12) if driving != null else 0)
 			world._p_tf.rpc(global_position, rotation.y, pitch, flags)
 	else:
 		if _has_target:
@@ -394,7 +412,7 @@ func _update_fx() -> void:
 	model.bloodshot = bool(look.get("bloodshot", false)) or cigar_on or (m != null and m.effect_left(peer_id, "powder") > 0.0)
 	held_gun.visible = gun_on
 	_update_held_cash(m)
-	_update_gun(m, gun_on or jailed_now(m))
+	_update_gun(m, gun_on or jailed_now(m) or driving != null or _in_car)
 	if smoke.emitting != cigar_on:
 		smoke.emitting = cigar_on
 	if bills.emitting != raining:
@@ -411,7 +429,9 @@ func _update_fx() -> void:
 	model.look_pitch(0.0 if is_local else pitch)   # our own neck stays put (the camera does the looking)
 	var jailed: bool = m != null and m.is_jailed(peer_id)
 	var airborne := global_position.y > 0.45
-	if diving > 0.0:
+	if driving != null or _in_car:
+		model.pose = "drive"
+	elif diving > 0.0:
 		model.pose = "dive"
 	elif holding_ball and airborne:
 		model.pose = "dunk"
@@ -438,6 +458,83 @@ func _update_fx() -> void:
 		model.pose = "smoke"
 	else:
 		model.pose = "idle"
+
+
+# ---------------------------------------------------------------- driving
+
+## Get behind the wheel: our body sits in the driver's seat, the chase cam
+## takes over, the car is ours to simulate.
+func enter_car(car) -> void:
+	if driving != null or car == null:
+		return
+	if EMOTES[emote] != "":
+		emote = 0
+		_emote_t = 0.0
+	stand_up()
+	driving = car
+	car.simulate = true
+	collision_layer = 0
+	collision_mask = 0
+	drive_cam = DriveCam.new()
+	world.add_child(drive_cam)
+	drive_cam.follow(car)
+	model.set_first_person(false)
+	Sfx.play("click", -2.0, 0.6)
+	_seat_in_car()
+
+
+## Out the driver's door (only when it's nearly stopped).
+func exit_car() -> void:
+	if driving == null:
+		return
+	if absf(driving.speed) > 4.0:
+		world.hud.show_toast("Slow down first.", Color(1, 0.6, 0.3))
+		return
+	var car = driving
+	car.in_throttle = 0.0
+	car.in_brake = 1.0
+	car.in_steer = 0.0
+	car.in_handbrake = true
+	driving = null
+	collision_layer = 2
+	collision_mask = 1
+	teleport(car.to_global(car.ref.door + Vector3(-0.7, 0.1, 0)))
+	rotation.y = car.global_rotation.y
+	if drive_cam:
+		drive_cam.queue_free()
+		drive_cam = null
+	cam.current = true
+	model.set_first_person(true)
+	Sfx.play("click", -2.0, 0.5)
+
+
+func _drive_tick(delta: float) -> void:
+	var car = driving
+	if car == null or not is_instance_valid(car):
+		driving = null
+		return
+	var blocked: bool = world.ui_blocking()
+	if blocked:
+		car.in_throttle = 0.0
+		car.in_brake = 0.3
+		car.in_steer = 0.0
+		car.in_handbrake = false
+	else:
+		car.in_throttle = Input.get_action_strength("move_forward")
+		car.in_brake = Input.get_action_strength("move_back")
+		car.in_steer = Input.get_action_strength("move_right") - Input.get_action_strength("move_left")
+		car.in_handbrake = Input.is_action_pressed("jump")
+	_seat_in_car()
+	world.send_car(car)
+
+
+## Our body rides in the driver's seat (everyone sees us in there).
+func _seat_in_car() -> void:
+	var car = driving
+	var eye: Vector3 = car.ref.eye
+	global_position = car.to_global(Vector3(eye.x, eye.y - 1.19, eye.z + 0.05))
+	rotation = Vector3(0, car.global_rotation.y, 0)
+	velocity = Vector3.ZERO
 
 
 # ---------------------------------------------------------------- guns (BIG IRON)
@@ -723,6 +820,7 @@ func net_tf(pos: Vector3, yaw: float, p: float, flags: int) -> void:
 	busy = flags & 4 != 0
 	emote = (flags >> 3) & 15
 	_set_seat(((flags >> 7) & 31) - 1)
+	_in_car = flags & (1 << 12) != 0
 	if not _has_target:
 		global_position = pos
 		_has_target = true

@@ -553,7 +553,35 @@ func set_prompt(t: Dictionary) -> void:
 	prompt_lbl.text = t.get("prompt", "")
 
 
+## Speedometer while driving (bottom middle): big MPH, the car's name.
+var speedo: Label
+func _tick_speedo() -> void:
+	var p = world.local_player if world else null
+	var car = p.driving if p else null
+	if car == null:
+		if speedo:
+			speedo.visible = false
+		return
+	if speedo == null:
+		speedo = UI.lbl("", 44, Color(1, 1, 1), true)
+		speedo.anchor_left = 0.5
+		speedo.anchor_right = 0.5
+		speedo.anchor_top = 1.0
+		speedo.anchor_bottom = 1.0
+		speedo.offset_left = -240
+		speedo.offset_right = 240
+		speedo.offset_top = -210
+		speedo.offset_bottom = -110
+		speedo.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		speedo.add_theme_constant_override("outline_size", 10)
+		speedo.add_theme_color_override("font_outline_color", Color(0, 0, 0))
+		root.add_child(speedo)
+	speedo.visible = true
+	speedo.text = "%d MPH\n%s   ·   C camera   E get out" % [int(car.mph()), Rules.CARS[car.key].name]
+
+
 func _process(delta: float) -> void:
+	_tick_speedo()
 	var want_mouse := is_modal_open()
 	if not DisplayServer.get_name() == "headless":
 		var mm := Input.MOUSE_MODE_VISIBLE if want_mouse else Input.MOUSE_MODE_CAPTURED

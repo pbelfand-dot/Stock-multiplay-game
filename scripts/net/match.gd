@@ -382,6 +382,17 @@ func _s_cash(peer: int, amount: float, total: float) -> void:
 	cash_moved.emit(peer, amount, total)
 
 
+# ---------------- cars ----------------
+
+## The car you drive: your best BEMZE (or your mom's sedan).
+func car_of(peer: int) -> String:
+	var best := "beater"
+	for k in Rules.CAR_ORDER:
+		if lux_count(peer, k) > 0:
+			best = k
+	return best
+
+
 # ---------------- guns (BIG IRON) ----------------
 
 func gun_of(peer: int) -> String:

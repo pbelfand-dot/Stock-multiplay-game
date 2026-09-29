@@ -108,6 +108,47 @@ func _run() -> void:
 			await _snap("hand_rot_%d" % k)
 		Sfx.quit_game()
 		return
+	if Config.cli.has("driveonly"):            # get in, drive down the street, chase cam, cockpit, brake lights
+		var p0 = world.local_player
+		m.owned[1]["bz_m3"] = 1
+		m._push_state()
+		world.go_to_street()
+		await get_tree().create_timer(0.8).timeout
+		var car = world.cars[Net.my_id()]
+		p0.enter_car(car)
+		await _frames(5)
+		await _snap("d0_in_car")
+		# Input.action_press drives it like the keyboard would
+		Input.action_press("move_forward")
+		await get_tree().create_timer(2.5).timeout
+		Input.action_press("move_right", 0.25)
+		await get_tree().create_timer(0.4).timeout
+		await _snap("d1_chase_accel")
+		Input.action_release("move_right")
+		await get_tree().create_timer(0.6).timeout
+		print("speed %.0f mph" % car.mph())
+		Input.action_release("move_forward")
+		Input.action_press("move_back")
+		await get_tree().create_timer(0.25).timeout
+		await _snap("d2_braking")
+		Input.action_release("move_back")
+		p0.drive_cam.toggle()
+		p0.model.set_first_person(true)
+		await get_tree().create_timer(0.5).timeout
+		await _snap("d3_cockpit")
+		# crash into the parked car ahead of us
+		p0.drive_cam.toggle()
+		p0.model.set_first_person(false)
+		hud.root.visible = false
+		Input.action_press("move_forward")
+		var hits := []
+		car.crashed.connect(func(i): hits.append(i))
+		await get_tree().create_timer(3.0).timeout
+		Input.action_release("move_forward")
+		await _snap("d4_after_driving")
+		print("hits %s, speed now %.0f mph" % [str(hits), car.mph()])
+		Sfx.quit_game()
+		return
 	if Config.cli.has("counteronly"):          # money counters: the one by the ATM, then your desk's
 		var p0 = world.local_player
 		m.wallet[1] = 250_000.0

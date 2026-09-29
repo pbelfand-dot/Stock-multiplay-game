@@ -42,6 +42,7 @@ const POSE_HANDS := {
 	"aim": ["hold", "hold"], "light": ["hold", "relax"], "cheer": ["fist", "fist"], "dunk": ["open", "open"],
 	"dive": ["open", "open"], "placard": ["hold", "hold"], "type": ["relax", "relax"],
 	"flash": ["relax", "hold"], "fan": ["relax", "pinch"],
+	"drive": ["hold", "hold"],
 	"pistol": ["relax", "hold"], "pistol_aim": ["hold", "hold"], "rifle": ["hold", "hold"], "rifle_aim": ["hold", "hold"],
 }      # radians: A-pose rest (20 deg) -> arms nearly at the sides
 
@@ -743,6 +744,23 @@ func _process(delta: float) -> void:
 				t.elL = Vector3(0.3, 0, 0)
 			t.shR = (t.shR as Vector3) + Vector3(aim_pitch, 0, 0)
 			t.shL = (t.shL as Vector3) + Vector3(aim_pitch, 0, 0)
+		"drive":    # seated, both hands on the wheel
+			t.root_y = -0.43
+			t.hipL = Vector3(1.35, 0, 0.1)
+			t.hipR = Vector3(1.35, 0, -0.1)
+			t.knL = Vector3(-1.0, 0, 0)
+			t.knR = Vector3(-1.0, 0, 0)
+			t.ftL = Vector3(0.3, 0, 0)
+			t.ftR = Vector3(0.3, 0, 0)
+			t.spine_rx = -0.15
+			t.bob = 0.0
+			t.hips_rz = 0.0
+			t.hips_ry = 0.0
+			t.spine_ry = 0.0
+			t.shL = Vector3(1.05, -0.3, 0)
+			t.shR = Vector3(1.05, 0.3, 0)
+			t.elL = Vector3(0.7, 0, 0)
+			t.elR = Vector3(0.7, 0, 0)
 		"aim":
 			t.shL = Vector3(1.42, -0.42, 0)
 			t.shR = Vector3(1.42, 0.42, 0)
