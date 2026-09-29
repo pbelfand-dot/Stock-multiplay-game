@@ -51,6 +51,8 @@ func _match():
 
 func _run() -> void:
 	get_tree().create_timer(90.0).timeout.connect(func(): _fail("global timeout"))
+	if role != "host":
+		_watch_arrival()                 # from the first frame: the ride can start before anything below
 	if not await _wait_for(func(): return _match() != null, 15.0, "world"):
 		return
 	m = _match()
@@ -61,6 +63,16 @@ func _run() -> void:
 		await _host()
 	else:
 		await _client()
+
+
+## The client's puppet going away mid-test means the client quit (its own SMOKE line
+## says why): stop here instead of polling a freed node until the timeout.
+func _watch_puppet(pnode) -> void:
+	while is_inside_tree():
+		await get_tree().physics_frame
+		if not is_instance_valid(pnode):
+			_fail("the client's puppet vanished mid-test (the client quit or dropped)")
+			return
 
 
 func _host() -> void:
@@ -82,6 +94,7 @@ func _host() -> void:
 		_fail("no puppet for client")
 		return
 	_say("client puppet at %s" % str(pnode.global_position))
+	_watch_puppet(pnode)
 	if not await _wait_for(func(): return get_node("/root/Main/World").arrivals.has(bob), 10.0, "client's elevator arrival"):
 		return
 	_say("saw the client ride up and come out of the elevator")
@@ -171,15 +184,14 @@ var _deepest := -INF
 
 
 func _watch_arrival() -> void:
-	var wl = get_node_or_null("/root/Main/World")
-	while is_inside_tree() and wl != null:
-		if wl.local_player and wl.local_player.arriving():
+	while is_inside_tree():
+		var wl = get_node_or_null("/root/Main/World")
+		if wl and wl.local_player and wl.local_player.arriving():
 			_deepest = maxf(_deepest, wl.local_player.global_position.z)
 		await get_tree().physics_frame
 
 
 func _client() -> void:
-	_watch_arrival()
 	# (60 s: joining builds the whole 2.5 km world; on a loaded CI box that's slow)
 	if not await _wait_for(func(): return not m.m_assets.is_empty() and m.phase == "trading", 60.0, "trading phase on client"):
 		return
