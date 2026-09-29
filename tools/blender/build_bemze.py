@@ -852,9 +852,11 @@ PLATE = (0.93, 0.93, 0.9)
 # open tub (door cards, floor) so the interior is real, and the greenhouse (pillars, glass, roof) is a second
 # loft of horizontal rings that sits on the beltline.
 
-NB = 22   # points per body half-ring
-# half-ring layout: 0 bottom centre, 1 inner-well bottom, 2 inner-well top, 3 rocker edge, 4 rocker round,
-# 5..9 side, 10 shoulder crease, 11..12 upper side, 13 top edge (E), 14..20 top / tub, 21 top centre
+NB = 34   # points per body half-ring
+# half-ring layout: 0 bottom centre, 1 inner-well bottom, 2 inner-well top, 3..5 rocker underside / roll,
+# 6 skirt, 7 sill kick crease, 8 door bottom, 9..12 door face, 13 shoulder crease, 14..18 upper side rolling over,
+# 19 top edge E, 20..33 top (hood / deck) or cabin tub
+I_KICK, I_KIN, I_SH, I_E = 7, 8, 13, 19
 
 
 class Car:
@@ -881,22 +883,61 @@ class Car:
         self.xr = curve(g["xr"])
         self.zC = curve(g["zC"])
         self.carbon_roof = s.get("carbon_roof", False)
+        self._fl = self._flare_prm()
+        self._wmax = 0.0
+        mx = 0.0
+        for k in range(41):
+            z = lerp(self.zF + self.nose_len, self.zR - self.tail_len, k / 40)
+            y0, y1 = self.f["ys"](z), self.f["e"](z)
+            for j in range(13):
+                mx = max(mx, self.side_x(lerp(y0, y1, j / 12), z))
+        self._wmax = mx - s["W"] / 2
 
     # ---- plan / side helpers
-    def w(self, z):
+    def _flare_prm(self):
+        """Wheel-arch flares: per axle (amp, reach forward, reach back, reach up) in metres. The flare is a bulge
+        concentric with the arch: full height at the arch lip, fading out over `reach` (a haunch = long reach)."""
         s = self.sp
         fl = s.get("flare", 0.02)
-        w = s["W"] / 2 - fl
-        for zc in (self.aF, self.aR):
-            d = abs(z - zc) / (self.Ra * s.get("flare_len", 1.9))
-            if d < 1:
-                w += fl * (s.get("flare_f", 1.0) if zc < 0 else 1.0) * math.cos(d * math.pi / 2) ** 2
+        fz = s.get("flares", {})
+        f = fz.get("f", (fl * s.get("flare_f", 1.0), 0.3, 0.3, 0.2))
+        r = fz.get("r", (fl, 0.3, 0.45, 0.22))
+        return f, r
+
+    def flare(self, y, z):
+        best = 0.0
+        pf, pr = self._fl
+        for zc, (amp, rf, rb, ru) in ((self.aF, pf), (self.aR, pr)):
+            dz = z - zc
+            dy = y - self.Rt
+            d = math.hypot(dz, dy)
+            m = d - self.Ra
+            reach = rb if dz > 0 else rf
+            if dy > 0 and d > 1e-6:
+                reach = lerp(reach, ru, (dy / d) ** 2)
+            g = 1.0 if m <= 0.02 else max(0.0, 1.0 - (m - 0.02) / max(reach, 0.05))
+            g = g * g * (3 - 2 * g)
+            best = max(best, amp * g)
+        return best
+
+    def wc(self, z):
+        """Core half-width at the shoulder crease (no wheel flares), tapered in plan toward the ends."""
+        s = self.sp
+        w = s["W"] / 2 - self._wmax
         tp = s.get("plan_taper", (0.03, 0.025))
         if z < self.aF:
             w -= tp[0] * ((self.aF - z) / (self.aF - self.zF)) ** 2
         elif z > self.aR:
             w -= tp[1] * ((z - self.aR) / (self.zR - self.aR)) ** 2
         return w
+
+    def w(self, z):
+        """Half-width at the shoulder crease, flares included."""
+        return self.side_x(self.f["ysh"](z), z)
+
+    def xE(self, z):
+        """Half-width of the panel's top edge (beltline / fender top) where the greenhouse and hood start."""
+        return self.side_x(self.f["e"](z), z)
 
     def ya(self, z):
         """Bottom of the body side: the arch curve inside the wheel openings, else the sill line."""
@@ -916,24 +957,40 @@ class Car:
             return self.f["ys"](z) + 0.25
         return lerp(lo[0], lo[1], min(1.0, max(0.0, (z - self.aF) / self.WB)))
 
-    def side_x(self, y, z, w, ys, ysh, e, te):
-        """Body side half-width at height y: rocker tuck, the lower door step (a crisp character line
-        rising toward the rear), a slight concave door face, the shoulder crease at ysh, and the upper
-        side leaning in to the beltline."""
-        x = w
-        hb = 0.12
-        if y < ys + hb:
-            x -= self.sp.get("tuck", 0.014) * (1 - (y - ys) / hb) ** 2
-        lo = self.sp.get("low_line")
-        yl = self.low_y(z)
-        fz = smooth01((z - self.aF - self.Ra) / 0.25) * smooth01((self.aR - self.Ra - z) / 0.25)
-        if lo and y > yl + 0.002:
-            x -= lo[2] * fz
-        if yl < y < ysh:          # slightly hollow door face between the two lines
-            x -= self.sp.get("door_hollow", 0.006) * fz * math.sin(math.pi * (y - yl) / (ysh - yl))
-        if y > ysh:
-            x -= te * ((y - ysh) / max(e - ysh, 1e-3)) ** 1.25
-        return x
+    def door_zone(self, z):
+        """1 between the wheel arches (doors / sills), fading to 0 over the arches."""
+        return smooth01((z - self.aF - self.Ra * 0.6) / 0.35) * smooth01((self.aR - self.Ra * 0.6 - z) / 0.35)
+
+    def side_x(self, y, z):
+        """Body side half-width at height y. Below the shoulder crease the door face tucks in (tumblehome) down to
+        the sill kick line, where the side skirt steps back out and then rolls under; above the crease the upper
+        side leans in and rolls over (quarter ellipse) to the panel top edge. Arch flares bulge out on top."""
+        sp = self.sp
+        ys = self.f["ys"](z)
+        e = self.f["e"](z)
+        ysh = min(self.f["ysh"](z), e - 0.06)
+        te = self.f["te"](z)
+        wc = self.wc(z)
+        fz = self.door_zone(z)
+        yl = min(max(self.low_y(z), ys + 0.08), ysh - 0.12)
+        A = sp.get("door_tuck", 0.032)
+        if "door_tuck_end" in sp:           # opt-in: fuller bumpers / arches than the door tumblehome
+            A = lerp(sp["door_tuck_end"], A, fz)
+        K = sp.get("kick", 0.014) * fz
+        tuck = lerp(sp.get("tuck_end", 0.008), sp.get("tuck", 0.03), fz)
+        tc = sp.get("sh_lean", 0.022)
+        if y >= ysh:
+            s = min(1.0, (y - ysh) / max(e - ysh, 1e-3))
+            a = sp.get("sh_a", 0.55)
+            x = wc - te * (a * s + (1 - a) * s ** 2.4)
+        elif y >= yl:
+            t = (ysh - y) / (ysh - yl)
+            x = wc - A * t ** 1.6 - sp.get("door_hollow", 0.005) * fz * math.sin(math.pi * t)
+        else:
+            t = min(1.0, (yl - y) / max(yl - ys, 1e-3))
+            x = wc - A + K - tuck * t ** 3
+        fade = 1.0 if y <= ysh else lerp(1.0, sp.get("flare_top", 0.45), min(1.0, (y - ysh) / max(e - ysh, 1e-3)))
+        return x + self.flare(y, z) * fade
 
     def mode(self, z):
         if z < self.z_tf:
@@ -950,22 +1007,40 @@ class Car:
         return dw * lerp(0.62, 1.0, min(1.0, max(0.0, (z - z0) / (z1 - z0))))
 
     def hood_y(self, x, z, mode=None):
-        """Height of the hood / deck surface at (x, z): centre crown + a stepped power dome whose crisp
-        edges converge toward the nose."""
+        """Height of the hood / deck surface at (x, z): centre crown, then (hood) a power dome or twin strakes."""
         e = self.f["e"](z)
         top = self.f["top"](z)
-        xE = self.w(z) - self.f["te"](z)
+        xE = self.xE(z)
         u = min(1.0, abs(x) / max(xE, 1e-3))
-        y = e + (top - e) * (1 - u ** 2.2)
+        y = e + (top - e) * (1 - u ** self.sp.get("crown_p", 2.2))
+        if (mode or self.mode(z)) != "hood":
+            return y
         dm = self.sp.get("dome")
-        if dm and (mode or self.mode(z)) == "hood":
+        if dm:
             z0, z1, dw, dh = dm
             if z0 < z < z1:
                 dw = self.dome_w(z)
                 fz = smooth01((z - z0) / 0.3) * smooth01((z1 - z) / 0.1)
                 ax = abs(x)
-                fx = 1.0 if ax <= dw - 0.012 else (0.0 if ax >= dw + 0.03 else (dw + 0.03 - ax) / 0.042)
+                fx = 1.0 if ax <= dw - 0.03 else (0.0 if ax >= dw + 0.05 else smooth01((dw + 0.05 - ax) / 0.08))
                 y += dh * fz * fx
+        sk = self.sp.get("strakes")
+        if sk:            # M3 / M4: two raised hood strakes, diverging toward the windshield
+            xc0, xc1, hw, h, z0, z1 = sk[:6]
+            if z0 < z < z1:
+                f = (z - z0) / (z1 - z0)
+                xc = lerp(xc0, xc1, f)
+                d = abs(abs(x) - xc) / hw
+                if len(sk) > 6:           # opt-in crisp strake: flat top, steep flanks, blunt nose (sk[6] = exponent)
+                    fz = smooth01(f / 0.1) * smooth01((1 - f) / 0.15)
+                    bump = (1 - d ** sk[6]) if d < 1 else 0.0
+                    y += h * fz * bump
+                    if len(sk) > 7:       # sk[7]: sink the hood between / beside the strakes (a valley)
+                        y -= sk[7] * h * fz * smooth01((xc + hw * 2.2 - abs(x)) / (hw * 1.2)) * (1 - bump)
+                else:
+                    fz = smooth01(f / 0.25) * smooth01((1 - f) / 0.12)
+                    if d < 1:
+                        y += h * fz * (1 - d * d) ** 1.5
         return y
 
     def section(self, z, mode):
@@ -974,53 +1049,54 @@ class Car:
         ys = self.f["ys"](z)
         ya = self.ya(z)
         e = self.f["e"](z)
-        ysh = min(self.f["ysh"](z), e - 0.06)     # the shoulder crease always sits below the panel top edge
-        te = self.f["te"](z)
-        w = self.w(z)
+        ysh = min(self.f["ysh"](z), e - 0.06)
         track = s["TF"] if z < 0 else s["TR"]
-        x_in = min(track / 2 - s["tire_w"] / 2 - 0.05, w - 0.16)
+        xE = self.xE(z)
+        x_in = min(track / 2 - s["tire_w"] / 2 - 0.05, self.wc(z) - 0.16)
 
         def sx(y):
-            return self.side_x(y, z, w, ys, ysh, e, te)
+            return self.side_x(y, z)
+        yl = min(max(self.low_y(z), ys + 0.08), ysh - 0.12)
         P = [(0.0, bot), (x_in, bot), (x_in, ya)]
-        P.append((sx(ya) - 0.022, ya))
-        y4 = ya + 0.01
-        P.append((sx(y4) - 0.005, y4))
-        yl = self.low_y(z)
-        targets = [yl - 0.07, yl, yl + 0.012, lerp(yl, ysh, 0.55), ysh - 0.022]
-        prev = y4
-        for j, yt in enumerate(targets):          # indices 5..9 (6 / 7 = lower crease step)
-            room = (ysh - 0.006) - prev
-            y = max(yt, prev + min(0.008, room / (6 - j)))
-            y = min(y, ysh - 0.006 * (5 - j))
+        # rocker underside + roll (3, 4, 5)
+        for dy, dx in ((0.0, 0.03), (0.012, 0.012), (0.035, 0.003)):
+            y = ya + dy
+            P.append((sx(y) - dx, y))
+        # skirt up to the kick crease (6, 7), door bottom (8)
+        y6 = max(P[-1][1] + 0.004, lerp(ya + 0.035, yl, 0.55))
+        y7 = max(y6 + 0.004, yl - 0.003)
+        y8 = max(y7 + 0.003, yl + 0.003)
+        for y in (y6, y7):
+            P.append((sx(min(y, yl - 0.0005)), y))
+        P.append((sx(max(y8, yl + 0.0005)), y8))
+        # door face (9..12), shoulder crease (13)
+        prev = y8
+        for j, g in enumerate((0.22, 0.45, 0.68, 0.87)):
+            y = max(lerp(yl, ysh, g), prev + 0.003)
+            y = min(y, ysh - 0.003 * (4 - j))
             P.append((sx(y), y))
             prev = y
-        P.append((w, ysh))                          # 10: shoulder crease
-        for g in (0.4, 0.78):
-            y = ysh + (e - ysh) * g
+        P.append((sx(ysh), ysh))                    # 13: shoulder crease
+        # upper side rolling over to the top edge (14..18), E (19)
+        for g in (0.25, 0.5, 0.7, 0.85, 0.95):
+            y = lerp(ysh, e, g)
             P.append((sx(y), y))
-        xE = w - te
-        P.append((xE, e))                           # 13: top edge
+        P.append((xE, e))                           # 19: top edge E
         if mode == "cabin":
             cf = self.cf
-            inner = [(xE - 0.045, e - 0.004), (xE - 0.065, e - 0.06), (xE - 0.075, e - 0.2),
-                     (xE - 0.08, e - 0.4), (xE - 0.09, cf + 0.035), (xE - 0.13, cf), (0.18, cf), (0.0, cf)]
-            out = []
+            inner = [(xE - 0.02, e + 0.004), (xE - 0.045, e - 0.004), (xE - 0.06, e - 0.03), (xE - 0.065, e - 0.06),
+                     (xE - 0.072, e - 0.13), (xE - 0.075, e - 0.2), (xE - 0.078, e - 0.3), (xE - 0.08, e - 0.4),
+                     (xE - 0.085, cf + 0.1), (xE - 0.09, cf + 0.035), (xE - 0.13, cf), (0.36, cf), (0.18, cf),
+                     (0.0, cf)]
             for k, (x, y) in enumerate(inner):
-                if 2 <= k <= 5 and y < ya + 0.05 and ya > ys + 0.02:      # rear wheelhouse hump in the cabin
-                    x = min(x, x_in - 0.03 - 0.01 * k)
-                out.append((x, y))
-            P.extend(out)
+                if 3 <= k <= 9 and y < ya + 0.05 and ya > ys + 0.02:      # rear wheelhouse hump in the cabin
+                    x = min(x, x_in - 0.03 - 0.004 * k)
+                P.append((x, y))
         else:
-            dw = self.dome_w(z) if mode == "hood" else None
-            if dw is None:
-                dw = 0.38 * xE
-            dw = min(dw, 0.55 * xE)
-            xs = [xE - 0.018, xE - 0.055, xE * 0.8, xE * 0.62, dw + 0.03, dw - 0.012, dw * 0.5, 0.0]
-            for k, x in enumerate(xs):
+            us = (0.985, 0.955, 0.91, 0.85, 0.78, 0.7, 0.62, 0.54, 0.46, 0.38, 0.29, 0.19, 0.09, 0.0)
+            for k, u in enumerate(us):
+                x = xE * u
                 y = self.hood_y(x, z, mode)
-                if k == 0:
-                    y = max(y, e + 0.006)
                 P.append((x, y))
         assert len(P) == NB, len(P)
         return P
@@ -1115,6 +1191,8 @@ class Car:
         card = cls(self.sp["int"]["card"], "Paint")
         carpet = cls(self.sp["int"]["carpet"], "Paint")
         dark = cls(DARK, "Paint")
+        sk = self.sp.get("skirt_col")
+        skirt = cls(sk, "Gloss") if sk is not None else None
         me = Mesher()
         gz0 = self.g["zc0"] - 0.005
         gz1 = self.g["zb0"] + 0.005
@@ -1129,25 +1207,27 @@ class Car:
                 return under
             if h in (1, 2):
                 return well
-            if h < 13:
+            if h < I_E:
+                if skirt is not None and 3 <= h < I_KICK and self.door_zone(za) > 0.5:
+                    return skirt
                 return paint
             if ma != mb:                       # firewall / rear bulkhead
                 return dark
             if ma == "cabin":
-                if h == 13:
-                    return trim_in
-                if h >= 18:
+                if h <= I_E + 1:
+                    return paint if h == I_E else trim_in
+                if h >= I_E + 10:
                     return carpet
                 return card
-            if ma == "hood" and za > gz0 and h >= 14:
+            if ma == "hood" and za > gz0 and h >= I_E + 1:
                 return dark                    # cowl under the windshield
-            if ma == "deck" and za < gz1 and h >= 14:
+            if ma == "deck" and za < gz1 and h >= I_E + 1:
                 return dark                    # parcel shelf under the rear window
             return paint
 
         me.loft([r for r, _m in full], cfn)
         # crisp character lines: shoulder crease, lower door step, power-dome edges
-        sharp = [10, 6, 7] + ([18, 19] if self.sp.get("dome") else [])
+        sharp = [I_SH, I_KICK, I_KIN]
         n = len(full[0][0])
         for k in range(len(full) - 1):
             if full[k][1] == "cap" or full[k + 1][1] == "cap":
@@ -1173,7 +1253,7 @@ class Car:
         r = lerp(g.get("rb", 0.07), g.get("rt", 0.1), t)
 
         def xs(z):
-            xb = self.w(z) - self.f["te"](z) - 0.012
+            xb = self.xE(z) - 0.012
             xb -= g.get("a_in", 0.0) * max(0.0, 1 - (z - g["zc0"]) / g.get("a_len", 0.9))
             return lerp(xb, self.xr(z), t) + g.get("bow_s", 0.025) * bow
 
@@ -1374,6 +1454,13 @@ def _spoke(M, path, width, thick, y_of, col, kind, samples=7):
 
 
 def build_wheel(name, sp):
+    """Shared wheel: tyre, rim lip + barrel, spokes by `style`, hub + roundel, disc + caliper.
+    Per-car hooks in sp["wheel"]: "builder": fn(name, sp) replaces the whole thing (must call finish(name));
+    "spokes": fn(M, ctx) draws the rim face instead of the `style` spokes, ctx = dict(rr, R, h, y_face, conc, y_of,
+    rim, rimk, lip, r0, r1) (all local: axle +Y, rim face toward +Y, M = WHEEL_M)."""
+    if sp["wheel"].get("builder"):
+        sp["wheel"]["builder"](name, sp)
+        return
     od = sp["tire_od"]
     R = od / 2
     rr = sp["rim_in"] * 0.0254 / 2
@@ -1419,6 +1506,10 @@ def build_wheel(name, sp):
     n = wd["n"]
     style = wd["style"]
     r0, r1 = 0.075, rr - 0.004
+    if wd.get("spokes"):
+        wd["spokes"](M, dict(rr=rr, R=R, h=h, y_face=y_face, conc=conc, y_of=y_of, rim=rim, rimk=rimk, lip=lip, r0=r0,
+                             r1=r1))
+        n = 0
     for i in range(n):
         th0 = TAU * i / n
         if style == "steel":       # plain steel wheel: no spokes, see the dish below
@@ -1467,7 +1558,7 @@ def build_wheel(name, sp):
     # brake disc + caliper (inside the barrel)
     rd = min(sp.get("disc_r", 0.19), rr - 0.045)
     yd = y_face - conc - 0.075
-    revolve([(0.1, yd - 0.016), (rd, yd - 0.016), (rd, yd + 0.016), (0.1, yd + 0.016)], (0.46, 0.47, 0.5), "Metal", 48,
+    revolve([(0.1, yd - 0.016), (rd, yd - 0.016), (rd, yd + 0.016), (0.1, yd + 0.016)], wd.get("disc_col", (0.46, 0.47, 0.5)), "Metal", 48,
             M=M, closed=True)
     revolve([(0.1, yd - 0.02), (0.1, yd + 0.03), (0.0, yd + 0.03)], (0.2, 0.2, 0.21), "Metal", 32, M=M)
     for k in range(12):     # cross-drill / slot marks
@@ -1595,6 +1686,151 @@ def roundel(r, y, M=None, pos=(0, 0, 0), rot=None, ring=None):
     revolve([(r * 0.7, y + 0.0048), (r * 0.66, y + 0.0048)], (0.9, 0.9, 0.9), "Metal", 32, M=Mx)
 
 
+
+# ----------------------------------------------------------------------------- recesses (real openings in the shell)
+#
+# Grilles, intakes, lamps, the diffuser and vents are POCKETS: a cutter prism follows the panel (front cap outside
+# the surface, back cap `depth` behind it, measured along the view ray) and is subtracted from the shell with the
+# exact boolean. The difference keeps the cutter's walls and back inside the shell, so every opening gets real walls
+# and a floor (coloured by the cutter's palette class); slats, meshes, lamp graphics and lenses then go in the hole.
+
+def pocket(car, S, poly, view, depth, col=(0.018, 0.018, 0.02), kind="Paint", mirror=False, step=0.02, back=None):
+    """Queue a recess of the 2D outline `poly` (view-plane coords, see Surface.VIEWS / oblique) `depth` m deep."""
+    d, A, B = S.view(view)
+    pts = resample(_ccw(poly), step)
+    ts = []
+    for a, b in pts:
+        loc, _n = S.hit(a, b, view)
+        ts.append(None if loc is None else (loc - (A * a + B * b)).dot(d))
+    ok = [t for t in ts if t is not None]
+    if len(ok) < 3:
+        return
+    tmin = min(ok)
+    ts = [t if t is not None else tmin for t in ts]
+    c = cls(col, kind)
+    cb = cls(back, kind) if back is not None else c
+    for sx in ((1, -1) if mirror else (1,)):
+        bm = bmesh.new()
+        lay = bm.faces.layers.int.new("cls")
+        fg = car.sp.get("pocket_gap")        # opt-in: front cap follows the panel (no long walls at grazing corners)
+        fr = [bm.verts.new(A * a + B * b + d * ((tmin - 0.12) if fg is None else (t - fg)))
+              for (a, b), t in zip(pts, ts)]
+        bk = [bm.verts.new(A * a + B * b + d * (t + depth)) for (a, b), t in zip(pts, ts)]
+        if sx < 0:
+            for v in fr + bk:
+                v.co.x = -v.co.x
+        n = len(pts)
+        faces = [bm.faces.new(list(reversed(fr))), bm.faces.new(bk)]
+        for i in range(n):
+            j = (i + 1) % n
+            faces.append(bm.faces.new((fr[i], fr[j], bk[j], bk[i])))
+        bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+        for f in bm.faces:
+            f[lay] = c
+        faces[1][lay] = cb
+        bmesh.ops.triangulate(bm, faces=[faces[1]])
+        car.cuts.append(dict(bm=bm, d=d, A=A, B=B, poly=pts, sx=sx, view=view, depth=depth, tmin=tmin - 0.12,
+                             tmax=max(ts) + depth, front_only=fg is not None))
+
+
+def _in_poly(pt, poly):
+    x, y = pt
+    inside = False
+    n = len(poly)
+    j = n - 1
+    for i in range(n):
+        xi, yi = poly[i]
+        xj, yj = poly[j]
+        if (yi > y) != (yj > y) and x < (xj - xi) * (y - yi) / (yj - yi + 1e-12) + xi:
+            inside = not inside
+        j = i
+    return inside
+
+
+def carve(me, cuts, S):
+    """Cut the queued pockets into a Mesher shell: knife both meshes along each other (edit-mode intersect,
+    CUT mode, nothing deleted), then drop the shell faces inside each pocket and the cutter faces in front of
+    the panel. What is left of the cutters are the pocket walls and floors (palette classes kept)."""
+    if not cuts:
+        return
+    bm = me.bm
+    lay = me.layer
+    pk = bm.faces.layers.int.new("pk")
+    for f in bm.faces:
+        f[pk] = -1
+    for i, c in enumerate(cuts):
+        cb = c["bm"]
+        cl = cb.faces.layers.int.get("cls")
+        vm = {v: bm.verts.new(v.co) for v in cb.verts}
+        for f in cb.faces:
+            nf = bm.faces.new([vm[v] for v in f.verts])
+            nf[lay] = f[cl]
+            nf[pk] = i
+        cb.free()
+    m0 = bpy.data.meshes.new("carve")
+    bm.to_mesh(m0)
+    bm.free()
+    ob = bpy.data.objects.new("carve", m0)
+    bpy.context.scene.collection.objects.link(ob)
+    for o in bpy.context.scene.objects:
+        o.select_set(False)
+    ob.select_set(True)
+    bpy.context.view_layer.objects.active = ob
+    bpy.ops.object.mode_set(mode="EDIT")
+    eb = bmesh.from_edit_mesh(m0)
+    pl = eb.faces.layers.int.get("pk")
+    for v in eb.verts:
+        v.select_set(False)
+    for f in eb.faces:
+        f.select_set(f[pl] >= 0)
+    eb.select_flush_mode()
+    bmesh.update_edit_mesh(m0)
+    bpy.ops.mesh.intersect(mode="SELECT_UNSELECT", separate_mode="CUT", solver="EXACT")
+    bpy.ops.object.mode_set(mode="OBJECT")
+    nb = bmesh.new()
+    nb.from_mesh(m0)
+    bpy.data.objects.remove(ob)
+    bpy.data.meshes.remove(m0)
+    lay = nb.faces.layers.int.get("cls")
+    pl = nb.faces.layers.int.get("pk")
+    polys2 = []
+    for c in cuts:
+        polys2.append(c["poly"])
+    dead = []
+    for f in nb.faces:
+        cen = f.calc_center_median()
+        k = f[pl]
+        if k < 0:
+            for c, p2 in zip(cuts, polys2):
+                q = Vector((cen.x * c["sx"], cen.y, cen.z))
+                a, b = q.dot(c["A"]), q.dot(c["B"])
+                t = q.dot(c["d"])
+                if c["tmin"] - 0.01 < t < c["tmax"] + 0.01 and _in_poly((a, b), p2):
+                    if c.get("front_only"):      # only the panel the view ray meets first (not faces behind it)
+                        loc, _n = S.hit(a, b, c["view"])
+                        if loc is None or abs((loc - (c["A"] * a + c["B"] * b)).dot(c["d"]) - t) > 0.02:
+                            continue
+                    dead.append(f)
+                    break
+        else:
+            c = cuts[k]
+            q = Vector((cen.x * c["sx"], cen.y, cen.z))
+            a, b = q.dot(c["A"]), q.dot(c["B"])
+            loc, _n = S.hit(a, b, c["view"])
+            if loc is None:
+                dead.append(f)
+                continue
+            ts = (loc - (c["A"] * a + c["B"] * b)).dot(c["d"])
+            t = q.dot(c["d"])
+            if t < ts - 1e-4:
+                dead.append(f)
+    bmesh.ops.delete(nb, geom=dead, context="FACES")
+    nb.faces.layers.int.remove(pl)
+    me.bm = nb
+    me.layer = nb.faces.layers.int.get("cls")
+    me.cache = {}
+
+
 # ----------------------------------------------------------------------------- exterior details
 
 def span(poly, y, axis=1):
@@ -1633,18 +1869,43 @@ def roundel_decal(S, c, r, view, lift=0.004):
     S.text("B", r * 0.42, view, (c[0], c[1] + r * 0.77), CHROME, "Metal", lift=lift + 0.0015, spacing=1.0)
 
 
+def bars(S, poly, view, pitch, t, col, kind, lift, base, axis=1, mirror=False, inset=0.004, pair=None):
+    """Solid bars (slats) across the 2D outline: horizontal (axis 1: one per y) or vertical (axis 0), each a
+    projected strip standing `lift` off the panel with walls down to `base`."""
+    x0, y0, x1, y1 = bbox2(poly)
+    lo, hi = (y0, y1) if axis == 1 else (x0, x1)
+    v = lo + pitch * 0.6
+    while v < hi - pitch * 0.3:
+        for dv in (pair or (0.0,)):
+            sp_ = span(poly, v + dv, axis=axis)
+            if sp_:
+                a, b = sp_[0] + inset, sp_[1] - inset
+                if b - a > 0.01:
+                    w = v + dv
+                    q = [(a, w - t / 2), (b, w - t / 2), (b, w + t / 2), (a, w + t / 2)] if axis == 1 else \
+                        [(w - t / 2, a), (w + t / 2, a), (w + t / 2, b), (w - t / 2, b)]
+                    S.decal(q, view, col, kind, lift=lift, base=base, rings=1, step=0.06, mirror=mirror)
+        v += pitch
+
+
+def mesh_grille(S, poly, view, col, lift, base, mirror=False, px=0.05, py=0.035, t=0.008):
+    """A coarse honeycomb-ish mesh: horizontal bars plus vertical bars, sunk into a pocket."""
+    bars(S, poly, view, py, t, col, "Gloss", lift, base, axis=1, mirror=mirror)
+    bars(S, poly, view, px, t, col, "Gloss", lift - 0.004, base, axis=0, mirror=mirror)
+
+
 def kidneys(car, S, st):
-    """The kidney grille: raised frame (+ optional light-up contour), dark inner, slats."""
+    """The kidney grille: a raised frame (surround) around a real opening, slats inside it, a dark void behind."""
     k = st["kidney"]
-    poly = round_poly(k["pts"], k["r"], per=5)
-    poly = _ccw(poly)
+    poly = _ccw(round_poly(k["pts"], k["r"], per=5))
     fw = k.get("frame_w", 0.02)
     inner = offset_poly(poly, -fw)
     lift = k.get("lift", 0.03)
     mirror = not k.get("single", False)
-    S.decal(poly, "front", (0.02, 0.02, 0.025), "Paint", lift=lift - 0.014, rings=3, step=0.025, mirror=mirror)
+    pocket(car, S, offset_poly(inner, 0.006), "front", k.get("depth", 0.11), mirror=mirror, back=(0.008, 0.008, 0.01))
     fcol = k.get("frame", PIANO)
-    S.frame(poly, inner, "front", fcol, "Metal" if fcol == CHROME else "Gloss", lift=lift, mirror=mirror)
+    fkind = "Metal" if fcol in (CHROME, ALU) else "Gloss"
+    S.frame(poly, inner, "front", fcol, fkind, lift=lift, base=-0.03, mirror=mirror)
     if k.get("glow"):     # "Iconic Glow" contour
         S.frame(offset_poly(poly, -0.002), offset_poly(poly, -0.008), "front", LAMP_W, "Glow", lift=lift + 0.002,
                 mirror=mirror)
@@ -1652,33 +1913,16 @@ def kidneys(car, S, st):
     slat = k.get("slats", "h")
     scol = k.get("slat_col", PIANO)
     skind = "Metal" if scol in (CHROME, ALU) else "Gloss"
+    sl = lift - k.get("slat_back", 0.01)
     if slat in ("h", "hh"):
-        pitch = k.get("pitch", 0.04)
-        y = y0 + pitch * 0.6
-        while y < y1 - pitch * 0.3:
-            for dy in ((0.0,) if slat == "h" else (-0.007, 0.007)):
-                sp_ = span(inner, y + dy)
-                if sp_:
-                    a, b = sp_[0] + 0.004, sp_[1] - 0.004
-                    t = k.get("slat_t", 0.012)
-                    S.decal([(a, y + dy - t / 2), (b, y + dy - t / 2), (b, y + dy + t / 2), (a, y + dy + t / 2)], "front",
-                            scol, skind, lift=lift - 0.006, rings=1, step=0.07, mirror=mirror)
-            y += pitch
+        bars(S, inner, "front", k.get("pitch", 0.04), k.get("slat_t", 0.012), scol, skind, sl, sl - 0.035,
+             axis=1, mirror=mirror, pair=None if slat == "h" else (-0.008, 0.008))
     elif slat in ("v", "vv"):
-        pitch = k.get("pitch", 0.035)
-        x = x0 + pitch * 0.6
-        while x < x1 - pitch * 0.3:
-            for dx in ((0.0,) if slat == "v" else (-0.006, 0.006)):
-                sp_ = span(inner, x + dx, axis=0)
-                if sp_:
-                    a, b = sp_[0] + 0.004, sp_[1] - 0.004
-                    t = k.get("slat_t", 0.01)
-                    S.decal([(x + dx - t / 2, a), (x + dx + t / 2, a), (x + dx + t / 2, b), (x + dx - t / 2, b)], "front",
-                            scol, skind, lift=lift - 0.006, rings=1, step=0.07, mirror=mirror)
-            x += pitch
+        bars(S, inner, "front", k.get("pitch", 0.035), k.get("slat_t", 0.01), scol, skind, sl, sl - 0.035,
+             axis=0, mirror=mirror, pair=None if slat == "v" else (-0.007, 0.007))
     if k.get("divider"):     # single-frame grille with a centre bar (M8)
         S.decal([(-0.012, y0 - 0.01), (0.012, y0 - 0.01), (0.012, y1 + 0.01), (-0.012, y1 + 0.01)], "front", fcol,
-                "Gloss", lift=lift, rings=1)
+                fkind, lift=lift, base=-0.03, rings=1)
 
 
 def oblique(car, end, alpha, S=None):
@@ -1704,66 +1948,83 @@ def _cv(conv, pts):
     return [conv(x, y) for x, y in pts]
 
 
+LENS = (0.82, 0.86, 0.9)
+
+
 def headlights(car, S, st):
+    """Headlight units: a housing pocket in the nose, a chrome-dark reflector, projector lenses and the DRL
+    graphics (Glow) sitting inside it, a black bezel around the opening and a clear lens over the top."""
     h = st["head"]
     V, cv = oblique(car, "front", h.get("alpha", 0.55), S)
-    poly = round_poly(h["pts"], h.get("r", 0.012), per=3)
-    S.decal(_cv(cv, offset_poly(_ccw(poly), 0.006)), V, h.get("bezel", (0.1, 0.1, 0.11)), "Paint", lift=0.005, rings=2,
-            step=0.03, mirror=True)
-    S.decal(_cv(cv, poly), V, (0.035, 0.037, 0.042), "Gloss", lift=0.008, rings=2, step=0.03, mirror=True)
+    pc = _ccw(round_poly(h["pts"], h.get("r", 0.012), per=3))
+    P = _cv(cv, pc)
+    dep = h.get("depth", 0.055)
+    pocket(car, S, P, V, dep, col=(0.05, 0.052, 0.058), mirror=True, back=(0.03, 0.03, 0.034))
+    S.frame(_cv(cv, offset_poly(pc, 0.008)), P, V, h.get("bezel", (0.05, 0.05, 0.055)), "Gloss", lift=0.004,
+            base=-0.02, mirror=True, step=0.02)
+    S.decal(_cv(cv, offset_poly(pc, -0.004)), V, (0.16, 0.165, 0.18), "Metal", lift=-dep * 0.62, base=-dep * 0.9,
+            rings=2, step=0.03, mirror=True, skirt=False)                                  # reflector
     for shp in h.get("drl", []):
         pts = round_poly(shp, 0.004, per=2) if len(shp) > 2 else shp
-        S.decal(_cv(cv, pts), V, LAMP_W, "Glow", lift=0.011, rings=1, step=0.015, mirror=True)
+        S.decal(_cv(cv, pts), V, LAMP_W, "Glow", lift=-0.012, base=-0.035, rings=1, step=0.015, mirror=True)
     for (x, y, r) in h.get("lens", []):
-        S.decal(_cv(cv, ellipse(x, y, r, r, 14)), V, (0.55, 0.57, 0.6), "Metal", lift=0.01, rings=1, step=0.01,
-                mirror=True)
-        S.decal(_cv(cv, ellipse(x, y, r * 0.55, r * 0.55, 10)), V, (0.85, 0.9, 1.0), "Glow", lift=0.012, rings=1,
-                step=0.01, mirror=True)
+        S.decal(_cv(cv, ellipse(x, y, r * 1.35, r * 1.35, 14)), V, (0.35, 0.36, 0.4), "Metal", lift=-0.02,
+                base=-0.04, rings=1, step=0.01, mirror=True)
+        S.decal(_cv(cv, ellipse(x, y, r * 0.8, r * 0.8, 12)), V, (0.85, 0.9, 1.0), "Glow", lift=-0.016, rings=1,
+                step=0.01, mirror=True, skirt=False)
     for shp in h.get("blue", []):
-        S.decal(_cv(cv, shp), V, LAMP_BLUE, "Glow", lift=0.011, rings=1, step=0.015, mirror=True)
+        S.decal(_cv(cv, shp), V, LAMP_BLUE, "Glow", lift=-0.012, base=-0.03, rings=1, step=0.015, mirror=True)
     for (x, y, r) in h.get("rings", []):        # corona / hexagon DRL rings
         S.frame(_cv(cv, ellipse(x, y, r, r * 0.92, 6, math.pi / 6)), _cv(cv, ellipse(x, y, r * 0.74, r * 0.68, 6, math.pi / 6)),
-                V, LAMP_W, "Glow", lift=0.012, mirror=True, step=0.01)
+                V, LAMP_W, "Glow", lift=-0.01, base=-0.03, mirror=True, step=0.01)
+    S.decal(P, V, LENS, "Glass", lift=0.002, rings=3, step=0.025, mirror=True, skirt=False,
+            lift_fn=lambda f: 0.004 * f)                                                    # clear cover lens
     c = centroid(h["pts"])
     loc, _n = S.hit(*cv(c[0], c[1]), V)
     return loc
 
 
 def taillights(car, S, st):
+    """Tail lamps: a shallow housing pocket, a dim red back plate, the lit graphics floating inside, a smoked red
+    lens over the top."""
     t = st["tail"]
     V, cv = oblique(car, "rear", t.get("alpha", 0.6), S)
-    poly = round_poly(t["pts"], t.get("r", 0.012), per=3)
-    S.decal(_cv(cv, offset_poly(_ccw(poly), 0.006)), V, (0.05, 0.015, 0.018), "Paint", lift=0.005, rings=2, step=0.03,
-            mirror=True)
-    S.decal(_cv(cv, poly), V, t.get("base", (0.26, 0.015, 0.02)), t.get("base_kind", "Glow"), lift=0.008, rings=2,
-            step=0.025, mirror=True)
+    pc = _ccw(round_poly(t["pts"], t.get("r", 0.012), per=3))
+    P = _cv(cv, pc)
+    dep = t.get("depth", 0.04)
+    pocket(car, S, P, V, dep, col=(0.07, 0.012, 0.015), mirror=True)
+    S.frame(_cv(cv, offset_poly(pc, 0.005)), P, V, (0.03, 0.01, 0.012), "Gloss", lift=0.003, base=-0.015,
+            mirror=True, step=0.02)
+    S.decal(_cv(cv, offset_poly(pc, -0.003)), V, t.get("base", (0.26, 0.015, 0.02)), t.get("base_kind", "Glow"),
+            lift=-dep * 0.7, base=-dep * 0.95, rings=2, step=0.025, mirror=True, skirt=False)
     for shp in t.get("glow", []):
-        S.decal(_cv(cv, round_poly(shp, 0.004, per=2)), V, TAIL, "Glow", lift=0.011, rings=1, step=0.015, mirror=True)
+        S.decal(_cv(cv, round_poly(shp, 0.004, per=2)), V, TAIL, "Glow", lift=-0.01, base=-0.03, rings=1,
+                step=0.015, mirror=True)
     for shp in t.get("hi", []):
-        S.decal(_cv(cv, shp), V, TAIL_HI, "Glow", lift=0.013, rings=1, step=0.012, mirror=True)
+        S.decal(_cv(cv, shp), V, TAIL_HI, "Glow", lift=-0.008, base=-0.028, rings=1, step=0.012, mirror=True)
+    S.decal(P, V, t.get("lens", (0.75, 0.12, 0.13)), "Glass", lift=0.002, rings=3, step=0.025, mirror=True, skirt=False,
+            lift_fn=lambda f: 0.003 * f)
     c = centroid(t["pts"])
     loc, _n = S.hit(*cv(c[0], c[1]), V)
     return loc
 
 
 def exhausts(car, S, st):
+    """Tailpipes that stick out of the rear valance: a tip with a rolled lip, a dark bore inside it."""
     tips = []
+    col = st.get("tip_col", (0.1, 0.1, 0.11))
+    kind = st.get("tip_kind", "Metal")
     for (x, y, r, shape) in st["exhaust"]:
         for sx in (-1, 1):
-            loc, _n = S.hit(sx * x, y, "rear")
+            loc, _n = S.hit(sx * x, y + st.get("tip_face_dy", 0.0), "rear")    # opt-in: anchor on the bumper face
             if loc is None:
                 continue
-            z1 = loc.z + st.get("tip_out", 0.025)
-            M = T((sx * x, y, z1 - 0.07), [("x", math.pi / 2)])
-            if shape == "round":
-                revolve([(r * 0.8, -0.1), (r, -0.02), (r, 0.07), (r * 0.9, 0.075), (r * 0.82, 0.07), (r * 0.82, -0.1)],
-                        st.get("tip_col", (0.1, 0.1, 0.11)), st.get("tip_kind", "Metal"), 20, M=M)
-                revolve([(r * 0.83, 0.06), (0.0, 0.06)], (0.01, 0.01, 0.01), "Paint", 16, M=M)
-            else:       # trapezoid / oval tip
-                sc = T((sx * x, y, z1 - 0.07), [("x", math.pi / 2)], scale=(1.35, 1.0, 0.8))
-                revolve([(r * 0.8, -0.1), (r, -0.02), (r, 0.07), (r * 0.9, 0.075), (r * 0.82, 0.07), (r * 0.82, -0.1)],
-                        st.get("tip_col", (0.1, 0.1, 0.11)), st.get("tip_kind", "Metal"), 20, M=sc)
-                revolve([(r * 0.83, 0.06), (0.0, 0.06)], (0.01, 0.01, 0.01), "Paint", 16, M=sc)
+            z1 = loc.z + st.get("tip_out", 0.045)
+            sc = (1.0, 1.0, 1.0) if shape == "round" else (1.35, 1.0, 0.8)
+            M = T((sx * x, y, z1), [("x", math.pi / 2)], scale=sc)
+            revolve([(r * 0.86, -0.2), (r, -0.16), (r, -0.012), (r * 0.97, -0.002), (r * 0.9, 0.0), (r * 0.84, -0.006),
+                     (r * 0.82, -0.2)], col, kind, 24, M=M)
+            revolve([(r * 0.83, -0.05), (0.0, -0.05)], (0.01, 0.01, 0.01), "Paint", 16, M=M)
             tips.append(_r3((sx * x, y, z1)))
     return tips
 
@@ -1775,8 +2036,11 @@ def _r3(v):
 def mirrors(car, st):
     """Door mirrors on both sides (M-style twin stalks, body-colour housing, carbon or paint cap)."""
     m = st["mirror"]
+    if m.get("builder"):                  # per-car mirror: fn(car, st)
+        m["builder"](car, st)
+        return
     z0, y0 = m["z"], m["y"]
-    xE = car.w(z0) - car.f["te"](z0)
+    xE = car.xE(z0)
     L = m.get("len", 0.23)
     cap = m.get("cap", "paint")
     sc = m.get("scale", 1.0)
@@ -1839,14 +2103,14 @@ def shut_lines(car, S):
     g = car.g
     gap = (0.02, 0.02, 0.022)
     zs = [car.zF + car.nose_len * 0.55 + k * (g["zc0"] - 0.06 - car.zF - car.nose_len * 0.55) / 10 for k in range(11)]
-    pts = [(car.w(z) - car.f["te"](z) - 0.045, z) for z in zs]
+    pts = [(car.xE(z) - 0.045, z) for z in zs]
     S.line(pts, 0.005, "top", gap, "Paint", lift=0.0025, mirror=True, step=0.08)
     z0 = g["zb0"] + 0.07
     z1 = car.zR - car.tail_len * 0.6
-    xs = car.w(z0) - car.f["te"](z0) - 0.07
+    xs = car.xE(z0) - 0.07
     S.line([(-xs, z0), (xs, z0)], 0.005, "top", gap, "Paint", lift=0.0025, step=0.08)
     zz = [z0 + (z1 - z0) * k / 6 for k in range(7)]
-    S.line([(car.w(z) - car.f["te"](z) - 0.07, z) for z in zz], 0.005, "top", gap, "Paint", lift=0.0025, mirror=True,
+    S.line([(car.xE(z) - 0.07, z) for z in zz], 0.005, "top", gap, "Paint", lift=0.0025, mirror=True,
            step=0.08)
 
 
@@ -1856,24 +2120,30 @@ def side_details(car, S, st):
     for pl in sd.get("gaps", []):
         S.line(pl, 0.005, "right", (0.02, 0.02, 0.022), "Paint", lift=0.0025, mirror=True, step=0.05)
     for (z, y, L_) in sd.get("handles", []):
-        poly = round_poly([(z - L_ / 2, y - 0.016), (z + L_ / 2, y - 0.016), (z + L_ / 2, y + 0.016), (z - L_ / 2, y + 0.016)],
-                          0.014, per=3)
-        S.decal(offset_poly(_ccw(poly), 0.008), "right", (0.03, 0.03, 0.035), "Paint", lift=0.002, rings=2, mirror=True)
-        S.decal(poly, "right", sd.get("handle_col", WHITE), sd.get("handle_kind", "CarPaint"), lift=0.014, rings=2,
-                mirror=True, lift_fn=lambda f: 0.004 * f)
+        # a flush pull handle: a dark finger pocket in the door skin and the handle bar standing proud of it
+        cup = round_poly([(z - L_ * 0.42, y - 0.03), (z + L_ * 0.42, y - 0.03), (z + L_ * 0.42, y + 0.005),
+                          (z - L_ * 0.42, y + 0.005)], 0.016, per=3)
+        pocket(car, S, cup, "right", 0.018, col=(0.03, 0.03, 0.035), mirror=True, step=0.012)
+        poly = round_poly([(z - L_ / 2, y - 0.013), (z + L_ / 2, y - 0.009), (z + L_ / 2, y + 0.014),
+                           (z - L_ / 2, y + 0.012)], 0.012, per=3)
+        S.decal(poly, "right", sd.get("handle_col", WHITE), sd.get("handle_kind", "CarPaint"), lift=0.012, base=-0.004,
+                rings=2, mirror=True, lift_fn=lambda f: 0.005 * f, step=0.02)
     g = sd.get("gill")
     if g:
         poly = round_poly(g["pts"], 0.01, per=3)
-        S.decal(poly, "right", g.get("col", PIANO), "Gloss", lift=0.005, rings=2, mirror=True)
+        pocket(car, S, poly, "right", g.get("depth", 0.035), col=(0.02, 0.02, 0.022), mirror=True, step=0.015)
+        S.frame(offset_poly(_ccw(poly), 0.006), _ccw(poly), "right", g.get("col", PIANO), "Gloss", lift=0.004,
+                base=-0.015, mirror=True, step=0.015)
         for sl in g.get("slats", []):
-            S.decal(sl, "right", (0.01, 0.01, 0.012), "Paint", lift=0.007, rings=1, mirror=True)
+            S.decal(sl, "right", g.get("col", PIANO), "Gloss", lift=-0.004, base=-0.03, rings=1, mirror=True)
         if g.get("badge"):
             bz, by = g["badge_at"]
             S.text(g["badge"], 0.028, "right", (bz, by), CHROME, "Metal", lift=0.008, fnt="sansi")
             S.text(g["badge"], 0.028, "left", (bz, by), CHROME, "Metal", lift=0.008, fnt="sansi")
     sk = sd.get("skirt")
     if sk:
-        S.decal(sk, "right", sd.get("skirt_col", PIANO), "Gloss", lift=0.006, rings=2, mirror=True, step=0.05)
+        S.decal(sk, "right", sd.get("skirt_col", PIANO), "Gloss", lift=0.012, rings=2, mirror=True, step=0.05,
+                base=-0.006)
     fd = sd.get("fuel")
     if fd:
         z, y = fd
@@ -1881,6 +2151,23 @@ def side_details(car, S, st):
                           per=3), 0.004, "right", (0.02, 0.02, 0.022), "Paint", lift=0.0025, closed=True)
     for trim in sd.get("trims", []):
         S.decal(trim[0], "right", trim[1], trim[2], lift=0.006, rings=2, mirror=True)
+
+
+def intake(car, S, pts, view="front", mirror=True, depth=0.08, frame=PIANO, grille="mesh", fw=0.012, mesh=None):
+    """A recessed air intake: pocket + gloss-black surround + a mesh (or slats) sunk inside."""
+    pts = _ccw(pts)
+    pocket(car, S, pts, view, depth, mirror=mirror, back=(0.006, 0.006, 0.008))
+    S.frame(offset_poly(pts, fw * 0.5), offset_poly(pts, -fw * 0.5), view, frame,
+            "Metal" if frame in (CHROME, ALU) else "Gloss", lift=0.008, base=-0.025, mirror=mirror, step=0.025)
+    inner = offset_poly(pts, -fw * 0.5 - 0.004)
+    if grille == "mesh":
+        if mesh:                  # opt-in (px, py, bar t, sink): finer, deeper honeycomb
+            px, py, tb, sk = mesh
+            mesh_grille(S, inner, view, (0.04, 0.04, 0.045), -sk, -sk - 0.02, mirror=mirror, px=px, py=py, t=tb)
+        else:
+            mesh_grille(S, inner, view, (0.06, 0.06, 0.065), -0.022, -0.04, mirror=mirror)
+    elif grille == "slats":
+        bars(S, inner, view, 0.035, 0.01, (0.07, 0.07, 0.075), "Gloss", -0.012, -0.04, axis=1, mirror=mirror)
 
 
 def front_details(car, S, st):
@@ -1891,32 +2178,22 @@ def front_details(car, S, st):
     tag("f.bumper")
     fr = st["front"]
     for poly in fr.get("intakes", []):
-        pts = round_poly(poly, 0.02, per=3)
-        S.decal(pts, "front", (0.03, 0.03, 0.035), "Paint", lift=0.004, rings=2, mirror=True, step=0.04)
-        S.frame(pts, offset_poly(_ccw(pts), -0.012), "front", PIANO, "Gloss", lift=0.008, mirror=True)
-        x0, y0, x1, y1 = bbox2(pts)
-        y = y0 + 0.03
-        while y < y1 - 0.02:
-            sp_ = span(offset_poly(_ccw(pts), -0.015), y)
-            if sp_:
-                S.decal([(sp_[0], y - 0.005), (sp_[1], y - 0.005), (sp_[1], y + 0.005), (sp_[0], y + 0.005)], "front",
-                        (0.07, 0.07, 0.075), "Gloss", lift=0.007, rings=1, mirror=True, step=0.07)
-            y += 0.035
+        intake(car, S, round_poly(poly, 0.02, per=3), grille=fr.get("intake_grille", "mesh"), mesh=fr.get("intake_mesh"))
     for poly in fr.get("center", []):
-        pts = round_poly(poly, 0.02, per=3)
-        S.decal(pts, "front", (0.03, 0.03, 0.035), "Paint", lift=0.004, rings=2, step=0.04)
-        S.frame(pts, offset_poly(_ccw(pts), -0.012), "front", PIANO, "Gloss", lift=0.008)
+        intake(car, S, round_poly(poly, 0.02, per=3), mirror=False, grille=fr.get("center_grille", "mesh"))
+    for (poly, alpha, dep) in fr.get("vents", []):            # vertical corner intakes (air curtains)
+        V, cv = oblique(car, "front", alpha, S)
+        pocket(car, S, _cv(cv, round_poly(poly, 0.008, per=2)), V, dep, mirror=True, step=0.012)
     for poly, col, kind in fr.get("trims", []):
         S.decal(poly, "front", col, kind, lift=0.006, rings=2, mirror=True)
     for poly in st.get("hood_vents", []):
         S.decal(round_poly(poly, 0.015, per=2), "top", (0.03, 0.03, 0.035), "Gloss", lift=0.004, rings=2, mirror=True)
-        x0, z0, x1, z1 = bbox2(poly)
-        for k in range(4):
-            zz = z0 + (z1 - z0) * (k + 0.6) / 4.2
-            S.decal([(x0 + 0.02, zz - 0.006), (x1 - 0.02, zz - 0.006), (x1 - 0.02, zz + 0.006), (x0 + 0.02, zz + 0.006)],
-                    "top", (0.08, 0.08, 0.09), "Gloss", lift=0.007, rings=1, mirror=True, step=0.08)
     for poly, col, kind in fr.get("trims_c", []):
         S.decal(poly, "front", col, kind, lift=0.006, rings=2)
+    sp = fr.get("splitter")
+    if sp:                                                     # front lip / splitter proud of the bumper bottom
+        w, y0, h, out = sp
+        car_split(car, S, w, y0, h, out, CARBON if car.sp.get("carbon_lip") else PIANO)
     # plate
     px, py = fr["plate"]
     pl = [(-0.26, py - 0.056), (0.26, py - 0.056), (0.26, py + 0.056), (-0.26, py + 0.056)]
@@ -1927,12 +2204,27 @@ def front_details(car, S, st):
            lift=fr.get("plate_lift", 0.012) + 0.001)
     ploc, _ = S.hit(0, py, "front")
     tag("f.roundel")
-    # roundel on the hood nose
     rv = ((0, -0.55, 0.835), (1, 0, 0), (0, 0.835, 0.55))
     if st.get("roundel_front"):
         ry, rz = st["roundel_front"]
         roundel_decal(S, (0.0, ry * 0.835 + rz * 0.55), 0.04, rv, lift=0.004)
     return hl, ploc
+
+
+def car_split(car, S, w, y0, h, out, col):
+    """Front splitter: a thin blade following the bumper's plan outline at height y0, sticking out `out`."""
+    rings = []
+    n = 25
+    for k in range(n):
+        x = w * (-1 + 2 * k / (n - 1))
+        loc, _n = S.hit(x, y0 + h * 0.5, "front")
+        if loc is None or _n.z > -0.55:
+            continue
+        z = loc.z
+        rings.append([Vector((x, y0, z + 0.03)), Vector((x, y0, z - out)), Vector((x, y0 + h, z - out + 0.004)),
+                      Vector((x, y0 + h, z + 0.03))])
+    if len(rings) > 2:
+        emit(loft_bm(rings), col, "Gloss", sharp=0.6)
 
 
 def rear_details(car, S, st):
@@ -1942,28 +2234,36 @@ def rear_details(car, S, st):
         S.decal(poly, "rear", col, kind, lift=0.006, rings=2, mirror=True)
     for poly, col, kind in rr.get("trims_c", []):
         S.decal(poly, "rear", col, kind, lift=0.006, rings=2)
+    for (poly, alpha, dep) in rr.get("vents", []):            # vertical rear-bumper vents / reflector slots
+        V, cv = oblique(car, "rear", alpha, S)
+        pocket(car, S, _cv(cv, round_poly(poly, 0.008, per=2)), V, dep, mirror=True, step=0.012)
     d = rr.get("diffuser")
-    if d:
+    if d and rr.get("diff_mode") == "ramp":
+        diffuser_ramp(car, S, rr)
+    elif d:
         yb = car.f["bot"](car.zR) + 0.015
         d = [(x, max(y, yb)) for x, y in d]
-        S.decal(round_poly(d, 0.02, per=3), "rear", (0.03, 0.03, 0.035), "Paint", lift=0.006, rings=3, step=0.04)
+        dpoly = _ccw(round_poly(d, 0.03, per=3))
+        dd = rr.get("diff_depth", 0.12)
+        pocket(car, S, dpoly, "rear", dd, col=(0.03, 0.03, 0.033), back=(0.012, 0.012, 0.014), step=0.03)
+        S.frame(offset_poly(dpoly, 0.012), dpoly, "rear", rr.get("diff_col", PIANO), "Gloss", lift=0.012, base=-0.03,
+                step=0.03)
         for fx in rr.get("fins", []):
-            sp_ = span(d, fx, axis=0)
+            sp_ = span(dpoly, fx, axis=0)
             if sp_:
-                S.decal([(fx - 0.006, sp_[0] + 0.01), (fx + 0.006, sp_[0] + 0.01), (fx + 0.006, sp_[1] - 0.005),
-                         (fx - 0.006, sp_[1] - 0.005)], "rear", PIANO, "Gloss", lift=0.028, rings=1)
+                S.decal([(fx - 0.006, sp_[0] + 0.002), (fx + 0.006, sp_[0] + 0.002), (fx + 0.006, sp_[1] - 0.01),
+                         (fx - 0.006, sp_[1] - 0.01)], "rear", PIANO, "Gloss", lift=0.02, base=-dd + 0.005, rings=1)
     for (x, y, w_, h_) in rr.get("reflectors", []):
         S.decal(round_poly([(x - w_ / 2, y - h_ / 2), (x + w_ / 2, y - h_ / 2), (x + w_ / 2, y + h_ / 2), (x - w_ / 2, y + h_ / 2)],
                            min(w_, h_) * 0.45, per=2), "rear", TAIL, "Glow", lift=0.007, rings=1, mirror=True)
     px, py = rr["plate"]
     pl = [(-0.26, py - 0.056), (0.26, py - 0.056), (0.26, py + 0.056), (-0.26, py + 0.056)]
-    S.decal(offset_poly(_ccw(pl), 0.02), "rear", (0.04, 0.04, 0.045), "Paint", lift=0.003, rings=2)
-    S.decal(round_poly(pl, 0.008, per=2), "rear", PLATE, "Paint", lift=0.008, rings=2)
+    pocket(car, S, offset_poly(_ccw(pl), 0.02), "rear", 0.012, col=(0.04, 0.04, 0.045))
+    S.decal(round_poly(pl, 0.008, per=2), "rear", PLATE, "Paint", lift=0.002, rings=2)
     S.decal([(-0.255, py - 0.051), (-0.215, py - 0.051), (-0.215, py + 0.051), (-0.255, py + 0.051)], "rear",
-            (0.1, 0.2, 0.7), "Paint", lift=0.009, rings=1)
-    S.text(st.get("plate_text", "BEMZE"), 0.05, "rear", (0.02, py), (0.05, 0.05, 0.06), "Paint", lift=0.009)
+            (0.1, 0.2, 0.7), "Paint", lift=0.003, rings=1)
+    S.text(st.get("plate_text", "BEMZE"), 0.05, "rear", (0.02, py), (0.05, 0.05, 0.06), "Paint", lift=0.003)
     ploc, _ = S.hit(0, py, "rear")
-    # badges
     if rr.get("roundel"):
         roundel_decal(S, rr["roundel"], 0.037, "rear", lift=0.004)
     S.text(st["badge"], 0.045, "rear", rr["badge_at"], CHROME, "Metal", lift=0.004, fnt="sansi")
@@ -1975,6 +2275,62 @@ def rear_details(car, S, st):
                     h=rr.get("lip_h", 0.026))
     tips = exhausts(car, S, st)
     return tl, ploc, tips
+
+
+def diffuser_ramp(car, S, rr):
+    """Opt-in diffuser (rear.diff_mode = "ramp"): a solid gloss-black diffuser under the rear bumper. The body faces
+    inside the end-view outline (rear face) and the tail's underside turn black; below the bumper a black block fills
+    the outline, its rear face following the bumper's plan curve `diff_rec` behind it, vertical fins (rear.fins x's)
+    stand `fin_out` proud of the bumper face and a blade runs along the bottom. The tailpipes poke out of it."""
+    d = rr["diffuser"]
+    x0, y0, x1, y1 = bbox2(d)
+    xw = max(abs(x0), abs(x1))
+    blk = cls(rr.get("diff_col", PIANO), "Gloss")
+    me = car.shell
+    me.bm.normal_update()
+    zr0 = car.aR + car.Ra + 0.04
+    for f in me.bm.faces:
+        if PAL[f[me.layer]][1] != "CarPaint":
+            continue
+        c = f.calc_center_median()
+        n = f.normal
+        if c.z > zr0 and abs(c.x) < xw and c.y < y1 and (n.y < -0.4 or (n.z > 0.05 and _in_poly((c.x, c.y), d))):
+            f[me.layer] = blk
+    col = rr.get("diff_col", PIANO)
+    ybump = car.f["bot"](car.zR - 0.05)
+
+    def zf(x):              # the bumper face just above the diffuser, following the plan curve
+        loc, _n = S.hit(x, min(y1, ybump + 0.04) - 0.005, "rear")
+        if loc is None or _n.z < 0.3:
+            loc, _n = S.hit(0.0, min(y1, ybump + 0.04) - 0.005, "rear")
+            return (loc.z if loc is not None else car.zR - 0.05) - 0.25 * (abs(x) / max(xw, 0.1)) ** 3
+        return loc.z - rr.get("diff_taper", 0.0) * (abs(x) / max(xw, 0.1)) ** 4
+    depth = rr.get("diff_len", 0.4)
+    rec = rr.get("diff_rec", 0.04)
+    yt = min(y1, ybump + 0.03)
+    if yt > y0 + 0.02:
+        poly = [(x, min(y, yt)) for x, y in _ccw(round_poly(d, 0.03, per=3))]
+        bm = prism_bm(poly, -depth, 0.0, axis="z", bevel=0.006, seg=1)
+        for v in bm.verts:                 # bend the block along the bumper's plan curve
+            v.co.z += zf(v.co.x) - rec
+        emit(bm, col, "Gloss", sharp=0.6)
+        fins = sorted(rr.get("fins", []))
+        for a, b in zip(fins[:-1], fins[1:]):
+            if b - a > 0.08:
+                xm = (a + b) / 2
+                box((b - a - 0.03, (yt - y0) * 0.55, 0.01), (0.012, 0.012, 0.014), "Paint",
+                    pos=(xm, y0 + (yt - y0) * 0.55, zf(xm) - rec + 0.004))
+    fo = rr.get("fin_out", 0.03)
+    for fx in rr.get("fins", []):
+        top = min(y1, ybump + 0.06)
+        z0 = zf(fx)
+        poly = [(z0 - rec - 0.25, top), (z0 + fo * 0.3, top), (z0 + fo, y0 + 0.02), (z0 + fo - 0.02, y0),
+                (z0 - rec - 0.25, y0)]
+        prism(poly, fx - 0.0055, fx + 0.0055, col, "Gloss", axis="x", sharp=0.5)
+    xs = [xw * (-1 + 2 * k / 16) * 0.97 for k in range(17)]
+    back = [(x, zf(x) + fo) for x in xs]
+    front = [(x, z - 0.06) for x, z in reversed(back)]
+    emit(prism_bm(back + front, y0, y0 + 0.012, axis="y"), col, "Gloss", sharp=0.6)
 
 
 def lip_col(car):
@@ -2074,7 +2430,7 @@ def interior(car, st):
     hy = car.cf + iz.get("hip_h", 0.24)
     xd = -iz.get("hip_x", 0.37)
     z_fw = car.z_tf
-    xin = car.w(0) - car.f["te"](0) - 0.09
+    xin = car.xE(0) - 0.09
     dash = it["dash"]
     # dashboard: side profile (z, y) extruded across the cabin
     y_cowl = car.hood_y(0, g["zc0"], "hood")
@@ -2188,7 +2544,7 @@ def interior(car, st):
         ztop = rz + 0.02 + 0.62 * math.sin(iz.get("rear_recline", 0.42))
         if car.z_tr - ztop > 0.05:
             zc_ = (ztop + car.z_tr) / 2
-            box((2 * (car.w(zc_) - car.f["te"](zc_) - 0.1), 0.03, car.z_tr - ztop + 0.04), (0.05, 0.05, 0.055),
+            box((2 * (car.xE(zc_) - 0.1), 0.03, car.z_tr - ztop + 0.04), (0.05, 0.05, 0.055),
                 "Paint", pos=(0, car.f["e"](car.z_tr) - 0.04, zc_))
     # door cards: armrest, pull, speaker, ambient line, handle (both sides)
     for sx in (-1, 1):
@@ -2196,7 +2552,7 @@ def interior(car, st):
             if z1 <= z0:
                 continue
             zc = (z0 + z1) / 2
-            xw = sx * (car.w(zc) - car.f["te"](zc) - 0.1)
+            xw = sx * (car.xE(zc) - 0.1)
             e = car.f["e"](zc)
             box((0.06, 0.04, z1 - z0 - 0.1), it["seat"], "Paint", pos=(xw, e - 0.3, zc), r=0.015)
             box((0.012, 0.004, z1 - z0 - 0.15), (0.4, 0.7, 1.0), "Glow", pos=(xw - sx * 0.012, e - 0.12, zc))
@@ -2438,6 +2794,141 @@ DET_540 = dict(  # G30 540i M Sport: chrome kidneys that meet the headlights, tw
 )
 
 
+# ----------------------------------------------------------------------------- M3 (G80) specific parts
+
+def _wheel_m3_spokes(M, c):
+    """826M-style forged double-spoke: five pairs of spokes from the hub, each spoke forking into a Y near the
+    rim (20 thin tips), deep concave face, satin black."""
+    rr, y_of, rim, rimk = c["rr"], c["y_of"], c["rim"], c["rimk"]
+    r0, r1 = c["r0"], c["r1"]
+    rf = lerp(r0, r1, 0.5)
+    for i in range(5):
+        t0 = TAU * i / 5
+        for s in (-1, 1):
+            _spoke(M, lambda u, s=s, t0=t0: (lerp(r0, rf + 0.01, u), t0 + s * lerp(0.2, 0.3, u)),
+                   lambda u: lerp(0.022, 0.016, u), lambda u: lerp(0.036, 0.03, u), y_of, rim, rimk, samples=5)
+            for b in (-1, 1):
+                _spoke(M, lambda u, s=s, b=b, t0=t0: (lerp(rf, r1, u), t0 + s * lerp(0.3, 0.314, u) + b * lerp(0.0, 0.157, u ** 0.7)),
+                       lambda u: lerp(0.012, 0.011, u), lambda u: 0.026, y_of, rim, rimk, samples=5)
+    # the rim's inner step ring (the spokes land on it)
+    yr = y_of(r1) - 0.004
+    revolve([(r1 - 0.012, yr - 0.02), (r1 - 0.012, yr + 0.004), (r1 + 0.004, yr + 0.006), (r1 + 0.004, yr - 0.02)],
+            rim, rimk, 48, M=M, closed=True)
+
+
+def _mirror_m3(car, st):
+    """G80 M wing mirror: a black, sharply creased housing on a thin angled double arm."""
+    m = st["mirror"]
+    z0, y0 = m["z"], m["y"]
+    xE = car.xE(z0)
+    x0m = max(xE + 0.03, m.get("reach", 1.035) - 0.19)        # outer tip at `reach` (mirror-to-mirror / 2)
+    for sx in (-1, 1):
+        rings = []
+        # housing section along x (outward): (x offset, half depth z, half height y, y centre offset)
+        prof = [(0.0, 0.03, 0.035, 0.0), (0.03, 0.05, 0.05, 0.004), (0.08, 0.058, 0.058, 0.008),
+                (0.15, 0.058, 0.058, 0.012), (0.2, 0.052, 0.05, 0.012), (0.228, 0.036, 0.036, 0.01),
+                (0.238, 0.016, 0.018, 0.008)]
+        for xo, dz, dy, yc in prof:
+            ring = []
+            for k in range(20):
+                a = TAU * k / 20
+                zz = -dz * math.cos(a)
+                yy = dy * math.sin(a)
+                if zz > dz * 0.5:                       # flat glass face toward the rear
+                    zz = dz * 0.5 + (zz - dz * 0.5) * 0.12
+                if zz < 0:                              # wedge nose: the front half pointier at mid height
+                    zz *= 1.0 + 0.25 * (1 - abs(math.sin(a)))
+                ring.append(Vector((sx * (x0m + xo * 0.8), y0 + 0.04 + yc + yy, z0 + zz)))
+            rings.append(ring if sx > 0 else list(reversed(ring)))
+        emit(loft_bm(rings), CARBON, "Gloss", sharp=0.9)
+        gz = z0 + 0.5 * 0.058 + 0.003
+        gpts = [Vector((sx * (x0m + 0.015 + 0.16 * (0.5 + 0.5 * math.cos(TAU * k / 16))),
+                        y0 + 0.05 + 0.045 * math.sin(TAU * k / 16), gz)) for k in range(16)]
+        bmg = bmesh.new()
+        f = bmg.faces.new([bmg.verts.new(p) for p in gpts])
+        bmg.normal_update()
+        if f.normal.z < 0:
+            f.normal_flip()
+        emit(bmg, (0.55, 0.6, 0.66), "Metal", recalc=False)
+        # the M double arm: two thin blades from the door sail up into the housing's underside
+        for dz, dx in ((-0.03, 0.0), (0.025, 0.02)):
+            a = Vector((sx * (xE - 0.01), y0 - 0.035, z0 + dz))
+            b = Vector((sx * (x0m + 0.03 + dx), y0 + 0.01, z0 + dz * 0.6))
+            rod(a, b, 0.008, CARBON, "Gloss", segs=6, r2=0.006)
+        box((0.07, 0.006, 0.018), (1.0, 0.55, 0.1), "Glow", pos=(sx * (x0m + 0.12), y0 - 0.008, z0 - 0.03), r=0.002)
+    # door sail (the black triangle the arm grows from)
+    for sx in (-1, 1):
+        x = sx * (xE + 0.004)
+        pts = [(z0 - 0.07, y0 - 0.07), (z0 + 0.1, y0 - 0.07), (z0 + 0.02, y0 + 0.01)]
+        bm = prism_bm(pts, 0.0, 0.012, axis="x")
+        for v in bm.verts:
+            v.co.x = x + sx * v.co.x
+        emit(bm, PIANO, "Gloss", sharp=0.5)
+
+
+def console_carbon(car, st, carbon=CARBON):
+    """Shared-style cockpit extras (opt-in via style.interior_extras): carbon centre-console panels with the
+    gear selector surround, and sculpted door cards (armrest, pull handle, speaker, ambient strip)."""
+    iz = st["interior"]
+    hz = iz["hip_z"]
+    it = car.sp["int"]
+    g = car.g
+    z_fw = car.z_tf
+    y_cowl = car.hood_y(0, g["zc0"], "hood")
+    cz0 = z_fw + 0.45
+    cz1 = hz + 0.25
+    cf = car.cf
+    # console side panels + top tray in carbon
+    for sx in (-1, 1):
+        prism([(cz0, cf + 0.06), (cz0, y_cowl - 0.34), (cz0 + 0.22, cf + 0.35), (cz1, cf + 0.35), (cz1, cf + 0.06)],
+              sx * 0.101, sx * 0.108, carbon, "Gloss", axis="x")
+    box((0.19, 0.008, 0.28), carbon, "Gloss", pos=(0, cf + 0.352, cz0 + 0.42), r=0.003)
+    box((0.12, 0.012, 0.14), (0.02, 0.02, 0.022), "Gloss", pos=(0, cf + 0.357, cz0 + 0.35), r=0.004)   # selector well
+    box((0.05, 0.035, 0.07), (0.05, 0.05, 0.055), "Gloss", pos=(0, cf + 0.38, cz0 + 0.35), r=0.012)     # selector
+    box((0.018, 0.004, 0.04), (0.9, 0.2, 0.1), "Glow", pos=(0.04, cf + 0.364, cz0 + 0.3))              # M buttons
+    box((0.018, 0.004, 0.04), (0.9, 0.2, 0.1), "Glow", pos=(-0.04, cf + 0.364, cz0 + 0.3))
+    # door cards
+    for sx in (-1, 1):
+        for (z0, z1) in iz.get("doors", ((z_fw + 0.2, hz + 0.3), (hz + 0.45, hz + 1.0))):
+            if z1 <= z0:
+                continue
+            zc = (z0 + z1) / 2
+            xw = sx * (car.xE(zc) - 0.085)
+            e = car.f["e"](zc)
+            prism([(z0 + 0.03, e - 0.2), (z1 - 0.03, e - 0.2), (z1 - 0.05, e - 0.08), (z0 + 0.05, e - 0.07)],
+                  xw, xw - sx * 0.02, carbon, "Gloss", axis="x", bevel=0.004)                    # carbon upper insert
+            prism([(z0 + 0.06, e - 0.34), (z1 - 0.08, e - 0.36), (z1 - 0.1, e - 0.28), (z0 + 0.1, e - 0.27)],
+                  xw, xw - sx * 0.07, it["seat"], "Paint", axis="x", bevel=0.012)                 # armrest
+            box((0.01, 0.003, z1 - z0 - 0.16), (0.9, 0.3, 0.1), "Glow", pos=(xw - sx * 0.022, e - 0.205, zc))
+
+
+def _det_m3():
+    """The M3's fascia / tail on top of DET_M3 (shared with the M4 nose, so copied, not edited)."""
+    d = {k: (dict(v) if isinstance(v, dict) else v) for k, v in DET_M3.items()}
+    d["kidney"] = dict(d["kidney"], pts=[(0.022, 0.64), (0.3, 0.64), (0.345, 0.59), (0.365, 0.5), (0.355, 0.3),
+                                         (0.31, 0.19), (0.24, 0.15), (0.04, 0.15), (0.022, 0.17)],
+                       depth=0.13, pitch=0.042, lift=0.034, frame_w=0.018)
+    d["head"] = dict(d["head"], depth=0.06,
+                     drl=[[(0.558, 0.566), (0.572, 0.566), (0.572, 0.626), (0.632, 0.634), (0.632, 0.646), (0.558, 0.638)],
+                          [(0.76, 0.6), (0.774, 0.6), (0.774, 0.656), (0.812, 0.662), (0.812, 0.674), (0.76, 0.668)]])
+    d["front"] = dict(d["front"],
+                      intakes=[[(0.37, 0.37), (0.66, 0.37), (0.7, 0.3), (0.65, 0.2), (0.35, 0.195)]],
+                      trims=[([(0.795, 0.19), (0.825, 0.19), (0.835, 0.45), (0.808, 0.45)], PIANO, "Gloss")],
+                      center=[],
+                      trims_c=[], splitter=None, plate_lift=0.045,
+                      intake_mesh=(0.032, 0.026, 0.005, 0.035))
+    d["rear"] = dict(d["rear"], diff_mode="ramp", diffuser=[(-0.56, 0.235), (0.56, 0.235), (0.68, 0.43), (0.45, 0.45), (-0.45, 0.45), (-0.68, 0.43)],
+                     fins=[-0.52, -0.14, 0.0, 0.14, 0.52], fin_len=0.55, fin_out=-0.02,
+                     reflectors=[(0.83, 0.43, 0.018, 0.24)],
+                     diff_len=0.25, diff_rec=0.06, diff_taper=0.3)
+    d["tail"] = dict(d["tail"], lens=(0.3, 0.03, 0.04), base=(0.06, 0.01, 0.012), depth=0.045)
+    d["tip_face_dy"] = 0.09
+    d["tip_out"] = 0.02
+    d["tip_col"] = (0.12, 0.12, 0.13)
+    d["exhaust"] = [(0.265, 0.285, 0.047, "round"), (0.385, 0.285, 0.047, "round")]
+    return d
+
+
 def spec_m3():
     """BMW M3 Competition (G80) saloon: 4794 x 1903 x 1433, wheelbase 2857, track 1617 / 1605,
     275/35 R19 front, 285/30 R20 rear (modelled as one 20" wheel, 0.679 m tyre).
@@ -2447,21 +2938,24 @@ def spec_m3():
     zc, zb = -0.80, 1.94
     d = dict(
         name="M3", L=L, W=1.903, H=1.433, WB=WB, TF=1.617, TR=1.605, ohf=ohf,
-        tire_od=0.679, rim_in=20, tire_w=0.275, flare=0.034, flare_f=0.75, low_line=(0.42, 0.71, 0.01),
+        tire_od=0.679, rim_in=20, tire_w=0.275, flares=dict(f=(0.028, 0.25, 0.3, 0.2), r=(0.036, 0.3, 0.5, 0.24)), low_line=(0.42, 0.71, 0.01),
         nose_round=0.74, tail_round=0.8, plan_front=(0.30, 1.8), plan_rear=(0.20, 2.0), nose_len=0.48, tail_len=0.46,
-        front=[(0.100, 0.219), (0.130, 0.092), (0.170, 0.033), (0.220, 0.009), (0.350, 0.014), (0.500, 0.000), (0.600, 0.006), (0.660, 0.021), (0.720, 0.050)],
-        rear=[(0.150, 0.195), (0.200, 0.156), (0.300, 0.060), (0.400, 0.003), (0.500, 0.001), (0.600, 0.060), (0.700, 0.128), (0.800, 0.169), (0.900, 0.164), (0.970, 0.135), (1.020, 0.136)],
-        dome=(zF + 0.45, zc, 0.3, 0.018),
-        gh=dict(zc0=zc, kf=0.08, zh=-0.05, kh=0.04, zb0=zb, krb=0.14, zrr=1.2, krr=0.1, a_in=0.04,
-                roof=[(-0.060, 1.392), (0.100, 1.416), (0.250, 1.429), (0.400, 1.433), (0.550, 1.433), (0.700, 1.433), (0.850, 1.428), (1.000, 1.411), (1.150, 1.388), (1.300, 1.333)],
+        front=[(0.100, 0.219), (0.130, 0.092), (0.170, 0.033), (0.220, 0.009), (0.350, 0.014), (0.500, 0.000), (0.600, 0.0), (0.660, 0.01), (0.720, 0.036)],
+        rear=[(0.150, 0.16), (0.200, 0.1), (0.300, 0.025), (0.400, 0.0), (0.500, 0.001), (0.600, 0.060), (0.700, 0.128), (0.800, 0.169), (0.900, 0.164), (0.970, 0.135), (1.020, 0.136)],
+        strakes=(0.2, 0.3, 0.1, 0.02, zF + 0.3, zc - 0.05, 3.0, 1.2),
+        gh=dict(zc0=zc, kf=0.08, zh=-0.05, kh=0.04, zb0=zb, krb=0.14, zrr=1.17, krr=0.1, a_in=0.04,
+                roof=[(-0.060, 1.392), (0.100, 1.416), (0.250, 1.429), (0.400, 1.433), (0.550, 1.433), (0.700, 1.433), (0.850, 1.426), (1.000, 1.405), (1.150, 1.378), (1.300, 1.318)],
                 crown=0.045, xr=[(0.0, 0.585), (0.9, 0.61)], B=(0.30, 0.53, 0.33, 0.54),
                 zC=[(0.0, 1.47), (0.1, 1.51), (0.25, 1.49), (0.55, 1.37), (0.8, 1.2), (1.0, 1.0)]),
         int=dict(INT_BLACK, seat=(0.8, 0.36, 0.08), seat2=(0.07, 0.07, 0.075), card=(0.1, 0.1, 0.11)),
         paint=(0.09, 0.36, 0.25), paint_name="Isle of Man Green",
-        wheel=dict(style="y", n=5, col=(0.3, 0.31, 0.33), caliper=(0.1, 0.25, 0.75), concave=0.045),
-        style=dict(DET_M3, roundel_front=(0.69, zF + 0.03), rear=dict(DET_M3["rear"], lip=[(-0.62, zR - 0.21), (0.62, zR - 0.21), (0.6, zR - 0.1), (-0.6, zR - 0.1)]),
-                   badge="M3", hood_vents=[[(0.12, zF + 0.34), (0.31, zF + 0.31), (0.3, zF + 0.4), (0.13, zF + 0.42)]],
-                   mirror=dict(z=-0.62, y=0.99, cap="carbon"),
+        wheel=dict(style="double", n=5, col=(0.13, 0.13, 0.14), kind="Metal", caliper=(0.07, 0.07, 0.08),
+                   concave=0.06, spokes=_wheel_m3_spokes, disc_col=(0.66, 0.64, 0.6)),
+        pocket_gap=0.03, door_tuck=0.036, door_tuck_end=0.01, tuck=0.016, kick=0.016, sh_a=0.62, crown_p=2.6,
+        style=dict(_det_m3(), roundel_front=(0.69, zF + 0.03),
+                   rear=dict(_det_m3()["rear"], lip=[(-0.62, zR - 0.21), (0.62, zR - 0.21), (0.6, zR - 0.1), (-0.6, zR - 0.1)]),
+                   badge="M3", interior_extras=[console_carbon],
+                   mirror=dict(z=-0.62, y=0.99, cap="carbon", builder=_mirror_m3),
                    side=dict(gaps=[[(-0.738, 0.345), (-0.735, 0.72), (-0.722, 0.9), (-0.708, 1.0)],
                                    [(0.33, 0.33), (0.337, 1.0)],
                                    [(0.82, 0.341), (1.017, 0.459), (1.113, 0.652), (1.153, 0.827), (1.162, 1.0)],
@@ -2476,7 +2970,7 @@ def spec_m3():
                    ),
     )
     d.update(body_profile2(zF, zR, aF, aR, zc, zb, dict(
-        hood=[(-2.288, 0.691), (-2.245, 0.735), (-2.203, 0.774), (-2.133, 0.818), (-2.035, 0.861), (-1.895, 0.900), (-1.714, 0.937), (-1.518, 0.956), (-1.283, 0.973), (-1.042, 0.989), (-0.800, 1.008)],
+        hood=[(-2.288, 0.691), (-2.245, 0.735), (-2.203, 0.774), (-2.133, 0.818), (-2.035, 0.86), (-1.895, 0.894), (-1.714, 0.93), (-1.518, 0.949), (-1.283, 0.966), (-1.042, 0.982), (-0.800, 1.005)],
         deck=[(1.940, 1.052), (2.011, 1.054), (2.084, 1.051), (2.158, 1.044), (2.232, 1.040), (2.306, 1.029), (2.370, 0.994)],
         belt=[(-0.62, 1.005), (-0.3, 1.024), (0.3, 1.03), (0.9, 1.028), (1.5, 1.03)],
         sh=[(zF, 0.72), (aF, 0.86), (0.0, 0.9), (aR, 0.925), (zR, 0.93)],
@@ -2486,34 +2980,218 @@ def spec_m3():
     return d
 
 
+def _stroke_m4(pts, w):
+    """A polyline thickened to a closed outline `w` wide (lamp light guides drawn as strokes)."""
+    n = len(pts)
+    L, R = [], []
+    for i in range(n):
+        p0 = Vector(pts[max(0, i - 1)])
+        p1 = Vector(pts[i])
+        p2 = Vector(pts[min(n - 1, i + 1)])
+        t0 = (p1 - p0) if (p1 - p0).length > 1e-9 else (p2 - p1)
+        t1 = (p2 - p1) if (p2 - p1).length > 1e-9 else t0
+        n0 = Vector((-t0.y, t0.x)).normalized()
+        n1 = Vector((-t1.y, t1.x)).normalized()
+        m = (n0 + n1).normalized()
+        c = max(0.5, m.dot(n1))
+        q = m * (w / 2 / c)
+        L.append((p1.x + q.x, p1.y + q.y))
+        R.append((p1.x - q.x, p1.y - q.y))
+    return L + list(reversed(R))
+
+
+# G82 M4 fascia, measured on the head-on photos (end-view metres, calibrated on the 520 mm plate).
+DET_M4_G82 = dict(
+    kidney=dict(pts=[(0.036, 0.64), (0.3, 0.64), (0.336, 0.6), (0.35, 0.5), (0.343, 0.38), (0.318, 0.29),
+                     (0.275, 0.225), (0.235, 0.19), (0.05, 0.19), (0.036, 0.21)],
+                r=[0.02, 0.05, 0.05, 0.06, 0.06, 0.05, 0.04, 0.03, 0.02, 0.02], frame_w=0.014, slats="h",
+                pitch=0.052, slat_t=0.016, lift=0.02, depth=0.13, slat_back=0.008),
+    head=dict(pts=[(0.406, 0.593), (0.48, 0.626), (0.563, 0.65), (0.66, 0.672), (0.74, 0.686), (0.812, 0.69),
+                   (0.826, 0.662), (0.82, 0.61), (0.795, 0.572), (0.738, 0.551), (0.607, 0.542), (0.476, 0.552)],
+              r=0.01, alpha=0.62, depth=0.06,
+              drl=[_stroke_m4([(0.793, 0.655), (0.782, 0.605), (0.772, 0.582), (0.755, 0.572), (0.66, 0.566),
+                               (0.648, 0.578)], 0.013),
+                   _stroke_m4([(0.636, 0.643), (0.627, 0.6), (0.617, 0.572), (0.6, 0.561), (0.51, 0.556),
+                               (0.498, 0.566)], 0.013)],
+              lens=[(0.712, 0.622, 0.017), (0.585, 0.612, 0.015)],
+              blue=[[(0.7, 0.648), (0.745, 0.652), (0.745, 0.658), (0.7, 0.655)],
+                    [(0.57, 0.636), (0.61, 0.64), (0.61, 0.646), (0.57, 0.643)]]),
+    front=dict(intakes=[[(0.365, 0.345), (0.58, 0.345), (0.648, 0.26), (0.615, 0.19), (0.3, 0.186),
+                         (0.33, 0.26)]],
+               center=[],
+               vents=[([(0.786, 0.25), (0.816, 0.25), (0.824, 0.44), (0.814, 0.52), (0.798, 0.48)], 0.15, 0.05)],
+               trims_c=[([(-0.78, 0.128), (0.78, 0.128), (0.8, 0.165), (-0.8, 0.165)], PIANO, "Gloss")],
+               splitter=(0.7, 0.136, 0.02, 0.012),
+               plate=(0, 0.4), plate_lift=0.024),
+    tail=dict(pts=[(0.288, 0.861), (0.338, 0.879), (0.603, 0.902), (0.749, 0.925), (0.78, 0.92), (0.806, 0.875),
+                   (0.806, 0.795), (0.79, 0.783), (0.63, 0.81), (0.539, 0.833), (0.302, 0.847)],
+              alpha=0.62, depth=0.045, base=(0.07, 0.05, 0.055), base_kind="Gloss", lens=(0.2, 0.05, 0.06),
+              glow=[_stroke_m4([(0.35, 0.862), (0.594, 0.866), (0.64, 0.852), (0.694, 0.833), (0.76, 0.826)],
+                               0.017),
+                    _stroke_m4([(0.772, 0.82), (0.776, 0.86), (0.779, 0.906)], 0.02)],
+              hi=[_stroke_m4([(0.62, 0.845), (0.7, 0.825)], 0.006)]),
+    rear=dict(diff_mode="ramp", diffuser=[(-0.6, 0.255), (0.6, 0.255), (0.76, 0.33), (0.58, 0.435), (-0.58, 0.435),
+                                          (-0.76, 0.33)],
+              diff_col=PIANO, fins=[-0.52, -0.13, 0.0, 0.13, 0.52], fin_out=0.0, diff_len=0.25, diff_rec=0.04,
+              diff_taper=0.3,
+              reflectors=[(0.786, 0.475, 0.018, 0.21)], plate=(0, 0.79), roundel=(0, 0.93), badge_at=(0.39, 0.92)),
+    exhaust=[(0.286, 0.305, 0.047, "round"), (0.4, 0.305, 0.047, "round")], tip_out=0.04, tip_face_dy=0.09,
+    tip_col=(0.08, 0.08, 0.085),
+)
+
+
+def _wheel_m4(M, c):
+    """826M-style forged 20": five Y double-spokes, gloss black with machined faces, polished lip."""
+    r0, r1, y_of = c["r0"], c["r1"], c["y_of"]
+    rim, kind = c["rim"], c["rimk"]
+    face = (0.66, 0.67, 0.7)
+    rm = r0 + (r1 - r0) * 0.3
+    for i in range(5):
+        t0 = TAU * i / 5
+        _spoke(M, lambda u, t0=t0: (lerp(r0, rm, u), t0 + 0.02 * u), lambda u: lerp(0.05, 0.044, u),
+               lambda u: 0.034, y_of, rim, kind, samples=3)
+        for s in (-1, 1):
+            def path(u, s=s, t0=t0):
+                return lerp(rm - 0.012, r1, u), t0 + 0.02 + s * lerp(0.03, 0.15, u ** 0.85) + 0.05 * u
+            _spoke(M, path, lambda u: lerp(0.024, 0.019, u), lambda u: 0.03, y_of, rim, kind, samples=6)
+            _spoke(M, path, lambda u: lerp(0.011, 0.008, u), lambda u: 0.004, lambda r: y_of(r) + 0.0035, face,
+                   "Metal", samples=6)
+
+
+def _mirror_m4(car, st):
+    """M-style door mirrors: gloss-black angular housing on two thin arms from the door's front corner."""
+    m = st["mirror"]
+    z0, y0 = m["z"], m["y"]
+    xb = car.xE(z0)
+    x0 = xb + 0.075
+    x1 = min(xb + 0.29, car.sp["W"] / 2 + 0.105)
+    col = m.get("col", PIANO)
+    prof = [(0.0, 0.032, 0.03), (0.08, 0.05, 0.05), (0.25, 0.057, 0.06), (0.5, 0.058, 0.062), (0.75, 0.055, 0.058),
+            (0.9, 0.046, 0.05), (0.97, 0.03, 0.033), (1.0, 0.013, 0.015)]
+    for sx in (-1, 1):
+        rings = []
+        for s, dz, dy in prof:
+            x = sx * lerp(x0, x1, s)
+            zc = z0 + 0.03 * s            # the housing sweeps back toward its tip
+            yc = y0 + 0.045 + 0.02 * s
+            ring = []
+            for k in range(18):
+                a = TAU * k / 18
+                zz = -dz * math.cos(a)
+                yy = dy * math.sin(a)
+                if zz > dz * 0.4:          # flat glass face toward the rear
+                    zz = dz * 0.4 + (zz - dz * 0.4) * 0.12
+                if yy < 0:                 # sharper lower edge: the M mirror's wedge underside
+                    zz -= 0.25 * dz * (-yy / dy) ** 2
+                ring.append(Vector((x, yc + yy, zc + zz)))
+            rings.append(ring if sx > 0 else list(reversed(ring)))
+        emit(loft_bm(rings, cap0=True, cap1=True), col, "Gloss", sharp=1.0)
+        # glass
+        gp = []
+        for k in range(16):
+            a = TAU * k / 16
+            s = 0.5 + 0.43 * math.cos(a)
+            gp.append(Vector((sx * lerp(x0, x1, s), y0 + 0.045 + 0.02 * s + 0.042 * math.sin(a),
+                              z0 + 0.03 * s + 0.4 * 0.052 + 0.002)))
+        bmg = bmesh.new()
+        f = bmg.faces.new([bmg.verts.new(p) for p in gp])
+        bmg.normal_update()
+        if f.normal.z < 0:
+            f.normal_flip()
+        emit(bmg, (0.55, 0.6, 0.66), "Metal", recalc=False)
+        # twin arms from the door (sail) to the housing
+        for dy, dz in ((0.018, -0.012), (-0.02, 0.014)):
+            rod((sx * (xb - 0.02), y0 + dy - 0.015, z0 + dz), (sx * (x0 + 0.03), y0 + 0.045 + dy * 0.8, z0 + dz * 0.6),
+                0.009, col, "Gloss", segs=8, r2=0.007)
+        box((0.05, 0.06, 0.11), col, "Gloss", pos=(sx * (xb - 0.01), y0 - 0.005, z0 + 0.005), r=0.012)   # sail base
+        box((0.08, 0.005, 0.012), (1.0, 0.55, 0.1), "Glow", pos=(sx * lerp(x0, x1, 0.6), y0 + 0.002, z0 - 0.02),
+            r=0.002)
+
+
+def _extras_m4(car, S, st):
+    """Boot-lid shut line, the upper diffuser recess (above the shared ramp block), carbon skirt blades."""
+    lid = [(0.556, 0.765), (0.54, 0.72), (0.52, 0.69), (0.46, 0.648), (0.38, 0.627), (0.2, 0.617), (0.0, 0.615)]
+    lid = lid + [(-x, y) for x, y in reversed(lid[:-1])]
+    S.line(lid, 0.005, "rear", (0.02, 0.02, 0.022), "Paint", lift=0.0025, step=0.03)
+    # upper diffuser: a recess in the bumper face above the shared ramp block, carbon surround, fins standing proud
+    yb = car.f["bot"](car.zR) + 0.012
+    dpoly = _ccw(round_poly([(-0.82, yb), (0.82, yb), (0.82, 0.335), (0.74, 0.38), (0.62, 0.44),
+                             (-0.62, 0.44), (-0.74, 0.38), (-0.82, 0.335)], 0.025, per=3))
+    gap = car.sp.pop("pocket_gap", None)      # this recess: classic cutter (the gap leaves walls on the tail's crown)
+    pocket(car, S, dpoly, "rear", 0.09, col=(0.03, 0.03, 0.033), back=(0.012, 0.012, 0.014), step=0.03)
+    if gap is not None:
+        car.sp["pocket_gap"] = gap
+    S.frame(offset_poly(dpoly, 0.014), dpoly, "rear", CARBON, "Gloss", lift=0.006, base=-0.03, step=0.03)
+    for fx in st["rear"]["fins"]:
+        sp_ = span(dpoly, fx, axis=0)
+        if sp_:
+            S.decal([(fx - 0.006, sp_[0] + 0.004), (fx + 0.006, sp_[0] + 0.004), (fx + 0.006, sp_[1] - 0.012),
+                     (fx - 0.006, sp_[1] - 0.012)], "rear", PIANO, "Gloss", lift=0.006, base=-0.085, rings=1)
+    S.decal([(-0.95, 0.175), (1.0, 0.175), (1.0, 0.2), (-0.95, 0.2)], "right", CARBON, "Gloss", lift=0.018,
+            base=-0.004, rings=1, step=0.05, mirror=True)                                   # carbon skirt blades
+
+
+M4_BLUE = (0.25, 0.44, 0.56)     # Yas Marina blue merino
+
+
+def _console_m4(car, st):
+    """Carbon centre console panels and blue / carbon door cards (G82 Competition cockpit)."""
+    iz = st["interior"]
+    hz = iz["hip_z"]
+    cf = car.cf
+    zc0 = car.z_tf + 0.35
+    zc1 = hz + 0.25
+    for sx in (-1, 1):       # carbon console side walls
+        box((0.006, 0.2, zc1 - zc0 - 0.1), CARBON, "Gloss", pos=(sx * 0.103, cf + 0.2, (zc0 + zc1) / 2 + 0.05))
+    box((0.17, 0.008, 0.26), CARBON, "Gloss", pos=(0, cf + 0.352, zc0 + 0.28))
+    box((0.05, 0.012, 0.03), (0.8, 0.05, 0.05), "Gloss", pos=(0.05, cf + 0.36, zc0 + 0.38), r=0.004)   # M1/M2 start
+    for sx in (-1, 1):
+        for (z0, z1) in iz.get("doors", ()):
+            zc = (z0 + z1) / 2
+            xw = sx * (car.xE(zc) - 0.085)
+            e = car.f["e"](zc)
+            box((0.01, 0.2, z1 - z0 - 0.12), M4_BLUE, "Paint", pos=(xw, e - 0.33, zc + 0.02), r=0.004)
+            box((0.012, 0.035, z1 - z0 - 0.2), CARBON, "Gloss", pos=(xw - sx * 0.004, e - 0.2, zc), r=0.004)
+            box((0.012, 0.004, z1 - z0 - 0.3), (0.4, 0.7, 1.0), "Glow", pos=(xw - sx * 0.008, e - 0.225, zc))
+
+
+
 def spec_m4():
     """BMW M4 Competition (G82) coupe: 4794 x 1887 x 1393, wheelbase 2857, track 1617 / 1605, 19"/20"
-    (one 20" wheel, 0.679 m tyre). Same nose as the M3, frameless coupe glass, carbon roof."""
+    (one 20" wheel, 0.679 m tyre). Tall kidneys, laser taillights, quad tips, carbon roof, pronounced haunches."""
     WB, L, ohf = 2.857, 4.794, 0.86
     aF, aR, zF, zR = _axes(WB, L, ohf)
     zc, zb = -0.86, 1.98
     d = dict(
         name="M4", L=L, W=1.887, H=1.393, WB=WB, TF=1.617, TR=1.605, ohf=ohf,
-        tire_od=0.679, rim_in=20, tire_w=0.275, flare=0.036, flare_f=0.75, low_line=(0.5, 0.8, 0.01), carbon_roof=True,
-        nose_round=0.74, tail_round=0.8, plan_front=(0.30, 1.8), plan_rear=(0.20, 2.0), nose_len=0.48, tail_len=0.46,
+        tire_od=0.679, rim_in=20, tire_w=0.275,
+        flares=dict(f=(0.034, 0.25, 0.34, 0.2), r=(0.056, 0.3, 0.95, 0.3)), flare_top=0.5,
+        door_tuck=0.04, kick=0.018, pocket_gap=0.03, sh_a=0.6, crown_p=2.2, door_hollow=0.006,
+        low_line=(0.5, 0.8, 0.01), carbon_roof=True,
+        nose_round=0.74, tail_round=0.8, plan_front=(0.2, 2.2), plan_rear=(0.14, 2.4), nose_len=0.48, tail_len=0.46,
         carbon_lip=True,
-        front=[(0.100, 0.165), (0.130, 0.110), (0.170, 0.064), (0.220, 0.040), (0.350, 0.035), (0.500, 0.017), (0.600, 0.025), (0.660, 0.042), (0.720, 0.069)],
-        rear=[(0.200, 0.270), (0.250, 0.200), (0.300, 0.119), (0.350, 0.055), (0.400, 0.015), (0.500, 0.000), (0.600, 0.042), (0.700, 0.103), (0.800, 0.139), (0.900, 0.140), (0.980, 0.120), (1.040, 0.120)],
-        dome=(zF + 0.45, zc, 0.3, 0.02),
+        front=[(0.100, 0.165), (0.130, 0.110), (0.170, 0.064), (0.220, 0.040), (0.350, 0.035), (0.500, 0.017), (0.600, 0.018), (0.660, 0.026), (0.720, 0.048)],
+        rear=[(0.200, 0.270), (0.250, 0.200), (0.300, 0.119), (0.350, 0.08), (0.400, 0.055), (0.450, 0.034), (0.500, 0.025), (0.550, 0.036), (0.600, 0.075), (0.700, 0.126), (0.800, 0.139), (0.900, 0.140), (0.980, 0.120), (1.040, 0.120)],
+        strakes=(0.18, 0.34, 0.09, 0.03, zF + 0.3, zc - 0.03, 3.0, 0.0),
         gh=dict(zc0=zc, kf=0.08, zh=-0.05, kh=0.04, zb0=zb, krb=0.2, zrr=1.0, krr=0.12, a_in=0.04,
                 roof=[(-0.050, 1.372), (0.150, 1.389), (0.300, 1.392), (0.450, 1.393), (0.600, 1.387), (0.750, 1.372), (0.900, 1.352), (1.050, 1.321), (1.200, 1.261)],
-                crown=0.05, xr=[(0.0, 0.575), (0.9, 0.595)], B=(0.57, 0.63, 0.56, 0.63),
-                zC=[(0.0, 1.36), (0.4, 1.25), (0.65, 1.02), (0.85, 0.8), (1.0, 0.7)], rb=0.08),
-        int=dict(INT_BLACK, seat=(0.1, 0.1, 0.11), seat2=(0.75, 0.1, 0.08)),
+                crown=0.07, xr=[(0.0, 0.575), (0.9, 0.595)], B=(0.56, 0.595, 0.5, 0.54),
+                zC=[(0.0, 1.37), (0.2, 1.345), (0.4, 1.29), (0.55, 1.215), (0.7, 1.13), (0.85, 1.0), (1.0, 0.8)], rb=0.08, rt=0.14, bow_s=0.035, bow_ry=-0.01),
+        int=dict(INT_BLACK, seat=M4_BLUE, seat2=(0.05, 0.05, 0.055), card=M4_BLUE, accent=(0.6, 0.61, 0.64)),
         paint=(0.95, 0.74, 0.06), paint_name="Sao Paulo Yellow",
-        wheel=dict(style="double", n=5, col=(0.07, 0.07, 0.08), kind="Gloss", caliper=(0.8, 0.07, 0.07),
-                   concave=0.05),
-        style=dict(DET_M4, roundel_front=(0.66, zF + 0.03), rear=dict(DET_M4["rear"], lip=[(-0.64, zR - 0.22), (0.64, zR - 0.22), (0.62, zR - 0.1), (-0.62, zR - 0.1)]),
-                   badge="M4", hood_vents=[[(0.12, zF + 0.34), (0.31, zF + 0.31), (0.3, zF + 0.4), (0.13, zF + 0.42)]],
-                   mirror=dict(z=-0.47, y=0.95, cap="carbon"),
-                   side=dict(gaps=[[(-0.729, 0.328), (-0.74, 0.7), (-0.751, 0.882), (-0.745, 0.93)],
-                                   [(0.46, 0.328), (0.589, 0.406), (0.62, 0.66), (0.573, 0.978)],
-                                   [(-0.729, 0.328), (0.46, 0.328)]],
+        wheel=dict(style="double", n=5, col=(0.05, 0.05, 0.055), kind="Gloss", caliper=(0.1, 0.24, 0.62),
+                   lip=(0.78, 0.79, 0.82), concave=0.05, spokes=_wheel_m4),
+        style=dict(DET_M4_G82, roundel_front=(0.66, zF + 0.03),
+                   rear=dict(DET_M4_G82["rear"], lip=[(-0.64, zR - 0.22), (0.64, zR - 0.22), (0.62, zR - 0.1), (-0.62, zR - 0.1)],
+                             lip_h=0.032),
+                   badge="M4",
+                   mirror=dict(z=-0.47, y=0.95, builder=_mirror_m4),
+                   extras=[_extras_m4],
+                   interior_extras=[_console_m4],
+                   side=dict(gaps=[[(-0.714, 0.9), (-0.743, 0.846), (-0.765, 0.75), (-0.768, 0.6), (-0.765, 0.45),
+                                    (-0.756, 0.34), (-0.738, 0.292), (-0.7, 0.276), (0.0, 0.281), (0.36, 0.29),
+                                    (0.43, 0.305), (0.49, 0.37), (0.545, 0.45), (0.598, 0.568), (0.622, 0.7),
+                                    (0.625, 0.77), (0.61, 0.846), (0.578, 0.925), (0.563, 0.965)]],
                              handles=[(0.39, 0.85, 0.17)],
                              gill=dict(pts=[(-0.877, 0.798), (-0.807, 0.803), (-0.981, 0.582), (-0.998, 0.658)],
                                        slats=[[(-0.865, 0.78), (-0.83, 0.78), (-0.95, 0.64), (-0.97, 0.66)]],
@@ -2525,13 +3203,13 @@ def spec_m4():
                    ),
     )
     d.update(body_profile2(zF, zR, aF, aR, zc, zb, dict(
-        hood=[(-2.288, 0.609), (-2.249, 0.668), (-2.208, 0.722), (-2.140, 0.766), (-2.045, 0.816), (-1.910, 0.863), (-1.734, 0.899), (-1.544, 0.920), (-1.321, 0.939), (-1.090, 0.956), (-0.860, 0.984)],
+        hood=[(-2.288, 0.615), (-2.249, 0.68), (-2.208, 0.735), (-2.140, 0.776), (-2.045, 0.816), (-1.910, 0.855), (-1.734, 0.887), (-1.544, 0.908), (-1.321, 0.928), (-1.090, 0.949), (-0.860, 0.984)],
         deck=[(1.980, 1.058), (2.048, 1.048), (2.115, 1.041), (2.183, 1.041), (2.251, 1.043), (2.318, 1.032), (2.380, 1.009)],
         belt=[(-0.70, 0.93), (-0.08, 0.95), (0.56, 0.982), (0.88, 1.007), (1.27, 1.05), (1.36, 1.085)],
         sh=[(zF, 0.7), (aF, 0.83), (0.0, 0.87), (aR, 0.9), (zR, 0.9)],
         sill=[(-2.288, 0.190), (-1.839, 0.267), (-1.429, 0.177), (0.000, 0.177), (1.429, 0.177), (1.979, 0.263), (2.505, 0.300)],
         bot=[(-2.288, 0.130), (-1.988, 0.184), (-1.429, 0.173), (1.429, 0.173), (1.929, 0.201), (2.505, 0.300)],
-        te_nose=0.07, te_cab=0.1)))
+        te_nose=0.07, te_cab=0.1, hood_crown=0.11)))
     return d
 
 
@@ -2543,7 +3221,7 @@ def spec_m2():
     zc, zb = -0.62, 1.72
     d = dict(
         name="M2", L=L, W=1.887, H=1.403, WB=WB, TF=1.617, TR=1.59, ohf=ohf,
-        tire_od=0.679, rim_in=20, tire_w=0.275, flare=0.038, flare_len=1.55, arch_p=2.8, low_line=(0.44, 0.62, 0.01),
+        tire_od=0.679, rim_in=20, tire_w=0.275, flares=dict(f=(0.042, 0.22, 0.3, 0.22), r=(0.05, 0.25, 0.6, 0.3)), arch_p=2.8, low_line=(0.44, 0.62, 0.01),
         crease_dip=0.015, nose_round=0.74, tail_round=0.8, plan_taper=(0.02, 0.02), nose_len=0.48, tail_len=0.46,
         plan_front=(0.26, 2.0), plan_rear=(0.18, 2.2),
         front=[(0.120, 0.039), (0.160, 0.000), (0.300, 0.000), (0.450, 0.017), (0.600, 0.037), (0.680, 0.046), (0.720, 0.068), (0.760, 0.111)],
@@ -2587,7 +3265,7 @@ def spec_m5():
     zc, zb = -0.88, 2.04
     d = dict(
         name="M5", L=L, W=1.97, H=1.51, WB=WB, TF=1.684, TR=1.66, ohf=ohf,
-        tire_od=0.74, rim_in=21, tire_w=0.295, flare=0.04, flare_len=2.0, low_line=(0.46, 0.66, 0.008),
+        tire_od=0.74, rim_in=21, tire_w=0.295, flares=dict(f=(0.034, 0.25, 0.35, 0.22), r=(0.042, 0.3, 0.6, 0.26)), low_line=(0.46, 0.66, 0.008),
         nose_round=0.74, tail_round=0.8, plan_front=(0.32, 1.8), plan_rear=(0.20, 2.0), nose_len=0.48, tail_len=0.46,
         front=[(0.120, 0.094), (0.160, 0.054), (0.220, 0.031), (0.300, 0.032), (0.400, 0.020), (0.500, 0.009), (0.600, 0.051), (0.700, 0.091), (0.760, 0.108), (0.800, 0.145)],
         rear=[(0.300, 0.368), (0.350, 0.209), (0.400, 0.044), (0.450, 0.000), (0.500, 0.000), (0.600, 0.097), (0.700, 0.157), (0.800, 0.194), (0.900, 0.217), (1.000, 0.204), (1.060, 0.172), (1.100, 0.244)],
@@ -2630,7 +3308,7 @@ def spec_540i():
     zc, zb = -0.935, 1.905
     d = dict(
         name="540i", L=L, W=1.868, H=1.466, WB=WB, TF=1.605, TR=1.63, ohf=ohf,
-        tire_od=0.678, rim_in=20, tire_w=0.26, flare=0.018, low_line=(0.46, 0.6, 0.006), nose_round=0.74,
+        tire_od=0.678, rim_in=20, tire_w=0.26, flares=dict(f=(0.014, 0.25, 0.3, 0.2), r=(0.02, 0.3, 0.45, 0.2)), low_line=(0.46, 0.6, 0.006), nose_round=0.74,
         tail_round=0.8, plan_front=(0.30, 1.8), plan_rear=(0.20, 2.0), nose_len=0.48, tail_len=0.46,
         front=[(0.180, 0.114), (0.220, 0.041), (0.300, 0.032), (0.400, 0.025), (0.500, 0.018), (0.600, 0.050), (0.660, 0.090), (0.720, 0.150)],
         rear=[(0.300, 0.164), (0.350, 0.077), (0.400, 0.040), (0.500, 0.000), (0.600, 0.000), (0.700, 0.040), (0.800, 0.053), (0.900, 0.046), (1.000, 0.039), (1.050, 0.050), (1.090, 0.070)],
@@ -2675,7 +3353,7 @@ def spec_m8():
     zc, zb = -0.76, 1.76
     d = dict(
         name="M8", L=L, W=1.907, H=1.362, WB=WB, TF=1.627, TR=1.631, ohf=ohf,
-        tire_od=0.705, rim_in=20, tire_w=0.285, flare=0.036, flare_len=2.0, low_line=(0.557, 0.823, 0.01),
+        tire_od=0.705, rim_in=20, tire_w=0.285, flares=dict(f=(0.026, 0.25, 0.35, 0.2), r=(0.045, 0.3, 0.85, 0.35)), low_line=(0.557, 0.823, 0.01),
         carbon_roof=True, nose_round=0.74, tail_round=0.8, plan_front=(0.34, 1.7), plan_rear=(0.22, 2.0),
         nose_len=0.48, tail_len=0.46,
         front=[(0.140, 0.135), (0.180, 0.041), (0.300, 0.032), (0.400, 0.021), (0.500, 0.007), (0.600, 0.025), (0.660, 0.030), (0.700, 0.035), (0.740, 0.061)],
@@ -2801,7 +3479,7 @@ def police_extras(car, st):
     # spotlight on the driver's A-pillar
     g = car.g
     za = g["zc0"] + g["kf"] * 0.8 ** 2 + 0.1
-    xe = car.w(za) - car.f["te"](za)
+    xe = car.xE(za)
     ye = car.f["e"](za)
     x0 = -(xe + 0.06)
     rod((-(xe - 0.01), ye + 0.02, za + 0.02), (x0, ye + 0.12, za), 0.012, CHROME, "Metal", 8)
@@ -2833,7 +3511,7 @@ def police_extras(car, st):
     box((0.2, 0.03, 0.002), (0.9, 0.9, 0.95), "Glow", M=Mscr, pos=(-0.04, 0.06, 0.011))
     # prisoner partition behind the front seats
     zp = hz + 0.36
-    xw = car.w(zp) - car.f["te"](zp) - 0.1
+    xw = car.xE(zp) - 0.1
     ytop = car.Yc(zp) - 0.1
     box((2 * xw, 0.05, 0.04), PB, "Metal", pos=(0, ytop, zp))
     box((2 * xw, 0.05, 0.04), PB, "Metal", pos=(0, car.cf + 0.55, zp))
@@ -2890,20 +3568,27 @@ def build_car(sp):
     if liv:                        # baked two-tone livery instead of the tintable CarPaint
         shell.recolor(liv)
         gh.recolor(liv)
-    shell.emit(sharp=0.7)
     tag("greenhouse")
     gh.emit(sharp=0.7)
     inner.emit(sharp=0.7)
+    car.cuts = []
     tag("front")
     hl, pf = front_details(car, S, st)
     tag("rear")
     tl, pr, tips = rear_details(car, S, st)
     tag("side")
     side_details(car, S, st)
+    for fn in st.get("extras", []):       # per-car exterior details: fn(car, S, st); may queue pocket()s
+        fn(car, S, st)
+    tag("shell")
+    carve(shell, car.cuts, S)
+    shell.emit(sharp=1.2)
     mirrors(car, st)
     antenna(car, st)
     tag("interior")
     interior(car, st)
+    for fn in st.get("interior_extras", []):     # per-car cockpit details: fn(car, st)
+        fn(car, st)
     if st.get("police"):
         tag("police")
         police_extras(car, st)
