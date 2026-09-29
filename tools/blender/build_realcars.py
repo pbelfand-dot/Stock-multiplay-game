@@ -87,7 +87,8 @@ FONT_PATHS = ["/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
 # faces:    optional [regex on object name, material regex, new material name]: those faces get their own
 #           material (then classed by `mats` like any other).
 # edits:    {texture file: [ops]} brand edits in texture fractions: ("roundel", cx, cy, r),
-#           ("fill", x0, y0, x1, y1, rgb | (u, v) sample point | None = the border's median), ("text", x0, y0, x1, y1, "BEMZE", fg, bg), ("orange", x0, y0, x1, y1)
+#           ("fill", x0, y0, x1, y1, rgb | (u, v) sample point | None = the border's median), ("text", x0, y0, x1, y1, "BEMZE", fg, bg), ("orange", x0, y0, x1, y1),
+#           ("dim", threshold, factor) (near-white areas darkened)
 # steer:    where to look for the steering wheel: regex on object|material of the parts it's cut from.
 
 GREY_TIRE = (0.045, 0.045, 0.05)
@@ -120,6 +121,7 @@ CARS["M4"] = dict(
         (r"phong23", {"c": "flat", "col": DARK, "r": 0.6, "m": 0.0}),
     ],
     steer=r"m4:body_Mesh_0|car_interior1",
+    blur=r"TireBlur",          # flat cards over the wheel faces (motion blur): dropped
     edits={
         # hood / trunk roundels + M4 badge on the plastics sheet, the steering-wheel roundel on the interior
         "Plast_d.png": [("roundel", 0.411, 0.869, 0.066), ("roundel", 0.910, 0.904, 0.094), ("orange", 0.67, 0.94, 0.73, 0.98)],
@@ -160,7 +162,7 @@ CARS["M2"] = dict(
         "BMW_M2CSG87_2025_Wheel1A_DiffuseAOSO.png": [("roundel", 0.134, 0.873, 0.118), ("orange", 0.0, 0.05, 0.28, 0.15)],
         "BMW_M2CSG87_2025_LightA_Diffuse.png": [("fill", 0.715, 0.155, 0.998, 0.255, None),
                                                 ("text", 0.715, 0.265, 0.998, 0.345, "BEMZE", (96, 96, 98), (28, 28, 30))],
-        "BMW_M2CSG87_2025_InteriorA_DiffuseAOSO.png": [("orange", 0.775, 0.5, 0.86, 0.55)],
+        "BMW_M2CSG87_2025_InteriorA_DiffuseAOSO.png": [("orange", 0.775, 0.5, 0.86, 0.55), ("dim", 0.75, 0.3)],
     },
 )
 
@@ -181,9 +183,9 @@ CARS["M5"] = dict(
         (r"Carbon1", {"c": "flat", "col": (0.03, 0.03, 0.035), "r": 0.25, "m": 0.1, "w": 0.6}),
         (r"InteriorTilling", {"c": "flat", "col": None, "r": 0.7, "m": 0.0, "w": 0.4}),
         (r"InteriorA", {"c": "tex", "r": 0.7, "m": 0.0, "w": 0.4, "tex": "BMW_M5Sedan_2024_InteriorA_DiffuseAOSO.png"}),
-        (r"^emis$", {"c": "tex", "r": 0.5, "m": 0.0, "w": 0.4, "tex": "BMW_M5Sedan_2024_InteriorA_DiffuseAOSO.png",
-                     "emit": "BMW_M5Sedan_2024_InteriorA_Emissive.png"}),
-        (r"LightA", {"c": "tex", "r": 0.2, "m": 0.2, "w": 0.7, "emit": "BMW_M5Sedan_2024_LightA_Emissive.png", "emit_uv": 1}),
+        (r"^emis$", {"c": "tex", "r": 0.3, "m": 0.0, "w": 0.4, "tex": "BMW_M5Sedan_2024_InteriorA_Emissive.png",
+                     "emit": "self"}),                       # the dash screens
+        (r"LightA", {"c": "tex", "r": 0.2, "m": 0.2, "w": 0.7, "emit": "BMW_M5Sedan_2024_LightA_Emissive.png", "tailred": True}),
         (r"Light_emis", {"c": "flat", "col": (1.0, 0.98, 0.95), "r": 0.3, "m": 0.0, "emit": (1.0, 0.98, 0.95)}),
         (r"^gold$", {"c": "flat", "col": (0.75, 0.55, 0.2), "r": 0.3, "m": 0.6}),
         (r"^purple$", {"c": "flat", "col": (0.3, 0.3, 0.32), "r": 0.3, "m": 0.3}),
@@ -197,9 +199,11 @@ CARS["M5"] = dict(
     steer=r"Interior_Geo",
     edits={
         "BMW_M5Sedan_2024_BadgeA_DiffuseAOSO.png": [("roundel", 0.5, 0.5, 0.49)],
-        "BMW_M5Sedan_2024_Wheel2A_DiffuseAOSO.png": [("roundel", 0.126, 0.873, 0.12), ("orange", 0.7, 0.86, 0.99, 0.98)],
-        "BMW_M5Sedan_2024_LightA_Diffuse.png": [("fill", 0.0, 0.0, 0.1, 0.62, None), ("fill", 0.42, 0.08, 0.52, 0.45, None)],
-        "BMW_M5Sedan_2024_InteriorA_DiffuseAOSO.png": [("roundel", 0.25, 0.145, 0.02), ("orange", 0.74, 0.62, 0.95, 0.72)],
+        "BMW_M5Sedan_2024_Wheel2A_DiffuseAOSO.png": [("roundel", 0.135, 0.86, 0.126), ("orange", 0.7, 0.86, 0.99, 0.98)],
+        "BMW_M5Sedan_2024_LightA_Diffuse.png": [("fill", 0.003, 0.058, 0.08, 0.596, None), ("fill", 0.42, 0.058, 0.496, 0.41, None)],
+        "BMW_M5Sedan_2024_InteriorA_DiffuseAOSO.png": [("fill", 0.005, 0.16, 0.285, 0.335, (228, 228, 226)),
+                                                        ("orange", 0.74, 0.66, 0.99, 0.8), ("orange", 0.0, 0.89, 1.0, 0.97),
+                                                        ("dim", 0.75, 0.3)],
     },
 )
 
@@ -478,6 +482,15 @@ def brand_edit(im, op):
         # keep the texture's own alpha (AO / mask channels) where the roundel sits
         im.paste(base, (x, y))
         return im
+    if kind == "dim":
+        # Forza-style interiors: big white "colour zones" the game tints: take them down to a dark trim
+        _, thr, k = op
+        a = np.asarray(im, dtype=np.float32).copy()
+        rgb = a[..., :3]
+        white = (rgb.min(-1) > thr * 255) & ((rgb.max(-1) - rgb.min(-1)) < 30)
+        rgb[white] *= k
+        a[..., :3] = rgb
+        return Image.fromarray(a.astype(np.uint8), "RGBA")
     x0, y0, x1, y1 = int(op[1] * W), int(op[2] * H), int(op[3] * W), int(op[4] * H)
     if kind == "fill":
         col = op[5]
@@ -820,7 +833,7 @@ class Car:
                 if len(ob.data.polygons) == 0:
                     bpy.data.objects.remove(ob)
                     continue
-            if role == "wheel":
+            if role == "wheel" and self.cfg.get("blur") and re.search(self.cfg["blur"], ob["mats"]):
                 lo, hi = bounds([ob])
                 if hi[0] - lo[0] < 0.03 and hi[2] - lo[2] > 0.4:
                     # a flat card over the whole wheel face: the motion-blur disc some models carry
@@ -1156,6 +1169,9 @@ class Car:
             U = np.concatenate(rec["uvs"])
             lo = np.percentile(U, 0.1, axis=0)
             hi = np.percentile(U, 99.9, axis=0)
+            if (hi - lo).max() > 1.12 and ((U > -0.03) & (U < 1.03)).all(1).mean() > 0.97:
+                # a few faces spill over the tile edge: clamp them to it
+                lo, hi = np.clip(lo, 0.0, 1.0), np.clip(hi, 0.0, 1.0)
             if (hi - lo).max() > 1.12:
                 print("   [%s] %s: tiling UVs %s..%s -> sampled vertex colours" % (self.key, n, lo.round(2), hi.round(2)))
                 rec["cls"] = dict(cls, c="flat", col=None)
