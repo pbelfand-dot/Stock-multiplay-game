@@ -24,6 +24,7 @@ const Batcher = preload("res://scripts/art/batcher.gd")
 const Rules = preload("res://scripts/sim/rules.gd")
 const TrafficScript = preload("res://scripts/world/traffic.gd")
 const RealtorUI = preload("res://scripts/ui/realtor_ui.gd")
+const Corridor = preload("res://scripts/world/corridor_builder.gd")
 
 const GROUND_Y := -0.25
 const SKY := 2                   # sun-lit render layer (the office builder's SKY_LAYER)
@@ -45,6 +46,8 @@ const CONCRETE_D := Color(0.55, 0.54, 0.52)
 const SIDEWALK := Color(0.68, 0.68, 0.66)
 const DIRT := Color(0.42, 0.36, 0.28)
 const GRASS := Color(0.29, 0.42, 0.19)
+const GIRDER := Color(0.3, 0.44, 0.36)     # the pale green the city paints its steel
+const BARRIER := Color(0.5, 0.495, 0.47)   # weathered barrier concrete
 const LAWN := Color(0.27, 0.45, 0.17)
 
 ## Siding / trim / roof palettes (tinted at runtime, see _house_mats).
@@ -97,6 +100,8 @@ var _tree_blockers: Array = []
 var _tree_rects: Array = []
 var _lot_mesh
 var _font: Font   # [center Vector2, radius] spots trees keep out of
+var _c               # CorridorBuilder: the city along the highway (build time only)
+var wr := RandomNumberGenerator.new()   # wear, graffiti, street furniture (its own seed: the houses keep theirs)
 
 
 func _init(builder) -> void:
@@ -125,6 +130,9 @@ func build() -> Node3D:
 	road_mat.vertex_color_use_as_albedo = true
 	road_mat.roughness = 0.95
 	glow_mat = PropKit.material("Glow")
+	wr.seed = 278
+	_c = Corridor.new(self)
+	_c.prep()
 	_ground()
 	_mainline()
 	_tunnel(true)
@@ -135,6 +143,7 @@ func build() -> Node3D:
 	_neighborhood()
 	_taxi_stands()
 	_downtown_gap()
+	_c.build_city()
 	_scatter_trees()
 	_downtown_impostor()
 	_finish()
@@ -143,6 +152,8 @@ func build() -> Node3D:
 	root.add_child(traffic)
 	traffic.setup(hw)
 	build_ms = Time.get_ticks_msec() - t0
+	_c.nb = null
+	_c = null
 	b = null      # the office builder keeps us; don't keep it back (RefCounted cycle)
 	return root
 
@@ -208,6 +219,19 @@ func label(text: String, pos: Vector3, size: int, color: Color, rot_y := 0.0, pa
 	return l
 
 
+## A label scaled to fit: capitals `cap` m tall, the line no wider than max_w.
+func fit_label(text: String, pos: Vector3, cap: float, max_w: float, color: Color, rot_y: float, parent: Node3D,
+		range_end := 700.0) -> Label3D:
+	var fs := 96
+	var px := cap / (fs * 0.72)
+	var l := label(text, pos, fs, color, rot_y, parent, px, range_end)
+	if _font:
+		var w := _font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
+		if w * px > max_w:
+			l.pixel_size = max_w / w
+	return l
+
+
 func interact(sb: StaticBody3D, type: String, id: int, prompt: String) -> void:
 	sb.set_meta("interact", type)
 	sb.set_meta("interact_id", id)
@@ -226,7 +250,14 @@ func parked_car(model: String, pos: Vector3, yaw: float, parent: Node3D = null) 
 
 # ================================================================== ground
 
+## The ground: grass out in the country, but near the highway (up to ~150 m
+## either side) the corridor is city: gravel, bare dirt, weedy vacant lots,
+## old paved lots. The hood keeps its grass.
 func _ground() -> void:
+	var zc := {}                      # the highway's z per 5 m of x (it runs west-east)
+	for q in hw.cl:
+		zc[floori(q.x / 5.0)] = q.z
+	var hood := Rect2(hw.roundabout_hood.x - 70.0, hw.roundabout_hood.z - 50.0, 240.0, 170.0).grow(25.0)   # hood_rect (see _neighborhood)
 	var rects := [Rect2(-300, 262, 1700, 540), Rect2(-300, 60, 1700, 158), Rect2(53, 218, 1347, 44), Rect2(-300, 218, 247, 44)]
 	for r: Rect2 in rects:
 		# collision: one slab per rect
@@ -253,6 +284,26 @@ func _ground() -> void:
 						var k := sin(x0 * 0.043 + z0 * 0.021) * 0.5 + sin(x0 * 0.011 - z0 * 0.037) * 0.5
 						var c := GRASS.lerp(Color(0.46, 0.5, 0.26), clampf(k * 0.6 + 0.2, 0.0, 1.0) * 0.6)
 						c = c.darkened(rng.randf_range(0.0, 0.06))
+						var cx := (x0 + x1) / 2.0
+						var cz := (z0 + z1) / 2.0
+						var hk := floori(cx / 5.0)
+						var urban := 0.0
+						if zc.has(hk) and not hood.has_point(Vector2(cx, cz)):
+							urban = 1.0 - smoothstep(140.0, 210.0, absf(cz - zc[hk]))
+						if urban > 0.0:
+							# lot by lot (~30 x 20 m), not cell by cell
+							var n2 := _hash(floori(cx / 30.0) * 7919 + floori(cz / 20.0) * 104729)
+							var lot := Color(0.34, 0.335, 0.32)                # gravel
+							if n2 < 0.22:
+								lot = Color(0.33, 0.3, 0.25)                   # bare dirt
+							elif n2 < 0.42:
+								lot = Color(0.29, 0.32, 0.2)                   # weeds
+							elif n2 < 0.62:
+								lot = Color(0.24, 0.24, 0.25)                  # an old paved lot
+							elif n2 < 0.7:
+								lot = Color(0.4, 0.39, 0.37)                   # a slab
+							lot = lot.darkened(wr.randf_range(0.0, 0.05) + (k * 0.5 + 0.5) * 0.05)
+							c = c.lerp(lot, urban)
 						m.quad(Vector3(x0, GROUND_Y, z0), Vector3(x1, GROUND_Y, z0), Vector3(x1, GROUND_Y, z1),
 								Vector3(x0, GROUND_Y, z1), c, Vector3.UP)
 				m.instance(g_road, road_mat, "Ground").cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
@@ -262,11 +313,24 @@ func _ground() -> void:
 
 # ================================================================== highway
 
-## Lane markings: 1 station of dash every 4 (3 m on, 9 m off).
+## Lane markings: 1 station of dash every 4 (3 m on, 9 m off). The asphalt is
+## New York worn: every lane its own shade (repaved in different years),
+## polished wheel tracks either side of a dark oil stripe, repaved lengths of
+## lane, faded paint. Cracks, cold-patched potholes and steel plates go on a
+## thin overlay mesh that only draws close up (far away it would z-fight).
 func _mainline() -> void:
 	var n := hw.cl.size()
 	var chunk := 50
 	var i0 := 0
+	var patches := {1: [], -1: []}      # dir -> [[s0, s1, k0, k1, color]] (k -1 inner shoulder .. 4 outer shoulder)
+	for dir in [1, -1]:
+		var s := 0.0
+		while s < hw.length:
+			s += wr.randf_range(25.0, 110.0)
+			var k0 := wr.randi_range(0, 4)
+			var k1 := k0 if wr.randf() < 0.7 else mini(k0 + 1, 4)
+			var col: Color = [Color(0.1, 0.1, 0.11), Color(0.22, 0.22, 0.23), Color(0.29, 0.29, 0.29), Color(0.14, 0.14, 0.15)][wr.randi() % 4]
+			patches[dir].append([s, s + wr.randf_range(6.0, 45.0), k0, k1, col])
 	while i0 < n - 1:
 		var m := RoadMesh.new()
 		var i1 := mini(i0 + chunk, n - 1)
@@ -277,24 +341,34 @@ func _mainline() -> void:
 			var dash := i % 4 == 0
 			for dir in [1, -1]:
 				var aux: bool = hw.has_aux(dir, sm)
+				var P: Array = patches[dir]
 				var strips: Array = []   # [d0, d1, color]
 				var e0 := Highway.EDGE_IN
-				strips.append([Highway.MEDIAN, e0 - 0.08, ASPHALT])
-				strips.append([e0 - 0.08, e0 + 0.08, LINE_Y])
-				for k in Highway.LANES:
+				var edge_fade := 0.12 + 0.3 * (sin(sm * 0.031 + dir) * 0.5 + 0.5)
+				strips.append([Highway.MEDIAN, e0 - 0.08, _asph(P, -1, sm, -1)])
+				strips.append([e0 - 0.08, e0 + 0.08, LINE_Y.lerp(_asph(P, -1, sm, -1), edge_fade)])
+				var nl := Highway.LANES + (1 if aux else 0)
+				for k in nl:
 					var l0 := e0 + Highway.LANE_W * k + 0.08
 					var l1 := e0 + Highway.LANE_W * (k + 1) - 0.08
-					strips.append([l0, l1, ASPHALT])
-					var lc := LINE_W if (k < Highway.LANES - 1 and dash) or (k == Highway.LANES - 1 and (not aux or i % 2 == 0)) else ASPHALT
-					strips.append([l1, l1 + 0.16, lc])
-				var eo := Highway.EDGE_OUT + 0.08
-				var outer := Highway.EDGE_OUT + Highway.OUT_SH
-				if aux:
-					strips.append([eo, eo + Highway.LANE_W - 0.16, ASPHALT])
-					strips.append([eo + Highway.LANE_W - 0.16, eo + Highway.LANE_W, LINE_W])
-					outer = Highway.EDGE_OUT + Highway.LANE_W + Highway.AUX_SH
-					eo += Highway.LANE_W
-				strips.append([eo, outer, ASPHALT])
+					var lc := (l0 + l1) * 0.5
+					strips.append([l0, lc - 0.55, _asph(P, k, sm, 0)])
+					strips.append([lc - 0.55, lc + 0.55, _asph(P, k, sm, 1)])
+					strips.append([lc + 0.55, l1, _asph(P, k, sm, 2)])
+					var gap := _asph(P, k, sm, 2)
+					var paint := LINE_W.lerp(gap, 0.1 + 0.45 * _hash(i * 7 + k * 131 + dir * 17))
+					var solid := k == nl - 1                     # the white edge line (or the aux lane's)
+					var lcol := gap
+					if solid:
+						lcol = LINE_W.lerp(gap, edge_fade)
+					elif k == Highway.LANES - 1 and aux:         # the aux lane's dotted line
+						lcol = paint if i % 2 == 0 else gap
+					elif dash:
+						lcol = paint
+					strips.append([l1, l1 + 0.16, lcol])
+				var eo := e0 + Highway.LANE_W * nl + 0.08
+				var outer := Highway.EDGE_OUT + (Highway.LANE_W + Highway.AUX_SH if aux else Highway.OUT_SH)
+				strips.append([eo, outer, _asph(P, 4, sm, -1)])
 				for st in strips:
 					var d0: float = st[0] * dir
 					var d1: float = st[1] * dir
@@ -303,18 +377,113 @@ func _mainline() -> void:
 				var oa := hw.point(sa, outer * dir)
 				var ob := hw.point(sb, outer * dir)
 				m.quad(oa, ob, ob + Vector3(0, -0.7, 0), oa + Vector3(0, -0.7, 0), DIRT, hw.right(sm) * dir)
-			# median jersey barrier
-			var prof := [[-0.4, 0.0], [-0.3, 0.08], [-0.13, 0.3], [-0.1, 0.82], [0.1, 0.82], [0.13, 0.3], [0.3, 0.08], [0.4, 0.0]]
-			for k in prof.size() - 1:
-				var pa: Array = prof[k]
-				var pb: Array = prof[k + 1]
-				var nrm := Vector2(-(pb[1] - pa[1]), pb[0] - pa[0])
-				var upv := hw.right(sm) * nrm.x + Vector3.UP * nrm.y
-				var col := CONCRETE if k != 3 else CONCRETE.lightened(0.05)
-				m.quad(hw.point(sa, pa[0], pa[1]), hw.point(sa, pb[0], pb[1]), hw.point(sb, pb[0], pb[1]),
-						hw.point(sb, pa[0], pa[1]), col, upv, true)
+			# median jersey barrier: stained concrete, grimy at the foot
+			_jersey(m, sa, sb, 0.0, 0.82, 0.4, i)
 		m.instance(g_road, road_mat, "Mainline", 1500.0).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		_wear(i0 * Highway.STEP, i1 * Highway.STEP)
 		i0 = i1
+
+
+## A jersey barrier from station sa to sb centered at offset d: sloped foot,
+## steep face, flat top (`h` tall, `half` the half-width of its foot).
+func _jersey(m, sa: float, sb: float, d: float, h: float, half: float, i: int) -> void:
+	var prof := [[-1.0, 0.0], [-0.75, 0.08], [-0.34, 0.3], [-0.25, 1.0], [0.25, 1.0], [0.34, 0.3], [0.75, 0.08], [1.0, 0.0]]
+	var stain := 0.1 * _hash(i * 3 + int(d))
+	var sm := (sa + sb) * 0.5
+	for k in prof.size() - 1:
+		var pa: Array = prof[k]
+		var pb: Array = prof[k + 1]
+		var nrm := Vector2(-(pb[1] - pa[1]) * h, (pb[0] - pa[0]) * half)
+		var upv := hw.right(sm) * nrm.x + Vector3.UP * nrm.y
+		var col := BARRIER.darkened(stain)
+		if k == 3:
+			col = BARRIER.lightened(0.05)
+		elif k in [0, 1, 5, 6]:
+			col = BARRIER.darkened(0.3 + stain)                  # road grime
+		var ya: float = pa[1] * h
+		var yb: float = pb[1] * h
+		m.quad(hw.point(sa, d + pa[0] * half, ya), hw.point(sa, d + pb[0] * half, yb), hw.point(sb, d + pb[0] * half, yb),
+				hw.point(sb, d + pa[0] * half, ya), col, upv, true)
+
+
+static func _hash(x: int) -> float:
+	return fposmod(sin(float(x) * 12.9898) * 43758.5453, 1.0)
+
+
+## The asphalt of lane k (-1 inner shoulder, 4 outer shoulder) at station s;
+## part 0/2 the wheel tracks, 1 the oil stripe, -1 a shoulder.
+func _asph(patches: Array, k: int, s: float, part: int) -> Color:
+	var c := Color(0.18, 0.182, 0.19).lightened(0.02 * ((k * 7 + 3) % 3))
+	if k == -1 or k == 4:
+		c = Color(0.23, 0.23, 0.235)
+	for pt in patches:
+		if s >= pt[0] and s < pt[1] and k >= pt[2] and k <= pt[3]:
+			c = pt[4]
+			break
+	var nz := sin(s * 0.013 + k * 2.1) * 0.6 + sin(s * 0.047 - k * 1.3) * 0.4
+	c = c.lightened(0.05 * nz) if nz > 0.0 else c.darkened(-0.08 * nz)
+	if part == 1:
+		c = c.darkened(0.12)
+	elif part >= 0:
+		c = c.lightened(0.02)
+	return c
+
+
+## Cracks, potholes (with their cold patches), steel plates and utility cuts
+## between stations s0 and s1, on a thin overlay that stops drawing at 220 m.
+func _wear(s0: float, s1: float) -> void:
+	var m := RoadMesh.new()
+	var y := 0.014
+	var seg := func(a: Vector3, c: Vector3, w: float, col: Color) -> void:
+		var side := (c - a).normalized().cross(Vector3.UP) * (w / 2.0)
+		m.quad(a - side, c - side, c + side, a + side, col, Vector3.UP)
+	var crack := Color(0.07, 0.07, 0.075)
+	for q in int((s1 - s0) / 5.0):
+		var s := wr.randf_range(s0, s1)
+		var dir := 1 if wr.randf() < 0.5 else -1
+		var k := wr.randi_range(0, Highway.LANES - 1)
+		var l0 := Highway.EDGE_IN + Highway.LANE_W * k
+		var r := wr.randf()
+		if r < 0.45:          # a crack across the lane
+			var pts: Array = []
+			var nn := wr.randi_range(3, 5)
+			for j in nn + 1:
+				pts.append(hw.point(s + wr.randf_range(-0.4, 0.4), dir * (l0 + 0.2 + (Highway.LANE_W - 0.4) * j / nn), y))
+			for j in nn:
+				seg.call(pts[j], pts[j + 1], 0.05, crack)
+		elif r < 0.72:        # along the joint between two lanes
+			var d := l0 + wr.randf_range(-0.35, 0.35)
+			var p := hw.point(s, dir * d, y)
+			for j in wr.randi_range(3, 7):
+				var q2 := hw.point(s + (j + 1) * wr.randf_range(1.5, 3.0), dir * (d + wr.randf_range(-0.2, 0.2)), y)
+				seg.call(p, q2, 0.045, crack)
+				p = q2
+		elif r < 0.9:         # a pothole in a wheel track, cold-patched round the edge
+			var dc := l0 + Highway.LANE_W * (0.3 if wr.randf() < 0.5 else 0.7)
+			var rad := wr.randf_range(0.3, 0.65)
+			for layer in [[rad * 1.7, Color(0.12, 0.12, 0.13), y - 0.002], [rad, Color(0.04, 0.04, 0.045), y]]:
+				var ring: Array = []
+				for j in 8:
+					var a := TAU * j / 8.0
+					var rr: float = layer[0] * wr.randf_range(0.75, 1.15)
+					ring.append(hw.point(s + cos(a) * rr, dir * (dc + sin(a) * rr), layer[2]))
+				var cen := hw.point(s, dir * dc, layer[2])
+				for j in 8:
+					m.tri(cen, ring[j], ring[(j + 1) % 8], layer[1], Vector3.UP)
+		else:                 # a steel plate over a utility dig, or the patched-over cut
+			var plate := wr.randf() < 0.5
+			var dc := l0 + Highway.LANE_W * 0.5
+			var hl := 1.6 if plate else wr.randf_range(1.0, 3.0)
+			var hw_ := 1.25 if plate else wr.randf_range(0.6, 1.4)
+			var rim := 0.15
+			var col := Color(0.3, 0.31, 0.32) if plate else Color(0.27, 0.27, 0.28)
+			m.quad(hw.point(s - hl - rim, dir * (dc - hw_ - rim), y - 0.002), hw.point(s + hl + rim, dir * (dc - hw_ - rim), y - 0.002),
+					hw.point(s + hl + rim, dir * (dc + hw_ + rim), y - 0.002), hw.point(s - hl - rim, dir * (dc + hw_ + rim), y - 0.002),
+					Color(0.08, 0.08, 0.085), Vector3.UP)
+			m.quad(hw.point(s - hl, dir * (dc - hw_), y + 0.002), hw.point(s + hl, dir * (dc - hw_), y + 0.002),
+					hw.point(s + hl, dir * (dc + hw_), y + 0.002), hw.point(s - hl, dir * (dc + hw_), y + 0.002), col, Vector3.UP)
+	if not m.empty():
+		m.instance(g_road, road_mat, "Wear", 220.0).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 
 
 ## Tunnel + portal + the hill it goes through. west=true: s 0..60, else the east end.
@@ -384,6 +553,15 @@ func _tunnel(west: bool) -> void:
 		m.tri(g.call(sp, side * PW, top), g.call(sp, side * outer, GROUND_Y), g.call(sp, side * PW, GROUND_Y), CONCRETE_D,
 				hw.tangent(sp) * -sg, true)
 	face.call(-PW, PW, PH + 0.6, top)
+	# grime down the portal and tags along its foot
+	for side in [-1.0, 1.0]:
+		var d0: float = side * (W + 0.6) if side > 0 else -PW + 0.6
+		var o := hw.point(sp, d0, 0.0)
+		var tt := hw.right(sp)
+		m.quad(o + tt * -0.2 + hw.tangent(sp) * -sg * 0.02, o + tt * (PW - W - 1.0) + hw.tangent(sp) * -sg * 0.02,
+				o + tt * (PW - W - 1.0) + Vector3(0, 0.9, 0) + hw.tangent(sp) * -sg * 0.02,
+				o + tt * -0.2 + Vector3(0, 0.9, 0) + hw.tangent(sp) * -sg * 0.02, CONCRETE.darkened(0.3), hw.tangent(sp) * -sg)
+		Corridor.graffiti(m, o, tt, hw.tangent(sp) * -sg, PW - W - 1.2, 0.4, 3.2, 3, wr)
 	var s_end := sb2 + sg * 55.0
 	sl.call(g.call(sb2, -PW, top), g.call(sb2, PW, top), g.call(s_end, PW, GROUND_Y), g.call(s_end, -PW, GROUND_Y), Vector3.UP)
 	for side in [-1.0, 1.0]:
@@ -415,6 +593,7 @@ func _ramps() -> void:
 		var n: int = p.pts.size()
 		var run_in: bool = nm == "dealer_off"              # its pavement runs on into the lot
 		var span_pier_done := false
+		var tag_run := [0.0, 0.0]
 		for i in n - 1:
 			var a: Vector3 = p.pts[i]
 			var c: Vector3 = p.pts[i + 1]
@@ -457,11 +636,26 @@ func _ramps() -> void:
 				var bottom := GROUND_Y - 0.3 if not over else maxf(a.y, c.y) - 1.3
 				var ya := Vector3(ea_.x, bottom if not over else a.y - 1.3, ea_.z)
 				var yc := Vector3(ec_.x, bottom if not over else c.y - 1.3, ec_.z)
-				m.quad(ea_, ec_, yc, ya, CONCRETE_D if raised else DIRT, outv, not over)
-			if over:   # bridge span: deck underside + girders; a pier in the median
+				m.quad(ea_, ec_, yc, ya, GIRDER if over else (CONCRETE_D if raised else DIRT), outv, not over)
+				# tags on the embankment walls, now and then
+				if raised and not over and minf(a.y, c.y) > 1.8:
+					tag_run[side] += a.distance_to(c)
+					if tag_run[side] > 26.0 and wr.randf() < 0.5:
+						tag_run[side] = 0.0
+						var tt := Vector3(ec_.x - ea_.x, 0, ec_.z - ea_.z).normalized()
+						Corridor.graffiti(m, Vector3(ea_.x, GROUND_Y, ea_.z) + outv * 0.06 - tt * 0.8, tt, outv, 2.6, 0.5,
+								minf(minf(a.y, c.y) - GROUND_Y - 0.4, 3.0), 1, wr)
+			if over:   # bridge span: painted steel fascia, girders under the deck; a pier in the median
 				var da := [ea[0] - Vector3(0, 1.3, 0), ea[1] - Vector3(0, 1.3, 0)]
 				var dc := [ec[0] - Vector3(0, 1.3, 0), ec[1] - Vector3(0, 1.3, 0)]
-				m.quad(da[0], da[1], dc[1], dc[0], CONCRETE_D.darkened(0.2), Vector3.DOWN)
+				m.quad(da[0], da[1], dc[1], dc[0], GIRDER.darkened(0.45), Vector3.DOWN)
+				for f in [0.2, 0.5, 0.8]:
+					var ga: Vector3 = da[0].lerp(da[1], f)
+					var gc: Vector3 = dc[0].lerp(dc[1], f)
+					var dn := Vector3(0, 0.8, 0)
+					m.quad(ga, gc, gc - dn, ga - dn, GIRDER.darkened(0.25), ra)
+					m.quad(ga, gc, gc - dn, ga - dn, GIRDER.darkened(0.3), -ra)
+					m.quad(ga - dn - ra * 0.25, gc - dn - rc * 0.25, gc - dn + rc * 0.25, ga - dn + ra * 0.25, GIRDER.darkened(0.4), Vector3.DOWN)
 				if absf(loc.y) < 2.0 and not span_pier_done:
 					span_pier_done = true
 					var pb := Vector3(mid.x, 0.8, mid.z)
@@ -619,31 +813,60 @@ func _roundabout(c: Vector3) -> void:
 	_tree_blockers.append([Vector2(c.x, c.z), R + 8.0])
 
 
+const GANTRIES := [90.0, 395.0, 700.0]
+const GALV := Color(0.64, 0.66, 0.66)          # galvanized steel
+## Stretches (per direction) where the right-of-way line is a tall concrete
+## wall with chain-link on top (the sunken-expressway look); elsewhere it's a
+## chain-link fence. Both leave gaps wherever a ramp comes near.
+const WALLS := {1: [[300.0, 480.0], [645.0, 755.0], [870.0, 9999.0]], -1: [[290.0, 470.0], [660.0, 900.0]]}
+const ROW_D := 23.5                            # the right-of-way line (walls, fences)
+
+
 func _highway_furniture() -> void:
-	var L: float = hw.length
 	# median lights
 	var s := hw.s_portal_w + 30.0
 	while s < hw.s_portal_e - 20.0:
 		if absf(s - Highway.SB_DOWNTOWN) > 16.0 and absf(s - Highway.SB_HOOD) > 16.0:
 			prop("HwyLight", hw.point(s, 0, 0.82), yaw_of(hw.tangent(s)), g_far)
 		s += 66.0
-	# sign gantries
-	_gantry(395.0, ["MAGNOLIA HEIGHTS", "EXIT 7  ·  RIGHT LANE"], ["DOWNTOWN · FINANCIAL DIST", "EXIT 3  ·  1/4 MI"])
-	_gantry(700.0, ["DEALER ROW", "EXIT 8  ·  1/4 MI"], ["DOWNTOWN", "2 MI  ·  MAGNOLIA HTS 1"])
-	_gantry(90.0, ["MAGNOLIA HEIGHTS", "1/2 MI"], ["TUNNEL", "LIGHTS ON"])
-	# guardrails and sound walls (station ranges chosen to stay clear of the ramps)
-	for r in [[1, 64.0, 240.0], [-1, 64.0, 112.0], [-1, 152.0, 225.0], [-1, 612.0, L - 64.0]]:
-		_guardrail(r[0], r[1], r[2])
-	for r in [[1, 560.0, 588.0], [1, 614.0, Highway.DEALER_S - 8.0], [1, Highway.DEALER_S + 118.0, L - 70.0]]:
-		_soundwall(r[0], r[1], r[2])
+	# overhead guide signs: [eastbound signs], [westbound signs]
+	_gantry(GANTRIES[0], [{"over": 1.5, "w": 9.5, "shield": "278", "card": "EAST", "lines": ["Magnolia Hts", "EXIT 5  ·  1/4 MILE"]}],
+			[{"over": 1.5, "w": 10.5, "lines": ["Bagholder-Battery Tunnel", "TOLL $19.99 · NO CASH · NO REFUNDS"]}])
+	_gantry(GANTRIES[1], [{"over": 1.0, "w": 7.2, "shield": "278", "card": "EAST", "lines": ["Bemze Motors", "Points East"]},
+			{"over": 3.0, "w": 7.6, "exit": "EXIT 5", "only": true, "lines": ["Magnolia Hts", "Levee Rd"]}],
+			[{"over": 1.0, "w": 7.2, "shield": "278", "card": "WEST", "lines": ["Battery Tunnel", "Points West"]},
+			{"over": 3.0, "w": 7.6, "exit": "EXIT 2", "only": true, "lines": ["FDR Dr South", "Wall St / Downtown"]}])
+	_gantry(GANTRIES[2], [{"over": 2.0, "w": 9.0, "exit": "EXIT 6", "lines": ["Bemze Motors", "NEXT RIGHT"]}],
+			[{"over": 1.5, "w": 10.0, "shield": "278", "card": "WEST", "lines": ["LAST EXIT BEFORE TOLL", "Exit 2 · Wall St  1/4 MILE"]}])
+	# concrete barriers along both edges; walls and fences on the right-of-way line
+	for dir in [1, -1]:
+		_edge_barrier(dir)
+		_row_line(dir)
+	_cobra_lights()
+	# billboards behind the walls, angled at the traffic
+	var wt := Color(0.97, 0.97, 0.95)
+	var ink := Color(0.06, 0.06, 0.07)
+	_c.billboard(345.0, 1, 1, Color(0.08, 0.62, 0.32), [["ROBINHOOD'S COUSIN", 0.72, wt], ["TRADE WITH 100X LEVERAGE", 0.52, Color(0.85, 1.0, 0.3)],
+			["WHAT COULD POSSIBLY GO WRONG?", 0.38, wt]])
+	_c.billboard(565.0, -1, -1, Color(0.5, 0.26, 0.9), [["KWIK LIVE", 1.1, wt], ["WATCH STRANGERS LOSE IT ALL · 24/7", 0.36, Color(1.0, 0.88, 0.3)]])
+	_c.billboard(712.0, 1, 1, Color(0.07, 0.07, 0.09), [["BEMZE", 1.1, wt], ["THE ULTIMATE CUT-UP MACHINE", 0.42, Color(0.35, 0.62, 1.0)],
+			["EXIT 6 · NEXT RIGHT", 0.36, wt]])
+	_c.billboard(905.0, -1, -1, Color(0.98, 0.82, 0.1), [["HURT IN A MARGIN CALL?", 0.62, ink], ["1-800-BAG-HOLD", 0.8, Color(0.78, 0.08, 0.08)],
+			["NO FEE UNLESS WE LOSE TOO · HABLAMOS ESPAÑOL", 0.3, ink]])
+
+
+## Outer edge of the paved shoulder at station s (wider beside an aux lane).
+func _edge(dir: int, s: float) -> float:
+	return Highway.EDGE_OUT + (Highway.LANE_W + Highway.AUX_SH if hw.has_aux(dir, s) else Highway.OUT_SH)
 
 
 func _gantry(s: float, eb: Array, wb: Array) -> void:
 	var m := RoadMesh.new()
 	var t := hw.tangent(s)
-	var W := Highway.EDGE_OUT + Highway.OUT_SH + 3.2
+	var W := maxf(_edge(1, s), _edge(-1, s)) + 3.2
 	for dd in [-W, W]:
-		m.obox(hw.point(s, dd, 0), t, Vector3(0.55, 8.4, 0.55), Color(0.62, 0.64, 0.67), true)
+		m.obox(hw.point(s, dd, 0), t, Vector3(0.55, 8.4, 0.55), GALV, true)
+		m.obox(hw.point(s, dd, 0), t, Vector3(1.1, 0.9, 1.1), CONCRETE)             # the footing
 		solid(Vector3(0.6, 8.4, 0.6), hw.point(s, dd, 4.2), yaw_of(t), g_road)
 	for y in [7.2, 8.1]:   # the truss: two chords + a deck of struts
 		var a := hw.point(s, -W, y)
@@ -652,72 +875,238 @@ func _gantry(s: float, eb: Array, wb: Array) -> void:
 		for off in [-0.6, 0.6]:
 			var o: Vector3 = t * off
 			m.quad(a + o - Vector3(0, 0.12, 0), c + o - Vector3(0, 0.12, 0), c + o + Vector3(0, 0.12, 0),
-					a + o + Vector3(0, 0.12, 0), Color(0.6, 0.62, 0.66), -t * signf(off))
+					a + o + Vector3(0, 0.12, 0), GALV.darkened(0.05), -t * signf(off))
 			m.quad(a + o + Vector3(0, 0.12, 0) - r * 0.4, c + o + Vector3(0, 0.12, 0) - r * 0.4,
-					c + o + Vector3(0, 0.12, 0) + r * 0.4, a + o + Vector3(0, 0.12, 0) + r * 0.4, Color(0.66, 0.68, 0.7), Vector3.UP)
-	# a green sign over each carriageway, facing its traffic
+					c + o + Vector3(0, 0.12, 0) + r * 0.4, a + o + Vector3(0, 0.12, 0) + r * 0.4, GALV, Vector3.UP)
+	var k := 0.0
+	while k < 2.0 * W - 0.1:           # the zig-zag web between the chords
+		var p0 := hw.point(s, -W + k, 7.2)
+		var p1 := hw.point(s, -W + minf(k + 1.5, 2.0 * W), 8.1)
+		for off in [-0.6, 0.6]:
+			m.bar(p0 + t * off, p1 + t * off, 0.07, 0.07, GALV.darkened(0.1))
+		k += 3.0
 	for side in [[1, eb], [-1, wb]]:
 		var dir: int = side[0]
-		var txt: Array = side[1]
-		var dc := dir * (Highway.EDGE_IN + Highway.LANE_W * 1.8)
-		var face := hw.point(s - dir * 0.75, dc, 0)
-		var fwd := -t * dir               # the sign faces oncoming traffic
-		var r := fwd.cross(Vector3.UP).normalized()
-		var w := 7.5
-		var hh := Vector3(0, 2.4, 0)
-		var base := face + Vector3(0, 7.8 - 1.2, 0)
-		m.quad(base - r * w / 2, base + r * w / 2, base + r * w / 2 + hh, base - r * w / 2 + hh, Color(0.05, 0.38, 0.2), fwd)
-		m.quad(base - r * w / 2 - fwd * 0.1, base + r * w / 2 - fwd * 0.1, base + r * w / 2 + hh - fwd * 0.1,
-				base - r * w / 2 + hh - fwd * 0.1, Color(0.4, 0.42, 0.45), -fwd)
-		var l1 := label(txt[0], base + hh * 0.66 + fwd * 0.03, 120, Color(0.97, 0.97, 0.95), yaw_of(fwd), g_dyn, 0.012, 700.0)
-		l1.outline_size = 0
-		var l2 := label(txt[1], base + hh * 0.26 + fwd * 0.03, 80, Color(0.97, 0.97, 0.95), yaw_of(fwd), g_dyn, 0.012, 700.0)
-		l2.outline_size = 0
+		for spec in side[1]:
+			var dc: float = dir * (Highway.EDGE_IN + Highway.LANE_W * float(spec.get("over", 1.5)))
+			_guide_sign(m, hw.point(s - dir * 0.75, dc, 6.5), -t * dir, spec)
 	m.instance(g_far, road_mat, "Gantry", 900.0)
 
 
-func _guardrail(dir: int, s0: float, s1: float) -> void:
-	var m := RoadMesh.new()
-	var d := dir * (Highway.EDGE_OUT + Highway.OUT_SH - 0.4)
-	var s := s0
-	var steel := Color(0.72, 0.73, 0.75)
-	while s < s1:
-		var s2 := minf(s + Highway.STEP * 2.0, s1)
-		var a := hw.point(s, d, 0)
-		var c := hw.point(s2, d, 0)
-		var inward := -hw.right(s) * dir
-		for yy in [[0.5, 0.8]]:
-			m.quad(a + Vector3(0, yy[0], 0), c + Vector3(0, yy[0], 0), c + Vector3(0, yy[1], 0), a + Vector3(0, yy[1], 0),
-					steel, inward, true)
-			m.quad(a + Vector3(0, yy[1], 0), c + Vector3(0, yy[1], 0), c + Vector3(0, yy[1], 0) - inward * 0.12,
-					a + Vector3(0, yy[1], 0) - inward * 0.12, steel.darkened(0.1), Vector3.UP)
-		m.obox(a - inward * 0.15 + Vector3(0, -0.2, 0), hw.tangent(s), Vector3(0.12, 0.95, 0.12), Color(0.5, 0.5, 0.52))
-		s = s2
-	m.instance(g_far, road_mat, "Guardrail", 500.0)
+## A green guide sign facing `fwd` (toward the traffic reading it), its bottom
+## center at `base`: white border, an exit tab on top, a route shield on the
+## left, the yellow EXIT ONLY band along the bottom. spec: {w, h, lines,
+## exit, shield, card, only}.
+func _guide_sign(m, base: Vector3, fwd: Vector3, spec: Dictionary) -> void:
+	var w: float = spec.get("w", 8.0)
+	var h: float = spec.get("h", 3.2)
+	var r := (-fwd).cross(Vector3.UP).normalized()      # the reader's right
+	var yaw := yaw_of(fwd)
+	var P := func(x: float, y: float, z: float) -> Vector3:
+		return base + r * x + Vector3(0, y, 0) + fwd * z
+	var panel := func(x0: float, y0: float, x1: float, y1: float, z: float, col: Color) -> void:
+		m.quad(P.call(x0, y0, z), P.call(x1, y0, z), P.call(x1, y1, z), P.call(x0, y1, z), col, fwd if z >= 0.0 else -fwd)
+	var green := Color(0.02, 0.33, 0.17)
+	var white := Color(0.95, 0.95, 0.93)
+	panel.call(-w / 2, 0.0, w / 2, h, -0.08, Color(0.45, 0.47, 0.5))
+	panel.call(-w / 2, 0.0, w / 2, h, 0.0, white)
+	panel.call(-w / 2 + 0.1, 0.1, w / 2 - 0.1, h - 0.1, 0.01, green)
+	var ex: String = spec.get("exit", "")
+	if ex != "":
+		var tw := 2.4
+		panel.call(w / 2 - tw, h - 0.05, w / 2, h + 0.85, -0.08, Color(0.45, 0.47, 0.5))
+		panel.call(w / 2 - tw, h - 0.05, w / 2, h + 0.85, 0.0, white)
+		panel.call(w / 2 - tw + 0.1, h, w / 2 - 0.1, h + 0.75, 0.01, green)
+		fit_label(ex, P.call(w / 2 - tw / 2, h + 0.37, 0.03), 0.4, tw - 0.4, white, yaw, g_dyn)
+	var yb := 0.1
+	if spec.get("only", false):
+		panel.call(-w / 2 + 0.1, 0.1, w / 2 - 0.1, 0.8, 0.015, Color(0.98, 0.8, 0.1))
+		fit_label("EXIT ONLY", P.call(0.0, 0.46, 0.03), 0.36, w - 1.0, Color(0.05, 0.05, 0.05), yaw, g_dyn)
+		yb = 0.8
+	var x0 := -w / 2 + 0.35
+	var sh: String = spec.get("shield", "")
+	if sh != "":
+		var k := minf(0.62, (h - yb) * 0.22)
+		var sc := Vector2(-w / 2 + 0.3 + k * 1.2, (yb + h) / 2.0 - 0.12)
+		_shield(m, P, sc, k)
+		fit_label(sh, P.call(sc.x, sc.y - 0.08 * k / 0.62, 0.045), 0.42 * k / 0.62, k * 1.5, white, yaw, g_dyn)
+		fit_label(spec.get("card", ""), P.call(sc.x, sc.y + k + 0.26, 0.03), 0.24, k * 2.6, white, yaw, g_dyn)
+		x0 = -w / 2 + 0.55 + k * 2.4
+	var lines: Array = spec.get("lines", [])
+	var x1 := w / 2 - 0.35
+	var cx := (x0 + x1) / 2.0
+	var avail := h - 0.1 - yb
+	for i in lines.size():
+		var y := yb + avail * (0.5 if lines.size() == 1 else (0.67 if i == 0 else 0.27))
+		fit_label(lines[i], P.call(cx, y, 0.03), 0.52 if i == 0 else 0.4, x1 - x0, white, yaw, g_dyn)
 
 
-func _soundwall(dir: int, s0: float, s1: float) -> void:
+## The interstate shield (blue, a red crown, white edge) centered at sc, half-width k.
+func _shield(m, P: Callable, sc: Vector2, k: float) -> void:
+	var body := [Vector2(-1, 0.85), Vector2(-0.5, 1.0), Vector2(0, 0.88), Vector2(0.5, 1.0), Vector2(1, 0.85), Vector2(0.96, 0.1),
+		Vector2(0.78, -0.5), Vector2(0.42, -0.86), Vector2(0, -1.0), Vector2(-0.42, -0.86), Vector2(-0.78, -0.5), Vector2(-0.96, 0.1)]
+	var crown := [Vector2(-1, 0.85), Vector2(-0.5, 1.0), Vector2(0, 0.88), Vector2(0.5, 1.0), Vector2(1, 0.85), Vector2(0.98, 0.52),
+		Vector2(-0.98, 0.52)]
+	var fwd: Vector3 = (P.call(0.0, 0.0, 1.0) - P.call(0.0, 0.0, 0.0))
+	for layer in [[body, 1.14, 0.02, Color(0.95, 0.95, 0.93), Vector2.ZERO], [body, 1.0, 0.025, Color(0.05, 0.22, 0.6), Vector2.ZERO],
+			[crown, 1.0, 0.03, Color(0.78, 0.1, 0.12), Vector2(0, 0.72)]]:
+		var pts: Array = layer[0]
+		var cen: Vector2 = sc + layer[4] * k
+		for i in pts.size():
+			var a: Vector2 = sc + pts[i] * k * layer[1]
+			var bb: Vector2 = sc + pts[(i + 1) % pts.size()] * k * layer[1]
+			m.tri(P.call(cen.x, cen.y, layer[2]), P.call(a.x, a.y, layer[2]), P.call(bb.x, bb.y, layer[2]), layer[3], fwd)
+
+
+## Jersey barrier along the outer edge of the shoulder, broken wherever a ramp
+## comes within 7.5 m (diverges, merges, the gores), with a yellow crash
+## cushion on each run's end that faces oncoming traffic.
+func _edge_barrier(dir: int) -> void:
 	var m := RoadMesh.new()
-	var d := dir * 24.0
-	var s := s0
+	var i := int(ceil(hw.s_portal_w / Highway.STEP))
+	var i_end := int(hw.s_portal_e / Highway.STEP)
+	var run := false
+	var prev_d := 0.0
+	while i < i_end:
+		var sa := i * Highway.STEP
+		var sb := sa + Highway.STEP
+		var ea := _edge(dir, sa)
+		var ok := is_equal_approx(ea, _edge(dir, sb))
+		var d := dir * (ea + 0.42)
+		if ok:
+			ok = not _c.ramp_near(hw.point((sa + sb) * 0.5, d), 7.5, 4.0)
+		if ok:
+			_jersey(m, sa, sb, d, 1.05, 0.42, i)
+			if not run and dir > 0:
+				_cushion(m, sa, d, -1.0)
+			run = true
+		else:
+			if run and dir < 0:
+				_cushion(m, sa, prev_d, 1.0)
+			run = false
+		prev_d = d
+		i += 1
+	m.instance(g_far, road_mat, "Barrier", 900.0).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+
+
+## A crash cushion off the end of a barrier at station s, reaching 3 m toward `way` (+-1 in s).
+func _cushion(m, s: float, d: float, way: float) -> void:
+	var t := hw.tangent(s)
+	var c := hw.point(s + way * 1.6, d, 0.0)
+	m.obox(c, t, Vector3(0.8, 0.95, 3.0), Color(0.95, 0.74, 0.08), true)
+	var nose := hw.point(s + way * 3.12, d, 0.0)
+	var r := hw.right(s) * 0.4
+	for k in 4:          # black and yellow chevrons on the nose
+		var y0 := 0.1 + k * 0.2
+		m.quad(nose - r + Vector3(0, y0, 0), nose + r + Vector3(0, y0, 0), nose + r + Vector3(0, y0 + 0.1, 0),
+				nose - r + Vector3(0, y0 + 0.1, 0), Color(0.05, 0.05, 0.05), t * way)
+
+
+## The right-of-way line ROW_D out: tall concrete walls (grime, streaks, tags,
+## chain-link on top) in the WALLS stretches, a chain-link fence elsewhere.
+func _row_line(dir: int) -> void:
+	var m := RoadMesh.new()
+	var fm := RoadMesh.new()
+	var d := dir * ROW_D
+	var s := hw.s_portal_w + 3.0
 	var k := 0
-	while s < s1:
-		var s2 := minf(s + 6.0, s1)
-		var a := hw.point(s, d, GROUND_Y)
-		var c := hw.point(s2, d, GROUND_Y)
-		var r := hw.right(s) * dir
-		var col := Color(0.72, 0.7, 0.65).darkened(0.03 * (k % 3))
-		var h := Vector3(0, 4.7, 0)
-		m.quad(a, c, c + h, a + h, col, -r, true)
-		m.quad(a + r * 0.3, c + r * 0.3, c + h + r * 0.3, a + h + r * 0.3, col.darkened(0.08), r, true)
-		m.quad(a + h, c + h, c + h + r * 0.3, a + h + r * 0.3, col.lightened(0.05), Vector3.UP)
-		for yb in [1.6, 3.2]:     # panel joints
-			var o := Vector3(0, yb, 0) - r * 0.01
-			m.quad(a + o, c + o, c + o + Vector3(0, 0.05, 0), a + o + Vector3(0, 0.05, 0), col.darkened(0.2), -r)
-		m.obox(a - r * 0.1, hw.tangent(s), Vector3(0.45, 5.0, 0.5), col.darkened(0.12))   # pilaster
+	while s < hw.s_portal_e - 3.0:
+		var s2 := minf(s + 6.0, hw.s_portal_e - 3.0)
+		var ok := true
+		for q in [s, (s + s2) * 0.5, s2]:
+			var p := hw.point(q, d)
+			if _c.ramp_near(p, 9.0) or _c.in_infield(p):
+				ok = false
+		if ok:
+			var wall := false
+			for rr in WALLS[dir]:
+				if s >= rr[0] and s2 <= rr[1]:
+					wall = true
+			if wall:
+				_wall_panel(m, fm, s, s2, d, dir, k)
+			else:
+				_fence_panel(m, fm, s, s2, d, dir, 2.4, GROUND_Y)
 		s = s2
 		k += 1
-	m.instance(g_far, road_mat, "SoundWall", 900.0)
+	m.instance(g_far, road_mat, "Walls", 900.0).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	if not fm.empty():
+		fm.instance(g_road, _c.fence_mat(), "ChainLink", 260.0).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+
+
+func _wall_panel(m, fm, s: float, s2: float, d: float, dir: int, k: int) -> void:
+	var a := hw.point(s, d, GROUND_Y)
+	var c := hw.point(s2, d, GROUND_Y)
+	var r := hw.right(s) * dir                     # away from the highway
+	var col := Color(0.66, 0.64, 0.6).darkened(0.03 * (k % 3) + wr.randf() * 0.06)
+	var H := 4.4
+	var h := Vector3(0, H, 0)
+	var foot := Vector3(0, 1.1, 0)
+	m.quad(a, c, c + foot, a + foot, col.darkened(0.3), -r, true)          # road grime
+	m.quad(a + foot, c + foot, c + h, a + h, col, -r, true)
+	m.quad(a + r * 0.3, c + r * 0.3, c + h + r * 0.3, a + h + r * 0.3, col.darkened(0.1), r, true)
+	m.quad(a + h, c + h, c + h + r * 0.3, a + h + r * 0.3, col.lightened(0.05), Vector3.UP)
+	for yb in [1.6, 3.2]:     # panel joints
+		var o := Vector3(0, yb, 0) - r * 0.01
+		m.quad(a + o, c + o, c + o + Vector3(0, 0.05, 0), a + o + Vector3(0, 0.05, 0), col.darkened(0.2), -r)
+	if wr.randf() < 0.35:     # a rust / water streak down from the top
+		var u := wr.randf_range(0.5, 5.0)
+		var t := (c - a).normalized()
+		var sl := wr.randf_range(1.2, 2.8)
+		m.quad(a + t * u + h - r * 0.012, a + t * (u + 0.35) + h - r * 0.012, a + t * (u + 0.35) + h - Vector3(0, sl, 0) - r * 0.012,
+				a + t * u + h - Vector3(0, sl, 0) - r * 0.012, col.darkened(0.25).lerp(Color(0.4, 0.25, 0.15), 0.3), -r)
+	m.obox(a - r * 0.1, hw.tangent(s), Vector3(0.45, H + 0.3, 0.5), col.darkened(0.12))   # pilaster
+	if wr.randf() < 0.5:
+		Corridor.graffiti(m, a, (c - a).normalized(), -r, a.distance_to(c), 0.35, 3.3, 1, wr)
+	_fence_panel(m, fm, s, s2, d + dir * 0.15, dir, 1.7, GROUND_Y + H)
+
+
+## Chain-link between stations s and s2 at offset d: posts, a top rail (and
+## barbed wire when it's on a wall). y0 = where it stands.
+func _fence_panel(m, fm, s: float, s2: float, d: float, dir: int, h: float, y0: float) -> void:
+	var a := hw.point(s, d, y0)
+	var c := hw.point(s2, d, y0)
+	var up := Vector3(0, h, 0)
+	fm.quad(a, c, c + up, a + up, Color.WHITE, -hw.right(s) * dir, y0 <= GROUND_Y + 0.01)
+	m.obox(a, hw.tangent(s), Vector3(0.08, h + 0.05, 0.08), GALV)
+	m.bar(a + up, c + up, 0.05, 0.05, GALV)
+	if y0 > GROUND_Y + 0.01:
+		m.bar(a + up + Vector3(0, 0.3, 0), c + up + Vector3(0, 0.3, 0), 0.12, 0.12, Color(0.3, 0.3, 0.3))
+
+
+## Cobra-head street lights on galvanized poles behind the barriers, staggered
+## side to side, sodium-orange lenses.
+func _cobra_lights() -> void:
+	var m := RoadMesh.new()
+	var gm := RoadMesh.new()
+	for dir in [1, -1]:
+		var s := hw.s_portal_w + 25.0 + (27.0 if dir < 0 else 0.0)
+		while s < hw.s_portal_e - 15.0:
+			var ok := absf(s - Highway.SB_DOWNTOWN) > 14.0 and absf(s - Highway.SB_HOOD) > 14.0
+			for g in GANTRIES:
+				if absf(s - g) < 10.0:
+					ok = false
+			var dp: float = dir * (_edge(dir, s) + 1.4)
+			var base := hw.point(s, dp, GROUND_Y)
+			if ok and not _c.ramp_near(base, 6.5, 4.0):
+				var t := hw.tangent(s)
+				var inw: Vector3 = -hw.right(s) * dir            # toward the road
+				m.obox(base, t, Vector3(0.28, 10.6 - GROUND_Y, 0.28), GALV, true)
+				m.obox(base, t, Vector3(0.5, 0.5, 0.5), GALV.darkened(0.2))     # the base plate
+				var p0 := hw.point(s, dp, 10.3)
+				var p1 := p0 + inw * 1.3 + Vector3(0, 0.6, 0)
+				var p2 := p0 + inw * 3.1 + Vector3(0, 0.75, 0)
+				m.bar(p0, p1, 0.14, 0.14, GALV)
+				m.bar(p1, p2, 0.12, 0.12, GALV)
+				var h0 := p2 - Vector3(0, 0.06, 0)
+				var h1 := h0 + inw * 0.95 - Vector3(0, 0.05, 0)
+				m.bar(h0, h1, 0.46, 0.26, Color(0.42, 0.44, 0.46))
+				var r := hw.right(s) * 0.17
+				var la := h0 + inw * 0.12 - Vector3(0, 0.14, 0)
+				var lb := h0 + inw * 0.85 - Vector3(0, 0.18, 0)
+				gm.quad(la - r, lb - r, lb + r, la + r, Color(1.0, 0.72, 0.38), Vector3.DOWN)
+			s += 54.0
+	m.instance(g_far, road_mat, "CobraLights", 900.0)
+	gm.instance(g_far, glow_mat, "CobraLenses", 400.0)
 
 
 # ================================================================== neighborhood

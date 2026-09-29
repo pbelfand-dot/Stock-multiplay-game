@@ -534,6 +534,11 @@ func _shots() -> void:
 	if only == "" or only == "hwy":
 		await _view("h01_highway_from_flyover", hw.point(sb + 2.0, -6.0, 7.45), hw.point(sb + 400.0, 0.0, 2.0))
 		await _view("h02_highway_eastbound", hw.point(250.0, 17.5, 0.0), hw.point(420.0, 6.0, 1.0))
+		# the overhead signs and the billboards, from the lanes
+		await _view("h02b_signs_eastbound", hw.point(368.0, 7.0, 0.0), hw.point(395.0, 9.0, 8.0))
+		await _view("h02c_signs_westbound", hw.point(422.0, -7.0, 0.0), hw.point(395.0, -9.0, 8.0))
+		await _view("h02d_signs_last_exit", hw.point(728.0, -7.0, 0.0), hw.point(700.0, -7.0, 8.0))
+		await _view("h02e_billboard", hw.point(318.0, 9.0, 0.0), hw.point(345.0, 26.0, 12.0))
 		await _view("h03_highway_traffic_close", hw.point(480.0, -19.0, 0.0), hw.point(430.0, 0.0, 0.5))
 		await _view("h04_flyover_from_below", hw.point(sb + 40.0, -17.0, 0.0), hw.point(sb, 0.0, 6.0))
 		await _view("h05_tunnel_portal", hw.point(150.0, 8.0, 0.0), hw.point(60.0, 0.0, 5.0))
