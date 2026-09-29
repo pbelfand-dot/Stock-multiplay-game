@@ -230,6 +230,8 @@ func _run() -> void:
 				if ab.size.y < 12.0 or maxf(ab.size.x, ab.size.z) > 20.0:      # (a billboard: tall, ~13 m wide)
 					continue
 				var c: Vector3 = (mi as MeshInstance3D).global_transform * ab.get_center()
+				if hw.locate(c).y < 0.0:                                       # (the lot's side of the road)
+					continue
 				if c.distance_to(bb) < best and c.distance_to(bb) < 150.0:
 					best = c.distance_to(bb)
 					bb = Vector3(c.x, 12.4, c.z)            # (the middle of its face)
