@@ -1445,6 +1445,13 @@ def _spoke(M, path, width, thick, y_of, col, kind, samples=7):
 
 
 def build_wheel(name, sp):
+    """Shared wheel: tyre, rim lip + barrel, spokes by `style`, hub + roundel, disc + caliper.
+    Per-car hooks in sp["wheel"]: "builder": fn(name, sp) replaces the whole thing (must call finish(name));
+    "spokes": fn(M, ctx) draws the rim face instead of the `style` spokes, ctx = dict(rr, R, h, y_face, conc, y_of,
+    rim, rimk, lip, r0, r1) (all local: axle +Y, rim face toward +Y, M = WHEEL_M)."""
+    if sp["wheel"].get("builder"):
+        sp["wheel"]["builder"](name, sp)
+        return
     od = sp["tire_od"]
     R = od / 2
     rr = sp["rim_in"] * 0.0254 / 2
@@ -1490,6 +1497,10 @@ def build_wheel(name, sp):
     n = wd["n"]
     style = wd["style"]
     r0, r1 = 0.075, rr - 0.004
+    if wd.get("spokes"):
+        wd["spokes"](M, dict(rr=rr, R=R, h=h, y_face=y_face, conc=conc, y_of=y_of, rim=rim, rimk=rimk, lip=lip, r0=r0,
+                             r1=r1))
+        n = 0
     for i in range(n):
         th0 = TAU * i / n
         if style == "steel":       # plain steel wheel: no spokes, see the dish below
@@ -2010,6 +2021,9 @@ def _r3(v):
 def mirrors(car, st):
     """Door mirrors on both sides (M-style twin stalks, body-colour housing, carbon or paint cap)."""
     m = st["mirror"]
+    if m.get("builder"):                  # per-car mirror: fn(car, st)
+        m["builder"](car, st)
+        return
     z0, y0 = m["z"], m["y"]
     xE = car.xE(z0)
     L = m.get("len", 0.23)
@@ -3165,6 +3179,8 @@ def build_car(sp):
     tl, pr, tips = rear_details(car, S, st)
     tag("side")
     side_details(car, S, st)
+    for fn in st.get("extras", []):       # per-car exterior details: fn(car, S, st); may queue pocket()s
+        fn(car, S, st)
     tag("shell")
     carve(shell, car.cuts, S)
     shell.emit(sharp=1.2)
@@ -3172,6 +3188,8 @@ def build_car(sp):
     antenna(car, st)
     tag("interior")
     interior(car, st)
+    for fn in st.get("interior_extras", []):     # per-car cockpit details: fn(car, st)
+        fn(car, st)
     if st.get("police"):
         tag("police")
         police_extras(car, st)
