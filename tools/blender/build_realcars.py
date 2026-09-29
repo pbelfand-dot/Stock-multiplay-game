@@ -1,6 +1,7 @@
 """BAGHOLDERS real cars — the owner's real 3D car models turned into drivable BEMZE props (bpy + PIL + numpy).
 
 Run:  REALCARS_SRC=/path/to/models python3 tools/blender/build_realcars.py        (needs `pip install bpy==4.5.*`)
+      ... REALCARS_CACHE=dir ... --rebuild G63   (reuse the other cars' finished props from an earlier build)
       ... build_realcars.py --only M4,M2      (a subset: the other cars are left out of the glb, quick looks)
 Out:  assets/props/realcars_kit.glb (+ the reference points printed as car_refs.gd entries, and written to
       $REALCARS_REF_JSON). Godot extracts the atlases next to it (realcars_kit_RC_*.jpg/png); their .import files
@@ -63,6 +64,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 OUT = os.environ.get("REALCARS_OUT") or os.path.join(HERE, "..", "..", "assets", "props", "realcars_kit.glb")
 SRC = os.environ.get("REALCARS_SRC", "")
 TMP = os.environ.get("REALCARS_TMP") or os.path.join(tempfile.gettempdir(), "realcars_tmp")
+CACHE = os.environ.get("REALCARS_CACHE", "")
 ATLAS = 1024
 WHEEL_ATLAS = 1024
 ORANGE = (255, 115, 13)
@@ -385,7 +387,61 @@ CARS["M3T"] = dict(
     },
 )
 
-ORDER = ["M4", "M2", "M5", "M8", "M3", "M3T"]
+# ============================================================================= wave 2: the other makers
+# (docs/BRANDS.md: Mercedes-Benz -> MERCEDEZ BANZ, Porsche -> PORSHA, Audi -> AUDY; their emblems are drawn by
+# draw_emblem, the plates read the maker)
+
+# the G63 is a Forza model in a Sketchfab glb (packed textures, named Image_N): the M2 / M5 layout
+CARS["G63"] = dict(
+    fbx="2020-mercedes-benz-g-class-amg-g63/source/2020_mercedes-benz_g-class_amg_g_63.glb", fit_length=4.873,
+    texdirs=[], plate_txt="MERCEDEZ", steer_z=(0.8, 1.5),
+    eye_up=0.2,             # (the eye sits lower over the wheel than the sedans': the rim shows above the hands)
+    parts=[
+        (r"Engine_Geo|WindowInside_Geo", "drop"),
+        (r"Calliper", "caliper"),
+        (r"3DWheel", "wheel"),
+    ],
+    mats=[
+        (r"Paint_Material", {"c": "paint"}),
+        (r"Window_Material", {"c": "glass"}),
+        (r"^red_glass", {"c": "glass", "tail": True}),
+        (r"^orange_glass", {"c": "flat", "col": (0.95, 0.5, 0.1), "r": 0.2, "m": 0.0, "emit": (0.3, 0.15, 0.02)}),
+        (r"Base_Material", {"c": "flat", "col": BLACK_GLOSS, "r": 0.6, "m": 0.0, "w": 0.5}),
+        (r"Coloured_Material", {"c": "flat", "col": None, "r": 0.45, "m": 0.1, "w": 0.6}),
+        (r"Carbon1", {"c": "flat", "col": (0.03, 0.03, 0.035), "r": 0.25, "m": 0.1, "w": 0.6}),
+        (r"InteriorTilling", {"c": "flat", "col": None, "r": 0.7, "m": 0.0, "w": 0.4}),
+        (r"InteriorA", {"c": "tex", "r": 0.7, "m": 0.0, "w": 0.4}),
+        (r"LightA", {"c": "tex", "r": 0.2, "m": 0.2, "w": 0.7}),
+        (r"BadgeA", {"c": "drop"}),              # the lettering (AMG, V8 BITURBO, the star plates)
+        (r"Grille", {"c": "tex", "r": 0.5, "m": 0.1, "w": 0.6}),
+        (r"ManufacturerPlate", {"c": "tex", "r": 0.4, "m": 0.0, "plate": True}),
+        (r"Textured", {"c": "tex", "r": 0.45, "m": 0.1, "w": 0.6}),
+        (r"EngineA", {"c": "flat", "col": DARK, "r": 0.6, "m": 0.3, "w": 0.3}),
+        (r"CallipersCalliper_f45f82", {"c": "flat", "col": (0.85, 0.85, 0.85), "r": 0.4, "m": 0.0}),      # the "AMG" on it
+        (r"CallipersCalliper", {"c": "flat", "col": (0.62, 0.04, 0.04), "r": 0.35, "m": 0.1}),
+        (r"^calip_C2", {"c": "flat", "col": (0.2, 0.2, 0.21), "r": 0.4, "m": 0.5}),
+        (r"Wheel1A", {"c": "tex", "r": 0.45, "m": 0.45}),
+        (r"^material", {"c": "drop"}),
+    ],
+    steer=r"Interior_Geo",
+    emblems=[   # the modelled stars: grille, spare-wheel cover, steering wheel hub
+        {"at": (0.0, 2.205, 0.867), "dir": (0, 1, 0), "r": 0.11, "maker": "mercedez", "kill": (r"Coloured", 0.128), "probe": 0},
+        {"at": (-0.152, -2.51, 1.14), "dir": (0, -1, 0), "r": 0.056, "maker": "mercedez", "kill": (r"Coloured", 0.075)},
+        {"at": (-0.3915, 0.3, 1.274), "dir": (0, -0.926, 0.377), "r": 0.036, "maker": "mercedez", "chain": "Interior_Geo_emblem"},
+    ],
+    edits={
+        # the star (grille, wheel caps, spare-wheel cover), the "MERCEDES-BENZ" on the lamps, the Schoeckl
+        # plaque on the B-pillar, the AMG strips
+        "Image_5.png": [("emblem", 0.285, 0.715, 0.272, "mercedez", (30, 30, 30)), ("fill", 0.52, 0.4, 0.8, 1.0, (30, 30, 30))],
+        "Image_2.png": [("emblem", 0.115, 0.1, 0.105, "mercedez", (22, 22, 24)), ("fill", 0.0, 0.26, 0.135, 0.9, None)],
+        "Image_42.png": [("emblem", 0.133, 0.128, 0.118, "mercedez", (30, 30, 32))],
+        "Image_37.png": [("fill", 0.02, 0.465, 0.75, 0.555, (0.4, 0.57))],
+        "Image_40.png": [("fill", 0.0, 0.0, 1.0, 1.0, (36, 36, 38)), ("emblem", 0.5, 0.5, 0.36, "mercedez", (36, 36, 38))],
+        "Image_9.png": [("dim", 0.7, 0.45)],        # the colour palette's near-white (the mirror glass): a dull grey
+    },
+)
+
+ORDER = ["M4", "M2", "M5", "M8", "M3", "M3T", "G63"]
 
 # ============================================================================= helpers
 
@@ -587,9 +643,71 @@ def draw_roundel(size):
     return im.resize((size, size), Image.LANCZOS)
 
 
+def draw_emblem(size, kind):
+    """The parody makers' emblems, RGBA size x size (docs/BRANDS.md): MERCEDEZ BANZ a four-pointed star in a
+    ring, PORSHA a quartered shield, AUDY three linked rings (chrome on the badge's own background)."""
+    S = size * 4
+    im = Image.new("RGBA", (S, S), (0, 0, 0, 0))
+    d = ImageDraw.Draw(im)
+    c = S / 2
+    r = S / 2 - 2
+    chrome = (205, 207, 212, 255)
+    if kind == "mercedez":
+        w = max(3, int(S * 0.055))
+        d.ellipse((c - r, c - r, c + r, c + r), outline=chrome, width=w)
+        ri = r - w
+        for a in range(4):
+            t = math.radians(45 + a * 90)
+            tip = (c + math.cos(t) * ri, c + math.sin(t) * ri)
+            s1 = (c + math.cos(t + math.pi / 2) * S * 0.07, c + math.sin(t + math.pi / 2) * S * 0.07)
+            s2 = (c - math.cos(t + math.pi / 2) * S * 0.07, c - math.sin(t + math.pi / 2) * S * 0.07)
+            d.polygon([tip, s1, (c, c), s2], fill=chrome)
+    elif kind == "porsha":
+        def shield(k):
+            top, hw = c - r * 0.95 * k, r * 0.8 * k
+            return [(c - hw, top), (c + hw, top), (c + hw, c + r * 0.3 * k), (c, c + r * 0.95 * k), (c - hw, c + r * 0.3 * k)]
+        gold, red, blk = (205, 165, 60, 255), (175, 28, 26, 255), (22, 22, 24, 255)
+        d.polygon(shield(1.0), fill=gold)
+        q = Image.new("RGBA", (S, S), (0, 0, 0, 0))
+        qd = ImageDraw.Draw(q)
+        for (x0, y0, x1, y1), col in (((0, 0, c, c), blk), ((c, 0, S, c), red), ((0, c, c, S), red), ((c, c, S, S), blk)):
+            qd.rectangle((x0, y0, x1, y1), fill=col)
+        m = Image.new("L", (S, S), 0)
+        ImageDraw.Draw(m).polygon(shield(0.86), fill=255)
+        im.paste(q, (0, 0), m)
+        d.polygon(shield(0.4), fill=gold)
+        d.text((c, c - r * 0.04), "P", font=font(r * 0.42), fill=blk, anchor="mm")
+    elif kind == "audy":
+        w = max(3, int(S * 0.035))
+        rr = r * 0.36
+        for i in range(3):
+            x = c + (i - 1) * rr * 1.45
+            d.ellipse((x - rr, c - rr, x + rr, c + rr), outline=chrome, width=w)
+    else:
+        raise ValueError(kind)
+    return im.resize((size, size), Image.LANCZOS)
+
+
 def brand_edit(im, op):
     W, H = im.size
     kind = op[0]
+    if kind == "emblem":
+        # ("emblem", cx, cy, r, maker[, bg]): the old logo's disc painted over (bg: a colour, or None = the median of
+        # the disc's rim), the maker's emblem on top
+        _, cx, cy, r, maker = op[:5]
+        s = max(4, int(2 * r * W))
+        x, y = int(cx * W - s / 2), int(cy * H - s / 2)
+        bg = op[5] if len(op) > 5 else None
+        if bg is None:
+            a = np.asarray(im.crop((x, y, x + s, y + s)).convert("RGB"), dtype=np.float32)
+            edge = np.concatenate([a[0], a[-1], a[:, 0], a[:, -1]])
+            bg = tuple(int(v) for v in np.median(edge, axis=0))
+        base = Image.new("RGBA", (s, s), tuple(bg) + (255,))
+        base.alpha_composite(draw_emblem(s, maker))
+        mask = Image.new("L", (s, s), 0)
+        ImageDraw.Draw(mask).ellipse((0, 0, s - 1, s - 1), fill=255)
+        im.paste(base, (x, y), mask)
+        return im
     if kind == "roundel":
         _, cx, cy, r = op
         s = max(4, int(2 * r * W))
@@ -643,13 +761,13 @@ def brand_edit(im, op):
     raise ValueError(op)
 
 
-def plate_image(w=512, h=256):
-    """A BEMZE number plate: white, black border, BEMZE in the middle."""
+def plate_image(w=512, h=256, txt="BEMZE"):
+    """A number plate: white, black border, the maker (BEMZE ...) in the middle."""
     im = Image.new("RGBA", (w, h), (236, 236, 232, 255))
     d = ImageDraw.Draw(im)
     b = max(3, h // 22)
     d.rounded_rectangle((b, b, w - b, h - b), radius=h // 10, outline=(20, 20, 24, 255), width=b)
-    d.text((w / 2, h * 0.53), "BEMZE", font=font(h * 0.5), fill=(18, 18, 22, 255), anchor="mm")
+    d.text((w / 2, h * 0.53), txt, font=font(h * min(0.5, 2.5 / max(len(txt), 1))), fill=(18, 18, 22, 255), anchor="mm")
     d.rectangle((w * 0.1, h * 0.12, w * 0.9, h * 0.2), fill=(255, 115, 13, 255))
     return np.asarray(im, dtype=np.float32) / 255.0
 
@@ -872,6 +990,7 @@ class Car:
         path = os.path.join(SRC, self.cfg["fbx"])
         before = set(bpy.data.objects)
         mats_before = set(bpy.data.materials)
+        imgs_before = set(bpy.data.images)
         if path.endswith(".blend"):
             # a Blender scene: append its objects (materials and images come along)
             with bpy.data.libraries.load(path, link=False) as (src, dst):
@@ -880,9 +999,21 @@ class Car:
                 if o is not None and o.name not in bpy.context.scene.collection.objects:
                     bpy.context.scene.collection.objects.link(o)
             bpy.context.view_layer.update()
+        elif path.endswith(".glb"):
+            bpy.ops.import_scene.gltf(filepath=path)
         else:
             bpy.ops.import_scene.fbx(filepath=path, use_custom_normals=True)
         new = [o for o in bpy.data.objects if o not in before]
+        # a glTF packs its textures: write them out (by image name) where Textures looks for them
+        imgdir = os.path.join(TMP, "src_" + self.key)
+        self.tex.dirs.append(imgdir)
+        for im in bpy.data.images:
+            if path.endswith(".glb") and im.packed_file and im not in imgs_before:
+                os.makedirs(imgdir, exist_ok=True)
+                ext = ".jpg" if im.file_format == "JPEG" else ".png"
+                with open(os.path.join(imgdir, im.name + ext), "wb") as fh:
+                    fh.write(im.packed_file.data)
+                im["unpacked"] = im.name + ext
         for m in bpy.data.materials:
             if m in mats_before or m.name in self.mat_info or not m.use_nodes:
                 continue
@@ -892,7 +1023,7 @@ class Car:
                 info["base"] = tuple(b.inputs["Base Color"].default_value)
                 for l in b.inputs["Base Color"].links:
                     if l.from_node.type == "TEX_IMAGE" and l.from_node.image:
-                        info["diffuse"] = l.from_node.image.filepath
+                        info["diffuse"] = l.from_node.image.get("unpacked") or l.from_node.image.filepath
             self.mat_info[m.name] = info
         dg = bpy.context.evaluated_depsgraph_get()
         scale = self.cfg.get("scale", 1.0)
@@ -900,7 +1031,7 @@ class Car:
             # models at an arbitrary scale: size them to the real car's length
             ys = []
             for ob in new:
-                if ob.type == "MESH" and len(ob.data.polygons):
+                if ob.type == "MESH" and len(ob.data.polygons) and not ob.name.startswith("Icosphere"):
                     ys += [(ob.matrix_world @ Vector(b)).y for b in ob.bound_box]
             scale = self.cfg["fit_length"] / (max(ys) - min(ys))
             print("[%s] scale %.5f (fit to %.3f m)" % (self.key, scale, self.cfg["fit_length"]))
@@ -909,6 +1040,8 @@ class Car:
         for ob in new:
             if ob.type != "MESH" or len(ob.data.polygons) == 0:
                 continue
+            if ob.name.startswith("Icosphere") and not ob.material_slots:
+                continue            # the glTF importer's bone shape
             chain, o = [], ob
             while o:
                 chain.append(o.name)
@@ -934,6 +1067,8 @@ class Car:
 
     # ---------------------------------------------------------------- classify
     def mat_class(self, mname, obname=""):
+        if mname.startswith("RC_Emblem_"):
+            return {"c": "tex", "r": 0.25, "m": 0.6}
         for rx, c in self.cfg["mats"]:
             if re.search(rx, mname):
                 return c
@@ -1072,6 +1207,75 @@ class Car:
         self.parts = [o for o in self.parts if alive(o) and len(o.data.polygons)]
         print("[%s] claimed %d faces into the wheels / calipers" % (self.key, n_claim))
 
+    def add_emblems(self):
+        """Makers' emblems modelled as geometry (a star on the grille ...): the pieces of the `kill` material within
+        `kr` of `at` go, and a disc with the parody emblem goes on the surface found looking back along `dir` (the
+        way it faces) from `probe` m out. `chain` names the disc like the parts it sits on (the steering wheel's hub)."""
+        for i, e in enumerate(self.cfg.get("emblems", [])):
+            at, dr = Vector(e["at"]), Vector(e["dir"]).normalized()
+            n_kill = 0
+            if e.get("kill"):
+                rx, kr = e["kill"]
+                for ob in self.parts:
+                    me = ob.data
+                    names = [s.material.name if s.material else "" for s in ob.material_slots]
+                    V = verts_np(ob)
+                    gone = set()
+                    for faces in loose_parts(ob):
+                        mi = me.polygons[faces[0]].material_index
+                        if not re.search(rx, names[mi] if mi < len(names) else ""):
+                            continue
+                        vi = np.unique(np.concatenate([np.array(me.polygons[f].vertices) for f in faces]))
+                        if np.linalg.norm(V[vi] - np.array(at), axis=1).max() < kr:
+                            gone.update(faces)
+                    if gone:
+                        delete_faces(ob, lambda p, gone=gone: p.index not in gone)
+                        n_kill += len(gone)
+            hit = None
+            for ob in self.parts if e.get("probe", 0.05) > 0 else []:        # probe 0: right at `at`
+                if not len(ob.data.polygons):
+                    continue
+                bm = bmesh.new()
+                bm.from_mesh(ob.data)
+                h = BVHTree.FromBMesh(bm).ray_cast(at + dr * e.get("probe", 0.05), -dr, 0.5)
+                bm.free()
+                if h[0] is not None and (hit is None or h[3] < hit[1]):
+                    hit = (h[0], h[3])
+            c = (hit[0] if hit else at) + dr * 0.004
+            mname = "RC_Emblem_" + e["maker"]
+            if mname not in bpy.data.materials:
+                img = Image.new("RGBA", (256, 256), (16, 16, 18, 255))
+                img.alpha_composite(draw_emblem(256, e["maker"]))
+                os.makedirs(TMP, exist_ok=True)
+                img.convert("RGB").save(os.path.join(TMP, mname + ".png"))
+                bpy.data.materials.new(mname)
+            if TMP not in self.tex.dirs:
+                self.tex.dirs.append(TMP)
+            self.mat_info[mname] = {"diffuse": mname + ".png", "base": (1, 1, 1, 1)}
+            # the disc: a fan of 24, facing dr, the image's up = world up (or +y for a flat one)
+            up = Vector((0, 0, 1)) if abs(dr.z) < 0.9 else Vector((0, 1, 0))
+            ex = up.cross(dr).normalized()
+            ey = dr.cross(ex).normalized()
+            r = e["r"]
+            me = bpy.data.meshes.new("emblem%d" % i)
+            verts = [c] + [c + (ex * math.cos(a) + ey * math.sin(a)) * r for a in np.linspace(0, 2 * math.pi, 24, endpoint=False)]
+            me.from_pydata(verts, [], [(0, 1 + k, 1 + (k + 1) % 24) for k in range(24)])
+            uvl = me.uv_layers.new(name="UV0")
+            uvs = [(0.5, 0.5)] + [(0.5 + 0.5 * math.cos(a), 0.5 + 0.5 * math.sin(a)) for a in np.linspace(0, 2 * math.pi, 24, endpoint=False)]
+            for poly in me.polygons:
+                for li in poly.loop_indices:
+                    uvl.data[li].uv = uvs[me.loops[li].vertex_index]
+            me.materials.append(bpy.data.materials[mname])
+            ob = bpy.data.objects.new("emblem%d" % i, me)
+            link(ob)
+            ob["chain"] = e.get("chain", "emblem%d" % i)
+            ob["mats"] = mname
+            ob["role"] = "body"
+            ob["quad"] = ""
+            self.parts.append(ob)
+            print("[%s] emblem %s at %s: %d faces of the old badge gone, disc on %s" % (
+                self.key, e["maker"], gd(c), n_kill, "the surface" if hit else "the given point"))
+
     def fix_roundels(self):
         """Roundels modelled as geometry: blue quarters -> orange, the white letters round the ring -> black
         (white quarters stay)."""
@@ -1150,7 +1354,7 @@ class Car:
         hubs = {}
         for q in ("FL", "FR", "RL", "RR"):
             obs = [o for o in self.parts if o["role"] == "wheel" and o["quad"] == q]
-            tire = [o for o in obs if re.search(r"(?i)tire|3DWheel|Wheel_01", o["chain"] + o["mats"])] or obs
+            tire = [o for o in obs if re.search(self.cfg.get("tire", r"(?i)tire|3DWheel|Wheel_01"), o["chain"] + o["mats"])] or obs
             lo, hi = bounds(tire)
             wl, wh = bounds(obs)
             hubs[q] = dict(c=(lo + hi) / 2, r=(hi[2] - lo[2]) / 2, width=hi[0] - lo[0], lo=wl, hi=wh)
@@ -1182,6 +1386,7 @@ class Car:
             # fits in a ~0.23 m ball, makes a round ~0.36 m shape and is left / right symmetric about its middle
             # (rims often come in several pieces; stalks and the column shroud are not symmetric)
             pieces = []
+            zlo, zhi = self.cfg.get("steer_z", (0.55, 1.15))       # (tall SUVs sit higher)
             for ob in srcs:
                 me = ob.data
                 V = verts_np(ob)
@@ -1190,7 +1395,7 @@ class Car:
                     P = V[vi]
                     lo, hi = P.min(0), P.max(0)
                     c = (lo + hi) / 2
-                    if c[0] < -0.12 and -0.1 < c[1] < 0.9 and 0.55 < c[2] < 1.15 and (hi - lo).max() < 0.48:
+                    if c[0] < -0.12 and -0.1 < c[1] < 0.9 and zlo < c[2] < zhi and (hi - lo).max() < 0.48:
                         pieces.append((c, P, ob, faces))
             best = None
             for c0, _, _, _ in pieces:
@@ -1390,7 +1595,7 @@ class Car:
     # ---------------------------------------------------------------- materials, atlas, vertex colours
     def texture_for(self, mname, cls):
         if cls.get("plate"):
-            return plate_image()
+            return plate_image(txt=self.cfg.get("plate_txt", "BEMZE"))
         f = cls.get("tex") or self.mat_info.get(mname, {}).get("diffuse")
         return self.tex.get(f) if f else None
 
@@ -1646,7 +1851,7 @@ class Car:
         width = float(np.percentile(np.abs(V[V[:, 2] < 0.85, 0]), 99.95))
         hub = self.steer_hub
         # the driver's eyes: behind and above the wheel hub; then clear of the roof and the headrest
-        eye = Vector((hub.x, hub.y - 0.62, hub.z + 0.26))
+        eye = Vector((hub.x, hub.y - self.cfg.get("eye_back", 0.62), hub.z + self.cfg.get("eye_up", 0.26)))
         for _ in range(20):
             up = bvh.ray_cast(eye, Vector((0, 0, 1)), 1.0)
             if up[0] is not None and up[3] < 0.13:
@@ -1749,11 +1954,49 @@ def export(kit, refs):
     print("wrote", os.path.abspath(OUT), os.path.getsize(OUT) // 1024, "KB")
 
 
+def cache_paths(key):
+    return os.path.join(CACHE, key + ".blend"), os.path.join(CACHE, key + ".json")
+
+
+def cache_save(key, props, ref):
+    """The finished props of one car (+ its report) for later builds that don't touch it."""
+    os.makedirs(CACHE, exist_ok=True)
+    blend, js = cache_paths(key)
+    bpy.data.libraries.write(blend, set(props), fake_user=True)
+    with open(js, "w") as fh:
+        json.dump({"props": [o.name for o in props], "ref": ref}, fh)
+
+
+def cache_load(key):
+    blend, js = cache_paths(key)
+    with open(js) as fh:
+        meta = json.load(fh)
+    with bpy.data.libraries.load(blend, link=False) as (src, dst):
+        dst.objects = [n for n in src.objects if n in meta["props"]]
+    obs = []
+    for o in dst.objects:
+        link(o)
+        o.name = o.data.name = next(n for n in meta["props"] if o.name.startswith(n) and o.name[len(n):len(n) + 1] in ("", "."))
+        for i, m in enumerate(o.data.materials):
+            base = re.sub(r"\.\d+$", "", m.name) if m else ""
+            if base in BMATS and m is not BMATS[base]:
+                o.data.materials[i] = BMATS[base]          # the kit's shared CarPaint / RC_Glass
+            elif m and base != m.name:
+                m.name = base
+        obs.append(o)
+    obs.sort(key=lambda o: meta["props"].index(o.name))
+    print("[%s] from the cache: %s" % (key, ", ".join(o.name for o in obs)))
+    return obs, meta["ref"]
+
+
 def main():
     argv = sys.argv[1:]
     only = ORDER
     if "--only" in argv:
         only = argv[argv.index("--only") + 1].split(",")
+    # REALCARS_CACHE: reuse each car's finished props from an earlier build, except the cars named by
+    # --rebuild (comma list, or "all"); the rebuilt ones are cached again
+    rebuild = argv[argv.index("--rebuild") + 1].split(",") if "--rebuild" in argv else []
     if not SRC or not os.path.isdir(SRC):
         sys.exit("set REALCARS_SRC to the folder holding the unpacked source models")
     reset()
@@ -1761,11 +2004,17 @@ def main():
     bl_mat("RC_Glass", glass=True)
     kit, refs = [], {}
     for key in [k for k in ORDER if k in only]:
+        if CACHE and key not in rebuild and "all" not in rebuild and all(os.path.exists(p) for p in cache_paths(key)):
+            obs, ref = cache_load(key)
+            kit += obs
+            refs["RC_%s" % key] = ref
+            continue
         car = Car(key)
         car.load()
         car.classify()
         car.normalise()
         car.claim_wheel_parts()
+        car.add_emblems()
         car.fix_roundels()
         car.plate_uvs()
         car.cut_steering_wheel()
@@ -1776,6 +2025,8 @@ def main():
         car.bake_materials(wheels, WHEEL_ATLAS, "RC_%s_Wheel" % key)
         refs["RC_%s" % key] = car.refs()
         kit += list(car.props.values())
+        if CACHE:
+            cache_save(key, list(car.props.values()), refs["RC_%s" % key])
         # the next car starts from a clean scene of its own (keep the finished props)
         for o in list(bpy.data.objects):
             if o not in kit:
