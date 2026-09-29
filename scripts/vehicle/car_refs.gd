@@ -92,6 +92,14 @@ const MODELS := {
 		"box": Vector3(1.967, 1.394, 5.093), "box_center": Vector3(0.0, 0.8328, 0.1118), "door": Vector3(-0.984, 0.86, 0.315),
 		"wheel_prop": "RC_M5_Wheel", "caliper_prop": "RC_M5_Caliper", "steer_prop": "RC_M5_Steer",
 		"kit": true, "tail_mat": true},
+	"RC_M8": {
+		"wheelbase": 2.8337, "wheel_r": 0.3514,
+		"wheels": {"FL": Vector3(-0.8031, 0.3514, -1.419), "FR": Vector3(0.8031, 0.3526, -1.4148), "RL": Vector3(-0.8031, 0.3514, 1.419), "RR": Vector3(0.8031, 0.3526, 1.4148)},
+		"eye": Vector3(-0.4044, 1.1437, 0.2962), "wheel_hub": Vector3(-0.4044, 0.8837, -0.1938), "column_tilt": -0.3651,
+		"head": [Vector3(-0.7277, 0.6515, -2.0031), Vector3(0.7131, 0.6515, -2.0031)], "tail": [Vector3(-0.6405, 0.8407, 2.1671), Vector3(0.6809, 0.877, 2.151)],
+		"box": Vector3(1.923, 1.23, 4.882), "box_center": Vector3(-0.0073, 0.7651, 0.0623), "door": Vector3(-0.961, 0.86, 0.396),
+		"wheel_prop": "RC_M8_Wheel", "caliper_prop": "RC_M8_Caliper", "steer_prop": "RC_M8_Steer",
+		"kit": true, "tail_mat": true},
 }
 
 
