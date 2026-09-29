@@ -24,6 +24,7 @@ var key := "beater"
 var owner_peer := 0
 var paint := Color(0.5, 0.5, 0.52)
 var simulate := false        # this machine drives it (physics); otherwise it follows the network
+var preview := false         # showroom turntable: just the model (no sound, no collision)
 # driver inputs, set every physics frame by whoever drives
 var in_throttle := 0.0
 var in_brake := 0.0
@@ -58,6 +59,13 @@ func setup(car_key: String, peer: int, color = null) -> void:
 
 func _ready() -> void:
 	ref = CarRefs.get_ref(Rules.CARS[key].model)
+	if preview:
+		model = Node3D.new()
+		model.name = "Model"
+		add_child(model)
+		_build_body()
+		_build_wheels()
+		return
 	floor_snap_length = 0.6
 	floor_max_angle = deg_to_rad(40.0)
 	floor_constant_speed = true
@@ -222,6 +230,8 @@ func _glow_quad(size: Vector2, c: Color) -> MeshInstance3D:
 # ---------------------------------------------------------------- driving
 
 func _physics_process(dt: float) -> void:
+	if preview:
+		return
 	if simulate:
 		_drive(dt)
 	elif _has_net:

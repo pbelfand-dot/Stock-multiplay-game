@@ -5,6 +5,7 @@ extends PanelContainer
 
 const UI = preload("res://scripts/ui/ui_theme.gd")
 const Rules = preload("res://scripts/sim/rules.gd")
+const CarScript = preload("res://scripts/vehicle/car.gd")
 
 signal closed
 
@@ -14,6 +15,11 @@ var match_node
 var list: VBoxContainer
 var paint := {}                  # car key -> chosen PAINTS index (for the next BUY / respray)
 var cash_lbl: Label
+var selected := "bz_m3"          # the car on the turntable
+var stage: SubViewport
+var turntable: Node3D
+var _shown := ""                 # key + paint currently on the turntable
+var view_lbl: Label
 
 
 func setup(m) -> void:
@@ -23,7 +29,7 @@ func setup(m) -> void:
 
 func _ready() -> void:
 	add_theme_stylebox_override("panel", UI.panel_box(Color(0.07, 0.08, 0.1), BEMZE_BLUE, 16, 6))
-	UI.center(self, Vector2(1100, 780))
+	UI.center(self, Vector2(1100, 860))
 	var v := VBoxContainer.new()
 	v.add_theme_constant_override("separation", 8)
 	add_child(v)
@@ -36,8 +42,22 @@ func _ready() -> void:
 	head.add_child(sub)
 	cash_lbl = UI.lbl("", 22, UI.GOLD, true)
 	head.add_child(cash_lbl)
+	# the turntable: the selected car, spinning, in its chosen color
+	var sv := SubViewportContainer.new()
+	sv.custom_minimum_size = Vector2(1060, 300)
+	sv.stretch = true
+	v.add_child(sv)
+	stage = SubViewport.new()
+	stage.own_world_3d = true
+	stage.transparent_bg = false
+	stage.msaa_3d = Viewport.MSAA_4X
+	sv.add_child(stage)
+	_build_stage()
+	view_lbl = UI.lbl("", 20, UI.TEXT, true)
+	view_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	v.add_child(view_lbl)
 	var scroll := ScrollContainer.new()
-	scroll.custom_minimum_size = Vector2(1060, 640)
+	scroll.custom_minimum_size = Vector2(1060, 400)
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	v.add_child(scroll)
 	list = VBoxContainer.new()
@@ -50,9 +70,86 @@ func _ready() -> void:
 	_refresh()
 
 
+func _build_stage() -> void:
+	var env := WorldEnvironment.new()
+	var e := Environment.new()
+	e.background_mode = Environment.BG_COLOR
+	e.background_color = Color(0.06, 0.07, 0.09)
+	e.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+	e.ambient_light_color = Color(0.55, 0.6, 0.7)
+	e.ambient_light_energy = 0.6
+	env.environment = e
+	stage.add_child(env)
+	var key := DirectionalLight3D.new()
+	key.rotation = Vector3(-0.8, 0.6, 0)
+	key.light_energy = 1.3
+	stage.add_child(key)
+	var rim := DirectionalLight3D.new()
+	rim.rotation = Vector3(-0.3, 2.8, 0)
+	rim.light_energy = 0.7
+	rim.light_color = Color(0.7, 0.8, 1.0)
+	stage.add_child(rim)
+	var floor := MeshInstance3D.new()
+	var cyl := CylinderMesh.new()
+	cyl.top_radius = 3.4
+	cyl.bottom_radius = 3.5
+	cyl.height = 0.12
+	floor.mesh = cyl
+	var fm := StandardMaterial3D.new()
+	fm.albedo_color = Color(0.13, 0.14, 0.17)
+	fm.roughness = 0.25
+	fm.metallic_specular = 0.9
+	floor.material_override = fm
+	floor.position.y = -0.06
+	stage.add_child(floor)
+	var ring := MeshInstance3D.new()
+	var tm := TorusMesh.new()
+	tm.inner_radius = 3.42
+	tm.outer_radius = 3.5
+	ring.mesh = tm
+	var rm := StandardMaterial3D.new()
+	rm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	rm.albedo_color = BEMZE_BLUE
+	ring.material_override = rm
+	stage.add_child(ring)
+	turntable = Node3D.new()
+	stage.add_child(turntable)
+	var cam := Camera3D.new()
+	cam.position = Vector3(4.6, 1.9, 5.2)
+	cam.fov = 38
+	stage.add_child(cam)
+	cam.look_at(Vector3(0, 0.55, 0))
+	cam.current = true
+
+
+func _process(delta: float) -> void:
+	if visible and turntable:
+		turntable.rotation.y += delta * 0.35
+
+
+func _show_car() -> void:
+	var me := Net.my_id()
+	var pi: int = paint.get(selected, -1)
+	var col: Color = Rules.PAINTS[pi][1] if pi >= 0 else match_node.paint_of(me, selected)
+	var sig := "%s|%s" % [selected, col.to_html()]
+	var d: Dictionary = Rules.CARS[selected]
+	view_lbl.text = "%s   ·   %d MPH   ·   0-60 %.1f s   ·   %s" % [d.name, int(d.top * 2.237), d.zero60,
+			Rules.PAINTS[pi][0] if pi >= 0 else ("your color" if match_node.owns_car(me, selected) else "pick a color")]
+	if sig == _shown:
+		return
+	_shown = sig
+	for c in turntable.get_children():
+		c.queue_free()
+	var car = CarScript.new()
+	car.preview = true
+	car.setup(selected, me, col)
+	turntable.add_child(car)
+
+
 func _refresh() -> void:
 	if list == null or match_node == null or not is_inside_tree():
 		return
+	_show_car()
 	for c in list.get_children():
 		c.queue_free()
 	var me := Net.my_id()
@@ -83,7 +180,18 @@ func _refresh() -> void:
 		info.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		h.add_child(info)
 		var title := "%s%s" % [d.name, "   · YOU DRIVE THIS" if key == driving else ("   · OWNED" if own else "")]
-		info.add_child(UI.lbl(title, 24, UI.TEXT, true))
+		var tb := Button.new()
+		tb.flat = true
+		tb.text = title
+		tb.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		tb.add_theme_font_size_override("font_size", 24)
+		tb.add_theme_color_override("font_color", BEMZE_BLUE.lightened(0.4) if key == selected else UI.TEXT)
+		var kk: String = key
+		tb.pressed.connect(func():
+			selected = kk
+			Sfx.play("click")
+			_refresh())
+		info.add_child(tb)
 		info.add_child(UI.lbl(d.desc, 15, UI.DIM))
 		var stats := HBoxContainer.new()
 		stats.add_theme_constant_override("separation", 16)
@@ -109,6 +217,7 @@ func _refresh() -> void:
 				var idx := i
 				cb.pressed.connect(func():
 					paint[k] = idx
+					selected = k
 					Sfx.play("click")
 					_refresh())
 				colors.add_child(cb)
