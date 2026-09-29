@@ -238,11 +238,19 @@ func _run() -> void:
 		hud.rank_banner.modulate.a = 0.0
 		await _frames(2)
 		await _snap("dl_showroom")
-		for key in ["bz_m4", "bz_m2", "bz_m5", "bz_m8"]:     # each real model on the turntable
+		for key in ["bz_m4", "bz_m2", "bz_m5", "bz_m8", "bz_m3", "bz_m3t"]:     # each real model on the turntable
 			hud.dealer.selected = key
 			hud.dealer._refresh()
 			await get_tree().create_timer(0.6).timeout
 			await _snap("dl_" + key)
+		# the Touring is in the lineup and can be bought (in a factory colour), then it's the one you drive
+		m.request_buy_car("bz_m3t", 2)
+		await get_tree().create_timer(0.6).timeout
+		print("[dealer] bz_m3t listed: %s, bought: %s, driving: %s" % [Rules.CAR_ORDER.has("bz_m3t"), m.owns_car(1, "bz_m3t"), m.car_of(1)])
+		hud.dealer.selected = "bz_m3t"
+		hud.dealer._refresh()
+		await get_tree().create_timer(0.6).timeout
+		await _snap("dl_bz_m3t_bought")
 		Sfx.quit_game()
 		return
 	if Config.cli.has("carcloseonly"):         # one car parked in the street: close static views in the game's light

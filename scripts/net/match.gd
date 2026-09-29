@@ -462,7 +462,7 @@ func car_of(peer: int) -> String:
 	if ride >= 0 and ride < Rules.CAR_ORDER.size() and owns_car(peer, Rules.CAR_ORDER[ride]):
 		return Rules.CAR_ORDER[ride]
 	var best := ""
-	for k in Rules.CAR_ORDER:
+	for k in Rules.SHOW_ORDER:          # cheapest to priciest: the last one owned wins
 		if owns_car(peer, k):
 			best = k
 	return best

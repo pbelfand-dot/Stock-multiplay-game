@@ -162,7 +162,7 @@ func _refresh() -> void:
 	var fastest := 0.0
 	for k in Rules.CARS:
 		fastest = maxf(fastest, Rules.CARS[k].top)
-	for key in Rules.CAR_ORDER:
+	for key in Rules.SHOW_ORDER:
 		var d: Dictionary = Rules.CARS[key]
 		var own: bool = match_node.owns_car(me, key)
 		var row := PanelContainer.new()

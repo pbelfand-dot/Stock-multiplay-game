@@ -831,7 +831,7 @@ func _tick_rides() -> void:
 	var m = world.match_node
 	var me := Net.my_id()
 	var driving: String = m.car_of(me)
-	var owned: Array = Rules.CAR_ORDER.filter(func(k): return m.owns_car(me, k))
+	var owned: Array = Rules.SHOW_ORDER.filter(func(k): return m.owns_car(me, k))
 	var sig := "%s|%s|%s" % [driving, str(owned), m.phase]
 	if sig == _sig:
 		return

@@ -79,9 +79,9 @@ func build(lot: Vector3) -> Node3D:
 	if PropKit.has("Dealer_KeyBox"):
 		PropKit.place("Dealer_KeyBox", root, at.call(Vector3(-10.0, 1.4, -8.68)), rot)
 	# the row out front, facing the road
-	var row := ["bz_m3", "bz_m2", "bz_540i"]
+	var row := ["bz_m3", "bz_m3t", "bz_m2", "bz_540i"]
 	for k in row.size():
-		var p: Vector3 = lot + Vector3(-18.0, 0, -12.0 + k * 12.0)
+		var p: Vector3 = lot + Vector3(-18.0, 0, -15.0 + k * 10.0)
 		_display(row[k], root, p, PI / 2 + 0.35, true)
 	# pylon at the entrance, lights on the corners, flags along the road
 	if PropKit.has("Dealer_Pylon"):
