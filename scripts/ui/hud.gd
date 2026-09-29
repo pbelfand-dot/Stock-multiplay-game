@@ -650,6 +650,7 @@ func _tick_speedo() -> void:
 
 func _process(delta: float) -> void:
 	_tick_speedo()
+	_tick_sleep(delta)
 	_tick_pursuit()
 	var want_mouse := is_modal_open()
 	if not DisplayServer.get_name() == "headless":
@@ -751,9 +752,13 @@ func _on_state() -> void:
 		"lobby":
 			day_lbl.text = "LOBBY · %s" % ("CO-OP" if coop else "PVP")
 			phase_lbl.text = _ready_line("the opening bell") + "   ·   Walk up to a desk and press E"
+		"morning":
+			day_lbl.text = "DAY %d · MORNING" % (match_node.day + 1)
+			phase_lbl.text = ("MADE IT. The bell rings soon." if match_node.arrived.has(me)
+					else "COMMUTE: get to BAGHOLDER CAPITAL downtown before the bell")
 		"trading":
 			day_lbl.text = "DAY %d" % match_node.day
-			phase_lbl.text = ""
+			phase_lbl.text = "YOU'RE LATE: the market's open without you. Get to the office." if match_node.is_late(me) else ""
 		"intermission":
 			day_lbl.text = "AFTER HOURS"
 			phase_lbl.text = "Market closed. " + _ready_line("day %d" % (match_node.day + 1)) \
@@ -783,6 +788,8 @@ func _on_tick() -> void:
 	_check_margin_calls()
 	var t: float = maxf(match_node.time_left, 0.0)
 	time_lbl.text = "%d:%02d" % [int(t) / 60, int(t) % 60]
+	if match_node.phase == "morning" and not match_node.arrived.has(Net.my_id()) and world:
+		time_lbl.text = "BELL %d:%02d · OFFICE %d m" % [int(t) / 60, int(t) % 60, int(world.office_distance())]
 	crt.set_time(t, t < 30 and match_node.phase == "trading")
 	time_lbl.add_theme_color_override("font_color", UI.RED if t < 30 and match_node.phase == "trading" else UI.TEXT)
 	var acct_id: int = match_node.acct_for(Net.my_id())
@@ -952,7 +959,43 @@ func _check_margin_calls() -> void:
 
 ## True while you're busy in the restroom (World blocks movement).
 func busy() -> bool:
-	return relief_t > 0.0
+	return relief_t > 0.0 or _asleep > 0.0
+
+
+## Overslept: black screen, the clock running without you, then the alarm.
+var _asleep := 0.0
+var _sleep_panel: ColorRect
+var _sleep_lbl: Label
+
+
+func oversleep(secs: float) -> void:
+	_asleep = secs
+	if _sleep_panel == null:
+		_sleep_panel = ColorRect.new()
+		_sleep_panel.color = Color(0.01, 0.01, 0.02)
+		_sleep_panel.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		_sleep_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		root.add_child(_sleep_panel)
+		_sleep_lbl = UI.lbl("", 40, Color(1, 0.35, 0.3), true)
+		_sleep_lbl.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		_sleep_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		_sleep_lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		_sleep_panel.add_child(_sleep_lbl)
+	_sleep_panel.visible = true
+	_sleep_panel.modulate.a = 1.0
+
+
+func _tick_sleep(delta: float) -> void:
+	if _asleep <= 0.0:
+		return
+	_asleep -= delta
+	var z := "z" if fmod(Time.get_ticks_msec() / 400.0, 3.0) < 1.0 else ("zZ" if fmod(Time.get_ticks_msec() / 400.0, 3.0) < 2.0 else "zZz")
+	_sleep_lbl.text = "%s\n\nthe alarm didn't go off\n\nthe bell rings in %d:%02d" % [z, int(match_node.time_left) / 60, int(match_node.time_left) % 60]
+	if _asleep <= 0.0:
+		_sleep_panel.visible = false
+		Sfx.play("bell", 0.0, 2.2)
+		Sfx.play("siren", -12.0, 1.6)
+		show_toast("YOU OVERSLEPT. %d:%02d TO THE BELL. CUT UP." % [int(match_node.time_left) / 60, int(match_node.time_left) % 60], Color(1, 0.3, 0.3))
 
 
 func _update_pressure_fx(delta: float) -> void:

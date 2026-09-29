@@ -44,7 +44,8 @@ signal milestone(amount: float, xp: float)
 signal saved(info: Dictionary)
 signal cash_moved(peer: int, withdrawn: float, total: float)
 signal shot(peer: int, hit: Vector3)
-signal pursuit_changed(peer: int, stage: String)   # "start" / "lost" / "busted"     # someone fired (hit = where the round landed)
+signal pursuit_changed(peer: int, stage: String)   # "start" / "lost" / "busted"
+signal morning(late_by: Dictionary)                 # everyone wakes up at home     # someone fired (hit = where the round landed)
 
 # ---------------- mirrored state (all peers) ----------------
 var phase := "lobby"            # lobby | trading | intermission | gameover
@@ -75,6 +76,8 @@ var milestones := 0             # co-op: how many fund milestones this run has h
 var wallet := {}                # peer -> cash on hand (out of the ATM), counts toward the quota
 var spreads := {}               # peer -> {pos, yaw, amount}: cash laid out for the photo
 var drawn := {}                 # peer -> gun key they're holding out (BIG IRON)
+var late := {}                  # this morning: peer -> seconds they overslept
+var arrived := {}               # this morning: peer -> seconds late when they got to the office (0 = on time)
 var _last_shot := {}            # server: peer -> time of their last shot (rate + "called in")
 var ready_up := {}                 # peer -> true: pressed ENTER, waiting for the bell (lobby / after hours)
 
@@ -277,7 +280,74 @@ func _ring_bell() -> void:
 	if phase == "lobby":
 		_start_run()
 	elif phase == "intermission":
+		_to_morning()
+
+
+# ---------------- the commute ----------------
+
+## Seconds between waking up and the opening bell (0 = no commute: tests,
+## or a world without the neighborhood).
+func commute_seconds() -> float:
+	if Config.cli.has("commute"):
+		return float(Config.cli.commute)
+	if Config.cli.has("autostart") or world == null or world.get("hood") == null:
+		return 0.0
+	return Rules.COMMUTE_S
+
+
+## Everyone wakes up at home; the bell rings when the commute's up.
+func _to_morning() -> void:
+	var secs := commute_seconds()
+	if secs <= 0.0:
 		_start_day()
+		return
+	phase = "morning"
+	time_left = secs
+	late.clear()
+	arrived.clear()
+	for id in Net.players:
+		var chance := Rules.LATE_CHANCE + (Rules.LATE_BP_BONUS if pressure_of(id) > 60.0 else 0.0)
+		if day >= 1 and rng.randf() < chance:
+			late[id] = minf(Rules.LATE_SLEEP, secs * 0.6)
+		if Config.cli.has("oversleep"):
+			late[id] = float(Config.cli.oversleep)
+	_s_morning.rpc(late)
+	_s_toast.rpc("Morning. The opening bell rings in %d:%02d. Get to BAGHOLDER CAPITAL." % [int(secs) / 60, int(secs) % 60])
+	_push_state()
+
+
+@rpc("authority", "call_local", "reliable")
+func _s_morning(late_by: Dictionary) -> void:
+	late = late_by
+	arrived.clear()
+	morning.emit(late_by)
+
+
+## Made it up the elevator to the trading floor.
+func request_arrived() -> void:
+	_req_arrived.rpc_id(1)
+
+
+@rpc("any_peer", "call_local", "reliable")
+func _req_arrived() -> void:
+	if not Net.is_server():
+		return
+	var id := _sender()
+	if arrived.has(id) or not (phase == "morning" or phase == "trading"):
+		return
+	if phase == "morning":
+		arrived[id] = 0.0
+		if Net.players.size() > 1:
+			_s_toast.rpc("%s made it in with %d:%02d to spare." % [Net.player_name(id), int(time_left) / 60, int(time_left) % 60])
+	else:
+		var by := _day_len - time_left
+		arrived[id] = by
+		_s_toast.rpc("%s strolled in %d:%02d LATE." % [Net.player_name(id), int(by) / 60, int(by) % 60])
+	_push_state()
+
+
+func is_late(peer: int) -> bool:
+	return phase == "trading" and not late.is_empty() and not arrived.has(peer) and commute_seconds() > 0.0
 
 
 # ---------------- cash on hand (ATM, spreads) ----------------
@@ -1077,6 +1147,15 @@ func _server_step(dt: float) -> void:
 			_s_released.rpc(id)
 			_dirty = true
 
+	if phase == "morning":
+		time_left -= dt
+		if time_left <= 0.0:
+			var missing: Array = []
+			for id in Net.players:
+				if not arrived.has(id):
+					missing.append(Net.player_name(id))
+			_s_toast.rpc("DING DING DING. THE MARKET IS OPEN." + ("" if missing.is_empty() else "  LATE: " + ", ".join(missing)))
+			_start_day()
 	if phase == "trading":
 		time_left -= dt
 		_step_shocks(dt)
@@ -1336,10 +1415,10 @@ func _start_run() -> void:
 		_reset_run()
 		day = 0
 		next_event = _roll_day_event(1)
-		_s_toast.rpc("DING DING DING. THE MARKET IS OPEN.")
+		_s_toast.rpc("Day 1. Rise and grind." if commute_seconds() > 0.0 else "DING DING DING. THE MARKET IS OPEN.")
 	else:   # a loaded run picks up the morning after its last closing bell
-		_s_toast.rpc("DING DING DING. Day %d — the fund is back in business." % (day + 1))
-	_start_day()
+		_s_toast.rpc("Day %d — the fund is back in business." % (day + 1))
+	_to_morning()
 
 
 # ---------------- save games ----------------
@@ -1737,7 +1816,7 @@ func _push_state() -> void:
 		"accounts": accounts, "heat": heat, "jail": jail, "inventory": inventory, "owned": owned, "careers": careers,
 		"effects": effects, "stats": stats, "raid": raid, "day_event": day_event, "next_event": next_event,
 		"event_at": event_at, "halt": halt, "contracts": contracts, "milestones": milestones, "ready": ready_up,
-		"wallet": wallet, "spreads": spreads, "drawn": drawn})
+		"wallet": wallet, "spreads": spreads, "drawn": drawn, "late": late, "arrived": arrived})
 
 
 # ======================================================================
@@ -1769,6 +1848,8 @@ func _s_state(s: Dictionary) -> void:
 	wallet = s.get("wallet", {})
 	spreads = s.get("spreads", {})
 	drawn = s.get("drawn", {})
+	late = s.get("late", {})
+	arrived = s.get("arrived", {})
 	state_changed.emit()
 
 

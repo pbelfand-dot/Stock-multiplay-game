@@ -5,7 +5,11 @@ extends Node
 
 var car
 var target: Node3D               # the car we're chasing
-var mode := "pursue"
+var mode := "pursue"             # "pursue" a target / "path": drive along `path`
+var path := PackedVector3Array() # "path" mode: the road to follow (points ~5-10 m apart)
+var cruise := 30.0               # "path" mode: speed on the straights (m/s)
+var _pi := 0                     # nearest path point so far
+var done := false                # "path" mode: reached the end
 var _stuck := 0.0
 var _reverse := 0.0
 var _rev_steer := 0.0
@@ -37,7 +41,12 @@ func _ray(dir: Vector3) -> RayCast3D:
 
 
 func _physics_process(dt: float) -> void:
-	if car == null or not car.simulate or target == null or not is_instance_valid(target):
+	if car == null or not car.simulate:
+		return
+	if mode == "path":
+		_follow(dt)
+		return
+	if target == null or not is_instance_valid(target):
 		return
 	var sp: float = car.speed
 	# stuck against something: back out, then have another go
@@ -114,3 +123,88 @@ func _line_of_sight() -> Dictionary:
 	var q := PhysicsRayQueryParameters3D.create(from, to)
 	q.exclude = [car.get_rid(), (target as CollisionObject3D).get_rid()] if target is CollisionObject3D else [car.get_rid()]
 	return car.get_world_3d().direct_space_state.intersect_ray(q)
+
+
+## Pure pursuit down `path`: steer at a point a speed-scaled distance ahead on
+## the road, slow for the bends coming up (sharper = slower), same stuck
+## recovery as the chase.
+func _follow(dt: float) -> void:
+	if path.size() < 2 or done:
+		car.in_throttle = 0.0
+		car.in_brake = 1.0
+		return
+	var pos: Vector3 = car.global_position
+	var sp: float = car.speed
+	if _reverse > 0.0:
+		_reverse -= dt
+		car.in_throttle = 0.0
+		car.in_brake = 1.0
+		car.in_steer = _rev_steer
+		return
+	_stuck = _stuck + dt if absf(sp) < 1.0 and car.in_throttle > 0.5 else maxf(_stuck - dt, 0.0)
+	if _stuck > 1.5:
+		_stuck = 0.0
+		_reverse = 1.2
+		_rev_steer = -signf(car.in_steer) if absf(car.in_steer) > 0.1 else 1.0
+		return
+	# nearest point (only ever forward, within a window)
+	var best := _pi
+	var bd := INF
+	for i in range(_pi, mini(_pi + 40, path.size())):
+		var d := _flat(path[i] - pos).length()
+		if d < bd:
+			bd = d
+			best = i
+	_pi = best
+	if _pi >= path.size() - 2 and bd < 8.0:
+		done = true
+		return
+	# the lookahead point
+	var look := clampf(absf(sp) * 0.75, 7.0, 30.0)
+	var aim: Vector3 = path[path.size() - 1]
+	var acc := 0.0
+	for i in range(_pi, path.size() - 1):
+		acc += _flat(path[i + 1] - path[i]).length()
+		if acc >= look:
+			aim = path[i + 1]
+			break
+	var local: Vector3 = car.to_local(Vector3(aim.x, pos.y, aim.z))
+	var ang := atan2(-local.x, -local.z)
+	var steer := clampf(-ang * 1.8, -1.0, 1.0)
+	# how hard does the road turn in the next ~45 m?
+	var turn := 0.0
+	acc = 0.0
+	var prev := _flat(path[mini(_pi + 1, path.size() - 1)] - path[_pi])
+	for i in range(_pi + 1, path.size() - 1):
+		var seg := _flat(path[i + 1] - path[i])
+		if seg.length() < 0.01:
+			continue
+		if prev.length() > 0.01:
+			turn = maxf(turn, absf(prev.signed_angle_to(seg, Vector3.UP)) / maxf(seg.length(), 1.0))   # rad per metre
+		prev = seg
+		acc += seg.length()
+		if acc > 45.0:
+			break
+	var grip: float = car.stats().grip
+	var want := cruise
+	if turn > 0.0005:
+		want = minf(want, sqrt(grip * 9.8 * 0.8 / turn))    # v = sqrt(a / curvature)
+	want = maxf(want, 6.0)
+	if _ray_c.is_colliding():
+		var hit := (_ray_c.get_collision_point() - _ray_c.global_position).length()
+		want = minf(want, maxf(hit * 1.2, 4.0))
+	car.in_steer = steer
+	car.in_handbrake = false
+	if sp < want - 0.5:
+		car.in_throttle = 1.0
+		car.in_brake = 0.0
+	elif sp > want + 1.5:
+		car.in_throttle = 0.0
+		car.in_brake = clampf((sp - want) / 6.0, 0.2, 1.0)
+	else:
+		car.in_throttle = 0.35
+		car.in_brake = 0.0
+
+
+func _flat(v: Vector3) -> Vector3:
+	return Vector3(v.x, 0.0, v.z)

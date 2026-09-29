@@ -81,6 +81,7 @@ func _ready() -> void:
 	_build_atms()
 	match_node.cash_moved.connect(_on_cash_moved)
 	match_node.shot.connect(_on_shot)
+	match_node.morning.connect(_on_morning)
 	cars_node = Node3D.new()
 	cars_node.name = "Cars"
 	add_child(cars_node)
@@ -165,12 +166,83 @@ func go_to_street() -> void:
 				Color(0.95, 0.9, 0.6))
 
 
+# ---------------------------------------------------------------- the commute
+
+## Where `peer` wakes up and where their car's parked: their house, or (no
+## house yet) an unsold listing they rent until they buy one.
+func home_of(peer: int) -> Dictionary:
+	if hood == null:
+		return {}
+	var hb = builder.hood
+	var id: String = match_node.house_of(peer)
+	var rented := false
+	if id == "":
+		var free: Array = []
+		for hid in Rules.HOUSES:
+			if match_node.house_owner(hid) == 0:
+				free.append(hid)
+		free.sort()
+		var renters: Array = Net.players.keys().filter(func(p): return match_node.house_of(p) == "")
+		renters.sort()
+		var i := renters.find(peer)
+		if free.is_empty() or i < 0:
+			return {}
+		id = free[i % free.size()]
+		rented = true
+	var h: Dictionary = hb.houses[hb.buyable[id]]
+	return {"id": id, "spawn": h.spawn, "yaw": h.spawn_yaw, "drive": h.drive, "drive_yaw": h.drive_yaw,
+			"address": h.address, "rented": rented}
+
+
+## The alarm: wake up at home, your car's in the driveway, the clock's running.
+func _on_morning(late_by: Dictionary) -> void:
+	var me := Net.my_id()
+	if local_player == null:
+		return
+	local_player.exit_car(true)
+	var home := home_of(me)
+	if home.is_empty():
+		return
+	local_player.teleport(home.spawn)
+	local_player.rotation.y = home.yaw
+	spawn_car(me, match_node.car_of(me), home.drive + Vector3(0, 0.25, 0), home.drive_yaw)
+	if home.rented:
+		hud.show_toast("You rent the place at %s. Buy a house from a FOR SALE sign and it's yours." % home.address, Color(0.9, 0.85, 0.6))
+	if late_by.has(me):
+		hud.oversleep(float(late_by[me]))
+	else:
+		Sfx.play("bell", -10.0, 1.8)
+
+
+## How far the office (the BAGHOLDER CAPITAL lobby) is from us.
+func office_distance() -> float:
+	var me = local_player.driving if local_player and local_player.driving else local_player
+	return me.global_position.distance_to(builder.street.lobby_exit) if me else 0.0
+
+
 # ---------------------------------------------------------------- cars
 
 ## Put `peer`'s car (a Rules.CARS key) in the world. Ours we drive; theirs
 ## follow the network (and still block us).
+func traffic():
+	var hb = builder.get("hood") if builder else null
+	return hb.traffic if hb != null and hb.get("traffic") != null else null
+
+
+## Traffic brakes for (and swerves round) our cars and the cops'.
+func track_car(c, on: bool) -> void:
+	var tr = traffic()
+	if tr == null or c == null:
+		return
+	if on:
+		tr.register_obstacle(c, c.ref.box.z, c.ref.box.x)
+	else:
+		tr.unregister_obstacle(c)
+
+
 func spawn_car(peer: int, key: String, pos: Vector3, yaw: float, paint = null):
 	if cars.has(peer):
+		track_car(cars[peer], false)
 		cars[peer].queue_free()
 	var c = CarScript.new()
 	c.setup(key, peer, paint if paint is Color else match_node.paint_of(peer, key))
@@ -182,6 +254,7 @@ func spawn_car(peer: int, key: String, pos: Vector3, yaw: float, paint = null):
 	c.set_meta("prompt", "[E] Drive your %s" % Rules.CARS[key].name if peer == Net.my_id() else "%s's %s" % [Net.player_name(peer), Rules.CARS[key].name])
 	cars_node.add_child(c)
 	cars[peer] = c
+	track_car(c, true)
 	if peer == Net.my_id():
 		send_car(c, true)
 	return c
@@ -244,6 +317,7 @@ func _tick_cars(delta: float) -> void:
 		send_car(mine)                        # parked: the slow heartbeat
 	for peer in cars.keys():                  # they left: their car goes with them
 		if not Net.players.has(peer):
+			track_car(cars[peer], false)
 			cars[peer].queue_free()
 			cars.erase(peer)
 
@@ -251,6 +325,7 @@ func _tick_cars(delta: float) -> void:
 func leave_street() -> void:
 	if local_player:
 		arrive()                                # back up to 12: out of the elevator
+		match_node.request_arrived()            # made it in (the commute clock)
 
 
 # ---- neighborhood (houses) ----

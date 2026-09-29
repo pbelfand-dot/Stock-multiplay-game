@@ -28,6 +28,8 @@ func _ready() -> void:
 		var sv = load("res://tests/save_driver.gd").new()
 		sv.name = "SaveDriver"
 		add_child(sv)
+	if Config.cli.has("commutecheck"):  # wake up at home, drive the highway in, late mornings
+		add_child(load("res://tests/commute_driver.gd").new())
 	if Config.cli.has("eventcheck"):    # day events / contracts / upgrades end to end
 		var ev = load("res://tests/event_driver.gd").new()
 		ev.name = "EventDriver"

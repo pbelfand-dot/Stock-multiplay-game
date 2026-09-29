@@ -124,6 +124,7 @@ func _spawn(id: int, xf: Transform3D):
 	world.cars_node.add_child(c)
 	c.global_transform = xf
 	npc[id] = c
+	world.track_car(c, true)
 	var siren := AudioStreamPlayer3D.new()
 	siren.stream = Sfx.looped("siren")
 	siren.unit_size = 14.0
@@ -156,6 +157,7 @@ func _remove(id: int) -> void:
 	var c = npc.get(id)
 	npc.erase(id)
 	if c and is_instance_valid(c):
+		world.track_car(c, false)
 		c.queue_free()
 
 

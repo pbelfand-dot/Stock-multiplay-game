@@ -271,6 +271,9 @@ func ride(dest: String, instant := false) -> bool:
 	if m.is_jailed(me()):
 		world.hud.show_toast("The cops aren't letting you call a ride.", Color(1, 0.3, 0.3))
 		return false
+	if m.phase == "morning" or m.is_late(me()):
+		world.hud.show_toast("Rush hour: no cabs. Your car's in the driveway. DRIVE.", Color(1, 0.6, 0.3))
+		return false
 	var where := _dest(dest)
 	if where.is_empty():
 		world.hud.show_toast("You don't own a house yet. Magnolia Heights has listings.", Color(1, 0.8, 0.4))

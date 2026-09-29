@@ -104,6 +104,13 @@ const CARS := {
 	"cop": {"name": "Highway Patrol", "price": 0.0, "model": "Cop_Interceptor", "top": 70.0, "zero60": 3.8, "grip": 1.0, "mass": 2.0,
 		"paint": Color(0.95, 0.95, 0.95), "desc": ""},
 }
+## The commute: every morning you wake up at home and drive in; the opening
+## bell rings COMMUTE_S later. Some mornings the alarm doesn't go off (more
+## often after a high-blood-pressure day): you sleep through LATE_SLEEP of it.
+const COMMUTE_S := 120.0       # the drive in takes ~75 s in the sedan, ~50 s cutting up in an M car
+const LATE_CHANCE := 0.25
+const LATE_BP_BONUS := 0.2         # blood pressure over 60 at the closing bell
+const LATE_SLEEP := 55.0        # overslept: ~65 s left for a ~75 s drive. Cut up or be late
 ## Highway patrol: hold PURSUIT_MPH for a few seconds and a patrol car may
 ## clock you; lose it (PURSUIT_LOST_M away for PURSUIT_LOST_S) or get pulled over.
 const PURSUIT_MPH := 110.0

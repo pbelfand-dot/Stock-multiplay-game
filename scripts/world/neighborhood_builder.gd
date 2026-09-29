@@ -968,7 +968,7 @@ func _lot(l: Array, street: String, sc: Vector3, side: int, w: float) -> void:
 		m.box(Vector3(drive_x, (LAWN_Y + 0.02 + GROUND_Y) / 2, sc.z + side * 4.85), Vector3(3.2, LAWN_Y + 0.02 - GROUND_Y, 1.3),
 				Color(0.64, 0.63, 0.6), true)
 		m.box(Vector3(drive_x + 0.3, LAWN_Y + 0.025, dr.get_center().y), Vector3(0.04, 0.01, dr.size.y * 0.6), Color(0.45, 0.44, 0.42))
-		if extras.contains("c"):
+		if extras.contains("c") and id == "":        # a buyable house's driveway is kept for its owner's car
 			var model: String = PARKED[number % PARKED.size()]
 			parked_car(model, Vector3(drive_x, LAWN_Y + 0.02, sc.z + side * (SETBACK + 2.0)), rot + PI if number % 2 else rot)
 			solid(Vector3(2.0, 1.6, 4.8), Vector3(drive_x, LAWN_Y + 0.8, sc.z + side * (SETBACK + 2.0)), 0.0)
@@ -1042,7 +1042,10 @@ func _lot(l: Array, street: String, sc: Vector3, side: int, w: float) -> void:
 	var h := {"id": id, "type": type, "street": street, "number": number, "address": "%d %s" % [number, street],
 		"xf": xf, "rot": rot, "door": door, "screen": screen, "door_open": 0.0, "interior": null, "lights": [],
 		"entry": H.call(Vector3(entry[0], entry[1] + 0.1, entry[2])), "mailbox": mb_pos, "mailbox_label": null,
-		"sign": null, "sign_labels": [], "spawn": Vector3.ZERO, "spawn_yaw": 0.0, "front": fwd}
+		"sign": null, "sign_labels": [], "spawn": Vector3.ZERO, "spawn_yaw": 0.0, "front": fwd,
+		# where the owner's car waits in the morning (nose to the street)
+		"drive": Vector3(drive_x if has_drive else walk_x + 3.2, LAWN_Y + 0.05, sc.z + side * ((SETBACK + 2.0) if has_drive else 3.2)),
+		"drive_yaw": 0.0 if side > 0 else PI}
 	var body: StaticBody3D = door.get_node("Body")
 	if buy:
 		_buyable(h, l, sc, side, rot, walk_x, H)

@@ -19,6 +19,7 @@ signal crashed(impact: float)
 
 const G := 9.8
 const MPH := 2.23694
+const CLEARANCE := 0.3        # the body rides this high: seams, curbs, ramp lips go under it
 
 var key := "beater"
 var owner_peer := 0
@@ -51,6 +52,8 @@ var _net_pos := Vector3.ZERO
 var _net_rot := Quaternion.IDENTITY
 var _has_net := false
 var _last_hit := 0.0
+var grounded := true
+var debug_hits := false
 
 
 func setup(car_key: String, peer: int, color = null) -> void:
@@ -72,12 +75,17 @@ func _ready() -> void:
 	floor_max_angle = deg_to_rad(40.0)
 	floor_constant_speed = true
 	wall_min_slide_angle = deg_to_rad(5.0)
-	var cs := CollisionShape3D.new()
-	var bs := BoxShape3D.new()
-	bs.size = ref.box
-	cs.shape = bs
-	cs.position = ref.box_center
-	add_child(cs)
+	# the body: a middle block riding CLEARANCE up, the bumpers higher still
+	# (so a pitch over a crest can't dig a corner into the road)
+	var top: float = ref.box_center.y + ref.box.y / 2.0
+	var L: float = ref.box.z
+	for part in [[0.0, 0.6, CLEARANCE], [-0.4, 0.2, CLEARANCE + 0.2], [0.4, 0.2, CLEARANCE + 0.2]]:
+		var cs := CollisionShape3D.new()
+		var bs := BoxShape3D.new()
+		bs.size = Vector3(ref.box.x, top - part[2], L * part[1])
+		cs.shape = bs
+		cs.position = Vector3(ref.box_center.x, (top + part[2]) / 2.0, ref.box_center.z + L * part[0])
+		add_child(cs)
 	model = Node3D.new()
 	model.name = "Model"
 	add_child(model)
@@ -326,9 +334,14 @@ func _drive(dt: float) -> void:
 	speed = f
 	slip = l
 	var v := fwd * f + global_basis.x * l
-	# ---- up and down: stick to the road, fall off ramps
-	if is_on_floor():
-		v.y = minf(velocity.y, 0.0) - 0.5
+	# ---- up and down: suspension springs to the road under the axles, tilts
+	# up ramps; off the edge of something you fall
+	var g := _ground()
+	grounded = not g.is_empty() and global_position.y <= g.y + 0.45 and velocity.y < 3.0
+	if grounded:
+		v.y = clampf((g.y - global_position.y) * 14.0, -12.0, 12.0)
+		rotation.x = lerp_angle(rotation.x, g.pitch, clampf(dt * 10.0, 0.0, 1.0))
+		rotation.z = lerp_angle(rotation.z, 0.0, clampf(dt * 10.0, 0.0, 1.0))
 	else:
 		v.y = velocity.y - G * 1.6 * dt
 	velocity = v
@@ -344,6 +357,8 @@ func _drive(dt: float) -> void:
 			continue
 		var hn := Vector3(n.x, 0.0, n.z).normalized()
 		var impact := maxf(-pre.dot(hn), 0.0)
+		if debug_hits:
+			print("   hit %s (%s) n=%s at %s impact %.1f" % [c.get_collider().name, c.get_collider().get_parent().name, n, c.get_position(), impact])
 		if impact > 1.2 and sparks:
 			sparks.global_position = c.get_position()
 		if impact > worst:
@@ -386,6 +401,52 @@ func _drive(dt: float) -> void:
 		speed = real_f
 	_long_acc = lerpf(_long_acc, (speed - before) / maxf(dt, 0.001), 0.2)
 	_lat_acc = lerpf(_lat_acc, speed * yaw, 0.2)
+
+
+## The road under the car: height under its middle and the pitch from the
+## front and rear axles (other cars' roofs don't count as road).
+func _ground() -> Dictionary:
+	var yb := Basis(Vector3.UP, rotation.y)
+	var fy := _axle_y(yb, -ref.wheelbase / 2.0)
+	var ry := _axle_y(yb, ref.wheelbase / 2.0)
+	if is_nan(fy) and is_nan(ry):
+		return {}
+	if is_nan(fy):
+		fy = ry
+	if is_nan(ry):
+		ry = fy
+	# a sudden drop under one axle is a seam / gap, not a cliff: bridge it
+	if absf(fy - ry) > 0.2 + 0.25 * ref.wheelbase:
+		fy = maxf(fy, ry)
+		ry = fy
+	return {"y": (fy + ry) / 2.0, "pitch": clampf(atan2(fy - ry, ref.wheelbase), -0.3, 0.3)}
+
+
+## Road height under an axle: the highest of three rays across it (so one
+## ray down a crack between road pieces doesn't count).
+func _axle_y(yb: Basis, z: float) -> float:
+	var best := NAN
+	for dz in [-0.35, 0.0, 0.35]:
+		var h := _ray_down(global_position + yb * Vector3(0, 0, z + dz))
+		if not h.is_empty() and (is_nan(best) or h.position.y > best):
+			best = h.position.y
+	return best
+
+
+func _ray_down(at: Vector3) -> Dictionary:
+	var space := get_world_3d().direct_space_state
+	var ex: Array = [get_rid()]
+	for k in 3:
+		var q := PhysicsRayQueryParameters3D.create(at + Vector3(0, 1.4, 0), at + Vector3(0, -2.5, 0))
+		q.exclude = ex
+		var h := space.intersect_ray(q)
+		if h.is_empty():
+			return {}
+		if h.collider is CharacterBody3D or h.collider is AnimatableBody3D or h.collider is RigidBody3D:
+			ex.append(h.rid)                          # another car: look past it
+			continue
+		return h
+	return {}
 
 
 func _crash_fx(impact: float) -> void:
