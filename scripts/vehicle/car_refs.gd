@@ -27,7 +27,7 @@ const MODELS := {
 		"wheelbase": 2.857, "wheel_r": 0.3395,
 		"wheels": {"FL": Vector3(-0.8085, 0.3395, -1.4285), "FR": Vector3(0.8085, 0.3395, -1.4285), "RL": Vector3(-0.8025, 0.3395, 1.4285), "RR": Vector3(0.8025, 0.3395, 1.4285)},
 		"eye": Vector3(-0.37, 1.13, 0.28), "wheel_hub": Vector3(-0.37, 0.88, -0.38), "column_tilt": deg_to_rad(22),
-		"head": [Vector3(-0.6596, 0.6114, -1.9882), Vector3(0.6596, 0.6114, -1.9882)], "tail": [Vector3(-0.5571, 0.8779, 2.2131), Vector3(0.5571, 0.8779, 2.2131)],
+		"head": [Vector3(-0.6867, 0.6037, -1.9887), Vector3(0.6867, 0.6037, -1.9887)], "tail": [Vector3(-0.5571, 0.8779, 2.2131), Vector3(0.5571, 0.8779, 2.2131)],
 		"box": Vector3(1.903, 1.333, 4.794), "box_center": Vector3(0, 0.7665, 0.1085), "door": Vector3(-0.9236, 0.88, 0.19), "kit": true},
 	"Bemze_M5": {
 		"wheelbase": 3.006, "wheel_r": 0.37,
@@ -57,8 +57,8 @@ const MODELS := {
 		"wheelbase": 2.975, "wheel_r": 0.339,
 		"wheels": {"FL": Vector3(-0.8025, 0.339, -1.4875), "FR": Vector3(0.8025, 0.339, -1.4875), "RL": Vector3(-0.815, 0.339, 1.4875), "RR": Vector3(0.815, 0.339, 1.4875)},
 		"eye": Vector3(-0.37, 1.15, 0.23), "wheel_hub": Vector3(-0.37, 0.89, -0.43), "column_tilt": deg_to_rad(21),
-		"head": [Vector3(-0.6909, 0.6694, -1.9447), Vector3(0.6909, 0.6694, -1.9447)], "tail": [Vector3(-0.5717, 0.9249, 2.4325), Vector3(0.5717, 0.9249, 2.4325)],
-		"box": Vector3(1.868, 1.366, 4.936), "box_center": Vector3(0, 0.783, 0.1355), "door": Vector3(-0.9247, 0.85, 0.163), "kit": true},
+		"head": [Vector3(-0.6938, 0.6457, -2.1551), Vector3(0.6938, 0.6457, -2.1551)], "tail": [Vector3(-0.6309, 0.916, 2.4884), Vector3(0.6309, 0.916, 2.4884)],
+		"box": Vector3(1.868, 1.366, 4.936), "box_center": Vector3(0, 0.783, 0.1355), "door": Vector3(-0.9082, 0.872, 0.097), "kit": true},
 	"Cop_Interceptor": {
 		"wheelbase": 3.052, "wheel_r": 0.3635,
 		"wheels": {"FL": Vector3(-0.805, 0.3635, -1.526), "FR": Vector3(0.805, 0.3635, -1.526), "RL": Vector3(-0.809, 0.3635, 1.526), "RR": Vector3(0.809, 0.3635, 1.526)},
