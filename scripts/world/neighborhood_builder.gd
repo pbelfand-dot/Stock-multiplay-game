@@ -413,6 +413,7 @@ func _ramps() -> void:
 		var joins_end: bool = nm.ends_with("_on")      # which end meets the mainline
 		var m := RoadMesh.new()
 		var n: int = p.pts.size()
+		var run_in: bool = nm == "dealer_off"              # its pavement runs on into the lot
 		var span_pier_done := false
 		for i in n - 1:
 			var a: Vector3 = p.pts[i]
@@ -474,6 +475,12 @@ func _ramps() -> void:
 				var tt := ta
 				m.quad(ee[0], ee[1], Vector3(ee[1].x, GROUND_Y, ee[1].z), Vector3(ee[0].x, GROUND_Y, ee[0].z), CONCRETE,
 						tt * (1.0 if absf(loc_a.y) >= edge else -1.0), true)
+		if run_in:
+			var e: Vector3 = p.pts[n - 1]
+			var t: Vector3 = p.tan[n - 1]
+			var r := Vector3(t.x, 0, t.z).normalized().cross(Vector3.UP).normalized()
+			var e2 := e + Vector3(t.x, 0, t.z).normalized() * 5.0
+			m.quad(e + r * -2.8, e + r * 3.8, e2 + r * 3.8, e2 + r * -2.8, ASPHALT, Vector3.UP, true)
 		m.instance(g_road, road_mat, "Ramp_" + nm, 1500.0)
 		for k in range(0, n, 3):
 			_tree_blockers.append([Vector2(p.pts[k].x, p.pts[k].z), 12.0])
@@ -485,13 +492,30 @@ func _local_roads() -> void:
 	for nm in ["dt_road", "hood_road", "dealer_road"]:
 		var p = hw.paths[nm]
 		var m := RoadMesh.new()
-		for i in p.pts.size() - 1:
-			var a: Vector3 = p.pts[i]
-			var c: Vector3 = p.pts[i + 1]
-			var ra: Vector3 = p.tan[i].cross(Vector3.UP).normalized()
-			var rc: Vector3 = p.tan[i + 1].cross(Vector3.UP).normalized()
+		var pts: Array = Array(p.pts)
+		var tans: Array = Array(p.tan)
+		var n_path := pts.size()
+		# run the pavement on into what it meets: the roundabout's ring (the path
+		# itself stops short, where the cars turn onto the circle), or Levee Rd
+		var end: Vector3 = pts[n_path - 1]
+		var ring: Vector3 = hw.roundabout_dt if nm == "dt_road" else hw.roundabout_hood
+		if nm != "dealer_road":
+			var d := Vector3(end.x - ring.x, 0, end.z - ring.z).normalized()
+			pts.append(ring + d * (Highway.RB_R - 0.7))
+			tans.append(-d)
+		else:
+			pts.append(end + tans[n_path - 1] * 3.0)
+			tans.append(tans[n_path - 1])
+		var lift := Vector3(0, 0.006, 0)          # over the ring's edge line where they overlap
+		for i in pts.size() - 1:
+			var a: Vector3 = pts[i] + lift
+			var c: Vector3 = pts[i + 1] + lift
+			var ra: Vector3 = (tans[i] as Vector3).cross(Vector3.UP).normalized()
+			var rc: Vector3 = (tans[i + 1] as Vector3).cross(Vector3.UP).normalized()
 			var strips := [[-5.0, -4.2, ASPHALT_L], [-4.2, -4.05, LINE_W], [-4.05, -0.2, ASPHALT_L], [-0.2, -0.08, LINE_Y],
 				[-0.08, 0.08, ASPHALT_L], [0.08, 0.2, LINE_Y], [0.2, 4.05, ASPHALT_L], [4.05, 4.2, LINE_W], [4.2, 5.0, ASPHALT_L]]
+			if i >= n_path - 1:                   # the run-in: plain pavement
+				strips = [[-5.0, 5.0, ASPHALT_L]]
 			for st in strips:
 				m.quad(a + ra * st[0], a + ra * st[1], c + rc * st[1], c + rc * st[0], st[2], Vector3.UP, true)
 			for sg in [-1.0, 1.0]:
@@ -502,7 +526,41 @@ func _local_roads() -> void:
 		m.instance(g_road, road_mat, "LocalRoad", 1500.0)
 	for c in [hw.roundabout_dt, hw.roundabout_hood]:
 		_roundabout(c)
+	_junction_pad("dt")
+	_junction_pad("hood")
 	_dealership_lot()
+
+
+## Where an interchange's two ramps meet the local road: one slab of asphalt
+## over the whole mouth (the ramps' ends and the road's start), so there's no
+## grass showing between them.
+func _junction_pad(tag: String) -> void:
+	var on = hw.paths[tag + "_on"]
+	var off = hw.paths[tag + "_off"]
+	var road = hw.paths[tag + "_road"]
+	var pts2 := PackedVector2Array()
+	var add_end := func(p, s: float, half: float) -> void:
+		var at: Vector3 = p.at(s)
+		var r: Vector3 = p.tangent(s).cross(Vector3.UP).normalized()
+		for k in [-half, half]:
+			var q: Vector3 = at + r * k
+			pts2.append(Vector2(q.x, q.z))
+	for s in [0.0, 5.0]:
+		add_end.call(on, s, 3.6)
+		add_end.call(off, off.length - s, 3.6)
+	add_end.call(road, 0.0, 5.0)
+	add_end.call(road, 7.0, 5.0)
+	var hull := Geometry2D.convex_hull(pts2)
+	var m := RoadMesh.new()
+	var y := 0.003
+	var cen := Vector2.ZERO
+	for q in hull:
+		cen += q
+	cen /= float(hull.size())
+	for i in hull.size() - 1:                 # the hull is closed (last == first)
+		m.tri(Vector3(cen.x, y, cen.y), Vector3(hull[i].x, y, hull[i].y), Vector3(hull[i + 1].x, y, hull[i + 1].y),
+				ASPHALT_L, Vector3.UP, true)
+	m.instance(g_road, road_mat, "JunctionPad_" + tag, 1500.0)
 
 
 ## The empty lot a car dealership will go on (the owner builds it): flat
