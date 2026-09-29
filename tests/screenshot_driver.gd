@@ -171,7 +171,8 @@ func _run() -> void:
 		return
 	if Config.cli.has("driveonly"):            # get in, drive down the street, chase cam, cockpit, brake lights
 		var p0 = world.local_player
-		m.owned[1]["bz_m3"] = 1
+		var drive_key: String = Config.cli.get("drivecar", "bz_m3")
+		m.owned[1][drive_key] = 1
 		m._push_state()
 		world.go_to_street()
 		await get_tree().create_timer(0.8).timeout

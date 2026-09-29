@@ -233,7 +233,12 @@ func _client() -> void:
 		_fail("office flex shop shows %d of %d items" % [rows, Rules.LUXURY.size()])
 		return
 	_say("street ok, hot dog eaten (pressure now %.1f)" % m.pressure_of(Net.my_id()))
-	# your ride's out front: get in, drive down the street, get out
+	# no car to start: buy the used TOROLA, it's parked out front; get in, drive, get out
+	m.request_buy_car("beater", 0)
+	if not await _wait_for(func(): return m.car_of(Net.my_id()) == "beater", 5.0, "used car purchase"):
+		return
+	w.go_to_street()
+	await get_tree().create_timer(0.6).timeout
 	var car = w.cars.get(Net.my_id())
 	if car == null:
 		_fail("no car parked out front")

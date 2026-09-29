@@ -456,12 +456,12 @@ func _s_cash(peer: int, amount: float, total: float) -> void:
 # ---------------- cars ----------------
 
 ## The car you drive: the one you picked at the dealership, else your best
-## BEMZE (or your mom's sedan).
+## one. "" = no car yet (you start without one: cab it or buy the used TOROLA).
 func car_of(peer: int) -> String:
 	var ride := lux_count(peer, "ride") - 1
 	if ride >= 0 and ride < Rules.CAR_ORDER.size() and owns_car(peer, Rules.CAR_ORDER[ride]):
 		return Rules.CAR_ORDER[ride]
-	var best := "beater"
+	var best := ""
 	for k in Rules.CAR_ORDER:
 		if owns_car(peer, k):
 			best = k
@@ -469,7 +469,21 @@ func car_of(peer: int) -> String:
 
 
 func owns_car(peer: int, key: String) -> bool:
-	return key == "beater" or lux_count(peer, key) > 0
+	return lux_count(peer, key) > 0
+
+
+## No car: a cab to work. The meter's on the account (cash first).
+func request_cab() -> void:
+	_req_cab.rpc_id(1)
+
+
+@rpc("any_peer", "call_local", "reliable")
+func _req_cab() -> void:
+	if not Net.is_server():
+		return
+	var id := _sender()
+	if _pay(id, Rules.CAB_FARE):
+		_push_state()
 
 
 func paint_of(peer: int, key: String) -> Color:
@@ -513,7 +527,7 @@ func _req_car(what: String, key: String, paint: int) -> void:
 			_s_toast.rpc("%s drove a %s %s off the BEMZE lot (%s)" % [Net.player_name(id), Rules.PAINTS[paint][0], d.name, Rules.money(d.price)])
 			_s_luxury.rpc(id, key)
 		"paint":
-			if not owns_car(id, key) or key == "beater":
+			if not owns_car(id, key) or Rules.CARS[key].model.begins_with("TCar_"):   # the used car's paint is what it is
 				return
 			if not _pay(id, Rules.RESPRAY):
 				_s_error.rpc_id(id, "A respray is %s." % Rules.money(Rules.RESPRAY))
@@ -895,7 +909,8 @@ func has_rank_for(peer: int, gate: String) -> bool:
 ## Tests run with --smoke and must not read or write a real career file.
 func _careers_on_disk() -> bool:
 	return Net.is_server() and not Config.cli.has("smoke") and not Config.cli.has("savecheck") and not Config.cli.has("eventcheck") \
-			and not Config.cli.has("hoodcheck") and not Config.cli.has("hoodshots")   # ---- neighborhood (houses): tests ----
+			and not Config.cli.has("hoodcheck") and not Config.cli.has("hoodshots") \
+			and not Config.cli.has("commutecheck") and not Config.cli.has("shots")   # tests never touch the real careers
 
 
 func _load_career(id: int) -> void:

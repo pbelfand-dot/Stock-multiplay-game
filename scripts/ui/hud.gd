@@ -969,6 +969,13 @@ var _sleep_lbl: Label
 
 
 func oversleep(secs: float) -> void:
+	blackout(secs, "")
+
+
+var _black_text := ""
+## Black screen for `secs` (asleep, stuck in a cab): the clock keeps running.
+func blackout(secs: float, text: String) -> void:
+	_black_text = text
 	_asleep = secs
 	if _sleep_panel == null:
 		_sleep_panel = ColorRect.new()
@@ -990,7 +997,13 @@ func _tick_sleep(delta: float) -> void:
 		return
 	_asleep -= delta
 	var z := "z" if fmod(Time.get_ticks_msec() / 400.0, 3.0) < 1.0 else ("zZ" if fmod(Time.get_ticks_msec() / 400.0, 3.0) < 2.0 else "zZz")
-	_sleep_lbl.text = "%s\n\nthe alarm didn't go off\n\nthe bell rings in %d:%02d" % [z, int(match_node.time_left) / 60, int(match_node.time_left) % 60]
+	var bell := "the bell rings in %d:%02d" % [int(match_node.time_left) / 60, int(match_node.time_left) % 60] if match_node.phase == "morning" else "you're LATE"
+	_sleep_lbl.text = ("%s\n\n%s" % [_black_text, bell]) if _black_text != "" else "%s\n\nthe alarm didn't go off\n\n%s" % [z, bell]
+	if _asleep <= 0.0 and _black_text != "":
+		_sleep_panel.visible = false
+		show_toast("Downtown. BAGHOLDER CAPITAL is up the block.", Color(0.95, 0.9, 0.6))
+		_black_text = ""
+		return
 	if _asleep <= 0.0:
 		_sleep_panel.visible = false
 		Sfx.play("bell", 0.0, 2.2)

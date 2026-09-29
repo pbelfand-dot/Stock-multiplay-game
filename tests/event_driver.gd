@@ -384,9 +384,14 @@ func _cars() -> bool:
 	var a: Dictionary = m.ledger.get_acct(0)
 	a.balance = 120_000.0
 	m.wallet[1] = 0.0
-	if m.car_of(1) != "beater":
-		_done(false, "should start in your mom's sedan, got %s" % m.car_of(1))
+	if m.car_of(1) != "":
+		_done(false, "should start with no car, got %s" % m.car_of(1))
 		return false
+	m.request_buy_car("beater", 0)
+	if not await _wait(func(): return m.car_of(1) == "beater", 3.0) or absf(a.balance - 112_000.0) > 1.0:
+		_done(false, "couldn't buy the used TOROLA ($8K): %s, balance %f" % [m.car_of(1), a.balance])
+		return false
+	a.balance = 120_000.0
 	m.request_buy_car("bz_m3", 5)
 	if not await _wait(func(): return m.owns_car(1, "bz_m3"), 3.0):
 		_done(false, "couldn't buy the M3")
@@ -408,7 +413,7 @@ func _cars() -> bool:
 	if not await _wait(func(): return m.car_of(1) == "bz_m3" and m.paint_of(1, "bz_m3").is_equal_approx(Rules.PAINTS[6][1]), 3.0):
 		_done(false, "respray / pick failed")
 		return false
-	_say("dealership: Portimao Blue M3 for $95K, no M8 on $25K, back to the sedan, Toronto Red respray")
+	_say("dealership: no car to start, used TOROLA $8K, Portimao Blue M3 for $95K, no M8 on $25K, back to the TOROLA, Toronto Red respray")
 	a.balance = 400_000.0                              # the rest of the run isn't about the car budget
 	return true
 

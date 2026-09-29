@@ -132,7 +132,7 @@ Built in **Godot 4.7** — free, no accounts, no store.
 
 Every morning you wake up at home in Magnolia Heights (buy a house from a FOR SALE sign, or rent one until you do) with your car in the driveway, and you have 2:00 to get to BAGHOLDER CAPITAL downtown before the opening bell: out the neighborhood, up the on-ramp, down the highway, off at downtown, up the elevator. Some mornings the alarm doesn't go off and you have about a minute: cut up through traffic. Miss the bell and you're LATE until you're up the elevator.
 
-Hold 110+ mph and highway patrol may clock you: lose them (230 m away for 6 s) or get pulled over (jail + a ticket). Crashes cost you speed. Your mom's sedan is slow; the BEMZE dealership (its own highway exit) sells the 540i, M2, M3, M4, M5 and M8, in ten factory colors.
+Hold 110+ mph and highway patrol may clock you: lose them (230 m away for 6 s) or get pulled over (jail + a ticket). Crashes cost you speed. You start with no car: a cab from the Magnolia roundabout costs $300 and crawls through rush hour, so your first buy is the used TOROLA ($8K) at the BEMZE dealership (its own highway exit), which also sells the 540i, M2, M3, M4, M5 and M8 in ten factory colors.
 
 ## Controls
 
