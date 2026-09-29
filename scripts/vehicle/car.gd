@@ -42,6 +42,8 @@ var wheels: Array = []       # [pivot, spinner, front, left]
 var steering_wheel: Node3D
 var brake_glow: Array = []   # lights that brighten on the brakes
 var engine: AudioStreamPlayer3D
+var screech: AudioStreamPlayer3D
+var sparks: CPUParticles3D
 var _spin := 0.0
 var _long_acc := 0.0
 var _lat_acc := 0.0
@@ -195,6 +197,34 @@ func _build_engine() -> void:
 	add_child(engine)
 	if engine.stream:
 		engine.play()
+	screech = AudioStreamPlayer3D.new()
+	screech.stream = Sfx.looped("screech")
+	screech.unit_size = 10.0
+	screech.max_distance = 120.0
+	screech.volume_db = -80.0
+	add_child(screech)
+	if screech.stream:
+		screech.play()
+	sparks = CPUParticles3D.new()
+	sparks.emitting = false
+	sparks.one_shot = true
+	sparks.amount = 40
+	sparks.lifetime = 0.45
+	sparks.explosiveness = 0.9
+	var sm := QuadMesh.new()
+	sm.size = Vector2(0.05, 0.05)
+	sparks.mesh = sm
+	var spm := StandardMaterial3D.new()
+	spm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	spm.albedo_color = Color(1.0, 0.75, 0.3)
+	spm.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
+	sparks.material_override = spm
+	sparks.direction = Vector3(0, 1, 0)
+	sparks.spread = 70.0
+	sparks.initial_velocity_min = 3.0
+	sparks.initial_velocity_max = 8.0
+	sparks.gravity = Vector3(0, -12, 0)
+	add_child(sparks)
 
 
 func _part(parent: Node3D, size: Vector3, pos: Vector3, c: Color, rough: float) -> void:
@@ -314,6 +344,8 @@ func _drive(dt: float) -> void:
 			continue
 		var hn := Vector3(n.x, 0.0, n.z).normalized()
 		var impact := maxf(-pre.dot(hn), 0.0)
+		if impact > 1.2 and sparks:
+			sparks.global_position = c.get_position()
 		if impact > worst:
 			worst = impact
 			worst_n = hn
@@ -357,6 +389,9 @@ func _drive(dt: float) -> void:
 
 
 func _crash_fx(impact: float) -> void:
+	if sparks:
+		sparks.amount = clampi(int(impact * 3.0), 10, 60)
+		sparks.restart()
 	Sfx.play("crash", clampf(-16.0 + impact, -14.0, 0.0), randf_range(0.9, 1.1))
 
 
@@ -391,6 +426,10 @@ func _visuals(dt: float) -> void:
 	var braking := in_brake > 0.05 and speed > 0.5
 	for q in brake_glow:
 		((q as MeshInstance3D).material_override as StandardMaterial3D).albedo_color = Color(1, 0.08, 0.05) if braking else Color(0.45, 0.02, 0.02)
+	if screech and screech.stream:                 # tires howl when you slide
+		var sl := clampf((absf(slip) - 2.5) / 8.0, 0.0, 1.0) if absf(speed) > 4.0 else 0.0
+		screech.volume_db = lerpf(screech.volume_db, -40.0 + sl * 38.0 if sl > 0.0 else -80.0, clampf(dt * 10.0, 0.0, 1.0))
+		screech.pitch_scale = 0.9 + sl * 0.2
 	if engine and engine.stream:
 		var rev := _rpm()
 		engine.pitch_scale = 0.55 + rev * 1.35
