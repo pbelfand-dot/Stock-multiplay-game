@@ -399,13 +399,13 @@ func _cab_gone() -> void:
 	remove_cab(multiplayer.get_remote_sender_id(), false)
 
 
-## Now and then a BEMZE in traffic (in its factory color).
+## Now and then a BEMZE (or another maker's car) in traffic (in its factory color).
 func _nice_traffic() -> void:
 	var tr = traffic()
 	if tr == null:
 		return
 	const CarRefs = preload("res://scripts/vehicle/car_refs.gd")
-	for key in ["bz_540i", "bz_m2", "bz_m3", "bz_m3t", "bz_m4", "bz_m5", "bz_m8"]:
+	for key in ["bz_540i", "bz_m2", "bz_m3", "bz_m3t", "bz_m4", "bz_m5", "bz_m8", "mb_g63"]:
 		var model: String = Rules.CARS[key].model
 		if not PropKit.has(model):
 			continue
