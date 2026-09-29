@@ -165,7 +165,7 @@ func go_to_street() -> void:
 		Sfx.play("bell", -8.0, 1.6)
 		local_player.teleport(builder.street.spawn)
 		local_player.rotation.y = PI
-		if not cars.has(Net.my_id()):         # your ride's parked at the curb out front
+		if not cars.has(Net.my_id()) and match_node.car_of(Net.my_id()) != "":   # your ride's parked at the curb out front
 			var st = builder.street
 			spawn_car(Net.my_id(), match_node.car_of(Net.my_id()), st.P(-12.0 + 6.0 * (Net.players.keys().find(Net.my_id()) % 4), 0.3, -1.7), -PI / 2)
 		hud.show_toast("Ground floor. The street is yours — boutiques, Tony's Deli, the Tailor, Pawn King, the casino.",
@@ -211,7 +211,14 @@ func _on_morning(late_by: Dictionary) -> void:
 		return
 	local_player.teleport(home.spawn)
 	local_player.rotation.y = home.yaw
-	spawn_car(me, match_node.car_of(me), home.drive + Vector3(0, 0.25, 0), home.drive_yaw)
+	if match_node.car_of(me) != "":
+		spawn_car(me, match_node.car_of(me), home.drive + Vector3(0, 0.25, 0), home.drive_yaw)
+	else:
+		if cars.has(me):
+			track_car(cars[me], false)
+			cars[me].queue_free()
+			cars.erase(me)
+		hud.show_toast("No car in the driveway: you don't have one. Cab stand's at the Magnolia roundabout ($%d, slow in rush hour). Used cars at BEMZE." % int(Rules.CAB_FARE), Color(1, 0.8, 0.4))
 	if home.rented:
 		hud.show_toast("You rent the place at %s. Buy a house from a FOR SALE sign and it's yours." % home.address, Color(0.9, 0.85, 0.6))
 	if late_by.has(me):
@@ -335,7 +342,7 @@ func _tick_cars(delta: float) -> void:
 	if mine and is_instance_valid(mine) and (local_player == null or local_player.driving != mine):
 		# bought / picked / resprayed at the dealership: the new one's parked right where the old one was
 		var want: String = match_node.car_of(me)
-		if mine.key != want or not mine.paint.is_equal_approx(match_node.paint_of(me, want)):
+		if want != "" and (mine.key != want or not mine.paint.is_equal_approx(match_node.paint_of(me, want))):
 			mine = spawn_car(me, want, mine.global_position + Vector3(0, 0.2, 0), mine.global_rotation.y)
 		send_car(mine)                        # parked: the slow heartbeat
 	for peer in cars.keys():                  # they left: their car goes with them

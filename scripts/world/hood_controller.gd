@@ -271,9 +271,14 @@ func ride(dest: String, instant := false) -> bool:
 	if m.is_jailed(me()):
 		world.hud.show_toast("The cops aren't letting you call a ride.", Color(1, 0.3, 0.3))
 		return false
-	if m.phase == "morning" or m.is_late(me()):
-		world.hud.show_toast("Rush hour: no cabs. Your car's in the driveway. DRIVE.", Color(1, 0.6, 0.3))
+	var rush: bool = m.phase == "morning" or m.is_late(me())
+	if rush and m.car_of(me()) != "":
+		world.hud.show_toast("Rush hour: no cabs for you. Your car's in the driveway. DRIVE.", Color(1, 0.6, 0.3))
 		return false
+	if rush:                     # no car: the cab crawls through rush hour and the meter runs
+		m.request_cab()
+		world.hud.blackout(Rules.CAB_RIDE_S, "In a cab. Bumper to bumper.\nThe meter says $%d." % int(Rules.CAB_FARE))
+		instant = true
 	var where := _dest(dest)
 	if where.is_empty():
 		world.hud.show_toast("You don't own a house yet. Magnolia Heights has listings.", Color(1, 0.8, 0.4))

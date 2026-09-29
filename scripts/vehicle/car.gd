@@ -109,7 +109,9 @@ func _build_body() -> void:
 	body = Node3D.new()
 	model.add_child(body)
 	if name_ != "" and PropKit.has(name_):
-		PropKit.place(name_, body)
+		var shell := PropKit.place(name_, body)
+		if ref.get("flip", false):
+			shell.rotation.y = PI                  # a kit built nose-to-+z
 		_tint(body)
 	else:
 		_stand_in_body()
@@ -170,7 +172,7 @@ func _build_wheels() -> void:
 		pivot.add_child(side)
 		var spinner := Node3D.new()
 		side.add_child(spinner)
-		var wname: String = Rules.CARS[key].model + "_Wheel"
+		var wname: String = ref.get("wheel_prop", Rules.CARS[key].model + "_Wheel")
 		if Rules.CARS[key].model != "" and PropKit.has(wname):
 			PropKit.place(wname, spinner)
 		else:

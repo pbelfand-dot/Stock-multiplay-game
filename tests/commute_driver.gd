@@ -50,13 +50,37 @@ func _run() -> void:
 	await get_tree().create_timer(0.5).timeout
 	var me = w.local_player
 	var home: Dictionary = w.home_of(1)
+	# no car yet: the driveway's empty; a cab costs the fare and crawls
+	if w.cars.get(1) != null or m.car_of(1) != "":
+		_done(false, "started with a car (%s)" % m.car_of(1))
+		return
+	var bal0: float = m.ledger.get_acct(0).balance
+	if not w.hood.ride("downtown"):
+		_done(false, "no cab without a car in the morning")
+		return
+	if not await _wait(func(): return m.ledger.get_acct(0).balance <= bal0 - Rules.CAB_FARE + 0.5, 3.0) or not w.hud.busy():
+		_done(false, "cab fare / ride wrong: %f -> %f, riding %s" % [bal0, m.ledger.get_acct(0).balance, w.hud.busy()])
+		return
+	_say("no car: a cab downtown, $%d, %d s stuck in traffic" % [int(Rules.CAB_FARE), int(Rules.CAB_RIDE_S)])
+	w.hud._asleep = 0.01
+	await get_tree().create_timer(0.3).timeout
+	# buy the used TOROLA; next wake-up it's in the driveway
+	m.request_buy_car("beater", 0)
+	if not await _wait(func(): return m.car_of(1) == "beater", 3.0):
+		_done(false, "couldn't buy the used car")
+		return
+	w._on_morning({})
+	await get_tree().create_timer(0.3).timeout
+	if w.hood.ride("downtown"):
+		_done(false, "got a cab in rush hour with a car in the driveway")
+		return
 	var car = w.cars.get(1)
 	if home.is_empty() or me.global_position.distance_to(home.spawn) > 1.5 or car == null \
 			or car.global_position.distance_to(home.drive) > 2.0:
 		_done(false, "didn't wake up at home with the car in the driveway (home %s, me %s, car %s)" % [
 				str(home.get("address")), me.global_position, car.global_position if car else null])
 		return
-	_say("woke up at %s (%s), car in the driveway, bell in %d s" % [home.address, "rented" if home.rented else "owned", int(m.time_left)])
+	_say("woke up at %s (%s), the used TOROLA in the driveway, no cab for you now, bell in %d s" % [home.address, "rented" if home.rented else "owned", int(m.time_left)])
 	# the drive: an AI driver chases a rabbit down the real route
 	var hw = w.builder.hood.hw
 	var pts: PackedVector3Array = hw.route("home_to_office").points
