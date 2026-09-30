@@ -5,11 +5,14 @@ extends RefCounted
 ##   hood      Magnolia St by the Magnolia Heights taxi stand
 ##   home      the street in front of your house (`home` = World.home_of())
 ##   dealer    the BEMZE lot
+##   mercedez, porsha, audy   the dealerships round the loop (Highway.dealers)
 ## Nodes are the intersections (Magnolia / Levee, Levee / Pecan, Pecan / Delta),
-## the Magnolia Heights roundabout, downtown and the lot; edges are the streets
+## the Magnolia Heights roundabout, downtown and the lots; edges are the streets
 ## (centerlines, driven 2 m right of them: right-hand traffic), the BEMZE road,
-## and the highway both ways (Highway.route(): already lane by lane). Going
-## through the roundabout is an arc round it, counter-clockwise seen from above.
+## and the highway both ways (Highway.route(): already lane by lane). The loop
+## lots are eastbound only: downtown -> any of them, each on to the ones after
+## it, and on round through the tunnel to Magnolia Heights. Going through the
+## roundabout is an arc round it, counter-clockwise seen from above.
 ## The cab starts facing the way it's going, so it never has to turn round.
 
 const Highway = preload("res://scripts/world/highway.gd")
@@ -93,6 +96,22 @@ static func _graph(hw, home: Dictionary) -> Dictionary:
 		i0 += 1
 	_add(g, "downtown", "ring", {"kind": "lane", "pts": o2h.slice(i0, cut)})
 	_add(g, "ring", "downtown", {"kind": "lane", "pts": h2o})
+	# the loop dealerships: out of downtown eastbound, one to the next, on round to the hood
+	var loop: Array = hw.loop_dealers()
+	for i in loop.size():
+		var br: String = loop[i].brand
+		var dt: PackedVector3Array = hw.route("office_to_" + br).points
+		var j0 := 0
+		while j0 < dt.size() - 1 and dt[j0].x < DT_STAND_X:
+			j0 += 1
+		_add(g, "downtown", br, {"kind": "lane", "pts": dt.slice(j0)})
+		var back: PackedVector3Array = hw.route(br + "_to_home").points
+		var k := 0
+		while k < back.size() - 1 and Vector2(back[k].x - r2.x, back[k].z - r2.z).length() > Highway.RB_R + 2.0:
+			k += 1
+		_add(g, br, "ring", {"kind": "lane", "pts": back.slice(0, k)})
+		for j in range(i + 1, loop.size()):
+			_add(g, br, loop[j].brand, {"kind": "lane", "pts": hw.route("%s_to_%s" % [br, loop[j].brand]).points})
 	return g
 
 
