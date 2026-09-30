@@ -115,6 +115,8 @@ const CARS := {
 		"paint": Color(0.2, 0.55, 0.3), "desc": "A race car with number plates. 9000 rpm, a wing like a door, the most grip on the road."},
 	"au_rs6": {"name": "AUDY RS6 Avant", "brand": "audy", "price": 125_000.0, "model": "RC_RS6", "awd": true, "top": 78.0, "zero60": 3.4, "grip": 0.95, "mass": 2.08,
 		"paint": Color(0.45, 0.46, 0.46), "desc": "A 591 hp twin-turbo V8 station wagon. The dog rides in the back at 174 mph."},
+	"au_r8": {"name": "AUDY R8 4.2", "brand": "audy", "price": 95_000.0, "model": "RC_R8", "awd": true, "top": 84.0, "zero60": 4.3, "grip": 0.98, "mass": 1.56,
+		"paint": Color(0.7, 0.7, 0.72), "desc": "Used, 2007. Mid-engine V8 behind your head, real needles on the dash. The supercar you can afford."},
 	# not for sale: highway patrol (an M8 outruns it, an M3 has to lose it in traffic)
 	"taxi": {"name": "Yellow Cab", "price": 0.0, "model": "TCar_Taxi", "top": 42.0, "zero60": 8.0, "grip": 0.8, "mass": 1.5,
 		"paint": Color(1.0, 0.78, 0.05), "desc": ""},
@@ -136,9 +138,9 @@ const PURSUIT_LOST_S := 6.0
 const PURSUIT_BUST_S := 2.5
 const SPEEDING_TICKET := 2_500.0
 ## A save stores the chosen ride as (index in CAR_ORDER) + 1: only ever append here.
-const CAR_ORDER := ["beater", "bz_540i", "bz_m2", "bz_m3", "bz_m4", "bz_m5", "bz_m8", "bz_m3t", "mb_g63", "po_gt3rs", "mb_gronos", "po_911ts", "au_rs6"]
+const CAR_ORDER := ["beater", "bz_540i", "bz_m2", "bz_m3", "bz_m4", "bz_m5", "bz_m8", "bz_m3t", "mb_g63", "po_gt3rs", "mb_gronos", "po_911ts", "au_rs6", "au_r8"]
 ## The order the showroom and the phone list them in.
-const SHOW_ORDER := ["beater", "bz_540i", "bz_m2", "bz_m3", "bz_m3t", "bz_m4", "bz_m5", "bz_m8", "mb_g63", "mb_gronos", "po_911ts", "po_gt3rs", "au_rs6"]
+const SHOW_ORDER := ["beater", "bz_540i", "bz_m2", "bz_m3", "bz_m3t", "bz_m4", "bz_m5", "bz_m8", "mb_g63", "mb_gronos", "po_911ts", "po_gt3rs", "au_r8", "au_rs6"]
 ## Factory paint at the dealership (a respray later costs RESPRAY).
 const PAINTS := [
 	["Alpine White", Color(0.93, 0.93, 0.92)], ["Black Sapphire", Color(0.05, 0.05, 0.07)],
