@@ -675,7 +675,38 @@ CARS["R8"] = dict(
     },
 )
 
-ORDER = ["M4", "M2", "M5", "M8", "M3", "M3T", "G63", "GT3RS", "GRONOS", "911TS", "RS6", "R8"]
+# the RS e-tron GT is a Sketchfab glb merged by material (Object_N, one mesh per material all over the car), already
+# nose to +Y. The tires are one object (all four): the rims / discs are claimed back out of the body by the tires'
+# cylinders, like the M3's
+CARS["ETRONGT"] = dict(
+    fbx="audi-rs-e-tron-gt-under-30mb/source/audi_rs_e-tron_gt.glb", fit_length=4.989, yaw=0.0,
+    texdirs=[], plate_txt="AUDY", tire=r"RimPart0011Mtl", quad_by_position=True, recenter=True,
+    parts=[
+        (r"^Object_30/", "wheel"),                      # the four tires
+    ],
+    claim_wheels={"caliper": r"x^"},
+    mats=[
+        (r"^Color1Mtl$", {"c": "paint"}),
+        (r"^RearRightDoorPartGlass1Mtl$", {"c": "glass"}),
+        (r"^RimPart0011Mtl$", {"c": "flat", "col": GREY_TIRE, "r": 0.9, "m": 0.0}),
+        (r"^TrunkPart0171Mtl$", {"c": "flat", "col": (0.32, 0.32, 0.33), "r": 0.35, "m": 0.7}),
+        (r"^SwPart0101Mtl$|^Interior0321Mtl$", {"c": "drop"}),        # the RS badges, e-tron / Bang & Olufsen lettering
+        (r"^TrunkPartRear1Mtl$", {"c": "tex", "r": 0.25, "m": 0.0, "tailred": True, "emit": "self", "w": 0.8}),   # the light bar
+        (r"^(SwPart1Mtl|TrunkPart0121Mtl)$", {"c": "tex", "r": 0.2, "m": 0.3, "w": 0.8}),                       # lamps
+        (r"^Interior0061Mtl$|^Yel1Mtl$", {"c": "tex", "r": 0.2, "m": 0.0, "emit": "self", "w": 0.4}),           # the screens
+        (r".", {"c": "tex", "col": None, "r": 0.5, "m": 0.1, "w": 0.5}),
+    ],
+    emblems=[   # the (black) rings on the grille and the boot lid
+        {"at": (0.0035, 2.426, 0.586), "dir": (0, 1, 0), "r": 0.118, "aspect": 3.2, "maker": "audy",
+         "kill": (r"^SwPart00[57]1Mtl$", 0.125), "probe": 0},
+        {"at": (0.0025, -2.409, 0.9215), "dir": (0, -0.79, 0.62), "r": 0.1, "aspect": 3.4, "maker": "audy",
+         "kill": (r"^SwPart0051Mtl$", 0.11)},
+    ],
+    steer=r".",
+    edits={},
+)
+
+ORDER =["M4", "M2", "M5", "M8", "M3", "M3T", "G63", "GT3RS", "GRONOS", "911TS", "RS6", "R8", "ETRONGT"]
 
 # ============================================================================= helpers
 
@@ -1294,7 +1325,8 @@ class Car:
                     ys += [(ob.matrix_world @ Vector(b)).y for b in ob.bound_box]
             scale = self.cfg["fit_length"] / (max(ys) - min(ys))
             print("[%s] scale %.5f (fit to %.3f m)" % (self.key, scale, self.cfg["fit_length"]))
-        M = Matrix.Rotation(math.pi, 4, "Z") @ Matrix.Scale(scale, 4)
+        # (models nose to Blender -Y get turned round; "yaw": 0 for one already nose to +Y)
+        M = Matrix.Rotation(math.radians(self.cfg.get("yaw", 180.0)), 4, "Z") @ Matrix.Scale(scale, 4)
         out = []
         for ob in new:
             if ob.type != "MESH" or len(ob.data.polygons) == 0:
@@ -1321,6 +1353,12 @@ class Car:
             bpy.data.objects.remove(o)
         for no in out:
             link(no)
+        if self.cfg.get("recenter"):
+            # a model placed off the origin: centre it (x, y) so the wheel quadrants split by position
+            lo, hi = bounds(out)
+            T = Matrix.Translation(Vector((-(lo[0] + hi[0]) / 2, -(lo[1] + hi[1]) / 2, 0)))
+            for no in out:
+                no.data.transform(T)
         self.parts = out
         print("[%s] imported %d meshes, %d tris" % (self.key, len(out), sum(tris(o) for o in out)))
 
@@ -1387,7 +1425,7 @@ class Car:
             ob["role"] = role
             m = re.search(r"(Front|Rear) ?([LR])\b", ob["chain"]) or re.search(r"([FR])([LR])(_|$)", ob["chain"].split("/")[0].replace("Caliper", "_"))
             ob["quad"] = ""
-            if m:
+            if m and not self.cfg.get("quad_by_position"):          # (names that only look like a quadrant)
                 fr = "F" if m.group(1)[0] == "F" else "R"
                 ob["quad"] = fr + m.group(2)
             keep.append(ob)

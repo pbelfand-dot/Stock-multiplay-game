@@ -86,7 +86,8 @@ const LUXURY := {
 ## corner before it slides (1.0 = a good sports car), mass = how much a crash
 ## shoves it around (tonnes). Game speeds: highway traffic cruises ~29 m/s.
 ## brand = the maker whose dealership sells it (BEMZE if missing); awd = four-wheel
-## drive (the tail doesn't step out under power).
+## drive (the tail doesn't step out under power); ev = electric (car.gd: a quiet
+## motor whine instead of the engine, no gear shifts).
 const CARS := {
 	"beater": {"name": "Used TOROLA Corona", "price": 8_000.0, "model": "TCar_Sedan_Silver", "top": 50.0, "zero60": 7.8, "grip": 0.75, "mass": 1.4,
 		"paint": Color(0.7, 0.72, 0.75), "desc": "Pre-owned. 180K miles, one hubcap, check-engine light. It gets you there."},
@@ -117,6 +118,8 @@ const CARS := {
 		"paint": Color(0.45, 0.46, 0.46), "desc": "A 591 hp twin-turbo V8 station wagon. The dog rides in the back at 174 mph."},
 	"au_r8": {"name": "AUDY R8 4.2", "brand": "audy", "price": 95_000.0, "model": "RC_R8", "awd": true, "top": 84.0, "zero60": 4.3, "grip": 0.98, "mass": 1.56,
 		"paint": Color(0.7, 0.7, 0.72), "desc": "Used, 2007. Mid-engine V8 behind your head, real needles on the dash. The supercar you can afford."},
+	"au_etrongt": {"name": "AUDY RS e-tron GT", "brand": "audy", "price": 150_000.0, "model": "RC_ETRONGT", "awd": true, "ev": true, "top": 69.0, "zero60": 3.0, "grip": 1.0, "mass": 2.35,
+		"paint": Color(0.16, 0.26, 0.22), "desc": "Electric. 637 hp the instant you touch it, no noise, no gears, no excuses."},
 	# not for sale: highway patrol (an M8 outruns it, an M3 has to lose it in traffic)
 	"taxi": {"name": "Yellow Cab", "price": 0.0, "model": "TCar_Taxi", "top": 42.0, "zero60": 8.0, "grip": 0.8, "mass": 1.5,
 		"paint": Color(1.0, 0.78, 0.05), "desc": ""},
@@ -138,9 +141,9 @@ const PURSUIT_LOST_S := 6.0
 const PURSUIT_BUST_S := 2.5
 const SPEEDING_TICKET := 2_500.0
 ## A save stores the chosen ride as (index in CAR_ORDER) + 1: only ever append here.
-const CAR_ORDER := ["beater", "bz_540i", "bz_m2", "bz_m3", "bz_m4", "bz_m5", "bz_m8", "bz_m3t", "mb_g63", "po_gt3rs", "mb_gronos", "po_911ts", "au_rs6", "au_r8"]
+const CAR_ORDER := ["beater", "bz_540i", "bz_m2", "bz_m3", "bz_m4", "bz_m5", "bz_m8", "bz_m3t", "mb_g63", "po_gt3rs", "mb_gronos", "po_911ts", "au_rs6", "au_r8", "au_etrongt"]
 ## The order the showroom and the phone list them in.
-const SHOW_ORDER := ["beater", "bz_540i", "bz_m2", "bz_m3", "bz_m3t", "bz_m4", "bz_m5", "bz_m8", "mb_g63", "mb_gronos", "po_911ts", "po_gt3rs", "au_r8", "au_rs6"]
+const SHOW_ORDER := ["beater", "bz_540i", "bz_m2", "bz_m3", "bz_m3t", "bz_m4", "bz_m5", "bz_m8", "mb_g63", "mb_gronos", "po_911ts", "po_gt3rs", "au_r8", "au_rs6", "au_etrongt"]
 ## Factory paint at the dealership (a respray later costs RESPRAY).
 const PAINTS := [
 	["Alpine White", Color(0.93, 0.93, 0.92)], ["Black Sapphire", Color(0.05, 0.05, 0.07)],

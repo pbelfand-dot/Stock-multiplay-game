@@ -126,6 +126,15 @@ def cars():
     s_ = lowpass(s_, 0.35)
     save("engine", s_, 0.6)
 
+    # an electric car: a smooth motor whine (whole-Hz partials: loops cleanly in 1 s), the inverter's thin high
+    # tone and a hush of road noise; the car pitches it up with speed, no gear steps
+    ev = np.zeros_like(tt)
+    for f, a in ((240.0, 1.0), (480.0, 0.35), (720.0, 0.12), (1440.0, 0.05)):
+        ev += a * np.sin(2 * np.pi * f * tt)
+    ev *= 1.0 + 0.08 * np.sin(2 * np.pi * 6.0 * tt)
+    hush = lowpass(np.random.default_rng(99).uniform(-1, 1, len(tt)), 0.05)      # (own rng: the sounds after keep theirs)
+    save("engine_ev", ev * 0.8 + hush * 0.6, 0.45)
+
     d = 0.9
     tt = t(d)
     n = rng.uniform(-1, 1, len(tt))
