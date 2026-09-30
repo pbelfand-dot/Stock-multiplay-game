@@ -208,23 +208,65 @@ func _run() -> void:
 				await _snap("nice_%d_%s" % [k, cc.model])
 		Sfx.quit_game()
 		return
-	if Config.cli.has("lotonly"):              # the BEMZE dealership off the highway
+	if Config.cli.has("lotonly"):              # a dealership off the highway (--brand=mercedez|porsha|audy; BEMZE by default)
 		hud.root.visible = false
-		var lot: Vector3 = world.builder.hood.hw.dealership_lot
+		var brand: String = str(Config.cli.get("brand", "bemze"))
+		var hw = world.builder.hood.hw
+		var lot: Vector3 = hw.dealers[brand].lot
+		var fs: float = hw.dealers[brand].s
 		var cam := Camera3D.new()
 		world.add_child(cam)
 		cam.current = true
 		cam.fov = 70
 		world.hood.hood.traffic.force_awake = true
-		for v in [["lot_a", Vector3(-45, 9, -30), Vector3(5, 2, 0)], ["lot_b", Vector3(-25, 2.2, 8), Vector3(10, 1, 0)],
-				["lot_c", Vector3(4, 1.7, 6), Vector3(18, 0.8, -1)], ["lot_d", Vector3(8, 1.7, -4), Vector3(8, 0.5, 8)]]:
+		var views: Array = [["lot_a", Vector3(-45, 9, -30), Vector3(5, 2, 0)], ["lot_b", Vector3(-25, 2.2, 8), Vector3(10, 1, 0)],
+				["lot_c", Vector3(4, 1.7, 6), Vector3(18, 0.8, -1)], ["lot_d", Vector3(8, 1.7, -4), Vector3(8, 0.5, 8)]]
+		if brand != "bemze":        # (the loop lots: the glass faces the highway, +z)
+			var gs: float = fs - (180.0 if brand == "mercedez" else 60.0)      # its exit sign's gantry (Mercedez Banz: the loop's first)
+			var bb: Vector3 = hw.point(fs - 330.0, 28.0, 12.0)                 # its billboard (the builder may have nudged it back)
+			var best := INF
+			for mi in world.builder.hood.g_far.find_children("*", "MeshInstance3D", false, false):
+				var ab: AABB = (mi as MeshInstance3D).get_aabb()
+				if ab.size.y < 12.0 or maxf(ab.size.x, ab.size.z) > 20.0:      # (a billboard: tall, ~13 m wide)
+					continue
+				var c: Vector3 = (mi as MeshInstance3D).global_transform * ab.get_center()
+				if hw.locate(c).y < 0.0:                                       # (the lot's side of the road)
+					continue
+				if c.distance_to(bb) < best and c.distance_to(bb) < 150.0:
+					best = c.distance_to(bb)
+					bb = Vector3(c.x, 12.4, c.z)            # (the middle of its face)
+			var bs: float = hw.locate(bb).x
+			print("[dealers] %s billboard at %s (station %.0f, %.0f m from where it was asked for)" % [brand, str(bb), bs, best])
+			views = [["lot_%s_billboard" % brand, hw.lane_center(1, 1, bs - 50.0) + Vector3(0, 1.3, 0) - lot, bb - lot],
+				["lot_%s_exit_sign" % brand, hw.lane_center(1, 1, gs - 45.0) + Vector3(0, 1.3, 0) - lot, hw.point(gs, 9.0, 7.0) - lot],
+				["lot_%s_approach" % brand, hw.point(fs + 25.0, 16.5, 1.4) - lot, Vector3(0, 4, 0)],
+				["lot_%s_exterior" % brand, Vector3(-9, 1.7, 17), Vector3(8, 3.5, -2)],
+				["lot_%s_front" % brand, Vector3(27, 2.0, 21), Vector3(0, 3, -6)],
+				["lot_%s_statement" % brand, Vector3(-4, 1.7, 6), Vector3(-13, 4, 15)],
+				["lot_%s_interior" % brand, Vector3(-4, 1.7, -3), Vector3(8, 0.8, -11.5)],
+				["lot_%s_interior2" % brand, Vector3(19, 1.7, -3.5), Vector3(-2, 1.0, -12)]]
+		# from above the far carriageway, looking across the loop at the lot
+		views.append(["lot_%s_aerial" % brand, hw.point(fs - 40.0, -35.0, 50.0) - lot, Vector3(0, 2, 0)])
+		for v in views:
 			cam.global_position = lot + v[1]
 			cam.look_at(lot + v[2])
 			await get_tree().create_timer(1.2).timeout
 			await _snap(v[0])
+		# straight down: the lot, its ramps, the highway
+		cam.projection = Camera3D.PROJECTION_ORTHOGONAL
+		cam.size = 170.0
+		cam.global_position = lot + Vector3(0, 120, 25)
+		cam.rotation = Vector3(-PI / 2, 0, 0)
+		await get_tree().create_timer(1.2).timeout
+		await _snap("lot_%s_map" % brand)
 		Sfx.quit_game()
 		return
-	if Config.cli.has("dealeronly"):           # the BEMZE showroom menu
+	if Config.cli.has("dealeronly"):           # a showroom menu (--brand=...; BEMZE by default)
+		var brand: String = str(Config.cli.get("brand", "bemze"))
+		if brand != "bemze":
+			await _dealer_menu(world, m, hud, brand)
+			Sfx.quit_game()
+			return
 		m.ledger.get_acct(0).balance = 150_000.0
 		m.owned[1]["bz_m2"] = 1
 		m.owned[1]["paint_bz_m2"] = 6
@@ -1112,6 +1154,37 @@ func _hands(world, m, hud) -> void:
 	print("car gone under a driver: ok")
 
 
+## A loop dealership's showroom menu: as you walk in, each of its cars on the
+## turntable, then one bought (if it has any yet; else "arriving soon").
+func _dealer_menu(world, m, hud, brand: String) -> void:
+	var Brands = load("res://scripts/sim/brands.gd")
+	m.ledger.get_acct(0).balance = 400_000.0
+	m._push_state()
+	hud.open_interact({"type": "dealer", "id": Brands.index(brand)})
+	await _frames(6)
+	hud._rank_t = 0.0
+	hud.rank_banner.modulate.a = 0.0
+	await get_tree().create_timer(0.8).timeout
+	var cars: Array = Brands.cars(brand)
+	print("[dealer] %s: menu %s, %d cars %s, on the turntable: '%s'" % [brand, hud.dealer.title_lbl.text, cars.size(), str(cars),
+			hud.dealer.selected])
+	await _snap("dl_%s_showroom" % brand)
+	for key in cars:
+		hud.dealer.selected = key
+		hud.dealer._refresh()
+		await get_tree().create_timer(0.6).timeout
+		await _snap("dl_%s_%s" % [brand, key])
+	if not cars.is_empty():
+		var key: String = cars[0]
+		m.request_buy_car(key, 5)
+		await get_tree().create_timer(0.6).timeout
+		print("[dealer] %s: bought %s: %s, driving: %s" % [brand, key, m.owns_car(1, key), m.car_of(1)])
+		hud.dealer.selected = key
+		hud.dealer._refresh()
+		await get_tree().create_timer(0.6).timeout
+		await _snap("dl_%s_bought" % brand)
+
+
 ## The loop: its layout as data (loop_map.json, for a map), aerial views, then
 ## a lap-ish drive (an AiDriver at the wheel, us sitting in it) with chase and
 ## cockpit shots on the east curve, the return leg, the tunnel, and a count of
@@ -1130,9 +1203,9 @@ func _loop(world, m, hud) -> void:
 		for q in hw.paths[pn].pts:
 			pl.append([snappedf(q.x, 0.1), snappedf(q.z, 0.1)])
 		js.paths[pn] = pl
-	for fl in hw.future_lots:
-		var r: Rect2 = fl.rect
-		js.future.append({"name": fl.name, "s": fl.s, "rect": [r.position.x, r.position.y, r.size.x, r.size.y]})
+	for dl in hw.loop_dealers():
+		var r: Rect2 = dl.rect
+		js.future.append({"name": dl.brand, "s": dl.s, "rect": [r.position.x, r.position.y, r.size.x, r.size.y]})
 	for sp in [hw.s_portal_w, hw.s_portal_e]:
 		var q: Vector3 = hw.point(sp, 0.0)
 		js.portals.append([q.x, q.z])

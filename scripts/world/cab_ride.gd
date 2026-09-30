@@ -1,6 +1,6 @@
 extends Node
 ## A real cab ride: a yellow cab pulls up where you are (downtown by the taxi
-## stand, Magnolia St, in front of your house, the BEMZE lot), you get in the
+## stand, Magnolia St, in front of your house, a dealership's lot), you get in the
 ## back, and the cabbie drives you there on the real roads: the streets, the
 ## roundabout, the highway, in traffic (CabRoutes plans the path, the same
 ## AiDriver the cops use drives it). The chase camera follows the cab.
@@ -12,6 +12,7 @@ extends Node
 const Rules = preload("res://scripts/sim/rules.gd")
 const CabRoutes = preload("res://scripts/vehicle/cab_routes.gd")
 const AiDriver = preload("res://scripts/vehicle/ai_driver.gd")
+const Brands = preload("res://scripts/sim/brands.gd")
 
 const NAMES := {"downtown": "downtown (BAGHOLDER CAPITAL)", "hood": "Magnolia Heights", "home": "home", "dealer": "BEMZE Motors"}
 const CITY_SPEED := 13.0        # m/s on the streets (~30 mph)
@@ -49,11 +50,19 @@ func where_am_i() -> String:
 		if not home.is_empty() and Vector2(at.x - home.drive.x, at.z - home.drive.z).length() < 30.0:
 			return "home"
 		return "hood"
-	if at.distance_to(hb.hw.dealership_lot) < 75.0:
-		return "dealer"
+	for br in hb.hw.dealers:
+		if at.distance_to(hb.hw.dealers[br].lot) < 75.0:
+			return "dealer" if br == "bemze" else br
 	if at.z < 330.0 and at.x < 200.0:     # the office, the studio, the street
 		return "downtown"
 	return ""
+
+
+## What the cabbie calls a place (the loop dealerships: their Brands name).
+static func place_name(dest: String) -> String:
+	if Brands.BRANDS.has(dest):
+		return str(Brands.BRANDS[dest].motors)
+	return str(NAMES.get(dest, dest))
 
 
 ## The cab's path from here to `to` ([] = no cab from here).
@@ -91,7 +100,7 @@ func start(to: String, is_rush: bool) -> bool:
 	ai.cruise = CITY_SPEED
 	cab.add_child(ai)
 	p.board_cab(cab)
-	world.hud.show_toast("Cab to %s. [SPACE] skip the ride   [E] let me out here" % NAMES.get(to, to), Color(1.0, 0.85, 0.3))
+	world.hud.show_toast("Cab to %s. [SPACE] skip the ride   [E] let me out here" % place_name(to), Color(1.0, 0.85, 0.3))
 	_show_hint(true)
 	return true
 
@@ -188,6 +197,8 @@ func _arrival_line() -> String:
 			return "Home sweet home."
 		"dealer":
 			return "BEMZE Motors. Sales is inside, at the desk."
+	if Brands.BRANDS.has(dest):
+		return "%s. Sales is inside, at the desk." % place_name(dest)
 	return "Here you go."
 
 
@@ -202,4 +213,4 @@ func _show_hint(on: bool) -> void:
 		_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		world.hud.root.add_child(_hint)
 	_hint.visible = on
-	_hint.text = "IN A CAB TO %s   ·   [SPACE] skip   ·   [E] let me out here" % NAMES.get(dest, dest).to_upper()
+	_hint.text = "IN A CAB TO %s   ·   [SPACE] skip   ·   [E] let me out here" % place_name(dest).to_upper()
