@@ -158,6 +158,14 @@ const MODELS := {
 		"box": Vector3(1.949, 1.352, 4.993), "box_center": Vector3(0.0, 0.8196, 0.0744), "door": Vector3(-0.975, 0.86, 0.228),
 		"wheel_prop": "RC_RS6_Wheel", "caliper_prop": "RC_RS6_Caliper", "steer_prop": "RC_RS6_Steer",
 		"kit": true, "tail_mat": true},
+	"RC_R8": {
+		"wheelbase": 2.65, "wheel_r": 0.32, "wheel_r_rear": 0.33,
+		"wheels": {"FL": Vector3(-0.816, 0.32, -1.325), "FR": Vector3(0.816, 0.32, -1.325), "RL": Vector3(-0.7965, 0.33, 1.325), "RR": Vector3(0.7965, 0.33, 1.325)},
+		"eye": Vector3(-0.353, 1.0425, -0.0117), "wheel_hub": Vector3(-0.353, 0.7825, -0.4917), "column_tilt": -0.4014,
+		"head": [Vector3(-0.6489, 0.5434, -1.942), Vector3(0.658, 0.5434, -1.9362)], "tail": [Vector3(-0.5701, 0.784, 1.7026), Vector3(0.5701, 0.784, 1.7026)],
+		"box": Vector3(2.03, 1.143, 4.432), "box_center": Vector3(0.0, 0.6762, -0.1082), "door": Vector3(-1.015, 0.86, 0.088),
+		"wheel_prop": "RC_R8_Wheel", "wheel_prop_rear": "RC_R8_WheelR", "caliper_prop": "RC_R8_Caliper", "steer_prop": "RC_R8_Steer",
+		"kit": true, "tail_mat": true},
 }
 
 
