@@ -276,7 +276,7 @@ func _build_wheels() -> void:
 
 func _build_engine() -> void:
 	engine = AudioStreamPlayer3D.new()
-	engine.stream = Sfx.looped("engine")
+	engine.stream = Sfx.looped("engine_ev" if Rules.CARS[key].get("ev", false) else "engine")   # electric: a motor whine
 	engine.unit_size = 8.0
 	engine.max_distance = 120.0
 	engine.volume_db = -10.0
@@ -632,9 +632,15 @@ func _visuals(dt: float) -> void:
 		screech.volume_db = lerpf(screech.volume_db, -40.0 + sl * 38.0 if sl > 0.0 else -80.0, clampf(dt * 10.0, 0.0, 1.0))
 		screech.pitch_scale = 0.9 + sl * 0.2
 	if engine and engine.stream:
-		var rev := _rpm()
-		engine.pitch_scale = 0.55 + rev * 1.35
-		engine.volume_db = -14.0 + rev * 6.0 + (4.0 if in_throttle > 0.1 else 0.0)
+		if Rules.CARS[key].get("ev", false):
+			# one gear: the whine rises smoothly with speed, quiet (louder on the power)
+			var sp := clampf(absf(speed) / float(Rules.CARS[key].top), 0.0, 1.0)
+			engine.pitch_scale = 0.45 + sp * 1.6
+			engine.volume_db = -26.0 + sp * 8.0 + (5.0 if in_throttle > 0.1 else 0.0)
+		else:
+			var rev := _rpm()
+			engine.pitch_scale = 0.55 + rev * 1.35
+			engine.volume_db = -14.0 + rev * 6.0 + (4.0 if in_throttle > 0.1 else 0.0)
 
 
 ## 0..1 engine revs through six gears (the shift dips it back down).
