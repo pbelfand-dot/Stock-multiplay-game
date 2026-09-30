@@ -583,7 +583,49 @@ CARS["911TS"] = dict(
     edits={},
 )
 
-ORDER = ["M4", "M2", "M5", "M8", "M3", "M3T", "G63", "GT3RS", "GRONOS", "911TS"]
+# the RS6 Avant (C8) is a Forza model like the M2 / M5 (one kit: the stock car)
+CARS["RS6"] = dict(
+    fbx="2020-audi-rs6-avant/source/FINAL_MODEL_1.fbx", scale=100.0,
+    texdirs=["2020-audi-rs6-avant/source", "2020-audi-rs6-avant/textures"], plate_txt="AUDY",
+    parts=[
+        (r"Engine_Geo|WindowInside_Geo", "drop"),
+        (r"Calliper", "caliper"),
+        (r"3DWheel", "wheel"),
+    ],
+    mats=[
+        (r"Paint_Material", {"c": "paint"}),
+        (r"Window_Material", {"c": "glass"}),
+        (r"^red_glass", {"c": "glass", "tail": True}),
+        (r"Base_Material", {"c": "flat", "col": BLACK_GLOSS, "r": 0.6, "m": 0.0, "w": 0.5}),
+        (r"Coloured_Material", {"c": "flat", "col": None, "r": 0.45, "m": 0.1, "w": 0.6}),
+        (r"Carbon1M?_", {"c": "flat", "col": (0.03, 0.03, 0.035), "r": 0.25, "m": 0.1, "w": 0.6}),
+        (r"InteriorTillingColour", {"c": "flat", "col": None, "r": 0.7, "m": 0.0, "w": 0.4}),
+        (r"InteriorTilling", {"c": "flat", "col": None, "r": 0.7, "m": 0.0, "w": 0.4}),
+        (r"InteriorA", {"c": "tex", "r": 0.7, "m": 0.0, "w": 0.4, "tex": "Audi_RS6Avant_2020_InteriorA_DiffuseAOSO.png",
+                        "emit": "Audi_RS6Avant_2020_InteriorA_Emissive.png"}),
+        (r"LightA", {"c": "tex", "r": 0.2, "m": 0.2, "w": 0.7, "tex": "Audi_RS6Avant_2020_LightA_Diffuse.png",
+                     "emit": "Audi_RS6Avant_2020_LightA_Emissive.png", "emit_uv": 1}),
+        (r"BadgeA", {"c": "drop"}),                  # quattro, RS 6 (the rings are geometry: below)
+        (r"Grille", {"c": "tex", "r": 0.5, "m": 0.1, "w": 0.6}),
+        (r"ManufacturerPlate", {"c": "tex", "r": 0.4, "m": 0.0, "plate": True}),
+        (r"CallipersCalliperBad", {"c": "flat", "col": (0.2, 0.2, 0.21), "r": 0.4, "m": 0.2}),        # "Audi ceramic"
+        (r"CallipersCalliper", {"c": "flat", "col": (0.62, 0.04, 0.04), "r": 0.35, "m": 0.1}),
+        (r"Wheel1A", {"c": "tex", "r": 0.45, "m": 0.45, "tex": "Audi_RS6Avant_2020_Wheel1A_DiffuseAOSO.png"}),
+        (r"EngineA", {"c": "flat", "col": DARK, "r": 0.6, "m": 0.3, "w": 0.3}),
+    ],
+    steer=r"Interior(Tilling)?_Geo", steer_box=(-0.585, -0.175, 0.28, 0.49, 0.72, 1.1),   # (the rim is the tiled leather)
+    emblems=[
+        # the chrome rings on the grille and the tailgate (modelled): AUDY rings on a black strip
+        {"at": (0.0, 2.37, 0.607), "dir": (0, 1, 0), "r": 0.15, "aspect": 2.6, "maker": "audy", "kill": (r"Coloured", 0.155), "probe": 0},
+        {"at": (0.0, -2.472, 0.958), "dir": (0, -1, 0), "r": 0.105, "aspect": 3.0, "maker": "audy", "kill": (r"Coloured", 0.11), "probe": 0},
+    ],
+    edits={
+        "Audi_RS6Avant_2020_Wheel1A_DiffuseAOSO.png": [("fill", 0.0, 0.88, 0.25, 1.0, None), ("fill", 0.62, 0.86, 1.0, 1.0, None)],
+        "Audi_RS6Avant_2020_InteriorA_DiffuseAOSO.png": [("fill", 0.6, 0.27, 1.0, 0.36, None)],
+    },
+)
+
+ORDER = ["M4", "M2", "M5", "M8", "M3", "M3T", "G63", "GT3RS", "GRONOS", "911TS", "RS6"]
 
 # ============================================================================= helpers
 
@@ -1392,6 +1434,13 @@ class Car:
                     if pick:
                         delete_faces(ob, lambda p, pick=pick: p.index not in pick)
                         n_kill += len(pick)
+                if e.get("drop_rest"):
+                    # the other cards of that material (lettering ...) go too
+                    for ob in self.parts:
+                        names = [s.material.name if s.material else "" for s in ob.material_slots]
+                        rest = {j for j, n in enumerate(names) if re.search(e["on"], n)}
+                        if rest:
+                            delete_faces(ob, lambda p, rest=rest: p.material_index not in rest)
                 if not area:
                     print("[%s] emblem %d: no %s faces" % (self.key, i, e["on"]))
                     continue
@@ -1431,9 +1480,15 @@ class Car:
                     hit = (h[0], h[3])
             c = (hit[0] if hit else at) + dr * 0.004
             mname = "RC_Emblem_" + e["maker"]
+            asp = e.get("aspect", 1.0)
+            if asp != 1.0:
+                mname += "_%d" % int(asp * 10)
             if mname not in bpy.data.materials:
                 img = Image.new("RGBA", (256, 256), (16, 16, 18, 255))
                 img.alpha_composite(draw_emblem(256, e["maker"]))
+                if asp != 1.0:                  # a strip badge: the middle band of the emblem
+                    h = int(256 / asp)
+                    img = img.crop((0, 128 - h // 2, 256, 128 - h // 2 + h))
                 os.makedirs(TMP, exist_ok=True)
                 img.convert("RGB").save(os.path.join(TMP, mname + ".png"))
                 bpy.data.materials.new(mname)
@@ -1446,10 +1501,16 @@ class Car:
             ey = dr.cross(ex).normalized()
             r = e["r"]
             me = bpy.data.meshes.new("emblem%d" % i)
-            verts = [c] + [c + (ex * math.cos(a) + ey * math.sin(a)) * r for a in np.linspace(0, 2 * math.pi, 24, endpoint=False)]
-            me.from_pydata(verts, [], [(0, 1 + k, 1 + (k + 1) % 24) for k in range(24)])
+            if asp != 1.0:
+                corners = [(-1, -1), (1, -1), (1, 1), (-1, 1)]
+                verts = [c + ex * (u * r) + ey * (v * r / asp) for u, v in corners]
+                me.from_pydata(verts, [], [(0, 1, 2), (0, 2, 3)])
+                uvs = [(0.5 + 0.5 * u, 0.5 + 0.5 * v) for u, v in corners]
+            else:
+                verts = [c] + [c + (ex * math.cos(a) + ey * math.sin(a)) * r for a in np.linspace(0, 2 * math.pi, 24, endpoint=False)]
+                me.from_pydata(verts, [], [(0, 1 + k, 1 + (k + 1) % 24) for k in range(24)])
+                uvs = [(0.5, 0.5)] + [(0.5 + 0.5 * math.cos(a), 0.5 + 0.5 * math.sin(a)) for a in np.linspace(0, 2 * math.pi, 24, endpoint=False)]
             uvl = me.uv_layers.new(name="UV0")
-            uvs = [(0.5, 0.5)] + [(0.5 + 0.5 * math.cos(a), 0.5 + 0.5 * math.sin(a)) for a in np.linspace(0, 2 * math.pi, 24, endpoint=False)]
             for poly in me.polygons:
                 for li in poly.loop_indices:
                     uvl.data[li].uv = uvs[me.loops[li].vertex_index]
@@ -1463,6 +1524,9 @@ class Car:
             self.parts.append(ob)
             print("[%s] emblem %s at %s: %d faces of the old badge gone, disc on %s" % (
                 self.key, e["maker"], gd(c), n_kill, "the surface" if hit else "the given point"))
+        for ob in [o for o in self.parts if not len(o.data.polygons)]:
+            self.parts.remove(ob)
+            bpy.data.objects.remove(ob)
 
     def fix_roundels(self):
         """Roundels modelled as geometry: blue quarters -> orange, the white letters round the ring -> black
@@ -1568,6 +1632,23 @@ class Car:
         named = [o for o in self.parts if o["role"] == "steer"]
         if named:
             steer = join(named, "steer_src")
+        elif self.cfg.get("steer_box"):
+            # a dash too busy for the search: the loose pieces wholly inside this box are the wheel
+            x0, x1, y0, y1, z0, z1 = self.cfg["steer_box"]
+            picked = []
+            for ob in [o for o in self.parts if o["role"] == "body" and re.search(self.cfg["steer"], o["chain"] + "|" + o["mats"])]:
+                me = ob.data
+                V = verts_np(ob)
+                fs = set()
+                for faces in loose_parts(ob):
+                    vi = np.unique(np.concatenate([np.array(me.polygons[f].vertices) for f in faces]))
+                    lo, hi = V[vi].min(0), V[vi].max(0)
+                    if lo[0] > x0 and hi[0] < x1 and lo[1] > y0 and hi[1] < y1 and lo[2] > z0 and hi[2] < z1:
+                        fs.update(faces)
+                part = split_faces(ob, lambda p, fs=fs: p.index in fs, ob.name + "_steer") if fs else None
+                if part:
+                    picked.append(part)
+            steer = join(picked, "steer_src")
         else:
             srcs = [o for o in self.parts if o["role"] == "body" and re.search(self.cfg["steer"], o["chain"] + "|" + o["mats"])]
             # the loose pieces of the interior ahead of the driver's seat; the wheel is the set of pieces that
@@ -1588,7 +1669,7 @@ class Car:
             best = None
             for c0, _, _, _ in pieces:
                 for it in range(3):
-                    ins = [pc for pc in pieces if np.linalg.norm(pc[1] - c0, axis=1).max() < 0.23]
+                    ins = [pc for pc in pieces if np.linalg.norm(pc[1] - c0, axis=1).max() < self.cfg.get("steer_ball", 0.23)]
                     if not ins:
                         break
                     U = np.concatenate([pc[1] for pc in ins])

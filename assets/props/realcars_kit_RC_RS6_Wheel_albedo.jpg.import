@@ -1,0 +1,45 @@
+[remap]
+
+importer="texture"
+type="CompressedTexture2D"
+uid="uid://cvkh50alui8lf"
+path.s3tc="res://.godot/imported/realcars_kit_RC_RS6_Wheel_albedo.jpg-ce24a3000421caf41e2ef0ae99f14c6a.s3tc.ctex"
+path.etc2="res://.godot/imported/realcars_kit_RC_RS6_Wheel_albedo.jpg-ce24a3000421caf41e2ef0ae99f14c6a.etc2.ctex"
+metadata={
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
+"vram_texture": true
+}
+generator_parameters={
+"md5": "bdf7b071c74e2e4e004460b3f5d5b9e1"
+}
+
+[deps]
+
+source_file="res://assets/props/realcars_kit_RC_RS6_Wheel_albedo.jpg"
+dest_files=["res://.godot/imported/realcars_kit_RC_RS6_Wheel_albedo.jpg-ce24a3000421caf41e2ef0ae99f14c6a.s3tc.ctex", "res://.godot/imported/realcars_kit_RC_RS6_Wheel_albedo.jpg-ce24a3000421caf41e2ef0ae99f14c6a.etc2.ctex"]
+
+[params]
+
+compress/mode=2
+compress/high_quality=false
+compress/lossy_quality=0.7
+compress/uastc_level=0
+compress/rdo_quality_loss=0.0
+compress/hdr_compression=1
+compress/normal_map=0
+compress/channel_pack=0
+mipmaps/generate=true
+mipmaps/limit=-1
+roughness/mode=0
+roughness/src_normal=""
+process/channel_remap/red=0
+process/channel_remap/green=1
+process/channel_remap/blue=2
+process/channel_remap/alpha=3
+process/fix_alpha_border=true
+process/premult_alpha=false
+process/normal_map_invert_y=false
+process/hdr_as_srgb=false
+process/hdr_clamp_exposure=false
+process/size_limit=0
+detect_3d/compress_to=0
