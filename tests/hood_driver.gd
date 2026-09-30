@@ -10,6 +10,8 @@ extends Node
 
 const Rules = preload("res://scripts/sim/rules.gd")
 const Highway = preload("res://scripts/world/highway.gd")
+const Brands = preload("res://scripts/sim/brands.gd")
+const CabRoutes = preload("res://scripts/vehicle/cab_routes.gd")
 
 const MIN_GAP := 0.5          # metres: bumper to bumper, same lane
 const V_LIMIT := 45.0
@@ -77,7 +79,13 @@ func _road_gaps(space: PhysicsDirectSpaceState3D) -> Array:
 	var tracks := {}
 	for nm in hw.paths:
 		tracks[nm] = hw.paths[nm]
-	for r in ["home_to_office", "office_to_home"]:
+	var rts: Array = ["home_to_office", "office_to_home"]
+	var loop: Array = hw.loop_dealers()
+	for i in loop.size():          # the cab routes to, between and back from the loop dealerships
+		rts.append_array(["office_to_" + loop[i].brand, loop[i].brand + "_to_home"])
+		if i + 1 < loop.size():
+			rts.append("%s_to_%s" % [loop[i].brand, loop[i + 1].brand])
+	for r in rts:
 		var pts: PackedVector3Array = hw.route(r).points
 		tracks[r] = pts
 	# every lane all the way round the loop (through the tunnel, over the seam at station 0)
@@ -449,7 +457,49 @@ func _check() -> void:
 		_done(false, "dealership lot marker at %s, ground %s" % [str(lot), str(hit3.get("position"))])
 		return
 	_say("routes ok; dealership lot at (%.1f, %.1f, %.1f), exit at station %.0f eastbound" % [lot.x, lot.y, lot.z, hw.DEALER_S])
-	_done(true, "neighborhood, purchase, taxis and traffic all ok")
+	# ---- the dealerships round the loop: a lot each (flat, solid), a showroom with a sales desk,
+	# routes there and on that don't jump, cabs from downtown to each / on / back to the hood
+	if w.dealerships.size() != 4:
+		_done(false, "%d dealerships built (want BEMZE + 3 round the loop)" % w.dealerships.size())
+		return
+	for dl in hw.loop_dealers():
+		var mk: Marker3D = hood.dealer_markers.get(dl.brand)
+		var at: Vector3 = mk.global_position if mk else Vector3.ZERO
+		var front := at + Vector3(-15.0, 0, 12.0)          # (the showroom's over the middle: the open front of the lot)
+		var hit4 := space.intersect_ray(PhysicsRayQueryParameters3D.create(front + Vector3(0, 10, 0), front + Vector3(0, -10, 0)))
+		if mk == null or hit4.is_empty() or absf(hit4.position.y) > 0.05 or not (dl.rect as Rect2).has_point(Vector2(at.x, at.z)):
+			_done(false, "%s lot marker at %s, ground %s" % [dl.brand, str(at), str(hit4.get("position"))])
+			return
+		var desk := false
+		for it in w.builder.interactables:
+			if it.type == "dealer" and it.id == Brands.index(dl.brand) and (it.node as Node3D).global_position.distance_to(dl.lot) < 40.0:
+				desk = true
+		if not desk:
+			_done(false, "no %s sales desk on its lot" % dl.brand)
+			return
+		for rn in ["office_to_" + dl.brand, dl.brand + "_to_home"]:
+			var pts: PackedVector3Array = hw.route(rn).points
+			var jump := 0.0
+			for i in range(1, pts.size()):
+				jump = maxf(jump, pts[i].distance_to(pts[i - 1]))
+			if pts.size() < 50 or jump > 45.0:
+				_done(false, "route %s: %d points, jumps %.0f m" % [rn, pts.size(), jump])
+				return
+		var tail: PackedVector3Array = hw.route("office_to_" + dl.brand).points
+		var stop: Vector3 = tail[tail.size() - 1]
+		if stop.distance_to(dl.stop) > 1.0 or not (dl.rect as Rect2).has_point(Vector2(stop.x, stop.z)):
+			_done(false, "the %s route ends at %s, not by its door" % [dl.brand, str(stop)])
+			return
+		for from in ["downtown", "hood", "dealer"]:
+			if CabRoutes.plan(hw, from, dl.brand, {}).size() < 50:
+				_done(false, "no cab from %s to %s" % [from, dl.brand])
+				return
+		if CabRoutes.plan(hw, dl.brand, "hood", {}).size() < 50 or CabRoutes.plan(hw, dl.brand, "downtown", {}).size() < 50:
+			_done(false, "no cab from %s back" % dl.brand)
+			return
+		_say("%s: lot at (%.0f, %.0f), exit at station %.0f eastbound, cab routes ok" % [dl.brand, at.x, at.z, dl.s])
+	_say("4 dealerships built in %d ms" % w.dealers_ms)
+	_done(true, "neighborhood, purchase, taxis, traffic and the dealerships all ok")
 
 
 # ================================================================== screenshots

@@ -67,10 +67,13 @@ func _run() -> void:
 
 ## The client's puppet going away mid-test means the client quit (its own SMOKE line
 ## says why): stop here instead of polling a freed node until the timeout.
+var _puppet_watch := true
+
+
 func _watch_puppet(pnode) -> void:
-	while is_inside_tree():
+	while is_inside_tree() and _puppet_watch:
 		await get_tree().physics_frame
-		if not is_instance_valid(pnode):
+		if _puppet_watch and not is_instance_valid(pnode):
 			_fail("the client's puppet vanished mid-test (the client quit or dropped)")
 			return
 
@@ -111,6 +114,7 @@ func _host() -> void:
 		return
 	_say("client's tailor change synced mid-game (buzz + cap)")
 	_say("client's chair + emote synced (pose %s)" % pnode.model.pose)
+	_puppet_watch = false                   # done with the puppet: the client may finish and leave now
 	if not await _wait_for(func(): return got.get("chat", 0) >= 3, 30.0, "client ready for the raid"):
 		return
 	_say("client's tailor look synced (afro + hoodie)")

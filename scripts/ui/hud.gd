@@ -16,6 +16,7 @@ const EmoteWheel = preload("res://scripts/ui/emote_wheel.gd")
 const PhotoMode = preload("res://scripts/ui/photo_mode.gd")
 const AtmUi = preload("res://scripts/ui/atm_ui.gd")
 const DealerUi = preload("res://scripts/ui/dealer_ui.gd")
+const Brands = preload("res://scripts/sim/brands.gd")
 const DayEvents = preload("res://scripts/sim/day_events.gd")
 const Contracts = preload("res://scripts/sim/contracts.gd")
 
@@ -66,7 +67,7 @@ var music                  # MusicDirector: picks the soundtrack
 var emote_wheel            # hold B
 var photo                  # K: photo mode
 var atm                    # BAGHOLDER BANK ATM
-var dealer                 # BEMZE dealership
+var dealer                 # the dealerships' showroom menu (set_brand)
 var cash_lbl: Label
 var tailor
 var crt
@@ -558,7 +559,8 @@ func open_interact(t: Dictionary) -> void:
 			shop.visible = true
 		"tailor":
 			_open_tailor()
-		"dealer":
+		"dealer":   # a dealership's sales desk: that brand's showroom (id = Brands.ORDER index)
+			dealer.set_brand(Brands.ORDER[clampi(int(t.id), 0, Brands.ORDER.size() - 1)])
 			dealer.visible = true
 			dealer._refresh()
 			Sfx.play("click")

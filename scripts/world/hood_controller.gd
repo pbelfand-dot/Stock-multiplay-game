@@ -10,6 +10,8 @@ extends Node
 const Rules = preload("res://scripts/sim/rules.gd")
 const RealtorUI = preload("res://scripts/ui/realtor_ui.gd")
 const UI = preload("res://scripts/ui/ui_theme.gd")
+const Brands = preload("res://scripts/sim/brands.gd")
+const LOOP_BRANDS := ["mercedez", "porsha", "audy"]    # ride destinations: the dealerships round the loop
 
 const KNOCK := ["Nobody answers.", "A dog goes off inside. Nobody comes.", "\"WE DON'T WANT ANY!\"",
 	"You hear a TV. Nobody gets up.", "A curtain moves. The door stays shut.", "\"If this is about the car's extended warranty...\""]
@@ -258,6 +260,8 @@ func open_taxi(stand: int) -> void:
 	if mine != "":
 		opts.append(["home", "MY HOUSE — %s" % house(mine).address])
 	opts.append(["dealer", "BEMZE MOTORS — the dealership off the highway"])
+	for br in LOOP_BRANDS:
+		opts.append([br, "%s — round the loop, exit %d" % [str(Brands.BRANDS[br].motors).to_upper(), int(Brands.BRANDS[br].exit)]])
 	world.hud.close_modals()
 	ui.open_taxi(hood.taxi[stand].name, opts)
 
@@ -320,6 +324,10 @@ func _dest(dest: String) -> Dictionary:
 				return {}
 			var h: Dictionary = house(id)
 			return {"pos": h.spawn, "yaw": h.spawn_yaw, "name": h.address, "home": id}
+	if dest in LOOP_BRANDS and hood.hw.dealers.has(dest):
+		# by the showroom door, facing it
+		var stop: Vector3 = hood.hw.dealers[dest].stop
+		return {"pos": stop + Vector3(3.0, 0.3, -2.0), "yaw": 0.0, "name": str(Brands.BRANDS[dest].motors), "brand": dest}
 	return {}
 
 
@@ -337,6 +345,8 @@ func _arrive(p, where: Dictionary) -> void:
 		world.hud.show_toast("Downtown. The BAGHOLDER CAPITAL lobby is up the block.", Color(0.95, 0.9, 0.6))
 	elif where.name == "BEMZE Motors":
 		world.hud.show_toast("BEMZE Motors. Sales is inside, at the desk.", Color(0.5, 0.75, 1.0))
+	elif where.has("brand"):
+		world.hud.show_toast("%s. Sales is inside, at the desk." % where.name, Brands.BRANDS[where.brand].ui)
 	else:
 		world.hud.show_toast("Magnolia Heights. Starter homes, cheap-ish. Look for the FOR SALE signs.", Color(0.7, 1.0, 0.7))
 

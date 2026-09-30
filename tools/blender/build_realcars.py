@@ -492,7 +492,98 @@ CARS["GT3RS"] = dict(
     },
 )
 
-ORDER = ["M4", "M2", "M5", "M8", "M3", "M3T", "G63", "GT3RS"]
+# the Mansory Gronos (G500 base, "Black Desert"): a tuner car, so its widebody, forged-carbon panels, roof lights and
+# forged wheels ARE the car. The copper paint (phong2) is the tintable paint; the Forza wheels' rims are gone (the
+# tires and discs stay under the Mansory rims)
+CARS["GRONOS"] = dict(
+    fbx="2017-mansory-gronos-g500-black-desert-g63/source/FINAL_MODEL_Ma_BD.fbx", scale=100.0,
+    texdirs=["2017-mansory-gronos-g500-black-desert-g63/textures", "2017-mansory-gronos-g500-black-desert-g63/source"],
+    plate_txt="MANSORRY", steer_z=(0.8, 1.5), eye_up=0.2, eye_back=0.46, eye_rest=0.08,   # (upright seat, the headrest close behind)
+    parts=[
+        (r"Suspension[FR]5", "drop"),
+        (r"Calliper", "caliper"),
+        (r"3DWheel", "wheel"),
+        (r"SteeringWheel5", "steer"),
+    ],
+    mats=[
+        (r"^phong2$", {"c": "paint"}),
+        (r"M_CarPaint_Max_025|^carbin$|M_InteriorTiled_Common", {"c": "flat", "col": (0.035, 0.035, 0.04), "r": 0.25, "m": 0.1, "w": 0.7}),
+        (r"^glass$|LightGlassNormal_(Outer)?(HeadLight)?Clear", {"c": "glass"}),
+        (r"LightGlassNormal_OuterRed", {"c": "glass", "tail": True}),
+        (r"M_LightBucket_HeadLightSetC", {"c": "tex", "r": 0.2, "m": 0.3, "w": 0.7, "emit": "Car_MercedesBenz_AMGG63_2017_Light_Headlights_SetC_E.png"}),
+        (r"M_LightBucket_Max", {"c": "tex", "r": 0.2, "m": 0.3, "w": 0.7, "emit": "Car_MercedesBenz_AMGG63_2017_Light_SetA_E.png", "tailred": True}),
+        (r"M_Interior_Max", {"c": "tex", "r": 0.7, "m": 0.0, "w": 0.4}),
+        (r"M_InteriorTiledSimple", {"c": "flat", "col": None, "r": 0.7, "m": 0.0, "w": 0.4}),
+        (r"M_Badge_SetC", {"c": "tex", "r": 0.3, "m": 0.5}),           # (replaced by the emblem below)
+        (r"M_Badge_Max", {"c": "drop"}),                              # AMG / V8 BITURBO / G63 / star / MANSORY cards
+        (r"M_Grille", {"c": "tex", "r": 0.5, "m": 0.1, "w": 0.6}),
+        (r"M_Chassis|M_Engine|Default_Material", {"c": "flat", "col": (0.05, 0.05, 0.055), "r": 0.7, "m": 0.1, "w": 0.3}),
+        (r"Mirror", {"c": "flat", "col": (0.55, 0.58, 0.6), "r": 0.05, "m": 0.9}),
+        (r"ChromeSmooth", {"c": "flat", "col": (0.6, 0.61, 0.63), "r": 0.25, "m": 0.8}),
+        (r"PlasticRoughBlack", {"c": "flat", "col": (0.03, 0.03, 0.033), "r": 0.6, "m": 0.0, "w": 0.5}),
+        (r"PlasticSmoothBlack", {"c": "flat", "col": BLACK_GLOSS, "r": 0.3, "m": 0.1, "w": 0.5}),
+        (r"CallipersCallip_20b6442", {"c": "flat", "col": (0.2, 0.2, 0.21), "r": 0.4, "m": 0.2}),       # the AMG on them
+        (r"CallipersCallip|^calip_C2", {"c": "flat", "col": (0.06, 0.06, 0.065), "r": 0.35, "m": 0.3}),
+        (r"Wheel1A_3D", {"c": "tex", "r": 0.6, "m": 0.2}),
+        (r"^r:Rim_2$", {"c": "flat", "col": (0.08, 0.08, 0.085), "r": 0.3, "m": 0.6}),                   # forged, black
+        (r"^r:Rim_4$", {"c": "flat", "col": (0.5, 0.5, 0.52), "r": 0.2, "m": 0.8}),
+        (r"^r:Logo", {"c": "flat", "col": (0.12, 0.12, 0.13), "r": 0.3, "m": 0.5}),
+        (r"^r:nuts", {"c": "flat", "col": (0.5, 0.5, 0.52), "r": 0.3, "m": 0.8}),
+        (r".", {"c": "flat", "col": None, "r": 0.5, "m": 0.1, "w": 0.5}),
+    ],
+    steer=None,
+    emblems=[
+        {"on": r"M_Badge_SetC", "maker": "mansorry", "scale": 0.75},      # the M crest on the grille
+    ],
+    edits={
+        "MercedesAMG_G63SUV_2020_Wheel2A_DiffuseAOSO.png": [("emblem", 0.135, 0.865, 0.12, "mercedez", (18, 18, 20)),
+                                                            ("fill", 0.0, 0.1, 0.14, 0.73, None)],
+        "Interior_D.png": [("emblem", 0.3, 0.125, 0.032, "mercedez", (35, 35, 38)), ("fill", 0.68, 0.165, 0.77, 0.185, (30, 30, 32))],
+    },
+)
+
+# the 911 Turbo S (992) is a Blender scene with generic names (Plane.0xx / Material.0xx), plain colours only
+CARS["911TS"] = dict(
+    fbx="porsche-911-turbo-s/source/source/Porsche2020.blend", fit_length=4.535,
+    texdirs=["porsche-911-turbo-s/source/source/texture"], plate_txt="PORSHA", tire=r"Material\.036",
+    parts=[
+        (r"^Text", "drop"),                                   # PORSCHE / turbo S lettering (tail, calipers, lamps)
+        (r"^Plane\.04[6-9]\b", "caliper"),
+        (r"^Circle", "wheel"),
+    ],
+    mats=[
+        (r"^Material\.024$", {"c": "paint"}),
+        (r"^Material\.026$", {"c": "glass"}),
+        (r"^Material\.019$", {"c": "glass", "tail": True}),                              # the tail-light band
+        (r"^ts_headlens$", {"c": "glass"}),
+        (r"^Material\.0(10|20|22)$", {"c": "glass"}),                                  # head-lamp lenses
+        (r"^Material\.0(07|11)$", {"c": "flat", "col": (0.75, 0.04, 0.03), "r": 0.25, "m": 0.0, "emit": TAIL_EMIT, "tail": True}),
+        (r"^Material\.015$", {"c": "flat", "col": (1.0, 1.0, 0.97), "r": 0.2, "m": 0.0, "emit": (1.0, 1.0, 0.97)}),
+        (r"^Material\.005$", {"c": "flat", "col": (0.9, 0.9, 0.88), "r": 0.2, "m": 0.0, "emit": (0.7, 0.7, 0.68)}),
+        (r"^Material\.017$", {"c": "flat", "col": (0.6, 0.61, 0.63), "r": 0.1, "m": 0.9}),                  # reflectors
+        (r"^Material\.030$", {"c": "flat", "col": (0.85, 0.72, 0.08), "r": 0.35, "m": 0.1}),               # PCCB calipers
+        (r"^Material\.0(35|21)$", {"c": "flat", "col": (0.3, 0.3, 0.31), "r": 0.4, "m": 0.6}),             # discs
+        (r"^Material\.036$", {"c": "flat", "col": GREY_TIRE, "r": 0.9, "m": 0.0}),
+        (r"^Material\.032$", {"c": "flat", "col": (0.05, 0.05, 0.055), "r": 0.4, "m": 0.3}),
+        (r"^Material\.0(25|31)$", {"c": "flat", "col": (0.42, 0.43, 0.45), "r": 0.3, "m": 0.7}),           # the rims
+        (r"^Material\.038$", {"c": "flat", "col": (0.55, 0.58, 0.6), "r": 0.05, "m": 0.9}),                # mirror glass
+        (r"^Material\.053$", {"c": "tex", "r": 0.3, "m": 0.5}),                                           # (the crest: below)
+        (r"^Material\.012$", {"c": "flat", "col": (0.85, 0.85, 0.85), "r": 0.4, "m": 0.0}),
+        (r"^Dots Stroke", {"c": "drop"}),
+        (r".", {"c": "flat", "col": None, "r": 0.5, "m": 0.1, "w": 0.5}),
+    ],
+    faces=[(r"^Plane\.0(22|13)$", r"^Material\.019$", "ts_headlens")],      # the same lens material in the head lamps
+    steer=None,
+    # the model has no cabin (a dark tub behind the glass): the GT3 RS's 992 cabin goes in (same car underneath)
+    donor={"car": "GT3RS", "box": (-0.74, 0.74, -1.0, 0.95, 0.12, 1.3),
+           "skip": r"carPaint|glass|antichrome\.002|carbon_roof|Scene_-_Root|amdb11|headlight_1\.001_1"},
+    emblems=[
+        {"on": r"^Material\.053$", "maker": "porsha", "scale": 0.9},      # the crest on the bonnet
+    ],
+    edits={},
+)
+
+ORDER = ["M4", "M2", "M5", "M8", "M3", "M3T", "G63", "GT3RS", "GRONOS", "911TS"]
 
 # ============================================================================= helpers
 
@@ -696,7 +787,8 @@ def draw_roundel(size):
 
 def draw_emblem(size, kind):
     """The parody makers' emblems, RGBA size x size (docs/BRANDS.md): MERCEDEZ BANZ a four-pointed star in a
-    ring, PORSHA a quartered shield, AUDY three linked rings (chrome on the badge's own background)."""
+    ring, PORSHA a quartered shield, AUDY three linked rings, the tuner MANSORRY an M in a ring (chrome on the
+    badge's own background)."""
     S = size * 4
     im = Image.new("RGBA", (S, S), (0, 0, 0, 0))
     d = ImageDraw.Draw(im)
@@ -728,6 +820,14 @@ def draw_emblem(size, kind):
         im.paste(q, (0, 0), m)
         d.polygon(shield(0.4), fill=gold)
         d.text((c, c - r * 0.04), "P", font=font(r * 0.42), fill=blk, anchor="mm")
+    elif kind == "mansorry":
+        # the tuner (MANSORRY, a MERCEDEZ BANZ tuner): a serif M in a ring
+        w = max(3, int(S * 0.06))
+        d.ellipse((c - r, c - r, c + r, c + r), outline=chrome, width=w)
+        serif = next((f for f in ("/usr/share/fonts/truetype/dejavu/DejaVuSerif-Bold.ttf",
+                                  "/usr/share/fonts/truetype/liberation/LiberationSerif-Bold.ttf") if os.path.exists(f)), None)
+        f = ImageFont.truetype(serif, int(r * 1.1)) if serif else font(r * 1.1)
+        d.text((c, c + r * 0.04), "M", font=f, fill=chrome, anchor="mm")
     elif kind == "audy":
         w = max(3, int(S * 0.035))
         rr = r * 0.36
@@ -1038,6 +1138,7 @@ class Car:
         self.mat_info = {}      # source material name -> {"diffuse": file, "base": rgba}
         self.parts = []         # [object] with ob["role"], ob["quad"], ob["chain"]
         self.ref = {}
+        self.donor = None       # a car whose cabin this one borrows (see merge_donor)
 
     # ---------------------------------------------------------------- import
     def load(self):
@@ -1123,6 +1224,8 @@ class Car:
     def mat_class(self, mname, obname=""):
         if mname.startswith("RC_Emblem_"):
             return {"c": "tex", "r": 0.25, "m": 0.6}
+        if self.donor and mname in self.donor.mat_info:
+            return self.donor.mat_class(mname, obname)
         for rx, c in self.cfg["mats"]:
             if re.search(rx, mname):
                 return c
@@ -1266,8 +1369,39 @@ class Car:
         `kr` of `at` go, and a disc with the parody emblem goes on the surface found looking back along `dir` (the
         way it faces) from `probe` m out. `chain` names the disc like the parts it sits on (the steering wheel's hub)."""
         for i, e in enumerate(self.cfg.get("emblems", [])):
-            at, dr = Vector(e["at"]), Vector(e["dir"]).normalized()
             n_kill = 0
+            if e.get("on"):
+                # a badge card of its own material (`on`, the ones within `within` of `near`): the disc takes its
+                # place, its size and the way it faces; the card goes
+                e = dict(e, probe=0)
+                near = Vector(e.get("near", (0, 0, 0)))
+                cs, ns, pts = Vector(), Vector(), []
+                area = 0.0
+                for ob in self.parts:
+                    me = ob.data
+                    names = [s.material.name if s.material else "" for s in ob.material_slots]
+                    V = verts_np(ob)
+                    pick = {p.index for p in me.polygons if p.material_index < len(names)
+                            and re.search(e["on"], names[p.material_index]) and (p.center - near).length < e.get("within", 99.0)}
+                    for f in pick:
+                        p = me.polygons[f]
+                        cs += p.center * p.area
+                        ns += p.normal * p.area
+                        area += p.area
+                        pts.append(V[list(p.vertices)])
+                    if pick:
+                        delete_faces(ob, lambda p, pick=pick: p.index not in pick)
+                        n_kill += len(pick)
+                if not area:
+                    print("[%s] emblem %d: no %s faces" % (self.key, i, e["on"]))
+                    continue
+                c0 = cs / area
+                P = np.concatenate(pts) - np.array(c0)
+                n0 = ns.normalized()
+                rad = float(np.max(np.linalg.norm(P - np.outer(P @ np.array(n0), np.array(n0)), axis=1)))
+                e["at"], e["dir"] = tuple(c0), tuple(n0)
+                e.setdefault("r", rad * e.get("scale", 0.8))
+            at, dr = Vector(e["at"]), Vector(e["dir"]).normalized()
             if e.get("kill"):
                 rx, kr = e["kill"]
                 for ob in self.parts:
@@ -1650,8 +1784,50 @@ class Car:
     def texture_for(self, mname, cls):
         if cls.get("plate"):
             return plate_image(txt=self.cfg.get("plate_txt", "BEMZE"))
+        if self.donor and mname in self.donor.mat_info:
+            return self.donor.texture_for(mname, cls)
         f = cls.get("tex") or self.mat_info.get(mname, {}).get("diffuse")
         return self.tex.get(f) if f else None
+
+    def merge_donor(self):
+        """A model without a cabin borrows one: the donor car (same generation, same wheelbase) is loaded and
+        normalised the same way, and its faces inside `box` (normalised Blender coords: the cabin), minus the
+        `skip` materials (its paint, glass ...), join this car; its steering wheel comes along as the steer part."""
+        dc = self.cfg.get("donor")
+        if not dc:
+            return
+        d = Car(dc["car"])
+        d.load()
+        d.classify()
+        d.normalise()
+        x0, x1, y0, y1, z0, z1 = dc["box"]
+        n = 0
+        for ob in list(d.parts):
+            if ob["role"] not in ("body", "steer"):
+                continue
+            names = [s.material.name if s.material else "" for s in ob.material_slots]
+
+            def inside(p, names=names):
+                c = p.center
+                nm = names[p.material_index] if p.material_index < len(names) else ""
+                return x0 < c.x < x1 and y0 < c.y < y1 and z0 < c.z < z1 and not re.search(dc["skip"], nm)
+            if ob["role"] == "steer":
+                part = ob
+            else:
+                part = split_faces(ob, inside, ob.name + "_cabin")
+            if part is None:
+                continue
+            part["role"] = ob["role"]
+            part["quad"] = ""
+            part["chain"] = "donor/" + ob["chain"]
+            part["mats"] = ob["mats"]
+            self.parts.append(part)
+            n += tris(part)
+        for ob in d.parts:
+            if alive(ob) and ob not in self.parts:
+                bpy.data.objects.remove(ob)
+        self.donor = d
+        print("[%s] cabin from %s: %d tris" % (self.key, dc["car"], n))
 
     def bake_materials(self, props, atlas_size, mat_name):
         """Final materials for `props` (all sharing one atlas): UVs into the atlas, vertex colours, slots."""
@@ -1912,7 +2088,7 @@ class Car:
                 eye.z -= 0.01
                 continue
             back = bvh.ray_cast(eye, Vector((0, -1, 0)), 1.0)
-            if back[0] is not None and back[3] < 0.2:
+            if back[0] is not None and back[3] < self.cfg.get("eye_rest", 0.2):
                 eye.y += 0.01
                 continue
             break
@@ -2067,6 +2243,7 @@ def main():
         car.load()
         car.classify()
         car.normalise()
+        car.merge_donor()
         car.claim_wheel_parts()
         car.add_emblems()
         car.fix_roundels()
