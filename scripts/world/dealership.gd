@@ -117,6 +117,7 @@ func build(lot: Vector3) -> Node3D:
 		_place("Dealer_Turntable", st, tt, rot)
 	turntable = Node3D.new()
 	turntable.position = tt + Vector3(0, 0.222, 0)
+	turntable.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF    # spun in _process (tick)
 	root.add_child(turntable)
 	b.solid(Vector3(5.0, 1.2, 5.0), tt + Vector3(0, 0.6, 0), root)
 	# the display: the brand's lineup, flagship first (a small range comes round
@@ -384,6 +385,7 @@ func _statement(st: Node3D, base: Vector3, at: Callable) -> void:
 			m.box(roof + Vector3(0, 0.9, 0), Vector3(0.3, 1.8, 0.3), steel)
 			spinner = Node3D.new()
 			spinner.position = roof + Vector3(0, 4.1, 0)
+			spinner.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
 			root.add_child(spinner)
 			var sm := RoadMesh.new()
 			_emblem(sm, Vector3.ZERO, Vector3.RIGHT, Vector3.UP, Vector3.BACK, 2.2, false)

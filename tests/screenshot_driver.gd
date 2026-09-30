@@ -392,6 +392,10 @@ func _run() -> void:
 		await _hands(world, m, hud)
 		Sfx.quit_game()
 		return
+	if Config.cli.has("mushonly"):             # 150 mph on the loop with traffic: frame strips + how far drawn traffic is off
+		await _mush(world, m, hud)
+		Sfx.quit_game()
+		return
 	if Config.cli.has("jitteronly"):           # how smooth is driving? per-frame camera steps at speed (run with --fixed-fps)
 		await _jitter(world, m)
 		Sfx.quit_game()
@@ -1077,7 +1081,33 @@ func _street_only(world, m, hud) -> void:
 		await _snap(v[0])
 
 
-## Hands on the wheel, the wheel turned a quarter left: our own view from the
+func _degs() -> Array:
+	var out: Array = []
+	for d in str(Config.cli.get("wheel_deg", "90,270")).split(","):
+		out.append(float(d))
+	return out
+
+
+## Where a character's wrist is drawn (after the IK: a BoneAttachment3D
+## follows the final pose, get_bone_global_pose doesn't).
+func _wrist(ch, side: String, bone := "Hand_") -> Vector3:
+	var sk: Skeleton3D = ch.skel
+	var ba: BoneAttachment3D = sk.get_node_or_null("Probe" + bone + side)
+	if ba == null:
+		ba = BoneAttachment3D.new()
+		ba.name = "Probe" + bone + side
+		ba.bone_name = bone + side
+		sk.add_child(ba)
+	return ba.global_position
+
+
+## Where the fist closes (the wrist + GRIP_FIST on along the forearm).
+func _fist(ch, side: String) -> Vector3:
+	var w := _wrist(ch, side)
+	return w + (w - _wrist(ch, side, "Forearm_")).normalized() * 0.075
+
+
+## Hands on the wheel, the wheel turned a quarter / three quarters left: our own view from the
 ## driver's seat, the car from outside, a remote player at the wheel of their
 ## car (a puppet, as the network shows them), a cabbie.
 func _hands(world, m, hud) -> void:
@@ -1099,38 +1129,56 @@ func _hands(world, m, hud) -> void:
 	p0.model.set_first_person(true)
 	await get_tree().create_timer(0.6).timeout
 	await _snap("hands_%s_fp_straight" % tag)
-	Input.action_press("move_left", float(Config.cli.get("steer", "0.12")))
-	await get_tree().create_timer(1.0).timeout
-	print("wheel turned %.0f deg (front wheels %.1f deg)" % [rad_to_deg(car.wheel_turn), rad_to_deg(car.steer)])
-	await _snap("hands_%s_fp" % tag)
-	p0.drive_cam.toggle()
-	p0.model.set_first_person(false)
-	await get_tree().create_timer(0.3).timeout
-	await _snap("hands_%s_chase" % tag)
 	var cam := Camera3D.new()
 	world.add_child(cam)
 	cam.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
-	cam.current = true
 	cam.fov = 45
-	# (window down / windshield: from outside, what you see through the glass)
-	var views := [["hands_%s_side" % tag, Vector3(-2.0, 1.45, -0.4), Vector3(-0.37, 0.95, -0.35)],
-			["hands_%s_front" % tag, Vector3(-0.5, 2.3, -3.0), Vector3(-0.37, 0.9, -0.2)],
-			["hands_%s_glass" % tag, Vector3(-4.8, 1.7, -3.2), Vector3(0, 0.8, 0)]]
-	for v in views:
-		cam.global_position = car.to_global(v[1])
-		cam.look_at(car.to_global(v[2]))
+	# the wheel held at a quarter turn, then three quarters (parked: the key's
+	# travel is the whole lock, so a share of it is a wheel angle)
+	var full: float = rad_to_deg(car.lock * car.ratio)
+	for deg in _degs():
+		Input.action_press("move_left", deg / full)
+		_fist(p0.model, "L")
+		_fist(p0.model, "R")
+		await get_tree().create_timer(1.2).timeout
+		var g: Array = car.wheel_grips()
+		print("wheel %.0f deg (wanted %.0f; front wheels %.1f deg, ratio %.1f, lock to lock %.2f turns): fists %.3f / %.3f m from their grips" % [
+				rad_to_deg(car.wheel_turn), deg, rad_to_deg(car.steer), car.ratio, full / 180.0,
+				_fist(p0.model, "L").distance_to(g[0]), _fist(p0.model, "R").distance_to(g[1])])
+		if Config.cli.has("verbose"):
+			var col: Transform3D = car.steering_wheel.get_parent().global_transform
+			print("   rim r %.3f c %s, wheel node %s; grips (column frame) %s %s; fists %s %s" % [car._grip_r, car._grip_c,
+					car.steering_wheel.transform, col.affine_inverse() * g[0], col.affine_inverse() * g[1],
+					col.affine_inverse() * _fist(p0.model, "L"), col.affine_inverse() * _fist(p0.model, "R")])
+		var dtag := "%s_%d" % [tag, int(deg)]
+		await _snap("hands_%s_fp" % dtag)
+		p0.drive_cam.toggle()
+		p0.model.set_first_person(false)
 		await get_tree().create_timer(0.3).timeout
-		await _snap(v[0])
-	Input.action_release("move_left")
-	# a remote player at the wheel of their car in the other lane (turning right), as the network shows them
+		await _snap("hands_%s_chase" % dtag)
+		cam.current = true
+		# (window down / windshield: from outside, what you see through the glass)
+		for v in [["hands_%s_side" % dtag, Vector3(-2.0, 1.45, -0.4), Vector3(-0.37, 0.95, -0.35)],
+				["hands_%s_front" % dtag, Vector3(-0.5, 2.3, -3.0), Vector3(-0.37, 0.9, -0.2)]]:
+			cam.global_position = car.to_global(v[1])
+			cam.look_at(car.to_global(v[2]))
+			await get_tree().create_timer(0.3).timeout
+			await _snap(v[0])
+		p0.drive_cam.current = true
+		p0.drive_cam.toggle()
+		p0.model.set_first_person(true)
+		Input.action_release("move_left")
+		await get_tree().create_timer(0.5).timeout
+	# a remote player at the wheel of their car in the other lane (three quarters right), as the network shows them
 	Net.players[900] = {"name": "Bob", "color": Color.RED, "look": {}}     # (else the world tidies their car away)
 	var d = load("res://scripts/player/player.gd").new()
 	d.setup(900, "Bob", load("res://scripts/art/character.gd").player_look(2), false, world)
 	world.players_node.add_child(d)
 	var c2 = world.spawn_car(900, "bz_m5" if key != "bz_m5" else "bz_m8", so + Vector3(0.0, 0.3, 9.0), -PI / 2)
-	c2.net_state(c2.global_position, c2.quaternion, 0.0, -0.1, false)
+	c2.net_state(c2.global_position, c2.quaternion, 0.0, -deg_to_rad(270.0) / c2.ratio, false)
 	d.net_tf(c2.global_position, c2.rotation.y, 0.0, 1 << 12)
 	await get_tree().create_timer(0.8).timeout
+	cam.current = true
 	for v in [["hands_remote_side", Vector3(-2.0, 1.45, -0.4), Vector3(-0.37, 0.95, -0.35)],
 			["hands_remote_front", Vector3(-0.5, 2.3, -3.0), Vector3(-0.37, 0.9, -0.2)]]:
 		cam.global_position = c2.to_global(v[1])
@@ -1290,6 +1338,127 @@ func _loop(world, m, hud) -> void:
 			await _snap(shot[1])
 		ai.queue_free()
 		car.ai = false
+	p0.hands_off = false
+
+
+## "It turns to mush at speed": 150 mph down the loop through traffic (an
+## AiDriver on the wheel, so every run is the same), chase and cockpit. Saves
+## runs of consecutive frames (mush_<view>_<n>.png) and measures, every frame,
+## how far each traffic car on screen is drawn from where traffic.gd put it.
+## Traffic is drawn with MultiMeshes whose instances are set every frame: if
+## the physics interpolation also blends them (last tick's buffer -> this
+## frame's), a car is drawn part-way between two moments, or, when a slot now
+## holds a different car than at the tick, part-way between two cars. That
+## blend is done in the RenderingServer (not readable back), so it's replayed
+## here the same way: prev = the buffer current at the last tick, drawn =
+## lerp(prev, curr, the interpolation fraction).
+func _mush(world, m, hud) -> void:
+	var hw = world.builder.hood.hw
+	hud.root.visible = false
+	var p0 = world.local_player
+	var key: String = Config.cli.get("drivecar", "bz_m5")
+	m.owned[1][key] = 1
+	m._push_state()
+	world.go_to_street()
+	await get_tree().create_timer(0.8).timeout
+	var car = world.cars[Net.my_id()]
+	p0.enter_car(car)
+	p0.hands_off = true
+	var tr = world.traffic()
+	var s0 := float(Config.cli.get("mush_s", "700"))
+	var v := float(Config.cli.get("mush_mph", "150")) / 2.237
+	var path := PackedVector3Array()
+	var st := 0.0
+	while st < 2600.0:
+		path.append(hw.lane_center(1, 1, s0 + st))
+		st += 6.0
+	var fwd: Vector3 = hw.forward(1, s0)
+	car.global_position = path[0] + Vector3(0, 0.3, 0)
+	car.rotation = Vector3(0, atan2(-fwd.x, -fwd.z), 0)
+	car.speed = v
+	car.velocity = fwd * v
+	car.reset_physics_interpolation()
+	var ai = load("res://scripts/vehicle/ai_driver.gd").new()
+	ai.mode = "path"
+	ai.path = path
+	ai.cruise = v
+	car.add_child(ai)
+	await get_tree().create_timer(2.0).timeout
+	var mmis: Array = tr.find_children("*", "MultiMeshInstance3D", true, false)
+	if Config.cli.get("mush_interp", "") == "on":        # A/B: how it was (the traffic MultiMeshes interpolated)
+		for mmi in mmis:
+			(mmi as Node).physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_INHERIT
+	var interp := 0
+	for mmi in mmis:
+		if (mmi as MultiMeshInstance3D).is_physics_interpolated_and_enabled():
+			interp += 1
+	print("mush: %s at %.0f mph, %d traffic multimeshes (%d physics-interpolated), %d cars on the road" % [key, car.mph(),
+			mmis.size(), interp, tr.active_cars().size()])
+	var frames := int(Config.cli.get("mush_frames", "6"))
+	for view in ["chase", "cockpit"]:
+		if (view == "cockpit") != p0.drive_cam.cockpit:
+			p0.drive_cam.toggle()
+			p0.model.set_first_person(p0.drive_cam.cockpit)
+		await get_tree().create_timer(1.0).timeout
+		# the replay: per multimesh, the buffer at the last tick and the one before
+		var stt := {"prev": {}, "last": {}, "tick": Engine.get_physics_frames(), "errs": [], "wild": 0, "n": 0, "frames": 0}
+		var smp := Sampler.new()
+		smp.process_priority = 100000
+		smp.cb = func() -> void:
+			var cam := get_viewport().get_camera_3d()
+			var ticked: bool = Engine.get_physics_frames() != stt.tick
+			stt.tick = Engine.get_physics_frames()
+			var f := Engine.get_physics_interpolation_fraction()
+			for mmi in mmis:
+				var mm: MultiMesh = (mmi as MultiMeshInstance3D).multimesh
+				var n := mm.visible_instance_count if mm.visible_instance_count >= 0 else mm.instance_count
+				var cur: Array = []
+				for i in n:
+					cur.append(mm.get_instance_transform(i).origin)
+				if ticked and stt.last.has(mmi):
+					stt.prev[mmi] = stt.last[mmi]
+				stt.last[mmi] = cur
+				if not (mmi as MultiMeshInstance3D).is_physics_interpolated_and_enabled() or not stt.prev.has(mmi):
+					for i in n:
+						if cam.global_position.distance_to(cur[i]) < 150.0 and not cam.is_position_behind(cur[i]):
+							stt.errs.append(0.0)
+					continue
+				var pv: Array = stt.prev[mmi]
+				for i in n:
+					var want: Vector3 = cur[i]
+					if cam.global_position.distance_to(want) > 150.0 or cam.is_position_behind(want):
+						continue
+					var was: Vector3 = pv[i] if i < pv.size() else Vector3.ZERO     # (a slot that was empty at the tick: from the origin)
+					var drawn: Vector3 = was.lerp(want, f)
+					var e := 0.0
+					if cam.is_position_behind(drawn):
+						e = 2000.0
+					else:
+						e = cam.unproject_position(drawn).distance_to(cam.unproject_position(want))
+					stt.errs.append(minf(e, 2000.0))
+					if e > 25.0:
+						stt.wild += 1
+			stt.frames += 1
+		add_child(smp)
+		await get_tree().create_timer(2.0).timeout
+		# a run of consecutive frames
+		await RenderingServer.frame_post_draw
+		for i in frames:                     # (back to back: every frame drawn, none skipped)
+			await RenderingServer.frame_post_draw
+			get_viewport().get_texture().get_image().save_png("%s/mush_%s_%d.png" % [out_dir, view, i])
+		smp.queue_free()
+		var errs: Array = stt.errs
+		errs.sort()
+		if errs.is_empty():
+			errs = [0.0]
+		var mean := 0.0
+		for e in errs:
+			mean += e
+		mean /= errs.size()
+		print("mush %s: %d frames, %d traffic draws within 150 m: drawn off by mean %.1f px, p95 %.1f px, max %.0f px; %d draws off by > 25 px (%.1f per frame)" % [
+				view, stt.frames, errs.size(), mean, errs[int(errs.size() * 0.95)], errs[errs.size() - 1], stt.wild,
+				float(stt.wild) / maxf(stt.frames, 1)])
+	ai.queue_free()
 	p0.hands_off = false
 
 

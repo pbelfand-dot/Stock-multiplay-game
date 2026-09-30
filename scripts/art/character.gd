@@ -450,8 +450,11 @@ func left_hand_to(at: Variant) -> void:
 
 ## Either hand (side "L" / "R") to `at` (global, the wrist) by two-bone IK, the
 ## elbow pointing toward `pole` (body frame, metres: e.g. down and out). null
-## hands the arm back to the pose. The driving hands use both.
-func hand_to(side: String, at: Variant, pole: Vector3) -> void:
+## hands the arm back to the pose. The driving hands use both. With `fist`
+## (metres), `at` is where the fist should close instead: the wrist goes that
+## far back along the forearm (the fist carries on past the wrist the way the
+## forearm points, so a hand on top of a steering wheel would float above it).
+func hand_to(side: String, at: Variant, pole: Vector3, fist := 0.0) -> void:
 	if skel == null:
 		return
 	var ik: Dictionary = _ik.get(side, {})
@@ -478,9 +481,35 @@ func hand_to(side: String, at: Variant, pole: Vector3) -> void:
 		ik = {"node": mod, "target": target, "pole": pole_n}
 		_ik[side] = ik
 	(ik.node as SkeletonModifier3D).active = true
-	(ik.target as Node3D).global_position = at
 	(ik.pole as Node3D).position = pole / SCALE
 	(ik.pole as Node3D).rotation = Vector3.ZERO
+	if fist > 0.0:
+		at = _wrist_for_fist(side, at, (ik.pole as Node3D).global_position, fist)
+	(ik.target as Node3D).global_position = at
+
+
+## Where the wrist goes so the fist closes on `at`: solve the two-bone arm
+## (shoulder, upper arm, forearm, elbow toward `pole`) for where the elbow
+## ends up, and step back from `at` along elbow -> wrist. Twice (the elbow
+## moves a little when the wrist does).
+func _wrist_for_fist(side: String, at: Vector3, pole: Vector3, fist: float) -> Vector3:
+	var gx := skel.global_transform
+	var sh: Vector3 = gx * skel.get_bone_global_pose(_bi["UpperArm_" + side]).origin
+	var el: Vector3 = gx * skel.get_bone_global_pose(_bi["Forearm_" + side]).origin
+	var wr: Vector3 = gx * skel.get_bone_global_pose(_bi["Hand_" + side]).origin
+	var a := sh.distance_to(el)
+	var b := el.distance_to(wr)
+	var w := at
+	for i in 2:
+		var to := w - sh
+		var d := clampf(to.length(), absf(a - b) + 0.001, a + b - 0.001)
+		var u := to.normalized()
+		var pv := pole - sh
+		var n := (pv - u * pv.dot(u)).normalized()
+		var ca := clampf((a * a + d * d - b * b) / (2.0 * a * d), -1.0, 1.0)
+		var elbow := sh + u * a * ca + n * a * sqrt(1.0 - ca * ca)
+		w = at - (w - elbow).normalized() * fist
+	return w
 
 
 func _aligned_attachment(bone: String, pos: Vector3, node_name: String) -> Node3D:
