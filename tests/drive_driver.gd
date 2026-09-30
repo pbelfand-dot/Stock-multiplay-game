@@ -48,7 +48,7 @@ func _spawn(key: String, pos: Vector3, yaw := 0.0) -> void:
 	if car:
 		car.queue_free()
 		await get_tree().physics_frame
-	car = Car.new()
+	car = (load(Config.cli.carscript) if Config.cli.has("carscript") else Car).new()   # (--carscript: A/B another car.gd)
 	car.setup(key, 1)
 	car.simulate = true
 	car.position = pos
@@ -80,6 +80,12 @@ func _check(ok: bool, msg: String) -> void:
 func _run() -> void:
 	var key: String = Config.cli.get("car", "bz_m3")
 	var d: Dictionary = Rules.CARS[key]
+	if Config.cli.has("lanechange"):
+		for mph in [60.0, 100.0, 150.0]:
+			await _lane_change(key, mph)
+		Engine.time_scale = 1.0
+		Sfx.quit_game(0)
+		return
 	if Config.cli.has("handling"):
 		await _handling(key)
 		Engine.time_scale = 1.0
@@ -207,6 +213,115 @@ func _handling(key: String) -> void:
 					break
 			print("[handling] %s %d%% right at %.0f mph: %.2f g sideways (reached 90%% in %.2f s), slip %.1f m/s" % [key, int(amt * 100),
 					vv * 2.237, g_end, t90, car.slip])
+
+
+## One lane over (3.7 m to the right) at `mph` on the keyboard (--lanechange,
+## not part of the suite). The driver taps: the key is held for a share of
+## every 0.1 s that grows with how far he still wants to go (where he is +
+## where he's heading `lead` s from now, short of the lane), the other key to
+## straighten up. He tries a few leads / how hard he taps (a driver who knows
+## the car) and the best run is printed: how long until settled in the next
+## lane (within 0.3 m, drifting < 0.6 m/s), the peak sideways g (from the
+## velocity itself), the most front wheel / steering wheel it used, the
+## speed it cost.
+func _lane_change(key: String, mph: float) -> void:
+	var d: Dictionary = Rules.CARS[key]
+	var v0 := mph / 2.237
+	if v0 > d.top * 0.98:
+		print("[lane] %s %3.0f mph: n/a (top speed %.0f mph)" % [key, mph, d.top * 2.237])
+		return
+	# how quick it answers: the key held from straight ahead, how long until
+	# it pulls 0.5 g and until it's 1 m over
+	await _spawn(key, Vector3(0, 0.1, 0))
+	car.speed = v0
+	car.velocity = -car.global_basis.z * v0
+	await _secs(0.2)
+	car.speed = v0
+	car.velocity = -car.global_basis.z * v0
+	var x0: float = car.global_position.x
+	var t := 0.0
+	var t_g := -1.0
+	var t_m := -1.0
+	var pv: Vector3 = car.velocity
+	var acc := 0.0
+	while t < 2.0 and (t_g < 0.0 or t_m < 0.0):
+		_inputs(0.3, 0, 1.0)
+		await get_tree().physics_frame
+		t += 1.0 / 60.0
+		var hv := Vector3(car.velocity.x, 0, car.velocity.z)
+		acc = lerpf(acc, absf(((hv - Vector3(pv.x, 0, pv.z)) * 60.0).dot(hv.normalized().cross(Vector3.UP))), 0.35)
+		pv = car.velocity
+		if t_g < 0.0 and acc > 0.5 * 9.8:
+			t_g = t
+		if t_m < 0.0 and car.global_position.x - x0 > 1.0:
+			t_m = t
+	print("[lane] %s %3.0f mph: key held: 0.5 g after %.2f s, 1 m over after %.2f s" % [key, mph, t_g, t_m])
+	var best: Dictionary = {}
+	for lead in [0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.1] if not Config.cli.has("lead") else [float(Config.cli.lead)]:
+		for gain in [0.6, 0.9, 1.2, 2.5] if not Config.cli.has("gain") else [float(Config.cli.gain)]:
+			var r: Dictionary = await _lane_try(key, v0, lead, gain)
+			if Config.cli.has("verbose"):
+				print("   lead %.1f taps x%.1f: %.2f s  %s" % [lead, gain, r.t, r.trace])
+			if best.is_empty() or r.t < best.t:
+				best = r
+	print("[lane] %s %3.0f mph: %s, peak %.2f g, front wheels %.1f deg, steering wheel %.0f deg, -%.1f mph   (lead %.1f s, taps x%.1f)" % [
+			key, mph, ("one lane in %.2f s" % best.t) if best.t < 99.0 else "NOT SETTLED", best.g, best.rw, best.sw, best.lost,
+			best.lead, best.gain])
+	if Config.cli.has("verbose"):
+		print("   ", best.trace)
+
+
+func _lane_try(key: String, v0: float, lead: float, gain: float) -> Dictionary:
+	await _spawn(key, Vector3(0, 0.1, 0))
+	car.speed = v0
+	car.velocity = -car.global_basis.z * v0
+	await _secs(0.2)
+	car.speed = v0
+	car.velocity = -car.global_basis.z * v0
+	var x0: float = car.global_position.x
+	var t := 0.0
+	var done := -1.0
+	var calm := 0.0
+	var r := {"t": 99.0, "g": 0.0, "rw": 0.0, "sw": 0.0, "lost": 0.0, "lead": lead, "gain": gain, "trace": ""}
+	var prev_v: Vector3 = car.velocity
+	var acc_s := 0.0
+	var frame := 0
+	var trace: Array = []
+	while t < 6.0:
+		var x: float = car.global_position.x - x0
+		var u := clampf((3.7 - (x + car.velocity.x * lead)) * gain, -1.0, 1.0)
+		var on := frame % 6 < int(round(absf(u) * 6.0))
+		var key_in := signf(u) if on else 0.0
+		_inputs(clampf((v0 - car.speed) * 0.4, 0.0, 1.0), 0, key_in)
+		await get_tree().physics_frame
+		frame += 1
+		t += 1.0 / 60.0
+		var vv: Vector3 = car.velocity
+		var hv := Vector3(vv.x, 0, vv.z)
+		var a := (hv - Vector3(prev_v.x, 0, prev_v.z)) * 60.0
+		prev_v = vv
+		var lat := absf(a.dot(hv.normalized().cross(Vector3.UP))) if hv.length() > 1.0 else 0.0
+		acc_s = lerpf(acc_s, lat, 0.35)           # (a few frames' average: the peak, not one tick's noise)
+		r.g = maxf(r.g, acc_s / 9.8)
+		r.rw = maxf(r.rw, rad_to_deg(absf(car.steer)))
+		r.sw = maxf(r.sw, rad_to_deg(absf(car.wheel_turn)))
+		x = car.global_position.x - x0
+		if frame % 6 == 0:
+			trace.append("%.1f:%.2f" % [t, x])
+		if absf(x - 3.7) < 0.3 and absf(car.velocity.x) < 0.6:
+			calm += 1.0 / 60.0
+			if done < 0.0:
+				done = t
+			if calm > 0.6:
+				break
+		else:
+			calm = 0.0
+			done = -1.0
+	if done >= 0.0 and calm > 0.6:
+		r.t = done
+	r.lost = (v0 - car.speed) * 2.237
+	r.trace = " ".join(trace)
+	return r
 
 
 ## A patrol car chases a car doing big lazy S-bends at 30 m/s from 80 m back
