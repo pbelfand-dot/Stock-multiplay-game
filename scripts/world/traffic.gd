@@ -1196,6 +1196,7 @@ func _mm_for(prop: String) -> Array:
 			mmi.layers = 2              # lit by the sun like the rest of the outdoors
 			mmi.custom_aabb = LOOP_AABB
 			mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			mmi.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF   # (see _draw)
 			add_child(mmi)
 			out.append(mmi)
 	_mm[prop] = out
@@ -1218,6 +1219,7 @@ func _blinker_mm() -> void:
 	_blink.material_override = mat
 	_blink.custom_aabb = LOOP_AABB
 	_blink.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_blink.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
 	add_child(_blink)
 
 
@@ -1238,6 +1240,7 @@ func _box_mm(colored: bool, col: Color) -> MultiMeshInstance3D:
 	mmi.layers = 2
 	mmi.custom_aabb = LOOP_AABB
 	mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	mmi.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
 	add_child(mmi)
 	return mmi
 
@@ -1352,7 +1355,14 @@ func _draw(cp: Vector3) -> void:
 	var lods := 0
 	var flash := fmod(sim_time, 0.7) < 0.35
 	# physics objects (your car, the camera on it) are drawn interpolated, a tick
-	# behind the sim: draw traffic at that same moment so it lines up with them
+	# behind the sim: draw traffic at that same moment so it lines up with them.
+	# The MultiMeshes themselves must NOT be physics-interpolated (they're not,
+	# see _mm_for): we set every instance every frame, already at the right
+	# moment, and slot i is whichever car comes i-th this frame. Interpolated,
+	# the renderer blends each slot from the last tick's buffer to this frame's:
+	# every car smears back toward where it was, and a slot that now holds a
+	# different car draws a car flying between the two ("mush" at speed, when
+	# cars pass in and out of view / LOD every frame)
 	var lag := 1.0 / Engine.physics_ticks_per_second if get_tree().physics_interpolation else 0.0
 	for c in cars:
 		if c.waiting:

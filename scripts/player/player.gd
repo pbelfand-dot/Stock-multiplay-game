@@ -733,8 +733,8 @@ func _wheel_hands() -> void:
 	if car != null and is_instance_valid(car):
 		var g: Array = car.wheel_grips()
 		if g.size() == 2:
-			model.hand_to("L", g[0], WHEEL_POLE * Vector3(-1, 1, 1))
-			model.hand_to("R", g[1], WHEEL_POLE)
+			model.hand_to("L", g[0], WHEEL_POLE * Vector3(-1, 1, 1), car.GRIP_FIST)
+			model.hand_to("R", g[1], WHEEL_POLE, car.GRIP_FIST)
 			return
 	model.hand_to("R", null, WHEEL_POLE)       # (the left hand: the gun code lets go of it)
 

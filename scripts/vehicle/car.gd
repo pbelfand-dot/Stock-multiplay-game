@@ -1,10 +1,14 @@
 extends CharacterBody3D
 ## A car you can drive: arcade highway handling (a cut-up game, not a sim).
-##   * steering is a bicycle model (wheelbase + front wheel angle). The key
-##     eases the wheel in (slower the faster you go) and it self-centres when
-##     you let go; full lock is always "about as hard as the tires can turn"
-##     at the speed you're doing, so a tap at 150 mph is a lane change, not a
-##     spin, and full lock at 20 mph is a U-turn
+##   * steering is a real car's: a steering ratio (the wheel turns 12-16x the
+##     front wheels), ~33 deg of front wheel at full lock, and an understeer
+##     gradient (at speed the tires need a few degrees of slip on top of the
+##     geometry, so a 100 mph lane change is ~3-5 deg of front wheel, ~50-70
+##     deg of steering wheel, not the 0.5 deg pure geometry would say). The
+##     key winds the wheel on in ~0.2 s at speed (0.5 s to full lock parked)
+##     and it self-centres when you let go; held, it asks a bit more than the
+##     tires have: the front scrubs (you lose some speed, the nose runs a
+##     little wide) instead of the car ignoring you or spinning
 ##   * the nose follows with a little inertia (heavy cars turn in lazier), and
 ##     weight transfer: braking loads the front (the nose bites, the tail gets
 ##     light), the gas loads the rear (a big-power car's tail steps out if you
@@ -27,8 +31,21 @@ signal crashed(impact: float)
 const G := 9.8
 const MPH := 2.23694
 const CLEARANCE := 0.3        # the body rides this high: seams, curbs, ramp lips go under it
-const MAX_LOCK := 0.6         # front wheels at full lock (rad), parking speeds
-const STEER_RATIO := 12.0     # steering wheel turns per front wheel turn: 0.6 rad of lock = ~410 deg of wheel
+const MAX_LOCK := 0.6         # front wheels at full lock (rad, ~34 deg), parking speeds
+const LOCK_TURNS := 2.75      # at most this many turns lock to lock (slow racks get a little less lock)
+const GRIP_FIST := 0.075     # wrist to the middle of a closed fist (m): the hands' IK aims the fist at the rim
+const KEY_G := 1.25           # the key held: ask the tires for this x their grip (a touch over: it scrubs)
+## Per car: [steering ratio, understeer gradient (deg of front wheel per g)].
+## Ratios as the real ones (M cars 13-15 variable, the GT3 RS 12ish, big
+## sedans / the G-wagon slow); understeer: a GT3 RS ~2 deg/g, M cars 2.5-3,
+## the M5 / 540i a bit more, the G-wagon and the old taxi-spec sedans ~5.
+const STEER_SPEC := {
+	"beater": [16.0, 5.0], "taxi": [16.0, 5.0], "cop": [15.0, 3.5], "bz_540i": [15.0, 3.8],
+	"bz_m2": [13.5, 2.4], "bz_m3": [14.0, 2.6], "bz_m3t": [14.0, 2.8], "bz_m4": [14.0, 2.6],
+	"bz_m5": [15.0, 3.4], "bz_m8": [14.0, 3.0], "mb_g63": [15.5, 5.0], "po_gt3rs": [12.0, 2.0],
+	"mb_gronos": [15.5, 4.6], "po_911ts": [13.0, 2.3],
+	"au_rs6": [14.5, 3.2], "au_r8": [15.5, 2.6], "au_etrongt": [14.5, 3.0],
+}
 
 var key := "beater"
 var owner_peer := 0
@@ -46,7 +63,10 @@ var steer_ai := 0.0
 var speed := 0.0             # m/s along the nose (-z); negative = reversing
 var slip := 0.0              # m/s sideways (sliding / drifting)
 var steer := 0.0             # front wheel angle, radians (+ = left)
-var wheel_turn := 0.0        # the steering wheel's angle, radians (+ = left): STEER_RATIO x the front wheels
+var wheel_turn := 0.0        # the steering wheel's angle, radians (+ = left): `ratio` x the front wheels
+var ratio := 14.0            # steering ratio (STEER_SPEC)
+var lock := MAX_LOCK         # front wheels at full lock (rad)
+var understeer := 0.06       # rad of extra front wheel per g sideways (STEER_SPEC)
 var crash_t := 0.0           # > 0: just hit something
 var ref: Dictionary
 var model: Node3D            # body + wheels (tilts with the road, rolls, dives)
@@ -82,6 +102,10 @@ func setup(car_key: String, peer: int, color = null) -> void:
 	key = car_key if Rules.CARS.has(car_key) else "beater"
 	owner_peer = peer
 	paint = color if color is Color else Rules.CARS[key].paint
+	var sp: Array = STEER_SPEC.get(key, [14.0, 3.5])
+	ratio = sp[0]
+	understeer = deg_to_rad(sp[1])
+	lock = minf(MAX_LOCK, LOCK_TURNS * PI / ratio)
 
 
 func _ready() -> void:
@@ -191,19 +215,21 @@ func _measure_wheel() -> void:
 	_grip_c = box.get_center()
 
 
-## Where the driver's hands hold the wheel, [left, right] wrist points (global):
-## 9 and 3 o'clock on the rim, turning with it. Past a quarter turn the rim slides
-## through the hands (a real driver shuffles) instead of crossing the arms.
+## Where the driver's hands hold the wheel, [left, right] fists (global: see
+## Character.hand_to's `fist`, GRIP_FIST):
+## gripped at 9 and 3 o'clock and carried round with the rim, the whole way
+## (at half a turn the arms cross; at lock, well past it). The wheel's angle
+## is the front wheels' through the steering ratio, so what the hands do is
+## what the tires do.
 func wheel_grips() -> Array:
 	if steering_wheel == null:
 		return []
-	var a := clampf(wheel_turn, -1.6, 1.6)
+	var a := wheel_turn
 	var xf := steering_wheel.get_parent().global_transform as Transform3D    # the column (not turning)
 	var out: Array = []
 	for side in [-1.0, 1.0]:
 		var rim: Vector3 = Vector3(cos(a), sin(a), 0.0) * side         # radial direction to this hand's grip
-		var p: Vector3 = _grip_c + rim * _grip_r
-		p += rim * 0.02 + Vector3(0, -0.035, 0.07)               # the wrist: a bit out, below and toward the driver
+		var p: Vector3 = _grip_c + rim * _grip_r + Vector3(0, 0, 0.025)   # the fist round the rim, on the driver's side of it
 		out.append(xf * p)
 	return out
 
@@ -389,24 +415,34 @@ func _drive(dt: float) -> void:
 	var agility := clampf(1.75 / float(d.mass), 0.72, 1.2)
 	# weight transfer: + = braking (load on the nose), - = accelerating (load on the tail)
 	var load_f := clampf(-_long_acc / G, -0.4, 0.8) if not ai else 0.0
-	# ---- the hands: ease the wheel in (slower at speed), let it spring back to centre
+	# ---- the hands: wind the wheel on (~0.2 s at speed, 0.5 s to full lock
+	# parked; heavy cars a touch slower), let it spring back to centre quicker
 	var want_in := in_steer * (0.5 if mushy else 1.0)
 	var going_out := absf(want_in) > absf(_steer_in) and (_steer_in == 0.0 or signf(want_in) == signf(_steer_in))
-	var rate := lerpf(4.5, 2.4, clampf(sp / 55.0, 0.0, 1.0)) * agility if going_out else 6.0
+	var t_out := lerpf(0.5, 0.2, clampf(sp / 25.0, 0.0, 1.0)) / lerpf(1.0, agility, 0.5)
+	var rate := 1.0 / t_out if going_out else lerpf(5.0, 7.0, clampf(sp / 25.0, 0.0, 1.0))
 	_steer_in = move_toward(_steer_in, want_in, rate * dt)
-	# ---- full lock = what the tires can hold at this speed (a touch past it: push and it slides)
+	# ---- the key held = the front wheel angle that asks KEY_G x the grip at
+	# this speed: the geometry (wheelbase / radius) + the tires' slip
+	# (understeer x g); full lock at parking speeds, a few degrees at 150 mph
 	var wb: float = ref.wheelbase
-	var lock := minf(MAX_LOCK, atan(wb * grip * G * 1.15 / maxf(sp * sp, 0.01)))
-	steer = -_steer_in * lock
+	var a_key: float = grip * G * KEY_G
+	var reach := minf(lock, wb * a_key / maxf(sp * sp, 0.01) + understeer * a_key / G)
+	steer = -_steer_in * reach
+	# the turn that asks for: yaw rate = front wheel / (wb / v + understeer x v / g)
+	# (the "stability factor": at low speed the geometry, at speed the tires)
+	var want := speed * tan(steer) / (wb + understeer * speed * speed / G)
 	if ai:     # the AI's steering loops are tuned on the old direct wheel: keep it for them
 		var ai_lock := lerpf(MAX_LOCK, 0.06, pow(clampf(sp / top, 0.0, 1.0), 0.55))
 		var ai_target := -in_steer * ai_lock * (0.5 if mushy else 1.0)
 		steer = move_toward(steer_ai, ai_target, (2.2 if absf(ai_target) > absf(steer_ai) else 3.5) * dt)
 		steer_ai = steer
 		_steer_in = -steer / maxf(ai_lock, 0.001)
-	var want := speed / wb * tan(steer)
+		want = speed / wb * tan(steer)
 	var lim: float = grip * G / maxf(sp, 2.0) * 1.12 * (1.0 + 0.2 * maxf(load_f, 0.0))   # braking: the nose bites
 	var yaw_t := clampf(want, -lim, lim)
+	# asking more than that: the fronts scrub (speed goes, the nose runs wide)
+	var scrub := clampf(absf(want) / maxf(lim, 0.001) - 1.0, 0.0, 1.0) if not ai and sp > 8.0 else 0.0
 	if in_handbrake and sp > 6.0:
 		# rear lets go: it rotates more than it turns (and keeps rotating with the wheel held)
 		yaw_t = want * 1.35 + (0.0 if ai else -_steer_in * 0.9 * clampf(sp / 12.0, 0.0, 1.0) * signf(speed))
@@ -449,6 +485,8 @@ func _drive(dt: float) -> void:
 		f = move_toward(f, 0.0, (0.7 + 0.0004 * f * f) * dt)
 	if in_handbrake:
 		f = move_toward(f, 0.0, 5.0 * dt)
+	if scrub > 0.0 and f > 0.0:
+		f = move_toward(f, 0.0, scrub * grip * G * 0.5 * dt)
 	l = move_toward(l, 0.0, (2.0 + absf(l) * 0.8) * dt)     # sideways sliding scrubs itself off
 	speed = f
 	slip = l
@@ -611,14 +649,16 @@ func _visuals(dt: float) -> void:
 		pivot.rotation.y = steer if w[2] else 0.0
 		var a := _spin if w[2] else _spin_r
 		spinner.rotation.x = a if w[3] else -a
-	# the steering wheel: the front wheels' angle through the steering ratio (smoothed)
-	wheel_turn = lerpf(wheel_turn, steer * STEER_RATIO, 1.0 - exp(-dt * 20.0))
+	# the steering wheel: the front wheels' angle through the steering ratio
+	# (a remote car's comes 20x a second: smooth the steps out)
+	var sw := clampf(steer, -lock, lock) * ratio         # (the AI's wheel can ask a hair past a slow rack's lock)
+	wheel_turn = sw if simulate else lerpf(wheel_turn, sw, 1.0 - exp(-dt * 20.0))
 	if steering_wheel:
 		steering_wheel.rotation.z = wheel_turn
 	if driver_model and is_instance_valid(driver_model):
 		var g := wheel_grips()
-		driver_model.hand_to("L", g[0], Vector3(-0.5, 0.55, 0.15))
-		driver_model.hand_to("R", g[1], Vector3(0.5, 0.55, 0.15))
+		driver_model.hand_to("L", g[0], Vector3(-0.5, 0.55, 0.15), GRIP_FIST)
+		driver_model.hand_to("R", g[1], Vector3(0.5, 0.55, 0.15), GRIP_FIST)
 	# body: roll away from the turn, dive under braking, squat on the gas
 	body.rotation.z = lerpf(body.rotation.z, clampf(_lat_acc * 0.006, -0.05, 0.05), dt * 6.0)
 	body.rotation.x = lerpf(body.rotation.x, clampf(-_long_acc * 0.004, -0.035, 0.035), dt * 6.0)
