@@ -85,6 +85,8 @@ const LUXURY := {
 ## top = top speed (m/s), zero60 = 0-60 mph seconds, grip = how hard it can
 ## corner before it slides (1.0 = a good sports car), mass = how much a crash
 ## shoves it around (tonnes). Game speeds: highway traffic cruises ~29 m/s.
+## brand = the maker whose dealership sells it (BEMZE if missing); awd = four-wheel
+## drive (the tail doesn't step out under power).
 const CARS := {
 	"beater": {"name": "Used TOROLA Corona", "price": 8_000.0, "model": "TCar_Sedan_Silver", "top": 50.0, "zero60": 7.8, "grip": 0.75, "mass": 1.4,
 		"paint": Color(0.7, 0.72, 0.75), "desc": "Pre-owned. 180K miles, one hubcap, check-engine light. It gets you there."},
@@ -103,10 +105,12 @@ const CARS := {
 	"bz_m8": {"name": "BEMZE M8 Competition", "price": 165_000.0, "model": "RC_M8", "top": 76.0, "zero60": 3.0, "grip": 0.95, "mass": 1.9,
 		"paint": Color(0.55, 0.05, 0.08), "desc": "The flagship GT. Fastest thing on the lot."},
 	# the other makers (brand = which dealership sells it: docs/BRANDS.md parodies)
-	"mb_g63": {"name": "MERCEDEZ BANZ G63", "brand": "mercedez", "price": 185_000.0, "model": "RC_G63", "top": 62.0, "zero60": 4.3, "grip": 0.78, "mass": 2.56,
+	"mb_g63": {"name": "MERCEDEZ BANZ G63", "brand": "mercedez", "price": 185_000.0, "model": "RC_G63", "awd": true, "top": 62.0, "zero60": 4.3, "grip": 0.78, "mass": 2.56,
 		"paint": Color(0.3, 0.32, 0.25), "desc": "A brick with a twin-turbo V8. Tall, heavy, turns like a bank vault. Nobody cares."},
-	"mb_gronos": {"name": "MANSORRY GRONOS", "brand": "mercedez", "price": 420_000.0, "model": "RC_GRONOS", "top": 69.0, "zero60": 3.8, "grip": 0.8, "mass": 2.75,
+	"mb_gronos": {"name": "MANSORRY GRONOS", "brand": "mercedez", "price": 420_000.0, "model": "RC_GRONOS", "awd": true, "top": 69.0, "zero60": 3.8, "grip": 0.8, "mass": 2.75,
 		"paint": Color(0.55, 0.22, 0.1), "desc": "A MERCEDEZ BANZ G the tuner got to: forged carbon, a widebody, 850 hp. Subtle as a brick through a window."},
+	"po_911ts": {"name": "PORSHA 911 Turbo S", "brand": "porsha", "price": 230_000.0, "model": "RC_911TS", "awd": true, "top": 91.0, "zero60": 2.5, "grip": 1.12, "mass": 1.64,
+		"paint": Color(0.55, 0.56, 0.58), "desc": "640 hp, four-wheel drive, launch control. 0-60 before you finish the word \"launch\"."},
 	"po_gt3rs": {"name": "PORSHA 911 GT3 RS", "brand": "porsha", "price": 245_000.0, "model": "RC_GT3RS", "top": 82.0, "zero60": 3.1, "grip": 1.25, "mass": 1.45,
 		"paint": Color(0.2, 0.55, 0.3), "desc": "A race car with number plates. 9000 rpm, a wing like a door, the most grip on the road."},
 	# not for sale: highway patrol (an M8 outruns it, an M3 has to lose it in traffic)
@@ -130,9 +134,9 @@ const PURSUIT_LOST_S := 6.0
 const PURSUIT_BUST_S := 2.5
 const SPEEDING_TICKET := 2_500.0
 ## A save stores the chosen ride as (index in CAR_ORDER) + 1: only ever append here.
-const CAR_ORDER := ["beater", "bz_540i", "bz_m2", "bz_m3", "bz_m4", "bz_m5", "bz_m8", "bz_m3t", "mb_g63", "po_gt3rs", "mb_gronos"]
+const CAR_ORDER := ["beater", "bz_540i", "bz_m2", "bz_m3", "bz_m4", "bz_m5", "bz_m8", "bz_m3t", "mb_g63", "po_gt3rs", "mb_gronos", "po_911ts"]
 ## The order the showroom and the phone list them in.
-const SHOW_ORDER := ["beater", "bz_540i", "bz_m2", "bz_m3", "bz_m3t", "bz_m4", "bz_m5", "bz_m8", "mb_g63", "mb_gronos", "po_gt3rs"]
+const SHOW_ORDER := ["beater", "bz_540i", "bz_m2", "bz_m3", "bz_m3t", "bz_m4", "bz_m5", "bz_m8", "mb_g63", "mb_gronos", "po_911ts", "po_gt3rs"]
 ## Factory paint at the dealership (a respray later costs RESPRAY).
 const PAINTS := [
 	["Alpine White", Color(0.93, 0.93, 0.92)], ["Black Sapphire", Color(0.05, 0.05, 0.07)],
