@@ -33,6 +33,7 @@ const MPH := 2.23694
 const CLEARANCE := 0.3        # the body rides this high: seams, curbs, ramp lips go under it
 const MAX_LOCK := 0.6         # front wheels at full lock (rad, ~34 deg), parking speeds
 const LOCK_TURNS := 2.75      # at most this many turns lock to lock (slow racks get a little less lock)
+const GRIP_FIST := 0.075     # wrist to the middle of a closed fist (m): the hands' IK aims the fist at the rim
 const KEY_G := 1.25           # the key held: ask the tires for this x their grip (a touch over: it scrubs)
 ## Per car: [steering ratio, understeer gradient (deg of front wheel per g)].
 ## Ratios as the real ones (M cars 13-15 variable, the GT3 RS 12ish, big
@@ -212,19 +213,21 @@ func _measure_wheel() -> void:
 	_grip_c = box.get_center()
 
 
-## Where the driver's hands hold the wheel, [left, right] wrist points (global):
-## 9 and 3 o'clock on the rim, turning with it. Past a quarter turn the rim slides
-## through the hands (a real driver shuffles) instead of crossing the arms.
+## Where the driver's hands hold the wheel, [left, right] fists (global: see
+## Character.hand_to's `fist`, GRIP_FIST):
+## gripped at 9 and 3 o'clock and carried round with the rim, the whole way
+## (at half a turn the arms cross; at lock, well past it). The wheel's angle
+## is the front wheels' through the steering ratio, so what the hands do is
+## what the tires do.
 func wheel_grips() -> Array:
 	if steering_wheel == null:
 		return []
-	var a := clampf(wheel_turn, -1.6, 1.6)
+	var a := wheel_turn
 	var xf := steering_wheel.get_parent().global_transform as Transform3D    # the column (not turning)
 	var out: Array = []
 	for side in [-1.0, 1.0]:
 		var rim: Vector3 = Vector3(cos(a), sin(a), 0.0) * side         # radial direction to this hand's grip
-		var p: Vector3 = _grip_c + rim * _grip_r
-		p += rim * 0.02 + Vector3(0, -0.035, 0.07)               # the wrist: a bit out, below and toward the driver
+		var p: Vector3 = _grip_c + rim * _grip_r + Vector3(0, 0, 0.025)   # the fist round the rim, on the driver's side of it
 		out.append(xf * p)
 	return out
 
@@ -650,8 +653,8 @@ func _visuals(dt: float) -> void:
 		steering_wheel.rotation.z = wheel_turn
 	if driver_model and is_instance_valid(driver_model):
 		var g := wheel_grips()
-		driver_model.hand_to("L", g[0], Vector3(-0.5, 0.55, 0.15))
-		driver_model.hand_to("R", g[1], Vector3(0.5, 0.55, 0.15))
+		driver_model.hand_to("L", g[0], Vector3(-0.5, 0.55, 0.15), GRIP_FIST)
+		driver_model.hand_to("R", g[1], Vector3(0.5, 0.55, 0.15), GRIP_FIST)
 	# body: roll away from the turn, dive under braking, squat on the gas
 	body.rotation.z = lerpf(body.rotation.z, clampf(_lat_acc * 0.006, -0.05, 0.05), dt * 6.0)
 	body.rotation.x = lerpf(body.rotation.x, clampf(-_long_acc * 0.004, -0.035, 0.035), dt * 6.0)

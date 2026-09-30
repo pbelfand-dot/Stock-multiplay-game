@@ -1039,7 +1039,33 @@ func _street_only(world, m, hud) -> void:
 		await _snap(v[0])
 
 
-## Hands on the wheel, the wheel turned a quarter left: our own view from the
+func _degs() -> Array:
+	var out: Array = []
+	for d in str(Config.cli.get("wheel_deg", "90,270")).split(","):
+		out.append(float(d))
+	return out
+
+
+## Where a character's wrist is drawn (after the IK: a BoneAttachment3D
+## follows the final pose, get_bone_global_pose doesn't).
+func _wrist(ch, side: String, bone := "Hand_") -> Vector3:
+	var sk: Skeleton3D = ch.skel
+	var ba: BoneAttachment3D = sk.get_node_or_null("Probe" + bone + side)
+	if ba == null:
+		ba = BoneAttachment3D.new()
+		ba.name = "Probe" + bone + side
+		ba.bone_name = bone + side
+		sk.add_child(ba)
+	return ba.global_position
+
+
+## Where the fist closes (the wrist + GRIP_FIST on along the forearm).
+func _fist(ch, side: String) -> Vector3:
+	var w := _wrist(ch, side)
+	return w + (w - _wrist(ch, side, "Forearm_")).normalized() * 0.075
+
+
+## Hands on the wheel, the wheel turned a quarter / three quarters left: our own view from the
 ## driver's seat, the car from outside, a remote player at the wheel of their
 ## car (a puppet, as the network shows them), a cabbie.
 func _hands(world, m, hud) -> void:
@@ -1061,38 +1087,56 @@ func _hands(world, m, hud) -> void:
 	p0.model.set_first_person(true)
 	await get_tree().create_timer(0.6).timeout
 	await _snap("hands_%s_fp_straight" % tag)
-	Input.action_press("move_left", float(Config.cli.get("steer", "0.12")))
-	await get_tree().create_timer(1.0).timeout
-	print("wheel turned %.0f deg (front wheels %.1f deg)" % [rad_to_deg(car.wheel_turn), rad_to_deg(car.steer)])
-	await _snap("hands_%s_fp" % tag)
-	p0.drive_cam.toggle()
-	p0.model.set_first_person(false)
-	await get_tree().create_timer(0.3).timeout
-	await _snap("hands_%s_chase" % tag)
 	var cam := Camera3D.new()
 	world.add_child(cam)
 	cam.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
-	cam.current = true
 	cam.fov = 45
-	# (window down / windshield: from outside, what you see through the glass)
-	var views := [["hands_%s_side" % tag, Vector3(-2.0, 1.45, -0.4), Vector3(-0.37, 0.95, -0.35)],
-			["hands_%s_front" % tag, Vector3(-0.5, 2.3, -3.0), Vector3(-0.37, 0.9, -0.2)],
-			["hands_%s_glass" % tag, Vector3(-4.8, 1.7, -3.2), Vector3(0, 0.8, 0)]]
-	for v in views:
-		cam.global_position = car.to_global(v[1])
-		cam.look_at(car.to_global(v[2]))
+	# the wheel held at a quarter turn, then three quarters (parked: the key's
+	# travel is the whole lock, so a share of it is a wheel angle)
+	var full: float = rad_to_deg(car.lock * car.ratio)
+	for deg in _degs():
+		Input.action_press("move_left", deg / full)
+		_fist(p0.model, "L")
+		_fist(p0.model, "R")
+		await get_tree().create_timer(1.2).timeout
+		var g: Array = car.wheel_grips()
+		print("wheel %.0f deg (wanted %.0f; front wheels %.1f deg, ratio %.1f, lock to lock %.2f turns): fists %.3f / %.3f m from their grips" % [
+				rad_to_deg(car.wheel_turn), deg, rad_to_deg(car.steer), car.ratio, full / 180.0,
+				_fist(p0.model, "L").distance_to(g[0]), _fist(p0.model, "R").distance_to(g[1])])
+		if Config.cli.has("verbose"):
+			var col: Transform3D = car.steering_wheel.get_parent().global_transform
+			print("   rim r %.3f c %s, wheel node %s; grips (column frame) %s %s; fists %s %s" % [car._grip_r, car._grip_c,
+					car.steering_wheel.transform, col.affine_inverse() * g[0], col.affine_inverse() * g[1],
+					col.affine_inverse() * _fist(p0.model, "L"), col.affine_inverse() * _fist(p0.model, "R")])
+		var dtag := "%s_%d" % [tag, int(deg)]
+		await _snap("hands_%s_fp" % dtag)
+		p0.drive_cam.toggle()
+		p0.model.set_first_person(false)
 		await get_tree().create_timer(0.3).timeout
-		await _snap(v[0])
-	Input.action_release("move_left")
-	# a remote player at the wheel of their car in the other lane (turning right), as the network shows them
+		await _snap("hands_%s_chase" % dtag)
+		cam.current = true
+		# (window down / windshield: from outside, what you see through the glass)
+		for v in [["hands_%s_side" % dtag, Vector3(-2.0, 1.45, -0.4), Vector3(-0.37, 0.95, -0.35)],
+				["hands_%s_front" % dtag, Vector3(-0.5, 2.3, -3.0), Vector3(-0.37, 0.9, -0.2)]]:
+			cam.global_position = car.to_global(v[1])
+			cam.look_at(car.to_global(v[2]))
+			await get_tree().create_timer(0.3).timeout
+			await _snap(v[0])
+		p0.drive_cam.current = true
+		p0.drive_cam.toggle()
+		p0.model.set_first_person(true)
+		Input.action_release("move_left")
+		await get_tree().create_timer(0.5).timeout
+	# a remote player at the wheel of their car in the other lane (three quarters right), as the network shows them
 	Net.players[900] = {"name": "Bob", "color": Color.RED, "look": {}}     # (else the world tidies their car away)
 	var d = load("res://scripts/player/player.gd").new()
 	d.setup(900, "Bob", load("res://scripts/art/character.gd").player_look(2), false, world)
 	world.players_node.add_child(d)
 	var c2 = world.spawn_car(900, "bz_m5" if key != "bz_m5" else "bz_m8", so + Vector3(0.0, 0.3, 9.0), -PI / 2)
-	c2.net_state(c2.global_position, c2.quaternion, 0.0, -0.1, false)
+	c2.net_state(c2.global_position, c2.quaternion, 0.0, -deg_to_rad(270.0) / c2.ratio, false)
 	d.net_tf(c2.global_position, c2.rotation.y, 0.0, 1 << 12)
 	await get_tree().create_timer(0.8).timeout
+	cam.current = true
 	for v in [["hands_remote_side", Vector3(-2.0, 1.45, -0.4), Vector3(-0.37, 0.95, -0.35)],
 			["hands_remote_front", Vector3(-0.5, 2.3, -3.0), Vector3(-0.37, 0.9, -0.2)]]:
 		cam.global_position = c2.to_global(v[1])
