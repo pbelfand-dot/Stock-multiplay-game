@@ -400,7 +400,7 @@ func _nice_traffic() -> void:
 	if tr == null:
 		return
 	const CarRefs = preload("res://scripts/vehicle/car_refs.gd")
-	for key in ["bz_540i", "bz_m2", "bz_m3", "bz_m3t", "bz_m4", "bz_m5", "bz_m8", "mb_g63", "mb_gronos", "po_gt3rs"]:
+	for key in ["bz_540i", "bz_m2", "bz_m3", "bz_m3t", "bz_m4", "bz_m5", "bz_m8", "mb_g63", "mb_gronos", "po_911ts", "po_gt3rs"]:
 		var model: String = Rules.CARS[key].model
 		if not PropKit.has(model):
 			continue
