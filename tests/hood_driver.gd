@@ -4,7 +4,8 @@ extends Node
 ##       house can be bought (balance, owned, a second buyer refused), the realtor
 ##       panel / door key / mailbox follow ownership, taxis go to the neighborhood,
 ##       home (standing by the bed, not falling through) and back downtown, and
-##       30 simulated seconds of traffic never overlap cars or break speed limits.
+##       30 simulated seconds of traffic never overlap cars or break speed limits,
+##       and the cutters (sports cars cutting up) go faster and weave more.
 ##   --hoodshots=<dir> --host --autostart    review screenshots (needs a display):
 ##       xvfb-run -a -s "-screen 0 1600x900x24" godot --path . -- --host --autostart --hoodshots=/tmp/hood
 
@@ -286,8 +287,21 @@ func _check() -> void:
 	var worst := INF
 	var vmax := 0.0
 	var steps := int(60.0 * tr.SIM_HZ)     # (the brief asks for 30 s; a minute also sees exits and merges)
+	# cutters vs everyone else on the mainline: speed, lane changes per car-minute
+	var grp := {true: {"v": 0.0, "n": 0, "lc": 0}, false: {"v": 0.0, "n": 0, "lc": 0}}
+	var cut_ids := {}
 	for i in steps:
+		var lc0 := {}
+		for c in tr.cars:
+			lc0[c.id] = [c.lane_changes, c.cutter]
 		tr.step(1.0 / tr.SIM_HZ)
+		for c in tr.cars:
+			grp[lc0[c.id][1]].lc += c.lane_changes - lc0[c.id][0]
+			if not c.waiting and c.on_main and c.lane < 3 and not c.truck:
+				grp[c.cutter].v += c.v
+				grp[c.cutter].n += 1
+				if c.cutter:
+					cut_ids[c.id] = true
 		var g: float = tr.min_gap()
 		worst = minf(worst, g)
 		if g < MIN_GAP:
@@ -297,7 +311,7 @@ func _check() -> void:
 		for c in tr.cars:
 			if c.waiting:
 				continue
-			if is_nan(c.s) or is_nan(c.v) or c.v < 0.0 or c.v > V_LIMIT:
+			if is_nan(c.s) or is_nan(c.v) or c.v < 0.0 or c.v > (tr.V_MAX if c.cutter else V_LIMIT):
 				_done(false, "car %d: s=%s v=%s" % [c.id, str(c.s), str(c.v)])
 				return
 			vmax = maxf(vmax, c.v)
@@ -308,8 +322,8 @@ func _check() -> void:
 				_done(false, "car %d at %.1f m/s on %s (limit %.0f)" % [c.id, c.v, c.path.name, c.path.v_max])
 				return
 	for c in tr.cars:
-		var lo := 22.0 if c.truck else 25.0
-		var hi := 26.0 if c.truck else 38.0
+		var lo: float = 22.0 if c.truck else (tr.CUT_V0[0] if c.cutter else 25.0)
+		var hi: float = 26.0 if c.truck else (tr.CUT_V0[1] if c.cutter else 38.0)
 		if c.v0 < lo - 0.01 or c.v0 > hi + 0.01:
 			_done(false, "car %d wants %.1f m/s" % [c.id, c.v0])
 			return
@@ -318,6 +332,18 @@ func _check() -> void:
 			[tr.cars.size(), worst, vmax, st.lane_changes, st.merges, st.exits, st.missed_exits, st.recycled])
 	if st.lane_changes < 3 or st.merges < 1 or st.exits < 1:
 		_done(false, "traffic too static (lane changes %d, merges %d, exits %d)" % [st.lane_changes, st.merges, st.exits])
+		return
+	# per car-minute on the road (60 s of SIM_HZ steps)
+	var mins := {true: maxf(grp[true].n / tr.SIM_HZ / 60.0, 0.001), false: maxf(grp[false].n / tr.SIM_HZ / 60.0, 0.001)}
+	var v_cut: float = grp[true].v / maxi(grp[true].n, 1)
+	var v_rest: float = grp[false].v / maxi(grp[false].n, 1)
+	var lc_cut: float = grp[true].lc / mins[true]
+	var lc_rest: float = grp[false].lc / mins[false]
+	_say("cutters: %d of them, avg %.1f m/s (%.0f mph) vs %.1f m/s (%.0f mph) for the rest; %.1f lane changes a minute vs %.1f" %
+			[cut_ids.size(), v_cut, v_cut * 2.237, v_rest, v_rest * 2.237, lc_cut, lc_rest])
+	# (in this much traffic they spend a lot of it stuck behind someone, like you do)
+	if cut_ids.size() < 3 or v_cut < v_rest * 1.12 or v_cut < float(Highway.LANE_SPEED[1]) or lc_cut < lc_rest * 2.0:
+		_done(false, "cutters don't cut up (%d, %.1f m/s, %.1f lane changes a minute vs %.1f)" % [cut_ids.size(), v_cut, lc_cut, lc_rest])
 		return
 	# ---- an outside car stopped in the middle eastbound lane: traffic brakes / goes round, never through
 	var hw = hood.hw
