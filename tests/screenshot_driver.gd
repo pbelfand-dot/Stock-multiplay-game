@@ -631,7 +631,7 @@ func _run() -> void:
 		await get_tree().create_timer(2.0).timeout
 		await _snap("h2_headline_aired")
 		var fu: float = float(ev.followup.at)
-		await get_tree().create_timer(fu - 1.0).timeout
+		await get_tree().create_timer(fu + 0.3).timeout
 		await _snap("h3_correction")
 		await get_tree().create_timer(4.0).timeout
 		await _snap("h4_reversed")

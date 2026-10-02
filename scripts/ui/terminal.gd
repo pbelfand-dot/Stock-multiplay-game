@@ -22,6 +22,7 @@ var show_closed := false
 var chart
 var title_lbl: Label
 var mode_tag: Label
+var news_lbl: Label                # the TV's chyron, so headlines (and corrections) reach you at the screen
 var watch_rows := {}     # sym -> {btn, price, chg}
 var asset_name: Label
 var asset_kind: Label
@@ -53,6 +54,7 @@ func setup(m) -> void:
 	m.market_full.connect(_refresh_all)
 	m.state_changed.connect(_refresh_all)
 	m.trade_closed.connect(_on_trade_closed)
+	m.news.connect(_on_news)
 
 
 func _ready() -> void:
@@ -107,6 +109,13 @@ func _ready() -> void:
 	head.add_child(sp)
 	title_lbl = UI.lbl("BTC", 24, UI.TEXT, true)
 	head.add_child(title_lbl)
+	var news_bar := PanelContainer.new()
+	news_bar.add_theme_stylebox_override("panel", UI.panel_box(Color(0.1, 0.05, 0.05), UI.LINE, 4, 1))
+	left.add_child(news_bar)
+	news_lbl = UI.lbl("ON AIR  ·  no news yet", 16, UI.DIM, true)
+	news_lbl.clip_text = true
+	news_lbl.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	news_bar.add_child(news_lbl)
 
 	chart = ChartScript.new()
 	chart.match_node = match_node
@@ -322,7 +331,7 @@ func _update_size_labels() -> void:
 	size_lbl.text = Rules.money(v).replace(".00", "")
 	var lev: int = Ledger.LEVERAGES[lev_idx]
 	var cap := Market.max_lev(sym)
-	lev_btn.text = "x%d" % lev if lev <= cap else "x%d → x%d MAX" % [lev, cap]
+	lev_btn.text = "x%d" % lev if lev <= cap else "x%d MAX" % cap
 	lev = mini(lev, cap)
 	var cigar: bool = match_node != null and match_node.effect_left(Net.my_id(), "cigar") > 0.0
 	_update_auto_labels()
@@ -379,6 +388,13 @@ func _on_trade_closed(info: Dictionary) -> void:
 		closed_trades.pop_back()
 	last_trade = info.pnl
 	_refresh_all()
+
+
+## A headline airs. Second chyrons (a CORRECTION, "priced in") come up red: get out.
+func _on_news(ev: Dictionary) -> void:
+	var follow: bool = ev.get("followup", false)
+	news_lbl.text = ("!! " if follow else "ON AIR  ·  ") + str(ev.headline)
+	news_lbl.add_theme_color_override("font_color", UI.RED if follow else UI.GOLD)
 
 
 func _refresh_all() -> void:

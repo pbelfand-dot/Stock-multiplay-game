@@ -1259,7 +1259,7 @@ func _step_news(dt: float) -> void:
 		f.in -= dt
 		if f.in <= 0.0:
 			_followups.erase(f)
-			last_news = {"speaker": f.ev.speaker, "role": f.ev.role, "headline": f.ev.headline, "day": day}
+			last_news = {"speaker": f.ev.speaker, "role": f.ev.role, "headline": f.ev.headline, "day": day, "followup": true}
 			_s_news.rpc(last_news)
 
 
