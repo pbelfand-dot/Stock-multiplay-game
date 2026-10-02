@@ -44,7 +44,9 @@ extends Node3D
 ##
 ## EXTERNAL CARS - register_obstacle(node) makes traffic treat any Node3D (a
 ## player's car, a player on foot) as a vehicle in whatever lane / ramp it's
-## in: cars brake for it, and lane changes check the gap around it. Every
+## in: cars brake for it, and lane changes check the gap around it. One with
+## the "siren" meta (a patrol car) coming up behind in your lane (within
+## SIREN_M): you move over for it, either side, as soon as there's a gap. Every
 ## traffic car is an AnimatableBody3D (collision layer 1) you can hit.
 ## READ ACCESS - active_cars(), car_of(body), and the Highway data (`hw`):
 ## lane_center / forward / speed_limit / route("home_to_office").
@@ -95,6 +97,8 @@ const CUT_V0 := [45.0, 56.0]    # a cutter's desired speed (100-125 mph: over ev
 const A_TH_CUT := 0.1           # a cutter changes lanes for less
 const B_SAFE_CUT := 6.0         # ... and will brake this hard in the new lane to get in
 const V_MAX := 60.0             # nobody goes faster
+const SIREN_M := 250.0          # a patrol car with its lights on this close behind you in your lane: move over
+const SIREN_GAIN := 3.0         # ... (that much incentive, m/s^2, on top of MOBIL's)
 const MAX_DECEL := 9.0          # physical braking limit
 const B_CURVE := 1.8            # how hard drivers brake for a curve ahead
 const EXIT_P := 0.32            # share of cars that take the next exit (the ramps and local roads see more)
@@ -150,6 +154,7 @@ class Car:
 	var wheel := 0.0
 	var waiting := false        # recycled, waiting inside a tunnel for a gap
 	var obstacle := false       # a registered outside vehicle (not simulated here)
+	var siren := false          # ... a patrol car: traffic moves over for it
 	var node: Node3D            # traffic: its AnimatableBody3D; obstacle: the registered node
 	var shape: CollisionShape3D
 	var lane_changes := 0
@@ -216,6 +221,7 @@ func register_obstacle(node: Node3D, length := 4.6, width := 1.9) -> void:
 	c.L = length
 	c.W = width
 	c.waiting = true            # until it's located on a lane
+	c.siren = node.has_meta("siren")
 	c.set_meta("last", node.global_position)
 	obstacles.append(c)
 
@@ -1134,6 +1140,13 @@ func _consider_lane_change(c) -> void:
 		must = 1
 	if must != 0:
 		c.lc_cool = 0.25       # keep looking for the gap
+	# lights in the mirror: get out of its way (either side, the first safe gap)
+	var siren := 0.0
+	if must == 0:
+		var mb := _behind(_key_m(c.dir, c.lane), c.prog(), c, true)
+		if mb[0] != null and mb[0].siren and c.prog() - mb[1] < SIREN_M:
+			siren = SIREN_GAIN
+			c.lc_cool = 0.25
 	var cur_acc: float = c.acc
 	var best_k := -1
 	var best_gain := -INF
@@ -1182,7 +1195,7 @@ func _consider_lane_change(c) -> void:
 			bias *= 3.0
 		if c.cutter:
 			bias = 0.0         # either side will do
-		var gain: float = new_acc - cur_acc + c.p * f_gain + bias
+		var gain: float = new_acc - cur_acc + c.p * f_gain + bias + siren
 		if gain > (A_TH_CUT if c.cutter else A_TH) and gain > best_gain:
 			best_gain = gain
 			best_k = k

@@ -392,6 +392,10 @@ func _run() -> void:
 		await _hands(world, m, hud)
 		Sfx.quit_game()
 		return
+	if Config.cli.has("cutuponly"):            # a sports car cutting up through traffic, then the highway patrol closing on a fast car
+		await _cutup(world, m, hud)
+		Sfx.quit_game()
+		return
 	if Config.cli.has("mushonly"):             # 150 mph on the loop with traffic: frame strips + how far drawn traffic is off
 		await _mush(world, m, hud)
 		Sfx.quit_game()
@@ -1492,6 +1496,146 @@ func _mush(world, m, hud) -> void:
 				float(stt.wild) / maxf(stt.frames, 1)])
 	ai.queue_free()
 	p0.hands_off = false
+
+
+## Cutting up: a camera rides behind a cutter (a sports car weaving through
+## traffic, traffic.gd CUTTING UP), a frame every half second; then a 911 cuts
+## up flat out down the return leg (AiDriver "cutup") with the highway patrol
+## put 150 m behind it, a camera over the cop's shoulder as it closes.
+func _cutup(world, m, hud) -> void:
+	var hw = world.builder.hood.hw
+	var tr = world.traffic()
+	hud.root.visible = false
+	Graphics.cur = Graphics.PRESETS["high"]
+	Graphics.changed.emit()
+	tr.force_awake = true
+	var cam := Camera3D.new()
+	world.add_child(cam)
+	cam.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
+	cam.current = true
+	cam.fov = 60
+	cam.far = 900.0
+	var s0 := 4300.0
+	cam.global_position = hw.point(s0, 8.0, 10.0)
+	cam.look_at(hw.point(s0 + 50.0, 8.0, 0.0))
+	await get_tree().create_timer(4.0).timeout             # traffic fills in round the camera
+	# a cutter flying along near the camera (the fastest; a sports car if there is one); when it gets
+	# stuck behind someone for a while, the next one
+	var pick = null
+	var slow := 0
+	var lc_n := 0
+	for i in 24:
+		if pick == null or pick.waiting or slow >= 4:
+			pick = null
+			slow = 0
+			var tt := 0.0
+			while pick == null and tt < 40.0:
+				for c in tr.cars:
+					if not c.waiting and c.cutter and c.on_main and c.lane < 3 and c.v > 42.0 \
+							and tr._cpos(c).distance_to(cam.global_position) < 400.0 \
+							and (pick == null or (c.nice and not pick.nice) or (c.nice == pick.nice and c.v > pick.v)):
+						pick = c
+				if pick == null:
+					await get_tree().create_timer(0.5).timeout
+					tt += 0.5
+			if pick == null:
+				print("cutup: no cutter near the camera after 40 s")
+				break
+			print("cutup: following %s" % tr.describe_car(pick))
+		get_tree().paused = true             # (llvmpipe is slow: hold still while the frame's drawn)
+		await _frames(1)
+		var xf: Transform3D = tr._xf(pick)
+		var fwd: Vector3 = hw.forward(pick.dir, pick.s)
+		cam.global_position = xf.origin - fwd * 18.0 + Vector3(0, 6.5, 0)
+		cam.look_at(xf.origin + fwd * 30.0)
+		await _snap("cutup_%02d" % i)
+		get_tree().paused = false
+		var lc: int = pick.lane_changes
+		print("cutup_%02d: #%d %.1f m/s lane %d<-%d (lc %.2f)" % [i, pick.id, pick.v, pick.lane, pick.from_lane, pick.lc_t])
+		await get_tree().create_timer(0.4).timeout
+		lc_n += pick.lane_changes - lc
+		slow = slow + 1 if pick.v < 33.0 else 0
+	print("cutup: %d lane changes over the frames" % lc_n)
+	# the patrol car closing on a 911: flat out down an empty road, then cutting up through traffic
+	var me := Net.my_id()
+	var car = world.spawn_car(me, "po_911ts", hw.lane_center(1, 0, 3830.0), 0.0)
+	await get_tree().create_timer(0.5).timeout
+	for phase in ["open", "traffic"]:
+		var st := 3830.0
+		var f1: Vector3 = hw.forward(1, st)
+		var run = null
+		if phase == "open":
+			for c in tr.cars:
+				if not c.waiting:
+					tr._recycle(c)
+			car.simulate = false
+			car.collision_layer = 0
+		else:
+			tr._maint_t = 0.0
+			car.simulate = true
+			car.collision_layer = 1
+			car.global_transform = Transform3D(Basis(Vector3.UP, atan2(-f1.x, -f1.z)), hw.lane_center(1, 0, st) + Vector3(0, 0.3, 0))
+			car.speed = 60.0
+			car.velocity = f1 * 60.0
+			car.reset_physics_interpolation()
+			run = load("res://scripts/vehicle/ai_driver.gd").new()
+			run.mode = "cutup"
+			run.cruise = 91.0
+			run.traffic = tr
+			car.add_child(run)
+		var t := 0.0
+		var started := false
+		var cop = null
+		var shots := 0
+		var last_d := INF
+		var t_shot := -1.0
+		while shots < 7 and t < 60.0:
+			await get_tree().physics_frame
+			var dt := 1.0 / Engine.physics_ticks_per_second
+			t += dt
+			if phase == "open":
+				tr._maint_t = 1e9                      # (the road stays empty)
+				st += 85.0 * dt
+				var fwd0: Vector3 = hw.forward(1, st)
+				car.global_transform = Transform3D(Basis(Vector3.UP, atan2(-fwd0.x, -fwd0.z)), hw.lane_center(1, 0, st))
+				car.velocity = fwd0 * 85.0
+				car.speed = 85.0
+			if not started and t > 2.0:
+				started = true
+				world.pursuit._cooldown[me] = 0.0
+				world.pursuit.start(me)
+				cop = world.pursuit.npc.values()[world.pursuit.npc.size() - 1]
+				var sr: float = hw.locate(car.global_position).x
+				for back in [150.0, 140.0, 160.0, 130.0, 170.0]:
+					var sc: Array = tr.lane_scan(1, 1, sr - back, [car, cop])
+					if sc[0] > 15.0 and sc[2] > 15.0:
+						var f0: Vector3 = hw.forward(1, sr - back)
+						cop.global_transform = Transform3D(Basis(Vector3.UP, atan2(-f0.x, -f0.z)), hw.lane_center(1, 1, sr - back) + Vector3(0, 0.3, 0))
+						break
+				cop.speed = car.speed * 0.9
+				cop.velocity = -cop.global_basis.z * cop.speed
+				cop.reset_physics_interpolation()
+			if cop == null:
+				continue
+			if not world.pursuit.chases.has(me):
+				break
+			var d: float = cop.global_position.distance_to(car.global_position)
+			if shots == 0 or d < last_d - 22.0 or (d < 12.0 and t - t_shot > 1.0):
+				last_d = d
+				t_shot = t
+				get_tree().paused = true
+				var fwd: Vector3 = hw.forward(1, hw.locate(cop.global_position).x)
+				cam.global_position = cop.global_position - fwd * 14.0 + Vector3(0, 4.5, 0)
+				cam.look_at(cop.global_position + fwd * 60.0 + Vector3(0, 1.0, 0))
+				await _snap("cop_%s_%02d" % [phase, shots])
+				get_tree().paused = false
+				print("cop_%s_%02d: %.0f m behind, cop %.0f m/s (boost %.2f), 911 %.0f m/s" % [phase, shots, d, cop.speed, cop.boost, car.speed])
+				shots += 1
+		if world.pursuit.chases.has(me):
+			world.pursuit._end(me, "")
+		if run != null:
+			run.queue_free()
+	tr._maint_t = 0.0
 
 
 ## Where a node is drawn this frame (interpolated ones between their ticks).

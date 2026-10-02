@@ -31,6 +31,8 @@ echo "== cabs: the taxi drives you there (hood -> BEMZE -> downtown -> home, get
 "$G" --headless --path . -- --cabcheck --host --autostart --commute=0 --day_seconds=1800 --port=$((P+7)) 2>&1 | grep -E "\[cab\]" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
 echo "== neighborhood: build, buy a house, taxis, traffic (IDM/MOBIL), dealership lot"
 "$G" --headless --path . -- --host --autostart --hoodcheck --port=$((P+5)) 2>&1 | grep -E "\[hood\]" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
+echo "== highway patrol: catches a car flat out (empty road, cutting up through traffic), can be lost"
+"$G" --headless --path . -- --host --autostart --hoodcheck --chasecheck --port=$((P+8)) 2>&1 | grep -E "\[hood\]" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
 for mode in coop pvp; do
   echo "== multiplayer smoke ($mode)"
   extra=""; [ "$mode" = pvp ] && extra="--pvp"

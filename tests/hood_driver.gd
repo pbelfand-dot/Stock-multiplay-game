@@ -6,6 +6,10 @@ extends Node
 ##       home (standing by the bed, not falling through) and back downtown, and
 ##       30 simulated seconds of traffic never overlap cars or break speed limits,
 ##       and the cutters (sports cars cutting up) go faster and weave more.
+##   --hoodcheck --chasecheck --host --autostart   highway patrol vs a car flat
+##       out at the fastest player car's top speed, from 150 m back: caught on an
+##       empty road, keeps up with (and catches) a car cutting up through traffic,
+##       can't catch one that never brakes for traffic (see _chase_check).
 ##   --hoodshots=<dir> --host --autostart    review screenshots (needs a display):
 ##       xvfb-run -a -s "-screen 0 1600x900x24" godot --path . -- --host --autostart --hoodshots=/tmp/hood
 
@@ -13,6 +17,7 @@ const Rules = preload("res://scripts/sim/rules.gd")
 const Highway = preload("res://scripts/world/highway.gd")
 const Brands = preload("res://scripts/sim/brands.gd")
 const CabRoutes = preload("res://scripts/vehicle/cab_routes.gd")
+const AiDriver = preload("res://scripts/vehicle/ai_driver.gd")
 
 const MIN_GAP := 0.5          # metres: bumper to bumper, same lane
 const V_LIMIT := 45.0
@@ -65,6 +70,9 @@ func _run() -> void:
 		DirAccess.make_dir_recursive_absolute(out_dir)
 		await _shots()
 		Sfx.quit_game()
+		return
+	if Config.cli.has("chasecheck"):
+		await _chase_check()
 		return
 	await _check()
 
@@ -526,6 +534,189 @@ func _check() -> void:
 		_say("%s: lot at (%.0f, %.0f), exit at station %.0f eastbound, cab routes ok" % [dl.brand, at.x, at.z, dl.s])
 	_say("4 dealerships built in %d ms" % w.dealers_ms)
 	_done(true, "neighborhood, purchase, taxis, traffic and the dealerships all ok")
+
+
+# ================================================================== the highway patrol
+
+## The cop (the real thing: a physics car, its AI, the catch-up boost, the
+## traffic moving over) 150 m behind a car flat out down the 2.3 km return-leg
+## straight, at the fastest player car's top speed:
+##   * on an empty road (a ghost target at a steady top speed): caught, quickly
+##   * through traffic, a real 911 cutting up (AiDriver "cutup"), --chaserepeat=N
+##     runs (3): the cop keeps up with it and catches it at least once (it
+##     usually does; now and then the 911 gets through a gap the cop doesn't)
+##   * through traffic, a ghost that never has to brake for anyone (the best
+##     weaving there could be): it gets away - the cop can be lost.
+## And the cop never ploughs through anything.
+func _chase_check() -> void:
+	var v_top := 0.0
+	for k in Rules.CAR_ORDER:
+		v_top = maxf(v_top, float(Rules.CARS[k].top))
+	if float(Rules.CARS["cop"].top) < v_top:
+		_done(false, "the patrol car tops out at %.0f m/s, the fastest car you can buy at %.0f" % [Rules.CARS["cop"].top, v_top])
+		return
+	var reps := int(Config.cli.get("chaserepeat", "3"))
+	var runs := [["empty road", v_top, false, "ghost"], ["empty road, an R8 flat out", 84.0, false, "ghost"]]
+	for i in reps:
+		runs.append(["through traffic", v_top, true, "driver"])
+	runs.append(["through traffic, never braking", v_top, true, "weave"])
+	var res: Array = []
+	for r in runs:
+		var o: Dictionary = await chase_run(r[1], r[2], r[3], float(Config.cli.get("chasesecs", "28")))
+		res.append(o)
+		_say("chase, %s (%s): target %.0f m/s (avg %.1f), cop from %.0f m back: %s; cop avg %.1f m/s, top %.1f, closest %.0f m, %d hits%s" % [r[0], r[3],
+				r[1], o.run_avg, o.start_d, "caught in %.1f s" % o.caught if o.caught >= 0.0 else "never caught", o.cop_avg, o.cop_top, o.min_d,
+				o.hits, ", LOST THEM" if o.lost else ""] + (" (it hit something %d times)" % o.run_hits if o.run_hits > 0 else ""))
+	for i in 2:
+		if res[i].caught < 0.0 or res[i].caught > 14.0:
+			_done(false, "the cop didn't catch a %.0f m/s car on an empty road from 150 m in 14 s" % runs[i][1])
+			return
+	var caught := 0
+	for i in range(2, res.size() - 1):
+		var o: Dictionary = res[i]
+		caught += 1 if o.caught >= 0.0 else 0
+		if o.cop_avg < o.run_avg * 0.75:
+			_done(false, "the cop fell way behind a car cutting up (%.1f vs %.1f m/s)" % [o.cop_avg, o.run_avg])
+			return
+	if caught == 0:
+		_done(false, "the cop never caught a car cutting up through traffic (%d runs)" % reps)
+		return
+	if res[res.size() - 1].caught >= 0.0:
+		_done(false, "the cop caught a car that never brakes for traffic: nobody could ever lose it")
+		return
+	for o in res:
+		if o.hits > 3:
+			_done(false, "the cop hit something %d times" % o.hits)
+			return
+	_done(true, "the highway patrol catches a car at %.0f m/s from 150 m (%.1f s on an empty road; %d of %d through traffic), never braking for traffic loses it" % [
+			v_top, res[0].caught, caught, reps])
+
+
+## One chase from station 3830 eastbound, the cop put 150 m behind once it
+## starts. kind "ghost": the target slides down lane 0 at `v` m/s, through
+## anything; "weave": the same, over a lane every 2.2 s; "driver": a real car
+## (the 911) cutting up through the traffic flat out (an AiDriver, "cutup").
+## {caught: s until within 20 m (-1 never), min_d, start_d, cop_avg, cop_top, hits (the cop's),
+## lost, run_avg (the target's average speed), run_hits}
+func chase_run(v: float, with_traffic: bool, kind: String, secs: float) -> Dictionary:
+	var tr = hood.traffic
+	var hw = hood.hw
+	var me := Net.my_id()
+	var car = w.cars.get(me)
+	if car == null:
+		car = w.spawn_car(me, "po_911ts", hw.lane_center(1, 0, 3830.0), 0.0)
+		await _physics(2)
+	var ghost := kind != "driver"
+	car.simulate = not ghost
+	car.collision_layer = 0 if ghost else 1
+	car.collision_mask = 0 if ghost else 1
+	if not with_traffic:
+		for c in tr.cars:
+			if not c.waiting:
+				tr._recycle(c)
+	var st := 3830.0
+	var d := Highway.lane_d(1, 0)
+	var d_to := d
+	var runner = null
+	if not ghost:
+		await _physics(3)                # (the traffic finds where it's going to be)
+		for k in [0, 1, 2]:
+			var sc: Array = tr.lane_scan(1, k, st, [car])
+			if sc[0] > 40.0 and sc[2] > 40.0:
+				d = Highway.lane_d(1, k)
+				break
+		var f1: Vector3 = hw.forward(1, st)
+		car.global_transform = Transform3D(Basis(Vector3.UP, atan2(-f1.x, -f1.z)), hw.point(st, d, 0.3))
+		car.speed = v * 0.7
+		car.velocity = f1 * car.speed
+		car.reset_physics_interpolation()
+		runner = AiDriver.new()
+		runner.mode = "cutup"
+		runner.cruise = v
+		runner.traffic = tr
+		runner.debug = Config.cli.has("chasedebug")
+		car.add_child(runner)
+	var t := 0.0
+	var lane_n := 0
+	var o := {"caught": -1.0, "min_d": INF, "start_d": 0.0, "cop_avg": 0.0, "cop_top": 0.0, "hits": 0, "lost": false, "run_avg": 0.0, "run_hits": 0}
+	var cop = null
+	var started := false
+	var warm := 2.5
+	var n := 0
+	var hits := [0]
+	var run_hits := [0]
+	var on_hit := func(_i): run_hits[0] += 1
+	car.crashed.connect(on_hit)
+	while t < secs + warm and st < 6080.0:
+		await get_tree().physics_frame
+		var dt := 1.0 / Engine.physics_ticks_per_second
+		t += dt
+		if not with_traffic:
+			tr._maint_t = 1e9            # (no bubble: the road stays empty)
+		if ghost:
+			st += v * dt
+			if kind == "weave" and fmod(t, 2.2) < dt:  # over a lane every 2.2 s (0 1 2 1 0 ...), a second across
+				lane_n += 1
+				d_to = Highway.lane_d(1, [0, 1, 2, 1][lane_n % 4])
+			d = move_toward(d, d_to, Highway.LANE_W * dt)
+			var fwd: Vector3 = hw.forward(1, st)
+			car.global_transform = Transform3D(Basis(Vector3.UP, atan2(-fwd.x, -fwd.z)), hw.point(st, d, 0.0))
+			car.velocity = fwd * v
+			car.speed = v
+		else:
+			st = hw.locate(car.global_position).x
+		if t >= warm and not started:
+			started = true
+			w.pursuit._cooldown[me] = 0.0
+			w.pursuit.start(me)
+			cop = w.pursuit.npc.values()[w.pursuit.npc.size() - 1]
+			cop.crashed.connect(func(_i): hits[0] += 1)
+			for ch in cop.get_children():
+				if ch is AiDriver:
+					ch.debug = Config.cli.has("chasedebug")
+			# 150 m back (or as near as there's a clear lane)
+			var placed := false
+			for back in [150.0, 140.0, 160.0, 130.0, 170.0, 120.0, 180.0]:
+				var sc0: float = st - back
+				for k in [1, 0, 2]:
+					var sc: Array = tr.lane_scan(1, k, sc0, [car, cop])
+					if sc[0] > 15.0 and sc[2] > 15.0:
+						var f0: Vector3 = hw.forward(1, sc0)
+						cop.global_transform = Transform3D(Basis(Vector3.UP, atan2(-f0.x, -f0.z)), hw.lane_center(1, k, sc0) + Vector3(0, 0.3, 0))
+						placed = true
+						break
+				if placed:
+					break
+			cop.speed = car.speed * 0.9
+			cop.velocity = -cop.global_basis.z * cop.speed
+			cop.reset_physics_interpolation()
+			o.start_d = Vector2(cop.global_position.x - car.global_position.x, cop.global_position.z - car.global_position.z).length()
+			continue
+		if not started:
+			continue
+		if not w.pursuit.chases.has(me):
+			o.lost = true
+			break
+		var dd := Vector2(cop.global_position.x - car.global_position.x, cop.global_position.z - car.global_position.z).length()
+		o.min_d = minf(o.min_d, dd)
+		if dd < 20.0 and o.caught < 0.0:
+			o.caught = t - warm
+		o.cop_avg += cop.speed
+		o.cop_top = maxf(o.cop_top, cop.speed)
+		o.run_avg += car.speed
+		n += 1
+	o.cop_avg /= maxi(n, 1)
+	o.run_avg /= maxi(n, 1)
+	o.hits = hits[0]
+	o.run_hits = run_hits[0]
+	car.crashed.disconnect(on_hit)
+	if w.pursuit.chases.has(me):
+		w.pursuit._end(me, "")
+	if runner != null:
+		runner.queue_free()
+		car.ai = false
+	tr._maint_t = 0.0
+	return o
 
 
 # ================================================================== screenshots

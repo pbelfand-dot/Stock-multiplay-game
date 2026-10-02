@@ -1,9 +1,12 @@
 extends Node
 ## Highway patrol. The host runs it: holding 110+ mph for a few seconds can
 ## get you clocked; a patrol car spawns behind you (lights, siren) and the AI
-## chases you down. Get PURSUIT_LOST_M away for PURSUIT_LOST_S seconds (or make
-## it crash out) and you lost them; get boxed in / stopped next to it for
-## PURSUIT_BUST_S and you're pulled over. Cop cars stream to everyone like
+## chases you down. It's as fast as the fastest car you can buy, cuts through
+## traffic down the lanes, and gets a catch-up boost while it's far behind
+## (Rules.PURSUIT_BOOST): out-driving it on an empty road won't do, out-weaving
+## it through traffic will. Get PURSUIT_LOST_M away for PURSUIT_LOST_S seconds
+## (or make it crash out) and you lost them; get boxed in / stopped next to it
+## for PURSUIT_BUST_S and you're pulled over. Cop cars stream to everyone like
 ## player cars do.
 
 const Rules = preload("res://scripts/sim/rules.gd")
@@ -74,8 +77,17 @@ func start(peer: int) -> void:
 	_next_id += 1
 	var cop = _spawn(id, world.pursuit_spawn(target))
 	cop.simulate = true
+	# it comes up already rolling (from a standstill it'd be lost before it got going)
+	var v: float = maxf(target.speed, 0.0) * 0.9
+	cop.speed = v
+	cop.velocity = -cop.global_basis.z * v
 	var ai = AiDriver.new()
 	ai.target = target
+	ai.traffic = world.traffic()
+	ai.boost_max = Rules.PURSUIT_BOOST
+	ai.hw_brake = 10.0                # it takes gaps a little tighter than most of us
+	ai.hw_margin = 4.0
+	ai.hw_swerve = 0.55
 	cop.add_child(ai)
 	chases[peer] = {"cop": id, "t_far": 0.0, "t_close": 0.0, "t": 0.0}
 	world.match_node.s_pursuit.rpc(peer, "start")
@@ -121,6 +133,7 @@ func _spawn(id: int, xf: Transform3D):
 	var c = CarScript.new()
 	c.setup("cop", 0)
 	c.name = "Cop_%d" % id
+	c.set_meta("siren", true)          # traffic moves over for it
 	c.global_transform = xf
 	world.cars_node.add_child(c)
 	c.global_transform = xf

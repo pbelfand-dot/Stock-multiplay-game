@@ -58,6 +58,7 @@ var in_brake := 0.0
 var in_steer := 0.0          # -1 left .. +1 right
 var in_handbrake := false
 var ai := false              # an AiDriver has the wheel (robot hands: no easing in)
+var boost := 1.0             # x top speed and pull (the patrol car's catch-up when it's far behind)
 var steer_ai := 0.0
 
 var speed := 0.0             # m/s along the nose (-z); negative = reversing
@@ -387,6 +388,7 @@ func _physics_process(dt: float) -> void:
 ## step (the physics interpolation does the rest between ticks).
 func _follow_net(dt: float) -> void:
 	_net_t += dt
+	velocity = _net_vel                               # (doesn't move it: it's for whoever reads it, the host's cops and traffic)
 	var ahead := minf(_net_t, 0.3)                    # (a lost packet: don't coast off forever)
 	var want_pos := _net_pos + _net_vel * ahead
 	var want_rot := Quaternion(Vector3.UP, _net_yaw_rate * ahead) * _net_rot
@@ -403,7 +405,7 @@ func _follow_net(dt: float) -> void:
 
 func _drive(dt: float) -> void:
 	var d: Dictionary = Rules.CARS[key]
-	var top: float = d.top
+	var top: float = d.top * boost
 	var grip: float = d.grip
 	var mushy := crash_t > 0.0
 	crash_t = maxf(crash_t - dt, 0.0)
@@ -469,7 +471,7 @@ func _drive(dt: float) -> void:
 	var f := flat.dot(fwd)
 	var l := flat.dot(global_basis.x)
 	# ---- along the nose: throttle, brakes, reverse, coasting, drag, scrubbing
-	var acc := 26.8 / float(d.zero60)                     # 0-60 mph
+	var acc := 26.8 / float(d.zero60) * boost             # 0-60 mph
 	if in_throttle > 0.01:
 		if f < -0.3:
 			f = move_toward(f, 0.0, 14.0 * in_throttle * dt)
