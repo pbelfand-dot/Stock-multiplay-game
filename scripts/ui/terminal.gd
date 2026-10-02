@@ -5,6 +5,7 @@ extends PanelContainer
 const UI = preload("res://scripts/ui/ui_theme.gd")
 const Rules = preload("res://scripts/sim/rules.gd")
 const Ledger = preload("res://scripts/sim/ledger.gd")
+const Market = preload("res://scripts/sim/market.gd")
 const ChartScript = preload("res://scripts/ui/chart.gd")
 const CrtFrame = preload("res://scripts/ui/crt_frame.gd")
 
@@ -319,12 +320,26 @@ func _cycle_lev() -> void:
 func _update_size_labels() -> void:
 	var v: float = Rules.SIZE_STEPS[size_idx]
 	size_lbl.text = Rules.money(v).replace(".00", "")
-	lev_btn.text = "x%d" % Ledger.LEVERAGES[lev_idx]
 	var lev: int = Ledger.LEVERAGES[lev_idx]
+	var cap := Market.max_lev(sym)
+	lev_btn.text = "x%d" % lev if lev <= cap else "x%d → x%d MAX" % [lev, cap]
+	lev = mini(lev, cap)
 	var cigar: bool = match_node != null and match_node.effect_left(Net.my_id(), "cigar") > 0.0
 	_update_auto_labels()
 	var move := 1.0 / lev * 100.0
+	# what getting in AND out costs on top of the fee: the spread (wider in a fast
+	# market) and the slippage your size causes, both ways
+	var notional := v * lev
+	var fm: float = 1.0
+	var sp_perk := 1.0
+	if match_node != null:
+		fm = float(match_node.fast_mkt.get(sym, 1.0))
+		sp_perk = float(match_node.perks(Net.my_id()).spread) * float(match_node.ev_mod("spread"))
+	var spread: float = float(Market.def_of(sym).get("spread", 0.0)) * fm * sp_perk
+	var slip := Market.impact_for(sym, notional, fm > 1.0)
+	var cost := notional * (spread + 2.0 * slip)
 	fee_lbl.text = ("no fee (cigar)" if cigar else "-%s fee" % Rules.money(v * lev * Ledger.FEE_RATE)) \
+			+ "  ·  ~%s spread%s" % [Rules.money(cost), "+slip" if slip >= 0.0005 else ""] \
 			+ "  ·  wiped out at -%s%%" % str(snappedf(move, 0.01))
 	fee_lbl.add_theme_color_override("font_color", UI.RED if lev >= 50 else UI.DIM)
 	lev_btn.add_theme_color_override("font_color", UI.RED if lev >= 50 else UI.GOLD)
@@ -382,8 +397,14 @@ func _refresh_all() -> void:
 func _refresh_prices() -> void:
 	if not visible:
 		return
-	_update_auto_labels()
+	_update_size_labels()
 	_update_order_labels()
+	var fm: float = float(match_node.fast_mkt.get(sym, 1.0))
+	var a_sel: Dictionary = match_node.asset_mirror(sym)
+	if not a_sel.is_empty():
+		asset_kind.text = "%s | %s   FAST MARKET! spread x%.1f" % [a_sel.sym, a_sel.kind, fm] if fm > 1.05 \
+				else "%s | %s   (max x%d)" % [a_sel.sym, a_sel.kind, Market.max_lev(sym)]
+		asset_kind.add_theme_color_override("font_color", UI.RED if fm > 1.05 else UI.DIM)
 	for a in match_node.m_assets:
 		if not watch_rows.has(a.sym):
 			continue

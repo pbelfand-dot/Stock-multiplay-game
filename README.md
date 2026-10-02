@@ -69,7 +69,7 @@ Built in **Godot 4.7** — free, no accounts, no store.
 ## What's in the office
 
 - **Trading terminal** at every desk, like the trailer's: candlesticks, volume, pen tool, watchlist,
-  size −/+, **x1–x100 leverage**, BUY (long) / SELL (short), positions with profit and fees, MY SESSION,
+  size −/+, **x1–x125 leverage** (capped per ticker), BUY (long) / SELL (short), positions with profit and fees, MY SESSION,
   and a big **TRADE CLOSED +$120.05K** popup. Get liquidated and you lose the margin.
 - **18 tickers** (all parody): crypto (BTC, ETHR, DOGGO, BNN, $WAGMI), stocks (REX, PEAR, NVDUH, GAMR,
   AIRX, BURG, PHRM, JPMG), commodities (GOLD, OIL, GAS) and indexes (SPX, FEAR). **Sectors move
@@ -79,18 +79,33 @@ Built in **Godot 4.7** — free, no accounts, no store.
 - **LIVE TV + news** that moves the market (all parody):
   - **TRAMP** — "YOU'LL BE TIRED OF WINNING", tariffs, "I love Bitcoin"…
   - **TJZ** (day-trading streamer) — "OH MY GOD, TRADE! LONG BTC!" He's right about 65% of the time.
-  - **KIMCHEE** (memecoin whale) — pumps $WAGMI… then usually rugs it. Sell in time.
+  - **KIMCHEE** (memecoin whale) — buys $WAGMI before he posts, pumps it… then usually rugs it fast. Sell in time.
   - **JIM CRAMMER** — "BUY BUY BUY!" Inverse him: he's wrong 75% of the time.
   - **ROARING KITTEH** — posts a cat meme and REX goes nuts.
   - **FED CHAIR POWWW** — rate cuts and hikes. Plus **BREAKING** news.
   - The streamers sit in the **streamer corner** with speech bubbles.
+- **The market fights back** (it's not free money anymore, like a real market):
+  - **News leaks.** Insiders and the algos read it first: the price starts moving ~3s **before** the
+    TV airs it, so half the move or more is gone by the time you read it. Tramp's phone posts, the
+    Bloomberg Terminal, WOLF rank and Nose Candy are how you beat the leak.
+  - **Not every headline pays.** Some are **already priced in** (it sells off the second it airs:
+    "sell the news") and some are **fake news**: a CORRECTION chyron airs and it all reverses. The
+    Insider Tip tells you which.
+  - **The knee-jerk.** The first second after a headline often jerks the wrong way first. x100
+    chasers get liquidated there.
+  - **Fast markets.** For ~8s after news hits a ticker its spread blows out up to 5x and it whipsaws
+    (the terminal says **FAST MARKET**). You pay the spread getting in **and** getting out.
+  - **Leverage caps.** S&P / FEAR x125, BTC / GOLD / OIL x100, ETHR / GAS x50, stocks and Banana Coin
+    x25, GAMR / WAGMI / DOGGO x10.
+  - **Slippage.** Big orders move their own price, a lot on thin memecoins. The terminal shows what
+    the spread and slippage will cost before you click. Whales have to size down.
 - **Tony "The Plug"** in the lounge sells items (keys **1–6** to use them):
 
   | Item | Price | Heat | What it does |
   |---|---|---|---|
   | Victory Cigar | $5K | +5 | Zero trading fees for 60s, plus a smoke cloud |
   | Nose Candy | $15K | +25 | Sprint x1.6 for 40s, and you see headlines 6s early |
-  | Insider Tip | $25K | +40 | Tells you exactly what the next headline will do |
+  | Insider Tip | $25K | +40 | Tells you exactly what the next headline will do (real, priced in or fake) |
   | FLEX Gun | $10K | 0 | Hold left mouse to make it rain; cops stop to grab bills |
   | Saul Goodmann | $30K | 0 | Your next arrest gets dismissed |
   | SEC Snitch Line | $20K | 0 | PvP only: +60 heat on the richest rival |

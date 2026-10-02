@@ -10,28 +10,32 @@ extends RefCounted
 const CANDLE_SECONDS := 5.0
 const MAX_CANDLES := 120
 
-## sym, name, kind, start price, per-second volatility, bid/ask spread (fraction)
+## sym, name, kind, start price, per-second volatility, bid/ask spread (fraction),
+## depth = how much notional ($) it takes to push your fill 1% (thin memecoins: tens of
+## millions, the S&P: billions). See impact().
+## maxlev = the most leverage the broker gives you on it (like real brokers: the
+## S&P x125, majors x100, single stocks x25, memecoins x10).
 ## (same watchlist as the newer clips: BTC, GOLD, OIL, SPX, BNN, REX + our memecoin)
 const ASSET_DEFS := [
-	{"sym": "BTC", "name": "Bitcoin", "kind": "Crypto", "price": 1000.0, "vol": 0.0014, "spread": 0.0006},
-	{"sym": "GOLD", "name": "Gold", "kind": "Commodity", "price": 1500.0, "vol": 0.0006, "spread": 0.0003},
-	{"sym": "OIL", "name": "Crude Oil", "kind": "Commodity", "price": 1500.0, "vol": 0.0009, "spread": 0.0004},
-	{"sym": "SPX", "name": "S&P 500", "kind": "Index", "price": 2200.0, "vol": 0.0006, "spread": 0.0002},
-	{"sym": "BNN", "name": "Banana Coin", "kind": "Crypto", "price": 100.0, "vol": 0.0016, "spread": 0.0008},
-	{"sym": "REX", "name": "Rex Motors", "kind": "Stock", "price": 1500.0, "vol": 0.0008, "spread": 0.0004},
-	{"sym": "WAGMI", "name": "WAGMI Coin", "kind": "Memecoin", "price": 0.42, "vol": 0.0038, "spread": 0.003},
+	{"sym": "BTC", "name": "Bitcoin", "kind": "Crypto", "price": 1000.0, "vol": 0.0014, "spread": 0.0006, "depth": 1_500_000_000.0, "maxlev": 100},
+	{"sym": "GOLD", "name": "Gold", "kind": "Commodity", "price": 1500.0, "vol": 0.0006, "spread": 0.0003, "depth": 2_000_000_000.0, "maxlev": 100},
+	{"sym": "OIL", "name": "Crude Oil", "kind": "Commodity", "price": 1500.0, "vol": 0.0009, "spread": 0.0004, "depth": 1_200_000_000.0, "maxlev": 100},
+	{"sym": "SPX", "name": "S&P 500", "kind": "Index", "price": 2200.0, "vol": 0.0006, "spread": 0.0002, "depth": 3_000_000_000.0, "maxlev": 125},
+	{"sym": "BNN", "name": "Banana Coin", "kind": "Crypto", "price": 100.0, "vol": 0.0016, "spread": 0.0008, "depth": 200_000_000.0, "maxlev": 25},
+	{"sym": "REX", "name": "Rex Motors", "kind": "Stock", "price": 1500.0, "vol": 0.0008, "spread": 0.0004, "depth": 600_000_000.0, "maxlev": 25},
+	{"sym": "WAGMI", "name": "WAGMI Coin", "kind": "Memecoin", "price": 0.42, "vol": 0.0038, "spread": 0.003, "depth": 40_000_000.0, "maxlev": 10},
 	# the rest of the board: more to watch, more that moves together (LINKS)
-	{"sym": "ETHR", "name": "Etherium", "kind": "Crypto", "price": 240.0, "vol": 0.0017, "spread": 0.0007},
-	{"sym": "DOGGO", "name": "Doggo Coin", "kind": "Memecoin", "price": 0.18, "vol": 0.0028, "spread": 0.002},
-	{"sym": "PEAR", "name": "Pear Inc.", "kind": "Stock", "price": 1900.0, "vol": 0.0006, "spread": 0.0003},
-	{"sym": "NVDUH", "name": "Nvidooh", "kind": "Stock", "price": 1100.0, "vol": 0.0011, "spread": 0.0004},
-	{"sym": "GAMR", "name": "GameShop", "kind": "Meme Stock", "price": 240.0, "vol": 0.0019, "spread": 0.0008},
-	{"sym": "AIRX", "name": "Air Excess", "kind": "Stock", "price": 420.0, "vol": 0.0009, "spread": 0.0004},
-	{"sym": "BURG", "name": "Burger Baron", "kind": "Stock", "price": 640.0, "vol": 0.0005, "spread": 0.0003},
-	{"sym": "PHRM", "name": "PharmaBro", "kind": "Stock", "price": 880.0, "vol": 0.001, "spread": 0.0004},
-	{"sym": "JPMG", "name": "JP Morgun", "kind": "Bank", "price": 1300.0, "vol": 0.0007, "spread": 0.0003},
-	{"sym": "GAS", "name": "Natural Gas", "kind": "Commodity", "price": 320.0, "vol": 0.0012, "spread": 0.0005},
-	{"sym": "FEAR", "name": "Fear Index", "kind": "Index", "price": 180.0, "vol": 0.0011, "spread": 0.0006},
+	{"sym": "ETHR", "name": "Etherium", "kind": "Crypto", "price": 240.0, "vol": 0.0017, "spread": 0.0007, "depth": 800_000_000.0, "maxlev": 50},
+	{"sym": "DOGGO", "name": "Doggo Coin", "kind": "Memecoin", "price": 0.18, "vol": 0.0028, "spread": 0.002, "depth": 60_000_000.0, "maxlev": 10},
+	{"sym": "PEAR", "name": "Pear Inc.", "kind": "Stock", "price": 1900.0, "vol": 0.0006, "spread": 0.0003, "depth": 1_200_000_000.0, "maxlev": 25},
+	{"sym": "NVDUH", "name": "Nvidooh", "kind": "Stock", "price": 1100.0, "vol": 0.0011, "spread": 0.0004, "depth": 800_000_000.0, "maxlev": 25},
+	{"sym": "GAMR", "name": "GameShop", "kind": "Meme Stock", "price": 240.0, "vol": 0.0019, "spread": 0.0008, "depth": 150_000_000.0, "maxlev": 10},
+	{"sym": "AIRX", "name": "Air Excess", "kind": "Stock", "price": 420.0, "vol": 0.0009, "spread": 0.0004, "depth": 400_000_000.0, "maxlev": 25},
+	{"sym": "BURG", "name": "Burger Baron", "kind": "Stock", "price": 640.0, "vol": 0.0005, "spread": 0.0003, "depth": 500_000_000.0, "maxlev": 25},
+	{"sym": "PHRM", "name": "PharmaBro", "kind": "Stock", "price": 880.0, "vol": 0.001, "spread": 0.0004, "depth": 400_000_000.0, "maxlev": 25},
+	{"sym": "JPMG", "name": "JP Morgun", "kind": "Bank", "price": 1300.0, "vol": 0.0007, "spread": 0.0003, "depth": 1_000_000_000.0, "maxlev": 25},
+	{"sym": "GAS", "name": "Natural Gas", "kind": "Commodity", "price": 320.0, "vol": 0.0012, "spread": 0.0005, "depth": 400_000_000.0, "maxlev": 50},
+	{"sym": "FEAR", "name": "Fear Index", "kind": "Index", "price": 180.0, "vol": 0.0011, "spread": 0.0006, "depth": 300_000_000.0, "maxlev": 125},
 ]
 ## Sectors: when a leader gets a news move, its followers move too, a beat
 ## later (LINK_LAG) and by beta. Traders who read the tape get in on the
@@ -53,6 +57,13 @@ static var JUMP_CHANCE_OVERRIDE := -1.0
 static var TREND := 0.2          # max trend drift per second, in units of vol
 static var VOL_SCALE := 0.75
 static var JUMP_SIZE_OVERRIDE := -1.0
+## Fast market: when news hits a ticker the market makers pull their quotes. For
+## FAST_SECONDS its spread is up to FAST_SPREAD x (fading back) and its book is
+## FAST_DEPTH x as deep. Chasing a headline costs real money.
+const FAST_SECONDS := 8.0
+const FAST_SPREAD := 5.0
+const FAST_DEPTH := 0.35
+const FAST_VOL := 4.0          # and it whipsaws: noise up to 4x (shakes out high leverage)
 
 var assets: Array = []          # Array[Dictionary]
 var time := 0.0                 # seconds since market open (monotonic across days)
@@ -60,6 +71,7 @@ var candle_index := 0           # index of the currently forming candle
 var rng := RandomNumberGenerator.new()
 var vol_mult := {}              # sym -> volatility multiplier (day events)
 var bias := 0.0                 # trend drift for every asset, in units of its vol (bull run / bear market)
+var fast := {}                  # sym -> seconds of fast market left
 
 
 func _init(seed_value: int = 0) -> void:
@@ -79,6 +91,28 @@ func _init(seed_value: int = 0) -> void:
 		assets.append(a)
 
 
+static func def_of(sym: String) -> Dictionary:
+	for d in ASSET_DEFS:
+		if d.sym == sym:
+			return d
+	return {}
+
+
+## The most leverage allowed on this ticker.
+static func max_lev(sym: String) -> int:
+	return int(def_of(sym).get("maxlev", 125))
+
+
+## Slippage for an order this big (fraction of the price), on a normal or fast
+## book. Clients use it for the cost preview, the host for the fills.
+static func impact_for(sym: String, notional: float, is_fast: bool) -> float:
+	var d := def_of(sym)
+	if d.is_empty():
+		return 0.0
+	var depth: float = d.depth * (FAST_DEPTH if is_fast else 1.0)
+	return minf(0.01 * absf(notional) / depth, 0.25)
+
+
 func index_of(sym: String) -> int:
 	for i in assets.size():
 		if assets[i].sym == sym:
@@ -90,9 +124,28 @@ func price(i: int) -> float:
 	return assets[i].price
 
 
+## The bid/ask spread right now (wider in a fast market).
 func spread_of(sym: String) -> float:
 	var i := index_of(sym)
-	return assets[i].spread if i >= 0 else 0.0
+	return assets[i].spread * fast_mult(sym) if i >= 0 else 0.0
+
+
+## 1.0 normally, up to FAST_SPREAD right after news hits this ticker.
+func fast_mult(sym: String) -> float:
+	var left: float = fast.get(sym, 0.0)
+	return 1.0 + (FAST_SPREAD - 1.0) * clampf(left / FAST_SECONDS, 0.0, 1.0)
+
+
+## News is hitting this ticker: spreads blow out for FAST_SECONDS.
+func start_fast(sym: String) -> void:
+	if index_of(sym) >= 0:
+		fast[sym] = FAST_SECONDS
+
+
+## Slippage: how far (fraction of price) an order of this notional moves its own
+## fill. Big orders on thin books get bad prices, worse in a fast market.
+func impact(sym: String, notional: float) -> float:
+	return impact_for(sym, notional, fast.get(sym, 0.0) > 0.0)
 
 
 func price_of(sym: String) -> float:
@@ -121,6 +174,10 @@ func add_impulse(sym: String, total_pct: float, dur: float, delay: float = 0.0, 
 ## Advance the simulation. Returns true when a candle closed this step.
 func step(dt: float) -> bool:
 	time += dt
+	for k in fast.keys():
+		fast[k] -= dt
+		if fast[k] <= 0.0:
+			fast.erase(k)
 	for a in assets:
 		_step_asset(a, dt)
 	var new_index := int(floor(time / CANDLE_SECONDS))
@@ -151,6 +208,8 @@ func _step_asset(a: Dictionary, dt: float) -> void:
 			still.append(imp)
 	a.impulses = still
 	var vm: float = vol_mult.get(a.sym, 1.0)
+	if fast.has(a.sym):
+		vm *= 1.0 + (FAST_VOL - 1.0) * clampf(fast[a.sym] / FAST_SECONDS, 0.0, 1.0)
 	var drift: float = a.trend + bias * a.vol * VOL_SCALE
 	var r: float = (drift + mr + impulse) * dt + a.vol * vm * VOL_SCALE * sqrt(dt) * _gauss()
 	var jc: float = JUMP_CHANCE if JUMP_CHANCE_OVERRIDE < 0.0 else JUMP_CHANCE_OVERRIDE
@@ -198,7 +257,10 @@ func tick_payload() -> Dictionary:
 		curs.append(a.cur)
 		lasts.append(a.candles[-1] if not a.candles.is_empty() else a.cur)
 		opens.append(a.open_day)
-	return {"t": time, "ci": candle_index, "p": prices, "c": curs, "l": lasts, "o": opens}
+	var fm := {}                    # tickers in a fast market -> spread multiplier now
+	for k in fast:
+		fm[k] = fast_mult(k)
+	return {"t": time, "ci": candle_index, "p": prices, "c": curs, "l": lasts, "o": opens, "fm": fm}
 
 
 ## Full history for late joiners.

@@ -609,6 +609,38 @@ func _run() -> void:
 		print("photo mode off: fp=%s cam=%s" % [world.local_player.model.fp, world.local_player.cam.current])
 		Sfx.quit_game()
 		return
+	if Config.cli.has("fastonly"):             # harder trading: a headline leaks, the fast market, then the CORRECTION
+		const News = preload("res://scripts/sim/news.gd")
+		var ev: Dictionary = m.newsdeck._shape({"speaker": "TRAMP", "role": "PRESIDENT",
+			"headline": "TRAMP: I LOVE BITCOIN. TREMENDOUS COIN. MAYBE THE BEST COIN", "hint": "BTC UP big",
+			"effects": [{"sym": "BTC", "pct": 0.07, "dur": 5.0, "delay": 0.0}]}, "fake",
+			"TRAMP: (POST DELETED) \"THAT WAS A JOKE. FAKE NEWS MEDIA!\"")
+		m._next_event = ev
+		m._next_event_in = News.LEAK_S + 0.5
+		m._leaked = false
+		m._post_sent = true
+		hud.open_interact({"type": "terminal", "id": 0})
+		hud.terminal.select("BTC")
+		hud.terminal.lev_idx = 5                  # x100
+		hud.terminal.size_idx = 3                 # $25K
+		hud.terminal._update_size_labels()
+		await _frames(10)
+		await _snap("h0_before")
+		await get_tree().create_timer(2.6).timeout
+		await _snap("h1_leak_before_tv")          # BTC already running, FAST MARKET, no headline yet
+		await get_tree().create_timer(2.0).timeout
+		await _snap("h2_headline_aired")
+		var fu: float = float(ev.followup.at)
+		await get_tree().create_timer(fu - 1.0).timeout
+		await _snap("h3_correction")
+		await get_tree().create_timer(4.0).timeout
+		await _snap("h4_reversed")
+		hud.terminal.select("WAGMI")
+		hud.terminal._update_size_labels()
+		await _frames(10)
+		await _snap("h5_wagmi_capped")
+		Sfx.quit_game()
+		return
 	if Config.cli.has("termonly"):             # the trading terminal with the full board
 		m.request_open("NVDUH", -1, 5_000.0, 10)
 		await get_tree().create_timer(1.0).timeout
