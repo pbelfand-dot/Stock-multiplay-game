@@ -6,10 +6,30 @@ extends RefCounted
 ##   speaker  : who is talking (shown on the TV chyron)
 ##   role     : "PRESIDENT" / "STREAMER" / "FED" / "BREAKING" / "TV"
 ##   headline : chyron text
-##   effects  : [{sym, pct, dur, delay}] — price impulses (delay is after REACTION_DELAY)
+##   effects  : [{sym, pct, dur, delay, pre}] — price impulses (delay is after REACTION_DELAY;
+##              pre = part of the leak, plays out in the LEAK_S before the TV airs it)
 ##   hint     : short "what really happens" string for tips (e.g. "OIL ▲ big")
+##   outcome  : "real" / "priced_in" / "fake" (hidden; the Insider Tip tells you)
+##   followup : optional second chyron {at, speaker, role, headline}: a CORRECTION,
+##              or the analysts calling it priced in (at = seconds after the first)
 
-const REACTION_DELAY := 1.5   # seconds between headline and the market reacting
+const REACTION_DELAY := 0.5   # seconds between headline and the market reacting
+## Insiders and the algos read it first: a slice of the move (LEAK_MIN..LEAK_MAX of
+## it) happens in the LEAK_S seconds BEFORE the TV airs it. Tramp's phone posts and
+## the early-news perks (Bloomberg, WOLF, Nose Candy) are how you beat the leak.
+const LEAK_S := 3.0
+const LEAK_MIN := 0.5
+const LEAK_MAX := 0.8
+## Not every headline pays. Tramp, BREAKING and the Fed can be:
+##   real      the move plays out
+##   priced_in the leak already took it; once it airs, "sell the news" pulls it back
+##   fake      it goes, then a CORRECTION airs and it all reverses (and then some)
+const OUTCOMES := {"real": 0.5, "priced_in": 0.3, "fake": 0.2}
+## The knee-jerk: often the first second after it airs, the algos run the stops
+## the WRONG way (KNEE_MIN..KNEE_MAX of the price) before it goes. x100 chasers die here.
+const KNEE_CHANCE := 0.6
+const KNEE_MIN := 0.006
+const KNEE_MAX := 0.018
 
 const SYMS := ["BTC", "GOLD", "OIL", "SPX", "BNN", "REX", "WAGMI", "ETHR", "DOGGO", "PEAR", "NVDUH", "GAMR",
 	"AIRX", "BURG", "PHRM", "JPMG", "GAS", "FEAR"]
@@ -105,7 +125,8 @@ func _tramp() -> Dictionary:
 	var effects: Array = []
 	for pair in l[1]:
 		effects.append({"sym": pair[0], "pct": pair[1] * TRAMP_MULT * tramp_boost * rng.randf_range(0.8, 1.25), "dur": rng.randf_range(3.0, 6.0), "delay": 0.0})
-	return _ev("TRAMP", "PRESIDENT", "TRAMP: " + l[0], effects)
+	return _shape(_ev("TRAMP", "PRESIDENT", "TRAMP: " + l[0], effects), _roll_outcome(),
+		"TRAMP: (POST DELETED) \"THAT WAS A JOKE. FAKE NEWS MEDIA!\"")
 
 
 ## TJR-style day-trading streamer. Right ~65% of the time.
@@ -127,13 +148,17 @@ func _tjz() -> Dictionary:
 
 
 ## Kimchi-style memecoin whale. Pumps WAGMI then (usually) rugs it.
+## Kimchi-style memecoin whale. Pump and dump: he buys BEFORE he posts (the leak),
+## his post pumps it a little more, then he (usually) rugs it on his followers.
 func _kimchee() -> Dictionary:
 	var coin: String = "WAGMI" if rng.randf() < 0.65 else "DOGGO"
-	var rug := rng.randf() < 0.7
+	var rug := rng.randf() < 0.8
 	var pump := rng.randf_range(0.15, 0.4)
-	var effects := [{"sym": coin, "pct": pump, "dur": rng.randf_range(8.0, 14.0), "delay": 0.0}]
+	var pre := pump * rng.randf_range(0.5, 0.7)
+	var effects := [{"sym": coin, "pct": pre, "dur": LEAK_S, "delay": 0.0, "pre": true},
+		{"sym": coin, "pct": (1.0 + pump) / (1.0 + pre) - 1.0, "dur": rng.randf_range(4.0, 8.0), "delay": 0.0}]
 	if rug:
-		effects.append({"sym": coin, "pct": -rng.randf_range(0.35, 0.6), "dur": rng.randf_range(2.0, 4.0), "delay": rng.randf_range(16.0, 24.0)})
+		effects.append({"sym": coin, "pct": -rng.randf_range(0.35, 0.6), "dur": rng.randf_range(2.0, 4.0), "delay": rng.randf_range(6.0, 12.0)})
 	var line: String = _pick([
 		"APING MY WHOLE BAG INTO $%s. NFA",
 		"$%s TO A BILLI. I'M NOT SELLING (I'M SELLING)",
@@ -141,7 +166,7 @@ func _kimchee() -> Dictionary:
 		"DEV IS BASED. $%s IS THE ONE. TRUST",
 	]) % coin
 	var ev := _ev("KIMCHEE", "STREAMER", "KIMCHEE: " + line, effects)
-	ev.hint = "%s pump%s" % [coin, " then RUG" if rug else " — no rug this time"]
+	ev.hint = "%s pump%s" % [coin, " then RUG (fast)" if rug else " — no rug this time"]
 	return ev
 
 
@@ -163,25 +188,26 @@ func _kitteh() -> Dictionary:
 	if rng.randf() < 0.5:
 		effects.append({"sym": "GAMR", "pct": -rng.randf_range(0.06, 0.12), "dur": 6.0, "delay": rng.randf_range(14.0, 20.0)})
 	var line: String = _pick(["*posts a single cat meme*", "I LIKE THE STOCK.", "*is streaming in a headband*"])
-	return _ev("ROARING KITTEH", "STREAMER", "ROARING KITTEH: " + line, effects)
+	return _shape(_ev("ROARING KITTEH", "STREAMER", "ROARING KITTEH: " + line, effects), _roll_outcome(false), "")
 
 
 func _fed() -> Dictionary:
 	var cut := rng.randf() < 0.55
+	var walk_back := "FED: POWWW 'MISSPOKE'. STATEMENT WALKED BACK"
 	if cut:
-		return _ev("JEROME POWWW", "FED", "FED CHAIR POWWW: RATES CUT. MONEY PRINTER GO BRRR", [
+		return _shape(_ev("JEROME POWWW", "FED", "FED CHAIR POWWW: RATES CUT. MONEY PRINTER GO BRRR", [
 			{"sym": "GOLD", "pct": 0.025, "dur": 6.0, "delay": 0.0},
 			{"sym": "BTC", "pct": 0.03, "dur": 7.0, "delay": 0.0},
 			{"sym": "REX", "pct": 0.015, "dur": 7.0, "delay": 0.0},
 			{"sym": "JPMG", "pct": -0.012, "dur": 7.0, "delay": 0.0},   # banks earn less when rates drop
-		])
-	return _ev("JEROME POWWW", "FED", "FED CHAIR POWWW: RATES HIKED. PARTY'S OVER", [
+		]), _roll_outcome(), walk_back)
+	return _shape(_ev("JEROME POWWW", "FED", "FED CHAIR POWWW: RATES HIKED. PARTY'S OVER", [
 		{"sym": "GOLD", "pct": -0.012, "dur": 6.0, "delay": 0.0},
 		{"sym": "BTC", "pct": -0.03, "dur": 7.0, "delay": 0.0},
 		{"sym": "REX", "pct": -0.02, "dur": 7.0, "delay": 0.0},
 		{"sym": "BNN", "pct": -0.02, "dur": 7.0, "delay": 0.0},
 		{"sym": "JPMG", "pct": 0.02, "dur": 7.0, "delay": 0.0},        # ...and more when they go up
-	])
+	]), _roll_outcome(), walk_back)
 
 
 func _breaking() -> Dictionary:
@@ -214,10 +240,98 @@ func _breaking() -> Dictionary:
 	]
 	var it: Array = _pick(items)
 	var pct: float = it[2] * rng.randf_range(0.8, 1.2)
-	return _ev("BREAKING", "BREAKING", "BREAKING: " + it[0], [{"sym": it[1], "pct": pct, "dur": rng.randf_range(4.0, 8.0), "delay": 0.0}])
+	return _shape(_ev("BREAKING", "BREAKING", "BREAKING: " + it[0], [{"sym": it[1], "pct": pct, "dur": rng.randf_range(4.0, 8.0), "delay": 0.0}]),
+		_roll_outcome(), "CORRECTION: THAT %s REPORT WAS FALSE. WE REGRET THE ERROR" % it[1])
 
 
-## Push the event's effects into the market.
-func apply(market, ev: Dictionary) -> void:
+## can_fake = false: a "fake" roll comes out priced in instead (nobody retracts a cat meme).
+func _roll_outcome(can_fake := true) -> String:
+	var r := rng.randf()
+	for k in OUTCOMES:
+		r -= OUTCOMES[k]
+		if r < 0.0:
+			return "priced_in" if k == "fake" and not can_fake else k
+	return "real"
+
+
+## Split the headline's first wave into the leak (before it airs) and the rest,
+## then bend it to the outcome. fake_line = the CORRECTION chyron.
+func _shape(ev: Dictionary, outcome: String, fake_line: String) -> Dictionary:
+	var leak := rng.randf_range(LEAK_MIN, LEAK_MAX)
+	var out: Array = []
+	var first := ""                     # the ticker the follow-up chyron is about
+	var fake_at := rng.randf_range(3.5, 7.0)
+	var pull_at := rng.randf_range(1.0, 2.5)
 	for e in ev.effects:
+		if e.get("delay", 0.0) > 0.0:   # already a second wave (Kitteh's dump): keep it
+			out.append(e)
+			continue
+		if first.is_empty():
+			first = e.sym
+		var pct: float = e.pct
+		match outcome:
+			"priced_in":
+				var pre := pct * 0.85
+				out.append({"sym": e.sym, "pct": pre, "dur": LEAK_S, "delay": 0.0, "pre": true})
+				out.append({"sym": e.sym, "pct": (1.0 + pct) / (1.0 + pre) - 1.0, "dur": 2.0, "delay": 0.0})
+				out.append({"sym": e.sym, "pct": (1.0 - pct * 0.55) / (1.0 + pct) - 1.0,
+					"dur": rng.randf_range(6.0, 9.0), "delay": pull_at})
+			"fake":
+				var pre := pct * leak
+				out.append({"sym": e.sym, "pct": pre, "dur": LEAK_S, "delay": 0.0, "pre": true})
+				var post := ((1.0 + pct) / (1.0 + pre) - 1.0) * 0.5      # it runs out of steam...
+				out.append({"sym": e.sym, "pct": post, "dur": e.dur, "delay": 0.0})
+				out.append({"sym": e.sym, "pct": (1.0 - pct * 0.15) / ((1.0 + pre) * (1.0 + post)) - 1.0,
+					"dur": rng.randf_range(3.0, 5.0), "delay": fake_at})
+			_:
+				var pre := pct * leak
+				out.append({"sym": e.sym, "pct": pre, "dur": LEAK_S, "delay": 0.0, "pre": true})
+				out.append({"sym": e.sym, "pct": (1.0 + pct) / (1.0 + pre) - 1.0, "dur": e.dur, "delay": 0.0})
+	if not first.is_empty() and rng.randf() < KNEE_CHANCE:
+		var dir := 1.0 if ev.effects[0].pct > 0.0 else -1.0
+		var k := rng.randf_range(KNEE_MIN, KNEE_MAX)
+		out.append({"sym": first, "pct": -dir * k, "dur": 0.6, "delay": 0.0})
+		out.append({"sym": first, "pct": 1.0 / (1.0 - k) - 1.0 if dir > 0.0 else 1.0 / (1.0 + k) - 1.0,
+			"dur": 1.2, "delay": 0.6})
+	ev.effects = out
+	ev["outcome"] = outcome
+	match outcome:
+		"priced_in":
+			ev.hint += " — but it's PRICED IN: sells off once it airs"
+			ev["followup"] = {"at": REACTION_DELAY + pull_at + 2.0, "speaker": "ANALYSTS", "role": "TV",
+				"headline": "ANALYSTS: THE %s NEWS WAS ALREADY PRICED IN. SELL THE NEWS" % first}
+		"fake":
+			ev.hint += " — FAKE NEWS: a correction reverses it"
+			ev["followup"] = {"at": REACTION_DELAY + fake_at - 0.5, "speaker": ev.speaker, "role": ev.role,
+				"headline": fake_line}
+		_:
+			if ev.speaker != "ROARING KITTEH":
+				ev.hint += " — the real deal"
+	return ev
+
+
+## The leak: the "pre" part of the move starts now, LEAK_S before the headline
+## airs, and the ticker goes into a fast market.
+func leak(market, ev: Dictionary) -> void:
+	if ev.get("leaked", false):
+		return
+	ev["leaked"] = true
+	for e in ev.effects:
+		if e.get("pre", false):
+			market.add_impulse(e.sym, e.pct, e.dur, 0.0)
+			market.start_fast(e.sym)
+
+
+## The headline airs: push the rest of its effects into the market (and the leak
+## too if it never got the chance, e.g. a headline scheduled at the last second).
+func apply(market, ev: Dictionary) -> void:
+	var leaked: bool = ev.get("leaked", false)
+	for e in ev.effects:
+		if e.get("pre", false):
+			if not leaked:
+				market.add_impulse(e.sym, e.pct, e.dur, 0.0)
+			market.start_fast(e.sym)
+			continue
 		market.add_impulse(e.sym, e.pct, e.dur, REACTION_DELAY + e.get("delay", 0.0))
+		if e.get("delay", 0.0) <= 0.0:
+			market.start_fast(e.sym)

@@ -67,6 +67,7 @@ var raid := {}                  # {target, t} when active
 var last_news := {}
 var news_log: Array = []
 var m_assets: Array = []        # client market mirror: [{sym,name,kind,candles,cur,price,open_day}]
+var fast_mkt := {}              # client mirror: tickers in a fast market -> spread multiplier now
 var m_ci := 0
 var day_event := ""             # today's random event (DayEvents), "" = a normal day
 var next_event := ""            # tomorrow's, rolled at the closing bell (the forecast)
@@ -92,6 +93,8 @@ var _cop_acc := 0.0
 var _next_event: Dictionary = {}
 var _next_event_in := 0.0
 var _post_sent := false
+var _leaked := false              # the next headline's leak has started (News.LEAK_S before it airs)
+var _followups: Array = []        # [{in, ev}] second chyrons: corrections, "priced in"
 var _booking_no := 4298
 var _dirty := false
 var save_slot := ""              # this run autosaves here at every closing bell ("" = don't save)
@@ -113,6 +116,7 @@ func _ready() -> void:
 		market = Market.new()
 		newsdeck = News.new(rng)
 		ledger = Ledger.new()
+		ledger.exit_cost = _exit_cost
 		# Pre-warm some history so the charts aren't empty.
 		for i in 1200:
 			market.step(TICK)
@@ -180,6 +184,17 @@ func perks(peer: int) -> Dictionary:
 ## Today's day-event modifier (DayEvents.MODS), or `default` on a normal day.
 func ev_mod(key: String, default = 1.0):
 	return DayEvents.mod(day_event, key, default)
+
+
+## The bid/ask spread this trader pays on this ticker right now (fast market,
+## their perks, the day's event).
+func spread_for(peer: int, sym: String) -> float:
+	return market.spread_of(sym) * perks(peer).spread * float(ev_mod("spread"))
+
+
+## Getting out: half the spread + slippage on the size (Ledger.exit_cost).
+func _exit_cost(pos: Dictionary, price: float) -> float:
+	return spread_for(int(pos.get("trader_id", 0)), pos.sym) * 0.5 + market.impact(pos.sym, pos.units * price)
 
 
 ## Boutique price right now (Black Friday takes its cut).
@@ -680,11 +695,15 @@ func _req_open(sym: String, side: int, margin: float, lev: int) -> void:
 	if lev > 100 and not has_rank_for(id, "lev_125"):
 		_s_error.rpc_id(id, "x125 unlocks at DEGEN. Rookie numbers.")
 		return
+	var cap := Market.max_lev(sym)
+	if lev > cap:
+		lev = cap
+		_s_error.rpc_id(id, "Your broker caps %s at x%d. Sized down to x%d." % [sym, cap, cap])
 	var pk := perks(id)
 	var fee_rate: float = 0.0 if effect_left(id, "cigar") > 0.0 else Ledger.FEE_RATE * pk.fee * float(ev_mod("fee"))
-	var spread: float = market.spread_of(sym) * pk.spread * float(ev_mod("spread"))
+	var slip: float = market.impact(sym, margin * lev)
 	var r: Dictionary = ledger.open_position(acct_for(id), sym, side, margin, lev,
-		market.price_of(sym), Net.player_name(id), fee_rate, spread)
+		market.price_of(sym), Net.player_name(id), fee_rate, spread_for(id, sym), slip)
 	if not r.ok:
 		_s_error.rpc_id(id, r.error)
 		return
@@ -1224,11 +1243,24 @@ func _step_news(dt: float) -> void:
 	if not _post_sent and _next_event_in <= 4.0 and _next_event.speaker == "TRAMP":
 		_post_sent = true
 		_s_post.rpc(_public(_next_event))
+	# insiders and the algos read it first: the leak moves the price before it airs
+	if not _leaked and _next_event_in <= News.LEAK_S:
+		_leaked = true
+		newsdeck.leak(market, _next_event)
 	if _next_event_in <= 0.0:
 		newsdeck.apply(market, _next_event)
 		last_news = _public(_next_event)
 		_s_news.rpc(last_news)
+		if _next_event.has("followup"):
+			_followups.append({"in": float(_next_event.followup.at), "ev": _next_event.followup})
 		_roll_next_event()
+	# the second chyron: a CORRECTION (fake news) or the analysts calling it priced in
+	for f in _followups.duplicate():
+		f.in -= dt
+		if f.in <= 0.0:
+			_followups.erase(f)
+			last_news = {"speaker": f.ev.speaker, "role": f.ev.role, "headline": f.ev.headline, "day": day, "followup": true}
+			_s_news.rpc(last_news)
 
 
 func _roll_next_event() -> void:
@@ -1236,6 +1268,7 @@ func _roll_next_event() -> void:
 	_next_event_in = rng.randf_range(22.0, 40.0) * float(ev_mod("news_every"))
 	_early_to.clear()
 	_post_sent = false
+	_leaked = false
 
 
 func _public(ev: Dictionary) -> Dictionary:
@@ -1739,6 +1772,7 @@ func _start_day() -> void:
 	contracts.clear()
 	for id in Net.players:
 		_deal_contracts(id)
+	_followups.clear()
 	_roll_next_event()
 	_next_event_in = 10.0
 	_s_market_full.rpc(market.full_payload())
@@ -1912,6 +1946,7 @@ func _s_tick(p: Dictionary, t_left: float, h: Dictionary, r: Dictionary, bp: Dic
 		a.cur = p.c[i]
 		a.open_day = p.o[i]
 	m_ci = p.ci
+	fast_mkt = p.get("fm", {})
 	time_left = t_left
 	heat = h
 	raid = r

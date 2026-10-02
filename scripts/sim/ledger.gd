@@ -7,6 +7,8 @@ extends RefCounted
 ##   fee      = notional * fee_rate, paid on open
 ##   liquidated when pnl <= -margin (you lose the margin, nothing more)
 ##   tp / sl: optional take-profit / stop-loss prices (0 = off), auto-closed
+##   fills: you buy the ask and sell the bid (half the spread each way), and a
+##   big order moves its own fill (slip, see Market.impact) going in AND out
 ##
 ## Co-op: every player trades from account 0 (the shared fund).
 ## PvP:   every player has their own account keyed by peer id.
@@ -16,6 +18,9 @@ const LEVERAGES := [1, 5, 10, 25, 50, 100, 125]
 
 var accounts := {}   # id -> {id, name, balance, positions: [], closed: int, day_start: float}
 var _next_pid := 1
+## Cost of getting out, as a fraction of the price: Callable(pos, price) -> float
+## (half the spread + slippage). Unset = closes fill at the mid price.
+var exit_cost := Callable()
 
 
 func create_account(id: int, acct_name: String, balance: float) -> void:
@@ -37,7 +42,7 @@ static func pnl_of(pos: Dictionary, price: float) -> float:
 
 ## Returns {ok, error, pos}
 func open_position(acct_id: int, sym: String, side: int, margin: float, lev: int,
-		price: float, trader: String, fee_rate: float = FEE_RATE, spread: float = 0.0) -> Dictionary:
+		price: float, trader: String, fee_rate: float = FEE_RATE, spread: float = 0.0, slip: float = 0.0) -> Dictionary:
 	if not accounts.has(acct_id):
 		return {"ok": false, "error": "No account"}
 	var a: Dictionary = accounts[acct_id]
@@ -54,7 +59,7 @@ func open_position(acct_id: int, sym: String, side: int, margin: float, lev: int
 	if margin + fee > a.balance + 0.001:
 		return {"ok": false, "error": "Not enough cash"}
 	a.balance -= margin + fee
-	price *= 1.0 + side * spread * 0.5   # you buy the ask / sell the bid
+	price *= 1.0 + side * (spread * 0.5 + slip)   # you buy the ask / sell the bid, and size moves the fill
 	var pos := {"pid": _next_pid, "sym": sym, "side": side, "margin": margin, "lev": lev,
 		"entry": price, "units": notional / price, "fee": fee, "trader": trader, "tp": 0.0, "sl": 0.0}
 	_next_pid += 1
@@ -70,6 +75,8 @@ func close_position(acct_id: int, pid: int, price: float, liquidated: bool = fal
 	for i in a.positions.size():
 		var pos: Dictionary = a.positions[i]
 		if pos.pid == pid:
+			if not liquidated and exit_cost.is_valid():
+				price *= 1.0 - pos.side * float(exit_cost.call(pos, price))   # sell the bid / buy back the ask
 			var pnl := pnl_of(pos, price)
 			if liquidated or pnl <= -pos.margin:
 				pnl = -pos.margin

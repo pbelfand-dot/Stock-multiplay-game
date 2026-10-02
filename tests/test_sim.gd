@@ -34,6 +34,7 @@ func _init() -> void:
 	test_auto_sell()
 	test_liquidation()
 	test_news()
+	test_harder_trading()
 	test_slots()
 	test_format()
 	test_day_events()
@@ -197,6 +198,100 @@ func test_liquidation() -> void:
 	var closed: Array = l.close_all(7, pf)
 	check(closed.size() == 2, "close_all closes both")
 	check(approx(l.get_acct(7).balance, eq), "equity == balance after close_all")
+
+
+## The market fights back: leaks, priced-in / fake headlines, fast markets,
+## slippage, per-ticker leverage caps, paying the spread on the way out.
+func test_harder_trading() -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 7
+	var n = News.new(rng)
+	var outcomes := {"real": 0, "priced_in": 0, "fake": 0}
+	var shaped := 0
+	for i in 3000:
+		var ev: Dictionary = n.roll()
+		if not ev.has("outcome"):
+			continue
+		shaped += 1
+		outcomes[ev.outcome] += 1
+		var pre := 0
+		for e in ev.effects:
+			if e.get("pre", false):
+				pre += 1
+				check(e.get("delay", 0.0) == 0.0, "the leak starts right away")
+		check(pre > 0, "%s headline leaks before it airs" % ev.speaker)
+		match ev.outcome:
+			"fake":
+				check(ev.has("followup") and ev.followup.headline.length() > 5, "fake news gets a correction chyron")
+				check(ev.hint.contains("FAKE"), "the tip says it's fake")
+				check(ev.speaker != "ROARING KITTEH", "nobody retracts a cat meme")
+			"priced_in":
+				check(ev.has("followup") and ev.followup.headline.begins_with("ANALYSTS"), "priced in: the analysts say so after")
+				check(ev.hint.contains("PRICED IN"), "the tip says it's priced in")
+			_:
+				check(not ev.has("followup"), "a real headline has no second chyron")
+	check(shaped > 1000, "most headlines get an outcome: %d" % shaped)
+	for k in outcomes:
+		var want: float = News.OUTCOMES[k]
+		var got: float = float(outcomes[k]) / shaped
+		check(absf(got - want) < 0.08 or (k == "priced_in" and got > want), "%s ~%.0f%% of headlines, got %.0f%%" % [k, want * 100, got * 100])
+	# the leak moves the price BEFORE the headline airs
+	var m = Market.new(11)
+	Market.JUMP_CHANCE_OVERRIDE = 0.0
+	var ev := {"speaker": "BREAKING", "role": "BREAKING", "headline": "BREAKING: TEST", "hint": "",
+		"effects": [{"sym": "GOLD", "pct": 0.10, "dur": 4.0, "delay": 0.0}]}
+	ev = n._shape(ev, "real", "")
+	var p0: float = m.price_of("GOLD")
+	n.leak(m, ev)
+	check(m.fast_mult("GOLD") > 4.0, "news puts the ticker in a fast market")
+	for i in int(News.LEAK_S / 0.25):
+		m.step(0.25)
+	var leaked: float = m.price_of("GOLD") / p0 - 1.0
+	check(leaked > 0.03 and leaked < 0.09, "the leak takes 50-80%% of the move before it airs: %+.3f" % leaked)
+	n.apply(m, ev)
+	for i in 60:
+		m.step(0.25)
+	check(m.price_of("GOLD") / p0 - 1.0 > 0.08, "the rest plays out after it airs")
+	check(is_equal_approx(m.fast_mult("GOLD"), 1.0) and not m.fast.has("GOLD"), "the fast market calms down")
+	# fake news: it goes, then reverses past where it started
+	m = Market.new(12)
+	ev = n._shape({"speaker": "TRAMP", "role": "PRESIDENT", "headline": "TRAMP: TEST", "hint": "",
+		"effects": [{"sym": "GOLD", "pct": 0.10, "dur": 4.0, "delay": 0.0}]}, "fake", "TRAMP: JK")
+	p0 = m.price_of("GOLD")
+	n.leak(m, ev)
+	for i in int(News.LEAK_S / 0.25):
+		m.step(0.25)
+	n.apply(m, ev)
+	var peak := 0.0
+	for i in 120:
+		m.step(0.25)
+		peak = maxf(peak, m.price_of("GOLD") / p0 - 1.0)
+	check(peak > 0.04, "fake news pumps first: %+.3f" % peak)
+	check(m.price_of("GOLD") / p0 - 1.0 < 0.0, "...then the correction takes it all back: %+.3f" % (m.price_of("GOLD") / p0 - 1.0))
+	Market.JUMP_CHANCE_OVERRIDE = -1.0
+	# slippage: size and thin books cost you
+	check(Market.impact_for("WAGMI", 1_000_000.0, false) > 10.0 * Market.impact_for("BTC", 1_000_000.0, false), "memecoin books are thin")
+	check(Market.impact_for("BTC", 100_000_000.0, false) > Market.impact_for("BTC", 1_000_000.0, false) * 50.0, "bigger orders slip more")
+	check(Market.impact_for("BTC", 1_000_000.0, true) > Market.impact_for("BTC", 1_000_000.0, false), "fast markets slip more")
+	check(Market.impact_for("BTC", 25_000.0 * 100.0, false) < 0.0001, "a starting-size order barely slips")
+	# leverage caps
+	check(Market.max_lev("SPX") == 125 and Market.max_lev("BTC") == 100, "majors keep big leverage")
+	check(Market.max_lev("WAGMI") == 10 and Market.max_lev("DOGGO") == 10 and Market.max_lev("GAMR") == 10, "memes capped at x10")
+	check(Market.max_lev("PEAR") == 25, "single stocks x25")
+	for d in Market.ASSET_DEFS:
+		check(int(d.maxlev) in Ledger.LEVERAGES, "%s cap is a terminal step" % d.sym)
+		check(float(d.depth) > 0.0, "%s has depth" % d.sym)
+	# paying the spread on the way out too
+	var l = Ledger.new()
+	l.create_account(1, "p", 100_000.0)
+	l.exit_cost = func(_pos, _price): return 0.001
+	var r: Dictionary = l.open_position(1, "BTC", 1, 1_000.0, 10, 1000.0, "p", 0.0, 0.002)
+	var c: Dictionary = l.close_position(1, r.pos.pid, 1000.0)
+	check(approx(c.pnl, -20.0), "x10 round trip at the same mid: half spread in + exit cost out = -$20, got %f" % c.pnl)
+	r = l.open_position(1, "BTC", -1, 1_000.0, 10, 1000.0, "p", 0.0, 0.0, 0.003)
+	check(approx(r.pos.entry, 997.0), "a short's slippage fills it lower")
+	c = l.close_position(1, r.pos.pid, 1000.0, true)
+	check(approx(c.pnl, -1000.0), "a liquidation doesn't pay an exit cost on top")
 
 
 func test_news() -> void:
