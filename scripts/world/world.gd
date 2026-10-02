@@ -12,6 +12,7 @@ const Rules = preload("res://scripts/sim/rules.gd")
 const BallScript = preload("res://scripts/world/ball.gd")
 const PlayerLook = preload("res://scripts/art/character.gd")
 const PropKit = preload("res://scripts/art/prop_kit.gd")
+const Highway = preload("res://scripts/world/highway.gd")
 const HoodController = preload("res://scripts/world/hood_controller.gd")   # ---- neighborhood (houses) ----
 
 var builder
@@ -419,8 +420,23 @@ func _nice_traffic() -> void:
 
 
 ## Where a patrol car comes from to chase `target`: well behind it, on the
-## ground (the highway hooks this up to a lane once it exists).
+## ground; on the highway, in a lane with nobody near (its own side, facing
+## the way the traffic goes).
 func pursuit_spawn(target) -> Transform3D:
+	var tr = traffic()
+	if tr != null and tr.awake and not tr.remote:
+		var hw = tr.hw
+		var loc: Vector2 = hw.locate(target.global_position)
+		var ad := absf(loc.y)
+		if ad > Highway.EDGE_IN - 1.0 and ad < Highway.EDGE_OUT + 1.5 and absf(target.global_position.y) < 2.5:
+			var dir := 1 if loc.y > 0.0 else -1
+			for back_m in [130.0, 100.0, 160.0, 70.0]:
+				var s: float = hw.wrap_s(loc.x - dir * back_m)
+				for k in [1, 0, 2]:
+					var sc: Array = tr.lane_scan(dir, k, s, [target])
+					if sc[0] > 25.0 and sc[2] > 25.0:
+						var fwd: Vector3 = hw.forward(dir, s)
+						return Transform3D(Basis(Vector3.UP, atan2(-fwd.x, -fwd.z)), hw.lane_center(dir, k, s) + Vector3(0, 0.3, 0))
 	var back: Vector3 = target.global_basis.z
 	back.y = 0.0
 	back = back.normalized() if back.length() > 0.1 else Vector3.BACK

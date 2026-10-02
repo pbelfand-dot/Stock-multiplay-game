@@ -18,6 +18,14 @@ extends Node3D
 ## politeness * follower's gain > threshold, with a keep-right bias). Trucks
 ## stay in the two right lanes. Merging from an on-ramp and moving over for
 ## an exit are mandatory, with a relaxed threshold. Blinkers flash meanwhile.
+## CUTTING UP - most nice (sports) cars and the odd everyday one (CUT_NICE /
+## CUT_OTHER) are "cutters": they want 45-56 m/s whatever the lane says, sit
+## closer (T 0.4-0.6 s), close in late (s* has dv^2 / 2b instead of IDM's
+## v * dv / 2 sqrt(ab)), pull and brake harder, ignore keep-right and the cars
+## they pass (politeness ~0), look for a gap every few tenths of a second and
+## cross a lane in LC_TIME_CUT: they weave through on either side. They take
+## gaps others wouldn't (braking B_SAFE_CUT themselves, B_SAFE_MUST for whoever
+## they cut up) but never one a player closing from behind couldn't brake for.
 ## RAMPS - the flyover on-ramps feed the auxiliary lane (lane 3); cars merge
 ## left from it; exiting cars move into it and leave on the off-ramp; the local
 ## road's roundabout turns them round onto the on-ramp.
@@ -36,7 +44,9 @@ extends Node3D
 ##
 ## EXTERNAL CARS - register_obstacle(node) makes traffic treat any Node3D (a
 ## player's car, a player on foot) as a vehicle in whatever lane / ramp it's
-## in: cars brake for it, and lane changes check the gap around it. Every
+## in: cars brake for it, and lane changes check the gap around it. One with
+## the "siren" meta (a patrol car) coming up behind in your lane (within
+## SIREN_M): you move over for it, either side, as soon as there's a gap. Every
 ## traffic car is an AnimatableBody3D (collision layer 1) you can hit.
 ## READ ACCESS - active_cars(), car_of(body), and the Highway data (`hw`):
 ## lane_center / forward / speed_limit / route("home_to_office").
@@ -52,7 +62,7 @@ extends Node3D
 ## NETWORK - each client gets the cars within RELEVANT m of its player only
 ## (so a packet stays ~1 KB however big the pool; cars it stops hearing about
 ## are put away on its side). Per car 12 bytes: id, model (index into model_table()), flags
-## (waiting / on the mainline / eastbound), lane + the lane it's leaving, path
+## (waiting / on the mainline / eastbound / cutter), lane + the lane it's leaving, path
 ## (index into the sorted Highway.paths names), s (f32), speed (cm/s, u16),
 ## lane-change progress (u8). snapshot() packs them, apply_snapshot() unpacks
 ## on a client (`remote` = true). The world sends them (World._traffic_snap).
@@ -75,11 +85,20 @@ const SPACING := 105.0        # top a lane up to one car per this many m (round 
 const RELEVANT := 700.0       # a client hears about the cars this close to its player
 const NICE_EVERY := 12          # about one in this many cars is a "nice car"
 const LC_TIME := 2.6            # seconds to cross into the next lane
+const LC_TIME_CUT := 1.3        # ... a cutter
 const LC_OLD := 0.7             # until this far across, a lane-changer still minds (and blocks) its old lane
 const B_SAFE := 4.0             # MOBIL: max braking imposed on the new follower
 const B_SAFE_MUST := 6.5        # ... for mandatory changes (merge / exit)
 const A_TH := 0.25              # MOBIL threshold (m/s^2)
 const KEEP_RIGHT := 0.25        # bias toward the right lanes
+const CUT_NICE := 0.7           # share of nice cars that cut up
+const CUT_OTHER := 0.02         # ... and of everyday cars (not trucks)
+const CUT_V0 := [45.0, 56.0]    # a cutter's desired speed (100-125 mph: over every lane's)
+const A_TH_CUT := 0.1           # a cutter changes lanes for less
+const B_SAFE_CUT := 6.0         # ... and will brake this hard in the new lane to get in
+const V_MAX := 60.0             # nobody goes faster
+const SIREN_M := 250.0          # a patrol car with its lights on this close behind you in your lane: move over
+const SIREN_GAIN := 3.0         # ... (that much incentive, m/s^2, on top of MOBIL's)
 const MAX_DECEL := 9.0          # physical braking limit
 const B_CURVE := 1.8            # how hard drivers brake for a curve ahead
 const EXIT_P := 0.32            # share of cars that take the next exit (the ramps and local roads see more)
@@ -135,9 +154,12 @@ class Car:
 	var wheel := 0.0
 	var waiting := false        # recycled, waiting inside a tunnel for a gap
 	var obstacle := false       # a registered outside vehicle (not simulated here)
+	var siren := false          # ... a patrol car: traffic moves over for it
 	var node: Node3D            # traffic: its AnimatableBody3D; obstacle: the registered node
 	var shape: CollisionShape3D
 	var lane_changes := 0
+	var cutter := false         # weaves through traffic (see CUTTING UP)
+	var lc_time := LC_TIME      # seconds to cross a lane
 	var vis := Vector3.ZERO     # client: where it was drawn minus where the host says (blends to 0)
 
 	func prog() -> float:       # distance along the direction of travel (mainline)
@@ -199,6 +221,7 @@ func register_obstacle(node: Node3D, length := 4.6, width := 1.9) -> void:
 	c.L = length
 	c.W = width
 	c.waiting = true            # until it's located on a lane
+	c.siren = node.has_meta("siren")
 	c.set_meta("last", node.global_position)
 	obstacles.append(c)
 
@@ -229,6 +252,27 @@ func active_cars() -> Array:
 			"dir": c.dir, "lane": c.lane if c.on_main else -1, "path": "" if c.on_main else str(c.path.name),
 			"s": c.s, "speed": c.v, "position": xf.origin, "forward": xf.basis.z})
 	return out
+
+
+## Lane k (going `dir`) ahead of station s, for an outside driver (the cops):
+## [gap from s to the tail of the first car whose middle is ahead of s (1e6 if
+## none), its speed, the gap back from s to the nose of the first one behind (1e6)].
+## Cars and registered obstacles both count; `skip` nodes don't.
+func lane_scan(dir: int, k: int, s: float, skip: Array = []) -> Array:
+	var ahead := 1e6
+	var v_ahead := 0.0
+	var behind := 1e6
+	for o in _lists.get(_key_m(dir, k), []):
+		if skip.has(o.node):
+			continue
+		var d: float = hw.ds(s, o.s) * dir
+		if d >= 0.0:
+			if d - o.L / 2.0 < ahead:
+				ahead = d - o.L / 2.0
+				v_ahead = o.v
+		elif -d - o.L / 2.0 < behind:
+			behind = -d - o.L / 2.0
+	return [ahead, v_ahead, behind]
 
 
 ## The traffic car behind a collider (e.g. from a collision), or null.
@@ -301,7 +345,7 @@ func snapshot(centers: Array = [], radius := RELEVANT) -> PackedByteArray:
 	for c in pick:
 		b.encode_u8(o, c.id)
 		b.encode_u8(o + 1, maxi(models.find(c.model), 0))
-		b.encode_u8(o + 2, (1 if c.waiting else 0) | (2 if c.on_main else 0) | (4 if c.dir > 0 else 0))
+		b.encode_u8(o + 2, (1 if c.waiting else 0) | (2 if c.on_main else 0) | (4 if c.dir > 0 else 0) | (8 if c.cutter else 0))
 		b.encode_u8(o + 3, c.lane | (c.from_lane << 2))
 		b.encode_u8(o + 4, 255 if c.on_main or c.path == null else paths.find(str(c.path.name)))
 		b.encode_float(o + 5, c.s)
@@ -317,6 +361,7 @@ func snapshot(centers: Array = [], radius := RELEVANT) -> PackedByteArray:
 func apply_snapshot(b: PackedByteArray) -> void:
 	if b.size() < 4:
 		return
+	sim_time = b.decode_float(0)      # (the blinkers flash in step with the host)
 	var models := model_table()
 	var paths := _paths()
 	var seen := {}
@@ -343,6 +388,8 @@ func apply_snapshot(b: PackedByteArray) -> void:
 		c.waiting = false
 		c.on_main = (fl & 2) != 0
 		c.dir = 1 if (fl & 4) != 0 else -1
+		c.cutter = (fl & 8) != 0
+		c.lc_time = LC_TIME_CUT if c.cutter else LC_TIME
 		var ln := b.decode_u8(o + 3)
 		c.lane = ln & 3
 		c.from_lane = (ln >> 2) & 3
@@ -368,6 +415,7 @@ func apply_snapshot(b: PackedByteArray) -> void:
 ## speed (no decisions; the next snapshot has them).
 func _coast(dt: float) -> void:
 	var fade := exp(-dt * 4.0)
+	sim_time += dt
 	for c in cars:
 		if c.waiting:
 			continue
@@ -377,7 +425,7 @@ func _coast(dt: float) -> void:
 		if c.on_main:
 			c.s = hw.wrap_s(c.s + ds * c.dir)
 			if c.lc_t < 1.0:
-				c.lc_t = minf(c.lc_t + dt / LC_TIME * clampf(c.v / 8.0, 0.35, 1.0), 1.0)
+				c.lc_t = minf(c.lc_t + dt / c.lc_time * clampf(c.v / 8.0, 0.35, 1.0), 1.0)
 				if c.lc_t >= 1.0:
 					c.from_lane = c.lane
 			continue
@@ -499,7 +547,18 @@ func _roll(c: Car) -> void:
 		c.b = rng.randf_range(2.2, 3.0)
 		c.s0 = 2.0
 		c.p = rng.randf_range(0.1, 0.5)
+	c.cutter = not c.truck and rng.randf() < (CUT_NICE if c.nice else CUT_OTHER)
+	c.lc_time = LC_TIME
 	c.exit_wanted = rng.randf() < EXIT_P
+	if c.cutter:   # cutting up: way over the lane speeds, close, hard on both pedals, nobody else matters
+		c.v0 = rng.randf_range(CUT_V0[0], CUT_V0[1])
+		c.T = rng.randf_range(0.4, 0.6)
+		c.a = rng.randf_range(3.5, 4.5)
+		c.b = rng.randf_range(5.0, 6.0)
+		c.s0 = 1.5
+		c.p = rng.randf_range(0.0, 0.05)
+		c.lc_time = LC_TIME_CUT
+		c.exit_wanted = false   # it's going round and round
 
 
 func _spawn_pool() -> void:
@@ -642,7 +701,11 @@ static func idm(c, v: float, gap: float, v_lead: float, v0: float) -> float:
 	var free := 1.0 - pow(v / maxf(v0, 0.1), 4.0)
 	if gap >= 1e5:
 		return c.a * free
-	var ss: float = c.s0 + maxf(0.0, v * c.T + v * (v - v_lead) / (2.0 * sqrt(c.a * c.b)))
+	var dv := v - v_lead
+	# closing in: a cutter leaves it late (just the distance to shed the difference at b),
+	# everyone else starts easing off early (IDM's v * dv / 2 sqrt(ab))
+	var brake: float = dv * maxf(dv, 0.0) / (2.0 * c.b) if c.cutter else v * dv / (2.0 * sqrt(c.a * c.b))
+	var ss: float = c.s0 + maxf(0.0, v * c.T + brake)
 	var g := maxf(gap, 0.1)
 	return c.a * (free - (ss / g) * (ss / g))
 
@@ -753,7 +816,7 @@ func _v0_of(c) -> float:
 	if not c.on_main:
 		return _curve_speed(c)
 	var v0: float = c.v0
-	if c.lane < Highway.LANES:     # a lane caps you: the right lane is slower
+	if c.lane < Highway.LANES and not c.cutter:     # a lane caps you: the right lane is slower (not a cutter)
 		v0 = minf(v0, float(Highway.LANE_SPEED[c.lane]) * 1.1)
 		if c.exit_wanted and hw.aux.has(c.dir):   # your exit's coming up: ease off, find the gap
 			var ex1: float = hw.aux[c.dir].b if c.dir > 0 else hw.aux[c.dir].a
@@ -802,14 +865,14 @@ func step(dt: float) -> void:
 	for c in cars:
 		if c.waiting:
 			continue
-		var v1 := clampf(c.v + c.acc * dt, 0.0, 45.0)
+		var v1 := clampf(c.v + c.acc * dt, 0.0, V_MAX)
 		var ds := maxf(0.0, (c.v + v1) * 0.5 * dt)
 		c.v = v1
 		c.wheel = fmod(c.wheel + ds / float(c.lay.get("r", 0.34)), TAU)
 		if c.on_main:
 			c.s = hw.wrap_s(c.s + ds * c.dir)
 			if c.lc_t < 1.0:   # slower sideways when crawling (you steer, you don't slide)
-				c.lc_t = minf(c.lc_t + dt / LC_TIME * clampf(c.v / 8.0, 0.35, 1.0), 1.0)
+				c.lc_t = minf(c.lc_t + dt / c.lc_time * clampf(c.v / 8.0, 0.35, 1.0), 1.0)
 				if c.lc_t >= 1.0:
 					c.from_lane = c.lane
 		else:
@@ -994,17 +1057,23 @@ func _bubble() -> void:
 							break
 					if c == null:
 						break
-					free.erase(c)
-					c.waiting = false
 					c.on_main = true
 					c.path = null
 					c.dir = dir
 					c.lane = lane
 					c.from_lane = lane
+					c.s = st
+					var v_new: float = _v0_of(c) * 0.95
+					if q[0] != null and q[1] - st * dir < (220.0 if c.cutter else 120.0):
+						v_new = minf(_v0_of(c), q[0].v + 2.0)
+					# anyone coming up faster behind (a cutter, a player) must be able to stop for it
+					if qb[0] != null and qb[0].v > v_new and st * dir - qb[1] < 45.0 + pow(qb[0].v - v_new, 2.0) / 8.0:
+						continue
+					free.erase(c)
+					c.waiting = false
 					c.lc_t = 1.0
 					c.lc_cool = rng.randf_range(0.5, 2.0)
-					c.s = st
-					c.v = minf(_v0_of(c), q[0].v + 2.0) if q[0] != null and q[1] - st * dir < 120.0 else _v0_of(c) * 0.95
+					c.v = v_new
 					_push(key, c)
 					budget -= 1
 					cnt += 1
@@ -1058,7 +1127,7 @@ func _lane_ok(c, k: int) -> bool:
 
 
 func _consider_lane_change(c) -> void:
-	c.lc_cool = rng.randf_range(0.6, 1.4)
+	c.lc_cool = rng.randf_range(0.6, 1.4) if not c.cutter else rng.randf_range(0.2, 0.4)
 	var must := 0            # -1 must go left, +1 must go right
 	if c.lane == 3 and not c.exit_wanted:
 		must = -1            # merging from the on-ramp
@@ -1071,6 +1140,13 @@ func _consider_lane_change(c) -> void:
 		must = 1
 	if must != 0:
 		c.lc_cool = 0.25       # keep looking for the gap
+	# lights in the mirror: get out of its way (either side, the first safe gap)
+	var siren := 0.0
+	if must == 0:
+		var mb := _behind(_key_m(c.dir, c.lane), c.prog(), c, true)
+		if mb[0] != null and mb[0].siren and c.prog() - mb[1] < SIREN_M:
+			siren = SIREN_GAIN
+			c.lc_cool = 0.25
 	var cur_acc: float = c.acc
 	var best_k := -1
 	var best_gain := -INF
@@ -1095,7 +1171,7 @@ func _consider_lane_change(c) -> void:
 		if gap_f < c.s0 + 1.0 or gap_b < 3.0:
 			continue
 		var new_acc := idm(c, c.v, gap_f, v_l, _lane_v0(c, k))
-		if new_acc < -(B_SAFE_MUST if mand else B_SAFE) * 0.8:
+		if new_acc < -(B_SAFE_MUST if mand else (B_SAFE_CUT if c.cutter else B_SAFE)) * 0.8:
 			continue           # you'd have to stomp on the brakes over there
 		var f_gain := 0.0
 		if behind[0] != null:
@@ -1103,9 +1179,12 @@ func _consider_lane_change(c) -> void:
 			if fb.obstacle:   # an outside car behind: give it a generous gap
 				if gap_b < 8.0 + fb.v * 0.8:
 					continue
+				# a cutter never dives in front of a player closing on it faster than they could brake for
+				if c.cutter and fb.v > c.v and gap_b < 8.0 + fb.v * 0.8 + pow(fb.v - c.v, 2.0) / 8.0:
+					continue
 			else:
 				var f_new := idm(fb, fb.v, gap_b, c.v, fb.v0)
-				if f_new < -(B_SAFE_MUST if mand else B_SAFE):
+				if f_new < -(B_SAFE_MUST if mand or c.cutter else B_SAFE):   # (a cutter cuts you up: you brake harder for it)
 					continue
 				f_gain = f_new - fb.acc
 		if mand:
@@ -1114,8 +1193,10 @@ func _consider_lane_change(c) -> void:
 		var bias := KEEP_RIGHT if k > c.lane else -KEEP_RIGHT
 		if c.truck:
 			bias *= 3.0
-		var gain: float = new_acc - cur_acc + c.p * f_gain + bias
-		if gain > A_TH and gain > best_gain:
+		if c.cutter:
+			bias = 0.0         # either side will do
+		var gain: float = new_acc - cur_acc + c.p * f_gain + bias + siren
+		if gain > (A_TH_CUT if c.cutter else A_TH) and gain > best_gain:
 			best_gain = gain
 			best_k = k
 	if best_k >= 0:
@@ -1123,7 +1204,7 @@ func _consider_lane_change(c) -> void:
 		c.lane = best_k
 		c.lc_t = 0.0
 		_push(_key_m(c.dir, best_k), c)     # (now: so a car from the far side can't take the same gap this step)
-		c.lc_cool = 0.3 if must != 0 else rng.randf_range(3.0, 6.0)   # heading for an exit: keep going over
+		c.lc_cool = 0.3 if must != 0 else (rng.randf_range(0.8, 1.8) if c.cutter else rng.randf_range(3.0, 6.0))   # heading for an exit: keep going over
 		c.lane_changes += 1
 		stats.lane_changes += 1
 
@@ -1264,7 +1345,7 @@ func car_transform(c, lead := 0.0) -> Transform3D:
 		fwd = hw.tangent(s) * c.dir
 		if c.lc_t < 1.0 and c.v > 1.0:   # yaw into the lane change
 			var dd: float = (Highway.lane_d(c.dir, c.lane) - Highway.lane_d(c.dir, c.from_lane)) \
-					* 6.0 * c.lc_t * (1.0 - c.lc_t) / LC_TIME
+					* 6.0 * c.lc_t * (1.0 - c.lc_t) / c.lc_time
 			fwd = (fwd * c.v + hw.right(s) * dd).normalized()
 	else:
 		var s2: float = minf(c.s + lead, c.path.length)

@@ -120,10 +120,10 @@ const CARS := {
 		"paint": Color(0.7, 0.7, 0.72), "desc": "Used, 2007. Mid-engine V8 behind your head, real needles on the dash. The supercar you can afford."},
 	"au_etrongt": {"name": "AUDY RS e-tron GT", "brand": "audy", "price": 150_000.0, "model": "RC_ETRONGT", "awd": true, "ev": true, "top": 69.0, "zero60": 3.0, "grip": 1.0, "mass": 2.35,
 		"paint": Color(0.16, 0.26, 0.22), "desc": "Electric. 637 hp the instant you touch it, no noise, no gears, no excuses."},
-	# not for sale: highway patrol (an M8 outruns it, an M3 has to lose it in traffic)
+	# not for sale: highway patrol (as fast as anything you can buy: you lose it in traffic, see PURSUIT_BOOST)
 	"taxi": {"name": "Yellow Cab", "price": 0.0, "model": "TCar_Taxi", "top": 42.0, "zero60": 8.0, "grip": 0.8, "mass": 1.5,
 		"paint": Color(1.0, 0.78, 0.05), "desc": ""},
-	"cop": {"name": "Highway Patrol", "price": 0.0, "model": "Cop_Interceptor", "top": 70.0, "zero60": 3.8, "grip": 1.0, "mass": 2.0,
+	"cop": {"name": "Highway Patrol", "price": 0.0, "model": "Cop_Interceptor", "top": 95.0, "zero60": 2.8, "grip": 1.1, "mass": 2.0,
 		"paint": Color(0.95, 0.95, 0.95), "desc": ""},
 }
 ## The commute: every morning you wake up at home and drive in; the opening
@@ -139,6 +139,13 @@ const PURSUIT_MPH := 110.0
 const PURSUIT_LOST_M := 230.0
 const PURSUIT_LOST_S := 6.0
 const PURSUIT_BUST_S := 2.5
+## The patrol car tops out with the fastest thing you can buy; far behind it
+## gets up to PURSUIT_BOOST more power and top speed (none within
+## PURSUIT_BOOST_NEAR m, all of it from PURSUIT_BOOST_FAR m) so it can close
+## the gap. Traffic still slows it down: that's how you lose it.
+const PURSUIT_BOOST := 0.3
+const PURSUIT_BOOST_NEAR := 25.0
+const PURSUIT_BOOST_FAR := 200.0
 const SPEEDING_TICKET := 2_500.0
 ## A save stores the chosen ride as (index in CAR_ORDER) + 1: only ever append here.
 const CAR_ORDER := ["beater", "bz_540i", "bz_m2", "bz_m3", "bz_m4", "bz_m5", "bz_m8", "bz_m3t", "mb_g63", "po_gt3rs", "mb_gronos", "po_911ts", "au_rs6", "au_r8", "au_etrongt"]
