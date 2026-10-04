@@ -1,6 +1,6 @@
 # Co-driver voice: "Fraser"
 
-**56 short clips** that the AI co-driver strings together ("3 left, 100, into 2 right"). These are
+**62 short clips** that the AI co-driver strings together ("3 left, 100, into 2 right"). These are
 copied from your Rally Co-Driver GPS app:
 [`pbelfand-dot/driver-test-app` → `rally/voice/`](https://github.com/pbelfand-dot/driver-test-app/tree/claude/focused-johnson-xpi0q4/rally/voice)
 (commit `0faa958`).
@@ -25,11 +25,18 @@ copied from your Rally Co-Driver GPS app:
 
 The countdown can reuse `5` `4` `3` `2` `1` `go`.
 
-## Still to make (same voice, same settings)
+## Added for SHOTGUN RALLY (same voice, same settings)
 
-One line costs **0.2 credits** (checked on 2026-10-04), so all of these come to about **6–8 credits**:
+`over-crest` · `jump` · `dont-cut` · `water` · `wipers` · `nice`: 6 lines, 1.2 credits, made on
+2026-10-04 and fetched by the **store new voice lines** workflow (the Claude sandbox can't reach the
+clip host, GitHub can).
 
-`over` · `crest` · `jump` · `don't cut` · `flat` · `water` · `narrow` · `ruts` · `cow` · `spectators` ·
-`slow` · `brake` · `wipers` · `OK board` · `triangle out` · `push` · `jump start` · `puncture` ·
-`nice` · `good job` · `you okay?` · `back on the road` · `left left left` · `right right right` ·
-`time control` · `junction` · `too early` · `we're late`
+## Still to make
+
+One line costs **0.2 credits**. To add lines: generate them with Higgsfield (Seed Audio, preset
+"Fraser", speech_rate +20, loudness +10), put `name: url` pairs in
+[`new_clips.json`](new_clips.json) and push; the workflow converts them and commits the MP3s.
+
+`ruts` · `narrow` · `cow` · `spectators` · `slow` · `brake` · `ok-board` · `triangle-out` · `push` ·
+`jump-start` · `puncture` · `good-job` · `you-okay` · `back-on-the-road` · `left-left-left` ·
+`right-right-right` · `time-control` · `junction` · `too-early` · `were-late`
