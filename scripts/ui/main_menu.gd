@@ -12,16 +12,16 @@ var _ip: LineEdit
 
 
 func _ready() -> void:
-	set_anchors_preset(Control.PRESET_FULL_RECT)
+	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)   # (plain set_anchors_preset keeps the old, zero size)
 	var bold: Font = load("res://assets/fonts/Oswald-Bold.woff2")
 	var med: Font = load("res://assets/fonts/Oswald-Medium.woff2")
 	var bg := ColorRect.new()
 	bg.color = Color(0.1, 0.16, 0.12)
-	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
+	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(bg)
 	var stripe := ColorRect.new()                      # a rally stripe across the screen
 	stripe.color = Color(0.78, 0.12, 0.1)
-	stripe.set_anchors_preset(Control.PRESET_TOP_WIDE)
+	stripe.set_anchors_and_offsets_preset(Control.PRESET_TOP_WIDE)
 	stripe.offset_top = 210
 	stripe.offset_bottom = 226
 	add_child(stripe)

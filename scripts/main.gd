@@ -39,8 +39,12 @@ func _ready() -> void:
 
 func show_menu(msg := "") -> void:
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	# on a CanvasLayer: a Control under a plain Node has no screen to fill
+	var layer := CanvasLayer.new()
+	layer.name = "MenuLayer"
+	add_child(layer)
 	menu = Menu.new()
-	add_child(menu)
+	layer.add_child(menu)
 	menu.status(msg)
 	menu.solo.connect(func(): start_solo(randi() % 100000))
 	menu.host.connect(host_game)
@@ -96,7 +100,7 @@ func load_stage(s: int, n: int) -> void:
 	seed_value = s
 	stage_no = n
 	if menu:
-		menu.queue_free()
+		menu.get_parent().queue_free()
 		menu = null
 	if game:
 		remove_child(game)
