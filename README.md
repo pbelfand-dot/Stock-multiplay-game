@@ -1,16 +1,16 @@
 # SHOTGUN RALLY
 
-**You drive. Your friend rides shotgun with the notes.** A cartoony 2-player online co-op rally
-game. One of you drives, blind past the next crest. The other sits in the passenger seat with the
-roadbook and yells the road at you: "4 LEFT! DON'T CUT! OVER CREST!" No friend online? The **AI
-co-driver** takes the seat.
+**You drive. Your friend rides shotgun with the map.** A cartoony 2-player online co-op rally
+game. One of you drives, blind past the next crest. The other sits in the passenger seat with a
+map of the road ahead, works out what's coming and yells it: "LEFT! TIGHT LEFT! OVER THE CREST!"
+No friend online? The **AI co-driver** takes the seat.
 
 > This is the rally game's own branch (`shotgun-rally`) in the BAGHOLDERS repo. Nothing here touches
 > the trading game on `main`.
 
 | | |
 |---|---|
-| ![Driver](docs/screens/driver.jpg) | ![Co-driver reading the roadbook](docs/screens/codriver.jpg) |
+| ![Driver](docs/screens/driver.jpg) | ![Co-driver looking at the map](docs/screens/codriver.jpg) |
 | ![Mud on the windshield](docs/screens/mud.jpg) | ![The start line](docs/screens/start.jpg) |
 
 ## ⬇ Download (always the newest build)
@@ -37,20 +37,22 @@ Free, PC only (Windows, Mac, Linux). Built in **Godot 4.7**, like BAGHOLDERS.
 
 | | Driver | Co-driver (shotgun) |
 |---|---|---|
-| Sees | The road through the windshield. **No map, no minimap, no HUD.** Trees crowd the inside of every bend, crests hide what's next | The **roadbook roll** in their lap, *or* the road if they look up. Never both at once |
-| Does | Steers, brakes, handbrakes, trusts | Counts down the start (the start clock is on their side), calls every corner, works the **wipers** when a puddle splashes mud over the glass |
-| Alone? | The **AI co-driver** calls the stage in the "Fraser" voice, early enough that you hear it all before the corner | — |
+| Sees | The road through the windshield. **No map, no minimap, no HUD.** Thick forest on both sides, crests hide what's next | The **map board** in their lap: the road ahead and where the car is, nothing else. *Or* the road if they look up. Never both at once |
+| Does | Steers, brakes, handbrakes, trusts | Reads the bends off the map and turns them into calls (that's the skill), counts down the start (the start clock is on their side), works the **wipers** when a puddle covers the windshield in mud |
+| Alone? | The **AI co-driver** calls the stage in the "Fraser" voice ("4 left, 100, over crest"), early enough that you hear it all before the corner, and wipes the mud off for you | — |
 
 1. **Start line.** The host presses ENTER and the 5-second countdown starts. Moving off early is a
    **jump start: +10 s**.
-2. **The stage** is ~2.7 km of forest gravel: corners graded 6 (nearly flat) to 1 (very slow) plus
+2. **The stage** is ~2.7 km of gravel through thick forest (~10,000 trees): corners graded 6 (nearly flat) to 1 (very slow) plus
    hairpins, corners that tighten or open, crests, jumps, puddles and rocks on the inside of the
    "don't cut" corners. Every stage is generated from a number, so there's always a new one.
-3. **The roadbook roll** (our own design, not the reference's tablet) shows each note as a hand-drawn
-   arrow + the call: `4 L · TIGHTENS 3 · AND`, `2 L · DON'T CUT`, `CREST · 100`. The current note sits
-   under the red line, and the stopwatch is clipped on top.
-4. Stuck? **R** puts the car back on the road (**+5 s**).
-5. **Flying finish**, results, then the host picks: next stage, retry, or swap seats.
+3. **The map board** (our own design, not the reference's tablet) shows **only the map and where you
+   are**: the road ahead as a line, heading-up like a GPS, ~300 m of it, with the stopwatch clipped on
+   top. No grades, no warnings: reading the road and calling it is the co-driver's job.
+4. **Mud:** a puddle at speed covers the **whole windshield**. The wipers clear their two arcs, a bit
+   more each stroke (it takes about two to see properly), and the corners stay dirty.
+5. Stuck? **R** puts the car back on the road (**+5 s**).
+6. **Flying finish**, results, then the host picks: next stage, retry, or swap seats.
 
 ## Controls
 
@@ -59,7 +61,7 @@ Free, PC only (Windows, Mac, Linux). Built in **Godot 4.7**, like BAGHOLDERS.
 | Steer | A / D, ← / → | left stick |
 | Gas / brake (hold brake when stopped = reverse) | W / S, ↑ / ↓ | RT / LT |
 | Handbrake | SPACE | B / X |
-| **Co-driver:** read the roadbook | hold RIGHT MOUSE or Q | hold LT |
+| **Co-driver:** look at the map | hold RIGHT MOUSE or Q | hold LT |
 | **Co-driver:** wipers (the driver's job when alone) | F | A |
 | Look around | mouse | right stick |
 | Reset car (+5 s) | R | Y |
@@ -85,7 +87,7 @@ Inspired by ***Left Left Left!*** ([@leftleftleftgame on TikTok](https://www.tik
 two players in one car, both in first person, one with the map. The breakdown of the four reference
 clips is in [`docs/VIDEO_BREAKDOWN.md`](docs/VIDEO_BREAKDOWN.md).
 
-What's ours: the name and look, **our own map device** (a paper roadbook roll), **the real
+What's ours: the name and look, **our own map device** (a wooden map board), **the real
 co-driver's jobs** ([`docs/CO_DRIVER_JOBS.md`](docs/CO_DRIVER_JOBS.md)), and an **AI co-driver** with a
 real voice.
 
@@ -94,7 +96,7 @@ real voice.
 | Phase | What | Status |
 |---|---|---|
 | 0 | Reference breakdown, name, plan, co-driver research, voice pack | ✅ done |
-| 1 | **Playable grey box:** generated forest gravel stages, raycast rally car, first-person driver + co-driver seats, roadbook roll, mud + wipers, start countdown, jump starts, resets, results, 2 players online, builds | ✅ done |
+| 1 | **Playable grey box:** generated forest gravel stages, raycast rally car, first-person driver + co-driver seats, the co-driver's map board, mud + wipers, start countdown, jump starts, resets, results, 2 players online, builds | ✅ done |
 | 2 | **AI co-driver** | ✅ basic version done (calls by time, countdown, finish). Next: quick-call wheel for the human co-driver, call-timing setting in the menu, more lines |
 | 3 | **Art:** low-poly car and cockpit (Blender scripts + Higgsfield), better trees, helmets and arms | next |
 | 4 | **Jobs + content:** OK board, warning triangle, pushing the car, punctures, time cards, road book, recce mode, more biomes | |
@@ -114,7 +116,7 @@ real voice.
 | Folder | What's in it |
 |---|---|
 | `scripts/stage/` | the stage generator, the pacenotes, the world builder |
-| `scripts/vehicle/` | the rally car, cockpit + crew, roadbook roll, seat camera, AI co-driver, autopilot |
+| `scripts/vehicle/` | the rally car, cockpit + crew, map board, seat camera, AI co-driver, autopilot |
 | `scripts/net/` | settings, the input map, the 2-player connection |
 | `assets/voice/fraser/` | the co-driver voice clips (new lines: [`assets/voice/fraser/README.md`](assets/voice/fraser/README.md)) |
 | `tests/` | the headless tests |

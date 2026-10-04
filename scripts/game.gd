@@ -59,6 +59,7 @@ var _hint := -1
 var _start_pos := Vector3.ZERO
 var _in_puddle := false
 var _stuck := 0.0
+var _mud_t := 0.0
 var _look_acc := 0.0
 var _last_count := -1
 var _hud: CanvasLayer
@@ -93,7 +94,7 @@ func start(seed_in: int, stage_in: int) -> void:
 	car.landed.connect(_on_landed)
 	cockpit = Cockpit.new()
 	car.add_child(cockpit)
-	cockpit.build(car, notes, st.finish_s)
+	cockpit.build(car, st)
 	cockpit.wiper_stroke.connect(func(): _play("wiper", -6.0))
 	ai = AICoDriver.new()
 	add_child(ai)
@@ -188,7 +189,7 @@ func _physics_process(dt: float) -> void:
 	_hint = at.i
 	car_s = at.s
 	car_d = at.d
-	cockpit.roadbook.car_s = car_s
+	cockpit.map_board.car_s = car_s
 	car.stream_ok = crew_ready()          # nobody to send to (or they're still loading): don't
 	match state:
 		"grid":
@@ -232,6 +233,15 @@ func _physics_process(dt: float) -> void:
 	if car.simulate:
 		_drive_inputs()
 		_puddles()
+	# no human co-driver: the AI does the co-driver's jobs, wipers included
+	if ai.enabled and cockpit.mud > 0.5 and cockpit.wipe_strokes == 0:
+		_mud_t += dt
+		if _mud_t > 0.6:
+			_mud_t = 0.0
+			ai.say(["wipers"])
+			cockpit.wipe(3)
+	else:
+		_mud_t = 0.0
 	if ai.enabled and state in ["countdown", "running"]:
 		ai.update(car_s, car.linear_velocity.length(), dt)
 	elif ai.enabled:
@@ -352,8 +362,8 @@ func _process(dt: float) -> void:
 			builder.start_clock.text = "GO"
 		"finished":
 			clock = fmt_time(result.get("total", stage_time))
-	cockpit.roadbook.clock_text = clock
-	cockpit.roadbook.clock_red = red
+	cockpit.map_board.clock_text = clock
+	cockpit.map_board.clock_red = red
 	_engine_audio()
 	if _t_alive > 12.0 and _hint_label.text.begins_with("YOU"):
 		_update_hint()
@@ -421,7 +431,7 @@ func _on_landed(impact: float) -> void:
 	cam.bump(clampf(impact / 10.0, 0.1, 0.7))
 
 
-# ── HUD: hints, results, pause (no HUD while driving: the roadbook is the HUD) ─
+# ── HUD: hints, results, pause (no HUD while driving: the map board is the HUD) ─
 
 func _build_hud() -> void:
 	_hud = CanvasLayer.new()
@@ -526,8 +536,8 @@ func _seat_help(pad: bool) -> String:
 		var alone := " · F wipers" if Net.peer_in("codriver") == 0 else ""
 		return ("YOU DRIVE: left stick steer · RT gas · LT brake · B handbrake · Y reset" if pad
 			else "YOU DRIVE: WASD / arrows · SPACE handbrake · R reset (+5 s)" + alone)
-	return ("YOU RIDE SHOTGUN: hold LT to read the roadbook · A wipers · right stick look" if pad
-		else "YOU RIDE SHOTGUN: hold RIGHT MOUSE (or Q) to read the roadbook · F wipers · mouse to look")
+	return ("YOU RIDE SHOTGUN: hold LT to look at the map and call the road · A wipers · right stick look" if pad
+		else "YOU RIDE SHOTGUN: hold RIGHT MOUSE (or Q) to look at the map and call the road · F wipers · mouse to look")
 
 
 func _my_ips() -> Array:

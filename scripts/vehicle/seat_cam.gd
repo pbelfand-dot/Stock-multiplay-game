@@ -4,7 +4,7 @@ extends Camera3D
 ## with the g-forces: braking pitches you forward, a hard left throws you
 ## right, a landing bumps you down.
 ## CO-DRIVER: hold "read notes" (right mouse / Q / left trigger) and your eyes
-## drop to the roadbook in your lap; let go and they come back up to the road.
+## drop to the map board in your lap; let go and they come back up to the road.
 ## You can't watch both: that's the game.
 ##
 ## The car moves on the physics tick; the camera follows its INTERPOLATED
@@ -13,7 +13,7 @@ extends Camera3D
 const YAW_MAX := 2.0            # rad: almost over your shoulder
 const PITCH_MIN := -1.25
 const PITCH_MAX := 0.5
-const BOOK_LOOK := Vector2(0.06, -0.98)   # yaw, pitch that puts the roadbook in view
+const BOOK_LOOK := Vector2(0.06, -0.98)   # yaw, pitch that puts the map board in view
 
 var car
 var seat := "driver"
@@ -21,7 +21,7 @@ var eye := Vector3.ZERO
 var yaw := 0.0
 var pitch := -0.06
 var reading := false
-var force_read := false         # tests / screenshots: eyes on the roadbook
+var force_read := false         # tests / screenshots: eyes on the map board
 var _read_blend := 0.0
 var _lean := Vector3.ZERO
 var _prev_vel := Vector3.ZERO

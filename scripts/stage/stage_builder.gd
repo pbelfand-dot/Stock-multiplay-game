@@ -21,6 +21,9 @@ const ROAD_X := [[-3.1, -0.12, VERGE], [-2.8, 0.0, GRAVEL], [-1.25, 0.04, TRACK]
 const GROUND_X := [[2.9, -0.2, 0.0], [4.3, -0.5, 0.0], [6.0, -0.15, 0.15], [10.0, 0.1, 0.5],
 	[18.0, 0.3, 1.2], [30.0, 0.6, 2.2], [50.0, 1.0, 3.2], [78.0, 1.6, 4.5]]
 
+const CHUNK := 160.0                # trees are grouped per this much road ...
+const TREE_DRAW := 520.0            # ... and a group further away than this isn't drawn
+
 var st
 var start_clock: Label3D            # the countdown board at the start line
 var tree_count := 0
@@ -171,13 +174,15 @@ func _add(mb, surface: String, node_name: String) -> MeshInstance3D:
 # ── forest ────────────────────────────────────────────────────────────────
 
 func _forest() -> void:
-	var kinds := {"pine": [], "round": [], "birch": [], "bush": []}
+	# trees are grouped in chunks of road (CHUNK m) so each chunk can be culled and
+	# faded out by distance: thousands of trees, but only the nearby ones are drawn
+	var chunks := {}                                 # chunk index -> {kind: [Transform3D]}
 	var trunks := StaticBody3D.new()
 	trunks.name = "Trunks"
 	trunks.set_meta("surface", "grass")
 	add_child(trunks)
 	var n: int = st.pts.size()
-	for i in range(0, n, 3):
+	for i in range(0, n, 2):                         # every 4 m of road
 		var s: float = i * st.STEP
 		if s < st.START_S - 30.0:
 			continue
@@ -185,53 +190,65 @@ func _forest() -> void:
 		var r: Vector3 = st.right_at(s)
 		var k: float = st.curv[mini(i + 4, n - 1)]
 		for side in [-1.0, 1.0]:
-			var inside: bool = signf(k) == side and absf(k) > 1.0 / 140.0
-			var slots: Array = []
+			var inside: bool = signf(k) == side and absf(k) > 1.0 / 160.0
+			# [from, to (m off the centreline), chance, how many tries]
+			var slots: Array = [[5.0, 9.0, 0.95 if inside else 0.6, 1],     # the wall along the road
+				[9.0, 18.0, 0.9, 2], [18.0, 40.0, 0.85, 3], [40.0, 76.0, 0.8, 3]]
 			if inside:
-				slots = [[4.6, 8.5, 0.9], [8.5, 16.0, 0.8]]          # a wall on the inside of the bend
-			else:
-				slots = [[6.5, 11.0, 0.35], [11.0, 24.0, 0.55]]
-			slots.append([24.0, 70.0, 0.9])
+				slots.append([4.6, 7.5, 0.8, 1])                           # thicker on the inside of bends
 			for sl in slots:
-				if _rng.randf() > sl[2]:
-					continue
-				var d: float = _rng.randf_range(sl[0], sl[1])
-				var along: Vector3 = st.forward_at(s) * _rng.randf_range(-3.0, 3.0)
-				var p: Vector3 = c + r * (d * side) + along
-				if _near_road(p, 4.4):
-					continue
-				var gy: float = _ground_height(c.y, d, p)
-				p.y = gy - 0.15
-				var kind: String = ["pine", "pine", "round", "birch", "bush"][_rng.randi() % 5]
-				if d < 6.0 and kind == "bush":
-					kind = "round"
-				var sc := _rng.randf_range(0.8, 1.35)
-				var xf := Transform3D(Basis(Vector3.UP, _rng.randf() * TAU).scaled(Vector3.ONE * sc), p)
-				kinds[kind].append(xf)
-				if d < 10.0 and kind != "bush":
-					var cs := CollisionShape3D.new()
-					var cyl := CylinderShape3D.new()
-					cyl.radius = 0.28 * sc
-					cyl.height = 4.0
-					cs.shape = cyl
-					cs.position = p + Vector3.UP * 2.0
-					trunks.add_child(cs)
-	for kind in kinds:
-		var list: Array = kinds[kind]
-		tree_count += list.size()
-		if list.is_empty():
-			continue
-		var mm := MultiMesh.new()
-		mm.transform_format = MultiMesh.TRANSFORM_3D
-		mm.mesh = _tree_mesh(kind)
-		mm.instance_count = list.size()
-		for j in list.size():
-			mm.set_instance_transform(j, list[j])
-		var mmi := MultiMeshInstance3D.new()
-		mmi.name = "Trees_" + kind
-		mmi.multimesh = mm
-		mmi.material_override = MeshBuf.material()
-		add_child(mmi)
+				for t in sl[3]:
+					if _rng.randf() > sl[2]:
+						continue
+					var d: float = _rng.randf_range(sl[0], sl[1])
+					var along: Vector3 = st.forward_at(s) * _rng.randf_range(-2.0, 2.0)
+					var p: Vector3 = c + r * (d * side) + along
+					if _near_road(p, 4.4):
+						continue
+					p.y = _ground_height(c.y, d, p) - 0.15
+					var kind: String = ["pine", "pine", "pine", "round", "birch", "bush"][_rng.randi() % 6]
+					if d < 6.0 and kind == "bush":
+						kind = "round"
+					var sc := _rng.randf_range(0.8, 1.4)
+					var xf := Transform3D(Basis(Vector3.UP, _rng.randf() * TAU).scaled(Vector3.ONE * sc), p)
+					var ci := int(s / CHUNK)
+					if not chunks.has(ci):
+						chunks[ci] = {"pine": [], "round": [], "birch": [], "bush": []}
+					chunks[ci][kind].append(xf)
+					tree_count += 1
+					if d < 10.0 and kind != "bush":
+						var cs := CollisionShape3D.new()
+						var cyl := CylinderShape3D.new()
+						cyl.radius = 0.28 * sc
+						cyl.height = 4.0
+						cs.shape = cyl
+						cs.position = p + Vector3.UP * 2.0
+						trunks.add_child(cs)
+	var meshes := {}
+	for kind in ["pine", "round", "birch", "bush"]:
+		meshes[kind] = _tree_mesh(kind)
+	var mat := MeshBuf.material()
+	for ci in chunks:
+		for kind in chunks[ci]:
+			var list: Array = chunks[ci][kind]
+			if list.is_empty():
+				continue
+			var mm := MultiMesh.new()
+			mm.transform_format = MultiMesh.TRANSFORM_3D
+			mm.mesh = meshes[kind]
+			mm.instance_count = list.size()
+			for j in list.size():
+				mm.set_instance_transform(j, list[j])
+			var mmi := MultiMeshInstance3D.new()
+			mmi.name = "Trees_%d_%s" % [ci, kind]
+			mmi.multimesh = mm
+			mmi.material_override = mat
+			mmi.visibility_range_end = TREE_DRAW
+			mmi.visibility_range_end_margin = 40.0
+			mmi.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_DISABLED
+			if kind == "bush":
+				mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			add_child(mmi)
 
 
 func _ground_height(road_y: float, d: float, p: Vector3) -> float:

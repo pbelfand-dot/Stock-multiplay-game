@@ -13,7 +13,7 @@ itch.io is free to use, and for a free game you never pay anything.
    |---|---|
    | Title | `SHOTGUN RALLY` |
    | Project URL | `shotgun-rally` (the page becomes `your-name.itch.io/shotgun-rally`) |
-   | Short description | `You drive. Your friend rides shotgun with the notes.` |
+   | Short description | `You drive. Your friend rides shotgun with the map.` |
    | Classification | Game |
    | Kind of project | Downloadable |
    | Pricing | **No payments** (or "$0 or donate" if you want tips) |
@@ -30,12 +30,12 @@ itch.io is free to use, and for a free game you never pay anything.
 ```text
 SHOTGUN RALLY is a cartoony co-op rally game for two.
 
-One of you DRIVES. The other RIDES SHOTGUN with the roadbook and yells the road:
-"4 LEFT, DON'T CUT, OVER CREST!" The driver can't see round the next bend.
-The co-driver can read the notes or watch the road, never both at once.
+One of you DRIVES. The other RIDES SHOTGUN with a map of the road ahead, works out
+what's coming and yells it: "LEFT! TIGHT LEFT! OVER THE CREST!" The driver can't see
+round the next bend. The co-driver can look at the map or watch the road, never both.
 
-- Endless stages: every stage is generated, every corner gets a note
-- Real co-driver jobs: count the start, call the corners, work the wipers when the mud hits
+- Endless stages: every stage is generated, a new road through the forest every time
+- Real co-driver jobs: count the start, call the corners, work the wipers when mud covers the windshield
 - No friend online? The AI co-driver takes the seat and calls the stage for you
 - Keyboard or controller
 
@@ -45,7 +45,7 @@ Same Wi-Fi: use the host's local IP. Different houses: both install Tailscale (f
 and join with the host's Tailscale IP.
 
 DRIVER: WASD / arrows, SPACE handbrake, R reset (+5 s)
-CO-DRIVER: hold RIGHT MOUSE (or Q) to read the roadbook, F wipers, mouse to look around
+CO-DRIVER: hold RIGHT MOUSE (or Q) to look at the map, F wipers, mouse to look around
 ```
 
 ## 2. Connect GitHub to it (2 minutes, once)

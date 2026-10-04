@@ -8,7 +8,7 @@ extends Node
 ##   --autostart --autopilot                 tests: start the countdown / drive by itself
 ##   --smoke=host|client                     2-player test: drive a stage, both check it
 ##   --aicheck                               solo test: the AI co-driver's calls come in time
-##   --screenshot=out.png [--shot_seat=codriver --shot_s=300 --shot_read --shot_mud --shot_nohud]
+##   --screenshot=out.png [--shot_seat=codriver --shot_s=300 --shot_read --shot_mud [--shot_wipe=N] --shot_nohud]
 
 const Game = preload("res://scripts/game.gd")
 const Menu = preload("res://scripts/ui/main_menu.gd")
@@ -137,6 +137,9 @@ func _test_setup() -> void:
 		game.cam.force_read = Config.flag("shot_read")
 		if Config.flag("shot_mud"):
 			game.cockpit.splat(0.9, 7)
+			game.ai.enabled = false                # keep the mud on for the picture
+			if Config.flag("shot_wipe"):
+				game.cockpit.wipe(int(Config.arg("shot_wipe", 1)))
 		if Config.flag("shot_nohud"):
 			game._hud.visible = false
 

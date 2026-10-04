@@ -1,6 +1,6 @@
 extends RefCounted
 ## A rally stage, generated from a seed and described as DATA: the builder
-## (meshes + collision), the roadbook, the AI co-driver and the car's position
+## (meshes + collision), the co-driver's map, the AI co-driver and the car's position
 ## tracking all read the same arrays. Nothing here makes nodes.
 ##
 ## THE ROAD is a chain of pieces: straights and arcs (an arc can be two arcs
@@ -230,7 +230,7 @@ func _straight_room(s: float) -> float:
 	return minf(i - a, b - i) * STEP * 2.0
 
 
-# ── corners (what the roadbook and the co-driver call) ────────────────────
+# ── corners (what the AI co-driver calls) ─────────────────────────────────
 
 func _find_corners() -> void:
 	corners.clear()

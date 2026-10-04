@@ -20,8 +20,8 @@ what real co-drivers actually do (checked), and the in-game task each one turns 
 
 | Task | How it plays | Why it's fun |
 |---|---|---|
-| **Call the road** | Read the map device and yell. Voice chat, or the **quick-call wheel** (the AI voice says "LEFT 3!" for you) | The core loop |
-| **Wipers + washer** | Mud and dust hit the glass. The co-driver works the wipers (the driver's hands are busy). Washer fluid runs out | Straight from the videos: "WIPER! WIPER!" |
+| **Call the road** | Look at the map, work out what's coming, yell it. Voice chat, or later a **quick-call wheel** (the AI voice says "LEFT 3!" for you) | The core loop |
+| **Wipers + washer** | A puddle covers the **whole** windshield. The co-driver works the wipers (the driver's hands are busy); each stroke clears the arcs more, the corners stay dirty | Straight from the videos: "WIPER! WIPER!" |
 | **Start countdown** | Only the co-driver can see the start clock. They count the driver in: "5, 4, 3, 2, 1, GO". Jump the start = +10 s | A tense start every stage |
 | **OK board + triangle** | After going off, hold up OK (or the clock takes a penalty). If the car's stuck: get out, **run 50 m back** and place the triangle, then both **push the car** back onto the road | Physical comedy, very clippable |
 
@@ -38,13 +38,13 @@ what real co-drivers actually do (checked), and the in-game task each one turns 
 
 ## Our map device (not their tablet)
 
-*Left Left Left!* uses an orange GPS-style tablet. Ours is a **paper roadbook roll**: a strip of
-paper in a holder that scrolls as the car drives, with hand-drawn corner arrows and numbers. Dakar
-riders use real roadbook rolls like this. It fits a cartoony look and is clearly ours.
+*Left Left Left!* uses an orange GPS-style tablet. Ours is a **wooden map board** with brass clips
+and a stopwatch clipped on top.
 
-- **Easy (default):** the roll scrolls by itself.
-- **Pro:** the co-driver has to crank it to keep up. Losing your place in the notes is a real
-  co-driver mistake.
+It shows **only the map and where the car is**: the road ahead as a line, heading-up like a GPS.
+No grades, no "4 LEFT", no warnings. Looking at a bend and turning it into a call fast enough is the
+whole skill of the seat, and that's what makes it fun. (The AI co-driver, for solo, does use
+generated pacenotes.)
 
 ## One thing the game can't do
 

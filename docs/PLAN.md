@@ -25,10 +25,11 @@ look**:
 
 | | Driver | Co-driver |
 |---|---|---|
-| Looks at the road | Always. It's all they have | Only when they look up, and then they've lost their place in the notes |
+| Looks at the road | Always. It's all they have | Only when they look up, and then they've lost their place on the map |
 | Looks at the map | Never: there's no map, minimap or HUD | Only when they look down, and then they can't see the road coming |
 
-On top of that we add rally conditions that make the notes matter more: blind crests, trees on the
+The map shows **only the road and where the car is, no callouts**: turning bends into calls is the
+co-driver's skill. On top of that we add rally conditions that make the calls matter more: blind crests, trees on the
 inside of corners, dust, mud on the glass, night and fog stages.
 
 ---
@@ -50,7 +51,7 @@ inside of corners, dust, mud on the glass, night and fog stages.
    | **The co-driver voice** + a clip-stitching player | `driver-test-app/rally/voice/`, `voicepack.js` | Copied into this branch already |
    | Car physics: grip, weight transfer, handbrake drift, real steering ratios | `main: scripts/vehicle/car.gd` | The starting point for the rally car |
    | Cockpit camera with **hands on the wheel** | `main: scripts/vehicle/drive_cam.gd`, `scripts/art/character.gd` | The driver's first-person view |
-   | Roads as data + a procedural road mesh | `main: scripts/world/highway.gd`, `road_mesh.gd` | Stages: one centerline drives the road, the roadbook *and* the calls |
+   | Roads as data + a procedural road mesh | `main: scripts/world/highway.gd`, `road_mesh.gd` | Stages: one centerline drives the road, the co-driver's map *and* the AI's calls |
    | AI that follows a path | `main: scripts/vehicle/ai_driver.gd` | Test stages without a human |
    | Online host/join, the driver's PC runs the car | `main: scripts/net/net.gd` | Driver hosts, co-driver joins |
    | Auto-builds for Windows/Mac/Linux + download links | `main: .github/workflows/build.yml` | Same on this branch, its own release tag |
@@ -58,7 +59,7 @@ inside of corners, dust, mud on the glass, night and fog stages.
    the driver's own PC runs it.
 5. **Cheap voice.** More lines in the same Fraser voice cost **0.2 credits each**. The whole list of
    missing calls is under 10 credits.
-6. **Endless stages.** Generate stages from a seed and every stage automatically gets a roadbook
+6. **Endless stages.** Generate stages from a seed and every stage automatically gets a map
    for the human and calls for the AI.
 7. **Low poly is fast to make.** The interior in the clips is simple shapes, which our Blender
    scripts can build. Higgsfield's Meshy has a low-poly mode for the rest.
@@ -69,7 +70,7 @@ inside of corners, dust, mud on the glass, night and fog stages.
 
 | # | Problem | Why it matters | Fix |
 |---|---|---|---|
-| 1 | **"It's a copy of Left Left Left!"** | They're still pre-release on TikTok. If ours looks the same, people will call it a ripoff (rightly) | Copying the *idea* is legal (US Copyright Office: game ideas and rules aren't protected). Copying art, name and UI isn't. Ours gets its own name, a **paper roadbook roll** instead of their orange tablet, real co-driver jobs, an AI co-driver and recce mode |
+| 1 | **"It's a copy of Left Left Left!"** | They're still pre-release on TikTok. If ours looks the same, people will call it a ripoff (rightly) | Copying the *idea* is legal (US Copyright Office: game ideas and rules aren't protected). Copying art, name and UI isn't. Ours gets its own name, a **wooden map board** instead of their orange tablet, real co-driver jobs, an AI co-driver and recce mode |
 | 2 | **They might launch first** | They'll own "the co-driver game" on TikTok | Fine for a free game. Our edges: free, solo-able with the AI co-driver, more to do in the passenger seat |
 | 3 | **The game can't hear voice chat** | It can't grade the co-driver's calls | Score the **team** (time, offs, penalties). Grade quick-wheel calls for timing. Voice recognition later, maybe |
 | 4 | **The co-driver gets bored** | Calling turns for 4 minutes isn't enough | The jobs list: start countdown, wipers, OK board, triangle run, pushing the car, time cards, road book, recce |
@@ -97,7 +98,7 @@ It's free, so "business" means **getting players and keeping costs at zero.**
 | Godot, GitHub, GitHub Actions builds | $0 (Actions minutes are free on public repos; private repos get a monthly free allowance) |
 | Voice (more Fraser lines) | ~0.2 credits a line, **< 10 credits** total |
 | 3D models (Higgsfield Meshy, textured low poly) | 25 credits each. Budget: **~150–250 credits** for a car body or two, props, animals and spectators |
-| Images (concept art, roadbook art, logo) | a few credits each |
+| Images (concept art, map board art, logo) | a few credits each |
 | Keep in reserve | **~500 credits** for later content |
 | Mac signing ($99/yr) | Skip it, like BAGHOLDERS (players use "Open Anyway") |
 
@@ -128,7 +129,7 @@ It's free, so "business" means **getting players and keeping costs at zero.**
 | Phase | What | Credits | Done when |
 |---|---|---|---|
 | 0 ✅ | Breakdown, name, plan, co-driver research, voice pack, branch | 0 | This doc |
-| 1 | **Grey box:** Godot project on this branch, one generated forest gravel stage, the rally car (raycast suspension), first-person driver seat with hands, co-driver seat with a working **roadbook roll**, wipers + mud, start countdown, 2 players online, builds + download links live | 0 | You and a friend finish a stage on Discord and want another |
+| 1 | **Grey box:** Godot project on this branch, one generated forest gravel stage, the rally car (raycast suspension), first-person driver seat with hands, co-driver seat with a working **map board**, wipers + mud, start countdown, 2 players online, builds + download links live | 0 | You and a friend finish a stage on Discord and want another |
 | 2 | **AI co-driver:** port `pacenotes.js` → GDScript, play the Fraser clips, quick-call wheel, timing setting, generate the missing lines | ~10 | You can drive alone and trust the calls |
 | 3 | **Art:** low-poly red hatchback (parody name), cockpit, helmets and arms, toon forest | ~150–250 | It looks like a real game in a TikTok clip |
 | 4 | **Jobs + content:** OK board, triangle run, pushing the car, punctures, time cards + road book, recce mode, 3–4 biomes, set pieces | some | 20+ minutes of stuff |

@@ -2,15 +2,16 @@ extends Node3D
 ## The inside of the car, low poly like the reference: red shell and roll
 ## cage, grey dash, black wheel, a gear stick with a red knob, the red hood
 ## out front. Two crew: the DRIVER (left, red helmet) with hands that follow
-## the wheel, and the CO-DRIVER (right, blue helmet) holding the roadbook roll.
-## Also the windshield mud and the two wipers that clear it.
+## the wheel, and the CO-DRIVER (right, blue helmet) holding the map board.
+## Also the windshield mud (a splat covers ALL of it) and the two wipers that
+## clear their arcs of it, a bit more each stroke; the corners stay dirty.
 ## A child of the car, so it moves with it. Car-local units: the car faces -Z,
 ## origin = chassis middle at wheel-mount height (the ground is ~0.56 below).
 ##
 ## Each crew member's head is on its own render layer (2 = driver, 3 =
 ## co-driver) so your own camera doesn't see the inside of your helmet.
 
-const Roadbook = preload("res://scripts/vehicle/roadbook.gd")
+const MapBoard = preload("res://scripts/vehicle/map_board.gd")
 
 const RED := Color(0.78, 0.12, 0.1)
 const GREY := Color(0.46, 0.45, 0.43)
@@ -28,11 +29,18 @@ const WHEEL_TILT := 0.42                      # rad back from vertical
 const WS_BOTTOM := Vector3(0.0, 0.32, -0.74)
 const WS_TOP := Vector3(0.0, 0.92, -0.3)
 const WS_W := 1.42
-const MUD_MAX := 16
+const WIPER_X := [-0.5, 0.18]                 # pivot positions along the bottom of the glass (m)
+const WIPER_PARK := 4.0                       # deg: parked, lying along the bottom
+const WIPER_SWEEP := 118.0                    # deg: how far up a stroke goes
+const WIPER_REACH := 0.64                     # m: the blade wipes out to here
+const STREAKS := 0.5                          # mud left in a wiped arc after each stroke (about 2 to see well)
 
 var car
-var roadbook                                  # Roadbook (draws into a SubViewport)
-var mud: Array = []                           # [{u, v, r, a}] blobs in windshield UV (v: 0 top .. 1 bottom)
+var map_board                                 # MapBoard (draws into a SubViewport)
+var mud := 0.0                                # 0..1: how thick the mud is on the glass
+var swept := [0.0, 0.0]                       # deg each wiper has swept since the last splat
+var residue := [1.0, 1.0]                     # mud left inside each wiper's arc (1 = untouched)
+var mud_seed := 0.0
 var wipe_strokes := 0                          # strokes left to do
 var _wiper_t := 0.0
 var _wiper_pivots: Array = []
@@ -41,12 +49,11 @@ var _steer_node: Node3D
 var _arms := {}                                # name -> [upper MeshInstance3D, lower MeshInstance3D]
 var _heads := {}                               # seat -> Node3D (helmet)
 var _mats := {}
-var _rng := RandomNumberGenerator.new()
 
 signal wiper_stroke
 
 
-func build(the_car, stage_notes: Array, stage_len: float) -> void:
+func build(the_car, stage) -> void:
 	car = the_car
 	_shell()
 	_dash()
@@ -54,11 +61,11 @@ func build(the_car, stage_notes: Array, stage_len: float) -> void:
 	_wheel()
 	_windshield()
 	_crew()
-	roadbook = Roadbook.new()
-	add_child(roadbook)
-	roadbook.setup(stage_notes, stage_len)
-	roadbook.position = Vector3(0.36, 0.25, 0.0)
-	roadbook.rotation = Vector3(deg_to_rad(-52.0), deg_to_rad(4.0), 0.0)
+	map_board = MapBoard.new()
+	add_child(map_board)
+	map_board.setup(stage, the_car)
+	map_board.position = Vector3(0.36, 0.25, 0.0)
+	map_board.rotation = Vector3(deg_to_rad(-52.0), deg_to_rad(4.0), 0.0)
 
 
 # ── geometry helpers ──────────────────────────────────────────────────────
@@ -211,7 +218,7 @@ func _windshield() -> void:
 	var y := up / h
 	var n := Vector3.RIGHT.cross(y).normalized()               # points into the cabin
 	var basis := Basis(Vector3.RIGHT, y, n)
-	# the mud: one quad over the glass, the shader draws the blobs
+	# the mud: one quad over the glass; the shader covers it and cuts out the wiped arcs
 	var q := MeshInstance3D.new()
 	var qm := QuadMesh.new()
 	qm.size = Vector2(WS_W, h)
@@ -222,8 +229,12 @@ func _windshield() -> void:
 	q.material_override = _mud_mat
 	q.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(q)
+	_mud_mat.set_shader_parameter("size_m", Vector2(WS_W, h))
+	_mud_mat.set_shader_parameter("pivots", PackedVector2Array([Vector2(WIPER_X[0], 0.04), Vector2(WIPER_X[1], 0.04)]))
+	_mud_mat.set_shader_parameter("reach", WIPER_REACH)
+	_mud_mat.set_shader_parameter("park", deg_to_rad(WIPER_PARK))
 	# two wipers, pivoting at the bottom of the glass, parked flat
-	for px in [-0.5, 0.18]:
+	for px in WIPER_X:
 		var pivot := Node3D.new()
 		pivot.transform = Transform3D(basis, WS_BOTTOM + Vector3(px, 0, 0) + y * 0.04 + n * 0.02)
 		add_child(pivot)
@@ -231,7 +242,7 @@ func _windshield() -> void:
 		pivot.add_child(arm)
 		_box(Vector3(0.6, 0.012, 0.012), Vector3(0.3, 0.0, 0.0), DARK, Vector3.ZERO, arm)
 		_box(Vector3(0.62, 0.02, 0.02), Vector3(0.33, 0.02, 0.0), Color(0.05, 0.05, 0.05), Vector3.ZERO, arm)
-		arm.rotation.z = deg_to_rad(4.0)
+		arm.rotation.z = deg_to_rad(WIPER_PARK)
 		_wiper_pivots.append(arm)
 
 
@@ -240,24 +251,37 @@ func _mud_shader() -> Shader:
 	sh.code = """
 shader_type spatial;
 render_mode unshaded, cull_disabled, depth_draw_never, blend_mix;
-uniform vec4 blobs[16];          // xy = centre (uv), z = radius, w = opacity
-uniform int count = 0;
+uniform float mud = 0.0;             // 0..1 thickness over the whole glass
+uniform vec2 size_m;                 // the glass, metres
+uniform vec2 pivots[2];              // wiper pivots, metres from the bottom-centre
+uniform float swept[2];              // radians each wiper has swept (from park)
+uniform float residue[2];            // mud left inside each wiped arc
+uniform float reach = 0.64;
+uniform float park = 0.07;
+uniform float seed = 0.0;
 float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+float vnoise(vec2 p) {
+	vec2 i = floor(p); vec2 f = fract(p); f = f * f * (3.0 - 2.0 * f);
+	return mix(mix(hash(i), hash(i + vec2(1, 0)), f.x), mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), f.x), f.y);
+}
 void fragment() {
-	float a = 0.0;
-	for (int i = 0; i < 16; i++) {
-		if (i >= count) break;
-		vec4 b = blobs[i];
-		vec2 d = (UV - b.xy) * vec2(1.6, 1.0);
+	vec2 p = vec2((UV.x - 0.5) * size_m.x, (1.0 - UV.y) * size_m.y);
+	float n = vnoise(p * 9.0 + seed) * 0.6 + vnoise(p * 23.0 - seed) * 0.4;
+	float a = mud * (0.93 + 0.07 * n);
+	for (int i = 0; i < 2; i++) {
+		vec2 d = p - pivots[i];
+		float r = length(d);
 		float ang = atan(d.y, d.x);
-		float wobble = 0.86 + 0.1 * sin(ang * 5.0 + b.x * 40.0) + 0.05 * sin(ang * 11.0 + b.y * 30.0);
-		float r = b.z * wobble;
-		float k = 1.0 - smoothstep(r * 0.8, r, length(d));
-		a = max(a, k * b.w);
+		// a ragged edge where the blade stopped
+		float edge = park + swept[i] + (n - 0.5) * 0.08;
+		if (r > 0.05 && r < reach + (n - 0.5) * 0.03 && ang > park - 0.05 && ang < edge) {
+			a *= residue[i] + (1.0 - residue[i]) * smoothstep(0.75, 1.0, n) * 0.3;   // streaks
+		}
 	}
-	float speck = step(0.985, hash(floor(UV * 90.0))) * 0.25 * float(count > 0);
-	ALBEDO = vec3(0.3, 0.21, 0.12) * (0.85 + 0.3 * hash(floor(UV * 40.0)));
-	ALPHA = clamp(max(a, speck * a), 0.0, 0.97);
+	vec3 dark = vec3(0.22, 0.15, 0.08);
+	vec3 light = vec3(0.42, 0.31, 0.18);
+	ALBEDO = mix(dark, light, n);
+	ALPHA = clamp(a, 0.0, 0.98);
 }
 """
 	return sh
@@ -336,41 +360,37 @@ func _process(dt: float) -> void:
 		var hand: Vector3 = _steer_node.transform * (Vector3(cos(ang), sin(ang), 0.0) * WHEEL_R)
 		var sh := Vector3(EYE_DRIVER.x + (-0.19 if side == "l" else 0.19), 0.28, 0.38)
 		_arm("driver" + side, sh, hand, sh + Vector3(-0.3 if side == "l" else 0.3, -0.5, 0.0))
-	# co-driver holds the roadbook by its sides
-	if roadbook:
+	# co-driver holds the map board by its sides
+	if map_board:
 		for side in ["l", "r"]:
-			var hand: Vector3 = roadbook.transform * Vector3(-0.15 if side == "l" else 0.15, -0.05, 0.02)
+			var hand: Vector3 = map_board.transform * Vector3(-0.15 if side == "l" else 0.15, -0.05, 0.02)
 			var sh := Vector3(EYE_CODRIVER.x + (-0.19 if side == "l" else 0.19), 0.28, 0.38)
 			_arm("codriver" + side, sh, hand, sh + Vector3(-0.3 if side == "l" else 0.3, -0.5, 0.1))
 	_wipers(dt)
-	var arr := PackedVector4Array()
-	arr.resize(MUD_MAX)
-	for i in mini(mud.size(), MUD_MAX):
-		var b: Dictionary = mud[i]
-		arr[i] = Vector4(b.u, b.v, b.r, b.a)
-	_mud_mat.set_shader_parameter("blobs", arr)
-	_mud_mat.set_shader_parameter("count", mini(mud.size(), MUD_MAX))
+	_mud_mat.set_shader_parameter("mud", mud)
+	_mud_mat.set_shader_parameter("swept", PackedFloat32Array([deg_to_rad(swept[0]), deg_to_rad(swept[1])]))
+	_mud_mat.set_shader_parameter("residue", PackedFloat32Array(residue))
+	_mud_mat.set_shader_parameter("seed", mud_seed)
 
 
 # ── mud + wipers ──────────────────────────────────────────────────────────
 
-## A splat: `amount` 0..1 (a puddle at speed is ~0.6-1). Deterministic per seed.
-func splat(amount: float, seed_value: int) -> void:
-	_rng.seed = seed_value
-	var n := 3 + int(amount * 7.0)
-	for k in n:
-		if mud.size() >= MUD_MAX:
-			mud.pop_front()
-		mud.append({"u": _rng.randf_range(0.08, 0.92), "v": _rng.randf_range(0.15, 0.95),
-			"r": _rng.randf_range(0.07, 0.17) * (0.6 + amount * 0.6), "a": _rng.randf_range(0.75, 0.97)})
+## A splat from a puddle: the WHOLE windshield goes brown, wiped arcs too.
+## (`amount` is kept for later: today every splat covers it all.)
+func splat(_amount: float, seed_value: int) -> void:
+	mud = 1.0
+	swept = [0.0, 0.0]
+	residue = [1.0, 1.0]
+	mud_seed = float(seed_value % 1000) * 0.37
 
 
-## 0..1: how much of the view is covered (for the AI co-driver to complain).
+## 0..1: how much of the view is still blocked (the AI co-driver reacts to it).
 func mud_level() -> float:
-	var t := 0.0
-	for b in mud:
-		t += b.a * b.r * b.r * 12.0
-	return clampf(t, 0.0, 1.0)
+	# the two arcs are most of the driver's view; the corners matter less
+	var arcs := 0.0
+	for k in 2:
+		arcs += (residue[k] if swept[k] > 60.0 else 1.0) * 0.5
+	return mud * clampf(0.25 + arcs * 0.75, 0.0, 1.0)
 
 
 func wipe(strokes := 3) -> void:
@@ -384,23 +404,19 @@ func _wipers(dt: float) -> void:
 	var prev := _wiper_t
 	_wiper_t += dt
 	var phase := fmod(_wiper_t, period) / period          # 0 -> 1: up and back
-	var sweep := sin(phase * PI)                            # 0 parked .. 1 fully across
+	var up := sin(phase * PI)                               # 0 parked .. 1 fully across
+	var ang := WIPER_PARK + WIPER_SWEEP * up
 	for arm in _wiper_pivots:
-		arm.rotation.z = deg_to_rad(4.0 + 118.0 * sweep)
-	# clear the blobs the blades pass over (each pivot sweeps half the glass)
-	var ang := 4.0 + 118.0 * sweep
-	for b in mud:
-		for px in [0.15, 0.62]:
-			var du: float = b.u - px
-			var dv: float = 1.0 - b.v
-			var blob_ang := rad_to_deg(atan2(dv * 0.6, du * WS_W))
-			if dv * 0.6 < 0.55 and absf(blob_ang - ang) < 12.0:
-				b.a *= 0.5
-	mud = mud.filter(func(b): return b.a > 0.06)
-	if floor(prev / period) != floor(_wiper_t / period):
+		arm.rotation.z = deg_to_rad(ang)
+	for k in 2:
+		swept[k] = maxf(swept[k], ang - WIPER_PARK)
+	if floor(prev / period) != floor(_wiper_t / period):   # a stroke finished
+		for k in 2:
+			residue[k] *= STREAKS
 		wipe_strokes -= 1
 		wiper_stroke.emit()
 		if wipe_strokes <= 0:
+			mud *= 0.85                                     # washer fluid thins what's left in the corners a little
 			_wiper_t = 0.0
 			for arm in _wiper_pivots:
-				arm.rotation.z = deg_to_rad(4.0)
+				arm.rotation.z = deg_to_rad(WIPER_PARK)

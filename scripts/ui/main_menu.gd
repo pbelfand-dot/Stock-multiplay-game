@@ -79,7 +79,7 @@ func _ready() -> void:
 	_status.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	box.add_child(_status)
 	var help := Label.new()
-	help.text = ("DRIVER  WASD / arrows · SPACE handbrake · R reset      CO-DRIVER  hold RIGHT MOUSE / Q to read the roadbook · F wipers\n"
+	help.text = ("DRIVER  WASD / arrows · SPACE handbrake · R reset      CO-DRIVER  hold RIGHT MOUSE / Q to look at the map · F wipers\n"
 		+ "Controller: left stick · RT / LT · B handbrake · hold LT (co-driver) · A wipers      Same Wi-Fi: join the host's IP. Different houses: Tailscale (see README).")
 	help.add_theme_font_override("font", med)
 	help.add_theme_font_size_override("font_size", 16)

@@ -1,6 +1,6 @@
 extends RefCounted
-## The stage's pacenotes: what the roadbook roll shows and what the AI
-## co-driver says. Built from the generator's corners / crests / puddles, in
+## The stage's pacenotes: what the AI co-driver says. (A human co-driver gets
+## no notes, only the map: reading the road is their job.) Built from the generator's corners / crests / puddles, in
 ## the order you meet them. Same rules as the driver-test-app pacenote engine
 ## (rally/pacenotes.js): grades 6 (nearly flat) .. 1 (very slow), "into" / "and"
 ## when corners run together, otherwise the distance to the next note, and
@@ -128,7 +128,7 @@ static func calls(notes: Array) -> Array:
 	return out
 
 
-## Human-readable text of a note, for the roadbook and logs.
+## Human-readable text of a note, for logs.
 static func text(n: Dictionary) -> String:
 	var parts: Array = []
 	for w in words(n) + link_words(n):

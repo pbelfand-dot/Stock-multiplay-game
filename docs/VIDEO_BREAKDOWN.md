@@ -76,7 +76,7 @@ exact UI** is not okay, so we don't.
 | We take (the idea) | We make ours |
 |---|---|
 | Both players in one car, first person | **Our own name:** SHOTGUN RALLY |
-| The split comes from where you look (map vs. road) | **Our own map device:** not an orange tablet, see [`PLAN.md`](PLAN.md) |
+| The split comes from where you look (map vs. road), and the map shows only the road and you | **Our own map device:** a wooden map board, not an orange tablet |
 | Casual yelling works ("LEFT! LEFT!") | **Real co-driver jobs** on top of calling: see [`CO_DRIVER_JOBS.md`](CO_DRIVER_JOBS.md) |
 | Mud on the windshield + wipers | **AI co-driver** for solo, plus a quick-call wheel |
 | Forest gravel stages, low-poly look | **Recce mode** (write your own notes), an optional pro pacenote mode, crews racing each other later |
