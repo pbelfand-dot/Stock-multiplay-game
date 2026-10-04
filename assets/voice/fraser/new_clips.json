@@ -1,0 +1,11 @@
+{
+  "voice": "Higgsfield Seed Audio 1.0, preset voice \"Fraser\" (speech_rate +20, loudness +10)",
+  "clips": {
+    "over-crest": "https://d8j0ntlcm91z4.cloudfront.net/user_3J4KnKF0J3DHfVp8orb2QnoKhME/hf_20261004_234104_1a769026-f1f6-4d3f-ba86-a3f6e9463b3a.wav",
+    "jump": "https://d8j0ntlcm91z4.cloudfront.net/user_3J4KnKF0J3DHfVp8orb2QnoKhME/hf_20261004_234104_94e24010-b579-454d-aa0c-345c58f2c7b2.wav",
+    "dont-cut": "https://d8j0ntlcm91z4.cloudfront.net/user_3J4KnKF0J3DHfVp8orb2QnoKhME/hf_20261004_234104_2435fcb2-2b0e-4e4e-add2-2c6750523e2c.wav",
+    "water": "https://d8j0ntlcm91z4.cloudfront.net/user_3J4KnKF0J3DHfVp8orb2QnoKhME/hf_20261004_234104_d58b619d-b580-4fa4-b1ac-a2b89348b022.wav",
+    "wipers": "https://d8j0ntlcm91z4.cloudfront.net/user_3J4KnKF0J3DHfVp8orb2QnoKhME/hf_20261004_234104_9c277a3f-0dc8-4d1a-a7a0-bf372b9137dd.wav",
+    "nice": "https://d8j0ntlcm91z4.cloudfront.net/user_3J4KnKF0J3DHfVp8orb2QnoKhME/hf_20261004_234104_0f831908-3931-4fd5-81a6-e4db5a79b50b.wav"
+  }
+}

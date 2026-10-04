@@ -1,19 +1,19 @@
 # SHOTGUN RALLY: the plan
 
-*Updated 2026-10-04 after the four reference clips and your answers.*
+*Updated 2026-10-04: phase 1 (the playable grey box) is built and tested.*
 
 ## What's decided
 
 | Question | Answer |
 |---|---|
 | Based on | ***Left Left Left!*** ([@leftleftleftgame](https://www.tiktok.com/@leftleftleftgame)). Breakdown: [`VIDEO_BREAKDOWN.md`](VIDEO_BREAKDOWN.md) |
-| Name | **SHOTGUN RALLY**: "riding shotgun" is the passenger seat, and the passenger seat is the game. *(Other options: SEND IT!, TRUST ME IT'S FLAT. "Ride or Die" is taken by an old Ubisoft game.)* |
+| Name | **SHOTGUN RALLY** ✅ confirmed. "Riding shotgun" is the passenger seat, and the passenger seat is the game |
 | Where | Its own branch, `shotgun-rally`, in this repo. Downloads come from a separate release tag, `shotgun-latest` |
-| Price | **Free** on GitHub |
+| Price | **Free**: GitHub downloads + **itch.io** (set-up ready: [`ITCH.md`](ITCH.md)) |
 | Budget | This Claude plan + your Higgsfield credits (**844.5**, Plus plan, checked 2026-10-04) |
 | Co-driver | Sits in the car and can look out the windows. Does **the real co-driver's jobs**: see [`CO_DRIVER_JOBS.md`](CO_DRIVER_JOBS.md) |
 | Players | 2 (one crew) now. Crews racing each other later |
-| Controls | Keyboard, controller, steering wheel |
+| Controls | Keyboard + controller (no steering wheel for now: you don't have one to test with) |
 | Platforms | PC only: Windows, Mac, Linux (same builds as BAGHOLDERS) |
 | Voice | **Fraser** (Higgsfield Seed Audio), 56 clips from your driver-test-app: [`assets/voice/fraser/`](../assets/voice/fraser/) |
 
@@ -136,10 +136,13 @@ It's free, so "business" means **getting players and keeping costs at zero.**
 
 ## Still open
 
-1. **Make the repo public?** Without that, the download links only work for you.
-2. **itch.io page too?** Free, and it helps people find it.
-3. **Which steering wheel** do you have, if any?
-4. **Name:** SHOTGUN RALLY, or one of the others?
+1. **Making the repo public: careful.** This repo also holds BAGHOLDERS, and BAGHOLDERS has
+   8 commercial songs in `assets/music/` (Rick Ross, Moneybagg Yo, Martin Solveig & GTA...) plus the
+   real car models baked into `realcars_kit.glb`. Making the repo public would publish those files and
+   their whole history. **Better:** give SHOTGUN RALLY its own public repo (this branch has none of
+   that) and keep this one private.
+2. **itch.io:** make the page and add the two GitHub settings in [`ITCH.md`](ITCH.md).
+3. **Phase 2 next:** the quick-call wheel for the human co-driver, call timing in the menu, more lines.
 
 ## Sources
 
