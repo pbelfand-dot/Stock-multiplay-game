@@ -1,11 +1,12 @@
 extends Control
 ## The home screen. Behind it, the game itself (MenuBackdrop: your car flat out
 ## on a stage, filmed like rally TV). Over it: the title, your credits, and
-## four ways in:
+## five ways in:
 ##   PLAY NOW   a random stage, straight in (the AI co-driver calls)
 ##   MAPS       story mode: the championship (MapsPanel)
 ##   CARS       the garage: buy, paint, upgrade (GaragePanel)
 ##   ONLINE     your name, host a crew (pick your seat) or join one by IP
+##   SETTINGS   controls, sound, the co-driver's timing, driving aids (SettingsPanel)
 ## ESC (or BACK) goes back to the home buttons. The build and updates are top
 ## right (see Updater).
 
@@ -18,6 +19,7 @@ const UI = preload("res://scripts/ui/ui_kit.gd")
 const Backdrop = preload("res://scripts/ui/menu_backdrop.gd")
 const GaragePanel = preload("res://scripts/ui/garage_panel.gd")
 const MapsPanel = preload("res://scripts/ui/maps_panel.gd")
+const SettingsPanel = preload("res://scripts/ui/settings_panel.gd")
 const Profile = preload("res://scripts/game/profile.gd")
 
 var start_panel := ""               # open on this panel ("maps" after a rally)
@@ -75,6 +77,7 @@ func _ready() -> void:
 	_home.add_child(UI.menu_item("MAPS", "The Shotgun Series: six rallies, rival crews, prize money.", _show.bind("maps")))
 	_home.add_child(UI.menu_item("CARS", "The garage: buy cars, paint them, upgrade them.", _show.bind("cars")))
 	_home.add_child(UI.menu_item("ONLINE", "Ride with a friend: one drives, one reads the map.", _show.bind("online")))
+	_home.add_child(UI.menu_item("SETTINGS", "Controls, sound, the co-driver's timing, driving aids.", _show.bind("settings")))
 	var quit := UI.button("QUIT", func(): get_tree().quit(), 20, 140)
 	quit.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	_home.add_child(UI.gap(6))
@@ -180,6 +183,8 @@ func _show(which: String) -> void:
 			backdrop.set_showroom(true)
 		"online":
 			_open = _online_panel()
+		"settings":
+			_open = SettingsPanel.new()
 	_area.add_child(_open)
 	if _open.has_signal("back"):
 		_open.connect("back", _back)

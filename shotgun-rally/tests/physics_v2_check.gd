@@ -68,6 +68,26 @@ extends SceneTree
 ##   * a stiffer front bar makes the car push more at the limit; a stiffer rear
 ##     bar lets the tail work
 ##   * over sharp bumps the two-stage dampers kick the body less than plain ones
+## (phases 1-7 run with the aero off, so their numbers stay about what they test)
+## Phase 8, aero:
+##   * coasting from 150 km/h: drag (and the downforce's extra rolling
+##     resistance) slow it as predicted
+##   * downforce: practically nothing at 30 km/h, ~600 N at 150, 45 % on the front
+## Phase 8, the driver aids (each its own switch; all off for every other run):
+##   * all of them on, inside the grip (a steady corner, gentle braking): the
+##     same car as with them off
+##   * ABS: full brakes from 100 km/h stop shorter than locked, no wheel locking;
+##     braking and steering, the car turns (locked, it slides straight on)
+##   * traction control: flat out off the line on gravel the tyres don't go up
+##     in smoke and it's no slower to 100; on ice it pulls away quicker
+##   * stability control: a snow flick, the tail swings out less
+##   * speed-sensitive steering: full lock at 90 km/h, the fronts work near their
+##     peak instead of ploughing at 20+ degrees, and it corners at least as hard
+##   * smoothing eases a key press in; damping slows the wheel at speed
+##   * countersteer help: a slide let go of (hands off), it catches the car
+##   * the Settings panel has a switch for each aid; switched on there, a new car
+##     comes with it on (through Config)
+##   * telemetry recording: a second of driving makes a CSV with a row a tick
 ## Run: godot --headless --fixed-fps 120 --path . -s tests/physics_v2_check.gd
 ## Prints [physics] lines; exits 1 on any FAIL.
 
@@ -75,6 +95,10 @@ const Lab = preload("res://scripts/physics_lab.gd")
 const Suspension = preload("res://scripts/vehicle/physics/suspension.gd")
 const TireModel = preload("res://scripts/vehicle/physics/tire_model.gd")
 const Surfaces = preload("res://scripts/vehicle/physics/surfaces.gd")
+const Aero = preload("res://scripts/vehicle/physics/aero.gd")
+const AssistConfig = preload("res://scripts/vehicle/physics/config/assist_config.gd")
+const AIDS := ["anti_lock", "traction_control", "stability_control", "steering_smoothing", "steering_damping",
+	"countersteer_help", "speed_sensitive_steering"]
 
 var car: RigidBody3D
 var fails := 0
@@ -93,6 +117,9 @@ const PULL_TO := 40.0 / 3.6        # m/s: the pull-away runs' target, the brakin
 var _surf := {}                    # kind -> {surface: result}
 var _p7 := {}                      # this phase 7 run's counts
 var _p7r := {}                     # phase 7 results kept for the next run's comparison
+var _cfg_full: Resource            # the car's config ...
+var _cfg_no_aero: Resource         # ... and a copy with no aero (phases 1-7)
+var _p8 := {}                      # results the aid runs compare with
 var _ice := {}
 var _shifts: Array = []            # [t, from gear, to gear, rpm before, rpm after]
 var _last_gear := 1
@@ -116,7 +143,13 @@ func _initialize() -> void:
 	_phases.append("split braking")
 	_phases.append_array(["turn no handbrake", "handbrake turn", "handbrake and throttle",
 		"handbrake and throttle without the rear clutch", "roll with bars", "roll without bars",
-		"balance stiff front bar", "balance stiff rear bar", "sharp bumps two stage", "sharp bumps linear"])
+		"balance stiff front bar", "balance stiff rear bar", "sharp bumps two stage", "sharp bumps linear",
+		"aero coast", "aero downforce 30", "aero downforce 150",
+		"all aids corner", "all aids braking", "abs stop", "brake and steer", "brake and steer with abs",
+		"launch with tc", "ice pull away with tc", "snow flick", "snow flick with esc",
+		"full lock at 90", "full lock at 90 speed sensitive", "steering step", "steering step smoothing",
+		"steering at 108", "steering at 108 damping", "slide hands off", "slide countersteer help",
+		"settings panel", "telemetry record"])
 	var course := Node3D.new()
 	root.add_child(course)
 	Lab.build_course(course)
@@ -140,7 +173,15 @@ func _next() -> void:
 		car.wheels[k].cfg = car.config.front_suspension if k < 2 else car.config.rear_suspension
 	car.inp.handbrake = 0.0
 	_p7 = {"n": 0, "locked": 0, "rolling": 0}
+	if _cfg_full == null:
+		_cfg_full = car.config
+		_cfg_no_aero = car.config.duplicate()        # (shallow: the same suspensions, tyres, engine)
+		_cfg_no_aero.drag_coefficient = 0.0
+		_cfg_no_aero.downforce_area = 0.0
 	_phase += 1
+	if _phase < _phases.size():
+		car.config = _cfg_full if _phases[_phase].begins_with("aero") else _cfg_no_aero
+		_aids(_phases[_phase])
 	_t = 0.0
 	_log.clear()
 	if _phase >= _phases.size():
@@ -221,6 +262,55 @@ func _next() -> void:
 				_suspensions(func(f, _r): f.anti_roll_rate *= 3.0)
 			else:
 				_suspensions(func(_f, r): r.anti_roll_rate *= 3.0)
+		"all aids corner":
+			Lab.launch(car, Lab.SKID, 15.0)
+			car.inp.steer = 4.0 / car.config.steering.max_angle_deg
+		"all aids braking":
+			car.inp.steer = 0.0
+			Lab.launch(car, Lab.SKID, 25.0)
+		"abs stop":
+			car.inp.steer = 0.0
+			Lab.launch(car, Lab.SKID, 100.0 / 3.6)
+		"brake and steer", "brake and steer with abs":
+			car.inp.steer = 0.0
+			Lab.launch(car, Lab.SKID, 80.0 / 3.6)
+		"launch with tc":
+			car.inp.steer = 0.0
+			car.place(Lab.SKID, 0.0)
+		"ice pull away with tc":
+			car.inp.steer = 0.0
+			car.place(Lab.surface_start("ice"), 0.0)
+		"snow flick", "snow flick with esc":
+			car.inp.steer = 0.0
+			Lab.launch(car, Lab.surface_start("snow"), 20.0)
+		"full lock at 90", "full lock at 90 speed sensitive":
+			car.inp.steer = 0.0
+			Lab.launch(car, Lab.SKID, 25.0)
+		"steering step", "steering step smoothing":
+			car.inp.steer = 0.0
+			Lab.launch(car, Lab.SKID, 10.0)
+		"steering at 108", "steering at 108 damping":
+			car.inp.steer = 0.0
+			Lab.launch(car, Lab.SKID, 30.0)
+		"slide hands off", "slide countersteer help":
+			car.inp.steer = 0.0
+			Lab.launch(car, Lab.SKID, 18.0)
+			car.drivetrain.gear = 2
+			car.drivetrain.omega_e = car.wheels[0].omega * car.drivetrain.ratio()
+		"settings panel":
+			car.place(Lab.PAD, 0.0)
+			_p8["panel"] = (load("res://scripts/ui/settings_panel.gd") as GDScript).new()
+			root.add_child(_p8.panel)
+		"telemetry record":
+			car.inp.steer = 0.0
+			Lab.launch(car, Lab.SKID, 15.0)
+			car.telemetry.start_recording()
+		"aero coast":
+			car.inp.steer = 0.0
+			Lab.launch(car, Lab.SKID, 150.0 / 3.6)
+		"aero downforce 30", "aero downforce 150":
+			car.inp.steer = 0.0
+			Lab.launch(car, Lab.SKID, float(_phases[_phase].split(" ")[2]) / 3.6)
 		"sharp bumps two stage", "sharp bumps linear":
 			car.inp.steer = 0.0
 			Lab.launch(car, Vector3(0.0, 0.0, Lab.BUMPS_Z + 10.0), 15.0)
@@ -243,7 +333,8 @@ func _next() -> void:
 				Lab.launch(car, Lab.surface_start(on[1]), 20.0)
 	_v0 = car.global_position
 	if car.drivetrain and not (_phases[_phase] in ENGINE_RUNS or _phases[_phase].begins_with("pull away")
-			or _phases[_phase].begins_with("handbrake and throttle")):
+			or _phases[_phase].begins_with("handbrake and throttle") or _phases[_phase].begins_with("slide ")
+			or _phases[_phase] in ["launch with tc", "ice pull away with tc"]):
 		car.drivetrain.gear = 0                      # the tyres and brakes alone
 	_inputs(_phases[_phase])
 
@@ -269,6 +360,23 @@ func _inputs(name: String) -> void:
 	elif name.begins_with("handbrake and throttle"):
 		car.inp.throttle = 1.0
 		car.inp.handbrake = 1.0
+	elif name == "all aids braking":
+		car.inp.brake = 0.3
+	elif name == "abs stop":
+		car.inp.brake = 1.0
+	elif name.begins_with("brake and steer"):
+		car.inp.brake = 1.0
+		car.inp.steer = 0.5
+	elif name in ["launch with tc", "ice pull away with tc"]:
+		car.inp.throttle = 1.0
+	elif name.begins_with("snow flick"):
+		car.inp.steer = 0.5 if _t < 0.6 else (-0.6 if _t < 1.4 else 0.0)
+	elif name.begins_with("full lock at 90") or name.begins_with("steering step") or name.begins_with("steering at 108"):
+		car.inp.steer = 1.0
+	elif name.begins_with("slide "):
+		car.inp.steer = clampf(_t / 0.25, 0.0, 1.0) * 0.6 if _t < 0.8 else 0.0
+		car.inp.handbrake = 1.0 if _t < 0.8 else 0.0
+		car.inp.throttle = 0.0 if _t < 0.8 else 0.5     # let go of the wheel, power on
 	if name == "brake in turn":
 		car.inp.brake = 0.4 if _t >= 4.0 else 0.0
 
@@ -286,8 +394,18 @@ func _physics_process(dt: float) -> bool:
 	elif name == "straight":
 		Lab.tow(car, 20.0)
 	_inputs(name)
-	if name.begins_with("roll ") or name.begins_with("balance "):
+	if name.begins_with("roll ") or name.begins_with("balance ") or name == "all aids corner":
 		Lab.tow(car, 15.0)
+	elif name.begins_with("full lock at 90"):
+		Lab.tow(car, 25.0)
+	elif name.begins_with("aero downforce"):
+		Lab.tow(car, float(name.split(" ")[2]) / 3.6)
+		if _t > 1.0:                                 # settled: the tyres' loads, front and rear
+			var lf: float = car.wheels[0].load + car.wheels[1].load
+			var lr: float = car.wheels[2].load + car.wheels[3].load
+			_p7.n += 1
+			_p7.front = _p7.get("front", 0.0) + lf
+			_p7.rear = _p7.get("rear", 0.0) + lr
 	var rears_locked: bool = absf(car.wheels[2].omega) < 0.5 and absf(car.wheels[3].omega) < 0.5
 	if (name == "handbrake turn" and _t > 0.3 and _t < 0.75) or (name.begins_with("handbrake and throttle") and _t > 0.3):
 		_p7.n += 1
@@ -316,7 +434,8 @@ func _physics_process(dt: float) -> bool:
 		car.linear_velocity.dot(fwd), _max_slip(), _all_locked(), car.accel, car.linear_velocity,  # 13-17
 		(car.wheel_angles[0] + car.wheel_angles[1]) * 0.5,                                          # 18
 		car.drivetrain.rpm() if car.drivetrain else 0.0,                                            # 19
-		car.drivetrain.clutch_torque if car.drivetrain else 0.0])                                   # 20
+		car.drivetrain.clutch_torque if car.drivetrain else 0.0,                                    # 20
+		_any_locked()])                                                                              # 21
 	var length := {"static": 3.0, "bounce": 5.5, "drop": 4.5, "bumps": 4.0, "left bumps": 4.0,
 		"skid 2": 5.0, "skid 4": 5.0, "skid 8": 5.0, "skid 15": 5.0, "side slope": 5.0, "straight": 3.0,
 		"drive gently": 3.0, "wheelspin": 2.0, "brake gently": 2.0, "brake locked": 6.0, "coast": 3.0,
@@ -353,10 +472,19 @@ func _physics_process(dt: float) -> bool:
 		return false
 	if name == "split braking":
 		length[name] = 0.75
+	if (name == "abs stop" and (car.speed < 0.3 and _t > 0.5 or _t > 8.0)) or (name == "ice pull away with tc" and (car.speed >= PULL_TO or _t > 16.0)):
+		length[name] = _t                            # (these end when stopped / at 40 km/h)
+	elif name in ["abs stop", "ice pull away with tc"]:
+		length[name] = INF
 	for run in [["turn no handbrake", 2.0], ["handbrake turn", 2.0], ["handbrake and throttle", 1.5],
 			["handbrake and throttle without the rear clutch", 1.5], ["roll with bars", 4.0], ["roll without bars", 4.0],
 			["balance stiff front bar", 5.0], ["balance stiff rear bar", 5.0], ["sharp bumps two stage", 3.0],
-			["sharp bumps linear", 3.0]]:
+			["sharp bumps linear", 3.0], ["aero coast", 2.5], ["aero downforce 30", 2.5], ["aero downforce 150", 2.5],
+			["all aids corner", 5.0], ["all aids braking", 2.0], ["brake and steer", 2.0], ["brake and steer with abs", 2.0],
+			["launch with tc", 9.0], ["snow flick", 3.0], ["snow flick with esc", 3.0], ["full lock at 90", 3.0],
+			["full lock at 90 speed sensitive", 3.0], ["steering step", 1.0], ["steering step smoothing", 1.0],
+			["steering at 108", 1.0], ["steering at 108 damping", 1.0], ["slide hands off", 3.0], ["slide countersteer help", 3.0],
+			["settings panel", 0.2], ["telemetry record", 1.0]]:
 		length[run[0]] = run[1]
 	if name.begins_with("skid") and _t >= length[name]:
 		_judge_skid(int(name.split(" ")[1]))
@@ -542,6 +670,16 @@ func _max_slip() -> float:
 	return m
 
 
+## Any wheel locked while the car's moving.
+func _any_locked() -> bool:
+	if absf(car.speed) < 2.0:
+		return false
+	for w in car.wheels:
+		if absf(w.omega) < 1.0:
+			return true
+	return false
+
+
 func _all_locked() -> bool:
 	for w in car.wheels:
 		if absf(w.omega) > 0.01:
@@ -595,6 +733,7 @@ func _judge_brake_gently() -> void:
 	var slip := 0.0
 	for e in _log:
 		slip = maxf(slip, absf(e[14]))
+	_p8["brake gently"] = got
 	fails += _check(absf(got - want) < absf(want) * 0.07 and slip < 0.1,
 		"brakes at 30 %%: %.2f m/s² (the brakes' torque / mass with the wheels: %.2f), no locking (slip %.1f %% at most)" % [got, want, slip * 100.0])
 
@@ -616,6 +755,7 @@ func _judge_brake_locked() -> void:
 	var mu_g: float = car.config.front_tire.longitudinal_mu * 9.8
 	# (each wheel locks once its brake has beaten its grip and stopped its spin: the
 	# rears, whose brakes only just beat their grip, take a moment longer)
+	_p8["locked stop"] = dist
 	fails += _check(stop_t > 0.0 and locked > moving * 0.75,
 		"full brakes from 100 km/h: all four wheels lock (for %d %% of the stop) and it stops, %.1f m in %.1f s" % [100 * locked / maxi(moving, 1), dist, stop_t])
 	var kept := -TireModel.longitudinal_curve(car.config.front_tire, -1.0)   # a locked tyre's share of its grip
@@ -760,6 +900,7 @@ func _judge_launch() -> void:
 		if hooked < 0.0 and e[13] >= 50.0 / 3.6:
 			hooked = e[14]                           # the slip as it passes 50 km/h
 	var e_cfg: Resource = car.config.engine
+	_p8["launch"] = {"t100": t100, "spin": _rolling_spin()}
 	fails += _check(t100 > 3.5 and t100 < 7.0, "full throttle from a standstill: 0-100 km/h in %.2f s (a Rally2 car on gravel: ~4-5 s)" % t100)
 	fails += _check(spin > 0.08 and hooked >= 0.0 and hooked < 0.4,
 		"pulling away flat out: the tyres spin (slip ratio up to %.0f %% at walking pace) and hook up as it gathers speed (%.0f %% by 50 km/h); a driver feathers the throttle, traction control (phase 8) will" % [
@@ -1027,6 +1168,274 @@ func _judge_sharp_bumps_linear() -> void:
 	var lin := _peak_jolt()
 	fails += _check(two < 0.9 * lin,
 		"over sharp bumps at 15 m/s the two-stage dampers let the wheels move: the body's hardest jolt %.1f m/s² (plain dampers: %.1f)" % [two, lin])
+
+
+func _judge_aero_coast() -> void:
+	# the mean deceleration and the mean of v² over 0.5-2.0 s
+	var v2 := 0.0
+	var n := 0
+	for e in _log:
+		if e[0] >= 0.5 and e[0] <= 2.0:
+			v2 += e[13] * e[13]
+			n += 1
+	v2 /= n
+	var cfg = car.config
+	var rr: float = cfg.front_tire.rolling_resistance
+	var q := 0.5 * Aero.AIR_DENSITY * v2
+	var want: float = (q * cfg.drag_coefficient * cfg.frontal_area + rr * (car.mass * 9.8 + q * cfg.downforce_area)) / _m_eff()
+	var got := -_accel(0.5, 2.0)
+	fails += _check(absf(got / want - 1.0) < 0.05,
+		"coasting from 150 km/h: %.2f m/s² (drag %.2f + rolling resistance with the downforce %.2f: %.2f); at 20 m/s the drag alone would be %.2f" % [
+			got, q * cfg.drag_coefficient * cfg.frontal_area / _m_eff(), rr * (car.mass * 9.8 + q * cfg.downforce_area) / _m_eff(), want,
+			0.5 * Aero.AIR_DENSITY * 400.0 * cfg.drag_coefficient * cfg.frontal_area / _m_eff()])
+
+
+## The measured downforce on the front and rear axles (N): the tyres' loads less the
+## car's weight on each (from the static run's split).
+func _downforce_measured() -> Vector2:
+	var loads: Array = car.config.static_loads(9.8)
+	var w := Vector2(loads[0] * 2.0, loads[1] * 2.0)
+	return Vector2(_p7.front / _p7.n, _p7.rear / _p7.n) - w
+
+
+func _judge_aero_downforce_30() -> void:
+	var d := _downforce_measured()
+	var want: Vector2 = Aero.downforce(car.config, 30.0 / 3.6)
+	_p7r["df30"] = d.x + d.y
+	fails += _check(absf(d.x + d.y) < 80.0,
+		"at 30 km/h the downforce is practically nothing: %+.0f N measured (%.0f N predicted, the car weighs %.0f)" % [d.x + d.y, want.x + want.y, car.mass * 9.8])
+
+
+func _judge_aero_downforce_150() -> void:
+	var d := _downforce_measured()
+	var cfg = car.config
+	var want: Vector2 = Aero.downforce(cfg, 150.0 / 3.6)
+	var total := d.x + d.y
+	# the tow pulls at the centre of mass against the tyres' rolling resistance at the
+	# ground: that couple moves some load onto the front, which isn't downforce
+	var couple: float = cfg.front_tire.rolling_resistance * (car.mass * 9.8 + total) * (car.ride_height() + cfg.center_of_mass.y) / (cfg.rear_axle - cfg.front_axle)
+	var front := (d.x - couple) / total
+	fails += _check(absf(total / (want.x + want.y) - 1.0) < 0.12 and absf(front - cfg.aero_balance) < 0.05,
+		"at 150 km/h: %.0f N (%.0f kg) of downforce measured on the tyres (%.0f predicted), %.0f %% of it on the front (%.0f %%; less the %.0f N the tow's pull moves forward)" % [
+			total, total / 9.8, want.x + want.y, front * 100.0, cfg.aero_balance * 100.0, couple])
+
+
+## This run's driver aids: the ones its name asks for, all of them for "aids on",
+## none otherwise (the base physics).
+func _aids(name: String) -> void:
+	var a: Resource = AssistConfig.new()
+	if name.begins_with("all aids "):
+		for k in AIDS:
+			a.set(k, true)
+	if name == "abs stop" or name.ends_with("with abs"):
+		a.anti_lock = true
+	if name.ends_with("with tc"):
+		a.traction_control = true
+	if name.ends_with("with esc"):
+		a.stability_control = true
+	if name.ends_with("speed sensitive"):
+		a.speed_sensitive_steering = true
+	if name.ends_with("smoothing"):
+		a.steering_smoothing = true
+	if name.ends_with("damping"):
+		a.steering_damping = true
+	if name.ends_with("countersteer help"):
+		a.countersteer_help = true
+	car.assists = a
+	car.assist.setup(a)
+
+
+## The biggest slip ratio once it's rolling (over 3 m/s).
+func _rolling_spin() -> float:
+	var m := 0.0
+	for e in _log:
+		if e[13] > 3.0:
+			m = maxf(m, e[14])
+	return m
+
+
+## When the front wheels first reach this angle (s; INF: never).
+func _time_to_angle(deg: float) -> float:
+	for e in _log:
+		if absf(e[18]) >= deg_to_rad(deg):
+			return e[0]
+	return INF
+
+
+func _judge_all_aids_corner() -> void:
+	var b := _balance()
+	var base: Dictionary = _skid[4]
+	fails += _check(absf(b.a / base.a - 1.0) < 0.015 and absf(b.front - base.front) < 0.05 and absf(b.rear - base.rear) < 0.05,
+		"all seven aids on, a steady corner inside the grip: %.2f m/s², slip front %.2f / rear %.2f deg (all off: %.2f, %.2f / %.2f): the same car" % [
+			b.a, b.front, b.rear, base.a, base.front, base.rear])
+
+
+func _judge_all_aids_braking() -> void:
+	var got := _accel(0.3, 2.0)
+	var base: float = _p8["brake gently"]
+	fails += _check(absf(got / base - 1.0) < 0.01,
+		"all seven aids on, braking at 30 %%: %.3f m/s² (all off: %.3f): the same car" % [got, base])
+
+
+func _judge_abs_stop() -> void:
+	var moving := 0
+	var locked := 0
+	for e in _log:
+		if e[13] > 3.0:
+			moving += 1
+			locked += 1 if e[21] else 0
+	var dist := (car.global_position - _v0).length()
+	var base: float = _p8["locked stop"]
+	fails += _check(dist < base and locked < moving * 0.05,
+		"ABS, full brakes from 100 km/h: %.1f m (locked: %.1f m), a wheel locked %.0f %% of the time" % [dist, base, 100.0 * locked / maxi(moving, 1)])
+
+
+func _judge_brake_and_steer() -> void:
+	_p8["brake steer"] = _turned()
+
+
+func _judge_brake_and_steer_with_abs() -> void:
+	var yaw := _turned()
+	var base: float = _p8["brake steer"]
+	fails += _check(yaw > 2.0 * base + 5.0,
+		"full brakes from 80 km/h with the wheel at 15 degrees: with ABS it turns %.0f deg in 2 s; locked it slides on, %.0f deg" % [yaw, base])
+
+
+func _judge_launch_with_tc() -> void:
+	var t100 := INF
+	for e in _log:
+		if e[13] >= 100.0 / 3.6:
+			t100 = e[0]
+			break
+	var spin := _rolling_spin()
+	var base: Dictionary = _p8.launch
+	fails += _check(spin < 0.5 and spin < 0.5 * base.spin and t100 < base.t100 * 1.05,
+		"traction control, flat out off the line: the tyres spin up to %.0f %% once rolling (without it: %.0f %%), 0-100 km/h in %.2f s (without: %.2f)" % [
+			spin * 100.0, base.spin * 100.0, t100, base.t100])
+
+
+func _judge_ice_pull_away_with_tc() -> void:
+	var base: float = _surf["pull away"].ice
+	fails += _check(car.speed >= PULL_TO and _t < base,
+		"traction control on ice: 0-40 km/h in %.1f s (without it: %.1f)" % [_t, base])
+
+
+func _judge_snow_flick() -> void:
+	_p8["flick"] = {"rear": _peak(10, 0.3), "yaw": _turned()}
+
+
+func _judge_snow_flick_with_esc() -> void:
+	var rear := _peak(10, 0.3)
+	var base: Dictionary = _p8.flick
+	fails += _check(rear < 0.8 * base.rear,
+		"stability control, a snow flick at 72 km/h: the tail out to %.0f deg of slip (without it: %.0f)" % [rear, base.rear])
+
+
+func _judge_full_lock_at_90() -> void:
+	_p8["lock"] = _balance()
+
+
+func _judge_full_lock_at_90_speed_sensitive() -> void:
+	var b := _balance()
+	var base: Dictionary = _p8.lock
+	fails += _check(b.front < 12.0 and base.front > 15.0 and b.a > 0.97 * base.a,
+		"full lock at 90 km/h: with speed-sensitive steering the fronts work at %.1f deg of slip (without: %.1f, ploughing), cornering %.2f m/s² (without: %.2f)" % [
+			b.front, base.front, b.a, base.a])
+
+
+func _judge_steering_step() -> void:
+	_p8["step"] = {"t": _time_to_angle(25.0), "end": absf(_log[_log.size() - 1][18])}
+
+
+func _judge_steering_step_smoothing() -> void:
+	var t := _time_to_angle(25.0)
+	var end := absf(_log[_log.size() - 1][18])
+	var base: Dictionary = _p8.step
+	fails += _check(t > 1.8 * base.t and absf(end - base.end) < 0.01,
+		"steering smoothing: a key press turns the wheels to 25 deg in %.2f s (without: %.2f), to the same lock (%.1f deg)" % [t, base.t, rad_to_deg(end)])
+
+
+func _judge_steering_at_108() -> void:
+	_p8["108"] = _time_to_angle(10.0)
+
+
+func _judge_steering_at_108_damping() -> void:
+	var t := _time_to_angle(10.0)
+	var base: float = _p8["108"]
+	fails += _check(t > 2.0 * base,
+		"steering damping: at 108 km/h the wheels take %.2f s to turn 10 deg (without: %.2f)" % [t, base])
+
+
+## The yaw rate at the end of the run (deg/s, its size).
+func _end_yaw_rate() -> float:
+	return absf(_log[_log.size() - 1][8])
+
+
+## How far it turned after the driver let go (deg, from 0.8 s), and how fast it
+## was still rotating at the end (deg/s).
+func _after_letting_go() -> Vector2:
+	var yaw := 0.0
+	for e in _log:
+		if e[0] > 0.8:
+			yaw += e[8] / 120.0
+	return Vector2(absf(yaw), _end_yaw_rate())
+
+
+func _judge_slide_hands_off() -> void:
+	_p8["slide"] = _after_letting_go()
+	print("[physics]      a handbrake slide let go of at 65 km/h, power on, hands off: %.0f deg more in 2.2 s, %.0f deg/s at the end, rear slip %.0f deg at the end" % [
+		_p8.slide.x, _p8.slide.y, absf(_log[_log.size() - 1][10])])
+
+
+func _judge_slide_countersteer_help() -> void:
+	var r := _after_letting_go()
+	var base: Vector2 = _p8.slide
+	fails += _check(r.x < base.x - 10.0 and r.y < 0.5 * maxf(base.y, 10.0),
+		"countersteer help: a handbrake slide let go of (power on, hands off) turns %.0f deg more and ends rotating at %.0f deg/s (rear slip %.0f deg); without it %.0f deg, %.0f deg/s" % [
+			r.x, r.y, absf(_log[_log.size() - 1][10]), base.x, base.y])
+
+
+## Every Button under a node.
+func _buttons(n: Node) -> Array:
+	var out := []
+	for c in n.get_children():
+		if c is Button:
+			out.append(c)
+		out.append_array(_buttons(c))
+	return out
+
+
+func _judge_settings_panel() -> void:
+	var panel: Node = _p8.panel
+	var config := root.get_node_or_null("Config")
+	var toggles := _buttons(panel).filter(func(b): return b.toggle_mode)
+	var ok: bool = config != null and toggles.size() == AIDS.size() + 1      # (+ invert mouse Y)
+	var abs_on := false
+	if ok:
+		var saved: Dictionary = config.aids.duplicate()
+		var was_invert: bool = config.invert_y
+		toggles[1].button_pressed = true                 # the first aid: ABS (after invert Y)
+		var other: RigidBody3D = (load(Lab.CAR_SCENE) as PackedScene).instantiate()
+		root.add_child(other)
+		abs_on = config.aids.anti_lock and other.assists.anti_lock
+		other.queue_free()
+		config.aids = saved                              # (put the settings back)
+		config.invert_y = was_invert
+		config.save()
+	panel.queue_free()
+	fails += _check(ok and abs_on,
+		"the Settings panel: %d switches (the %d aids and invert mouse Y); ABS switched on there, a new car comes with ABS on" % [toggles.size(), AIDS.size()])
+
+
+func _judge_telemetry_record() -> void:
+	var path: String = car.telemetry.stop_recording()
+	var text := FileAccess.get_file_as_string(path)
+	var lines := text.strip_edges().split("\n")
+	var header := lines[0].split(",")
+	var row := lines[lines.size() - 1].split(",")
+	fails += _check(lines.size() > 110 and lines.size() < 130 and header.size() == row.size() and "fl_surface" in header,
+		"telemetry recording: a second of driving, %d rows of %d columns in %s" % [lines.size() - 1, header.size(), path])
+	DirAccess.remove_absolute(path)
 
 
 func _judge_split_braking() -> void:

@@ -16,6 +16,12 @@ extends RigidBody3D
 ## (drivetrain.gd), solved with the wheels SUBSTEPS times a tick. Throttle and
 ## brake are the pedals; stopped, holding the brake selects reverse (as the
 ## current car does) and then the brake drives it backwards.
+## Phase 6: surfaces, each wheel on its own (surfaces.gd).
+## Phase 7: the handbrake (and the rear axle's clutch it works), anti-roll
+## bars, two-stage dampers.
+## Phase 8: aero (drag, downforce at each axle: aero.gd); the driver aids
+## (driver_assist.gd, an AssistConfig: each its own switch, all off by default;
+## the game's Settings switch them, through Config).
 ## Runs at 120 physics ticks a second (the scene that uses it sets that).
 ##
 ## The scene (scenes/rally_car_v2.tscn): RallyCarV2 (this) > CollisionShape3D x2,
@@ -29,6 +35,9 @@ signal landed(impact: float)       # came down onto its wheels (m/s downward)
 const RallyWheel = preload("res://scripts/vehicle/physics/rally_wheel.gd")
 const Drivetrain = preload("res://scripts/vehicle/physics/drivetrain.gd")
 const Telemetry = preload("res://scripts/vehicle/physics/rally_telemetry.gd")
+const Aero = preload("res://scripts/vehicle/physics/aero.gd")
+const DriverAssist = preload("res://scripts/vehicle/physics/driver_assist.gd")
+const AssistConfig = preload("res://scripts/vehicle/physics/config/assist_config.gd")
 const DEFAULT_CONFIG := "res://data/cars/awd_rally.tres"
 const TICKS := 120                 # physics ticks per second (see the plan: the wheels are stiff)
 const NAMES := ["FL", "FR", "RL", "RR"]
@@ -38,6 +47,8 @@ const SUBSTEPS := 8                # tyre / wheel-spin / drivetrain steps per ti
 @export var config: Resource
 ## Show the telemetry HUD from the start (F3 toggles it).
 @export var show_telemetry := false
+## The driver aids (an AssistConfig; none: all off, unless the game's Settings say otherwise).
+@export var assists: Resource
 
 # the same names as the current car, so the game, cockpit, FX and tests can use either
 var inp := {"steer": 0.0, "throttle": 0.0, "brake": 0.0, "handbrake": false}
@@ -54,6 +65,9 @@ var on_surface := "gravel"
 var wheels: Array = []             # RallyWheel: FL, FR, RL, RR
 var telemetry: CanvasLayer
 var drivetrain                     # Drivetrain (null: no engine in the config, the wheels roll free)
+var assist                        # DriverAssist
+var aero_drag := 0.0               # N, last tick
+var aero_down := Vector2.ZERO      # N on the front / rear axle, last tick
 
 var _air := 0.0
 var _rack := 0.0                   # the steering rack: the "bicycle" front-wheel angle (rad, + = right)
@@ -64,6 +78,15 @@ var _reverse_t := 0.0
 func _ready() -> void:
 	if config == null:
 		config = load(DEFAULT_CONFIG)
+	if assists == null:
+		assists = AssistConfig.new()                 # all off: the base physics ...
+		var settings := get_node_or_null("/root/Config")
+		if settings and "aids" in settings:          # ... unless the game's Settings switch some on
+			for key in settings.aids:
+				if key in assists:
+					assists.set(key, bool(settings.aids[key]))
+	assist = DriverAssist.new()
+	assist.setup(assists)
 	mass = config.mass
 	center_of_mass_mode = RigidBody3D.CENTER_OF_MASS_MODE_CUSTOM
 	center_of_mass = config.center_of_mass
@@ -138,6 +161,7 @@ func place(pos: Vector3, yaw: float) -> void:
 		w.omega = 0.0
 	if drivetrain:
 		drivetrain.reset()
+	assist.reset()
 	reset_physics_interpolation()
 
 
@@ -179,7 +203,9 @@ func _physics_process(dt: float) -> void:
 	_prev_v = linear_velocity
 	_steer(dt)
 	var pedals := _pedals(dt)
-	_brakes(pedals.y)
+	var foot := pedals.x
+	pedals.x = assist.throttle(self, dt, pedals.x)
+	_brakes(dt, pedals.y)
 	var was := grounded
 	grounded = 0
 	for w in wheels:
@@ -193,7 +219,7 @@ func _physics_process(dt: float) -> void:
 			grounded += 1
 			on_surface = w.surface.display_name
 	if drivetrain:
-		drivetrain.control(dt, pedals.x, wheels)
+		drivetrain.control(dt, pedals.x, wheels, foot)
 	var h := dt / SUBSTEPS
 	for i in SUBSTEPS:
 		for w in wheels:
@@ -206,6 +232,7 @@ func _physics_process(dt: float) -> void:
 			w.tyre_finalize(h)
 	for w in wheels:
 		w.apply_forces(dt)
+	_aero()
 	if drivetrain:
 		gear = drivetrain.gear
 		var e: Resource = config.engine
@@ -250,14 +277,28 @@ func _free_wheels(h: float) -> void:
 ## The pedal: the brakes' torque, split front / rear by the bias, left / right
 ## evenly; and the hydraulic handbrake on the rears (its lever also lets the rear
 ## axle's drive go, if the drivetrain has that clutch).
-func _brakes(pedal: float) -> void:
+func _brakes(dt: float, pedal: float) -> void:
 	var hb := clampf(float(inp.handbrake), 0.0, 1.0)
 	var front: float = config.brake_torque * config.brake_bias * 0.5 * pedal
-	var rear: float = config.brake_torque * (1.0 - config.brake_bias) * 0.5 * pedal + config.handbrake_torque * 0.5 * hb
+	var rear: float = config.brake_torque * (1.0 - config.brake_bias) * 0.5 * pedal
+	var t: Array = assist.brakes(self, dt, [front, front, rear, rear])   # (ABS, stability control)
 	for k in 4:
-		wheels[k].brake_torque = front if k < 2 else rear
+		wheels[k].brake_torque = t[k] + (config.handbrake_torque * 0.5 * hb if k >= 2 else 0.0)
 	if drivetrain:
 		drivetrain.handbrake = hb
+
+
+## The air: drag against the motion (at the centre of mass), downforce at each axle.
+func _aero() -> void:
+	var drag := Aero.drag(config, linear_velocity)
+	apply_central_force(drag)
+	aero_drag = drag.length()
+	aero_down = Aero.downforce(config, speed)
+	var b := global_transform.basis
+	var down := -b.y
+	var h: float = config.center_of_mass.y
+	apply_force(down * aero_down.x, b * Vector3(0.0, h, config.front_axle))
+	apply_force(down * aero_down.y, b * Vector3(0.0, h, config.rear_axle))
 
 
 ## The anti-roll bars: each axle's bar pushes its more squashed corner up and pulls
@@ -287,8 +328,8 @@ func _steer(dt: float) -> void:
 	if wheels.size() != 4:                           # not set up yet (placed before it's in the tree)
 		return
 	var st: Resource = config.steering
-	var lock := deg_to_rad(st.max_angle_deg)
-	_rack = move_toward(_rack, clampf(float(inp.steer), -1.0, 1.0) * lock, deg_to_rad(st.rack_speed_deg) * dt)
+	var want: Vector2 = assist.steering(self, dt, clampf(float(inp.steer), -1.0, 1.0))   # (input x lock, unless an aid helps)
+	_rack = move_toward(_rack, want.x, deg_to_rad(st.rack_speed_deg) * want.y * dt)
 	steer = _rack
 	var a := absf(_rack)
 	var inner := a

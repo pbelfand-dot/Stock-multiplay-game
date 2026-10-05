@@ -33,6 +33,7 @@ extends RefCounted
 const EngineModel = preload("res://scripts/vehicle/physics/engine.gd")
 const DifferentialConfig = preload("res://scripts/vehicle/physics/config/differential_config.gd")
 const ITERATIONS := 8
+const LAUNCH_GAIN := 0.5           # N m more through the slipping clutch per rpm over the launch revs
 
 var cfg: Resource                  # DrivetrainConfig
 var eng: Resource                  # EngineConfig
@@ -126,8 +127,11 @@ func driveline_speed(wheels: Array) -> float:
 
 
 ## Once a tick, before the substeps: the shift timer, the limiter, the throttle,
-## the boost, the automatic clutch and gear changes.
-func control(dt: float, pedal: float, wheels: Array) -> void:
+## the boost, the automatic clutch and gear changes. pedal: the throttle (after
+## traction control); launch: the driver's own pedal, which sets the revs the
+## clutch slips at pulling away (traction control cutting the throttle mustn't
+## bog the launch); -1: the same as pedal.
+func control(dt: float, pedal: float, wheels: Array, launch := -1.0) -> void:
 	if _shift_t > 0.0:
 		_shift_t -= dt
 		if _shift_t <= 0.0:
@@ -150,18 +154,22 @@ func control(dt: float, pedal: float, wheels: Array) -> void:
 	# slips at the revs the throttle asks for; rolling, it's in
 	_driveline = driveline_speed(wheels)
 	var drive_rpm := absf(_driveline * ratio()) * EngineModel.TO_RPM
+	var foot := launch if launch >= 0.0 else pedal
+	var hold := lerpf(eng.idle_rpm + 300.0, cfg.launch_rpm, foot)   # the revs it pulls away at
 	if shifting() or gear == 0:
 		clutch = 0.0
-	elif drive_rpm >= eng.idle_rpm * 1.1:
-		clutch = 1.0
-	elif pedal < 0.05:
-		clutch = 0.0                                 # stopped, off the throttle: out (it idles, it doesn't creep or stall)
+	elif foot < 0.05:
+		clutch = 1.0 if drive_rpm >= eng.idle_rpm * 1.1 else 0.0   # rolling: in (engine braking); stopped: out (it idles)
+	elif drive_rpm >= hold or (absi(gear) > 1 and drive_rpm >= eng.idle_rpm * 1.1):
+		clutch = 1.0                                 # the car has caught up with the engine (or it's not pulling away)
 	else:
-		# pulling away it slips, holding the revs near a target (higher with more
-		# throttle: launch_rpm flat out), biting harder the more they rise past it.
-		# So however heavy the load, the engine pulls at those revs instead of bogging.
-		var hold := lerpf(eng.idle_rpm + 300.0, cfg.launch_rpm, pedal)
-		clutch = smoothstep(hold - 600.0, hold + 200.0, r)
+		# pulling away (first or reverse) it slips, holding the engine at those revs
+		# until the car catches up: it carries what the engine makes, more if the
+		# revs rise past them, less if they fall. So however heavy the load the
+		# engine pulls at those revs instead of bogging, and when traction control
+		# cuts the throttle the clutch passes on the smaller torque instead of grabbing.
+		var made: float = EngineModel.torque(eng, r, throttle, boost) - EngineModel.friction(eng, r, throttle)
+		clutch = clampf((maxf(made, 0.0) + LAUNCH_GAIN * (r - hold)) / cfg.clutch_torque, 0.0, 1.0)
 	if cfg.auto_shift and not shifting() and gear >= 1:
 		if r > cfg.upshift_rpm and gear < gears():
 			shift_up()

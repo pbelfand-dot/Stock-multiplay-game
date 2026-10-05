@@ -12,6 +12,10 @@ var mouse_sens := 0.0022       # radians per pixel
 var invert_y := false
 var call_early := 0.0          # AI co-driver: -1 (late) .. +1 (early)
 var volume := 0.8
+## The driver aids for the new car physics (physics v2), each its own switch: all
+## off is the base physics. Keys as in AssistConfig.
+var aids := {"anti_lock": false, "traction_control": false, "stability_control": false, "steering_smoothing": false,
+	"steering_damping": false, "countersteer_help": false, "speed_sensitive_steering": false}
 var args := {}                 # --key=value / --flag from the command line
 
 
@@ -25,6 +29,8 @@ func _ready() -> void:
 		invert_y = cf.get_value("controls", "invert_y", invert_y)
 		call_early = cf.get_value("codriver", "call_early", call_early)
 		volume = cf.get_value("audio", "volume", volume)
+		for key in aids:
+			aids[key] = cf.get_value("aids", key, aids[key])
 	for a in OS.get_cmdline_user_args():
 		var kv := a.trim_prefix("--").split("=", true, 1)
 		args[kv[0]] = kv[1] if kv.size() > 1 else "1"
@@ -44,6 +50,8 @@ func save() -> void:
 	cf.set_value("controls", "invert_y", invert_y)
 	cf.set_value("codriver", "call_early", call_early)
 	cf.set_value("audio", "volume", volume)
+	for key in aids:
+		cf.set_value("aids", key, aids[key])
 	cf.save(PATH)
 
 

@@ -42,6 +42,16 @@ extends Resource
 ## pull (N m). Enough to lock them at any speed (it's for turning the car).
 @export_range(0.0, 10000.0, 50.0, "suffix:N m") var handbrake_torque := 3000.0
 
+@export_group("Aero")
+## Drag coefficient (a rally hatchback with its wing and wide arches: ~0.4).
+@export_range(0.1, 1.5, 0.01) var drag_coefficient := 0.4
+## Frontal area (m²).
+@export_range(0.5, 5.0, 0.05, "suffix:m²") var frontal_area := 2.15
+## Downforce: its lift coefficient x area (m²). A Rally2 car's ~60 kg at 150 km/h is ~0.55.
+@export_range(0.0, 5.0, 0.01, "suffix:m²") var downforce_area := 0.55
+## The front axle's share of the downforce (a wing at the back: under half).
+@export_range(0.0, 1.0, 0.01) var aero_balance := 0.45
+
 @export_group("Suspension")
 @export var front_suspension: Resource      ## SuspensionConfig
 @export var rear_suspension: Resource       ## SuspensionConfig

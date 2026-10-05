@@ -84,6 +84,8 @@ light, filmed like rally TV (trackside cameras it flashes past, a chase camera, 
   pace and for a clean run, x1.5 in story mode, plus the rally prizes. Both players in a crew
   earn. There's no real money anywhere.
 - **ONLINE**: your name, host (pick your seat) or join by IP.
+- **SETTINGS**: mouse look, invert Y, volume, the co-driver's call timing, and the driving aids for
+  the new physics (each its own switch).
 
 ## How a stage plays
 
@@ -172,7 +174,7 @@ light, filmed like rally TV (trackside cameras it flashes past, a chase camera, 
 A new car physics is being built next to this one, closer to Dirt Rally / RBR
 ([docs/physics_rebuild.md](docs/physics_rebuild.md)): a RigidBody3D chassis on four ShapeCast tyres
 with real suspension, then tyres, drivetrain, surfaces, aero and driver aids (each its own switch),
-in nine tested phases, at 120 Hz. **Phases 1-7 are done:** the chassis on its springs, dampers
+in nine tested phases, at 120 Hz. **Phases 1-8 are done:** the chassis on its springs, dampers
 and bump stops; the tyres' grip sideways (slip angle) and along (slip ratio), sharing one patch of
 rubber (brake in a corner and it runs wide; trail-brake into one and it rotates), a loaded tyre
 gripping less per newton; each wheel spinning on its own, brakes that lock a wheel only when they
@@ -183,10 +185,14 @@ surfaces, each wheel on its own (asphalt, wet asphalt, gravel, dirt, snow, ice, 
 grip, where it peaks, what a sliding tyre keeps, rolling resistance; 1.14 g on asphalt, 0.90 on
 gravel, 0.41 on snow, 0.13 on ice); a hydraulic handbrake that lets the rear axle's drive go
 (the rears lock, the fronts keep driving), anti-roll bars (2.75 degrees of roll per g) and
-two-stage dampers (firm for the body, soft for sharp hits). Try it in
+two-stage dampers (firm for the body, soft for sharp hits); aero (drag, ~60 kg of downforce at 150
+km/h); seven driver aids, each its own switch in **SETTINGS** (ABS, traction control, stability
+control, steering smoothing, damping, countersteer help, speed-sensitive steering: all off is the
+car as it is, and with them on it's the same car until you reach the limit); telemetry you can
+record to a CSV (F2). Try it in
 the physics lab (`godot --path . scenes/physics_lab.tscn`: arrows steer / throttle / brake, space handbrake,
-E / Q gears, C tow, R reset, J drop, B / N bumps, P / O slope, 1-8 surface pads, 9 split pad, F3
-telemetry, F4 force arrows). The game still uses the car below until v2 drives better.
+E / Q gears, C tow, R reset, J drop, B / N bumps, P / O slope, 1-8 surface pads, 9 split pad, F5-F11
+aids, F2 record, F3 telemetry, F4 force arrows). The game still uses the car below until v2 drives better.
 
 ### How the car drives
 

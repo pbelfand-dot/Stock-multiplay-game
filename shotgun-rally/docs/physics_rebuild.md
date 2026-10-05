@@ -1,10 +1,10 @@
 # Rally physics rebuild: inspection and plan
 
-Status: **phases 1-7 done** (the chassis on its suspension; the tyres' side grip and the
+Status: **phases 1-8 done** (the chassis on its suspension; the tyres' side grip and the
 steering; the wheels' spin, the drive / brake force and the brakes; the combined-slip ellipse and
 load sensitivity; the engine, clutch, sequential gearbox and four-wheel-drive diffs; surfaces; the
-handbrake, anti-roll bars and two-stage dampers; in the lab, see "Phase reports" at the end).
-Decisions:
+handbrake, anti-roll bars and two-stage dampers; aero, the driver aids and telemetry; in the lab,
+see "Phase reports" at the end). Decisions:
 - built **alongside** the current car (a lab scene, a `--physics=v2` switch once it drives), and it
   becomes the car once it passes every current test plus the manoeuvre tests;
 - physics at **120 Hz** (set by whatever runs the v2 car, so the current car and the auto-updater's
@@ -589,3 +589,89 @@ group), `config/car_config.gd` (`handbrake_torque`).
 - the old automatic clutch bogged the engine under a heavy load (above): replaced;
 - a test run named "two-stage" made its judge function's name invalid (a hyphen); the suite
   then stalled on the error every tick instead of failing. Renamed.
+
+### Phase 8: aero, the driver aids (each a Settings switch), telemetry
+
+**1. The code**
+- `aero.gd` (pure functions): drag `½ ρ Cd A v²` against the motion, at the centre of mass;
+  downforce `½ ρ (Cl A) v²` along the car's down, split front / rear by the aero balance and pushed
+  at each axle (so it loads the tyres, more grip at speed, and a little more rolling resistance).
+  `rally_car_v2.gd` `_aero()` applies them each tick.
+- `config/assist_config.gd` (`AssistConfig`): seven switches, all off by default (that's the base
+  physics), and their figures. `driver_assist.gd`: the aids sit between the controls and the car
+  and only change what each wheel's brake, the throttle and the steering are asked for:
+  - **ABS**: a braking wheel past its tyre's peak slip (on that surface) gets its pedal brake eased
+    in proportion, so it brakes near the peak and still steers (the handbrake isn't touched);
+  - **traction control**: a driven wheel spinning past its peak cuts the throttle in proportion
+    (cut fast, back on in ~0.1 s); measured against a floor speed so it can pull away;
+  - **stability control**: compares the yaw rate with what the steering asks for (no more than the
+    grip allows) and brakes one wheel: sliding round too far, the outside front; not turning
+    enough, the inside rear (off with the handbrake pulled, and under 18 km/h);
+  - **steering smoothing** (the input eased, 0.2 s), **damping** (above 12 m/s the wheels turn more
+    slowly, in proportion), **speed-sensitive steering** (never more angle than the fronts can use
+    at that speed: the tightest turn their grip allows plus their peak slip angle; less is left
+    alone) and **countersteer help** (with the tail sliding past 4 degrees, the front wheels are
+    pointed toward where the front axle is going).
+- `drivetrain.gd`: the automatic clutch, pulling away, now **carries what the engine makes** (plus
+  0.5 N m per rpm over the launch revs, less under them). Before, it bit by revs alone, so when
+  traction control cut the throttle the revs fell, the clutch let go, then grabbed ~200 N m when
+  they came back: on ice the wheels flared every 0.4 s and it was slower than without the aid.
+  It also stays slipping until the car catches up with the launch revs in first (it locked in as
+  soon as the spinning wheels' speed passed 1,100 rpm, and traction control then dragged the
+  engine down to 1,400 rpm). The clutch follows the driver's foot, the engine the cut throttle.
+- Settings (`scripts/ui/settings_panel.gd`, SETTINGS on the home screen): the game had no settings
+  screen; now mouse look, invert Y, volume, the co-driver's call timing, and the seven aids, each
+  an ON / OFF switch with a line on what it does, saved in `Config` (`[aids]` in
+  `user://settings.cfg`). A v2 car reads them when it's made.
+- Telemetry: an air line (drag, downforce front / rear), an aids line (which are on and what
+  they're doing: ABS easing a wheel, the TC cut, the ESC brake, the countersteer angle), and **F2
+  records** every tick to `user://telemetry/v2_<date>_<time>.csv` (54 columns: speed, rpm, gear,
+  pedals, steering, g, yaw, pitch, roll, aero, the aids, and each wheel's squash, load, slip angle,
+  slip ratio, speed, forces, ABS and surface).
+- Lab: F5-F11 switch the aids, F2 records.
+
+**2. Where:** `scripts/vehicle/physics/aero.gd`, `driver_assist.gd`, `config/assist_config.gd`,
+`scripts/ui/settings_panel.gd`, `scripts/net/config.gd` (`aids`).
+
+**3. Nodes:** none new (the assist is an object the car owns, `car.assist`, with `car.assists` its config).
+
+**4. In the inspector:** aero: Cd 0.40, frontal area 2.15 m², downforce area (Cl A) 0.55 m² (a
+Rally2 car's ~60 kg at 150 km/h), 45 % on the front. Aids: ABS band 0.1 past the peak; TC band
+0.15, floor speed 3 m/s; ESC 4,000 N m per rad/s, at most 1,500 N m, deadband 0.1 rad/s;
+smoothing 0.2 s; damping from 12 m/s; countersteer strength 0.7.
+
+**5. How to test:** the physics test (phases 1-7 run with the aero off and the aids off, so their
+numbers stay about what they test; phase 8's runs switch them on). In the game: SETTINGS. In the
+lab: F5-F11, F3 to see them work, F2 to record.
+
+**6. What correct looks like** (measured):
+- coasting from 150 km/h: 0.90 m/s², as predicted (drag 0.65 + rolling resistance with the
+  downforce 0.25); downforce 22 N at 30 km/h (nothing), 573 N (58 kg) at 150 against 585
+  predicted, 45 % on the front;
+- **all seven aids on, inside the grip, the same car**: a steady corner 5.63 m/s² with the same
+  slip angles to 0.01 degree; braking at 30 % 3.782 against 3.783 m/s²;
+- ABS: full brakes from 100 km/h stop in 41.1 m (locked: 47.6 m), a wheel locked 1 % of the time;
+  full brakes with the wheel at 15 degrees from 80 km/h: it turns 68 degrees in 2 s (locked: 21,
+  sliding straight on);
+- traction control: flat out off the line the tyres spin up to 25 % once rolling (280 % without)
+  and it's quicker, 0-100 in 4.09 s (4.17 without); on ice 0-40 km/h in 8.6 s (11.7 without; the
+  grip allows 7.6 at best);
+- stability control: a flick on snow at 72 km/h, the tail out to 11 degrees of slip (30 without);
+- speed-sensitive steering: full lock at 90 km/h, the fronts work at 10 degrees of slip instead of
+  ploughing at 31, and it corners 10 % harder (8.98 against 8.19 m/s²);
+- smoothing: a key press reaches 25 degrees in 0.36 s (0.14 without), the same lock; damping: at 108
+  km/h the wheels take 0.14 s to turn 10 degrees (0.06 without);
+- countersteer help: a handbrake slide let go of at 65 km/h with the power on and hands off turns
+  121 degrees more and ends rotating at 11 degrees/s; without it 154 degrees and still spinning at
+  40;
+- the Settings panel has the eight switches, and ABS switched on there gives a new car ABS;
+  recording a second of driving writes 121 rows of 54 columns.
+
+**7. Bugs found:**
+- the launch clutch fighting traction control (above): rebuilt to carry the engine's torque;
+- test runs named with " on " were taken for surface runs ("aids on corner", "flick on snow")
+  and never ended: renamed;
+- the first speed-sensitive steering scaled the whole input, so it changed the car inside its
+  grip too: it's a ceiling now;
+- the tow that holds the downforce run's speed pulls at the centre of mass against rolling
+  resistance at the ground: that couple moves ~60 N onto the front, which the test subtracts.
