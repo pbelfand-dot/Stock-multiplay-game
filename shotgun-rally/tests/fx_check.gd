@@ -4,6 +4,7 @@ extends SceneTree
 ##   * a handbrake slide: dust and stones, mostly off the rear tyres
 ##   * flat out in a straight line: a light dust trail, no stones
 ##   * in the air: nothing new
+##   * landing a jump: a burst of dust and stones
 ## Run: godot --headless --fixed-fps 60 --path . -s tests/fx_check.gd
 ## Prints one [fx] line per check; exits 1 on any FAIL.
 
@@ -12,7 +13,7 @@ var DriftFx
 var car
 var fx
 var fails := 0
-var _steps := ["slow", "handbrake", "fast", "air"]
+var _steps := ["slow", "handbrake", "fast", "air", "land"]
 var _step := -1
 var _t := 0.0
 var _spawned := {}
@@ -69,6 +70,12 @@ func _physics_process(dt: float) -> bool:
 			if _t < 0.05:
 				car.place(Vector3(0, 30, 0), 0.0)
 				car.linear_velocity = Vector3(0, 0, -20.0)
+		"land":
+			if _t < 0.05:
+				car.place(Vector3(0, 1.5, 0), 0.0)
+			if _t < 0.5:                                 # held up in the air, then dropped at 10 m/s
+				car.global_position.y = 1.5 + 0.6
+				car.linear_velocity = Vector3(0, 0, -10.0)
 	if _t <= 0.5:                                        # settling: count from here on
 		_spawned.p0 = fx.puffs_made
 		_spawned.s0 = fx.stones_made
@@ -99,6 +106,8 @@ func _report(kind: String) -> void:
 			fails += _check(_spawned.puffs > 0 and _spawned.stones == 0, msg + " -> a light trail, no stones")
 		"air":
 			fails += _check(_spawned.puffs == 0 and _spawned.stones == 0, msg + " -> nothing")
+		"land":
+			fails += _check(_spawned.puffs >= 12 and _spawned.stones >= 16, msg + " -> a burst on landing")
 
 
 func _check(ok: bool, msg: String) -> int:

@@ -1,29 +1,37 @@
 extends Node3D
-## Cartoony dirt and gravel off the tyres when the car slides: puffy dust
-## clouds (cel-shaded, they swell, drift up and shrink away) and little stones
-## flung out to the side and back, bouncing once. Drift, handbrake or a big
-## slide = lots; a light trail of dust behind the rear wheels at speed.
+## Cartoony dirt and gravel off the tyres when the car slides, after real
+## gravel rallies (WRC Sardinia / Finland footage): lumpy "cauliflower" dust
+## clouds, warm on top and dark underneath, that swell to a couple of times the
+## car's height, hang for seconds drifting downwind and break up into lumps as
+## they go; a low dark ribbon of gravel roosting straight back off the tyres
+## plus stones fanned out to the outside, bouncing once; a burst of dust when
+## it lands a jump. Drift, handbrake or a big slide = lots (mostly off the rear
+## and outside wheels); a light trail behind the rear wheels at speed.
 ##   * the colours follow the surface: tan gravel, brown dirt, dark mud (more
 ##     clods, less dust), green bits off the grass, white smoke on tarmac
 ##   * it reads only what BOTH machines know about the car (where it is and how
 ##     it moves, the springs, the handbrake, the surface), so the co-driver sees
 ##     the same spray as the driver
 ##   * two MultiMeshes and a few hundred points simulated here: cheap. Puffs use
-##     alpha scissor (no see-through sorting trouble) and face the camera
+##     alpha scissor (no see-through sorting trouble) and face the camera; the
+##     cloud texture's alpha is a soft "how far inside" field, so lowering a
+##     puff's alpha erodes it into shrinking lumps (the cartoon dissolve)
 ## Lives under the car but works in world space (top_level).
 
 const RallyCar = preload("res://scripts/vehicle/rally_car.gd")
 
-const MAX_PUFFS := 240
-const MAX_STONES := 280
-const PUFF_RATE := 30.0         # puffs a second per wheel, sliding hard
-const STONE_RATE := 46.0        # stones a second per wheel, sliding hard
+const MAX_PUFFS := 420
+const MAX_STONES := 300
+const PUFF_RATE := 24.0         # puffs a second per wheel, sliding hard
+const STONE_RATE := 44.0        # stones a second per wheel, sliding hard
+const FRONT := 0.6              # the front tyres throw less than the rears
 const SLIDE_START := 1.2        # m/s of sideways slide at the tyre before anything flies
 const SLIDE_FULL := 6.0         # ... and the slide for the full spray
 const GRAVITY := 15.0           # a bit more than real: snappier, cartoony arcs
 ## per surface: dust colour, stone colours, how much dust, how many stones
+const ROOST := Color(0.36, 0.33, 0.37)   # the low ribbon of gravel thrown straight back: dark, a bit wet
 const SURF := {
-	"gravel": [Color(0.9, 0.82, 0.66), [Color(0.58, 0.55, 0.5), Color(0.7, 0.62, 0.48), Color(0.46, 0.43, 0.41)], 1.0, 1.0],
+	"gravel": [Color(0.9, 0.78, 0.62), [Color(0.58, 0.55, 0.5), Color(0.7, 0.62, 0.48), Color(0.46, 0.43, 0.41)], 1.0, 1.0],
 	"dirt": [Color(0.8, 0.64, 0.45), [Color(0.46, 0.34, 0.22), Color(0.56, 0.43, 0.29)], 1.0, 0.85],
 	"mud": [Color(0.52, 0.4, 0.27), [Color(0.33, 0.24, 0.15), Color(0.41, 0.31, 0.2)], 0.45, 1.4],
 	"grass": [Color(0.78, 0.8, 0.56), [Color(0.33, 0.56, 0.2), Color(0.42, 0.62, 0.24), Color(0.46, 0.37, 0.23)], 0.55, 0.8],
@@ -61,6 +69,8 @@ var _sa := PackedVector3Array()     # tumble (axis x speed)
 var _sc := PackedColorArray()
 var _acc_p := [0.0, 0.0, 0.0, 0.0]
 var _acc_s := [0.0, 0.0, 0.0, 0.0]
+var _wind := Vector3.ZERO           # the dust drifts downwind (a new breeze each stage)
+var _air := 0.0                     # s with no tyre on the ground
 var _prev_basis := Basis()
 var _w := Vector3.ZERO              # the car's spin (rad/s), from how it turned since last frame
 var _started := false
@@ -69,6 +79,8 @@ var _started := false
 func _ready() -> void:
 	process_priority = 1000                       # draw after the camera has moved this frame (puffs face it)
 	top_level = true
+	var a := randf() * TAU
+	_wind = Vector3(cos(a), 0.0, sin(a)) * randf_range(0.5, 1.1)
 	global_transform = Transform3D.IDENTITY
 	_pp.resize(MAX_PUFFS)
 	_pv.resize(MAX_PUFFS)
@@ -161,6 +173,17 @@ func _spawn(xf: Transform3D, dt: float) -> void:
 	var loose := car.on_surface in ["gravel", "dirt"]
 	var hb: bool = car.handbrake_on()
 	var fast := clampf((absf(car.speed) - 12.0) / 25.0, 0.0, 1.0)
+	# landing a jump: a burst of dust and stones round every tyre
+	var touching := 0
+	for k in 4:
+		if car.comp[k] > 0.01:
+			touching += 1
+	if touching == 0:
+		_air += dt
+	elif _air > 0.0:
+		if _air > 0.35 and car.on_surface != "tarmac":
+			_land_burst(xf, v, surf, clampf((_air - 0.35) / 0.6, 0.3, 1.0))
+		_air = 0.0
 	for k in 4:
 		var front: bool = RallyCar.WHEELS[k][2]
 		var c: float = car.comp[k]
@@ -181,6 +204,8 @@ func _spawn(xf: Transform3D, dt: float) -> void:
 			slide = maxf(slide, absf(vc.dot(wf)) * 0.8)   # locked: it slides the way it's going
 		var drift := clampf((slide - SLIDE_START) / (SLIDE_FULL - SLIDE_START), 0.0, 1.0)
 		var trail := fast * 0.16 if (loose and not front) else 0.0
+		if front:
+			drift *= FRONT
 		var amount := maxf(drift, trail)
 		intensity[k] = amount
 		_acc_p[k] += PUFF_RATE * amount * float(surf[2]) * dt
@@ -194,6 +219,18 @@ func _spawn(xf: Transform3D, dt: float) -> void:
 			_add_stone(contact, up, wf, vc, out_dir, surf[1])
 
 
+func _land_burst(xf: Transform3D, v: Vector3, surf: Array, power: float) -> void:
+	for k in 4:
+		var contact: Vector3 = xf * Vector3(RallyCar.WHEELS[k][0], -RallyCar.REST - RallyCar.RADIUS + 0.1, RallyCar.WHEELS[k][1])
+		var out := (contact - xf.origin)
+		out.y = 0.0
+		out = out.normalized()
+		for i in int(3 + 4 * power):
+			_add_puff(contact, Vector3.UP, out * 4.0 + v * 0.3, out, power, surf[0])
+		for i in int(4 + 8 * power):
+			_add_stone(contact, Vector3.UP, -xf.basis.z, out * 3.0 + v * 0.5, out, surf[1])
+
+
 func _add_puff(at: Vector3, up: Vector3, vc: Vector3, out_dir: Vector3, amount: float, col: Color) -> void:
 	if puffs_alive >= MAX_PUFFS:
 		return
@@ -202,11 +239,11 @@ func _add_puff(at: Vector3, up: Vector3, vc: Vector3, out_dir: Vector3, amount: 
 	puffs_made += 1
 	var jitter := Vector3(randf_range(-1, 1), 0.0, randf_range(-1, 1)) * 0.25
 	_pp[i] = at + up * 0.2 + jitter
-	_pv[i] = out_dir * absf(vc.dot(out_dir)) * randf_range(0.08, 0.18) + vc * 0.06 \
-		+ Vector3.UP * randf_range(0.5, 1.2) + Vector3(randf_range(-1, 1), 0.0, randf_range(-1, 1)) * 0.35
+	_pv[i] = out_dir * absf(vc.dot(out_dir)) * randf_range(0.1, 0.22) + vc * 0.06 \
+		+ Vector3.UP * randf_range(0.6, 1.3) + Vector3(randf_range(-1, 1), 0.0, randf_range(-1, 1)) * 0.4
 	_pt[i] = 0.0
-	_pl[i] = randf_range(0.9, 1.6)
-	_ps[i] = randf_range(1.2, 2.0) * (0.55 + 0.45 * amount)
+	_pl[i] = randf_range(2.0, 3.4) * (0.6 + 0.4 * amount)
+	_ps[i] = randf_range(1.7, 3.0) * (0.5 + 0.5 * amount)
 	_pr[i] = randf_range(-PI, PI)
 	var shade := randf_range(0.9, 1.06)
 	_pc[i] = Color(col.r * shade, col.g * shade, col.b * shade)
@@ -220,16 +257,23 @@ func _add_stone(at: Vector3, up: Vector3, wf: Vector3, vc: Vector3, out_dir: Vec
 	stones_made += 1
 	_sp[i] = at + up * 0.08 + Vector3(randf_range(-0.12, 0.12), 0.0, randf_range(-0.12, 0.12))
 	var back := -wf * signf(vc.dot(wf)) if absf(vc.dot(wf)) > 0.5 else -wf    # the tyre roosts them backwards
-	_sv[i] = back * randf_range(1.0, 3.5) + out_dir * absf(vc.dot(out_dir)) * randf_range(0.25, 0.6) \
-		+ vc * 0.25 + Vector3.UP * randf_range(2.0, 4.6) \
-		+ Vector3(randf_range(-1, 1), randf_range(-0.3, 0.3), randf_range(-1, 1)) * 0.8
+	var roost := randf() < 0.45
+	if roost:
+		# the low ribbon: straight back, fast, below the bumper
+		_sv[i] = back * randf_range(5.0, 9.0) + vc * 0.15 + Vector3.UP * randf_range(0.6, 1.8) \
+			+ Vector3(randf_range(-1, 1), 0.0, randf_range(-1, 1)) * 0.5
+	else:
+		# the fan: up and out to the outside of the slide
+		_sv[i] = back * randf_range(1.0, 3.5) + out_dir * absf(vc.dot(out_dir)) * randf_range(0.3, 0.7) \
+			+ vc * 0.25 + Vector3.UP * randf_range(2.0, 4.6) \
+			+ Vector3(randf_range(-1, 1), randf_range(-0.3, 0.3), randf_range(-1, 1)) * 0.8
 	_st[i] = 0.0
 	_sl[i] = randf_range(0.8, 1.3)
 	_ss[i] = randf_range(0.08, 0.16)
 	_sf[i] = at.y
 	_sb[i] = 0
 	_sa[i] = Vector3(randf_range(-1, 1), randf_range(-1, 1), randf_range(-1, 1)).normalized() * randf_range(6.0, 16.0)
-	_sc[i] = cols[randi() % cols.size()]
+	_sc[i] = ROOST if roost and cols.size() >= 3 else cols[randi() % cols.size()]
 
 
 func _simulate(dt: float) -> void:
@@ -239,9 +283,8 @@ func _simulate(dt: float) -> void:
 		if _pt[i] >= _pl[i]:
 			_kill_puff(i)
 			continue
-		var v := _pv[i]
-		v *= maxf(1.0 - 1.6 * dt, 0.0)                    # dust slows down fast in the air...
-		v.y += 0.25 * dt                                  # ... and floats up
+		# dust loses its kick fast and settles to rising slowly, drifting downwind
+		var v := _pv[i].lerp(_wind + Vector3.UP * 0.4, 1.0 - exp(-1.5 * dt))
 		_pv[i] = v
 		_pp[i] += v * dt
 		i += 1
@@ -298,12 +341,15 @@ func _draw_particles() -> void:
 	var face := cam.global_transform.basis if cam else Basis()
 	for i in puffs_alive:
 		var u := _pt[i] / _pl[i]
-		# pop up fast, swell, then shrink away at the end (cartoon dust doesn't fade, it shrinks)
-		var grow := minf(u / 0.18, 1.0)
-		var s := _ps[i] * (0.35 + 0.65 * (1.0 - (1.0 - grow) * (1.0 - grow))) * (1.0 - smoothstep(0.65, 1.0, u))
-		var b := face * Basis(Vector3.BACK, _pr[i] + u * 0.6)
+		# pops up fast and keeps swelling; from halfway it erodes into lumps that
+		# shrink away (alpha x the texture's field against the 0.5 cut-off)
+		var grow := minf(u / 0.12, 1.0)
+		var s := _ps[i] * (0.3 + 0.55 * (1.0 - (1.0 - grow) * (1.0 - grow)) + 0.15 * u)
+		var b := face * Basis(Vector3.BACK, _pr[i] + u * 0.5)
 		_puff_mm.set_instance_transform(i, Transform3D(b.scaled_local(Vector3(s, s, s)), _pp[i]))
-		_puff_mm.set_instance_color(i, _pc[i])
+		var c := _pc[i]
+		c.a = lerpf(1.0, 0.5, smoothstep(0.45, 1.0, u))
+		_puff_mm.set_instance_color(i, c)
 	_puff_mm.visible_instance_count = puffs_alive
 	for i in stones_alive:
 		var u := _st[i] / _sl[i]
@@ -319,33 +365,31 @@ func _draw_particles() -> void:
 		_stone_mi.custom_aabb = box
 
 
-## A white cartoon cloud: a few round lumps, lit from the top left with a hard
-## edge between light and shade (the instance colour tints it).
+## A white cartoon cloud: round lumps like a cauliflower, lit from the top
+## left (two tones with a hard edge) and dark underneath. Alpha isn't just
+## in / out: it's how far inside the cloud a pixel is (0.5 at the edge, 1 at a
+## lump's heart, a little lumpy noise), so a puff with less alpha shows only
+## the lumps' hearts: that's how they break up.
 static func _cloud_texture() -> ImageTexture:
-	const N := 96
+	const N := 128
 	var img := Image.create(N, N, false, Image.FORMAT_RGBA8)
-	var lumps := [[0.5, 0.58, 0.3], [0.3, 0.55, 0.2], [0.7, 0.53, 0.22], [0.47, 0.36, 0.22], [0.64, 0.7, 0.17]]
+	var lumps := [[0.5, 0.6, 0.28], [0.28, 0.6, 0.19], [0.72, 0.57, 0.21], [0.42, 0.38, 0.21],
+		[0.62, 0.36, 0.18], [0.5, 0.2, 0.13], [0.36, 0.78, 0.15], [0.66, 0.78, 0.15]]
 	for y in N:
 		for x in N:
 			var p := Vector2((x + 0.5) / N, (y + 0.5) / N)
-			var inside := false
+			var field := 0.0
 			var lit := false
-			var rim := false
 			for l in lumps:
 				var c := Vector2(l[0], l[1])
 				var r: float = l[2]
-				var d := p.distance_to(c)
-				if d < r:
-					inside = true
-					# light: the upper-left part of each lump
-					if p.distance_to(c + Vector2(-0.3, -0.35) * r) < r * 0.85:
-						lit = true
-					if d > r * 0.82 and p.y > c.y:
-						rim = true
-			if not inside:
-				img.set_pixel(x, y, Color(1, 1, 1, 0))
-				continue
-			var v := 1.0 if lit else (0.72 if rim else 0.84)
-			img.set_pixel(x, y, Color(v, v, v, 1.0))
+				var d := p.distance_to(c) / r
+				field = maxf(field, 1.0 - 0.5 * d * d)
+				if d < 1.0 and p.distance_to(c + Vector2(-0.32, -0.36) * r) < r * 0.8:
+					lit = true
+			field += (sin(p.x * 41.0) * sin(p.y * 37.0) + sin((p.x + p.y) * 23.0)) * 0.025
+			var v := 1.0 if lit else 0.8
+			v *= lerpf(1.0, 0.72, smoothstep(0.55, 0.85, p.y))     # the dark underside
+			img.set_pixel(x, y, Color(v, v, v, clampf(field, 0.0, 1.0)))
 	img.generate_mipmaps()
 	return ImageTexture.create_from_image(img)
