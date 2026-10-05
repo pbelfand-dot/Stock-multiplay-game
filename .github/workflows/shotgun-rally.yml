@@ -31,12 +31,16 @@ jobs:
           chmod +x "$RUNNER_TEMP/godot"
       - name: Import project
         run: '"$RUNNER_TEMP/godot" --headless --path . --import || true'
-      - name: Run tests (compile, stages, driving, AI co-driver, 2-player both ways)
+      - name: Run tests (compile, stages, driving, ride, AI co-driver, 2-player both ways, updater)
         run: GODOT="$RUNNER_TEMP/godot" tests/run_all.sh
 
   export:
     needs: test
     runs-on: ubuntu-latest
+    # one export per branch at a time, so an older build never lands after a newer one
+    concurrency:
+      group: shotgun-rally-export-${{ github.ref }}
+      cancel-in-progress: false
     permissions:
       contents: write
     env:
@@ -56,6 +60,16 @@ jobs:
           unzip -q -j "$RUNNER_TEMP/templates.tpz" \
             templates/windows_release_x86_64.exe templates/linux_release.x86_64 \
             templates/macos.zip templates/version.txt -d "$T"
+      # The auto-updater (scripts/net/updater.gd): the game knows its build number,
+      # and its "base": a fingerprint of what an update pack can't change (the
+      # engine, project.godot, the updater itself). Same base -> players get the
+      # new build as a pack; a new base -> the game offers the download page.
+      - name: Stamp the build number
+        run: |
+          BASE="$(cat project.godot scripts/net/updater.gd | sha256sum | cut -c1-16)-godot${GODOT_VERSION}"
+          echo "UPDATE_BASE=$BASE" >> "$GITHUB_ENV"
+          sed -i '/^\[application\]/a config/version="'"$GITHUB_RUN_NUMBER"'"\nconfig/update_base="'"$BASE"'"' project.godot
+          sed -n '/^\[application\]/,/^\[/p' project.godot
       - name: Export
         run: |
           G="$RUNNER_TEMP/godot"
@@ -64,6 +78,17 @@ jobs:
           "$G" --headless --path . --export-release "Windows"
           "$G" --headless --path . --export-release "Linux"
           "$G" --headless --path . --export-release "macOS"
+          # the update pack: the whole game's content, which every platform's copy loads
+          "$G" --headless --path . --export-pack "Linux" build/ShotgunRally.pck
+          python3 - <<'PY'
+          import hashlib, json, os, subprocess
+          pck = "build/ShotgunRally.pck"
+          notes = subprocess.run(["git", "log", "-1", "--format=%s"], capture_output=True, text=True).stdout.strip()
+          json.dump({"build": int(os.environ["GITHUB_RUN_NUMBER"]), "base": os.environ["UPDATE_BASE"],
+                     "sha256": hashlib.sha256(open(pck, "rb").read()).hexdigest(),
+                     "size": os.path.getsize(pck), "notes": notes}, open("build/version.json", "w"), indent=1)
+          PY
+          cat build/version.json
           cd build
           (cd windows && zip -q ../ShotgunRally-Windows.zip ShotgunRally.exe)
           (cd linux && zip -q ../ShotgunRally-Linux.zip ShotgunRally.x86_64)
@@ -82,12 +107,16 @@ jobs:
           R="$GITHUB_REPOSITORY"
           NOTES="Always the newest SHOTGUN RALLY build.
           Mac: ShotgunRally.zip (older Intel Macs: ShotgunRally-Intel.zip). Windows / Linux zips below.
-          Unzip, double-click SHOTGUN RALLY.app. The first time macOS says it could not verify it: System Settings -> Privacy & Security -> Open Anyway."
+          Unzip, double-click SHOTGUN RALLY.app. The first time macOS says it could not verify it: System Settings -> Privacy & Security -> Open Anyway.
+          ShotgunRally.pck and version.json are for the game's auto-updater: you don't need to download them."
           if ! gh release view shotgun-latest --repo "$R" > /dev/null 2>&1; then
             gh release create shotgun-latest --repo "$R" --target "$GITHUB_SHA" --title "SHOTGUN RALLY - latest build" --notes "$NOTES" --prerelease --latest=false
           fi
           gh release upload shotgun-latest --repo "$R" --clobber \
-            ShotgunRally.zip ShotgunRally-Intel.zip ShotgunRally-Windows.zip ShotgunRally-Linux.zip
+            ShotgunRally.zip ShotgunRally-Intel.zip ShotgunRally-Windows.zip ShotgunRally-Linux.zip ShotgunRally.pck
+          # version.json last: the games only see the new build once its pack is there
+          # (and a pack that doesn't match version.json's SHA-256 is never used)
+          gh release upload shotgun-latest --repo "$R" --clobber version.json
           gh release edit shotgun-latest --repo "$R" --notes "$NOTES" --prerelease --latest=false
       # itch.io: only once the BUTLER_API_KEY secret and the ITCH_PROJECT variable
       # ("your-itch-name/shotgun-rally") are set up. See shotgun-rally/docs/ITCH.md.

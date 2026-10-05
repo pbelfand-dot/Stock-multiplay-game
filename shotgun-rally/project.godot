@@ -13,6 +13,7 @@ config/icon="res://icon.png"
 
 [autoload]
 
+Updater="*res://scripts/net/updater.gd"
 Config="*res://scripts/net/config.gd"
 Controls="*res://scripts/net/controls.gd"
 Net="*res://scripts/net/net.gd"

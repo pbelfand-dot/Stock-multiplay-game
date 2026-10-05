@@ -10,10 +10,11 @@ extends Node
 ##   --aicheck                               solo test: the AI co-driver's calls come in time
 ##   --screenshot=out.png [--shot_seat=codriver --shot_s=300 --shot_read --shot_mud [--shot_wipe=N] --shot_nohud
 ##                         --shot_yaw=1.2 --shot_pitch=-0.3 (look around, rad) --shot_view=seat|chase|orbit
-##                         --shot_steer=-1..1 --shot_handbrake]
+##                         --shot_steer=-1..1 --shot_handbrake --shot_loading (keep the loading screen up)]
 
 const Game = preload("res://scripts/game.gd")
 const Menu = preload("res://scripts/ui/main_menu.gd")
+const LoadingScreen = preload("res://scripts/ui/loading_screen.gd")
 
 var game: Node
 var menu: Control
@@ -21,12 +22,14 @@ var seed_value := 1
 var stage_no := 1
 var _test_t := 0.0
 var _smoke_done := false
+var _loading := false
 
 
 func _ready() -> void:
 	Net.connected_ok.connect(_on_connected)
 	Net.connection_failed.connect(func(r): to_menu("Couldn't connect: " + r))
 	Net.server_gone.connect(func(): to_menu("The host left."))
+	Net.wrong_version.connect(to_menu)
 	multiplayer.peer_connected.connect(_on_peer_connected)
 	seed_value = int(Config.arg("seed", randi() % 100000))
 	if Config.flag("screenshot") or Config.flag("solo") or Config.flag("aicheck"):
@@ -78,15 +81,19 @@ func join_game(ip: String) -> void:
 
 
 func _on_connected() -> void:
-	Net.hello.rpc_id(1, Config.player_name)
+	Net.hello.rpc_id(1, Config.player_name, Updater.current_build)
 
 
 ## Host: someone joined: everyone (re)loads the stage and meets at the start line.
-func _on_peer_connected(_id: int) -> void:
+func _on_peer_connected(id: int) -> void:
 	if multiplayer.is_server():
 		if game:
 			game.all_loaded = false            # stop streaming at them: they have no Game yet
 		await get_tree().create_timer(0.4).timeout
+		if not Net.players.has(id):
+			if game:
+				game.all_loaded = true         # turned away (another build) or gone already
+			return
 		next_stage(seed_value, stage_no)
 
 
@@ -99,6 +106,9 @@ func next_stage(s: int, n: int) -> void:
 
 @rpc("authority", "call_local", "reliable")
 func load_stage(s: int, n: int) -> void:
+	while _loading:                                  # one stage at a time (a reload during a load waits)
+		await get_tree().process_frame
+	_loading = true
 	seed_value = s
 	stage_no = n
 	if menu:
@@ -107,12 +117,23 @@ func load_stage(s: int, n: int) -> void:
 	if game:
 		remove_child(game)
 		game.queue_free()
+	var screen = null
+	if not Config.flag("screenshot") or Config.flag("shot_loading"):
+		screen = LoadingScreen.new()
+		add_child(screen)
+		screen.begin(n)
 	game = Game.new()
 	game.name = "Game"
 	add_child(game)
-	game.start(s, n)
+	if screen:
+		game.progress.connect(screen.progress)
+		game.stage_generated.connect(func(): screen.set_stage(game.st.length, game.st.corners.size(), s))
+	await game.start(s, n)
+	_loading = false
 	game.finished.connect(_on_stage_finished)
 	_test_setup()
+	if screen and not Config.flag("shot_loading"):
+		screen.finish()
 
 
 func to_menu(msg := "") -> void:

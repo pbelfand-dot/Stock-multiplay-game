@@ -1,6 +1,7 @@
 extends Control
 ## The title screen: your name, then DRIVE SOLO (the AI co-driver calls),
-## HOST (pick your seat), or JOIN a host by IP. Controls at the bottom.
+## HOST (pick your seat), or JOIN a host by IP. Controls at the bottom; the
+## build and updates (see Updater) top right.
 
 signal solo
 signal host(seat: String)
@@ -9,6 +10,10 @@ signal join(ip: String)
 var _status: Label
 var _name: LineEdit
 var _ip: LineEdit
+var _build: Label
+var _upd: Label
+var _upd_btn: Button
+var _upd_action := ""
 
 
 func _ready() -> void:
@@ -39,7 +44,7 @@ func _ready() -> void:
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	box.add_child(title)
 	var sub := Label.new()
-	sub.text = "You drive. Your friend rides shotgun with the notes."
+	sub.text = "You drive. Your friend rides shotgun with the map."
 	sub.add_theme_font_override("font", med)
 	sub.add_theme_font_size_override("font_size", 24)
 	sub.add_theme_color_override("font_color", Color(0.85, 0.82, 0.7))
@@ -90,6 +95,65 @@ func _ready() -> void:
 	help.offset_left = -800
 	help.offset_right = 800
 	add_child(help)
+	_update_corner(bold, med)
+
+
+## Top right: this copy's build, what the updater is doing, and its button
+## (RESTART TO UPDATE once a new build is downloaded, or the download page).
+func _update_corner(bold: Font, med: Font) -> void:
+	var box := VBoxContainer.new()
+	box.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT)
+	box.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	box.offset_left = -520
+	box.offset_right = -28
+	box.offset_top = 22
+	box.add_theme_constant_override("separation", 6)
+	add_child(box)
+	_build = _label("BUILD %d" % Updater.current_build if Updater.current_build > 0 else "DEV BUILD", bold)
+	_build.add_theme_color_override("font_color", Color(0.98, 0.95, 0.85))
+	_build.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	box.add_child(_build)
+	_upd = _label("", med)
+	_upd.add_theme_font_size_override("font_size", 17)
+	_upd.add_theme_color_override("font_color", Color(0.75, 0.78, 0.7))
+	_upd.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	_upd.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	box.add_child(_upd)
+	_upd_btn = _button("", bold, _on_update_button)
+	_upd_btn.add_theme_font_size_override("font_size", 20)
+	_upd_btn.custom_minimum_size = Vector2(300, 46)
+	_upd_btn.size_flags_horizontal = Control.SIZE_SHRINK_END
+	_upd_btn.visible = false
+	box.add_child(_upd_btn)
+	Updater.status_changed.connect(_on_update_status)
+	Updater.boot_ok()                                  # made it to the menu: this build starts fine
+	Updater.check()
+
+
+func _on_update_status(text: String, act: String) -> void:
+	_upd.text = text
+	_upd_action = act
+	_build.text = "BUILD %d" % Updater.current_build if Updater.current_build > 0 else "DEV BUILD"
+	match act:
+		"restart":
+			_upd_btn.text = "RESTART TO UPDATE"
+			_upd_btn.visible = true
+			_upd.add_theme_color_override("font_color", Color(0.55, 1.0, 0.5))
+		"download_page":
+			_upd_btn.text = "OPEN DOWNLOAD PAGE"
+			_upd_btn.visible = true
+			_upd.add_theme_color_override("font_color", Color(0.75, 0.78, 0.7))
+		_:
+			_upd_btn.visible = false
+			_upd.add_theme_color_override("font_color", Color(0.75, 0.78, 0.7))
+
+
+func _on_update_button() -> void:
+	match _upd_action:
+		"restart":
+			Updater.restart()
+		"download_page":
+			Updater.open_download_page()
 
 
 func status(msg: String) -> void:

@@ -27,6 +27,9 @@ const AICoDriver = preload("res://scripts/vehicle/ai_codriver.gd")
 const Autopilot = preload("res://scripts/vehicle/autopilot.gd")
 const StartLights = preload("res://scripts/ui/start_lights.gd")
 
+signal progress(fraction: float, what: String)
+signal stage_generated
+
 const COUNTDOWN := 5.0
 const RESET_PENALTY := 5.0
 const JUMP_START_PENALTY := 10.0
@@ -64,6 +67,7 @@ var _stuck := 0.0
 var _mud_t := 0.0
 var _said_wipers := false
 var _chase := false                 # the driver picked the chase cam (C)
+var built := false                  # start() has finished (it builds over several frames)
 var _look_acc := 0.0
 var _last_count := -1
 var _hud: CanvasLayer
@@ -79,17 +83,30 @@ var _engine: AudioStreamPlayer3D
 var _gravel: AudioStreamPlayer3D
 
 
+## Build the stage, a step a frame (await it): progress(fraction, what) feeds the
+## loading screen; stage_generated fires once the road is known.
 func start(seed_in: int, stage_in: int) -> void:
 	seed_value = seed_in
 	stage_no = stage_in
 	use_autopilot = Config.flag("autopilot")
+	progress.emit(0.02, "Reading the road book")
+	await get_tree().process_frame
+	if not is_inside_tree():
+		return
 	st = StageGen.new()
 	st.generate(seed_value, float(Config.arg("length", 2600)))
 	notes = Notes.build(st)
 	calls = Notes.calls(notes)
+	stage_generated.emit()
 	builder = StageBuilder.new()
 	add_child(builder)
-	builder.build(st)
+	await builder.build_async(st, func(f: float, what: String): progress.emit(0.06 + f * 0.64, what))
+	if not is_inside_tree():
+		return
+	progress.emit(0.72, "Building the car")
+	await get_tree().process_frame
+	if not is_inside_tree():
+		return
 	car = RallyCar.new()
 	car.name = "Car"
 	add_child(car)
@@ -97,9 +114,14 @@ func start(seed_in: int, stage_in: int) -> void:
 	car.place(_start_pos, st.heading_at(st.START_S))
 	car.hit.connect(_on_hit)
 	car.landed.connect(_on_landed)
+	progress.emit(0.84, "Strapping in the crew")
+	await get_tree().process_frame
+	if not is_inside_tree():
+		return
 	cockpit = Cockpit.new()
 	car.add_child(cockpit)
 	cockpit.build(car, st)
+	progress.emit(0.96, "Warming up the engine")
 	cockpit.wiper_stroke.connect(func(): _play("wiper", -6.0))
 	ai = AICoDriver.new()
 	add_child(ai)
@@ -111,6 +133,7 @@ func start(seed_in: int, stage_in: int) -> void:
 	_build_hud()
 	_apply_roster()
 	Net.roster_changed.connect(_apply_roster)
+	built = true
 	if Net.online():
 		loaded.rpc_id(1)
 	else:
@@ -145,7 +168,7 @@ func loaded() -> void:
 @rpc("authority", "call_local", "reliable")
 func set_all_loaded(v: bool) -> void:
 	all_loaded = v
-	if v and ai.enabled and state == "grid":
+	if v and ai and ai.enabled and state == "grid":
 		ai.say(["ready"])                        # "co-driver ready": then the host starts the count
 	_update_hint()
 
@@ -158,7 +181,7 @@ func crew_ready() -> bool:
 
 @rpc("authority", "call_local", "reliable")
 func begin_countdown() -> void:
-	if state != "grid":
+	if state != "grid" or not built:
 		return
 	state = "countdown"
 	countdown = COUNTDOWN
@@ -190,6 +213,8 @@ func set_penalties(pens: float, n_resets: int, jumped: bool) -> void:
 
 
 func _physics_process(dt: float) -> void:
+	if not built:
+		return
 	_t_alive += dt
 	var at: Dictionary = st.locate(car.global_position, _hint)
 	_hint = at.i
@@ -342,6 +367,8 @@ func send_look(seat: String, yaw: float, pitch: float) -> void:
 
 
 func _process(dt: float) -> void:
+	if not built:
+		return
 	# wipers: the co-driver's job (the driver's when alone)
 	if Input.is_action_just_pressed("wipers") and (my_seat == "codriver" or Net.peer_in("codriver") == 0):
 		if Net.online():

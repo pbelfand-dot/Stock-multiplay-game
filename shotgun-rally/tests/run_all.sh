@@ -38,4 +38,6 @@ for case in "driver codriver" "codriver driver"; do
   [ $c -eq 0 ] && [ $h -eq 0 ] || fail=1
   P=$((P + 1))
 done
+echo "== auto-update: a build-5 copy finds, downloads, checks and runs build 6 from a local server"
+GODOT="$G" tests/update_check.sh 2>&1 | grep -E "\[update\] (ok|FAIL|UPDATER)" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
 [ $fail -eq 0 ] && echo "ALL TESTS PASSED" || { echo "TESTS FAILED"; exit 1; }

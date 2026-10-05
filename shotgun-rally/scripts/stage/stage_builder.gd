@@ -33,6 +33,31 @@ var _rng := RandomNumberGenerator.new()
 
 
 func build(stage) -> void:
+	_prepare(stage)
+	for step in STEPS:
+		call(step[0])
+
+
+## The same, a step a frame, reporting progress (0..1, what) so a loading
+## screen can show it. Needs to be in the tree.
+func build_async(stage, report: Callable) -> void:
+	_prepare(stage)
+	for i in STEPS.size():
+		report.call(float(i) / STEPS.size(), STEPS[i][1])
+		await get_tree().process_frame
+		if not is_inside_tree():
+			return
+		call(STEPS[i][0])
+	report.call(1.0, "")
+
+
+const STEPS := [["_environment", "Checking the weather"], ["_road", "Grading the gravel road"],
+	["_ground", "Shaping the hills and ditches"], ["_base", "Shaping the hills and ditches"],
+	["_forest", "Planting ten thousand trees"], ["_rocks", "Rolling rocks onto the inside of the bends"],
+	["_puddles", "Filling the puddles"], ["_arches", "Putting up the start and finish"]]
+
+
+func _prepare(stage) -> void:
 	st = stage
 	_rng.seed = hash([st.seed_used, "props"])
 	_noise.seed = st.seed_used
@@ -42,14 +67,6 @@ func build(stage) -> void:
 		if not _road_grid.has(key):
 			_road_grid[key] = []
 		_road_grid[key].append(i)
-	_environment()
-	_road()
-	_ground()
-	_base()
-	_forest()
-	_rocks()
-	_puddles()
-	_arches()
 
 
 # ── road ──────────────────────────────────────────────────────────────────

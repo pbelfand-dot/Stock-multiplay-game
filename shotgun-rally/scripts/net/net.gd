@@ -9,6 +9,7 @@ signal roster_changed
 signal connected_ok
 signal connection_failed(reason: String)
 signal server_gone
+signal wrong_version(text: String)
 
 const MAX_PLAYERS := 2
 
@@ -114,13 +115,32 @@ func _on_peer_disconnected(id: int) -> void:
 	roster_changed.emit()
 
 
-## The joining player tells the host their name.
+## The joining player tells the host their name and build. Two different
+## builds can't share a stage (what the machines send each other changes),
+## so a mismatch sends the guest back to the menu with a message. Copies that
+## aren't exports (build 0: the editor, tests) skip the check.
 @rpc("any_peer", "reliable")
-func hello(player_name: String) -> void:
+func hello(player_name: String, build := 0) -> void:
 	var id := multiplayer.get_remote_sender_id()
-	if multiplayer.is_server() and players.has(id):
-		players[id].name = player_name.substr(0, 20)
-		_send_roster()
+	if not multiplayer.is_server() or not players.has(id):
+		return
+	var mine: int = Updater.current_build
+	if build != mine and build > 0 and mine > 0:
+		players.erase(id)
+		roster_changed.emit()
+		bad_version.rpc_id(id, mine)
+		return
+	players[id].name = player_name.substr(0, 20)
+	_send_roster()
+
+
+@rpc("authority", "reliable")
+func bad_version(host_build: int) -> void:
+	var mine: int = Updater.current_build
+	_drop()
+	var fix := ("Restart your game to update, then join again." if mine < host_build
+		else "The host needs to update: restart their game, then join again.")
+	wrong_version.emit("The host has build %d, you have build %d. %s" % [host_build, mine, fix])
 
 
 ## Host: swap who drives (only between stages).
