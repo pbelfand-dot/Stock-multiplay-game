@@ -89,7 +89,7 @@ func text() -> String:
 	s += "        comp mm   load kN   slip deg   side kN   wheel km/h   slip %   drive kN   on\n"
 	for k in 4:
 		var w = car.wheels[k]
-		ground = String(w.collider.get_meta("surface")) if w.grounded and w.collider and w.collider.has_meta("surface") else ("ground" if w.grounded else "air")
+		ground = w.surface.display_name if w.grounded else "air"
 		var state := ""
 		if w.compression > w.cfg.bump_stop_start:
 			state += "  BUMP STOP"

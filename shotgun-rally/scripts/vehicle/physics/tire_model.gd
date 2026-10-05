@@ -34,9 +34,45 @@ extends RefCounted
 ## the forces trace an ellipse (braking hard leaves little for turning, and the
 ## other way round), and with only one slip it's exactly that slip's curve.
 ## Load sensitivity scales mu: a heavily loaded tyre grips less per newton.
+##
+## On a surface (SurfaceConfig): the tyre's figures are for loose gravel, and
+## on_surface() gives the same tyre on another surface: its grip, where the grip
+## peaks and how much a sliding tyre keeps, scaled by the surface's.
 
 ## m/s: below this along the wheel, a sliding patch caps the wind-up (see above).
 const V_CRAWL := 1.0
+
+static var _on := {}
+
+
+## The tyre on a surface: a copy of its figures with the surface's grip, peaks,
+## slide grip and rolling resistance (made once per tyre and surface, then kept).
+static func on_surface(cfg: Resource, surface: Resource) -> Resource:
+	if surface == null:
+		return cfg
+	var key := [cfg.get_instance_id(), surface.get_instance_id()]
+	if _on.has(key):
+		return _on[key]
+	var t: Resource = cfg.duplicate()
+	t.lateral_mu = cfg.lateral_mu * surface.grip
+	t.longitudinal_mu = cfg.longitudinal_mu * surface.grip
+	t.lateral_peak_deg = clampf(cfg.lateral_peak_deg * surface.peak_scale, 0.5, 25.0)
+	t.longitudinal_peak = clampf(cfg.longitudinal_peak * surface.peak_scale, 0.02, 0.5)
+	t.lateral_shape = shape_keeping(kept(cfg.lateral_shape) * surface.slide_grip)
+	t.longitudinal_shape = shape_keeping(kept(cfg.longitudinal_shape) * surface.slide_grip)
+	t.rolling_resistance = cfg.rolling_resistance * surface.rolling_scale
+	_on[key] = t
+	return t
+
+
+## The share of its peak grip a Magic Formula curve of shape C keeps far past the peak.
+static func kept(shape: float) -> float:
+	return sin(shape * PI / 2.0)
+
+
+## The shape C that keeps this share of the peak far past it (0.3..0.98).
+static func shape_keeping(share: float) -> float:
+	return 2.0 - 2.0 * asin(clampf(share, 0.3, 0.98)) / PI
 
 
 ## Magic Formula B for shape C peaking at slip x_peak (tan of the peak angle).

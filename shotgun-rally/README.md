@@ -172,16 +172,19 @@ light, filmed like rally TV (trackside cameras it flashes past, a chase camera, 
 A new car physics is being built next to this one, closer to Dirt Rally / RBR
 ([docs/physics_rebuild.md](docs/physics_rebuild.md)): a RigidBody3D chassis on four ShapeCast tyres
 with real suspension, then tyres, drivetrain, surfaces, aero and driver aids (each its own switch),
-in nine tested phases, at 120 Hz. **Phases 1-5 are done:** the chassis on its springs, dampers
+in nine tested phases, at 120 Hz. **Phases 1-6 are done:** the chassis on its springs, dampers
 and bump stops; the tyres' grip sideways (slip angle) and along (slip ratio), sharing one patch of
 rubber (brake in a corner and it runs wide; trail-brake into one and it rotates), a loaded tyre
 gripping less per newton; each wheel spinning on its own, brakes that lock a wheel only when they
 beat its grip; Ackermann steering; a turbo engine (400 N m, 307 hp, anti-lag), a clutch that slips
 it away, a five-speed sequential box (0-100 km/h in 4.9 s), and Rally2-style four-wheel drive (no
-centre diff, limited-slip diffs front and rear: put a wheel on ice and it still pulls away). Try it in
+centre diff, limited-slip diffs front and rear: put a wheel on ice and it still pulls away);
+surfaces, each wheel on its own (asphalt, wet asphalt, gravel, dirt, snow, ice, mud, grass: their
+grip, where it peaks, what a sliding tyre keeps, rolling resistance; 1.14 g on asphalt, 0.90 on
+gravel, 0.41 on snow, 0.13 on ice). Try it in
 the physics lab (`godot --path . scenes/physics_lab.tscn`: arrows steer / throttle / brake, E / Q
-gears, C tow, R reset, J drop, B / N bumps, P / O slope, F3 telemetry, F4 force arrows). The game
-still uses the car below until v2 drives better.
+gears, C tow, R reset, J drop, B / N bumps, P / O slope, 1-8 surface pads, 9 split pad, F3
+telemetry, F4 force arrows). The game still uses the car below until v2 drives better.
 
 ### How the car drives
 

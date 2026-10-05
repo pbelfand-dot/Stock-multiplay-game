@@ -24,6 +24,9 @@ extends Node3D
 ##   * the tyre's states are stiff, so the car steps them several times a tick
 ##     (with the body's velocity held), implicitly, with the drivetrain and the
 ##     brakes solved in between (drivetrain.gd); the body gets the average force
+##   * what it touches says what surface it is (its meta "surface": surfaces.gd),
+##     and the tyre's figures are taken on that surface (TireModel.on_surface):
+##     each wheel on its own, so two wheels on grass and two on gravel pull
 ##   * the wheel's mass isn't carried by the suspension here: in the air it hangs
 ##     at full droop
 ## The node's own Y rotation is the steering (the car sets it). The WheelMesh
@@ -31,13 +34,16 @@ extends Node3D
 
 const Suspension = preload("res://scripts/vehicle/physics/suspension.gd")
 const TireModel = preload("res://scripts/vehicle/physics/tire_model.gd")
+const Surfaces = preload("res://scripts/vehicle/physics/surfaces.gd")
 
 @export var front := true
 
 var car: RigidBody3D
 var cfg: Resource                  # SuspensionConfig
-var tire: Resource                 # TireConfig
-var surface_mu := 1.0              # the surface's grip relative to the tyre's reference (phase 6)
+var tire: Resource                 # TireConfig (on its reference surface, gravel)
+var surface: Resource              # SurfaceConfig: what it's on (or was, last on the ground)
+var surface_tire: Resource         # the tyre on that surface (TireModel.on_surface)
+var surface_mu := 1.0              # grip x this on top of the surface's (the game's grip across the road; a test's ice patch)
 var radius := 0.32
 var width := 0.2
 var inertia := 1.1                 # kg m², the wheel's spin
@@ -80,6 +86,7 @@ var _n := 0
 var _prev_compression := 0.0
 var _was_grounded := false
 var _drop := 0.0                   # the look in the air: how far down the travel the wheel hangs
+var _surface_of: Object            # the collider `surface` is for
 
 
 ## Hook the corner up (the car calls it): the suspension it uses and the tyre.
@@ -114,6 +121,7 @@ func setup(the_car: RigidBody3D, suspension: Resource, tyre: Resource, tyre_radi
 	if mesh.get_child_count() == 0:                  # an empty WheelMesh: a plain tyre and rim
 		mesh.add_child(_tyre_mesh())
 	_drop = cfg.travel
+	_on_surface(null)
 
 
 ## Once a tick, first: sweep, work out the compression and the load, and the
@@ -165,6 +173,8 @@ func step(dt: float) -> void:
 		slip_long = 0.0
 		resist_torque = brake_torque
 	else:
+		if collider != _surface_of:
+			_on_surface(collider)
 		strut_force = Suspension.force(cfg, compression, compression_velocity)
 		var square := maxf(-axis.dot(normal), 0.0)  # the strut's push that's square to the ground
 		load = strut_force * square
@@ -174,10 +184,11 @@ func step(dt: float) -> void:
 		var vc := _point_velocity(contact)
 		v_long = vc.dot(heading)
 		v_lat = vc.dot(heading.cross(normal))
-		var lf := TireModel.load_mu_factor(tire, load)   # a heavily loaded tyre grips less per newton
-		_mu_y = tire.lateral_mu * surface_mu * lf
-		_mu_x = tire.longitudinal_mu * surface_mu * lf
-		resist_torque = brake_torque + tire.rolling_resistance * load * radius
+		var t := surface_tire
+		var lf := TireModel.load_mu_factor(t, load)      # a heavily loaded tyre grips less per newton
+		_mu_y = t.lateral_mu * surface_mu * lf
+		_mu_x = t.longitudinal_mu * surface_mu * lf
+		resist_torque = brake_torque + t.rolling_resistance * load * radius
 	_fx = 0.0
 	_fy = 0.0
 	_n = 0
@@ -191,8 +202,9 @@ func tyre_predict(h: float) -> void:
 		omega += h * drive_torque / inertia
 		i_eff = inertia
 		return
-	slip_lat = TireModel.lateral_slip(tire, slip_lat, v_long, v_lat, h)
-	var p: Array = TireModel.spin_predict(tire, omega, slip_long, slip_lat, v_long, load, _mu_x, _mu_y, inertia, radius, drive_torque, h)
+	slip_lat = TireModel.lateral_slip(surface_tire, slip_lat, v_long, v_lat, h)
+	var p: Array = TireModel.spin_predict(surface_tire, omega, slip_long, slip_lat, v_long, load, _mu_x, _mu_y, inertia, radius,
+		drive_torque, h)
 	omega = p[0]
 	i_eff = p[1]
 
@@ -201,9 +213,9 @@ func tyre_predict(h: float) -> void:
 func tyre_finalize(h: float) -> void:
 	if not grounded:
 		return
-	slip_long = TireModel.slip_after(tire, slip_long, omega, v_long, radius, h)
-	_fx += TireModel.long_force(tire, slip_long, slip_lat, omega, v_long, load, _mu_x, _mu_y, radius)
-	_fy += TireModel.lateral_force(tire, slip_long, slip_lat, load, _mu_x, _mu_y, v_long, v_lat)
+	slip_long = TireModel.slip_after(surface_tire, slip_long, omega, v_long, radius, h)
+	_fx += TireModel.long_force(surface_tire, slip_long, slip_lat, omega, v_long, load, _mu_x, _mu_y, radius)
+	_fy += TireModel.lateral_force(surface_tire, slip_long, slip_lat, load, _mu_x, _mu_y, v_long, v_lat)
 	_n += 1
 
 
@@ -245,6 +257,13 @@ func update_visual(dt: float) -> void:
 	_drop = target if grounded else move_toward(_drop, target, dt * 2.0)
 	mesh.position = Vector3(0.0, -_drop, 0.0)
 	mesh.rotation = Vector3(-spin, 0.0, 0.0)          # (steering: this node's own rotation)
+
+
+## Now on what `collider` is (null: the default, gravel).
+func _on_surface(c: Object) -> void:
+	_surface_of = c
+	surface = Surfaces.of(c)
+	surface_tire = TireModel.on_surface(tire, surface)
 
 
 ## A point on the car's velocity (world), from its linear and angular velocity.

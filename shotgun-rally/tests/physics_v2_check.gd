@@ -42,12 +42,26 @@ extends SceneTree
 ##   * one wheel on ice: with open diffs that wheel spins and the car hardly
 ##     moves; with the car's LSDs and locked centre it pulls away
 ##   * stopped, holding the brake: reverse, and it backs up
+## Phase 6, surfaces (the lab's pads: asphalt, gravel, dirt, snow, ice, mud,
+## grass), each run on each:
+##   * cornering: the wheel wound to 15 degrees from 15 m/s, coasting: the most
+##     cornering it can do, the surface's grip x gravel's; the loose surfaces let
+##     go at a bigger slip angle
+##   * braking from 40 km/h on full brakes: between what locked tyres keep and
+##     the peak grip (plus rolling resistance), never past it
+##     (no ABS yet: phase 8)
+##   * pulling away to 40 km/h on full throttle: never quicker than the grip allows
+##   * coasting: each surface's rolling resistance
+##   * split surface: braking with the left wheels on ice and the right on
+##     asphalt, the car turns toward the asphalt (with every wheel locked nothing
+##     holds it straight: it goes on round unless the driver steers against it)
 ## Run: godot --headless --fixed-fps 120 --path . -s tests/physics_v2_check.gd
 ## Prints [physics] lines; exits 1 on any FAIL.
 
 const Lab = preload("res://scripts/physics_lab.gd")
 const Suspension = preload("res://scripts/vehicle/physics/suspension.gd")
 const TireModel = preload("res://scripts/vehicle/physics/tire_model.gd")
+const Surfaces = preload("res://scripts/vehicle/physics/surfaces.gd")
 
 var car: RigidBody3D
 var fails := 0
@@ -61,6 +75,9 @@ var _phases := ["static", "bounce", "drop", "bumps", "left bumps", "skid 2", "sk
 	"slope braked", "slope rolling", "brake in turn", "turn in coasting", "turn in braking", "load",
 	"launch", "engine braking", "ice open diffs", "ice locked diffs", "reverse"]
 const ENGINE_RUNS := ["launch", "engine braking", "ice open diffs", "ice locked diffs", "reverse"]
+const SURFACE_KINDS := ["corner", "brake", "pull away", "coast"]
+const PULL_TO := 40.0 / 3.6        # m/s: the pull-away runs' target, the braking runs' start
+var _surf := {}                    # kind -> {surface: result}
 var _ice := {}
 var _shifts: Array = []            # [t, from gear, to gear, rpm before, rpm after]
 var _last_gear := 1
@@ -77,6 +94,11 @@ var _yaw0 := 0.0
 
 func _initialize() -> void:
 	Engine.physics_ticks_per_second = 120
+	for kind in SURFACE_KINDS:
+		_surf[kind] = {}
+		for n in Lab.SURFACES:
+			_phases.append("%s on %s" % [kind, n])
+	_phases.append("split braking")
 	var course := Node3D.new()
 	root.add_child(course)
 	Lab.build_course(course)
@@ -150,8 +172,24 @@ func _next() -> void:
 			car.place(Lab.SKID, 0.0)
 			car.drivetrain.cfg = _ice_drivetrain(name_open(_phases[_phase]))
 			car.wheels[3].surface_mu = 0.1           # the right rear on ice
+		"split braking":
+			car.inp.steer = 0.0
+			Lab.launch(car, Lab.split_start(), 60.0 / 3.6)
+			_yaw0 = car.global_rotation.y
+	var on: Array = _phases[_phase].split(" on ")
+	if on.size() == 2:
+		car.inp.steer = 0.0
+		match on[0]:
+			"corner":
+				Lab.launch(car, Lab.surface_start(on[1]), 15.0)
+			"brake":
+				Lab.launch(car, Lab.surface_start(on[1]), PULL_TO)
+			"pull away":
+				car.place(Lab.surface_start(on[1]), 0.0)
+			"coast":
+				Lab.launch(car, Lab.surface_start(on[1]), 20.0)
 	_v0 = car.global_position
-	if car.drivetrain and not (_phases[_phase] in ENGINE_RUNS):
+	if car.drivetrain and not (_phases[_phase] in ENGINE_RUNS or _phases[_phase].begins_with("pull away")):
 		car.drivetrain.gear = 0                      # the tyres and brakes alone
 	_inputs(_phases[_phase])
 
@@ -160,8 +198,17 @@ func _next() -> void:
 func _inputs(name: String) -> void:
 	for w in car.wheels:
 		w.drive_torque = {"drive gently": 400.0, "wheelspin": 2500.0}.get(name, 0.0)
-	car.inp.brake = {"brake gently": 0.3, "brake locked": 1.0, "slope braked": 1.0, "turn in braking": 0.25, "reverse": 1.0}.get(name, 0.0)
+	car.inp.brake = {"brake gently": 0.3, "brake locked": 1.0, "slope braked": 1.0, "turn in braking": 0.25, "reverse": 1.0,
+		"split braking": 1.0}.get(name, 0.0)
 	car.inp.throttle = 1.0 if name in ["launch", "ice open diffs", "ice locked diffs"] else 0.0
+	if name.begins_with("brake on"):
+		car.inp.brake = 1.0
+	elif name.begins_with("pull away"):
+		car.inp.throttle = 1.0
+	elif name.begins_with("corner on"):
+		car.inp.steer = minf(_t / 1.5, 1.0) * 15.0 / car.config.steering.max_angle_deg   # wound on over 1.5 s
+	elif name == "split braking":
+		car.inp.steer = 0.0
 	if name == "brake in turn":
 		car.inp.brake = 0.4 if _t >= 4.0 else 0.0
 
@@ -219,6 +266,24 @@ func _physics_process(dt: float) -> bool:
 					_drive_before, car.drivetrain.driveline_speed(car.wheels)])
 				_shift_from = 0
 				_shift_in = -1.0
+	var on: Array = name.split(" on ")
+	if on.size() == 2:
+		var stop := false
+		match on[0]:
+			"corner":
+				stop = _t >= 3.0
+			"brake":
+				stop = (_t > 0.5 and car.speed < 0.2) or _t >= 16.0
+			"pull away":
+				stop = car.speed >= PULL_TO or _t >= 16.0
+			"coast":
+				stop = _t >= 3.0
+		if stop:
+			_judge_surface(on[0], on[1])
+			_next()
+		return false
+	if name == "split braking":
+		length[name] = 0.75
 	if name.begins_with("skid") and _t >= length[name]:
 		_judge_skid(int(name.split(" ")[1]))
 		_next()
@@ -659,6 +724,99 @@ func _judge_ice_locked_diffs() -> void:
 	fails += _check(_ice.open < 0.4 * locked and _ice.open_spin > 3.0 * maxf(_ice.open_ground, 0.5),
 		"one wheel on ice: open diffs lose the drive to it (%.2f m/s², that wheel at %.0f km/h, the car at %.0f); the car's LSDs and locked centre pull away (%.2f m/s²)" % [
 			_ice.open, _ice.open_spin * 3.6, _ice.open_ground * 3.6, locked])
+
+
+## The car's tyre on surface `n` (the fronts and rears are the same tyre).
+func _tyre_on(n: String) -> Resource:
+	return TireModel.on_surface(car.config.front_tire, Surfaces.named(n))
+
+
+## A run on a surface pad: measure it, and once every surface has had this run,
+## compare them.
+func _judge_surface(kind: String, n: String) -> void:
+	var t := _tyre_on(n)
+	var g := 9.8
+	var mu: float = t.longitudinal_mu
+	var rr: float = t.rolling_resistance
+	match kind:
+		"corner":
+			# the most cornering it holds for a quarter of a second (its acceleration
+			# across its path), and the front slip angle then
+			var best := 0.0
+			var slip := 0.0
+			var win: Array = []
+			for e in _log:
+				var a_h := Vector3(e[16].x, 0.0, e[16].z)
+				var v_h := Vector3(e[17].x, 0.0, e[17].z).normalized()
+				win.append((a_h - v_h * a_h.dot(v_h)).length())
+				if win.size() > 30:
+					win.pop_front()
+				var a: float = win.reduce(func(x, y): return x + y, 0.0) / win.size()
+				if win.size() == 30 and a > best:
+					best = a
+					slip = absf(e[9])
+			_surf.corner[n] = {"a": best, "slip": slip}
+			print("[physics]      cornering on %-7s %5.2f m/s² (%.2f g), the fronts at %4.1f deg slip then" % [n + ":", best, best / g, slip])
+		"brake":
+			var t10 := -1.0
+			var t2 := -1.0
+			for e in _log:
+				if t10 < 0.0 and e[13] <= 10.0:
+					t10 = e[0]
+				if t2 < 0.0 and e[13] <= 2.0:
+					t2 = e[0]
+			var decel := 8.0 / maxf(t2 - t10, 0.01)
+			var dist := (car.global_position - _v0).length()
+			var locked := mu * absf(TireModel.longitudinal_curve(t, -1.0)) * g   # (a locked tyre slides: it isn't rolling)
+			var peak := (mu + rr) * g
+			_surf.brake[n] = {"a": decel, "d": dist}
+			fails += _check(t2 > 0.0 and decel > locked * 0.85 and decel < peak * 1.08,
+				"braking on %s from 40 km/h: %.2f m/s², stopped in %.1f m (locked tyres there: %.2f, the peak grip: %.2f)" % [n, decel, dist, locked, peak])
+		"pull away":
+			var t40: float = _t if car.speed >= PULL_TO else INF
+			var floor_t := PULL_TO / maxf(mu * g, 0.01)
+			_surf["pull away"][n] = t40
+			fails += _check(t40 < 16.0 and t40 > floor_t * 0.95,
+				"pulling away on %s: 0-40 km/h in %.2f s (the grip allows %.2f s at best)" % [n, t40, floor_t])
+		"coast":
+			var want := rr * car.mass * g / _m_eff()
+			var got := -_accel(0.5, 2.5)
+			_surf.coast[n] = got
+			fails += _check(absf(got - want) < want * 0.06,
+				"coasting on %s at 20 m/s: %.3f m/s² (its rolling resistance, %.3f: %.3f)" % [n, got, rr, want])
+	if n != Lab.SURFACES[Lab.SURFACES.size() - 1]:
+		return
+	var r: Dictionary = _surf[kind]
+	match kind:
+		"corner":
+			var ok := true
+			var lines := ""
+			for s in Lab.SURFACES:
+				var want: float = r.gravel.a * Surfaces.named(s).grip
+				ok = ok and absf(r[s].a / want - 1.0) < 0.15
+				lines += " %s %.1f (%.1f)," % [s, r[s].a, want]
+			fails += _check(ok, "cornering: each surface holds its grip x gravel's (m/s², want):" + lines)
+			fails += _check(r.asphalt.slip < r.gravel.slip and r.gravel.slip < r.snow.slip and r.snow.slip < r.mud.slip,
+				"the looser the surface, the bigger the slip angle it lets go at (asphalt %.1f, gravel %.1f, snow %.1f, mud %.1f deg)" % [
+					r.asphalt.slip, r.gravel.slip, r.snow.slip, r.mud.slip])
+		"brake":
+			fails += _check(r.asphalt.a > r.gravel.a and r.gravel.a > r.grass.a and r.grass.a > maxf(r.snow.a, r.mud.a)
+				and minf(r.snow.a, r.mud.a) > r.ice.a,
+				"braking: asphalt stops shortest, then gravel, grass, snow and mud, and ice by far the longest (%.0f / %.0f / %.0f / %.0f / %.0f / %.0f m)" % [
+					r.asphalt.d, r.gravel.d, r.grass.d, r.snow.d, r.mud.d, r.ice.d])
+		"pull away":
+			fails += _check(r.asphalt < r.gravel * 1.05 and r.gravel < r.snow and r.gravel < r.mud and r.ice > maxf(r.snow, r.mud),
+				"pulling away: asphalt and gravel quickest, snow and mud slower, ice slowest (%.1f / %.1f / %.1f / %.1f / %.1f / %.1f s, grass %.1f)" % [
+					r.asphalt, r.gravel, r.dirt, r.snow, r.mud, r.ice, r.grass])
+		"coast":
+			fails += _check(r.mud > r.grass and r.grass > r.snow and r.snow > r.gravel and r.gravel > r.asphalt,
+				"coasting: mud drags most, then grass, snow, gravel, asphalt (%.2f / %.2f / %.2f / %.2f / %.2f m/s²)" % [
+					r.mud, r.grass, r.snow, r.gravel, r.asphalt])
+
+
+func _judge_split_braking() -> void:
+	var yaw := rad_to_deg(wrapf(car.global_rotation.y - _yaw0, -PI, PI))
+	fails += _check(yaw < -5.0, "braking with the left wheels on ice, the right on asphalt: it turns toward the asphalt (%.0f deg to the right in 0.75 s)" % -yaw)
 
 
 func _judge_reverse() -> void:

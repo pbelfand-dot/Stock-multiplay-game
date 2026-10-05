@@ -1,0 +1,11 @@
+[gd_resource type="Resource" format=3]
+
+[ext_resource type="Script" path="res://scripts/vehicle/physics/config/surface_config.gd" id="1_surface"]
+
+[resource]
+script = ExtResource("1_surface")
+display_name = "grass"
+grip = 0.6
+peak_scale = 1.1
+slide_grip = 0.9
+rolling_scale = 2.8

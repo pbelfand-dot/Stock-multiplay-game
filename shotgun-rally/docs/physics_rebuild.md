@@ -1,9 +1,9 @@
 # Rally physics rebuild: inspection and plan
 
-Status: **phases 1-5 done** (the chassis on its suspension; the tyres' side grip and the
+Status: **phases 1-6 done** (the chassis on its suspension; the tyres' side grip and the
 steering; the wheels' spin, the drive / brake force and the brakes; the combined-slip ellipse and
-load sensitivity; the engine, clutch, sequential gearbox and four-wheel-drive diffs; in the lab,
-see "Phase reports" at the end). Decisions:
+load sensitivity; the engine, clutch, sequential gearbox and four-wheel-drive diffs; surfaces; in
+the lab, see "Phase reports" at the end). Decisions:
 - built **alongside** the current car (a lab scene, a `--physics=v2` switch once it drives), and it
   becomes the car once it passes every current test plus the manoeuvre tests;
 - physics at **120 Hz** (set by whatever runs the v2 car, so the current car and the auto-updater's
@@ -82,7 +82,7 @@ a sphere rolls over them like a tyre and gives the true contact point and normal
 | `gearbox.gd` | sequential: ratios, final drive, neutral, reverse, shift timing, the clutch |
 | `differential.gd` | open / locked / LSD with power lock, coast lock, preload |
 | `drivetrain.gd` | engine → clutch → gearbox → centre diff → front / rear diffs → wheels, solved together (implicit, sub-stepped) |
-| `surface_detector.gd` | collider → `RallySurface`: the body's `surface` metadata (already on every stage body) names a `.tres` |
+| `surfaces.gd` | collider → `SurfaceConfig`: the body's `surface` metadata (already on every stage body) names a `.tres` |
 | `driver_assist.gd` | ABS, traction control, stability control, steering filtering / damping, countersteer help, speed-sensitive steering: all optional, off for the base physics |
 | `rally_telemetry.gd` | the HUD (every wheel's numbers + the car's) and the debug drawing |
 
@@ -91,14 +91,14 @@ a sphere rolls over them like a tyre and gives the true contact point and normal
 `CarConfig` (mass, centre of mass x / y / z, inertia, wheel positions, brakes and bias, handbrake,
 aero: Cd, frontal area, downforce and its front/rear balance), `SuspensionConfig`, `TireConfig`,
 `EngineConfig`, `DrivetrainConfig`, `DifferentialConfig`, `SteeringConfig` (rack ratio, max angle,
-Ackermann, smoothing, controller curve), `AssistConfig`, `RallySurface`.
+Ackermann, smoothing, controller curve), `AssistConfig`, `SurfaceConfig`.
 
 - `data/cars/awd_rally.tres`: the first profile, a modern AWD rally car: ~1,280 kg, front-mounted
   turbo engine, 5-speed sequential, short wheelbase (~2.5 m), gravel tyres, long-travel
   suspension, strong brakes, hydraulic handbrake.
-- `data/surfaces/`: dry asphalt, wet asphalt, gravel, compact dirt, loose dirt, mud, snow, ice,
-  grass. The stage's surfaces map onto these: the road's wheel tracks → compact dirt, its crown
-  and edges → loose gravel, the verges → grass, the puddles → mud.
+- `data/surfaces/`: asphalt, wet asphalt, gravel (loose), dirt (packed), mud, snow, ice, grass.
+  The stage's surfaces map onto these: the road → gravel, with the game's grip across it (the
+  packed wheel tracks, the loose crown and edges) on top; the verges → grass; the puddles → mud.
 
 ## 3. Physics tick rate: 120 Hz
 
@@ -414,3 +414,103 @@ Rally2 car's handbrake clutch does), which is how a rally driver gets it turned 
   runs have auto-shift off, as a driver would hold first;
 - `Engine` shadowed Godot's own class and `preload` is a keyword: renamed `EngineModel`,
   `preload_torque`.
+
+### Phase 6: surfaces
+
+**1. The code**
+- `config/surface_config.gd` (`SurfaceConfig`): a surface as four figures that scale the car's
+  tyre (whose own figures are for loose gravel): **grip** (the friction coefficient, both ways),
+  **peak scale** (where the grip peaks: on a loose surface the tyre ploughs and digs, so it builds
+  its grip over more slip and has less cornering stiffness; on asphalt it bites early), **slide
+  grip** (how much a sliding, locked or spinning tyre keeps: on gravel, snow and mud it pushes a
+  wedge of the surface up and keeps most; on asphalt, grass and ice it skates and loses more) and
+  **rolling scale** (soft ground sinks under the tyre and drags).
+- `surfaces.gd`: what a tyre is on. Every body the tyres touch says so with its meta
+  `surface` (the stage already does): a name, looked up in `data/surfaces/<name>.tres` (spaces
+  as underscores) and kept, or a `SurfaceConfig` itself. No meta, or an unknown name: gravel.
+  `tarmac` and `road` mean asphalt.
+- `tire_model.gd`: `on_surface(tyre, surface)` gives the tyre on that surface, made once per
+  tyre and surface: mu x grip, both peaks x the peak scale, and the shape C set so the curve keeps
+  the surface's share past the peak (`kept(C) = sin(C pi / 2)`, `shape_keeping()` inverts it).
+- `rally_wheel.gd`: each wheel looks up its own surface whenever what it touches changes, and
+  every tyre calculation uses the tyre on that surface, so two wheels on grass and two on gravel
+  each do their own thing. `surface_mu` stays as an extra factor on top (the game's grip across
+  the road; the phase 5 ice-patch test).
+- Telemetry: each wheel's surface by name. Lab: a row of 240 m pads (asphalt, wet asphalt,
+  gravel, dirt, snow, ice, mud, grass) and a split pad (ice on the left, asphalt on the right);
+  keys 1-8 put the car on a pad rolling at 15 m/s, 9 on the split pad; `--lab=snow` (any surface)
+  for a picture.
+
+**2. Where:** `scripts/vehicle/physics/config/surface_config.gd`, `scripts/vehicle/physics/surfaces.gd`,
+`data/surfaces/*.tres`.
+
+**3. Nodes:** none new. Any `StaticBody3D` gets a surface with `set_meta("surface", "snow")` (or
+`set_meta("surface", preload("res://data/surfaces/snow.tres"))`).
+
+**4. In the inspector** (`data/surfaces/*.tres`) and what they make of the car's gravel tyre:
+
+| Surface | Grip | Peak slip angle | Peak slip ratio | Kept sliding (side / along) | Rolling resistance |
+|---|---|---|---|---|---|
+| asphalt | 1.30 | 4.2° | 0.090 | 78 % / 70 % | 0.0125 |
+| wet asphalt | 0.95 | 4.2° | 0.090 | 72 % / 65 % | 0.0150 |
+| gravel (loose) | 1.00 | 7.0° | 0.150 | 85 % / 76 % | 0.025 |
+| dirt (packed) | 1.05 | 6.0° | 0.128 | 81 % / 72 % | 0.020 |
+| snow (packed) | 0.45 | 9.1° | 0.195 | 90 % / 80 % | 0.050 |
+| ice | 0.15 | 4.9° | 0.105 | 64 % / 57 % | 0.0125 |
+| mud | 0.45 | 10.5° | 0.225 | 94 % / 84 % | 0.100 |
+| grass | 0.60 | 7.7° | 0.165 | 77 % / 68 % | 0.070 |
+
+Where they come from: published tyre-road friction tables put loose gravel at about 0.6 peak / 0.55
+sliding (gravel sliding on itself), dry asphalt 0.8-1.0, wet asphalt 0.5-0.8, packed snow 0.2-0.3,
+ice 0.07-0.2 and mud 0.15-0.4; the grips above are those as a share of gravel's, so the car keeps
+its 0.9 g on gravel. Rolling resistance from the engineering tables (asphalt ~0.013, rolled gravel
+0.02, snow 0.04-0.15, grass 0.06-0.11, soft ground 0.08-0.15). These are for the car's **gravel
+tyre**: studded tyres grip up to 2.5 times better on ice and about the same on snow, and a tarmac
+tyre more on asphalt; those are other `TireConfig`s (phase 9 / the garage).
+
+**5. How to test:** `godot --headless --fixed-fps 120 --path . -s tests/physics_v2_check.gd` (the
+suite now runs in ~30 s). In the lab: 1-8, steer, brake, F3.
+
+**6. What correct looks like** (measured, the same runs on every surface):
+
+| Surface | Cornering limit | Braking from 40 km/h | 0-40 km/h | Coasting at 20 m/s |
+|---|---|---|---|---|
+| asphalt | 11.2 m/s² (1.14 g) | 9.7 m/s², 6.3 m | 2.3 s | 0.12 m/s² |
+| wet asphalt | 8.3 (0.85 g) | 6.8, 9.2 m | 2.3 s | 0.14 |
+| gravel | 8.8 (0.90 g) | 8.1, 7.7 m | 2.3 s | 0.24 |
+| dirt | 9.2 (0.94 g) | 8.2, 7.6 m | 2.3 s | 0.19 |
+| snow | 4.0 (0.41 g) | 3.9, 16.0 m | 3.0 s | 0.47 |
+| ice | 1.3 (0.13 g) | 1.0, 61.9 m | 11.5 s | 0.12 |
+| mud | 3.9 (0.39 g) | 4.0, 15.4 m | 3.2 s | 0.95 |
+| grass | 5.3 (0.54 g) | 4.7, 13.2 m | 2.8 s | 0.66 |
+
+- cornering (the wheel wound to 15 degrees from 15 m/s): each surface holds its grip x gravel's
+  within 3 %, and the looser the surface the bigger the slip angle it lets go at (fronts at 6.6
+  degrees on asphalt, 10.2 on gravel, 14.6 on snow, 15.4 on mud);
+- braking on full brakes (no ABS: phase 8): the wheels lock on every surface and it stops on what
+  locked tyres keep there, within 4 % of the prediction; asphalt shortest, ice by far the longest;
+- pulling away: on asphalt, gravel and dirt the engine and clutch set the time, not the grip; on
+  snow and mud the grip does (3.0 and 3.2 s, against 2.5 s at the very best); on ice the wheels
+  spin up and it changes up on them (traction control is phase 8), 11.5 s against 7.6 at best;
+- coasting: each surface's rolling resistance exactly;
+- split surface (left wheels on ice, right on asphalt, full brakes from 60 km/h): it turns 33
+  degrees toward the asphalt in 0.75 s. With every wheel locked nothing holds it straight, so it
+  goes on round unless the driver steers against it or eases off: a real car without ABS does
+  the same.
+
+On asphalt the car rolls 5.4 degrees at 1.07 g and the inside rear nearly lifts (0.5 kN): there
+are no anti-roll bars yet (phase 7).
+
+**7. Bugs found** (in the tests, not the physics):
+- the first cornering run held the speed with the lab's tow, which pushes along the car's nose:
+  sliding on ice, part of that push counted as cornering, and the car "cornered" at 1.9 m/s², past
+  ice's own 1.47. It coasts now, measured by its acceleration across its path;
+- the braking bound added rolling resistance to the locked-tyre figure, but a locked tyre slides,
+  it doesn't roll;
+- the split-surface car turned toward the asphalt as it should, then on round past 180 degrees,
+  which the test read as 137 degrees the wrong way: it measures the first 0.75 s now.
+
+One simplification to know: rolling resistance acts as a torque on the wheel (like a light brake),
+so a wheel already spinning on its grip doesn't pass it on to the car. Pulling away in mud comes out
+2 % quicker than grip minus rolling resistance would allow. Deep mud or snow that drags the body
+whatever the wheels do would be an extra force; it isn't needed yet.

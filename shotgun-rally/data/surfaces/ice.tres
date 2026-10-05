@@ -1,0 +1,11 @@
+[gd_resource type="Resource" format=3]
+
+[ext_resource type="Script" path="res://scripts/vehicle/physics/config/surface_config.gd" id="1_surface"]
+
+[resource]
+script = ExtResource("1_surface")
+display_name = "ice"
+grip = 0.15
+peak_scale = 0.7
+slide_grip = 0.75
+rolling_scale = 0.5

@@ -188,8 +188,7 @@ func _physics_process(dt: float) -> void:
 		comp[k] = w.compression
 		if w.grounded:
 			grounded += 1
-			if w.collider and w.collider.has_meta("surface"):
-				on_surface = w.collider.get_meta("surface")
+			on_surface = w.surface.display_name
 	if drivetrain:
 		drivetrain.control(dt, pedals.x, wheels)
 	var h := dt / SUBSTEPS

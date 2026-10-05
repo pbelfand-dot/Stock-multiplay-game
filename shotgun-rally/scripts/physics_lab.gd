@@ -5,13 +5,17 @@ extends Node3D
 ##   * a strip of full-width bumps (8 cm, ~0.8 m long), to see the car pitch
 ##   * a lane of bumps under the left wheels only, to see it roll
 ##   * a 10 degree side slope, to see the tyres hold a parked car
+##   * a row of surface pads (asphalt, wet asphalt, gravel, dirt, snow, ice, mud,
+##     grass), 240 m square each, and a split pad: ice under the left wheels,
+##     asphalt the right
 ## Keys: left / right (A D) steer   up (W) throttle   down (S) brakes (stopped,
 ## hold it: reverse)   E / Q change up / down (it changes by itself too)
 ## C a tow at 15 m/s through the centre of mass   R back on the pad   J drop it from a metre up
 ## B roll it over the bumps at 12 m/s   N over the left-side bumps   P park it
-## across the side slope (O: nose uphill)   F3 numbers   F4 force arrows
+## across the side slope (O: nose uphill)   1-8 rolling at 15 m/s on a surface
+## pad (9: the split pad)   F3 numbers   F4 force arrows
 ## The tests build the same course (build_course) without the scene.
-## A picture: ... scenes/physics_lab.tscn -- --screenshot=out.png [--lab=drop|bumps|left|skid|slope|brake|launch
+## A picture: ... scenes/physics_lab.tscn -- --screenshot=out.png [--lab=drop|bumps|left|skid|slope|brake|launch|<a surface>
 ## --shot_wait=1.5 --vectors]
 
 const RallyCarV2 = preload("res://scripts/vehicle/physics/rally_car_v2.gd")
@@ -27,6 +31,12 @@ const SKID := Vector3(-150.0, 0.0, 150.0)   # skid pad runs start here, heading 
 const SLOPE := Vector3(80.0, 0.0, 120.0)    # the side slope's middle (its top surface passes through here)
 const SLOPE_DEG := 10.0            # tilted about the car's long axis (Z): left side up
 const TOW_SPEED := 15.0
+const SURFACES := ["asphalt", "wet asphalt", "gravel", "dirt", "snow", "ice", "mud", "grass"]
+const SURFACE_ROW := Vector3(-900.0, 0.0, 1000.0)   # the first pad's middle; the rest every SURFACE_GAP along +X ...
+const SURFACE_GAP := 260.0
+const SURFACE_PAD := 240.0                          # ... each this square
+const SURFACE_COLOURS := {"asphalt": Color(0.2, 0.2, 0.21), "wet asphalt": Color(0.12, 0.12, 0.14), "gravel": Color(0.62, 0.55, 0.43), "dirt": Color(0.5, 0.38, 0.27),
+	"snow": Color(0.93, 0.95, 0.98), "ice": Color(0.72, 0.84, 0.94), "mud": Color(0.3, 0.22, 0.15), "grass": Color(0.3, 0.47, 0.2)}
 
 var car: RigidBody3D
 var cam: Camera3D
@@ -51,8 +61,10 @@ func _ready() -> void:
 	add_child(cam)
 	cam.current = true
 	var hint := Label.new()
-	hint.text = "arrows steer / throttle / brake   E Q gears   C tow   R reset   J drop   B / N bumps   P / O slope   F3 numbers   F4 forces"
+	hint.text = "arrows steer / throttle / brake   E Q gears   C tow   R reset   J drop   B / N bumps   P / O slope   1-8 surfaces   9 split   F3 numbers   F4 forces"
 	hint.add_theme_font_size_override("font_size", 16)
+	hint.add_theme_constant_override("outline_size", 5)  # (readable on the snow pad too)
+	hint.add_theme_color_override("font_outline_color", Color(0.0, 0.0, 0.0, 0.8))
 	hint.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_LEFT, Control.PRESET_MODE_MINSIZE, 14)
 	var ui := CanvasLayer.new()
 	ui.add_child(hint)
@@ -78,6 +90,11 @@ func _ready() -> void:
 		"launch":
 			car.place(SKID, 0.0)
 			_auto_throttle = true
+		var lab when lab in SURFACES:
+			launch(car, surface_start(lab), TOW_SPEED)
+			_tow = true
+			car.inp.steer = 0.3
+			_hold_steer = true
 	car.telemetry.vectors = config != null and config.flag("vectors")
 
 
@@ -102,6 +119,11 @@ static func build_course(parent: Node) -> void:
 	mi.material_override = _mat(Color(0.56, 0.5, 0.4))
 	slope.add_child(mi)
 	parent.add_child(slope)
+	for n in SURFACES:                               # the surface pads (their tops at y = 0, like the ground)
+		_slab(parent, surface_pad(n) + Vector3(0.0, -0.5, 0.0), Vector3(SURFACE_PAD, 1.0, SURFACE_PAD), _mat(SURFACE_COLOURS[n]), n)
+	var split := split_start() - Vector3(0.0, 0.5, 90.0)
+	_slab(parent, split + Vector3(-SURFACE_PAD * 0.25, 0.0, 0.0), Vector3(SURFACE_PAD * 0.5, 1.0, SURFACE_PAD), _mat(SURFACE_COLOURS.ice), "ice")
+	_slab(parent, split + Vector3(SURFACE_PAD * 0.25, 0.0, 0.0), Vector3(SURFACE_PAD * 0.5, 1.0, SURFACE_PAD), _mat(SURFACE_COLOURS.asphalt), "asphalt")
 	var bump_mat := _mat(Color(0.5, 0.44, 0.34))
 	for i in BUMP_N:
 		var z := BUMPS_Z - i * BUMP_GAP
@@ -113,6 +135,22 @@ static func build_course(parent: Node) -> void:
 static func launch(c: RigidBody3D, at: Vector3, v: float) -> void:
 	c.place(at, 0.0)
 	c.set_speed(v)
+
+
+## The middle of surface `n`'s pad.
+static func surface_pad(n: String) -> Vector3:
+	return SURFACE_ROW + Vector3(SURFACE_GAP * SURFACES.find(n), 0.0, 0.0)
+
+
+## Where runs on surface `n` start: on its pad, 90 m back from the middle, heading -Z.
+static func surface_start(n: String) -> Vector3:
+	return surface_pad(n) + Vector3(0.0, 0.0, 90.0)
+
+
+## Where runs on the split pad start: straddling the line, ice under the left
+## wheels (-X), asphalt under the right, heading -Z.
+static func split_start() -> Vector3:
+	return SURFACE_ROW + Vector3(SURFACE_GAP * SURFACES.size(), 0.0, 90.0)
 
 
 ## The middle of the side slope's top surface.
@@ -164,6 +202,12 @@ func _unhandled_input(e: InputEvent) -> void:
 		KEY_O:
 			_tow = false
 			park_on_slope(car, PI / 2.0)
+		KEY_1, KEY_2, KEY_3, KEY_4, KEY_5, KEY_6, KEY_7, KEY_8:
+			_tow = false
+			launch(car, surface_start(SURFACES[e.keycode - KEY_1]), TOW_SPEED)
+		KEY_9:
+			_tow = false
+			launch(car, split_start(), TOW_SPEED)
 
 
 func _physics_process(_dt: float) -> void:
@@ -192,6 +236,8 @@ func _process(dt: float) -> void:
 	_orbit += dt * 0.1
 	var c := car.global_position
 	var want := c + Vector3(sin(_orbit) * 7.0, 2.6, cos(_orbit) * 7.0)
+	if cam.global_position.distance_to(want) > 60.0:   # (the car was moved to another pad: cut, don't fly there)
+		cam.global_position = want
 	cam.global_position = cam.global_position.lerp(want, clampf(dt * 3.0, 0.0, 1.0))
 	cam.look_at(c + Vector3.UP * 0.3, Vector3.UP)
 
