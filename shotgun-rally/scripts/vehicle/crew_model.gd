@@ -10,12 +10,19 @@ extends Node3D
 
 const SCALE := 1.2              # the cartoon crew is small for the cabin
 
+var suit_colour := Color(0.75, 0.13, 0.12)
+
 var skel: Skeleton3D
 var look := Vector2.ZERO        # yaw (+ = left), pitch (+ = up), rad
 var _b := {}                    # bone name -> index
 var _posed: Array = []          # bones we pose (reset to rest every frame)
 var _to_skel := Transform3D()   # cockpit space -> skeleton space
 var _head_hidden := false
+var _head_mesh: MeshInstance3D   # the helmet, cut out of the body (see _split_head)
+var own_layer := 2              # the render layer this seat's own camera leaves out (2 driver, 3 co-driver)
+var _base_layers := 1
+var _cap: MeshInstance3D        # closes the neck when the helmet's hidden (looking down)
+var _hands_hidden := false
 
 
 ## Load the model; false if it's missing or isn't the rig we expect.
@@ -43,13 +50,91 @@ func load_model(path: String) -> bool:
 			_posed.append(i)
 	for mi in scene.find_children("*", "MeshInstance3D", true, false):
 		mi.extra_cull_margin = 0.5                  # posed far from the rest pose's bounds
+	_split_head(found[0])
 	return true
+
+
+## Cut the helmet (the triangles that move with the head bones) into its own
+## mesh, so a seat camera can leave just that out: your own camera sits inside
+## your helmet. Everything stays skinned to the same skeleton.
+func _split_head(sk: Skeleton3D) -> void:
+	var heads := []
+	for n in ["Head", "head_end", "headfront", "neck"]:
+		var i := sk.find_bone(n)
+		if i >= 0 and n != "neck":
+			heads.append(i)
+	var body: MeshInstance3D = null
+	for mi in sk.find_children("*", "MeshInstance3D", false, false):
+		body = mi
+	if body == null or heads.is_empty():
+		return
+	var src: ArrayMesh = body.mesh
+	var keep := ArrayMesh.new()
+	var head := ArrayMesh.new()
+	for surf in src.get_surface_count():
+		var arr := src.surface_get_arrays(surf)
+		var bones = arr[Mesh.ARRAY_BONES]
+		var weights = arr[Mesh.ARRAY_WEIGHTS]
+		var idx: PackedInt32Array = arr[Mesh.ARRAY_INDEX]
+		if bones == null or weights == null or idx.is_empty():
+			return
+		var per := int(bones.size() / arr[Mesh.ARRAY_VERTEX].size())     # influences per vertex (4 or 8)
+		var is_head := PackedByteArray()
+		is_head.resize(arr[Mesh.ARRAY_VERTEX].size())
+		for v in is_head.size():
+			var w := 0.0
+			for j in per:
+				if bones[v * per + j] in heads:
+					w += weights[v * per + j]
+			is_head[v] = 1 if w > 0.5 else 0
+		var a := PackedInt32Array()
+		var b := PackedInt32Array()
+		for t in range(0, idx.size(), 3):
+			var hcount: int = is_head[idx[t]] + is_head[idx[t + 1]] + is_head[idx[t + 2]]
+			var dst := b if hcount >= 2 else a
+			dst.append(idx[t])
+			dst.append(idx[t + 1])
+			dst.append(idx[t + 2])
+		var mat := src.surface_get_material(surf)
+		for pair in [[keep, a], [head, b]]:
+			if pair[1].is_empty():
+				continue
+			var copy := arr.duplicate()
+			copy[Mesh.ARRAY_INDEX] = pair[1]
+			pair[0].add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, copy)
+			pair[0].surface_set_material(pair[0].get_surface_count() - 1, mat)
+	body.mesh = keep
+	_head_mesh = MeshInstance3D.new()
+	_head_mesh.name = "Helmet"
+	_head_mesh.mesh = head
+	_head_mesh.skin = body.skin
+	_head_mesh.extra_cull_margin = 0.5
+	sk.add_child(_head_mesh)
+	_head_mesh.skeleton = _head_mesh.get_path_to(sk)
+	# a collar that closes the neck, seen only by the seat's own camera (looking down)
+	var att := BoneAttachment3D.new()
+	att.bone_name = "neck"
+	sk.add_child(att)
+	_cap = MeshInstance3D.new()
+	var cm := CylinderMesh.new()
+	cm.top_radius = 6.5                              # skeleton units are cm (the armature is x0.01)
+	cm.bottom_radius = 7.5
+	cm.height = 3.0
+	cm.radial_segments = 10
+	_cap.mesh = cm
+	var cmat := StandardMaterial3D.new()
+	cmat.albedo_color = suit_colour
+	cmat.roughness = 0.8
+	_cap.material_override = cmat
+	_cap.visible = false
+	att.add_child(_cap)
 
 
 ## Draw the body on this render layer only (a seat camera can then leave it out).
 func set_layer(layer: int) -> void:
+	_base_layers = 1 << (layer - 1)
 	for mi in find_children("*", "MeshInstance3D", true, false):
-		mi.layers = 1 << (layer - 1)
+		mi.layers = _base_layers
 
 
 ## Put the hips at `hips` (cockpit space).
@@ -60,9 +145,19 @@ func seat_at(hips: Vector3) -> void:
 	_update_to_skel()
 
 
-## Your own body: no head (the camera is in it), the rest stays (your arms on the wheel).
+## Your own body: your arms stay on the wheel, but not your helmet (the camera's in
+## it): it goes on render layer 2, which the driver's camera leaves out.
 func hide_head(on: bool) -> void:
 	_head_hidden = on
+	if _head_mesh:
+		_head_mesh.layers = (1 << (own_layer - 1)) if on else _base_layers
+	if _cap:
+		_cap.visible = on
+
+
+## The driver's gloves are separate (driver_hands.gd: fingers round the rim): hide these.
+func hide_hands(on: bool) -> void:
+	_hands_hidden = on
 
 
 ## Pose for this frame. hands: [left, right] targets in cockpit space; elbow_out: the
@@ -90,7 +185,10 @@ func pose(hands: Array, elbow_out: Vector3, legs_fwd := 1.0) -> void:
 	var right := (_to_skel.basis * Vector3.RIGHT).normalized()
 	var turned := Basis(up, look.x) * Basis(right, look.y) * g.basis
 	_set_global_basis(head, turned)
-	skel.set_bone_pose_scale(head, Vector3.ONE * (0.001 if _head_hidden else 1.0))
+	# (your own head stays: the camera sits inside the helmet, and from inside a closed
+	# mesh every face points away and isn't drawn. Shrinking it left a hole in the neck)
+	for hand in ["LeftHand", "RightHand"]:
+		skel.set_bone_pose_scale(_b[hand], Vector3.ONE * (0.05 if _hands_hidden else 1.0))
 
 
 # ── helpers ───────────────────────────────────────────────────────────────

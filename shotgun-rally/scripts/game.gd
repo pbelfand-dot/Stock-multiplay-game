@@ -283,6 +283,9 @@ func _drive_inputs() -> void:
 		inp.brake = maxf(inp.brake, 0.6)
 	if _pause.visible:
 		inp = {"steer": 0.0, "throttle": 0.0, "brake": 0.4, "handbrake": false}
+	if Config.flag("screenshot"):                    # pictures: hold a steering angle / the handbrake
+		inp.steer = float(Config.arg("shot_steer", 0.0))
+		inp.handbrake = Config.flag("shot_handbrake")
 	car.inp = inp
 	if Input.is_action_just_pressed("reset_car") and state == "running":
 		reset_car()

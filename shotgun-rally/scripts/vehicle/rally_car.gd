@@ -97,6 +97,7 @@ var body_model: Node3D             # the Higgsfield car (assets/models/car_parts
 var _model_wheels: Array = []      # [pivot, spinner, rest position] per corner (model units)
 var _flaps: Array = []             # [hinge, angle, angular speed] per corner
 var _flap_prev_v := Vector3.ZERO
+var _net_handbrake := false
 
 var _prev_v := Vector3.ZERO
 var _u := 0.0                      # steering input after the key easing
@@ -246,6 +247,11 @@ func set_simulating(on: bool) -> void:
 	freeze = not on
 
 
+## Is the handbrake on? (the driver's input; on the co-driver's machine, from the stream)
+func handbrake_on() -> bool:
+	return bool(inp.handbrake) if simulate else _net_handbrake
+
+
 func kmh() -> float:
 	return absf(speed) * 3.6
 
@@ -257,7 +263,7 @@ func _physics_process(dt: float) -> void:
 		if _net_acc >= 1.0 / NET_HZ and Net.online() and stream_ok:
 			_net_acc = 0.0
 			net_state.rpc(Time.get_ticks_msec(), global_position, global_transform.basis.get_rotation_quaternion(),
-				linear_velocity, steer, rpm, gear, PackedFloat32Array(comp), slip, on_surface)
+				linear_velocity, steer, rpm, gear, PackedFloat32Array(comp), slip, on_surface, inp.handbrake)
 	else:
 		_play_stream()
 	_wheel_visuals(dt)
@@ -458,14 +464,14 @@ func _gearbox(vabs: float, throttle: float) -> void:
 
 @rpc("any_peer", "unreliable_ordered")
 func net_state(t: int, pos: Vector3, rot: Quaternion, vel: Vector3, st: float, r: float, g: int,
-		c: PackedFloat32Array, sl: float, surf: String) -> void:
+		c: PackedFloat32Array, sl: float, surf: String, hb: bool) -> void:
 	if simulate:
 		return
 	states_received += 1
 	var now := Time.get_ticks_msec()
 	_offset = minf(_offset + 0.5, float(now - t))      # creep up slowly, snap down to the fastest packet
 	_buf.append({"t": float(t), "pos": pos, "rot": rot, "vel": vel, "steer": st, "rpm": r, "gear": g,
-		"comp": c, "slip": sl, "surf": surf})
+		"comp": c, "slip": sl, "surf": surf, "hb": hb})
 	while _buf.size() > 40:
 		_buf.pop_front()
 
@@ -499,6 +505,7 @@ func _play_stream() -> void:
 	gear = a.gear
 	slip = a.slip
 	on_surface = a.surf
+	_net_handbrake = a.hb
 	speed = a.vel.dot(-global_transform.basis.z)
 	for k in 4:
 		comp[k] = a.comp[k] if a.comp.size() > k else comp[k]

@@ -18,6 +18,7 @@ extends Node3D
 
 const MapBoard = preload("res://scripts/vehicle/map_board.gd")
 const CrewModel = preload("res://scripts/vehicle/crew_model.gd")
+const DriverHands = preload("res://scripts/vehicle/driver_hands.gd")
 
 const RED := Color(0.78, 0.12, 0.1)
 const GREY := Color(0.46, 0.45, 0.43)
@@ -55,6 +56,8 @@ var _steer_node: Node3D
 var _arms := {}                                # name -> [upper MeshInstance3D, lower MeshInstance3D]
 var _heads := {}                               # seat -> Node3D (helmet), box crew
 var _models := {}                              # seat -> CrewModel (the real crew)
+var hands                                      # DriverHands: gloves on the rim, shuffling, the handbrake
+var _wheel_turn := 0.0                         # the steering wheel's turn (rad)
 var _mats := {}
 
 signal wiper_stroke
@@ -68,6 +71,11 @@ func build(the_car, stage) -> void:
 	_wheel()
 	_windshield()
 	_crew()
+	hands = DriverHands.new()
+	add_child(hands)
+	hands.setup(WHEEL_C, WHEEL_TILT, WHEEL_R)
+	if _models.has("driver"):
+		_models.driver.hide_hands(true)
 	map_board = MapBoard.new()
 	add_child(map_board)
 	map_board.setup(stage, the_car)
@@ -192,7 +200,6 @@ func _dash() -> void:
 	knob.material_override = _mat(Color(0.85, 0.1, 0.1), 0.4)
 	knob.position = Vector3(0.0, 0.14, -0.08)
 	add_child(knob)
-	_tube(Vector3(0.05, -0.06, 0.12), Vector3(0.05, 0.1, 0.02), 0.014, DARK)
 
 
 func _seats() -> void:
@@ -300,6 +307,8 @@ func _crew() -> void:
 	var ok := true
 	for seat in ["driver", "codriver"]:
 		var m := CrewModel.new()
+		m.own_layer = 2 if seat == "driver" else 3
+		m.suit_colour = SUIT_D if seat == "driver" else SUIT_C
 		add_child(m)
 		if m.load_model("res://assets/models/%s.glb" % seat):
 			var x: float = EYE_DRIVER.x if seat == "driver" else EYE_CODRIVER.x
@@ -386,22 +395,21 @@ func _arm(key: String, shoulder: Vector3, hand: Vector3, pole: Vector3) -> void:
 func _process(dt: float) -> void:
 	if car == null:
 		return
-	# the steering wheel turns ~12x the front wheels (14:1 rack, capped at about 1.5 turns)
-	var wheel_turn: float = clampf(car.steer * 13.0, -4.5, 4.5)
+	# the steering wheel turns ~13x the front wheels (capped at about 1.5 turns), no faster
+	# than hands can turn it (~690 deg/s)
+	_wheel_turn = move_toward(_wheel_turn, clampf(car.steer * 13.0, -4.5, 4.5), 12.0 * dt)
+	var wheel_turn: float = _wheel_turn
 	_steer_node.rotation = Vector3(WHEEL_TILT, 0.0, 0.0)
 	_steer_node.rotate_object_local(Vector3.BACK, -wheel_turn)
-	# driver's hands stay on the rim at 9 and 3 while it turns (and let go past ~110 deg)
-	var grip := clampf(wheel_turn, -1.9, 1.9)
-	var wheel_hands: Array = []
-	for side in ["l", "r"]:
-		var base_ang := PI if side == "l" else 0.0
-		var ang := base_ang - grip
-		# (on the back of the rim: the glove wraps round it)
-		var hand: Vector3 = _steer_node.transform * (Vector3(cos(ang), sin(ang), 0.03) * WHEEL_R)
-		wheel_hands.append(hand)
-		if _models.is_empty():
+	# driver's hands: gloves round the rim, hand over hand when it turns a lot, the
+	# right one on the handbrake when it's pulled (driver_hands.gd)
+	hands.update(dt, wheel_turn, car.handbrake_on())
+	var wheel_hands: Array = hands.wrists
+	if _models.is_empty():
+		for k in 2:
+			var side := "l" if k == 0 else "r"
 			var sh := Vector3(EYE_DRIVER.x + (-0.19 if side == "l" else 0.19), 0.28, 0.38)
-			_arm("driver" + side, sh, hand, sh + Vector3(-0.3 if side == "l" else 0.3, -0.5, 0.0))
+			_arm("driver" + side, sh, wheel_hands[k], sh + Vector3(-0.3 if side == "l" else 0.3, -0.5, 0.0))
 	# co-driver holds the map board by its sides
 	var board_hands: Array = []
 	if map_board:

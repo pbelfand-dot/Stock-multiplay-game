@@ -9,7 +9,8 @@ extends Node
 ##   --smoke=host|client                     2-player test: drive a stage, both check it
 ##   --aicheck                               solo test: the AI co-driver's calls come in time
 ##   --screenshot=out.png [--shot_seat=codriver --shot_s=300 --shot_read --shot_mud [--shot_wipe=N] --shot_nohud
-##                         --shot_yaw=1.2 --shot_pitch=-0.3 (look around, rad) --shot_view=seat|chase|orbit]
+##                         --shot_yaw=1.2 --shot_pitch=-0.3 (look around, rad) --shot_view=seat|chase|orbit
+##                         --shot_steer=-1..1 --shot_handbrake]
 
 const Game = preload("res://scripts/game.gd")
 const Menu = preload("res://scripts/ui/main_menu.gd")
