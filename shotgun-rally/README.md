@@ -5,8 +5,8 @@ game. One of you drives, blind past the next crest. The other sits in the passen
 map of the road ahead, works out what's coming and yells it: "LEFT! TIGHT LEFT! OVER THE CREST!"
 No friend online? The **AI co-driver** takes the seat.
 
-> This is the rally game's own branch (`shotgun-rally`) in the BAGHOLDERS repo. Nothing here touches
-> the trading game on `main`.
+> SHOTGUN RALLY lives in this `shotgun-rally/` folder, next to BAGHOLDERS on `main`. It's its own Godot
+> project with its own build, so the two games never touch each other.
 
 | | |
 |---|---|
@@ -15,7 +15,7 @@ No friend online? The **AI co-driver** takes the seat.
 
 ## ⬇ Download (always the newest build)
 
-The links never change. Every push to this branch replaces the files behind them (same as BAGHOLDERS):
+The links never change. Every change to this folder on `main` replaces the files behind them (same as BAGHOLDERS):
 
 - **Mac:** [ShotgunRally.zip](https://github.com/pbelfand-dot/Stock-multiplay-game/releases/download/shotgun-latest/ShotgunRally.zip)
 - **Mac (older Intel, pre-2020):** [ShotgunRally-Intel.zip](https://github.com/pbelfand-dot/Stock-multiplay-game/releases/download/shotgun-latest/ShotgunRally-Intel.zip)
@@ -104,14 +104,15 @@ real voice.
 
 ## Run from source / keep building it
 
-1. Install **Godot 4.7** (free) and open this folder, or run `godot --path .`.
-2. Tests (headless, ~3 minutes): `GODOT=/path/to/godot tests/run_all.sh`
+1. Install **Godot 4.7** (free) and open the `shotgun-rally/` folder (its `project.godot`), or run
+   `godot --path shotgun-rally` from the repo root.
+2. Tests (headless, ~3 minutes): `GODOT=/path/to/godot shotgun-rally/tests/run_all.sh`
    - compiles every script; checks 20 generated stages (deterministic, never crossing themselves,
      every corner gets a note)
    - the autopilot drives whole stages: 0–100 km/h on gravel (4.8 s), braking, the handbrake flick
    - the AI co-driver says every call in time (90–240 m before the corner)
    - **2 players, both ways round:** one machine drives, the other rides along; both see the finish
-3. Screenshots without a screen: `xvfb-run godot --path . -- --seed=11 --screenshot=out.png --shot_seat=codriver --shot_read`
+3. Screenshots without a screen: `xvfb-run godot --path shotgun-rally -- --seed=11 --screenshot=out.png --shot_seat=codriver --shot_read`
 
 | Folder | What's in it |
 |---|---|

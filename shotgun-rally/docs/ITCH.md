@@ -1,6 +1,6 @@
 # Putting SHOTGUN RALLY on itch.io
 
-Everything on the GitHub side is ready. Every push to `shotgun-rally` builds the game, and once
+Everything on the GitHub side is ready. Every change to `shotgun-rally/` on `main` builds the game, and once
 the two settings below exist, the build also uploads itself to itch.io (Windows, Linux and Mac).
 itch.io is free to use, and for a free game you never pay anything.
 
@@ -57,14 +57,14 @@ CO-DRIVER: hold RIGHT MOUSE (or Q) to look at the map, F wipers, mouse to look a
    - **Secrets** tab → **New repository secret**: name `BUTLER_API_KEY`, value = the key.
    - **Variables** tab → **New repository variable**: name `ITCH_PROJECT`, value =
      `your-itch-name/shotgun-rally`.
-3. Done. The next push to `shotgun-rally` (or **Actions → SHOTGUN RALLY · test & build → Run workflow**)
+3. Done. The next change to `shotgun-rally/` on `main` (or **Actions → SHOTGUN RALLY · test & build → Run workflow**)
    uploads three builds to the page: `windows`, `linux` and `mac-universal`.
 
 The key is a password: it only goes in that Secrets box, never in a file or a chat.
 
 ## How it works
 
-The workflow `.github/workflows/build.yml` runs the tests, exports the game, then uses itch.io's
+The workflow `.github/workflows/shotgun-rally.yml` runs the tests, exports the game, then uses itch.io's
 uploader (**butler**) to push each zip to its own channel. butler only uploads what changed, and
 the itch app keeps players updated automatically. If the two settings aren't there, that step is
 skipped, and the GitHub download links still work on their own.

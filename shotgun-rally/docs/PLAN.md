@@ -8,7 +8,7 @@
 |---|---|
 | Based on | ***Left Left Left!*** ([@leftleftleftgame](https://www.tiktok.com/@leftleftleftgame)). Breakdown: [`VIDEO_BREAKDOWN.md`](VIDEO_BREAKDOWN.md) |
 | Name | **SHOTGUN RALLY** ✅ confirmed. "Riding shotgun" is the passenger seat, and the passenger seat is the game |
-| Where | Its own branch, `shotgun-rally`, in this repo. Downloads come from a separate release tag, `shotgun-latest` |
+| Where | The `shotgun-rally/` folder on `main`, next to BAGHOLDERS: its own Godot project and its own build. Downloads come from a separate release tag, `shotgun-latest` |
 | Price | **Free**: GitHub downloads + **itch.io** (set-up ready: [`ITCH.md`](ITCH.md)) |
 | Budget | This Claude plan + your Higgsfield credits (**844.5**, Plus plan, checked 2026-10-04) |
 | Co-driver | Sits in the car and can look out the windows. Does **the real co-driver's jobs**: see [`CO_DRIVER_JOBS.md`](CO_DRIVER_JOBS.md) |
@@ -48,13 +48,13 @@ inside of corners, dust, mud on the glass, night and fog stages.
    | Already built | Where | Use |
    |---|---|---|
    | **A pacenote engine:** road → "4 left, 100, 3 right tightens 2" (grades 1–6, tightens/opens, long, caution, "into" links) plus a tracker that follows the car's position and speed along the road | `driver-test-app/rally/pacenotes.js` (982 lines) | Port to GDScript: the AI co-driver's brain. Stage x/z replaces GPS lat/lng |
-   | **The co-driver voice** + a clip-stitching player | `driver-test-app/rally/voice/`, `voicepack.js` | Copied into this branch already |
+   | **The co-driver voice** + a clip-stitching player | `driver-test-app/rally/voice/`, `voicepack.js` | Copied in already |
    | Car physics: grip, weight transfer, handbrake drift, real steering ratios | `main: scripts/vehicle/car.gd` | The starting point for the rally car |
    | Cockpit camera with **hands on the wheel** | `main: scripts/vehicle/drive_cam.gd`, `scripts/art/character.gd` | The driver's first-person view |
    | Roads as data + a procedural road mesh | `main: scripts/world/highway.gd`, `road_mesh.gd` | Stages: one centerline drives the road, the co-driver's map *and* the AI's calls |
    | AI that follows a path | `main: scripts/vehicle/ai_driver.gd` | Test stages without a human |
    | Online host/join, the driver's PC runs the car | `main: scripts/net/net.gd` | Driver hosts, co-driver joins |
-   | Auto-builds for Windows/Mac/Linux + download links | `main: .github/workflows/build.yml` | Same on this branch, its own release tag |
+   | Auto-builds for Windows/Mac/Linux + download links | `main: .github/workflows/build.yml` | Its own workflow (`shotgun-rally.yml`) and release tag |
 4. **Lag barely matters.** Calls happen 1–3 corners ahead. Only the driver needs a smooth car, and
    the driver's own PC runs it.
 5. **Cheap voice.** More lines in the same Fraser voice cost **0.2 credits each**. The whole list of
@@ -83,7 +83,7 @@ inside of corners, dust, mud on the glass, night and fog stages.
 | 11 | **AI 3D models come out as one solid piece** | Cars need separate wheels, a steering wheel and pivots | Build the cockpit and wheels with Blender scripts. Use Higgsfield for the car body, props, animals and spectators |
 | 12 | **Generated stages look the same** | Endless random roads get boring | Hand-made set pieces (water splash, big jump, village hairpin, bridge) and 3–4 biomes |
 | 13 | **AI calls at the wrong time** | Too early, you forget; too late, you crash | Call by *time* to the corner (the driver-test-app tracker already knows the car's speed and position), plus a calls earlier/later setting |
-| 14 | **Two games at once** | BAGHOLDERS is still live | Separate branch, so they can't break each other. Pick one per week |
+| 14 | **Two games at once** | BAGHOLDERS is still live | Separate folders, projects and builds, so they can't break each other. Pick one per week |
 
 ---
 
@@ -128,8 +128,8 @@ It's free, so "business" means **getting players and keeping costs at zero.**
 
 | Phase | What | Credits | Done when |
 |---|---|---|---|
-| 0 ✅ | Breakdown, name, plan, co-driver research, voice pack, branch | 0 | This doc |
-| 1 | **Grey box:** Godot project on this branch, one generated forest gravel stage, the rally car (raycast suspension), first-person driver seat with hands, co-driver seat with a working **map board**, wipers + mud, start countdown, 2 players online, builds + download links live | 0 | You and a friend finish a stage on Discord and want another |
+| 0 ✅ | Breakdown, name, plan, co-driver research, voice pack | 0 | This doc |
+| 1 ✅ | **Grey box:** Godot project, one generated forest gravel stage, the rally car (raycast suspension), first-person driver seat with hands, co-driver seat with a working **map board**, wipers + mud, start countdown, 2 players online, builds + download links live | 0 | You and a friend finish a stage on Discord and want another |
 | 2 | **AI co-driver:** port `pacenotes.js` → GDScript, play the Fraser clips, quick-call wheel, timing setting, generate the missing lines | ~10 | You can drive alone and trust the calls |
 | 3 | **Art:** low-poly red hatchback (parody name), cockpit, helmets and arms, toon forest | ~150–250 | It looks like a real game in a TikTok clip |
 | 4 | **Jobs + content:** OK board, triangle run, pushing the car, punctures, time cards + road book, recce mode, 3–4 biomes, set pieces | some | 20+ minutes of stuff |
@@ -140,7 +140,7 @@ It's free, so "business" means **getting players and keeping costs at zero.**
 1. **Making the repo public: careful.** This repo also holds BAGHOLDERS, and BAGHOLDERS has
    8 commercial songs in `assets/music/` (Rick Ross, Moneybagg Yo, Martin Solveig & GTA...) plus the
    real car models baked into `realcars_kit.glb`. Making the repo public would publish those files and
-   their whole history. **Better:** give SHOTGUN RALLY its own public repo (this branch has none of
+   their whole history. **Better:** give SHOTGUN RALLY its own public repo (its folder has none of
    that) and keep this one private.
 2. **itch.io:** make the page and add the two GitHub settings in [`ITCH.md`](ITCH.md).
 3. **Phase 2 next:** the quick-call wheel for the human co-driver, call timing in the menu, more lines.

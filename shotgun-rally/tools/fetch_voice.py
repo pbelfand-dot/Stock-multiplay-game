@@ -2,7 +2,7 @@
 """Downloads new co-driver lines listed in assets/voice/fraser/new_clips.json
 (Higgsfield result URLs), turns each into a small MP3 like the other 56 clips
 (silence trimmed, mono, 24 kHz, 64 kbps), adds it to manifest.json and empties
-the list. Runs in GitHub Actions (.github/workflows/voice.yml), because the
+the list. Runs in GitHub Actions (.github/workflows/shotgun-rally-voice.yml), because the
 Claude sandbox can't reach the clip host; or locally:
 
     python3 tools/fetch_voice.py        # needs ffmpeg on PATH
