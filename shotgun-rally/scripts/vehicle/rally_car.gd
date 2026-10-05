@@ -23,7 +23,10 @@ extends RigidBody3D
 ##     no way to hold the wheel just short of the limit, so the car does it).
 ##     Opposite steering in a slide is the most countersteer. At parking speeds
 ##     it's plain wheel angle
-##   * in the air the body gently levels itself (arcade landings)
+##   * in the air the body turns gently toward the slope it's about to land on
+##     (a driver's feel, a little assist), and the pedals pitch it like a real
+##     car's: brake = the wheels stop and hand their spin to the body (nose
+##     down), gas = the wheels spin up and the body pitches back (nose up)
 ## The machine of whoever is DRIVING simulates it (`simulate`) and streams its
 ## state ~30x a second; the co-driver's machine plays that stream back 100 ms
 ## behind, smoothly (snapshot interpolation), so the cabin never jitters.
@@ -43,6 +46,10 @@ const DAMP_REBOUND := 4200.0       # ... and stretching back (rebound): stiffer,
 const BUMP_STOP := 0.24            # past this compression the (progressive, hydraulic) bump stop joins in
 const BUMP_RATE := 1.1e6           # N per m^2 past it: soft at first, firm deep in (lands jumps without a slam)
 const BUMP_DAMP := 5000.0          # N per m/s extra while on it, squashing (it soaks the landing up)
+const DEEP_REBOUND := 2.0          # x more rebound damping deep in the travel (position-sensitive, like a
+                                   # rally damper): a big landing settles instead of springing the car off
+const BUMP_RETURN := 0.35          # ... and on the way back out it gives back only this much (hydraulic:
+                                   # the landing is soaked up, not thrown back: one squash, no second hop)
 const TYRE_GIVE := 0.035           # s: how quickly the tyre passes a step in the ground on to the spring
 const ANTI_ROLL_F := 7000.0        # N per m of left/right difference (more at the back: a car that turns)
 const ANTI_ROLL_R := 13000.0
@@ -70,6 +77,12 @@ const LOAD_SENS := 0.15            # mu drops 15 % per extra static load (a load
 const RELAX := 0.4                 # m: a tyre rolls this far before its side force catches up with a new slip angle
 const LOCKED_MU := 0.82            # a locked (handbraked) tyre slides at this much of its grip
 const GEARS := [13.0, 21.0, 29.0, 37.0, 47.0]   # top speed in each gear (m/s)
+## In the air. Four wheels at 110 km/h carry ~480 N m s of spin: stopping them
+## (brakes) tips a 1800 kg m^2 body nose-down ~10 deg over a 1 s jump
+const AIR_LEVEL := 1500.0          # N m per rad toward the ground below (was 2600 toward flat)
+const AIR_DAMP := 320.0            # N m per rad/s
+const AIR_BRAKE := 900.0           # N m nose-down, full brake
+const AIR_GAS := 450.0             # N m nose-up, full gas
 const PARTS := "res://assets/models/car_parts/"
 const MODEL_SCALE := 1.95          # model units -> m
 const STATIC_COMP := 0.11          # spring squash sitting still (m): where the model's wheels were modelled
@@ -345,10 +358,11 @@ func _drive(dt: float) -> void:
 			continue
 		var front: bool = WHEELS[k][2]
 		var mate := k ^ 1                                           # the other wheel on this axle
-		var fz: float = SPRING * h.c + (DAMP if h.cv > 0.0 else DAMP_REBOUND) * h.cv
+		var rebound: float = DAMP_REBOUND * (1.0 + DEEP_REBOUND * smoothstep(0.16, 0.3, h.c))
+		var fz: float = SPRING * h.c + (DAMP if h.cv > 0.0 else rebound) * h.cv
 		if h.c > BUMP_STOP:
 			var into: float = h.c - BUMP_STOP
-			fz += BUMP_RATE * into * into + (BUMP_DAMP * h.cv if h.cv > 0.0 else 0.0)
+			fz += BUMP_RATE * into * into * (1.0 if h.cv > 0.0 else BUMP_RETURN) + (BUMP_DAMP * h.cv if h.cv > 0.0 else 0.0)
 		fz += (ANTI_ROLL_F if front else ANTI_ROLL_R) * (h.c - comp[mate]) if not hits[mate].is_empty() else 0.0
 		fz = maxf(fz, 0.0)
 		var n: Vector3 = h.n
@@ -402,12 +416,13 @@ func _drive(dt: float) -> void:
 		# visuals: spin with the ground (locked rears don't turn)
 		spin[k] = spin[k] if locked else spin[k] + vlong / RADIUS * dt
 
-	# air: drag, and level the body a little while flying
+	# air: drag, and in flight turn toward the ground below + pitch with the pedals
 	apply_central_force(-v * v.length() * DRAG)
 	if grounded == 0:
 		_air_time += dt
-		var level := up.cross(Vector3.UP)
-		apply_torque(level * 2600.0 - angular_velocity * 350.0)
+		var below := _ground_normal(space, xf.origin + v * 0.3)
+		var pedals: float = inp.throttle * AIR_GAS - inp.brake * AIR_BRAKE
+		apply_torque(up.cross(below) * AIR_LEVEL - angular_velocity * AIR_DAMP + xf.basis.x * pedals)
 	else:
 		if _air_time > 0.35 and _prev_v.y < -3.0:
 			landed.emit(-_prev_v.y)
@@ -421,6 +436,13 @@ func _drive(dt: float) -> void:
 		hit.emit(dv.length())
 	_prev_v = v
 	_gearbox(vabs, throttle)
+
+
+## Which way the ground faces under p (straight up if there's nothing within 40 m).
+func _ground_normal(space: PhysicsDirectSpaceState3D, p: Vector3) -> Vector3:
+	var q := PhysicsRayQueryParameters3D.create(p, p - Vector3.UP * 40.0, 1, [get_rid()])
+	var h := space.intersect_ray(q)
+	return h.normal if not h.is_empty() else Vector3.UP
 
 
 ## Front wheel angle (rad, + = right) for steering input u (-1..1) at a speed.

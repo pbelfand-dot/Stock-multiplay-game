@@ -19,6 +19,15 @@ const ROAD_W := 5.6             # gravel width (m)
 const START_S := 40.0           # the car waits here (start line)
 const FINISH_BACK := 110.0      # flying finish this far before the end of the road
 const CLEARANCE := 55.0         # two parts of the road that aren't neighbours stay this far apart (m)
+## JUMPS, like Finland's: a gentle run-up, a short sharp brow, then a long landing
+## slope that falls about as fast as a car flies off the brow (so it lands going
+## the same way as the road, four wheels together), a dip and a climb back up.
+## Flight time ~ 2 v (run-up + landing grade) / g: ~1 s at 110 km/h, ~0.7 s at
+## 80; under ~60 km/h the brow is too gentle to leave the ground at all.
+const JUMP_EASE := 14.0         # m to ease into the run-up / out of the climb back
+const JUMP_BROW := 1.5          # half-length of the brow (m): sharp, so a fast car takes off
+const JUMP_SAG := 45.0          # m from the landing slope back to climbing (the dip)
+const JUMP_CLIMB := 0.05        # grade of the climb back (the jump ends at the height it started)
 
 ## Corners are graded from the radius of the line a car can drive through them
 ## using the whole road (like the driver-test-app pacenote engine): 6 = nearly
@@ -34,7 +43,7 @@ var curv := PackedFloat32Array()
 var length := 0.0               # metres of road
 var finish_s := 0.0
 var corners: Array = []         # [{s0, s1, dir, r_min, r_in, r_out, ang (deg), line_r, grade, shape, mods}]
-var crests: Array = []          # [{s, h, w, jump}]
+var crests: Array = []          # [{s, h, w, jump}] (+ a jump's shape: big, up, down, a, land, u, x0, prof)
 var puddles: Array = []         # [{s, d, r}]
 var rocks: Array = []           # [{s, d, r}] on the inside of some corners: "don't cut"
 var _rng := RandomNumberGenerator.new()
@@ -193,15 +202,36 @@ func _make_elevation() -> void:
 		[_rng.randf_range(2.5, 5.0), _rng.randf_range(320, 520), _rng.randf() * TAU],
 		[_rng.randf_range(1.0, 2.2), _rng.randf_range(150, 240), _rng.randf() * TAU],
 	]
-	# crests every 180-380 m; on a long-enough straight some are JUMPS (sharper, taller)
 	crests.clear()
+	# JUMPS on the long straights (a run-up and room to land in a straight line),
+	# where the hillside isn't too steep (on a slope the jump just tilts with it,
+	# but a steep one would push the landing past MAX_GRADE)
+	var zones: Array = []                            # [from, to] each jump takes up
+	for run in _straight_runs(96.0):
+		var at: float = run.x + _rng.randf_range(36.0, 46.0)
+		if at < START_S + 140.0 or at > finish_s - 240.0 or run.y - at < 58.0:
+			continue
+		var steepest := 0.0
+		for x in [-40.0, -20.0, 0.0, 20.0, 40.0, 60.0]:
+			steepest = maxf(steepest, absf(_hill_grade(at + x)))
+		if steepest > 0.1 or (not zones.is_empty() and at - zones[-1].y < 60.0):
+			continue
+		# on a calm hillside about half are BIG ones ("caution, jump"): ~1.05 s of air at 120
+		var j := _make_jump(at, steepest < 0.04 and _rng.randf() < 0.55)
+		crests.append(j)
+		zones.append(Vector2(at + j.x0, at + j.prof.size()))
+	# blind crests every 180-380 m around them
 	var s := START_S + 140.0
 	while s < finish_s - 80.0:
-		var straight := _straight_room(s)
-		var jump := straight > 70.0 and _rng.randf() < 0.45
-		crests.append({"s": s, "h": _rng.randf_range(1.6, 2.4) if jump else _rng.randf_range(1.0, 1.8),
-			"w": _rng.randf_range(13.0, 17.0) if jump else _rng.randf_range(16.0, 26.0), "jump": jump})
-		s += _rng.randf_range(180.0, 380.0)
+		var clear := true
+		for z in zones:
+			if s > z.x - 45.0 and s < z.y + 25.0:
+				s = z.y + 25.0
+				clear = false
+		if clear:
+			crests.append({"s": s, "h": _rng.randf_range(1.0, 1.8), "w": _rng.randf_range(16.0, 26.0), "jump": false})
+			s += _rng.randf_range(180.0, 380.0)
+	crests.sort_custom(func(p, q): return p.s < q.s)
 	for i in pts.size():
 		pts[i].y = height_at(i * STEP)
 	_limit_grade()
@@ -230,27 +260,106 @@ func height_at(s: float) -> float:
 	for hl in _hills:
 		y += hl[0] * sin(s / hl[1] * TAU + hl[2])
 	for c in crests:
-		# a smooth bump, sharp enough to hide what's behind; its far side is longer and
-		# gentler (a landing slope: 3x for a jump), so you come down onto road going down
-		# with you, not into the dip after it
-		var back: float = c.w * (3.0 if c.jump else 1.6)
-		var u: float = (s - c.s) / (c.w if s < c.s else back)
+		if c.jump:
+			# the jump's own shape, worked out once (_make_jump), every metre
+			var prof: PackedFloat32Array = c.prof
+			var f: float = s - c.s - c.x0
+			if f >= 0.0 and f < prof.size() - 1:
+				var i := int(f)
+				y += lerpf(prof[i], prof[i + 1], f - i)
+			elif f >= prof.size() - 1:
+				y += prof[prof.size() - 1]
+			continue
+		# a blind crest: a smooth bump, sharp enough to hide what's behind; its far side
+		# is longer and gentler, so you come down onto road going down with you
+		var u: float = (s - c.s) / (c.w if s < c.s else c.w * 1.6)
 		if absf(u) < 1.0:
 			y += c.h * 0.5 * (1.0 + cos(u * PI))
 	var flat := smoothstep(0.0, 120.0, s) * smoothstep(length, finish_s - 20.0, s)
 	return y * flat
 
 
-## How much straight road there is around s (m): no corner within that distance either way.
-func _straight_room(s: float) -> float:
-	var i := clampi(int(s / STEP), 0, curv.size() - 1)
-	var a := i
-	var b := i
-	while a > 0 and absf(curv[a]) < 1.0 / 400.0:
-		a -= 1
-	while b < curv.size() - 1 and absf(curv[b]) < 1.0 / 400.0:
-		b += 1
-	return minf(i - a, b - i) * STEP * 2.0
+## A jump with its brow at s: pick its grades and lengths, then add up its
+## height every metre. The climb back is as long as it takes to end up level.
+func _make_jump(s: float, big := false) -> Dictionary:
+	var j := {"s": s, "jump": true, "big": big,
+		"up": _rng.randf_range(0.07, 0.085) if big else _rng.randf_range(0.05, 0.075),     # run-up grade
+		"down": _rng.randf_range(0.15, 0.16) if big else _rng.randf_range(0.11, 0.14),     # landing slope
+		"a": _rng.randf_range(28.0, 40.0),          # run-up length (m)
+		"land": _rng.randf_range(45.0, 60.0),       # landing slope length (m)
+		"u": 0.0}
+	j.x0 = -(j.a + JUMP_EASE)
+	# where the dip ends: how far down it's got, then a climb back of the right length
+	var drop := _integrate_jump(j, j.land + JUMP_SAG)
+	j.u = maxf(0.0, -drop / JUMP_CLIMB - JUMP_EASE * 0.5)
+	var x1: float = j.land + JUMP_SAG + j.u + JUMP_EASE
+	var prof := PackedFloat32Array()
+	var y := 0.0
+	var x: float = j.x0
+	prof.append(0.0)
+	while x < x1:
+		y += (_jump_grade(j, x + 0.25) + _jump_grade(j, x + 0.75)) * 0.5
+		x += 1.0
+		prof.append(y)
+	j.prof = prof
+	j.h = j.up * j.a                                # how high the brow stands over the run-up's start
+	j.w = j.a                                       # (the co-driver calls it from halfway up the run-up)
+	return j
+
+
+func _integrate_jump(j: Dictionary, to: float) -> float:
+	var y := 0.0
+	var x: float = j.x0
+	while x < to:
+		y += _jump_grade(j, x + 0.25) * 0.5
+		x += 0.5
+	return y
+
+
+## The jump's grade x m from its brow (+ = uphill).
+func _jump_grade(j: Dictionary, x: float) -> float:
+	var a: float = j.a
+	var land: float = j.land
+	var u: float = j.u
+	if x < -a - JUMP_EASE:
+		return 0.0
+	if x < -a:
+		return j.up * smoothstep(-a - JUMP_EASE, -a, x)
+	if x < -JUMP_BROW:
+		return j.up
+	if x < JUMP_BROW:
+		return lerpf(j.up, -j.down, smoothstep(-JUMP_BROW, JUMP_BROW, x))
+	if x < land:
+		return -j.down
+	if x < land + JUMP_SAG:
+		return lerpf(-j.down, JUMP_CLIMB, smoothstep(land, land + JUMP_SAG, x))
+	if x < land + JUMP_SAG + u:
+		return JUMP_CLIMB
+	return JUMP_CLIMB * (1.0 - smoothstep(land + JUMP_SAG + u, land + JUMP_SAG + u + JUMP_EASE, x))
+
+
+## The rolling hills' own grade at s.
+func _hill_grade(s: float) -> float:
+	var g := 0.0
+	for hl in _hills:
+		g += hl[0] * TAU / hl[1] * cos(s / hl[1] * TAU + hl[2])
+	return g
+
+
+## Every stretch of (nearly) straight road at least `min_len` m long: [Vector2(from, to)].
+func _straight_runs(min_len: float) -> Array:
+	var out: Array = []
+	var start := -1
+	for i in curv.size():
+		var straight := absf(curv[i]) < 1.0 / 400.0
+		if straight and start < 0:
+			start = i
+		if (not straight or i == curv.size() - 1) and start >= 0:
+			if (i - start) * STEP >= min_len:
+				out.append(Vector2(start * STEP, i * STEP))
+			start = -1
+	return out
+
 
 
 # ── corners (what the AI co-driver calls) ─────────────────────────────────

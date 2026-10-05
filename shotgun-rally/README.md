@@ -18,6 +18,7 @@ No friend online? The **AI co-driver** takes the seat.
 | ![Your co-driver, seen from the driver's seat](docs/screens/crew.jpg) | ![The chase camera (C): the wheels steer and bounce, the mud flaps swing](docs/screens/chase.jpg) |
 | ![Handbrake: the right hand leaves the wheel and yanks the lever](docs/screens/handbrake.jpg) | ![The loading screen](docs/screens/loading.jpg) |
 | ![Drift dirt: lumpy dust clouds and a ribbon of gravel off the tyres](docs/screens/drift.jpg) | ![The dust rolling past the side window](docs/screens/drift_window.jpg) |
+| ![A big jump: off the brow at 120 km/h, the landing slope ahead](docs/screens/jump.jpg) | ![The same jump from the chase camera, 1.4 m up](docs/screens/jump_chase.jpg) |
 
 ## ⬇ Download (always the newest build)
 
@@ -65,8 +66,13 @@ Free, PC only (Windows, Mac, Linux). Built in **Godot 4.7**, like BAGHOLDERS.
    side of the road. Moving off early is a **jump start: +10 s**. The stage clock (and any penalties)
    stays at the top of the screen.
 2. **The stage** is ~2.7 km of gravel through thick forest (~10,000 trees): corners graded 6 (nearly flat) to 1 (very slow) plus
-   hairpins, corners that tighten or open, crests, jumps, puddles and rocks on the inside of the
+   hairpins, corners that tighten or open, blind crests, jumps, puddles and rocks on the inside of the
    "don't cut" corners. Every stage is generated from a number, so there's always a new one.
+   - **Jumps, Finland style** (modelled on WRC Rally Finland footage): on the long straights, a gentle
+     run-up, a sharp brow and a long landing slope that falls about as fast as the car flies, then a
+     dip. How far you fly is up to your speed: under ~70 km/h the car stays down, at 100 km/h it's
+     ~0.6 s in the air, at 120 km/h ~0.9 s, and a **big jump** (the co-driver says "caution, jump")
+     ~1.1 s and 1.4 m up. Land at the right speed and all four wheels touch down together.
 3. **The map board** (our own design, not the reference's tablet) shows **only the map and where you
    are**: the road ahead as a line, heading-up like a GPS, ~300 m of it, with the stopwatch clipped on
    top. No grades, no warnings: reading the road and calling it is the co-driver's job.
@@ -116,6 +122,10 @@ Corsa's gamepad assist; sources in the commit history):
   like a real Rally2 car) for the hairpin flick.
 - **Grippy on purpose:** ~0.95 g of cornering on gravel, a bit more than a real Rally2 car (~0.8 g),
   and the steering answers fast: on keys it comes on fully in ~0.17 s and centres in ~0.12 s. 0-100 km/h in 4.3 s (a Rally2 car: ~4.2 s), 45 / 55 AWD.
+- **In the air** the car leans toward the slope below it (a driver's feel), and the pedals work
+  like a real car's: **brake in the air and the nose drops** (the wheels stop and hand their spin to
+  the body, ~7 deg over a jump), gas lifts it a little. Landings squash the springs once and stay
+  down: the dampers soak up a big landing deep in their travel instead of throwing the car back up.
 - **A calmer ride.** The bouncing came from three things, all fixed: the hills were too steep
   (up to 31 %: now at most 16 %, smoothed, and crests land gently), the springs hit a hard stop on
   big landings (now a progressive bump stop, softer damping on the way down, and tyres that give a
@@ -184,6 +194,8 @@ real voice.
    - the autopilot drives whole stages: 0–100 km/h on gravel, braking, the handbrake flick
    - handling: full steering is the most grip at 50 / 80 / 110 km/h; lift-off and handbrake turns rotate the car
    - ride: how much the car shakes at the driver's eye on two stages, and the hardest landing
+   - jumps: air time by speed (a hop at 80 km/h, ~0.9 s at 120, longer off a big jump), landings on all
+     four wheels within 12 deg of the slope, no second bounce, still on the road, and braking in the air dips the nose
    - drift dirt: dust and stones when the car slides, a light trail at speed, a burst on landing, nothing when cruising or in the air
    - the AI co-driver says every call in time (90–240 m before the corner)
    - **2 players, both ways round:** one machine drives, the other rides along; both see the finish

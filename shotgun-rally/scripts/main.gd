@@ -11,7 +11,8 @@ extends Node
 ##   --screenshot=out.png [--shot_seat=codriver --shot_s=300 --shot_read --shot_mud [--shot_wipe=N] --shot_nohud
 ##                         --shot_yaw=1.2 --shot_pitch=-0.3 (look around, rad) --shot_view=seat|chase|orbit
 ##                         --shot_steer=-1..1 --shot_handbrake --shot_loading (keep the loading screen up)
-##                         --shot_drift (start it sliding sideways: the dirt flies)]
+##                         --shot_drift (start it sliding sideways: the dirt flies)
+##                         --shot_jump (at 120 km/h onto the stage's first (big) jump: the picture is taken mid-air)]
 
 const Game = preload("res://scripts/game.gd")
 const Menu = preload("res://scripts/ui/main_menu.gd")
@@ -24,6 +25,7 @@ var stage_no := 1
 var _test_t := 0.0
 var _smoke_done := false
 var _loading := false
+var _air_t := 0.0
 
 
 func _ready() -> void:
@@ -168,6 +170,15 @@ func _test_setup() -> void:
 				game.cockpit.wipe(int(Config.arg("shot_wipe", 1)))
 		if Config.flag("shot_nohud"):
 			game._hud.visible = false
+		if Config.flag("shot_jump"):
+			var jump: Dictionary = {}
+			for c in game.st.crests:
+				if c.jump and (jump.is_empty() or (c.get("big", false) and not jump.get("big", false))):
+					jump = c
+			if not jump.is_empty():
+				var s0: float = jump.s - 40.0
+				game.car.place(game.st.world_at(s0, 0.0), game.st.heading_at(s0))
+				game.car.linear_velocity = game.st.forward_at(s0) * 34.0
 		if Config.flag("shot_drift"):                # sliding sideways on the handbrake: the dirt flies
 			var xf: Transform3D = game.car.global_transform
 			game.car.linear_velocity = -xf.basis.z * 17.0 + xf.basis.x * 8.0
@@ -178,7 +189,14 @@ func _process(dt: float) -> void:
 	if game == null:
 		return
 	_test_t += dt
-	if Config.flag("screenshot") and _test_t > float(Config.arg("shot_wait", 2.0)):
+	var shot_now: bool = _test_t > float(Config.arg("shot_wait", 2.0))
+	if Config.flag("shot_jump") and game.built:      # mid-air (or give up after 8 s)
+		var flying := true
+		for k in 4:
+			flying = flying and game.car.comp[k] < 0.01
+		_air_t = _air_t + dt if flying else 0.0
+		shot_now = _air_t > float(Config.arg("shot_air", 0.45)) or _test_t > 8.0
+	if Config.flag("screenshot") and shot_now:
 		var path := Config.arg("screenshot")
 		get_viewport().get_texture().get_image().save_png(path)
 		print("[shot] saved ", path)

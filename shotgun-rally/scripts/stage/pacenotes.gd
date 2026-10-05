@@ -27,7 +27,7 @@ static func build(st) -> Array:
 		out.append({"kind": "corner", "s": c.s0, "s_end": c.s1, "dir": c.dir, "grade": c.grade,
 			"grade2": c.get("grade2", 0), "shape": c.shape, "mods": c.mods.duplicate(), "caution": false})
 	for cr in st.crests:
-		out.append({"kind": "jump" if cr.jump else "crest", "s": cr.s - cr.w * 0.5, "s_end": cr.s})
+		out.append({"kind": "jump" if cr.jump else "crest", "s": cr.s - cr.w * 0.5, "s_end": cr.s, "big": cr.get("big", false)})
 	var last_water := -1000.0
 	for p in st.puddles:
 		if p.s - last_water > 30.0:              # a pair of puddles is one note
@@ -77,7 +77,7 @@ static func words(n: Dictionary) -> Array:
 		"crest":
 			return ["over-crest"]
 		"jump":
-			return ["jump"]
+			return ["caution", "jump"] if n.get("big", false) else ["jump"]
 		"water":
 			return ["water"]
 		"finish":
