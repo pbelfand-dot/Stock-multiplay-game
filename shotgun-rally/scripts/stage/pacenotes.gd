@@ -16,8 +16,8 @@ const NICE_DISTANCES := [30, 40, 50, 60, 70, 80, 100, 120, 150, 200, 250, 300, 3
 const INTO_GAP := 15.0          # corners closer than this: "into"
 const AND_GAP := 40.0           # ... closer than this: "and"
 const MAX_CALLED_GAP := 1000.0  # longer straights aren't called as a distance
-const LINK_GAP := 100.0         # notes closer than this are read out together
-const MAX_PER_CALL := 4
+const LINK_GAP := 45.0          # notes closer than this are read out together (they run into each other)
+const MAX_PER_CALL := 3         # ... at most this many: more is too much to remember
 const CAUTION_STRAIGHT := 180.0 # a slow corner after this much straight gets "caution"
 
 
@@ -107,8 +107,8 @@ static func link_words(n: Dictionary) -> Array:
 	return []
 
 
-## Calls: notes read out together. [{first, last, s, words}] where s is
-## where the first note starts.
+## Calls: notes read out together. [{first, last, s, s_end, words}] where s is
+## where the first note starts and s_end where the last one ends.
 static func calls(notes: Array) -> Array:
 	var out: Array = []
 	var i := 0
@@ -123,7 +123,7 @@ static func calls(notes: Array) -> Array:
 			w += link_words(notes[k])
 		if not w.is_empty() and w[-1] == "and":
 			w.pop_back()                     # the next call follows right away: no dangling "and"
-		out.append({"first": i, "last": j, "s": notes[i].s, "words": w})
+		out.append({"first": i, "last": j, "s": notes[i].s, "s_end": notes[j].s_end, "words": w})
 		i = j + 1
 	return out
 
