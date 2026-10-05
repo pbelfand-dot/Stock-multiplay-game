@@ -25,6 +25,14 @@ extends Resource
 ## Rolling resistance: a force against rolling of this x the load (gravel ~0.02-0.04).
 @export_range(0.0, 0.2, 0.001) var rolling_resistance := 0.025
 
+@export_group("Load")
+## The load the grip figures above are for (N): about a corner's share of the car.
+@export_range(500.0, 10000.0, 50.0, "suffix:N") var nominal_load := 3200.0
+## How much grip per newton a tyre loses as its load goes up: mu x (1 - this x
+## (load / nominal - 1)). Weight transfer helps the light end grip per newton,
+## so it shifts the balance: the end that takes more transfer loses grip.
+@export_range(0.0, 0.5, 0.01) var load_sensitivity := 0.12
+
 @export_group("Rolling slowly")
 ## How far the tyre rolls before its side force catches up with a new slip
 ## (the carcass winding up). Also what makes it hold, like a spring, at a standstill.

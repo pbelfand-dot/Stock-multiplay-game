@@ -1,8 +1,8 @@
 # Rally physics rebuild: inspection and plan
 
-Status: **phases 1-3 done** (the chassis on its suspension; the tyres' side grip and the
-steering; the wheels' spin, the drive / brake force and the brakes; in the lab, see "Phase
-reports" at the end). Decisions:
+Status: **phases 1-4 done** (the chassis on its suspension; the tyres' side grip and the
+steering; the wheels' spin, the drive / brake force and the brakes; the combined-slip ellipse and
+load sensitivity; in the lab, see "Phase reports" at the end). Decisions:
 - built **alongside** the current car (a lab scene, a `--physics=v2` switch once it drives), and it
   becomes the car once it passes every current test plus the manoeuvre tests;
 - physics at **120 Hz** (set by whatever runs the v2 car, so the current car and the auto-updater's
@@ -291,3 +291,33 @@ scripts that place a car before it's in the scene tree now get a car that waits.
 
 No engine yet: the drive is a test torque, so there's no rev limit and a wheel given more than its
 grip spins up without end. Phase 5 brings the engine, clutch, gearbox and diffs.
+
+### Phase 4: the combined-slip ellipse, load sensitivity
+
+**1. The code**
+- `tire_model.gd`: `combined()`: each slip measured against its own peak (slip ratio / peak, tan
+  slip angle / peak), one combined slip from the two, each force its own curve at the combined
+  slip, shared out in the direction of the slip. At the limit the forces trace an ellipse; with one
+  slip it's exactly that slip's curve (phases 2-3 unchanged). The wheel-spin solve takes the
+  combined force's slope along the slip ratio, so braking in a turn and turning while braking are
+  solved together. `load_mu_factor()`: `mu x (1 - load_sensitivity x (load / nominal - 1))`.
+- `rally_wheel.gd`: both forces from `combined()`; mu scaled by the load. The circle cap from phase
+  3 now only catches the standstill damping's extra.
+- `TireConfig`: nominal load 3,200 N, load sensitivity 0.12.
+
+**6. What correct looks like** (measured):
+- at the cornering limit (9.2 m/s²), 40 % brakes: the cornering drops to 6.5 m/s², and braking and
+  cornering together never pass 9.2 m/s² (the tyres' 9.8);
+- entering a corner under the limit (2.5 degrees at 20 m/s, ~7 m/s²): coasting, the car turns a
+  touch less than the geometry asks (0.96: mild understeer); braking at 25 %, it rotates 25 % more
+  (1.20), the rear slip angle overtaking the front (2.6 vs 2.1 degrees) as the nose loads and the
+  tail goes light. That's trail braking, and no code asks for it;
+- a tyre with twice the load grips 12 % less per newton;
+- the skid pad: load sensitivity alone now gives the car its mild understeer (front slip above the
+  rear: 5.9 vs 4.2 degrees at 8 degrees of steering), the limit is 0.93 g (the outside tyres,
+  carrying most of the load, grip less per newton), and the slow hunt at the limit is gone (an
+  understeering car is stable there).
+
+**7. Bugs found:** none in the code. The first trail-braking test used a corner (5 degrees at
+20 m/s, asking for 14 m/s²) far past the tyres' grip: both runs were four-wheel slides, which
+proves nothing about trail braking; it now uses a corner under the limit.

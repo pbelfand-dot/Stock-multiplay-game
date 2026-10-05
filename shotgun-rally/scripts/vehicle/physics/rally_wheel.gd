@@ -18,8 +18,9 @@ extends Node3D
 ##     own spin, driven by the drive torque, slowed by the brakes and rolling
 ##     resistance, and the difference between its surface speed and the ground's
 ##     is the slip ratio, which gives the force along the wheel (its reaction
-##     slows or speeds the spin). Both pushed at the patch, never more than mu x
-##     load together (phase 4 makes that a proper combined-slip ellipse)
+##     slows or speeds the spin). Both share one patch of rubber (the combined-
+##     slip ellipse: braking hard leaves less for turning), and a heavily loaded
+##     tyre grips less per newton (load sensitivity). Both pushed at the patch
 ##   * the tyre's states are stiff, so they're stepped SUBSTEPS times a tick
 ##     (with the body's velocity held), implicitly; the body gets the average force
 ##   * the wheel's mass isn't carried by the suspension here: in the air it hangs
@@ -169,21 +170,23 @@ func step(dt: float) -> void:
 	var vc := _point_velocity(contact)
 	v_long = vc.dot(heading)
 	v_lat = vc.dot(right)
-	var mu_y: float = tire.lateral_mu * surface_mu
-	var mu_x: float = tire.longitudinal_mu * surface_mu
+	var lf := TireModel.load_mu_factor(tire, load)  # a heavily loaded tyre grips less per newton
+	var mu_y: float = tire.lateral_mu * surface_mu * lf
+	var mu_x: float = tire.longitudinal_mu * surface_mu * lf
 	var resist: float = brake_torque + tire.rolling_resistance * load * radius
 	var fx := 0.0
 	var fy := 0.0
 	for i in SUBSTEPS:
 		slip_lat = TireModel.lateral_slip(tire, slip_lat, v_long, v_lat, h)
-		fy += TireModel.lateral_force(tire, slip_lat, load, mu_y, v_long, v_lat)
-		var r: Array = TireModel.spin_step(tire, omega, slip_long, v_long, load, mu_x, inertia, radius, drive_torque, resist, h)
+		var r: Array = TireModel.spin_step(tire, omega, slip_long, slip_lat, v_long, load, mu_x, mu_y, inertia, radius,
+			drive_torque, resist, h)
 		omega = r[0]
 		slip_long = r[1]
 		fx += r[2]
+		fy += TireModel.lateral_force(tire, slip_long, slip_lat, load, mu_x, mu_y, v_long, v_lat)
 	fx /= SUBSTEPS
 	fy /= SUBSTEPS
-	# together never more than the tyre's grip (phase 4: the combined-slip ellipse)
+	# (the combined slip keeps them inside the ellipse; this only catches the damping's extra)
 	var limit := maxf(mu_x, mu_y) * load
 	var total := sqrt(fx * fx + fy * fy)
 	if total > limit:

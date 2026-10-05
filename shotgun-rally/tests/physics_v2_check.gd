@@ -27,6 +27,12 @@ extends SceneTree
 ##     brakes beat the grip) and it slides to a stop on what a locked tyre keeps
 ##   * coasting: rolling resistance slows it, slowly
 ##   * nose up the slope: the brakes hold it; let go, it rolls back down
+## Phase 4, one patch of rubber for both jobs, and load:
+##   * at the cornering limit, brakes on: it loses cornering grip (the ellipse)
+##     and the two together never pass the tyres' grip
+##   * the same corner entered braking (trail braking) rotates the car more than
+##     coasting into it: the nose loads and bites, the tail goes light
+##   * a tyre with twice the load grips less per newton (load sensitivity)
 ## Run: godot --headless --fixed-fps 120 --path . -s tests/physics_v2_check.gd
 ## Prints [physics] lines; exits 1 on any FAIL.
 
@@ -43,7 +49,8 @@ var _y0 := 0.0
 var _lift_t := 0.0
 var _phases := ["static", "bounce", "drop", "bumps", "left bumps", "skid 2", "skid 4", "skid 8", "skid 15",
 	"side slope", "straight", "drive gently", "wheelspin", "brake gently", "brake locked", "coast",
-	"slope braked", "slope rolling"]
+	"slope braked", "slope rolling", "brake in turn", "turn in coasting", "turn in braking", "load"]
+var _turn := {}                    # "coasting" / "braking" -> yaw gain
 var _v0 := Vector3.ZERO
 var _skid := {}                    # steering deg -> {a: lateral accel m/s², front / rear slip deg}
 var _yaw0 := 0.0
@@ -102,6 +109,12 @@ func _next() -> void:
 			Lab.launch(car, Lab.SKID, 20.0)
 		"slope braked", "slope rolling":
 			Lab.park_on_slope(car, PI / 2.0)
+		"brake in turn":
+			Lab.launch(car, Lab.SKID, 15.0)
+			car.inp.steer = 8.0 / car.config.steering.max_angle_deg
+		"turn in coasting", "turn in braking":
+			Lab.launch(car, Lab.SKID, 20.0)
+			car.inp.steer = 2.5 / car.config.steering.max_angle_deg     # ~7 m/s²: under the limit
 	_v0 = car.global_position
 	_inputs(_phases[_phase])
 
@@ -110,7 +123,9 @@ func _next() -> void:
 func _inputs(name: String) -> void:
 	for w in car.wheels:
 		w.drive_torque = {"drive gently": 400.0, "wheelspin": 2500.0}.get(name, 0.0)
-	car.inp.brake = {"brake gently": 0.3, "brake locked": 1.0, "slope braked": 1.0}.get(name, 0.0)
+	car.inp.brake = {"brake gently": 0.3, "brake locked": 1.0, "slope braked": 1.0, "turn in braking": 0.25}.get(name, 0.0)
+	if name == "brake in turn":
+		car.inp.brake = 0.4 if _t >= 4.0 else 0.0
 
 
 func _physics_process(dt: float) -> bool:
@@ -121,7 +136,7 @@ func _physics_process(dt: float) -> bool:
 		return _done()
 	_t += dt
 	var name: String = _phases[_phase]
-	if name.begins_with("skid"):
+	if name.begins_with("skid") or (name == "brake in turn" and _t < 4.0):
 		Lab.tow(car, 15.0)
 	elif name == "straight":
 		Lab.tow(car, 20.0)
@@ -144,11 +159,13 @@ func _physics_process(dt: float) -> bool:
 		car.linear_velocity.length(), rad_to_deg(car.angular_velocity.y),                       # 7, 8
 		(w[0].slip_angle_deg() + w[1].slip_angle_deg()) * 0.5, (w[2].slip_angle_deg() + w[3].slip_angle_deg()) * 0.5,  # 9, 10
 		car.global_position, car.linear_velocity.dot(xf.basis.x),                                 # 11, 12
-		car.linear_velocity.dot(fwd), _max_slip(), _all_locked()])                                 # 13, 14, 15
+		car.linear_velocity.dot(fwd), _max_slip(), _all_locked(), car.accel, car.linear_velocity,  # 13-17
+		(car.wheel_angles[0] + car.wheel_angles[1]) * 0.5])                                         # 18
 	var length := {"static": 3.0, "bounce": 5.5, "drop": 4.5, "bumps": 4.0, "left bumps": 4.0,
 		"skid 2": 5.0, "skid 4": 5.0, "skid 8": 5.0, "skid 15": 5.0, "side slope": 5.0, "straight": 3.0,
 		"drive gently": 3.0, "wheelspin": 2.0, "brake gently": 2.0, "brake locked": 6.0, "coast": 3.0,
-		"slope braked": 4.0, "slope rolling": 2.0}
+		"slope braked": 4.0, "slope rolling": 2.0, "brake in turn": 5.5, "turn in coasting": 1.4, "turn in braking": 1.4,
+		"load": 0.1}
 	if name.begins_with("skid") and _t >= length[name]:
 		_judge_skid(int(name.split(" ")[1]))
 		_next()
@@ -439,6 +456,83 @@ func _judge_slope_rolling() -> void:
 	var want: float = -(car.mass * 9.8 * (sin(th) - rr * cos(th))) / _m_eff()
 	var got := _accel(0.3, 1.8)
 	fails += _check(absf(got - want) < absf(want) * 0.1, "brakes off: it rolls back down, %.2f m/s² (gravity minus rolling resistance: %.2f)" % [got, want])
+
+
+## Acceleration across and along the car's path (m/s², horizontal) from a log row.
+func _lat_long(e: Array) -> Vector2:
+	var a: Vector3 = e[16]
+	var v: Vector3 = e[17]
+	a.y = 0.0
+	v.y = 0.0
+	var d := v.normalized()
+	var along := a.dot(d)
+	return Vector2((a - d * along).length(), along)
+
+
+func _judge_brake_in_turn() -> void:
+	var before := 0.0
+	var nb := 0
+	var during := 0.0
+	var nd := 0
+	var most := 0.0
+	for e in _log:
+		var al := _lat_long(e)
+		if e[0] > 3.0 and e[0] < 4.0:
+			before += al.x
+			nb += 1
+		if e[0] > 4.3 and e[0] < 5.3:
+			during += al.x
+			nd += 1
+		if e[0] > 3.0:
+			most = maxf(most, al.length())
+	before /= nb
+	during /= nd
+	var mu_g: float = car.config.front_tire.lateral_mu * 9.8
+	fails += _check(during < 0.85 * before, "braking at the cornering limit: it loses cornering grip (%.1f m/s² across before, %.1f braking)" % [before, during])
+	fails += _check(most < 1.05 * mu_g, "braking at the limit: braking and cornering together never pass the grip (%.1f m/s² at most, mu g = %.1f)" % [most, mu_g])
+
+
+## How much the car rotates for its steering, entering a 2.5 degree turn at 20 m/s:
+## yaw rate / the yaw rate the geometry would give at that speed (1 = neutral).
+func _yaw_gain() -> float:
+	var base: float = car.config.rear_axle - car.config.front_axle
+	var g := 0.0
+	var n := 0
+	for e in _log:
+		if e[0] > 0.5 and e[0] < 1.3 and absf(e[18]) > 0.01:
+			g += deg_to_rad(absf(e[8])) / (e[13] * absf(e[18]) / base)
+			n += 1
+	return g / maxi(n, 1)
+
+
+func _judge_turn_in_coasting() -> void:
+	_turn["coasting"] = _yaw_gain()
+	var rear := 0.0
+	for e in _log:
+		rear = maxf(rear, absf(e[10]))
+	print("[physics]      turning in, coasting: yaw for the steering %.2f, rear slip %.1f deg at most" % [_turn.coasting, rear])
+
+
+func _judge_turn_in_braking() -> void:
+	var g := _yaw_gain()
+	var rear := 0.0
+	var front := 0.0
+	for e in _log:
+		rear = maxf(rear, absf(e[10]))
+		front = maxf(front, absf(e[9]))
+	fails += _check(g > _turn.coasting * 1.05, "trail braking: entering the turn on the brakes rotates the car more (yaw for the steering %.2f vs %.2f coasting)" % [
+		g, _turn.coasting])
+	fails += _check(rear < 12.0, "trail braking: the tail steps out, it doesn't spin (rear slip %.1f deg at most, front %.1f)" % [rear, front])
+
+
+func _judge_load() -> void:
+	var t: Resource = car.config.front_tire
+	var nominal: float = t.nominal_load
+	var py := tan(deg_to_rad(t.lateral_peak_deg))
+	var per_n_1: float = TireModel.combined(t, 0.0, py, nominal, 1.0, TireModel.load_mu_factor(t, nominal)).y / nominal
+	var per_n_2: float = TireModel.combined(t, 0.0, py, 2.0 * nominal, 1.0, TireModel.load_mu_factor(t, 2.0 * nominal)).y / (2.0 * nominal)
+	fails += _check(per_n_2 < per_n_1 and absf(per_n_2 / per_n_1 - (1.0 - t.load_sensitivity)) < 0.01,
+		"load sensitivity: a tyre with twice the load grips %.0f %% less per newton (%.3f vs %.3f)" % [(1.0 - per_n_2 / per_n_1) * 100.0, per_n_2, per_n_1])
 
 
 func _check(ok: bool, msg: String) -> int:

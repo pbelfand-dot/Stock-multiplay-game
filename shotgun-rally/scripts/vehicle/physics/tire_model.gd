@@ -24,6 +24,14 @@ extends RefCounted
 ## the car calls it several times a tick. The brakes (and rolling resistance)
 ## are friction: they slow the wheel, can hold it still, never turn it back. A
 ## wheel locks only when the brake beats what the tyre can take from the road.
+##
+## Both at once (combined): a tyre has one patch of rubber for both jobs. Each
+## slip is measured against its own peak (slip ratio / peak, tan slip angle /
+## peak) and the two make one combined slip; each force is its own curve at
+## that combined slip, shared out in the direction of the slip. So at the limit
+## the forces trace an ellipse (braking hard leaves little for turning, and the
+## other way round), and with only one slip it's exactly that slip's curve.
+## Load sensitivity scales mu: a heavily loaded tyre grips less per newton.
 
 ## m/s: below this along the wheel, a sliding patch caps the wind-up (see above).
 const V_CRAWL := 1.0
@@ -57,6 +65,24 @@ static func lateral_slip(cfg: Resource, slip: float, v_x: float, v_y: float, dt:
 	return s
 
 
+## Load sensitivity: the grip coefficient's factor at this load (1 at the nominal load).
+static func load_mu_factor(cfg: Resource, load: float) -> float:
+	return clampf(1.0 - cfg.load_sensitivity * (load / cfg.nominal_load - 1.0), 0.5, 1.4)
+
+
+## Both forces from both slips (N): x along the wheel (slip ratio slip_x),
+## y across (side slip state slip_y, + = force to the right).
+static func combined(cfg: Resource, slip_x: float, slip_y: float, load: float, mu_x: float, mu_y: float) -> Vector2:
+	var px: float = cfg.longitudinal_peak
+	var py := tan(deg_to_rad(cfg.lateral_peak_deg))
+	var sx := slip_x / px
+	var sy := slip_y / py
+	var s := sqrt(sx * sx + sy * sy)
+	if s < 1e-9:
+		return Vector2.ZERO
+	return Vector2(mu_x * load * longitudinal_curve(cfg, s * px) * sx / s, mu_y * load * lateral_curve(cfg, s * py) * sy / s)
+
+
 ## The force along the wheel for a slip ratio, as a share of mu x load (-1..1).
 static func longitudinal_curve(cfg: Resource, slip: float) -> float:
 	var b := stiffness_b(cfg.longitudinal_shape, cfg.longitudinal_peak)
@@ -72,15 +98,17 @@ static func longitudinal_slope(cfg: Resource, slip: float) -> float:
 
 
 ## One implicit step (h seconds) of a wheel's spin and its slip ratio state on
-## the ground. t_drive: torque turning it (+ = forward); t_resist: brakes +
-## rolling resistance (>= 0, friction). Returns [spin rad/s, slip state, force N
-## along the wheel (+ = pushing the car forward)].
-static func spin_step(cfg: Resource, spin: float, slip: float, v_x: float, load: float, mu: float,
+## the ground (slip_y: the side slip, which shares the grip). t_drive: torque
+## turning it (+ = forward); t_resist: brakes + rolling resistance (>= 0,
+## friction). Returns [spin rad/s, slip state, force N along the wheel
+## (+ = pushing the car forward)].
+static func spin_step(cfg: Resource, spin: float, slip: float, slip_y: float, v_x: float, load: float, mu: float, mu_y: float,
 		inertia: float, radius: float, t_drive: float, t_resist: float, h: float) -> Array:
 	var sigma: float = cfg.longitudinal_relaxation
 	var a := 1.0 + h * absf(v_x) / sigma
-	var f0 := mu * load * longitudinal_curve(cfg, slip)
-	var k := maxf(mu * load * longitudinal_slope(cfg, slip), 0.0)   # the force's growth with slip (not past the peak)
+	var f0 := combined(cfg, slip, slip_y, load, mu, mu_y).x
+	var e := 1e-4                                    # the force's growth with slip (not past the peak)
+	var k := maxf((combined(cfg, slip + e, slip_y, load, mu, mu_y).x - combined(cfg, slip - e, slip_y, load, mu, mu_y).x) / (2.0 * e), 0.0)
 	var i_eff := inertia + h * h * radius * radius * k / (sigma * a)
 	# the spin's momentum after the drive and the tyre, before the friction torques
 	var n := inertia * spin + h * t_drive - h * radius * f0 - h * radius * k * (slip * (1.0 - a) - h * v_x / sigma) / a
@@ -90,7 +118,7 @@ static func spin_step(cfg: Resource, spin: float, slip: float, v_x: float, load:
 	if absf(v_x) < V_CRAWL:                          # crawling and spinning / sliding: capped where it lets go
 		var limit := maxf(cfg.longitudinal_peak, absf(w * radius - v_x) / V_CRAWL)
 		s = clampf(s, -limit, limit)
-	var f := mu * load * longitudinal_curve(cfg, s)
+	var f := combined(cfg, s, slip_y, load, mu, mu_y).x
 	# slow or stopped, the wound-up carcass is a spring along the wheel too: damp it
 	# (a braked car on a slope would rock on its tyres otherwise)
 	var still := 1.0 - clampf(absf(v_x) / 3.0, 0.0, 1.0)
@@ -105,10 +133,10 @@ static func air_spin(spin: float, inertia: float, t_drive: float, t_resist: floa
 	return 0.0 if absf(n) <= stop else (n - signf(n) * stop) / inertia
 
 
-## The side force (N, + = toward the wheel's right) for that slip, the load and
+## The side force (N, + = toward the wheel's right) for the slips, the load and
 ## the grip, with the carcass's damping when it's slow, never more than mu x load.
-static func lateral_force(cfg: Resource, slip: float, load: float, mu: float, v_x: float, v_y: float) -> float:
-	var f := mu * load * lateral_curve(cfg, slip)
+static func lateral_force(cfg: Resource, slip_x: float, slip: float, load: float, mu_x: float, mu: float, v_x: float, v_y: float) -> float:
+	var f := combined(cfg, slip_x, slip, load, mu_x, mu).y
 	var still := 1.0 - clampf(absf(v_x) / 3.0, 0.0, 1.0)
 	f -= cfg.standstill_damping * v_y * still
 	return clampf(f, -mu * load, mu * load)
