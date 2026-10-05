@@ -2,6 +2,10 @@ extends Node3D
 ## The driver's hands: gloves that wrap round the steering wheel rim (the
 ## rigged crew model has no finger bones, so its own hands are hidden and these
 ## take their place), hand-over-hand steering, and the handbrake.
+##   * the gloves are racing gloves: black, pre-curved fingers round the rim,
+##     the thumb across its face, padded knuckles, a panel in the suit's colour
+##     on the back, and a flared gauntlet with a strap that goes over the sleeve
+##     (it turns to follow the forearm: aim_cuffs())
 ##   * a gripping hand stays where it took hold of the rim and turns with the
 ##     wheel. When it's carried past where an arm can comfortably go, it lets
 ##     go and takes a new grip further round (one hand at a time, the other
@@ -20,11 +24,22 @@ const LEVER_BASE := Vector3(-0.12, -0.1, -0.14)
 const LEVER_LEN := 0.46          # tall, like a rally car's: the grip stands just right of the wheel's bottom
 const LEVER_TILT := -0.25       # rad: leans forward, parked
 const LEVER_PULL := 0.36        # rad back when pulled (still in view)
-const RIM_R := 0.018            # thickness of the rim / lever handle the fingers wrap
+const RIM_R := 0.019            # thickness of the rim / lever handle the fingers wrap
+const GRIP_ROLL := 0.55         # rad: the hand rolled round the rim toward the driver (you see the backs of your hands)
+const WRIST := Vector3(0.0, 0.01, 0.085)    # glove space (before the roll): where the forearm meets the hand
+## The gauntlet's outline, from inside the glove out over the sleeve (which ends
+## 3.5 cm up the forearm, radius ~4.5 cm: crew_model.gd), then a lip turning in to
+## the sleeve so you can't see into it: [m along the forearm from the wrist, radius]
+const CUFF := [[-0.03, 0.028], [0.0, 0.037], [0.02, 0.0455], [0.04, 0.05], [0.062, 0.0515], [0.072, 0.0515],
+	[0.076, 0.05], [0.077, 0.043]]
+
+var suit_colour := Color(0.75, 0.13, 0.12)   # the panel on the back, the strap (set before setup)
 
 var wrists: Array = [Vector3.ZERO, Vector3.ZERO]   # where the arms reach (cockpit space)
 var _plane: Node3D               # the wheel's plane (tilted, not turned)
 var _gloves: Array = []
+var _cuffs: Array = []
+var _elbows: Array = []          # where the forearms come from (cockpit space; empty: a guess)
 var _lever: Node3D
 var _lever_pull := 0.0
 var _rim := 0.18
@@ -40,10 +55,23 @@ func setup(wheel_centre: Vector3, wheel_tilt: float, rim_radius: float) -> void:
 	_plane.position = wheel_centre
 	_plane.rotation.x = wheel_tilt
 	add_child(_plane)
+	var mats := {
+		"glove": _mat(Color(0.075, 0.075, 0.08), 0.85),         # Nomex suede
+		"panel": _mat(suit_colour, 0.7),
+		"pad": _mat(Color(0.2, 0.2, 0.21), 0.55),            # rubbery knuckle pads
+		"trim": _mat(Color(0.92, 0.92, 0.9), 0.7),
+	}
 	for k in 2:
-		var g := _glove()
+		var g := MeshInstance3D.new()
+		g.name = "Glove" + ("L" if k == LEFT else "R")
+		g.mesh = _glove(1.0 if k == RIGHT else -1.0, mats)
 		add_child(g)
 		_gloves.append(g)
+		var c := MeshInstance3D.new()
+		c.name = "Gauntlet" + ("L" if k == LEFT else "R")
+		c.mesh = _gauntlet(mats)
+		add_child(c)
+		_cuffs.append(c)
 	_build_lever()
 
 
@@ -135,7 +163,28 @@ func _place(k: int, w: float) -> void:
 		"brake":
 			xf = _rim_grip(h.from, 0.0).interpolate_with(_lever_grip(), _ease(h.t))
 	(_gloves[k] as Node3D).transform = xf
-	wrists[k] = xf * Vector3(0.0, 0.0, 0.075)
+	wrists[k] = xf * (Basis(Vector3.RIGHT, GRIP_ROLL) * WRIST)
+	_aim_cuff(k)
+
+
+## The gauntlets point up the forearms: call after the arms are posed, with the
+## elbows ([left, right], cockpit space).
+func aim_cuffs(elbows: Array) -> void:
+	_elbows = elbows
+	for k in 2:
+		_aim_cuff(k)
+
+
+func _aim_cuff(k: int) -> void:
+	var xf: Transform3D = (_gloves[k] as Node3D).transform
+	var up: Vector3
+	if _elbows.size() == 2:
+		up = (_elbows[k] - wrists[k]).normalized()
+	else:
+		up = (xf.basis * Vector3(0.0, -0.3, 1.0)).normalized()  # no arm to follow: back toward the driver
+	var side := xf.basis.x
+	side = (side - up * side.dot(up)).normalized()
+	(_cuffs[k] as Node3D).transform = Transform3D(Basis(side, up, side.cross(up)), wrists[k])
 
 
 ## A grip on the rim at plane angle a (0 = 3 o'clock, PI = 9), lifted `lift` toward the driver.
@@ -171,64 +220,172 @@ func _mat(c: Color, rough := 0.8) -> StandardMaterial3D:
 	return m
 
 
-## A gloved hand gripping a bar along its x axis: palm on the +z side (toward
-## the wrist), four fingers curling over +y round to the front, the thumb under.
-func _glove() -> Node3D:
-	var g := Node3D.new()
-	var black := _mat(Color(0.07, 0.07, 0.08), 0.7)
-	var grey := _mat(Color(0.2, 0.2, 0.22), 0.6)
-	var palm := MeshInstance3D.new()
-	var pb := BoxMesh.new()
-	pb.size = Vector3(0.08, 0.055, 0.035)
-	palm.mesh = pb
-	palm.material_override = black
-	palm.position = Vector3(0.0, 0.004, RIM_R + 0.02)
-	g.add_child(palm)
-	var cuff := MeshInstance3D.new()
-	var cm := CylinderMesh.new()
-	cm.top_radius = 0.034
-	cm.bottom_radius = 0.03
-	cm.height = 0.05
-	cm.radial_segments = 8
-	cuff.mesh = cm
-	cuff.material_override = grey
-	cuff.rotation.x = PI / 2.0
-	cuff.position = Vector3(0.0, 0.0, 0.065)
-	g.add_child(cuff)
-	var rf := RIM_R + 0.011
+## A racing glove gripping a bar along its x axis (the rim): the palm on the +z
+## side (toward the wrist), the back of the hand outward (+y), four fingers
+## curling over the outside, round the front and back in underneath, the thumb
+## across the face of the bar on the inside. ts: which way the thumb is along x
+## (+1 right hand, -1 left: the index finger is on top either way). All the parts
+## are baked into one mesh, a surface per material.
+func _glove(ts: float, mats: Dictionary) -> ArrayMesh:
+	var parts := {}
+	var roll := Transform3D(Basis(Vector3.RIGHT, GRIP_ROLL))
+	var add := func(key: String, mesh: Mesh, xf: Transform3D) -> void: _add(parts, key, mesh, roll * xf)
+	var x := Vector3.RIGHT
+	# the back of the hand: from the wrist to the knuckle line, which stands proud
+	# on the outside of the rim
+	var knuckle_a := deg_to_rad(72.0)
+	var kr := RIM_R + 0.021
+	var knuckle := Vector3(0.0, kr * sin(knuckle_a), kr * cos(knuckle_a))
+	var w := WRIST + Vector3(0.0, 0.004, -0.008)
+	var d := (knuckle - w).normalized()                      # along the back of the hand
+	var n := x.cross(d).normalized()                          # out of the back of the hand
+	if n.dot(knuckle + w) < 0.0:
+		n = -n
+	var mid := (knuckle + w) * 0.5
+	var half := knuckle.distance_to(w) * 0.5
+	add.call("glove", _ball(), Transform3D(Basis(x * 0.046, d * (half + 0.014), n * 0.0165), mid))
+	add.call("panel", _ball(), Transform3D(Basis(x * 0.035, d * (half * 0.82), n * 0.0135), mid + n * 0.0048 - d * 0.004))
+	# the heel of the hand and the thumb's mound, filling under toward the rim
+	add.call("glove", _ball(), Transform3D(Basis(x * 0.04, d * 0.024, n * 0.016), w + d * 0.016 - n * 0.006))
+	add.call("glove", _ball(), Transform3D(Basis(x * 0.02, d * 0.026, n * 0.016), Vector3(ts * 0.03, 0.012, 0.054)))
+	# fingers: index, middle, ring, little (x from the thumb side)
+	var fx := [0.031, 0.0105, -0.0105, -0.0295]
+	var fr := [0.0102, 0.0106, 0.0101, 0.0091]
+	var tip := [238.0, 248.0, 240.0, 226.0]
 	for i in 4:
-		var x := -0.03 + i * 0.02
-		var prev := Vector3(x, rf * sin(deg_to_rad(5.0)), rf * cos(deg_to_rad(5.0)))
-		for deg in [70.0, 130.0, 175.0]:
+		var r: float = fr[i]
+		var rf: float = RIM_R + r * 0.92
+		var fxi: float = ts * fx[i]
+		var base := Vector3(fxi, knuckle.y, knuckle.z)
+		var pts := [base]
+		for deg in [130.0, 185.0, tip[i]]:
 			var a := deg_to_rad(deg)
-			var p := Vector3(x, rf * sin(a), rf * cos(a))
-			g.add_child(_seg(prev, p, 0.0085 if i in [1, 2] else 0.0078, black))
-			prev = p
-	var tprev := Vector3(0.035, -0.012, RIM_R + 0.014)
-	for deg in [-60.0, -120.0]:
-		var a := deg_to_rad(deg)
-		var p := Vector3(0.028, rf * sin(a), rf * cos(a))
-		g.add_child(_seg(tprev, p, 0.0095, black))
-		tprev = p
-	return g
+			pts.append(Vector3(fxi * (1.0 - 0.06 * (deg - 72.0) / 180.0), rf * sin(a), rf * cos(a)))
+		for j in 3:
+			add.call("glove", _capsule_mesh(r + 0.0007 - j * 0.0007, pts[j].distance_to(pts[j + 1])), _seg_xf(pts[j], pts[j + 1]))
+		# the knuckle and its pad
+		add.call("glove", _ball(), Transform3D(Basis.IDENTITY.scaled(Vector3.ONE * (r + 0.0016)), base))
+		add.call("pad", _ball(), Transform3D(Basis(x * (r * 0.95), d * 0.009, n * 0.006), base + n * (r * 0.62) - d * 0.003))
+	# the thumb: from the mound across the face of the rim, round its inside
+	var tp := [Vector3(ts * 0.034, 0.008, 0.058), Vector3(ts * 0.041, -0.006, 0.036),
+		Vector3(ts * 0.036, -0.022, 0.022), Vector3(ts * 0.026, -0.031, 0.009)]
+	var tr := [0.0125, 0.0112, 0.0102]
+	for j in 3:
+		add.call("glove", _capsule_mesh(tr[j], tp[j].distance_to(tp[j + 1])), _seg_xf(tp[j], tp[j + 1]))
+	return _bake(parts, mats)
 
 
-func _seg(a: Vector3, b: Vector3, r: float, m: Material) -> MeshInstance3D:
-	var mi := MeshInstance3D.new()
-	var cap := CapsuleMesh.new()
-	cap.radius = r
-	cap.height = a.distance_to(b) + r * 2.0
-	cap.radial_segments = 6
-	cap.rings = 1
-	mi.mesh = cap
-	mi.material_override = m
-	var d := (b - a).normalized()
-	var up := d
-	var side := Vector3.RIGHT if absf(d.dot(Vector3.RIGHT)) < 0.9 else Vector3.FORWARD
+## The gauntlet: a flared cuff along +Y (up the forearm) from the wrist, with a
+## strap in the suit's colour round it and a white edge at the open end.
+func _gauntlet(mats: Dictionary) -> ArrayMesh:
+	var parts := {}
+	_add(parts, "glove", _lathe(CUFF, 16), Transform3D.IDENTITY)
+	var strap := []
+	for u in [0.024, 0.028, 0.046, 0.05]:
+		strap.append([u, _cuff_r(u) + (0.0035 if u > 0.026 and u < 0.048 else 0.0)])
+	_add(parts, "panel", _lathe(strap, 16), Transform3D.IDENTITY)
+	_add(parts, "panel", _ball(), Transform3D(Basis(Vector3.RIGHT * 0.012, Vector3.UP * 0.013, Vector3.BACK * 0.006),
+		Vector3(0.0, 0.037, -(_cuff_r(0.037) + 0.003))))   # the velcro tab, on the back of the wrist
+	var edge := []
+	for u in [0.062, 0.064, 0.072, 0.074]:
+		edge.append([u, _cuff_r(u) + (0.0018 if u > 0.063 and u < 0.073 else 0.0)])
+	_add(parts, "trim", _lathe(edge, 16), Transform3D.IDENTITY)
+	return _bake(parts, mats)
+
+
+static func _cuff_r(u: float) -> float:
+	for i in CUFF.size() - 1:
+		if u <= CUFF[i + 1][0]:
+			return lerpf(CUFF[i][1], CUFF[i + 1][1], inverse_lerp(CUFF[i][0], CUFF[i + 1][0], u))
+	return CUFF[-1][1]
+
+
+## A surface of revolution round +Y through [[y, radius], ...], smooth shaded.
+static func _lathe(profile: Array, seg: int) -> ArrayMesh:
+	var v := PackedVector3Array()
+	var nm := PackedVector3Array()
+	var idx := PackedInt32Array()
+	for i in profile.size():
+		var p: Array = profile[i]
+		var a: Array = profile[maxi(i - 1, 0)]
+		var b: Array = profile[mini(i + 1, profile.size() - 1)]
+		var slope: float = (b[1] - a[1]) / maxf(b[0] - a[0], 1e-5)    # dr/dy
+		for k in seg + 1:
+			var t := TAU * k / seg
+			var radial := Vector3(sin(t), 0.0, cos(t))
+			v.append(radial * float(p[1]) + Vector3.UP * float(p[0]))
+			nm.append((radial - Vector3.UP * slope).normalized())
+	for i in profile.size() - 1:
+		for k in seg:
+			var a0 := i * (seg + 1) + k
+			var b0 := a0 + seg + 1
+			idx.append_array([a0, b0, a0 + 1, a0 + 1, b0, b0 + 1])      # clockwise seen from outside: Godot's front
+	var arr := []
+	arr.resize(Mesh.ARRAY_MAX)
+	arr[Mesh.ARRAY_VERTEX] = v
+	arr[Mesh.ARRAY_NORMAL] = nm
+	arr[Mesh.ARRAY_INDEX] = idx
+	var m := ArrayMesh.new()
+	m.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arr)
+	return m
+
+
+static func _ball() -> SphereMesh:
+	var m := SphereMesh.new()
+	m.radius = 1.0
+	m.height = 2.0
+	m.radial_segments = 14
+	m.rings = 7
+	return m
+
+
+static func _capsule_mesh(r: float, length: float) -> CapsuleMesh:
+	var m := CapsuleMesh.new()
+	m.radius = r
+	m.height = length + r * 2.0
+	m.radial_segments = 10
+	m.rings = 2
+	return m
+
+
+## The transform that lays a mesh built along +Y between points a and b.
+static func _seg_xf(a: Vector3, b: Vector3) -> Transform3D:
+	var up := (b - a).normalized()
+	var side := Vector3.RIGHT if absf(up.dot(Vector3.RIGHT)) < 0.9 else Vector3.FORWARD
 	var x := side.cross(up).normalized()
-	var z := x.cross(up).normalized()
-	mi.transform = Transform3D(Basis(x, up, z), (a + b) * 0.5)
-	return mi
+	return Transform3D(Basis(x, up, x.cross(up).normalized()), (a + b) * 0.5)
+
+
+## Add a mesh (its first surface, moved by xf) to the parts for material `key`.
+static func _add(parts: Dictionary, key: String, mesh: Mesh, xf: Transform3D) -> void:
+	if not parts.has(key):
+		parts[key] = [PackedVector3Array(), PackedVector3Array(), PackedInt32Array()]
+	var arr := mesh.surface_get_arrays(0)
+	var v: PackedVector3Array = parts[key][0]
+	var nm: PackedVector3Array = parts[key][1]
+	var idx: PackedInt32Array = parts[key][2]
+	var base := v.size()
+	var nb := xf.basis.inverse().transposed()      # normals through a squashed ball stay right
+	for p in arr[Mesh.ARRAY_VERTEX]:
+		v.append(xf * p)
+	for q in arr[Mesh.ARRAY_NORMAL]:
+		nm.append((nb * q).normalized())
+	for i in arr[Mesh.ARRAY_INDEX]:
+		idx.append(base + i)
+	parts[key] = [v, nm, idx]
+
+
+static func _bake(parts: Dictionary, mats: Dictionary) -> ArrayMesh:
+	var m := ArrayMesh.new()
+	for key in parts:
+		var arr := []
+		arr.resize(Mesh.ARRAY_MAX)
+		arr[Mesh.ARRAY_VERTEX] = parts[key][0]
+		arr[Mesh.ARRAY_NORMAL] = parts[key][1]
+		arr[Mesh.ARRAY_INDEX] = parts[key][2]
+		m.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arr)
+		m.surface_set_material(m.get_surface_count() - 1, mats[key])
+	return m
 
 
 ## The tall hydraulic handbrake beside the driver's seat: black lever, red grip.

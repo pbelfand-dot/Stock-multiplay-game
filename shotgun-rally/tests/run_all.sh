@@ -21,6 +21,8 @@ echo "== jumps: air time by speed, clean four-wheel landings, no second bounce, 
 "$G" --headless --fixed-fps 60 --path . -s tests/jump_check.gd 2>&1 | grep -E "\[jump\] (ok|FAIL|JUMPS|seed)" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
 echo "== drift dirt: dust + stones when it slides, none when it cruises or flies"
 "$G" --headless --fixed-fps 60 --path . -s tests/fx_check.gd 2>&1 | grep -E "\[fx\]" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
+echo "== cockpit: the gloves cover the sleeve ends wherever the hands are, numbered dials, shift lights"
+"$G" --headless --path . -s tests/cockpit_check.gd 2>&1 | grep -E "\[cockpit\] (FAIL|COCKPIT|ok   straight)" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
 echo "== ride: how much the car bounces on two stages (shaking at the eye, the hardest landing)"
 for seed in 3 15; do
   "$G" --headless --fixed-fps 60 --path . -s tests/ride_check.gd -- --seed=$seed 2>&1 | grep -E "\[ride\]" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1

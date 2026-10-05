@@ -12,6 +12,7 @@ extends Node
 ##                         --shot_yaw=1.2 --shot_pitch=-0.3 (look around, rad) --shot_view=seat|chase|orbit
 ##                         --shot_steer=-1..1 --shot_handbrake --shot_loading (keep the loading screen up)
 ##                         --shot_drift (start it sliding sideways: the dirt flies)
+##                         --shot_cam=x,y,z,tx,ty,tz (a free close-up camera, car-local: at xyz, looking at t; the car holds still, or drives with --autostart --autopilot)
 ##                         --shot_jump (at 120 km/h onto the stage's first (big) jump: the picture is taken mid-air)]
 
 const Game = preload("res://scripts/game.gd")
@@ -181,6 +182,18 @@ func _test_setup() -> void:
 				game.cockpit.wipe(int(Config.arg("shot_wipe", 1)))
 		if Config.flag("shot_nohud"):
 			game._hud.visible = false
+		if Config.flag("shot_cam"):
+			var v := Array(Config.arg("shot_cam").split(",")).map(func(t): return float(t))
+			var cam := Camera3D.new()
+			cam.fov = 50.0
+			cam.near = 0.01
+			cam.cull_mask = 0xFFFFF & ~(1 << 1)        # not the driver's helmet (the camera can go in it)
+			game.car.add_child(cam)
+			cam.position = Vector3(v[0], v[1], v[2])
+			cam.look_at(game.car.to_global(Vector3(v[3], v[4], v[5])))
+			cam.make_current()
+			if not Config.flag("autopilot"):
+				game.car.freeze = true                # hold still for the picture (or ride along)
 		if Config.flag("shot_jump"):
 			var jump: Dictionary = {}
 			for c in game.st.crests:

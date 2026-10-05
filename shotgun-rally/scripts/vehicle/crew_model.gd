@@ -9,6 +9,8 @@ extends Node3D
 ## direction (bone -> child), so it doesn't care how the rig's axes point.
 
 const SCALE := 1.2              # the cartoon crew is small for the cabin
+const FOREARM_SLIM := 0.6       # the driver's forearms, thinned to fit the gloves' gauntlets
+const HAND_CUT := 0.035         # m up the forearm from the wrist: where the driver's sleeves end (under the gauntlets)
 
 var suit_colour := Color(0.75, 0.13, 0.12)
 
@@ -22,7 +24,8 @@ var _head_mesh: MeshInstance3D   # the helmet, cut out of the body (see _split_h
 var own_layer := 2              # the render layer this seat's own camera leaves out (2 driver, 3 co-driver)
 var _base_layers := 1
 var _cap: MeshInstance3D        # closes the neck when the helmet's hidden (looking down)
-var _hands_hidden := false
+var _body: MeshInstance3D       # the skinned body (without the helmet)
+var _hand_mesh: MeshInstance3D  # the bare hands, cut out of the body (see hide_hands)
 
 
 ## Load the model; false if it's missing or isn't the rig we expect.
@@ -104,6 +107,7 @@ func _split_head(sk: Skeleton3D) -> void:
 			pair[0].add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, copy)
 			pair[0].surface_set_material(pair[0].get_surface_count() - 1, mat)
 	body.mesh = keep
+	_body = body
 	_head_mesh = MeshInstance3D.new()
 	_head_mesh.name = "Helmet"
 	_head_mesh.mesh = head
@@ -155,9 +159,99 @@ func hide_head(on: bool) -> void:
 		_cap.visible = on
 
 
-## The driver's gloves are separate (driver_hands.gd: fingers round the rim): hide these.
+## The driver's gloves are separate (driver_hands.gd: fingers round the rim): hide
+## these. The hands (and the model's own glove cuffs) are cut out of the body
+## into their own mesh: every triangle with a corner on the forearm or hand past
+## HAND_CUT, so the sleeve ends in a clean ring under the glove's gauntlet
+## (shrinking the hand bone instead pulled the half-weighted verts into spikes).
+## The forearms are slimmed to fit inside the gauntlets (bones run along their
+## +Y, so it doesn't move the wrist).
 func hide_hands(on: bool) -> void:
-	_hands_hidden = on
+	if skel == null:
+		return
+	if on and _hand_mesh == null and _body != null:
+		_hand_mesh = _cut_hands(_body)
+	if _hand_mesh:
+		_hand_mesh.visible = not on
+	for arm in ["LeftForeArm", "RightForeArm"]:
+		skel.set_bone_pose_scale(_b[arm], Vector3(FOREARM_SLIM, 1.0, FOREARM_SLIM) if on else Vector3.ONE)
+
+
+## Where the elbows are this frame (cockpit space): [left, right].
+func elbows() -> Array:
+	return [_to_skel.affine_inverse() * _pos("LeftForeArm"), _to_skel.affine_inverse() * _pos("RightForeArm")]
+
+
+## Move the bare hands out of `src` into their own mesh (same skin, same
+## skeleton) and return it: see hide_hands.
+func _cut_hands(src: MeshInstance3D) -> MeshInstance3D:
+	_update_to_skel()
+	var skin := src.skin
+	var bind_bone := PackedInt32Array()             # skin bind -> bone
+	var joint := {}                                 # bone -> its rest position in the mesh's space
+	for b in skin.get_bind_count():
+		var bone := skin.get_bind_bone(b)
+		if bone < 0:
+			bone = skel.find_bone(skin.get_bind_name(b))
+		bind_bone.append(bone)
+		joint[bone] = skin.get_bind_pose(b).affine_inverse().origin
+	var arms := []
+	var to_m := 0.0                                  # mesh units -> m: the forearm's length both ways
+	for side in ["Left", "Right"]:
+		var hand: int = _b[side + "Hand"]
+		var fore: int = _b[side + "ForeArm"]
+		if not (joint.has(hand) and joint.has(fore)):
+			return null
+		arms.append([hand, fore, joint[hand], (joint[hand] - joint[fore]).normalized()])
+		var rest := skel.get_bone_global_rest(hand).origin - skel.get_bone_global_rest(fore).origin
+		to_m = (_to_skel.affine_inverse().basis * rest).length() / joint[hand].distance_to(joint[fore])
+	var keep := ArrayMesh.new()
+	var cut := ArrayMesh.new()
+	for surf in src.mesh.get_surface_count():
+		var arr: Array = src.mesh.surface_get_arrays(surf)
+		var bw = arr[Mesh.ARRAY_BONES]
+		var weights = arr[Mesh.ARRAY_WEIGHTS]
+		var verts: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
+		var idx: PackedInt32Array = arr[Mesh.ARRAY_INDEX]
+		if bw == null or weights == null or idx.is_empty():
+			return null
+		var per := int(bw.size() / verts.size())
+		var past := PackedByteArray()                # on an arm, past the cut
+		past.resize(verts.size())
+		for v in verts.size():
+			for arm in arms:
+				var w := 0.0
+				for j in per:
+					var bone := bind_bone[bw[v * per + j]] if bw[v * per + j] < bind_bone.size() else -1
+					if bone == arm[0] or bone == arm[1]:
+						w += weights[v * per + j]
+				if w > 0.3 and (verts[v] - arm[2]).dot(arm[3]) * to_m > -HAND_CUT:
+					past[v] = 1
+		var a := PackedInt32Array()
+		var b := PackedInt32Array()
+		for t in range(0, idx.size(), 3):
+			var dst := b if past[idx[t]] + past[idx[t + 1]] + past[idx[t + 2]] > 0 else a
+			dst.append(idx[t])
+			dst.append(idx[t + 1])
+			dst.append(idx[t + 2])
+		var mat := src.mesh.surface_get_material(surf)
+		for pair in [[keep, a], [cut, b]]:
+			if pair[1].is_empty():
+				continue
+			var copy := arr.duplicate()
+			copy[Mesh.ARRAY_INDEX] = pair[1]
+			pair[0].add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, copy)
+			pair[0].surface_set_material(pair[0].get_surface_count() - 1, mat)
+	src.mesh = keep
+	var mi := MeshInstance3D.new()
+	mi.name = "Hands"
+	mi.mesh = cut
+	mi.skin = skin
+	mi.extra_cull_margin = 0.5
+	mi.layers = src.layers
+	skel.add_child(mi)
+	mi.skeleton = mi.get_path_to(skel)
+	return mi
 
 
 ## Pose for this frame. hands: [left, right] targets in cockpit space; elbow_out: the
@@ -187,8 +281,6 @@ func pose(hands: Array, elbow_out: Vector3, legs_fwd := 1.0) -> void:
 	_set_global_basis(head, turned)
 	# (your own head stays: the camera sits inside the helmet, and from inside a closed
 	# mesh every face points away and isn't drawn. Shrinking it left a hole in the neck)
-	for hand in ["LeftHand", "RightHand"]:
-		skel.set_bone_pose_scale(_b[hand], Vector3.ONE * (0.05 if _hands_hidden else 1.0))
 
 
 # ── helpers ───────────────────────────────────────────────────────────────

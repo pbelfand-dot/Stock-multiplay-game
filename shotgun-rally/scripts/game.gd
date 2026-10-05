@@ -326,6 +326,8 @@ func _drive_inputs() -> void:
 	if Config.flag("screenshot"):                    # pictures: hold a steering angle / the handbrake
 		inp.steer = float(Config.arg("shot_steer", 0.0))
 		inp.handbrake = Config.flag("shot_handbrake")
+		if state == "grid" and not inp.handbrake:
+			inp.brake = 0.0                          # (holding the brake at a standstill would reverse)
 		if Config.flag("shot_jump"):                 # rolling, not parked on the line
 			inp.brake = 0.0
 			inp.throttle = 0.5

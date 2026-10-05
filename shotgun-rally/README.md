@@ -21,6 +21,8 @@ No friend online? The **AI co-driver** takes the seat.
 | ![A big jump: off the brow at 120 km/h, the landing slope ahead](docs/screens/jump.jpg) | ![The same jump from the chase camera, 1.4 m up](docs/screens/jump_chase.jpg) |
 | ![A narrow, technical section (4.6 m): two worn wheel tracks, loose stones at the edges](docs/screens/road_narrow.jpg) | ![A wide, fast section (6.8 m)](docs/screens/road_wide.jpg) |
 | ![Spectators behind the tape at a jump, waving flags](docs/screens/crowd.jpg) | ![The crowds at the start](docs/screens/crowd_start.jpg) |
+| ![Racing gloves on the wheel, gauntlets over the sleeves](docs/screens/gloves.jpg) | ![Numbered dials, shift lights and the gear](docs/screens/dials.jpg) |
+| ![The cockpit from the co-driver's seat: switch panel, sequential lever, the driver's gloves](docs/screens/interior.jpg) | ![Driving in third: a shift light on, the wipers clearing a mud splat](docs/screens/dash.jpg) |
 
 ## ⬇ Download (always the newest build)
 
@@ -94,13 +96,21 @@ Free, PC only (Windows, Mac, Linux). Built in **Godot 4.7**, like BAGHOLDERS.
 
 ### Inside the car
 
-- **Hands that drive.** Gloves wrap round the rim, fingers and thumb. Turn and the hands go with
+- **Hands that drive.** Racing gloves wrap round the rim: pre-curved fingers, the thumb across the
+  rim, padded knuckles, a panel in the suit's colour on the back, and a gauntlet with a strap and a
+  white edge that goes over the sleeve and turns with the forearm. Turn and the hands go with
   the wheel; past where an arm can go, one hand lets go and takes a new grip further round
   (hand-over-hand, never two at once, so the driver's arms never twist), and back near straight
   they drift home to 9 and 3. **Handbrake:** the right hand drops off the wheel, grabs the tall
   hydraulic lever beside the seat and yanks it back, then goes back to the wheel.
-- **A real cockpit:** bucket seats and a three-spoke suede wheel (Higgsfield models), a dial
-  binnacle (revs, speed, gear), the co-driver's trip meter, a fire extinguisher, padding and mats.
+- **A real cockpit,** stripped out like a rally car: bucket seats and a three-spoke suede wheel
+  (Higgsfield models); a black flock dash (no glare in the windshield) with numbered dials (revs
+  0-8 x1000 with the red line, km/h 0-200), a green gear digit and **shift lights** that climb
+  green, yellow, red with the revs and flash on the limiter; a **switch panel** (ignition under a
+  red flip guard, START, the FIRE button, labelled toggles); a tall **sequential gear lever** and
+  the hydraulic handbrake; carbon door cards with red pull straps; a wide rear-view mirror and a
+  sun strip; harness belts to the cage's harness bar; the co-driver's trip meter, map lamp and
+  ribbed aluminium footrest; a fire extinguisher, padding and a spare wheel strapped down in the back.
 - **The car outside** has its own wheels now: they steer, spin and move up and down with the
   suspension, and the mud flaps swing behind them.
 - **Drift dirt** (modelled on WRC Sardinia and Finland footage): slide, flick the handbrake or
@@ -199,7 +209,7 @@ real voice.
 | 0 | Reference breakdown, name, plan, co-driver research, voice pack | ✅ done |
 | 1 | **Playable grey box:** generated forest gravel stages, raycast rally car, first-person driver + co-driver seats, the co-driver's map board, mud + wipers, start countdown, jump starts, resets, results, 2 players online, builds | ✅ done |
 | 2 | **AI co-driver** | ✅ basic version done (calls by time, countdown, finish). Next: quick-call wheel for the human co-driver, call-timing setting in the menu, more lines |
-| 3 | **Art:** the car and both crew are Higgsfield models (concept art -> 3D, the crew rigged and posed in their seats: hands on the wheel / the map board, heads turning where the player looks), the car's wheels and mud flaps move, gripping gloves + hand-over-hand steering, the interior, the loading screen; next: better trees | car + crew + cockpit ✅ |
+| 3 | **Art:** the car and both crew are Higgsfield models (concept art -> 3D, the crew rigged and posed in their seats: hands on the wheel / the map board, heads turning where the player looks), the car's wheels and mud flaps move, racing gloves + hand-over-hand steering, a stripped rally interior (numbered dials, shift lights, switch panel, sequential lever), the loading screen; next: better trees | car + crew + cockpit ✅ |
 | 4 | **Jobs + content:** OK board, warning triangle, pushing the car, punctures, time cards, road book, recce mode, more biomes | |
 | 5 | Polish, crews racing each other | |
 
@@ -217,6 +227,8 @@ real voice.
    - jumps: air time by speed (a hop at 80 km/h, ~0.9 s at 120, longer off a big jump), landings on all
      four wheels within 12 deg of the slope, no second bounce, still on the road, and braking in the air dips the nose
    - drift dirt: dust and stones when the car slides, a light trail at speed, a burst on landing, nothing when cruising or in the air
+   - the cockpit: the driver's sleeves are skinned on the CPU with the hands on the wheel (straight, turned both
+     ways) and on the handbrake, and every sleeve end has to be inside its glove's gauntlet; numbered dials; shift lights
    - the AI co-driver says every call in time (90–240 m before the corner)
    - **2 players, both ways round:** one machine drives, the other rides along; both see the finish
    - **the updater, start to finish:** a "build 5" copy finds "build 6" on a local web server,
