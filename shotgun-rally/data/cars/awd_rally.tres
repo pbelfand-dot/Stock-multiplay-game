@@ -1,0 +1,45 @@
+[gd_resource type="Resource" load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://scripts/vehicle/physics/config/car_config.gd" id="1_car"]
+[ext_resource type="Script" path="res://scripts/vehicle/physics/config/suspension_config.gd" id="2_susp"]
+
+[sub_resource type="Resource" id="Resource_front"]
+script = ExtResource("2_susp")
+travel = 0.3
+spring_rate = 31000.0
+bump_damping = 1900.0
+rebound_damping = 3400.0
+bump_stop_start = 0.22
+bump_stop_rate = 4000000.0
+bump_stop_damping = 9000.0
+max_force = 90000.0
+
+[sub_resource type="Resource" id="Resource_rear"]
+script = ExtResource("2_susp")
+travel = 0.3
+spring_rate = 25500.0
+bump_damping = 1600.0
+rebound_damping = 2900.0
+bump_stop_start = 0.22
+bump_stop_rate = 4000000.0
+bump_stop_damping = 9000.0
+max_force = 90000.0
+
+[resource]
+script = ExtResource("1_car")
+mass = 1280.0
+center_of_mass = Vector3(0, -0.05, -0.12)
+inertia = Vector3(1850, 2050, 520)
+front_axle = -1.24
+rear_axle = 1.26
+front_track = 1.54
+rear_track = 1.54
+mount_height = 0.0
+tyre_radius = 0.32
+tyre_width = 0.2
+front_suspension = SubResource("Resource_front")
+rear_suspension = SubResource("Resource_rear")
+body_size = Vector3(1.7, 0.8, 3.9)
+body_center = Vector3(0, 0.22, 0)
+cabin_size = Vector3(1.4, 0.5, 2)
+cabin_center = Vector3(0, 0.85, 0.15)

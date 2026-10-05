@@ -167,6 +167,15 @@ light, filmed like rally TV (trackside cameras it flashes past, a chase camera, 
   progress bar that follows the build ("Planting ten thousand trees..."). It stays up through the
   first frames of the stage, which stutter while the graphics warm up, then fades out.
 
+### Physics v2 (being built)
+
+A new car physics is being built next to this one, closer to Dirt Rally / RBR
+([docs/physics_rebuild.md](docs/physics_rebuild.md)): a RigidBody3D chassis on four ShapeCast tyres
+with real suspension, then tyres, drivetrain, surfaces, aero and driver aids (each its own switch),
+in nine tested phases, at 120 Hz. **Phase 1 is done:** the chassis on its springs, dampers and
+bump stops, in a physics lab (`godot --path . scenes/physics_lab.tscn`: R reset, J drop, B / N
+bumps, F3 telemetry, F4 force arrows). The game still uses the car below until v2 drives better.
+
 ### How the car drives
 
 Rebuilt from research on real rally tyres and rally games (DiRT Rally, Richard Burns Rally, Assetto

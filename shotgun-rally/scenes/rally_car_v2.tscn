@@ -1,0 +1,90 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/vehicle/physics/rally_car_v2.gd" id="1_car"]
+[ext_resource type="Resource" path="res://data/cars/awd_rally.tres" id="2_cfg"]
+[ext_resource type="Script" path="res://scripts/vehicle/physics/rally_wheel.gd" id="3_wheel"]
+[ext_resource type="Script" path="res://scripts/vehicle/physics/rally_telemetry.gd" id="4_tel"]
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_body"]
+size = Vector3(1.7, 0.8, 3.9)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_cabin"]
+size = Vector3(1.4, 0.5, 2)
+
+[sub_resource type="StandardMaterial3D" id="Mat_paint"]
+albedo_color = Color(0.82, 0.16, 0.12, 1)
+roughness = 0.45
+
+[sub_resource type="StandardMaterial3D" id="Mat_glass"]
+albedo_color = Color(0.1, 0.12, 0.15, 1)
+roughness = 0.15
+
+[sub_resource type="BoxMesh" id="BoxMesh_body"]
+material = SubResource("Mat_paint")
+size = Vector3(1.7, 0.62, 3.9)
+
+[sub_resource type="BoxMesh" id="BoxMesh_cabin"]
+material = SubResource("Mat_glass")
+size = Vector3(1.38, 0.48, 1.95)
+
+[node name="RallyCarV2" type="RigidBody3D"]
+script = ExtResource("1_car")
+config = ExtResource("2_cfg")
+
+[node name="Body" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.22, 0)
+shape = SubResource("BoxShape3D_body")
+
+[node name="Cabin" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.85, 0.15)
+shape = SubResource("BoxShape3D_cabin")
+
+[node name="CarMesh" type="Node3D" parent="."]
+
+[node name="BodyMesh" type="MeshInstance3D" parent="CarMesh"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.31, 0)
+mesh = SubResource("BoxMesh_body")
+
+[node name="CabinMesh" type="MeshInstance3D" parent="CarMesh"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.86, 0.15)
+mesh = SubResource("BoxMesh_cabin")
+
+[node name="CenterOfMass" type="Marker3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.05, -0.12)
+
+[node name="FL_WheelPoint" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.77, 0, -1.24)
+script = ExtResource("3_wheel")
+
+[node name="ShapeCast3D" type="ShapeCast3D" parent="FL_WheelPoint"]
+
+[node name="WheelMesh" type="Node3D" parent="FL_WheelPoint"]
+
+[node name="FR_WheelPoint" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.77, 0, -1.24)
+script = ExtResource("3_wheel")
+
+[node name="ShapeCast3D" type="ShapeCast3D" parent="FR_WheelPoint"]
+
+[node name="WheelMesh" type="Node3D" parent="FR_WheelPoint"]
+
+[node name="RL_WheelPoint" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.77, 0, 1.26)
+script = ExtResource("3_wheel")
+front = false
+
+[node name="ShapeCast3D" type="ShapeCast3D" parent="RL_WheelPoint"]
+
+[node name="WheelMesh" type="Node3D" parent="RL_WheelPoint"]
+
+[node name="RR_WheelPoint" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.77, 0, 1.26)
+script = ExtResource("3_wheel")
+front = false
+
+[node name="ShapeCast3D" type="ShapeCast3D" parent="RR_WheelPoint"]
+
+[node name="WheelMesh" type="Node3D" parent="RR_WheelPoint"]
+
+[node name="Telemetry" type="CanvasLayer" parent="."]
+script = ExtResource("4_tel")
