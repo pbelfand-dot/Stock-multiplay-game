@@ -8,7 +8,8 @@ extends Node
 ##   --autostart --autopilot                 tests: start the countdown / drive by itself
 ##   --smoke=host|client                     2-player test: drive a stage, both check it
 ##   --aicheck                               solo test: the AI co-driver's calls come in time
-##   --screenshot=out.png [--shot_seat=codriver --shot_s=300 --shot_read --shot_mud [--shot_wipe=N] --shot_nohud]
+##   --screenshot=out.png [--shot_seat=codriver --shot_s=300 --shot_read --shot_mud [--shot_wipe=N] --shot_nohud
+##                         --shot_yaw=1.2 --shot_pitch=-0.3 (look around, rad) --shot_view=seat|chase|orbit]
 
 const Game = preload("res://scripts/game.gd")
 const Menu = preload("res://scripts/ui/main_menu.gd")
@@ -135,6 +136,8 @@ func _test_setup() -> void:
 		if s > 0.0:
 			game.car.place(game.st.world_at(s, 0.0), game.st.heading_at(s))
 		game.cam.force_read = Config.flag("shot_read")
+		game.cam.yaw = float(Config.arg("shot_yaw", 0.0))
+		game.cam.pitch = float(Config.arg("shot_pitch", -0.06))
 		if Config.flag("shot_mud"):
 			game.cockpit.splat(0.9, 7)
 			game.ai.enabled = false                # keep the mud on for the picture
@@ -183,26 +186,27 @@ func _on_stage_finished(r: Dictionary) -> void:
 	get_tree().quit(0 if ok else 1)
 
 
-## Every call should be said before the car reaches its first corner, with
-## time to spare, and the calls should cover every corner.
+## Every call should come from where the car is: said before the car reaches
+## its first corner with time to spare (at least ~1 s, and 15 m when slow), not
+## so early it's useless (over 8 s / 300 m out), and the calls should cover
+## (nearly) every corner.
 func _ai_report(r: Dictionary) -> void:
 	var said: Array = game.ai.said
 	var late := 0
-	var leads: Array = []
+	var early := 0
+	var secs: Array = []
 	for e in said:
 		var lead: float = e[1] - e[0]
-		leads.append(lead)
-		if lead < 20.0:
+		var t: float = lead / maxf(e[3], 1.0)
+		secs.append(t)
+		if lead < 15.0 or (e[3] > 8.0 and t < 1.0):
 			late += 1
-	leads.sort()
-	var ok: bool = said.size() >= game.calls.size() - 1 and late == 0
-	var early := 0
-	for l in leads:
-		if l > 400.0:
-			early += 1                     # said so early it's useless
-	ok = ok and early == 0
-	print("[ai] %d of %d calls said, %d late, %d far too early, lead distance min %.0f m / median %.0f m / max %.0f m" % [
-		said.size(), game.calls.size(), late, early, leads[0] if leads.size() > 0 else 0.0,
-		leads[leads.size() / 2] if leads.size() > 0 else 0.0, leads[-1] if leads.size() > 0 else 0.0])
+		if lead > 300.0 or (e[3] > 8.0 and t > 8.0):
+			early += 1
+	secs.sort()
+	var ok: bool = said.size() >= game.calls.size() - 2 and late == 0 and early == 0
+	print("[ai] %d of %d calls said (%d dropped), %d late, %d far too early, warning time min %.1f s / median %.1f s / max %.1f s" % [
+		said.size(), game.calls.size(), game.ai.dropped, late, early, secs[0] if secs.size() > 0 else 0.0,
+		secs[secs.size() / 2] if secs.size() > 0 else 0.0, secs[-1] if secs.size() > 0 else 0.0])
 	print("[ai] %s (stage %s)" % ["AI OK" if ok else "AI FAIL", game.fmt_time(r.time)])
 	get_tree().quit(0 if ok else 1)

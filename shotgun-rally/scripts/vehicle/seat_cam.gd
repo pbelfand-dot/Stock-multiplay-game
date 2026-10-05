@@ -7,6 +7,9 @@ extends Camera3D
 ## drop to the map board in your lap; let go and they come back up to the road.
 ## You can't watch both: that's the game.
 ##
+## Two outside views too (the game picks): "orbit" circles the car on the
+## start line and at the finish, "chase" follows behind it (the driver's C).
+##
 ## The car moves on the physics tick; the camera follows its INTERPOLATED
 ## transform every frame, so it's smooth at any frame rate.
 
@@ -21,12 +24,17 @@ var eye := Vector3.ZERO
 var yaw := 0.0
 var pitch := -0.06
 var reading := false
+var view := "seat"              # "seat" | "chase" | "orbit"
 var force_read := false         # tests / screenshots: eyes on the map board
 var _read_blend := 0.0
 var _lean := Vector3.ZERO
 var _prev_vel := Vector3.ZERO
 var _acc_local := Vector3.ZERO
 var _bump := 0.0
+var _orbit := 0.6               # rad around the car
+var _buzz_t := 0.0
+var _chase_pos := Vector3.ZERO
+var _chase_ready := false
 
 
 func attach(the_car, seat_name: String, eye_pos: Vector3) -> void:
@@ -85,6 +93,35 @@ func _process(dt: float) -> void:
 	_lean = _lean.lerp(target, clampf(dt * 8.0, 0.0, 1.0))
 	_bump = move_toward(_bump, 0.0, dt * 0.6)
 	var shake := Vector3(randf_range(-1, 1), randf_range(-1, 1), 0.0) * _bump * 0.02
+	# the gravel through the seat: a fine buzz that grows with speed (more off the road),
+	# and the view opens up a little when you're quick
+	var spd: float = car.linear_velocity.length()
+	var rough := 1.0 if car.on_surface == "gravel" else 1.8
+	_buzz_t += dt * (14.0 + spd * 0.4)
+	var buzz := clampf(spd / 30.0, 0.0, 1.0) * 0.0022 * rough
+	shake += Vector3(sin(_buzz_t * 1.7) + sin(_buzz_t * 3.1) * 0.5, sin(_buzz_t * 2.3) + sin(_buzz_t * 4.7) * 0.4, 0.0) * buzz
+	fov = lerpf(fov, 76.0 + clampf(spd / 45.0, 0.0, 1.0) * 8.0, clampf(dt * 2.0, 0.0, 1.0))
 
 	var head := Transform3D(Basis.from_euler(Vector3(look_pitch, look_yaw, 0.0), EULER_ORDER_YXZ), eye + _lean + shake)
-	global_transform = xf * head
+	match view:
+		"orbit":
+			_orbit += dt * 0.22
+			var c := xf.origin + Vector3.UP * 0.6
+			global_transform = Transform3D(Basis(), c + Vector3(cos(_orbit) * 7.5, 2.2, sin(_orbit) * 7.5)).looking_at(c, Vector3.UP)
+			_chase_ready = false
+		"chase":
+			# behind and above, along the way the car is GOING (so a slide shows), smoothed
+			var fwd := -xf.basis.z
+			var vel: Vector3 = car.linear_velocity
+			var dir := Vector3(fwd.x, 0.0, fwd.z).normalized()
+			if vel.length() > 4.0:
+				dir = dir.lerp(Vector3(vel.x, 0.0, vel.z).normalized(), 0.5).normalized()
+			var want := xf.origin - dir * 6.5 + Vector3.UP * 2.3
+			if not _chase_ready:
+				_chase_pos = want
+				_chase_ready = true
+			_chase_pos = _chase_pos.lerp(want, clampf(dt * 7.0, 0.0, 1.0))
+			global_transform = Transform3D(Basis(), _chase_pos + shake).looking_at(xf.origin + Vector3.UP * 0.9 + dir * 3.0, Vector3.UP)
+		_:
+			global_transform = xf * head
+			_chase_ready = false

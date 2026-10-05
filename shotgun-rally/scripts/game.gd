@@ -4,8 +4,9 @@ extends Node3D
 ##
 ##   GRID       both crew sit at the start line. The host presses ENTER (once
 ##              the co-driver has joined and loaded) to start the countdown.
-##   COUNTDOWN  5 s. The start clock (on the co-driver's side) counts down;
-##              in solo the AI co-driver counts you in. Moving off early is a
+##   COUNTDOWN  5 s. The start clocks (one each side of the road, and the
+##              start lights on screen) count down; in solo the AI co-driver
+##              counts you in. Moving off early is a
 ##              JUMP START: +10 s.
 ##   RUNNING    the stage clock runs until the car crosses the flying finish.
 ##              R puts the car back on the road (+5 s).
@@ -24,6 +25,7 @@ const Cockpit = preload("res://scripts/vehicle/cockpit.gd")
 const SeatCam = preload("res://scripts/vehicle/seat_cam.gd")
 const AICoDriver = preload("res://scripts/vehicle/ai_codriver.gd")
 const Autopilot = preload("res://scripts/vehicle/autopilot.gd")
+const StartLights = preload("res://scripts/ui/start_lights.gd")
 
 const COUNTDOWN := 5.0
 const RESET_PENALTY := 5.0
@@ -60,9 +62,12 @@ var _start_pos := Vector3.ZERO
 var _in_puddle := false
 var _stuck := 0.0
 var _mud_t := 0.0
+var _said_wipers := false
+var _chase := false                 # the driver picked the chase cam (C)
 var _look_acc := 0.0
 var _last_count := -1
 var _hud: CanvasLayer
+var _lights                         # StartLights: the countdown + stage clock on screen
 var _hint_label: Label
 var _big_label: Label
 var _results: PanelContainer
@@ -109,8 +114,7 @@ func start(seed_in: int, stage_in: int) -> void:
 	if Net.online():
 		loaded.rpc_id(1)
 	else:
-		all_loaded = true
-		_update_hint()
+		set_all_loaded(true)
 	if not Config.flag("headless_ui"):
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
@@ -122,6 +126,7 @@ func _apply_roster() -> void:
 	var driver_here: bool = my_seat == "driver"
 	car.set_simulating(driver_here)
 	cam.attach(car, my_seat, Cockpit.EYE_DRIVER if driver_here else Cockpit.EYE_CODRIVER)
+	cockpit.set_my_seat(my_seat)
 	ai.enabled = Net.peer_in("codriver") == 0
 	_update_hint()
 
@@ -140,6 +145,8 @@ func loaded() -> void:
 @rpc("authority", "call_local", "reliable")
 func set_all_loaded(v: bool) -> void:
 	all_loaded = v
+	if v and ai.enabled and state == "grid":
+		ai.say(["ready"])                        # "co-driver ready": then the host starts the count
 	_update_hint()
 
 
@@ -157,8 +164,7 @@ func begin_countdown() -> void:
 	countdown = COUNTDOWN
 	_last_count = -1
 	car.place(_start_pos, st.heading_at(st.START_S))
-	if ai.enabled:
-		ai.say(["ready"])
+	ai.hush()                                    # the count has to land on the second
 	_update_hint()
 
 
@@ -234,11 +240,15 @@ func _physics_process(dt: float) -> void:
 		_drive_inputs()
 		_puddles()
 	# no human co-driver: the AI does the co-driver's jobs, wipers included
-	if ai.enabled and cockpit.mud > 0.5 and cockpit.wipe_strokes == 0:
+	# (it says "wipers" once per splat, then just keeps wiping while the view's blocked:
+	# the pacenotes matter more than the commentary)
+	if ai.enabled and cockpit.mud_level() > 0.45 and cockpit.wipe_strokes == 0:
 		_mud_t += dt
 		if _mud_t > 0.6:
 			_mud_t = 0.0
-			ai.say(["wipers"])
+			if not _said_wipers:
+				_said_wipers = true
+				ai.say(["wipers"])
 			cockpit.wipe(3)
 	else:
 		_mud_t = 0.0
@@ -314,6 +324,7 @@ func _puddles() -> void:
 @rpc("any_peer", "call_local", "reliable")
 func splat(amount: float, sd: int) -> void:
 	cockpit.splat(amount, sd)
+	_said_wipers = false
 	_play("splat", -2.0)
 
 
@@ -344,26 +355,55 @@ func _process(dt: float) -> void:
 		elif Input.is_key_pressed(KEY_TAB) and Net.online() and Net.crew_full():
 			Net.swap_seats()
 			get_parent().next_stage(seed_value, stage_no)
+	# the camera: circling the car before the countdown and after the finish; in the
+	# seat for the stage (the driver can press C for the chase cam)
+	if state == "running" and my_seat == "driver" and Input.is_action_just_pressed("camera"):
+		_chase = not _chase
+	var want := "seat"
+	if state in ["grid", "finished"]:
+		want = "orbit"
+	elif state == "running" and _chase and my_seat == "driver":
+		want = "chase"
+	if Config.flag("screenshot"):
+		want = Config.arg("shot_view", "seat")
+	if want != cam.view:
+		cam.view = want
+		car.set_outside(want != "seat")
+		cockpit.visible = want == "seat"
 	# the clocks
 	var clock := ""
 	var red := false
+	var board := "--"
+	var board_col := Color(1.0, 0.3, 0.2)
 	match state:
 		"grid":
 			clock = "READY"
-			builder.start_clock.text = "--"
 		"countdown":
 			var n := ceili(countdown)
 			clock = str(n) if n > 0 else "GO"
 			red = n > 0
-			builder.start_clock.text = clock
-			builder.start_clock.modulate = Color(1.0, 0.3, 0.2) if n > 0 else Color(0.3, 1.0, 0.3)
+			board = clock
+			board_col = Color(1.0, 0.3, 0.2) if n > 0 else Color(0.3, 1.0, 0.3)
+			_lights.count = n
 		"running":
 			clock = fmt_time(stage_time)
-			builder.start_clock.text = "GO"
+			board = "GO"
+			board_col = Color(0.3, 1.0, 0.3)
 		"finished":
 			clock = fmt_time(result.get("total", stage_time))
+	builder.set_start_clock(board, board_col)
 	cockpit.map_board.clock_text = clock
 	cockpit.map_board.clock_red = red
+	# on screen: the start lights, then the stage time
+	_lights.state = state
+	_lights.since_go = stage_time if state == "running" else 99.0
+	_lights.time_text = clock if state in ["running", "finished"] else ""
+	var pens: Array = []
+	if jump_start:
+		pens.append("JUMP START")
+	if resets > 0:
+		pens.append("%d RESET%s" % [resets, "" if resets == 1 else "S"])
+	_lights.pen_text = "+%d s  %s" % [int(penalties), " · ".join(pens)] if penalties > 0.0 else ""
 	_engine_audio()
 	if _t_alive > 12.0 and _hint_label.text.begins_with("YOU"):
 		_update_hint()
@@ -436,6 +476,8 @@ func _on_landed(impact: float) -> void:
 func _build_hud() -> void:
 	_hud = CanvasLayer.new()
 	add_child(_hud)
+	_lights = StartLights.new()
+	_hud.add_child(_lights)
 	var font: Font = load("res://assets/fonts/Oswald-Medium.woff2")
 	_hint_label = Label.new()
 	_hint_label.add_theme_font_override("font", font)
@@ -454,7 +496,7 @@ func _build_hud() -> void:
 	_big_label.add_theme_color_override("font_outline_color", Color.BLACK)
 	_big_label.add_theme_constant_override("outline_size", 10)
 	_big_label.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
-	_big_label.offset_top = 110
+	_big_label.offset_top = 390                # under the start lights
 	_big_label.offset_left = -500
 	_big_label.offset_right = 500
 	_big_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -534,8 +576,8 @@ func _update_hint() -> void:
 func _seat_help(pad: bool) -> String:
 	if my_seat == "driver":
 		var alone := " · F wipers" if Net.peer_in("codriver") == 0 else ""
-		return ("YOU DRIVE: left stick steer · RT gas · LT brake · B handbrake · Y reset" if pad
-			else "YOU DRIVE: WASD / arrows · SPACE handbrake · R reset (+5 s)" + alone)
+		return ("YOU DRIVE: left stick steer · RT gas · LT brake · B handbrake · Y reset · R3 chase cam" if pad
+			else "YOU DRIVE: WASD / arrows · SPACE handbrake · R reset (+5 s) · C chase cam" + alone)
 	return ("YOU RIDE SHOTGUN: hold LT to look at the map and call the road · A wipers · right stick look" if pad
 		else "YOU RIDE SHOTGUN: hold RIGHT MOUSE (or Q) to look at the map and call the road · F wipers · mouse to look")
 

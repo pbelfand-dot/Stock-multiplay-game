@@ -25,7 +25,7 @@ const CHUNK := 160.0                # trees are grouped per this much road ...
 const TREE_DRAW := 520.0            # ... and a group further away than this isn't drawn
 
 var st
-var start_clock: Label3D            # the countdown board at the start line
+var start_clocks: Array = []        # the countdown boards at the start line (driver's side, co-driver's side)
 var tree_count := 0
 var _noise := FastNoiseLite.new()
 var _road_grid := {}                # 20 m cells -> [sample indices], to keep trees off the road
@@ -407,8 +407,20 @@ func _arches() -> void:
 	_arch(st.finish_s, "FINISH", Color(0.1, 0.35, 0.8))
 	_sign(st.finish_s - 100.0, 3.8, "FLYING FINISH 100", Color(0.95, 0.8, 0.1))
 	_sign(st.finish_s + 70.0, 3.8, "STOP", Color(0.85, 0.12, 0.1))
-	# the start clock: on the co-driver's side, where they can read it
-	var p: Vector3 = st.world_at(st.START_S + 2.5, 3.9)
+	# the start clocks: one each side of the line (in front of the arch posts, which
+	# used to hide them), turned toward the car so both crew can read the count
+	for d in [-3.3, 3.3]:
+		start_clocks.append(_start_clock(st.world_at(st.START_S + 0.6, d)))
+
+
+## What the start clocks show ("5" .. "1", "GO", "--") and in what colour.
+func set_start_clock(text: String, col: Color) -> void:
+	for c in start_clocks:
+		(c.mesh as TextMesh).text = text
+		(c.material_override as StandardMaterial3D).albedo_color = col
+
+
+func _start_clock(p: Vector3) -> MeshInstance3D:
 	var post := MeshInstance3D.new()
 	var bm := BoxMesh.new()
 	bm.size = Vector3(0.12, 1.6, 0.12)
@@ -417,23 +429,34 @@ func _arches() -> void:
 	add_child(post)
 	var board := MeshInstance3D.new()
 	var bb := BoxMesh.new()
-	bb.size = Vector3(1.1, 0.7, 0.08)
+	bb.size = Vector3(1.3, 0.8, 0.08)
 	board.mesh = bb
 	var bmat := StandardMaterial3D.new()
 	bmat.albedo_color = Color(0.08, 0.08, 0.09)
 	board.material_override = bmat
-	board.position = p + Vector3.UP * 1.85
-	board.rotation.y = -st.heading_at(st.START_S)        # faces the car waiting at the line
+	board.position = p + Vector3.UP * 1.75
+	# face the car waiting behind the line
+	var car_at: Vector3 = st.world_at(st.START_S - 3.0, 0.0)
+	board.rotation.y = atan2(car_at.x - p.x, car_at.z - p.z)
 	add_child(board)
-	start_clock = Label3D.new()
-	start_clock.text = "--"
-	start_clock.font_size = 96
-	start_clock.pixel_size = 0.005
-	start_clock.modulate = Color(1.0, 0.3, 0.2)
-	start_clock.outline_size = 0
-	start_clock.position = board.position - st.forward_at(st.START_S) * 0.05
-	start_clock.rotation.y = board.rotation.y
-	add_child(start_clock)
+	# 3D text (a mesh, lit by nothing: it glows like an LED board)
+	var lbl := MeshInstance3D.new()
+	var tm := TextMesh.new()
+	tm.text = "--"
+	tm.font = load("res://assets/fonts/Oswald-Bold.woff2")
+	tm.font_size = 64
+	tm.pixel_size = 0.008
+	tm.depth = 0.01
+	tm.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	lbl.mesh = tm
+	var lm := StandardMaterial3D.new()
+	lm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	lm.albedo_color = Color(1.0, 0.3, 0.2)
+	lbl.material_override = lm
+	lbl.rotation.y = board.rotation.y
+	lbl.position = board.position + lbl.basis.z * 0.06
+	add_child(lbl)
+	return lbl
 
 
 func _arch(s: float, text: String, col: Color) -> void:

@@ -8,10 +8,16 @@ extends Node3D
 ## A child of the car, so it moves with it. Car-local units: the car faces -Z,
 ## origin = chassis middle at wheel-mount height (the ground is ~0.56 below).
 ##
-## Each crew member's head is on its own render layer (2 = driver, 3 =
-## co-driver) so your own camera doesn't see the inside of your helmet.
+## The crew are the Higgsfield models (assets/models/driver.glb, codriver.glb,
+## posed by crew_model.gd). The driver sees their own arms on the wheel (their
+## model just has no head: the camera is in it); the co-driver doesn't see their
+## own body at all (render layer 3), so nothing gets between them and the map.
+## If a model is missing, the old box crew is built instead: each of their heads
+## is on its own render layer (2 = driver, 3 = co-driver) so your own camera
+## doesn't see the inside of your helmet.
 
 const MapBoard = preload("res://scripts/vehicle/map_board.gd")
+const CrewModel = preload("res://scripts/vehicle/crew_model.gd")
 
 const RED := Color(0.78, 0.12, 0.1)
 const GREY := Color(0.46, 0.45, 0.43)
@@ -47,7 +53,8 @@ var _wiper_pivots: Array = []
 var _mud_mat: ShaderMaterial
 var _steer_node: Node3D
 var _arms := {}                                # name -> [upper MeshInstance3D, lower MeshInstance3D]
-var _heads := {}                               # seat -> Node3D (helmet)
+var _heads := {}                               # seat -> Node3D (helmet), box crew
+var _models := {}                              # seat -> CrewModel (the real crew)
 var _mats := {}
 
 signal wiper_stroke
@@ -290,6 +297,35 @@ void fragment() {
 # ── crew ──────────────────────────────────────────────────────────────────
 
 func _crew() -> void:
+	var ok := true
+	for seat in ["driver", "codriver"]:
+		var m := CrewModel.new()
+		add_child(m)
+		if m.load_model("res://assets/models/%s.glb" % seat):
+			var x: float = EYE_DRIVER.x if seat == "driver" else EYE_CODRIVER.x
+			m.seat_at(Vector3(x, -0.12, 0.28))
+			# the co-driver never sees their own body: it would sit between their eyes and
+			# the map board in their lap (the co-driver's camera leaves layer 3 out)
+			if seat == "codriver":
+				m.set_layer(3)
+			_models[seat] = m
+		else:
+			ok = false
+	if ok:
+		return
+	for m in _models.values():
+		m.queue_free()
+	_models.clear()
+	_box_crew()
+
+
+## Which seat is yours: your own model loses its head (your camera is in it).
+func set_my_seat(seat: String) -> void:
+	for s in _models:
+		_models[s].hide_head(s == seat)
+
+
+func _box_crew() -> void:
 	for seat in ["driver", "codriver"]:
 		var x: float = EYE_DRIVER.x if seat == "driver" else EYE_CODRIVER.x
 		var suit: Color = SUIT_D if seat == "driver" else SUIT_C
@@ -322,6 +358,8 @@ func _crew() -> void:
 
 ## Turn a crew member's head (for the other player to see where they look).
 func set_look(seat: String, yaw: float, pitch: float) -> void:
+	if _models.has(seat):
+		_models[seat].look = Vector2(yaw * 0.9, pitch * 0.8)
 	if _heads.has(seat):
 		_heads[seat].rotation = Vector3(pitch * 0.8, yaw * 0.9, 0.0)
 
@@ -354,18 +392,29 @@ func _process(dt: float) -> void:
 	_steer_node.rotate_object_local(Vector3.BACK, -wheel_turn)
 	# driver's hands stay on the rim at 9 and 3 while it turns (and let go past ~110 deg)
 	var grip := clampf(wheel_turn, -1.9, 1.9)
+	var wheel_hands: Array = []
 	for side in ["l", "r"]:
 		var base_ang := PI if side == "l" else 0.0
 		var ang := base_ang - grip
-		var hand: Vector3 = _steer_node.transform * (Vector3(cos(ang), sin(ang), 0.0) * WHEEL_R)
-		var sh := Vector3(EYE_DRIVER.x + (-0.19 if side == "l" else 0.19), 0.28, 0.38)
-		_arm("driver" + side, sh, hand, sh + Vector3(-0.3 if side == "l" else 0.3, -0.5, 0.0))
+		# (on the back of the rim: the glove wraps round it)
+		var hand: Vector3 = _steer_node.transform * (Vector3(cos(ang), sin(ang), 0.03) * WHEEL_R)
+		wheel_hands.append(hand)
+		if _models.is_empty():
+			var sh := Vector3(EYE_DRIVER.x + (-0.19 if side == "l" else 0.19), 0.28, 0.38)
+			_arm("driver" + side, sh, hand, sh + Vector3(-0.3 if side == "l" else 0.3, -0.5, 0.0))
 	# co-driver holds the map board by its sides
+	var board_hands: Array = []
 	if map_board:
 		for side in ["l", "r"]:
 			var hand: Vector3 = map_board.transform * Vector3(-0.15 if side == "l" else 0.15, -0.05, 0.02)
-			var sh := Vector3(EYE_CODRIVER.x + (-0.19 if side == "l" else 0.19), 0.28, 0.38)
-			_arm("codriver" + side, sh, hand, sh + Vector3(-0.3 if side == "l" else 0.3, -0.5, 0.1))
+			board_hands.append(hand)
+			if _models.is_empty():
+				var sh := Vector3(EYE_CODRIVER.x + (-0.19 if side == "l" else 0.19), 0.28, 0.38)
+				_arm("codriver" + side, sh, hand, sh + Vector3(-0.3 if side == "l" else 0.3, -0.5, 0.1))
+	if _models.has("driver"):
+		_models.driver.pose(wheel_hands, Vector3(0.35, -0.6, 0.15))
+	if _models.has("codriver") and board_hands.size() == 2:
+		_models.codriver.pose(board_hands, Vector3(0.3, -0.6, 0.25), 0.9)
 	_wipers(dt)
 	_mud_mat.set_shader_parameter("mud", mud)
 	_mud_mat.set_shader_parameter("swept", PackedFloat32Array([deg_to_rad(swept[0]), deg_to_rad(swept[1])]))
