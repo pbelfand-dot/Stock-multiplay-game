@@ -113,6 +113,14 @@ jobs:
           if ! gh release view shotgun-latest --repo "$R" > /dev/null 2>&1; then
             gh release create shotgun-latest --repo "$R" --target "$GITHUB_SHA" --title "SHOTGUN RALLY - latest build" --notes "$NOTES" --prerelease --latest=false
           fi
+          # runs can finish out of order (a queued older one after a newer one): never
+          # put an older build over a newer one
+          LIVE=$(gh release download shotgun-latest --repo "$R" --pattern version.json --output - 2>/dev/null \
+            | python3 -c "import json, sys; print(int(json.load(sys.stdin)['build']))" 2>/dev/null || echo 0)
+          if [ "$LIVE" -gt "$GITHUB_RUN_NUMBER" ]; then
+            echo "The download already has build $LIVE, newer than this one ($GITHUB_RUN_NUMBER): leaving it."
+            exit 0
+          fi
           gh release upload shotgun-latest --repo "$R" --clobber \
             ShotgunRally.zip ShotgunRally-Intel.zip ShotgunRally-Windows.zip ShotgunRally-Linux.zip ShotgunRally.pck
           # version.json last: the games only see the new build once its pack is there
