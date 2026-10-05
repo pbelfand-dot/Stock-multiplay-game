@@ -1,3 +1,23 @@
+<a name="top"></a>
+<p align="center"><b>Two games in this repo. Pick one:</b></p>
+
+<table>
+<tr>
+<td align="center" width="50%">
+<a href="#bagholders"><img src="docs/screens/lineup.jpg" alt="BAGHOLDERS" width="380"></a><br>
+<b>BAGHOLDERS</b><br>
+Trading-floor chaos for 1–6 players<br>
+<a href="#download-bagholders"><b>⬇ Download</b></a> · <a href="#bagholders">Read about it</a>
+</td>
+<td align="center" width="50%">
+<a href="#shotgun-rally"><img src="shotgun-rally/docs/screens/banner.jpg" alt="SHOTGUN RALLY" width="380"></a><br>
+<b>SHOTGUN RALLY</b><br>
+Co-op rally for 2: one drives, one reads the map<br>
+<a href="#download-shotgun-rally"><b>⬇ Download</b></a> · <a href="#shotgun-rally">Scroll down to it ↓</a>
+</td>
+</tr>
+</table>
+
 # BAGHOLDERS
 
 **Everyone shares the bag.** A first-person, 1–6 player trading floor game for you and your friends.
@@ -5,12 +25,7 @@ You're a desk of degenerate traders at a hedge fund. Everyone trades from **one 
 **5 minutes a day** to hit a **profit quota that keeps going up**, and if you get too greedy, **the cops
 come out of the elevator.**
 
-> **Also in this repo: [SHOTGUN RALLY](shotgun-rally/README.md)**, a cartoony co-op rally game: you
-> drive, your friend rides shotgun with the map. It's its own Godot project in `shotgun-rally/`, with
-> its own downloads ([Mac](https://github.com/pbelfand-dot/Stock-multiplay-game/releases/download/shotgun-latest/ShotgunRally.zip) ·
-> [Windows](https://github.com/pbelfand-dot/Stock-multiplay-game/releases/download/shotgun-latest/ShotgunRally-Windows.zip) ·
-> [all](https://github.com/pbelfand-dot/Stock-multiplay-game/releases/tag/shotgun-latest)).
-
+<a name="download-bagholders"></a>
 ## ⬇ Download (always the newest build)
 
 The links never change. Every update to `main` replaces the files behind them:
@@ -283,3 +298,81 @@ then a cop raid, an arrest and the jail teleport. CI runs all of it on every pus
 - Sound effects are synthesized by `tools/make_sfx.py`. No samples are used.
 - Every person, brand and event in the game is **parody / fiction**. Nothing in it is financial
   advice. There's no real money anywhere.
+
+<br>
+
+---
+
+# SHOTGUN RALLY
+
+[![SHOTGUN RALLY: you drive, your friend rides shotgun with the map](shotgun-rally/docs/screens/banner.jpg)](shotgun-rally/README.md)
+
+**You drive. Your friend rides shotgun with the map.** A cartoony 2-player online co-op rally game.
+One of you drives, blind past the next crest. The other sits in the passenger seat with a map of the
+road ahead, works out what's coming and yells it: "LEFT! TIGHT LEFT! OVER THE CREST!" No friend
+online? The **AI co-driver** takes the seat.
+
+It's its own Godot project in [`shotgun-rally/`](shotgun-rally/), with its own downloads. The full
+page (roadmap, how it's built, tests) is [`shotgun-rally/README.md`](shotgun-rally/README.md).
+
+<a name="download-shotgun-rally"></a>
+## ⬇ Download SHOTGUN RALLY (always the newest build)
+
+The links never change. Every update to `shotgun-rally/` on `main` replaces the files behind them:
+
+- **Mac:** [ShotgunRally.zip](https://github.com/pbelfand-dot/Stock-multiplay-game/releases/download/shotgun-latest/ShotgunRally.zip)
+- **Mac (older Intel, pre-2020):** [ShotgunRally-Intel.zip](https://github.com/pbelfand-dot/Stock-multiplay-game/releases/download/shotgun-latest/ShotgunRally-Intel.zip)
+- Windows: [ShotgunRally-Windows.zip](https://github.com/pbelfand-dot/Stock-multiplay-game/releases/download/shotgun-latest/ShotgunRally-Windows.zip) · Linux: [ShotgunRally-Linux.zip](https://github.com/pbelfand-dot/Stock-multiplay-game/releases/download/shotgun-latest/ShotgunRally-Linux.zip)
+- All of them on one page: [releases/shotgun-latest](https://github.com/pbelfand-dot/Stock-multiplay-game/releases/tag/shotgun-latest)
+
+The first time you open it:
+- **Mac:** unzip it and double-click **SHOTGUN RALLY.app**. macOS says it "could not verify" the app:
+  click **Done**, open **System Settings → Privacy & Security**, scroll down and click **Open Anyway**.
+- **Windows:** SmartScreen may say "unrecognized app". Click **More info → Run anyway**.
+- **Linux:** run `chmod +x ShotgunRally.x86_64`, then `./ShotgunRally.x86_64`.
+
+| | |
+|---|---|
+| ![Driver](shotgun-rally/docs/screens/driver.jpg) | ![Co-driver looking at the map](shotgun-rally/docs/screens/codriver.jpg) |
+| ![Mud on the windshield](shotgun-rally/docs/screens/mud.jpg) | ![The start line](shotgun-rally/docs/screens/start.jpg) |
+
+## How a SHOTGUN RALLY stage plays
+
+| | Driver | Co-driver (shotgun) |
+|---|---|---|
+| Sees | The road through the windshield. **No map, no minimap, no HUD.** Thick forest on both sides, crests hide what's next | The **map board** in their lap: the road ahead and where the car is, nothing else. *Or* the road if they look up. Never both at once |
+| Does | Steers, brakes, handbrakes, trusts | Reads the bends off the map and yells them (that's the skill), counts down the start, works the **wipers** when a puddle covers the windshield in mud |
+| Alone? | The **AI co-driver** calls the stage in the "Fraser" voice ("4 left, 100, over crest") and wipes the mud off for you | — |
+
+- **Start:** the host presses ENTER for a 5-second countdown. Move early and it's a **jump start: +10 s**.
+- **Stages** are ~2.7 km of gravel through thick forest: corners from 6 (nearly flat) to 1 (very slow),
+  hairpins, crests, jumps, puddles and rocks. Every stage is generated, so there's always a new one.
+- Stuck? **R** puts the car back on the road (**+5 s**). After the finish the host picks: next stage,
+  retry, or swap seats.
+
+## SHOTGUN RALLY controls
+
+| | Keyboard / mouse | Controller |
+|---|---|---|
+| Steer | A / D, ← / → | left stick |
+| Gas / brake (hold brake when stopped = reverse) | W / S, ↑ / ↓ | RT / LT |
+| Handbrake | SPACE | B / X |
+| **Co-driver:** look at the map | hold RIGHT MOUSE or Q | hold LT |
+| **Co-driver:** wipers (the driver's job when alone) | F | A |
+| Look around | mouse | right stick |
+| Reset car (+5 s) | R | Y |
+| Start / next stage (host) | ENTER | START |
+| Pause | ESC | BACK |
+
+## Play SHOTGUN RALLY with a friend
+
+1. One person clicks **HOST · I DRIVE** or **HOST · I RIDE SHOTGUN**. The other seat is the friend's.
+2. The friend types the host's IP and clicks **JOIN**. The port is 7777, and the IP tips are the
+   same as BAGHOLDERS' ([Play with friends](#play-with-friends)): local IP on the same Wi-Fi,
+   **[Tailscale](https://tailscale.com)** from different houses.
+3. Use Discord (or any voice chat) to talk. Yelling is the game.
+
+Inspired by ***Left Left Left!*** ([@leftleftleftgame on TikTok](https://www.tiktok.com/@leftleftleftgame)).
+We borrow the idea of the game, not their art, name or UI.
+
+<p align="center"><a href="#top">⬆ Back to the top</a> · <a href="shotgun-rally/README.md">Full SHOTGUN RALLY page</a></p>

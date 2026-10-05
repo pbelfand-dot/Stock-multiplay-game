@@ -82,7 +82,7 @@ jobs:
           R="$GITHUB_REPOSITORY"
           NOTES="Always the newest SHOTGUN RALLY build.
           Mac: ShotgunRally.zip (older Intel Macs: ShotgunRally-Intel.zip). Windows / Linux zips below.
-          Unzip, then right-click SHOTGUN RALLY.app -> Open the first time."
+          Unzip, double-click SHOTGUN RALLY.app. The first time macOS says it could not verify it: System Settings -> Privacy & Security -> Open Anyway."
           if ! gh release view shotgun-latest --repo "$R" > /dev/null 2>&1; then
             gh release create shotgun-latest --repo "$R" --target "$GITHUB_SHA" --title "SHOTGUN RALLY - latest build" --notes "$NOTES" --prerelease --latest=false
           fi

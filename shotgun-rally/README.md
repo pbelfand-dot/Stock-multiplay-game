@@ -1,12 +1,15 @@
 # SHOTGUN RALLY
 
+![SHOTGUN RALLY: you drive, your friend rides shotgun with the map](docs/screens/banner.jpg)
+
 **You drive. Your friend rides shotgun with the map.** A cartoony 2-player online co-op rally
 game. One of you drives, blind past the next crest. The other sits in the passenger seat with a
 map of the road ahead, works out what's coming and yells it: "LEFT! TIGHT LEFT! OVER THE CREST!"
 No friend online? The **AI co-driver** takes the seat.
 
 > SHOTGUN RALLY lives in this `shotgun-rally/` folder, next to BAGHOLDERS on `main`. It's its own Godot
-> project with its own build, so the two games never touch each other.
+> project with its own build, so the two games never touch each other. Both games' downloads are on
+> the [repo's front page](../README.md).
 
 | | |
 |---|---|
