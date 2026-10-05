@@ -38,6 +38,9 @@ extends Resource
 ## The front axle's share (the nose is loaded under braking: front-heavy so the
 ## fronts lock first and the car stays straight).
 @export_range(0.3, 0.9, 0.01) var brake_bias := 0.7
+## The hydraulic handbrake: its torque on the two rear wheels together at full
+## pull (N m). Enough to lock them at any speed (it's for turning the car).
+@export_range(0.0, 10000.0, 50.0, "suffix:N m") var handbrake_torque := 3000.0
 
 @export_group("Suspension")
 @export var front_suspension: Resource      ## SuspensionConfig

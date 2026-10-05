@@ -2,7 +2,11 @@ extends Resource
 ## One axle's suspension (both its corners use it): a coil spring, a damper
 ## that resists stretching (rebound) more than squashing (bump), so the car
 ## soaks a hit up and settles instead of bouncing, and a progressive hydraulic
-## bump stop at the end of the travel that catches big landings.
+## bump stop at the end of the travel that catches big landings. The damper has
+## two stages, like a rally damper's low- and high-speed adjusters: slow
+## movements (the body rolling, pitching, bouncing) are held firmly; fast ones
+## (a wheel hitting a bump or dropping into a hole) get through more easily, so
+## the wheel follows the road without kicking the body. And an anti-roll bar.
 ## Units: m, N, s. Edit it in the inspector (data/cars/*.tres).
 
 @export_group("Spring")
@@ -13,10 +17,26 @@ extends Resource
 @export_range(5000.0, 150000.0, 100.0, "suffix:N/m") var spring_rate := 28000.0
 
 @export_group("Damper")
-## Resistance to squashing (N per m/s of compression speed).
+## Resistance to squashing, slowly (N per m/s of compression speed, up to the knee).
 @export_range(0.0, 20000.0, 50.0, "suffix:N/(m/s)") var bump_damping := 1900.0
-## Resistance to stretching back out.
+## Resistance to stretching back out, slowly.
 @export_range(0.0, 20000.0, 50.0, "suffix:N/(m/s)") var rebound_damping := 3300.0
+## The damper speed where slow ends and fast begins (the body moves slower than
+## this, a wheel hitting a bump faster).
+@export_range(0.02, 2.0, 0.01, "suffix:m/s") var damper_knee := 0.25
+## Squashing faster than the knee: N per m/s more (less than slowly: a sharp hit
+## gets through instead of kicking the body; the bump stop catches the big ones).
+@export_range(0.0, 20000.0, 50.0, "suffix:N/(m/s)") var high_speed_bump := 1100.0
+## Stretching faster than the knee (less than slowly: the wheel drops back into a
+## hole quickly and stays on the ground).
+@export_range(0.0, 20000.0, 50.0, "suffix:N/(m/s)") var high_speed_rebound := 2500.0
+
+@export_group("Anti-roll bar")
+## How hard the bar resists one wheel squashing more than the other: N at each
+## wheel per m of difference. It cuts the body's roll; the stiffer end of the car
+## takes more of the weight shifted in a corner, so it grips less (stiffer front:
+## more understeer; stiffer rear: more oversteer). 0: no bar.
+@export_range(0.0, 100000.0, 100.0, "suffix:N/m") var anti_roll_rate := 0.0
 
 @export_group("Bump stop")
 ## Compression where the bump stop starts to push.

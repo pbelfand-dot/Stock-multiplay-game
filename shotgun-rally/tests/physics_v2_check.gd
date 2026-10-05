@@ -35,9 +35,10 @@ extends SceneTree
 ##   * a tyre with twice the load grips less per newton (load sensitivity)
 ## (phases 1-4 run in neutral: the tyres and brakes alone)
 ## Phase 5, the engine, clutch, gearbox and diffs:
-##   * full throttle from a standstill: the clutch slips it away, the tyres
-##     spin a little, it changes up by itself, each change drops the revs by
-##     the ratio, the limiter is never passed, 0-100 km/h in a rally car's time
+##   * full throttle from a standstill: the clutch slips it away at the launch
+##     revs, the tyres spin and hook up, it changes up by itself, each change
+##     drops the revs by the ratio, the limiter is never passed, 0-100 km/h in a
+##     rally car's time
 ##   * lifting off in third: engine braking, several times coasting's
 ##   * one wheel on ice: with open diffs that wheel spins and the car hardly
 ##     moves; with the car's LSDs and locked centre it pulls away
@@ -55,6 +56,18 @@ extends SceneTree
 ##   * split surface: braking with the left wheels on ice and the right on
 ##     asphalt, the car turns toward the asphalt (with every wheel locked nothing
 ##     holds it straight: it goes on round unless the driver steers against it)
+## Phase 7, the handbrake, anti-roll bars and two-stage dampers:
+##   * a handbrake turn at 15 m/s turns the car far more than the same steering
+##     without it; while it's pulled the rears lock and the fronts keep rolling
+##   * rolling at 36 km/h, handbrake and full throttle: the rear axle's clutch
+##     lets go, so the rears stay locked while the fronts drive; without that
+##     clutch the engine turns the rears through the locked centre: they don't
+##     lock, the handbrake only drags
+##   * body roll per g in a steady corner: what the springs and bars predict
+##     (~2.9 deg / g with the bars, ~5.4 without)
+##   * a stiffer front bar makes the car push more at the limit; a stiffer rear
+##     bar lets the tail work
+##   * over sharp bumps the two-stage dampers kick the body less than plain ones
 ## Run: godot --headless --fixed-fps 120 --path . -s tests/physics_v2_check.gd
 ## Prints [physics] lines; exits 1 on any FAIL.
 
@@ -78,6 +91,8 @@ const ENGINE_RUNS := ["launch", "engine braking", "ice open diffs", "ice locked 
 const SURFACE_KINDS := ["corner", "brake", "pull away", "coast"]
 const PULL_TO := 40.0 / 3.6        # m/s: the pull-away runs' target, the braking runs' start
 var _surf := {}                    # kind -> {surface: result}
+var _p7 := {}                      # this phase 7 run's counts
+var _p7r := {}                     # phase 7 results kept for the next run's comparison
 var _ice := {}
 var _shifts: Array = []            # [t, from gear, to gear, rpm before, rpm after]
 var _last_gear := 1
@@ -99,6 +114,9 @@ func _initialize() -> void:
 		for n in Lab.SURFACES:
 			_phases.append("%s on %s" % [kind, n])
 	_phases.append("split braking")
+	_phases.append_array(["turn no handbrake", "handbrake turn", "handbrake and throttle",
+		"handbrake and throttle without the rear clutch", "roll with bars", "roll without bars",
+		"balance stiff front bar", "balance stiff rear bar", "sharp bumps two stage", "sharp bumps linear"])
 	var course := Node3D.new()
 	root.add_child(course)
 	Lab.build_course(course)
@@ -117,8 +135,11 @@ func _process(_dt: float) -> bool:
 func _next() -> void:
 	if car.drivetrain and _real_drivetrain:
 		car.drivetrain.cfg = _real_drivetrain        # (after the open-diff run)
-	for w in car.wheels:
-		w.surface_mu = 1.0
+	for k in 4:
+		car.wheels[k].surface_mu = 1.0
+		car.wheels[k].cfg = car.config.front_suspension if k < 2 else car.config.rear_suspension
+	car.inp.handbrake = 0.0
+	_p7 = {"n": 0, "locked": 0, "rolling": 0}
 	_phase += 1
 	_t = 0.0
 	_log.clear()
@@ -176,6 +197,38 @@ func _next() -> void:
 			car.inp.steer = 0.0
 			Lab.launch(car, Lab.split_start(), 60.0 / 3.6)
 			_yaw0 = car.global_rotation.y
+		"turn no handbrake", "handbrake turn":
+			Lab.launch(car, Lab.SKID, 15.0)
+		"handbrake and throttle", "handbrake and throttle without the rear clutch":
+			car.inp.steer = 0.0
+			Lab.launch(car, Lab.SKID, 10.0)
+			car.drivetrain.omega_e = car.wheels[0].omega * car.drivetrain.ratio()   # (in first, the clutch in)
+			if _phases[_phase].ends_with("clutch"):
+				if _real_drivetrain == null:
+					_real_drivetrain = car.drivetrain.cfg
+				var d: Resource = _real_drivetrain.duplicate()
+				d.handbrake_disconnects_rear = false
+				car.drivetrain.cfg = d
+		"roll with bars", "roll without bars":
+			Lab.launch(car, Lab.SKID, 15.0)
+			car.inp.steer = 4.0 / car.config.steering.max_angle_deg
+			if _phases[_phase].ends_with("without bars"):
+				_suspensions(func(f, r): f.anti_roll_rate = 0.0; r.anti_roll_rate = 0.0)
+		"balance stiff front bar", "balance stiff rear bar":
+			Lab.launch(car, Lab.SKID, 15.0)
+			car.inp.steer = 8.0 / car.config.steering.max_angle_deg
+			if _phases[_phase].ends_with("front bar"):
+				_suspensions(func(f, _r): f.anti_roll_rate *= 3.0)
+			else:
+				_suspensions(func(_f, r): r.anti_roll_rate *= 3.0)
+		"sharp bumps two stage", "sharp bumps linear":
+			car.inp.steer = 0.0
+			Lab.launch(car, Vector3(0.0, 0.0, Lab.BUMPS_Z + 10.0), 15.0)
+			if _phases[_phase].ends_with("linear"):
+				_suspensions(func(f, r):
+					for c in [f, r]:
+						c.high_speed_bump = c.bump_damping
+						c.high_speed_rebound = c.rebound_damping)
 	var on: Array = _phases[_phase].split(" on ")
 	if on.size() == 2:
 		car.inp.steer = 0.0
@@ -189,7 +242,8 @@ func _next() -> void:
 			"coast":
 				Lab.launch(car, Lab.surface_start(on[1]), 20.0)
 	_v0 = car.global_position
-	if car.drivetrain and not (_phases[_phase] in ENGINE_RUNS or _phases[_phase].begins_with("pull away")):
+	if car.drivetrain and not (_phases[_phase] in ENGINE_RUNS or _phases[_phase].begins_with("pull away")
+			or _phases[_phase].begins_with("handbrake and throttle")):
 		car.drivetrain.gear = 0                      # the tyres and brakes alone
 	_inputs(_phases[_phase])
 
@@ -209,6 +263,12 @@ func _inputs(name: String) -> void:
 		car.inp.steer = minf(_t / 1.5, 1.0) * 15.0 / car.config.steering.max_angle_deg   # wound on over 1.5 s
 	elif name == "split braking":
 		car.inp.steer = 0.0
+	elif name in ["turn no handbrake", "handbrake turn"]:
+		car.inp.steer = clampf(_t / 0.25, 0.0, 1.0) * 0.6
+		car.inp.handbrake = 1.0 if name == "handbrake turn" and _t < 0.8 else 0.0
+	elif name.begins_with("handbrake and throttle"):
+		car.inp.throttle = 1.0
+		car.inp.handbrake = 1.0
 	if name == "brake in turn":
 		car.inp.brake = 0.4 if _t >= 4.0 else 0.0
 
@@ -226,6 +286,15 @@ func _physics_process(dt: float) -> bool:
 	elif name == "straight":
 		Lab.tow(car, 20.0)
 	_inputs(name)
+	if name.begins_with("roll ") or name.begins_with("balance "):
+		Lab.tow(car, 15.0)
+	var rears_locked: bool = absf(car.wheels[2].omega) < 0.5 and absf(car.wheels[3].omega) < 0.5
+	if (name == "handbrake turn" and _t > 0.3 and _t < 0.75) or (name.begins_with("handbrake and throttle") and _t > 0.3):
+		_p7.n += 1
+		_p7.locked += 1 if rears_locked else 0
+		var front_rim: float = (car.wheels[0].omega + car.wheels[1].omega) * 0.5 * car.config.tyre_radius
+		_p7.rolling += 1 if front_rim > 0.5 * car.speed else 0
+		_p7.driving = _p7.get("driving", 0) + (1 if front_rim > car.speed else 0)
 	if name == "bounce" and _t > 2.0 and _y0 == 0.0:
 		_y0 = car.global_position.y                  # settled: lift it 5 cm and let go
 		_lift_t = _t
@@ -284,6 +353,11 @@ func _physics_process(dt: float) -> bool:
 		return false
 	if name == "split braking":
 		length[name] = 0.75
+	for run in [["turn no handbrake", 2.0], ["handbrake turn", 2.0], ["handbrake and throttle", 1.5],
+			["handbrake and throttle without the rear clutch", 1.5], ["roll with bars", 4.0], ["roll without bars", 4.0],
+			["balance stiff front bar", 5.0], ["balance stiff rear bar", 5.0], ["sharp bumps two stage", 3.0],
+			["sharp bumps linear", 3.0]]:
+		length[run[0]] = run[1]
 	if name.begins_with("skid") and _t >= length[name]:
 		_judge_skid(int(name.split(" ")[1]))
 		_next()
@@ -676,15 +750,20 @@ func _ice_drivetrain(open_diffs: bool) -> Resource:
 func _judge_launch() -> void:
 	var t100 := -1.0
 	var spin := 0.0
+	var hooked := -1.0
 	var max_rpm := 0.0
 	for e in _log:
 		if t100 < 0.0 and e[13] >= 100.0 / 3.6:
 			t100 = e[0]
 		if e[0] < 1.5:
 			spin = maxf(spin, e[14])
+		if hooked < 0.0 and e[13] >= 50.0 / 3.6:
+			hooked = e[14]                           # the slip as it passes 50 km/h
 	var e_cfg: Resource = car.config.engine
 	fails += _check(t100 > 3.5 and t100 < 7.0, "full throttle from a standstill: 0-100 km/h in %.2f s (a Rally2 car on gravel: ~4-5 s)" % t100)
-	fails += _check(spin > 0.08 and spin < 1.0, "pulling away: the tyres spin a little (slip ratio up to %.0f %%), they don't just bog or go up in smoke" % (spin * 100.0))
+	fails += _check(spin > 0.08 and hooked >= 0.0 and hooked < 0.4,
+		"pulling away flat out: the tyres spin (slip ratio up to %.0f %% at walking pace) and hook up as it gathers speed (%.0f %% by 50 km/h); a driver feathers the throttle, traction control (phase 8) will" % [
+			spin * 100.0, hooked * 100.0])
 	# in each gear the engine turns at exactly the gear's ratio x the wheels' speed
 	# (clutch in, nothing slipping), so a change drops the revs by the ratio
 	var ok := _shifts.size() >= 2
@@ -812,6 +891,142 @@ func _judge_surface(kind: String, n: String) -> void:
 			fails += _check(r.mud > r.grass and r.grass > r.snow and r.snow > r.gravel and r.gravel > r.asphalt,
 				"coasting: mud drags most, then grass, snow, gravel, asphalt (%.2f / %.2f / %.2f / %.2f / %.2f m/s²)" % [
 					r.mud, r.grass, r.snow, r.gravel, r.asphalt])
+
+
+## Give the wheels copies of the car's suspensions, changed by change(front, rear)
+## (the next run puts the car's own back).
+func _suspensions(change: Callable) -> void:
+	var f: Resource = car.config.front_suspension.duplicate()
+	var r: Resource = car.config.rear_suspension.duplicate()
+	change.call(f, r)
+	for k in 4:
+		car.wheels[k].cfg = f if k < 2 else r
+
+
+## How far the car has turned this run (deg, from the logged yaw rate).
+func _turned() -> float:
+	var yaw := 0.0
+	for e in _log:
+		yaw += e[8] / 120.0
+	return absf(yaw)
+
+
+## The biggest logged value of a column (its size), from t0 on.
+func _peak(col: int, t0 := 0.0) -> float:
+	var m := 0.0
+	for e in _log:
+		if e[0] >= t0:
+			m = maxf(m, absf(e[col]))
+	return m
+
+
+func _judge_turn_no_handbrake() -> void:
+	_p7r["turn"] = {"yaw": _turned(), "rear": _peak(10)}
+
+
+func _judge_handbrake_turn() -> void:
+	var yaw := _turned()
+	var rear := _peak(10)
+	var plain: Dictionary = _p7r.turn
+	fails += _check(yaw > 1.4 * plain.yaw and rear > 12.0,
+		"handbrake turn at 15 m/s: it turns %.0f deg in 2 s (the same steering without it: %.0f), the tail out to %.0f deg of slip (%.0f without)" % [
+			yaw, plain.yaw, rear, plain.rear])
+	fails += _check(_p7.locked > 0.9 * _p7.n and _p7.rolling > 0.9 * _p7.n,
+		"with the handbrake pulled the rears lock (%.0f %% of the time) and the fronts keep rolling (%.0f %%)" % [
+			100.0 * _p7.locked / maxf(_p7.n, 1), 100.0 * _p7.rolling / maxf(_p7.n, 1)])
+
+
+func _judge_handbrake_and_throttle() -> void:
+	var locked: float = float(_p7.locked) / maxf(_p7.n, 1)
+	var driving: float = float(_p7.get("driving", 0)) / maxf(_p7.n, 1)
+	_p7r["go"] = car.speed
+	fails += _check(locked > 0.9 and driving > 0.9,
+		"rolling at 36 km/h, handbrake and full throttle: the rear axle's clutch lets go, the rears stay locked (%.0f %% of the time) while the fronts drive (%.0f %%); %.0f km/h after 1.5 s" % [
+			locked * 100.0, driving * 100.0, car.speed * 3.6])
+
+
+func _judge_handbrake_and_throttle_without_the_rear_clutch() -> void:
+	var locked: float = float(_p7.locked) / maxf(_p7.n, 1)
+	fails += _check(locked < 0.2,
+		"without that clutch the engine turns the rears through the locked centre: they lock %.0f %% of the time, the handbrake only drags (%.0f km/h after 1.5 s, with the clutch %.0f)" % [
+			locked * 100.0, car.speed * 3.6, _p7r.go * 3.6])
+
+
+## Body roll per g of cornering (deg / g) over the run's last 1.5 s, and what the
+## springs and bars predict: the CoM's height x the cornering force over the roll
+## stiffness (less what the CoM's sideways lean adds back).
+func _roll_per_g() -> Vector2:
+	var roll := 0.0
+	var a := 0.0
+	for e in _log:
+		if e[0] > _log[_log.size() - 1][0] - 1.5:
+			roll += absf(e[3])
+			a += e[7] * deg_to_rad(absf(e[8]))
+	var cfg = car.config
+	var k: float = Suspension.roll_stiffness(car.wheels[0].cfg, cfg.front_track) + Suspension.roll_stiffness(car.wheels[2].cfg, cfg.rear_track)
+	var mgh: float = car.mass * 9.8 * (car.ride_height() + cfg.center_of_mass.y)
+	return Vector2(roll / a * 9.8, rad_to_deg(mgh / (k - mgh)))
+
+
+func _judge_roll_with_bars() -> void:
+	var r := _roll_per_g()
+	_p7r["roll"] = r.x
+	fails += _check(absf(r.x / r.y - 1.0) < 0.15 and r.x > 2.0 and r.x < 3.5,
+		"in a steady corner (0.57 g) it rolls %.2f deg per g (the springs and bars predict %.2f)" % [r.x, r.y])
+
+
+func _judge_roll_without_bars() -> void:
+	var r := _roll_per_g()
+	fails += _check(absf(r.x / r.y - 1.0) < 0.15 and _p7r.roll < 0.65 * r.x,
+		"without the anti-roll bars: %.2f deg per g (predicted %.2f): the bars take %.0f %% of the roll out" % [
+			r.x, r.y, (1.0 - _p7r.roll / r.x) * 100.0])
+
+
+## The front and rear slip angles and the cornering over the run's last 1.5 s.
+func _balance() -> Dictionary:
+	var sf := 0.0
+	var sr := 0.0
+	var a := 0.0
+	var n := 0
+	for e in _log:
+		if e[0] > _log[_log.size() - 1][0] - 1.5:
+			sf += absf(e[9])
+			sr += absf(e[10])
+			a += e[7] * deg_to_rad(absf(e[8]))
+			n += 1
+	return {"front": sf / n, "rear": sr / n, "a": a / n}
+
+
+func _judge_balance_stiff_front_bar() -> void:
+	_p7r["stiff front"] = _balance()
+
+
+func _judge_balance_stiff_rear_bar() -> void:
+	var f: Dictionary = _p7r["stiff front"]
+	var r := _balance()
+	fails += _check(f.front - f.rear > r.front - r.rear + 0.3,
+		"at the limit a stiffer front bar makes it push more: front slip %.1f / rear %.1f deg (%.2f m/s²); a stiffer rear bar lets the tail work: %.1f / %.1f (%.2f m/s²)" % [
+			f.front, f.rear, f.a, r.front, r.rear, r.a])
+
+
+## The body's hardest vertical jolt this run (m/s², averaged over 3 ticks).
+func _peak_jolt() -> float:
+	var m := 0.0
+	for i in range(2, _log.size()):
+		var ay: float = (_log[i][16].y + _log[i - 1][16].y + _log[i - 2][16].y) / 3.0
+		m = maxf(m, absf(ay))
+	return m
+
+
+func _judge_sharp_bumps_two_stage() -> void:
+	_p7r["bumps"] = _peak_jolt()
+
+
+func _judge_sharp_bumps_linear() -> void:
+	var two: float = _p7r.bumps
+	var lin := _peak_jolt()
+	fails += _check(two < 0.9 * lin,
+		"over sharp bumps at 15 m/s the two-stage dampers let the wheels move: the body's hardest jolt %.1f m/s² (plain dampers: %.1f)" % [two, lin])
 
 
 func _judge_split_braking() -> void:

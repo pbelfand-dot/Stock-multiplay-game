@@ -4,18 +4,33 @@ extends RefCounted
 
 
 ## How hard the corner pushes the body up (N, along the strut). compression:
-## m from full droop; velocity: m/s, + = squashing. Never negative: the tyre
-## can push on the ground but not pull on it, so if the damper would pull
-## harder than the spring pushes, the wheel is simply going light.
-static func force(cfg: Resource, compression: float, velocity: float) -> float:
-	var f: float = cfg.spring_rate * compression
-	f += velocity * (cfg.bump_damping if velocity > 0.0 else cfg.rebound_damping)
+## m from full droop; velocity: m/s, + = squashing; extra: the anti-roll bar's
+## push on this corner. Never negative: the tyre can push on the ground but not
+## pull on it, so if the damper would pull harder than the spring pushes, the
+## wheel is simply going light.
+static func force(cfg: Resource, compression: float, velocity: float, extra := 0.0) -> float:
+	var f: float = cfg.spring_rate * compression + damping(cfg, velocity) + extra
 	var past: float = compression - cfg.bump_stop_start
 	if past > 0.0:
 		f += cfg.bump_stop_rate * past * past
 		if velocity > 0.0:
 			f += cfg.bump_stop_damping * velocity
 	return clampf(f, 0.0, cfg.max_force)
+
+
+## The damper's force (N, + = resisting squashing): firm up to the knee, then the
+## high-speed rate on top.
+static func damping(cfg: Resource, velocity: float) -> float:
+	var slow: float = cfg.bump_damping if velocity > 0.0 else cfg.rebound_damping
+	var fast: float = cfg.high_speed_bump if velocity > 0.0 else cfg.high_speed_rebound
+	var v := absf(velocity)
+	return signf(velocity) * (slow * minf(v, cfg.damper_knee) + fast * maxf(v - cfg.damper_knee, 0.0))
+
+
+## How stiff the axle is against the body rolling (N m per radian): its springs
+## and its anti-roll bar, at this track width.
+static func roll_stiffness(cfg: Resource, track: float) -> float:
+	return (cfg.spring_rate * 0.5 + cfg.anti_roll_rate) * track * track
 
 
 ## Where a corner settles under a load (N), standing still: the spring alone

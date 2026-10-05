@@ -6,9 +6,10 @@ extends Node3D
 ##     how far up the travel that is, the contact point and the ground's normal
 ##     come with it. A sphere, not a ray: a ray drops into every crack between
 ##     the road's panels and snags on edges; a sphere rolls over them like a tyre
-##   * the spring + damper + bump stop (suspension.gd) push the body up at the
-##     contact point, along the ground's normal, by the strut force's share
-##     that's square to the ground. That's the tyre's load. Pushing at the
+##   * the spring + damper + bump stop (suspension.gd), and the anti-roll bar's
+##     push (the car works it out from both corners of the axle), push the body
+##     up at the contact point, along the ground's normal, by the strut force's
+##     share that's square to the ground. That's the tyre's load. Pushing at the
 ##     contact, not the body's middle, is what makes braking dip the nose and
 ##     cornering roll the body
 ##   * the tyre (tire_model.gd): the contact patch's own velocity (the body's,
@@ -50,7 +51,8 @@ var inertia := 1.1                 # kg m², the wheel's spin
 
 # set by the car each tick
 var drive_torque := 0.0            # N m of extra drive (the lab's and tests' test torque; the engine comes through the drivetrain)
-var brake_torque := 0.0            # N m the brake can apply (friction)
+var brake_torque := 0.0            # N m the brake (and handbrake) can apply (friction)
+var anti_roll := 0.0               # N the anti-roll bar pushes this corner up with (- = pulls it down)
 
 # for the drivetrain, each substep
 var i_eff := 1.1                   # kg m²: how heavy the wheel feels (its inertia + the tyre's grip resisting)
@@ -124,9 +126,9 @@ func setup(the_car: RigidBody3D, suspension: Resource, tyre: Resource, tyre_radi
 	_on_surface(null)
 
 
-## Once a tick, first: sweep, work out the compression and the load, and the
-## contact patch's velocity (the car then runs the substeps: tyre_predict, the
-## drivetrain, tyre_finalize; then apply_forces).
+## Once a tick, first: sweep, and work out the compression and how fast it's
+## changing (the car then works out the anti-roll bars from both corners and
+## calls settle()).
 func step(dt: float) -> void:
 	cast.force_shapecast_update()
 	var axis := -global_transform.basis.y            # down the strut
@@ -166,6 +168,13 @@ func step(dt: float) -> void:
 		compression_velocity = 0.0
 	_prev_compression = compression
 	_was_grounded = grounded
+
+
+## Once a tick, second: the load (the spring, damper, bump stop and anti-roll
+## bar) and the contact patch's velocity (the car then runs the substeps:
+## tyre_predict, the drivetrain, tyre_finalize; then apply_forces).
+func settle() -> void:
+	var axis := -global_transform.basis.y
 	if not grounded:
 		strut_force = 0.0
 		load = 0.0
@@ -175,7 +184,7 @@ func step(dt: float) -> void:
 	else:
 		if collider != _surface_of:
 			_on_surface(collider)
-		strut_force = Suspension.force(cfg, compression, compression_velocity)
+		strut_force = Suspension.force(cfg, compression, compression_velocity, anti_roll)
 		var square := maxf(-axis.dot(normal), 0.0)  # the strut's push that's square to the ground
 		load = strut_force * square
 		# the tyre: the patch's velocity along / across the wheel, in the ground's plane

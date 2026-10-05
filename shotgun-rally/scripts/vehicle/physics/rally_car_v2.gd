@@ -182,9 +182,12 @@ func _physics_process(dt: float) -> void:
 	_brakes(pedals.y)
 	var was := grounded
 	grounded = 0
+	for w in wheels:
+		w.step(dt)
+	_anti_roll()
 	for k in 4:
 		var w = wheels[k]
-		w.step(dt)
+		w.settle()
 		comp[k] = w.compression
 		if w.grounded:
 			grounded += 1
@@ -244,12 +247,37 @@ func _free_wheels(h: float) -> void:
 		w.omega = 0.0 if absf(n) <= stop else (n - signf(n) * stop) / w.i_eff
 
 
-## The pedal: the brakes' torque, split front / rear by the bias, left / right evenly.
+## The pedal: the brakes' torque, split front / rear by the bias, left / right
+## evenly; and the hydraulic handbrake on the rears (its lever also lets the rear
+## axle's drive go, if the drivetrain has that clutch).
 func _brakes(pedal: float) -> void:
+	var hb := clampf(float(inp.handbrake), 0.0, 1.0)
 	var front: float = config.brake_torque * config.brake_bias * 0.5 * pedal
-	var rear: float = config.brake_torque * (1.0 - config.brake_bias) * 0.5 * pedal
+	var rear: float = config.brake_torque * (1.0 - config.brake_bias) * 0.5 * pedal + config.handbrake_torque * 0.5 * hb
 	for k in 4:
 		wheels[k].brake_torque = front if k < 2 else rear
+	if drivetrain:
+		drivetrain.handbrake = hb
+
+
+## The anti-roll bars: each axle's bar pushes its more squashed corner up and pulls
+## the other down, by its rate x the difference in squash. With one wheel in the
+## air the bar lifts that light wheel into its arch until its spring balances the
+## bar, so the bar carries only what that spring can.
+func _anti_roll() -> void:
+	for pair in [[0, 1], [2, 3]]:
+		var a = wheels[pair[0]]
+		var b = wheels[pair[1]]
+		var k: float = a.cfg.anti_roll_rate
+		var f := 0.0
+		if a.grounded and b.grounded:
+			f = k * (a.compression - b.compression)
+		elif a.grounded:
+			f = k * a.compression * b.cfg.spring_rate / (b.cfg.spring_rate + k)
+		elif b.grounded:
+			f = -k * b.compression * a.cfg.spring_rate / (a.cfg.spring_rate + k)
+		a.anti_roll = f
+		b.anti_roll = -f
 
 
 ## The rack follows the input (no faster than rack_speed); each front wheel's

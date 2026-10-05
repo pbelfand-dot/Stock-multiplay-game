@@ -86,6 +86,8 @@ func text() -> String:
 		s += "engine %5.0f rpm  gear %s  throttle %3.0f %%  boost %3.0f %%  clutch %3.0f %%  %4.0f N m  (clutch carries %4.0f)%s%s\n" % [
 			d.rpm(), g, d.throttle * 100.0, d.boost * 100.0, d.clutch * 100.0, d.engine_torque, d.clutch_torque,
 			"  SHIFT" if d.shifting() else "", "  LIMITER" if d.limiter else ""]
+		if d.handbrake > 0.02 or d.rear_coupling < 1.0:
+			s += "HANDBRAKE %3.0f %%   rear axle's drive %3.0f %% in\n" % [d.handbrake * 100.0, d.rear_coupling * 100.0]
 	s += "        comp mm   load kN   slip deg   side kN   wheel km/h   slip %   drive kN   on\n"
 	for k in 4:
 		var w = car.wheels[k]

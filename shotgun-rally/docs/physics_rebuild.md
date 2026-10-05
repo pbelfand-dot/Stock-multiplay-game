@@ -1,9 +1,10 @@
 # Rally physics rebuild: inspection and plan
 
-Status: **phases 1-6 done** (the chassis on its suspension; the tyres' side grip and the
+Status: **phases 1-7 done** (the chassis on its suspension; the tyres' side grip and the
 steering; the wheels' spin, the drive / brake force and the brakes; the combined-slip ellipse and
-load sensitivity; the engine, clutch, sequential gearbox and four-wheel-drive diffs; surfaces; in
-the lab, see "Phase reports" at the end). Decisions:
+load sensitivity; the engine, clutch, sequential gearbox and four-wheel-drive diffs; surfaces; the
+handbrake, anti-roll bars and two-stage dampers; in the lab, see "Phase reports" at the end).
+Decisions:
 - built **alongside** the current car (a lab scene, a `--physics=v2` switch once it drives), and it
   becomes the car once it passes every current test plus the manoeuvre tests;
 - physics at **120 Hz** (set by whatever runs the v2 car, so the current car and the auto-updater's
@@ -473,7 +474,7 @@ suite now runs in ~30 s). In the lab: 1-8, steer, brake, F3.
 
 **6. What correct looks like** (measured, the same runs on every surface):
 
-| Surface | Cornering limit | Braking from 40 km/h | 0-40 km/h | Coasting at 20 m/s |
+| Surface | Cornering limit | Braking from 40 km/h | 0-40 km/h (phase 7's launch: quicker) | Coasting at 20 m/s |
 |---|---|---|---|---|
 | asphalt | 11.2 m/s² (1.14 g) | 9.7 m/s², 6.3 m | 2.3 s | 0.12 m/s² |
 | wet asphalt | 8.3 (0.85 g) | 6.8, 9.2 m | 2.3 s | 0.14 |
@@ -514,3 +515,77 @@ One simplification to know: rolling resistance acts as a torque on the wheel (li
 so a wheel already spinning on its grip doesn't pass it on to the car. Pulling away in mud comes out
 2 % quicker than grip minus rolling resistance would allow. Deep mud or snow that drags the body
 whatever the wheels do would be an extra force; it isn't needed yet.
+
+### Phase 7: handbrake, anti-roll bars, two-stage dampers (and a better launch)
+
+**1. The code**
+- **Handbrake** (`rally_car_v2.gd` `_brakes()`): the hydraulic handbrake adds its torque to the
+  rear brakes, through the same friction path as the pedal, so the rears lock only because it
+  beats their grip (3,000 N m against the ~1,800 the rear tyres can take on gravel). Its lever
+  also works **the rear axle's clutch** (`drivetrain.gd`), as on a Rally2 car: a light pull lets
+  the rear drive go, so the gearbox drives the fronts and the rears only through that clutch,
+  slipping (a friction-limited coupling in the solver). Let go, it bites again over 0.25 s.
+- **Anti-roll bars** (`_anti_roll()`): each axle's bar pushes its more squashed corner up and
+  pulls the other down by its rate x the difference in squash, as extra strut force (so it's part
+  of the tyre's load). With one wheel in the air the bar lifts that light wheel into its arch until
+  its spring balances the bar, so the bar carries only what that spring can (continuous as a
+  wheel lifts). `rally_wheel.gd` now senses the ground (`step()`) and works out the load
+  (`settle()`) separately, so the car can work out the bars from both corners in between.
+- **Two-stage dampers** (`suspension.gd` `damping()`): firm up to a knee speed (the body rolling,
+  pitching, bouncing), the softer high-speed rates above it (a wheel hitting a bump or dropping
+  into a hole), bump and rebound each, like a rally damper's low- and high-speed adjusters.
+  `roll_stiffness()` gives each axle's roll stiffness (springs and bar).
+- **The launch** (`drivetrain.gd` `control()`): pulling away, the automatic clutch now slips
+  holding the engine near a target (launch_rpm flat out, lower with less throttle), biting harder
+  as the revs rise past it. The old one bit by revs alone, so under a heavy load the engine
+  bogged at the revs where it bit hardest: with the rears locked on the handbrake it sat at
+  1,800 rpm and the car didn't move.
+- Telemetry: a handbrake line (the lever, how far in the rear axle's drive is). Lab: space is the
+  handbrake, `--lab=handbrake` a handbrake turn.
+
+**2. Where:** `suspension.gd`, `config/suspension_config.gd` (damper and anti-roll groups),
+`rally_car_v2.gd`, `rally_wheel.gd`, `drivetrain.gd`, `config/drivetrain_config.gd` (Handbrake
+group), `config/car_config.gd` (`handbrake_torque`).
+
+**3. Nodes:** none new.
+
+**4. In the inspector:**
+- dampers: knee 0.25 m/s; front 1,900 / 3,400 N per m/s slow (bump / rebound), 1,100 / 2,500 fast;
+  rear 1,600 / 2,900 slow, 950 / 2,100 fast;
+- anti-roll bars: front 14,000 N/m, rear 9,000 N/m (the axles' roll stiffness: front 70,000, rear
+  52,000 N m per radian with the springs);
+- handbrake 3,000 N m on the two rears; the rear axle's clutch on (`handbrake_disconnects_rear`),
+  6,000 N m when in, 0.25 s to bite again.
+
+**5. How to test:** the physics test (10 new runs). In the lab: space in a turn, F3.
+
+**6. What correct looks like** (measured):
+- handbrake turn at 15 m/s (the wheel at 18 degrees, the handbrake for 0.8 s): it turns 134
+  degrees in 2 s against 66 without, the tail out to 75 degrees of slip (3 without); while it's
+  pulled the rears are locked and the fronts keep rolling the whole time;
+- rolling at 36 km/h, handbrake and full throttle: the rears stay locked while the fronts drive.
+  Without the rear axle's clutch the engine turns the rears through the locked centre: they never
+  lock, the handbrake only drags;
+- body roll: 2.75 degrees per g in a steady corner, against 2.85 predicted from the springs and
+  bars (road cars ~1-1.8, a gravel rally car softer); without the bars 5.05 (predicted 5.39): they
+  take 45 % of the roll out. On asphalt at 1.07 g it rolls 2.9 degrees (5.4 before), but the inside
+  wheels unload just as much (the rear to 0.7 kN): the weight shifted in a corner is set by the
+  centre of mass's height and the track (4.0 kN here, m a h / t, as measured), not by the bars.
+  The bars cut the roll and decide which end takes the shift: the front 57.5 %, its share of the
+  roll stiffness;
+- at the limit, front bar x 3: front slip 4.9 / rear 2.6 degrees (more push); rear bar x 3: 5.6 /
+  3.8 (the tail working), and 7 % more cornering (9.04 against 8.43 m/s²);
+- sharp bumps at 15 m/s: the body's hardest jolt 7.5 m/s² with the two-stage dampers, 10.0 with
+  plain ones; the full-width bumps now pitch it 0.7 degrees (1.0 before), the 1 m drop uses 280 of
+  the 300 mm travel (268 before) and still never touches;
+- the launch: 0-100 km/h in **4.2 s** (4.9 before; Škoda quotes about 4.2 s for the Fabia RS
+  Rally2). Flat out off the line the tyres spin hard (253 % slip at walking pace: the engine puts
+  ~5,500 N m to the wheels in first against the ~4,000 gravel can take) and hook up as it gathers
+  speed (23 % by 50 km/h). A driver feathers the throttle; traction control (phase 8) will. The
+  phase 6 pulls to 40 km/h are quicker too: asphalt 1.4 s, wet 1.9, gravel 1.6, dirt 1.6, snow
+  3.2, mud 3.1, grass 2.7, ice 11.7 (the order unchanged).
+
+**7. Bugs found:**
+- the old automatic clutch bogged the engine under a heavy load (above): replaced;
+- a test run named "two-stage" made its judge function's name invalid (a hyphen); the suite
+  then stalled on the error every tick instead of failing. Renamed.

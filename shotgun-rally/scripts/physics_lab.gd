@@ -9,13 +9,13 @@ extends Node3D
 ##     grass), 240 m square each, and a split pad: ice under the left wheels,
 ##     asphalt the right
 ## Keys: left / right (A D) steer   up (W) throttle   down (S) brakes (stopped,
-## hold it: reverse)   E / Q change up / down (it changes by itself too)
+## hold it: reverse)   space handbrake   E / Q change up / down (it changes by itself too)
 ## C a tow at 15 m/s through the centre of mass   R back on the pad   J drop it from a metre up
 ## B roll it over the bumps at 12 m/s   N over the left-side bumps   P park it
 ## across the side slope (O: nose uphill)   1-8 rolling at 15 m/s on a surface
 ## pad (9: the split pad)   F3 numbers   F4 force arrows
 ## The tests build the same course (build_course) without the scene.
-## A picture: ... scenes/physics_lab.tscn -- --screenshot=out.png [--lab=drop|bumps|left|skid|slope|brake|launch|<a surface>
+## A picture: ... scenes/physics_lab.tscn -- --screenshot=out.png [--lab=drop|bumps|left|skid|slope|brake|launch|handbrake|<a surface>
 ## --shot_wait=1.5 --vectors]
 
 const RallyCarV2 = preload("res://scripts/vehicle/physics/rally_car_v2.gd")
@@ -46,6 +46,7 @@ var _tow := false
 var _hold_steer := false           # keep a preset steering (the skid pad picture) until a key is pressed
 var _auto_brake := false           # the braking picture: full brakes without a key
 var _auto_throttle := false        # the launch picture: full throttle without a key
+var _auto_handbrake := -1.0        # the handbrake picture: pulled until this runs out (s)
 
 
 func _ready() -> void:
@@ -61,7 +62,7 @@ func _ready() -> void:
 	add_child(cam)
 	cam.current = true
 	var hint := Label.new()
-	hint.text = "arrows steer / throttle / brake   E Q gears   C tow   R reset   J drop   B / N bumps   P / O slope   1-8 surfaces   9 split   F3 numbers   F4 forces"
+	hint.text = "arrows steer / throttle / brake   space handbrake   E Q gears   C tow   R reset   J drop   B / N bumps   P / O slope   1-8 surfaces   9 split   F3 numbers   F4 forces"
 	hint.add_theme_font_size_override("font_size", 16)
 	hint.add_theme_constant_override("outline_size", 5)  # (readable on the snow pad too)
 	hint.add_theme_color_override("font_outline_color", Color(0.0, 0.0, 0.0, 0.8))
@@ -90,6 +91,12 @@ func _ready() -> void:
 		"launch":
 			car.place(SKID, 0.0)
 			_auto_throttle = true
+		"handbrake":
+			launch(car, SKID, TOW_SPEED)
+			car.drivetrain.gear = 0
+			car.inp.steer = 0.7
+			_hold_steer = true
+			_auto_handbrake = 0.7
 		var lab when lab in SURFACES:
 			launch(car, surface_start(lab), TOW_SPEED)
 			_tow = true
@@ -210,7 +217,7 @@ func _unhandled_input(e: InputEvent) -> void:
 			launch(car, split_start(), TOW_SPEED)
 
 
-func _physics_process(_dt: float) -> void:
+func _physics_process(dt: float) -> void:
 	var keys := 0.0
 	if Input.is_key_pressed(KEY_LEFT) or Input.is_key_pressed(KEY_A):
 		keys -= 1.0
@@ -222,6 +229,8 @@ func _physics_process(_dt: float) -> void:
 		car.inp.steer = keys
 	car.inp.throttle = 1.0 if _auto_throttle or Input.is_key_pressed(KEY_UP) or Input.is_key_pressed(KEY_W) else 0.0
 	car.inp.brake = 1.0 if _auto_brake or Input.is_key_pressed(KEY_DOWN) or Input.is_key_pressed(KEY_S) else 0.0
+	_auto_handbrake -= dt
+	car.inp.handbrake = 1.0 if _auto_handbrake > 0.0 or Input.is_key_pressed(KEY_SPACE) else 0.0
 	if _tow:
 		tow(car, TOW_SPEED)
 

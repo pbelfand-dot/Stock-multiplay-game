@@ -21,6 +21,9 @@ extends RefCounted
 ##          they're held together by up to preload + lock x the torque through it
 ##        * the brakes and rolling resistance: friction holding each wheel still,
 ##          up to their torque
+##        * pulling the handbrake lets the rear axle go (a clutch in the drive to
+##          it, as on a Rally2 car): the gearbox then drives the fronts, and the
+##          rears only through that clutch, slipping; let go, it bites again
 ##   So an open diff losing drive to a wheel in the air, a locked centre diff
 ##   pushing the car straight on, an LSD's power-on bite: none of it is
 ##   scripted, it's the couplings and the tyres.
@@ -42,6 +45,8 @@ var throttle := 0.0                # the engine's actual throttle (after the shi
 var engine_torque := 0.0           # N m the engine makes this substep
 var clutch_torque := 0.0           # N m through the clutch (engine side, + = driving)
 var limiter := false
+var handbrake := 0.0               # the handbrake lever, 0..1 (the car sets it)
+var rear_coupling := 1.0           # the rear axle's clutch: 0 (let go) .. 1 (in)
 
 var _shift_t := 0.0
 var _next_gear := 1
@@ -61,6 +66,8 @@ func reset() -> void:
 	boost = 0.0
 	clutch = 0.0
 	_shift_t = 0.0
+	handbrake = 0.0
+	rear_coupling = 1.0
 
 
 func rpm() -> float:
@@ -105,10 +112,16 @@ func shift_down() -> void:
 	shift(gear - 1)
 
 
+## The front axle's share of the drive: the centre diff's, or all of it while the
+## handbrake has let the rear go.
+func split() -> float:
+	return 1.0 if rear_coupling < 1.0 else cfg.front_share
+
+
 ## The driveline's speed at the gearbox output (rad/s) from the wheels: the centre
 ## diff's split of the axles' average speeds.
 func driveline_speed(wheels: Array) -> float:
-	var b: float = cfg.front_share
+	var b := split()
 	return b * (wheels[0].omega + wheels[1].omega) * 0.5 + (1.0 - b) * (wheels[2].omega + wheels[3].omega) * 0.5
 
 
@@ -126,10 +139,15 @@ func control(dt: float, pedal: float, wheels: Array) -> void:
 		limiter = false
 	throttle = 0.0 if shifting() or limiter else clampf(pedal, 0.0, 1.0)
 	throttle = maxf(throttle, clampf((eng.idle_rpm + 100.0 - r) / 300.0, 0.0, 1.0) * 0.35)   # idle control
+	if cfg.handbrake_disconnects_rear:                # a light pull already lets it go; it bites again smoothly
+		var want := 1.0 - clampf(handbrake * 4.0, 0.0, 1.0)
+		rear_coupling = move_toward(rear_coupling, want, dt / (0.02 if want < rear_coupling else cfg.rear_reengage_time))
+	else:
+		rear_coupling = 1.0
 	var target := EngineModel.boost_target(eng, r, pedal)
 	boost = move_toward(boost, target, dt / (eng.spool_time if target > boost else eng.spool_time * 0.6))
 	# the automatic clutch: out while changing gear or in neutral; pulling away, it
-	# takes up as the revs rise (higher with more throttle); rolling, it's in
+	# slips at the revs the throttle asks for; rolling, it's in
 	_driveline = driveline_speed(wheels)
 	var drive_rpm := absf(_driveline * ratio()) * EngineModel.TO_RPM
 	if shifting() or gear == 0:
@@ -139,8 +157,11 @@ func control(dt: float, pedal: float, wheels: Array) -> void:
 	elif pedal < 0.05:
 		clutch = 0.0                                 # stopped, off the throttle: out (it idles, it doesn't creep or stall)
 	else:
-		var top := lerpf(eng.idle_rpm + 500.0, cfg.launch_rpm, pedal)
-		clutch = smoothstep(eng.idle_rpm * 0.9, top, r)
+		# pulling away it slips, holding the revs near a target (higher with more
+		# throttle: launch_rpm flat out), biting harder the more they rise past it.
+		# So however heavy the load, the engine pulls at those revs instead of bogging.
+		var hold := lerpf(eng.idle_rpm + 300.0, cfg.launch_rpm, pedal)
+		clutch = smoothstep(hold - 600.0, hold + 200.0, r)
 	if cfg.auto_shift and not shifting() and gear >= 1:
 		if r > cfg.upshift_rpm and gear < gears():
 			shift_up()
@@ -161,7 +182,8 @@ func solve(h: float, wheels: Array) -> void:
 	omega_e = 0.0 if absf(n_e) <= stop else (n_e - signf(n_e) * stop) / eng.inertia
 	var g := ratio()
 	var cap: float = clutch * cfg.clutch_torque * h
-	var b: float = cfg.front_share
+	var b := split()
+	var free_rear := rear_coupling < 1.0
 	var jc := [-g * b * 0.5, -g * b * 0.5, -g * (1.0 - b) * 0.5, -g * (1.0 - b) * 0.5]
 	var lam_c := 0.0
 	var lam_cd := 0.0
@@ -184,7 +206,9 @@ func solve(h: float, wheels: Array) -> void:
 		# the torque into the centre diff (N m): + the engine driving (either way), - engine braking.
 		# (The clutch's impulse is - when the engine pushes the wheels on: it slows the engine.)
 		var t_in := -lam_c / h * absf(g)
-		if b > 0.0 and b < 1.0:
+		if free_rear:                                # the rear axle's clutch, slipping
+			lam_cd = _row([0.5, 0.5, -0.5, -0.5], wheels, lam_cd, rear_coupling * cfg.rear_clutch_torque * h)
+		elif b > 0.0 and b < 1.0:
 			lam_cd = _diff(cfg.center_diff, [0.5, 0.5, -0.5, -0.5], wheels, lam_cd, h, t_in)
 		lam_f = _diff(cfg.front_diff, [1.0, -1.0, 0.0, 0.0], wheels, lam_f, h, t_in * b)
 		lam_r = _diff(cfg.rear_diff, [0.0, 0.0, 1.0, -1.0], wheels, lam_r, h, t_in * (1.0 - b))
@@ -206,6 +230,12 @@ func _diff(dc: Resource, j: Array, wheels: Array, lam: float, h: float, t_in: fl
 	var cap := INF
 	if dc.kind == DifferentialConfig.Kind.LSD:
 		cap = (dc.preload_torque + (dc.power_lock if t_in >= 0.0 else dc.coast_lock) * absf(t_in)) * h
+	return _row(j, wheels, lam, cap)
+
+
+## A friction-limited coupling between wheels (j: each wheel's share of the speed
+## it holds at zero), its impulse kept within cap; returns its impulse so far.
+func _row(j: Array, wheels: Array, lam: float, cap: float) -> float:
 	var c := 0.0
 	var denom := 0.0
 	for k in 4:
