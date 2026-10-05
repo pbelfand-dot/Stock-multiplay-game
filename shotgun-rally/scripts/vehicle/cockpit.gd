@@ -58,6 +58,9 @@ var _heads := {}                               # seat -> Node3D (helmet), box cr
 var _models := {}                              # seat -> CrewModel (the real crew)
 var hands                                      # DriverHands: gloves on the rim, shuffling, the handbrake
 var _wheel_turn := 0.0                         # the steering wheel's turn (rad)
+var _needles := {}                             # "rpm" / "kmh" -> needle pivot
+var _gear_label: Label3D
+var _trip_label: Label3D
 var _mats := {}
 
 signal wiper_stroke
@@ -69,6 +72,7 @@ func build(the_car, stage) -> void:
 	_dash()
 	_seats()
 	_wheel()
+	_details()
 	_windshield()
 	_crew()
 	hands = DriverHands.new()
@@ -202,8 +206,102 @@ func _dash() -> void:
 	add_child(knob)
 
 
+## The bits that make it a rally car: dials with needles, the gear, the co-driver's
+## trip meter, an extinguisher between the seats, padding on the cage, mats.
+func _details() -> void:
+	# instrument cluster above the wheel's hub, seen through its top: rev counter
+	# (left) and speedo in a binnacle, needles move
+	_box(Vector3(0.3, 0.13, 0.08), Vector3(-0.36, 0.385, -0.37), Color(0.07, 0.07, 0.08), Vector3(deg_to_rad(-25.0), 0, 0))
+	_box(Vector3(0.32, 0.015, 0.11), Vector3(-0.36, 0.455, -0.35), Color(0.07, 0.07, 0.08), Vector3(deg_to_rad(-10.0), 0, 0))
+	var face := _mat(Color(0.93, 0.93, 0.9), 0.6)
+	var tilt := Vector3(deg_to_rad(-70.0), 0, 0)
+	for d in [[-0.45, "rpm"], [-0.29, "kmh"]]:
+		var dial := Node3D.new()
+		dial.position = Vector3(d[0] + 0.01, 0.385, -0.33)
+		dial.rotation.x = deg_to_rad(-25.0)
+		add_child(dial)
+		var bezel := MeshInstance3D.new()
+		var bm := CylinderMesh.new()
+		bm.top_radius = 0.05
+		bm.bottom_radius = 0.05
+		bm.height = 0.012
+		bm.radial_segments = 16
+		bezel.mesh = bm
+		bezel.material_override = _mat(Color(0.05, 0.05, 0.05), 0.4)
+		bezel.rotation.x = PI / 2.0
+		dial.add_child(bezel)
+		var f := MeshInstance3D.new()
+		var fm := CylinderMesh.new()
+		fm.top_radius = 0.042
+		fm.bottom_radius = 0.042
+		fm.height = 0.004
+		fm.radial_segments = 16
+		f.mesh = fm
+		f.material_override = face
+		f.rotation.x = PI / 2.0
+		f.position.z = 0.006
+		dial.add_child(f)
+		for i in 9:                                   # tick marks round the dial
+			var a := deg_to_rad(-135.0 + 270.0 * i / 8.0)
+			var tk := _box(Vector3(0.003, 0.008, 0.002), Vector3(sin(a), cos(a), 0.0) * 0.035 + Vector3(0, 0, 0.009),
+				Color(0.1, 0.1, 0.1) if i < 7 or d[1] == "kmh" else Color(0.85, 0.1, 0.1), Vector3(0, 0, -a), dial)
+			tk.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		var needle := Node3D.new()
+		needle.position.z = 0.011
+		dial.add_child(needle)
+		_box(Vector3(0.003, 0.036, 0.002), Vector3(0, 0.016, 0), Color(0.9, 0.15, 0.05), Vector3.ZERO, needle)
+		_needles[d[1]] = needle
+	_gear_label = Label3D.new()
+	_gear_label.text = "1"
+	_gear_label.font_size = 48
+	_gear_label.pixel_size = 0.0006
+	_gear_label.modulate = Color(0.3, 1.0, 0.4)
+	_gear_label.outline_size = 0
+	_gear_label.position = Vector3(-0.36, 0.36, -0.325)
+	_gear_label.rotation.x = deg_to_rad(-25.0)
+	add_child(_gear_label)
+	# the co-driver's trip meter on top of the dash: stage distance, in green
+	_box(Vector3(0.16, 0.06, 0.06), Vector3(0.38, 0.385, -0.42), Color(0.06, 0.06, 0.07), Vector3(deg_to_rad(-20.0), 0, 0))
+	_trip_label = Label3D.new()
+	_trip_label.text = "0.00"
+	_trip_label.font_size = 64
+	_trip_label.pixel_size = 0.0008
+	_trip_label.modulate = Color(0.35, 1.0, 0.45)
+	_trip_label.outline_size = 0
+	_trip_label.position = Vector3(0.38, 0.39, -0.387)
+	_trip_label.rotation.x = deg_to_rad(-20.0)
+	add_child(_trip_label)
+	# fire extinguisher between the seats
+	var ext := MeshInstance3D.new()
+	var em := CylinderMesh.new()
+	em.top_radius = 0.045
+	em.bottom_radius = 0.045
+	em.height = 0.34
+	em.radial_segments = 10
+	ext.mesh = em
+	ext.material_override = _mat(Color(0.8, 0.06, 0.05), 0.35)
+	ext.rotation.x = PI / 2.0
+	ext.position = Vector3(0.0, -0.24, 0.42)
+	add_child(ext)
+	_box(Vector3(0.05, 0.03, 0.05), Vector3(0.0, -0.24, 0.24), Color(0.15, 0.15, 0.15))
+	# black foam padding on the cage where heads could hit it, rubber mats
+	for sx in [-1.0, 1.0]:
+		_tube(Vector3(0.66 * sx, 0.9, 0.45), Vector3(0.66 * sx, 0.89, 0.0), 0.042, Color(0.07, 0.07, 0.08))
+		_tube(Vector3(0.69 * sx, -0.04, 0.45), Vector3(0.7 * sx, 0.12, -0.3), 0.04, Color(0.07, 0.07, 0.08))
+		_box(Vector3(0.5, 0.012, 0.5), Vector3(0.37 * sx, -0.295, -0.2), Color(0.16, 0.16, 0.17))
+
+
 func _seats() -> void:
+	# Higgsfield bucket seats (assets/models/seat.glb); the box seats if it's missing
+	const SEAT_MODEL := "res://assets/models/seat.glb"
 	for x in [-0.37, 0.37]:
+		if ResourceLoader.exists(SEAT_MODEL):
+			var seat: Node3D = load(SEAT_MODEL).instantiate()
+			seat.scale = Vector3.ONE * 0.52                  # 1.9 units tall -> ~1 m, rails to headrest
+			seat.rotation.y = PI                             # it faces +z; the car faces -z
+			seat.position = Vector3(x, -0.30 + 0.952 * 0.52, 0.36)
+			add_child(seat)
+			continue
 		_box(Vector3(0.5, 0.14, 0.52), Vector3(x, -0.22, 0.3), SEAT)          # cushion
 		_box(Vector3(0.5, 0.75, 0.14), Vector3(x, 0.2, 0.6), SEAT, Vector3(deg_to_rad(-12.0), 0, 0))
 		_box(Vector3(0.12, 0.42, 0.4), Vector3(x - 0.24, -0.02, 0.38), SEAT * 0.9)   # bolsters
@@ -217,6 +315,14 @@ func _wheel() -> void:
 	_steer_node.rotation.x = WHEEL_TILT
 	add_child(_steer_node)
 	var seg := 12
+	# the Higgsfield rally wheel (dished three-spoke, suede, yellow top marker); its rim
+	# runs at ~0.88 units from the hub, so this puts it at WHEEL_R where the gloves grip
+	const WHEEL_MODEL := "res://assets/models/steering_wheel.glb"
+	if ResourceLoader.exists(WHEEL_MODEL):
+		var w: Node3D = load(WHEEL_MODEL).instantiate()
+		w.scale = Vector3.ONE * (WHEEL_R / 0.88)
+		_steer_node.add_child(w)
+		return
 	for k in seg:
 		var a0 := TAU * k / seg
 		var a1 := TAU * (k + 1) / seg
@@ -423,6 +529,14 @@ func _process(dt: float) -> void:
 		_models.driver.pose(wheel_hands, Vector3(0.35, -0.6, 0.15))
 	if _models.has("codriver") and board_hands.size() == 2:
 		_models.codriver.pose(board_hands, Vector3(0.3, -0.6, 0.25), 0.9)
+	# the dials: revs through the gears (red line at the top) and road speed (0-200)
+	if _needles.has("rpm"):
+		var rev: float = clampf(0.18 + car.rpm * 0.82, 0.0, 1.0)
+		_needles.rpm.rotation.z = -deg_to_rad(-135.0 + 270.0 * rev)
+		_needles.kmh.rotation.z = -deg_to_rad(-135.0 + 270.0 * clampf(car.kmh() / 200.0, 0.0, 1.0))
+		_gear_label.text = "R" if car.speed < -0.5 else str(car.gear)
+		if map_board:
+			_trip_label.text = "%.2f" % (maxf(map_board.car_s - 40.0, 0.0) / 1000.0)
 	_wipers(dt)
 	_mud_mat.set_shader_parameter("mud", mud)
 	_mud_mat.set_shader_parameter("swept", PackedFloat32Array([deg_to_rad(swept[0]), deg_to_rad(swept[1])]))
