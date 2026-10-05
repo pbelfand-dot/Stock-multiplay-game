@@ -9,7 +9,9 @@ download the speech model.
 import glob
 import json
 import os
+import subprocess
 
+import numpy as np
 from faster_whisper import WhisperModel
 
 DIR = os.path.join(os.path.dirname(__file__), "..", "assets", "voice", "fraser")
@@ -20,7 +22,11 @@ def main() -> None:
     out = {}
     for path in sorted(glob.glob(os.path.join(DIR, "*.mp3"))):
         name = os.path.basename(path)[:-4]
-        segs, _ = model.transcribe(path, word_timestamps=True, language="en", beam_size=5,
+        # decode with ffmpeg ourselves (faster-whisper's PyAV call breaks with some av versions)
+        raw = subprocess.run(["ffmpeg", "-loglevel", "error", "-i", path, "-ac", "1", "-ar", "16000",
+                              "-f", "f32le", "-"], capture_output=True, check=True).stdout
+        audio = np.frombuffer(raw, dtype=np.float32)
+        segs, _ = model.transcribe(audio, word_timestamps=True, language="en", beam_size=5,
                                    vad_filter=False, condition_on_previous_text=False)
         words = []
         text = ""
