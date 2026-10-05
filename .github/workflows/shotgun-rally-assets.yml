@@ -1,0 +1,35 @@
+# SHOTGUN RALLY · fetch generated assets: download the files listed in
+# shotgun-rally/assets/incoming.json (Higgsfield models and reference images,
+# which the Claude sandbox can't reach) and commit them to the same branch.
+name: SHOTGUN RALLY · fetch generated assets
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ["**"]
+    paths:
+      - shotgun-rally/assets/incoming.json
+
+permissions:
+  contents: write
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download
+        run: |
+          pip install --quiet pillow
+          python3 shotgun-rally/tools/fetch_assets.py
+      - name: Commit the files
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add shotgun-rally
+          if git diff --cached --quiet; then
+            echo "Nothing to commit."
+          else
+            git commit -m "Store generated assets"
+            git push
+          fi
