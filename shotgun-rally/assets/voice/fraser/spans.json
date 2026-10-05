@@ -1,766 +1,672 @@
 {
- "1": {
-  "text": "1",
-  "words": [
-   [
-    "1",
-    0.0,
-    0.96
-   ]
-  ]
- },
- "100": {
-  "text": "and 100.",
-  "words": [
-   [
-    "and",
-    0.0,
-    0.06
-   ],
-   [
-    "100.",
-    0.06,
-    0.3
-   ]
-  ]
- },
- "1000": {
-  "text": "1,000.",
-  "words": [
-   [
-    "1",
-    0.0,
-    0.22
-   ],
-   [
-    ",000.",
-    0.22,
-    0.64
-   ]
-  ]
- },
- "120": {
-  "text": "120",
-  "words": [
-   [
-    "120",
-    0.0,
-    1.12
-   ]
-  ]
- },
- "150": {
-  "text": "150",
-  "words": [
-   [
-    "150",
-    0.0,
-    0.42
-   ]
-  ]
- },
- "2": {
-  "text": "",
-  "words": []
- },
- "200": {
-  "text": "200.",
-  "words": [
-   [
-    "200.",
-    0.0,
-    0.3
-   ]
-  ]
- },
- "250": {
-  "text": "and 250.",
-  "words": [
-   [
-    "and",
-    0.0,
-    0.18
-   ],
-   [
-    "250.",
-    0.18,
-    0.66
-   ]
-  ]
- },
- "3": {
-  "text": "3 3",
-  "words": [
-   [
-    "3",
-    0.0,
-    0.36
-   ],
-   [
-    "3",
-    0.82,
-    1.52
-   ]
-  ]
- },
- "30": {
-  "text": "30.",
-  "words": [
-   [
-    "30.",
-    0.0,
-    0.14
-   ]
-  ]
- },
- "300": {
-  "text": "300.",
-  "words": [
-   [
-    "300.",
-    0.0,
-    0.2
-   ]
-  ]
- },
- "350": {
-  "text": "$3.50",
-  "words": [
-   [
-    "$3",
-    0.0,
-    1.18
-   ],
-   [
-    ".50",
-    1.18,
-    1.42
-   ]
-  ]
- },
- "4": {
-  "text": "4",
-  "words": [
-   [
-    "4",
-    0.0,
-    1.24
-   ]
-  ]
- },
- "40": {
-  "text": "40.",
-  "words": [
-   [
-    "40.",
-    0.0,
-    0.14
-   ]
-  ]
- },
- "400": {
-  "text": "400.",
-  "words": [
-   [
-    "400.",
-    0.0,
-    0.28
-   ]
-  ]
- },
- "450": {
-  "text": "150",
-  "words": [
-   [
-    "150",
-    0.0,
-    0.58
-   ]
-  ]
- },
- "5": {
-  "text": "5.",
-  "words": [
-   [
-    "5.",
-    0.0,
-    0.54
-   ]
-  ]
- },
- "50": {
-  "text": "50.",
-  "words": [
-   [
-    "50.",
-    0.0,
-    0.9
-   ]
-  ]
- },
- "500": {
-  "text": "500.",
-  "words": [
-   [
-    "500.",
-    0.0,
-    1.12
-   ]
-  ]
- },
- "6": {
-  "text": "6.",
-  "words": [
-   [
-    "6.",
-    0.0,
-    1.0
-   ]
-  ]
- },
- "60": {
-  "text": "60.",
-  "words": [
-   [
-    "60.",
-    0.0,
-    0.36
-   ]
-  ]
- },
- "600": {
-  "text": "600.",
-  "words": [
-   [
-    "600.",
-    0.0,
-    0.34
-   ]
-  ]
- },
- "70": {
-  "text": "and 70.",
-  "words": [
-   [
-    "and",
-    0.0,
-    0.08
-   ],
-   [
-    "70.",
-    0.08,
-    0.6
-   ]
-  ]
- },
- "700": {
-  "text": "700",
-  "words": [
-   [
-    "700",
-    0.0,
-    0.32
-   ]
-  ]
- },
- "80": {
-  "text": "70, 80.",
-  "words": [
-   [
-    "70,",
-    0.0,
-    0.16
-   ],
-   [
-    "80.",
-    0.72,
-    1.02
-   ]
-  ]
- },
- "800": {
-  "text": "800.",
-  "words": [
-   [
-    "800.",
-    0.0,
-    0.26
-   ]
-  ]
- },
- "900": {
-  "text": "900.",
-  "words": [
-   [
-    "900.",
-    0.0,
-    0.4
-   ]
-  ]
- },
- "and": {
-  "text": "and",
-  "words": [
-   [
-    "and",
-    0.0,
-    1.32
-   ]
-  ]
- },
- "at": {
-  "text": "at .",
-  "words": [
-   [
-    "at",
-    0.0,
-    0.94
-   ],
-   [
-    ".",
-    0.94,
-    1.04
-   ]
-  ]
- },
- "bump": {
-  "text": "Bump.",
-  "words": [
-   [
-    "Bump.",
-    0.0,
-    0.32
-   ]
-  ]
- },
- "caution": {
-  "text": "caution.",
-  "words": [
-   [
-    "caution.",
-    0.0,
-    0.2
-   ]
-  ]
- },
- "dont-cut": {
-  "text": "Don't cut.",
-  "words": [
-   [
-    "Don't",
-    0.0,
-    0.16
-   ],
-   [
-    "cut.",
-    0.16,
-    0.32
-   ]
-  ]
- },
- "exit": {
-  "text": "It",
-  "words": [
-   [
-    "It",
-    0.0,
-    0.26
-   ]
-  ]
- },
- "ferry": {
-  "text": "Fairy. Fairy.",
-  "words": [
-   [
-    "Fairy.",
-    0.0,
-    0.48
-   ],
-   [
-    "Fairy.",
-    0.9,
-    1.24
-   ]
-  ]
- },
- "finish": {
-  "text": "Finish.",
-  "words": [
-   [
-    "Finish.",
-    0.0,
-    1.38
-   ]
-  ]
- },
- "go": {
-  "text": "GO!",
-  "words": [
-   [
-    "GO!",
-    0.0,
-    0.32
-   ]
-  ]
- },
- "hairpin": {
-  "text": "Hairpin",
-  "words": [
-   [
-    "Hairpin",
-    0.0,
-    1.36
-   ]
-  ]
- },
- "into": {
-  "text": "into.",
-  "words": [
-   [
-    "into.",
-    0.0,
-    0.22
-   ]
-  ]
- },
- "jump": {
-  "text": "jump.",
-  "words": [
-   [
-    "jump.",
-    0.0,
-    0.26
-   ]
-  ]
- },
- "keep": {
-  "text": "Keep.",
-  "words": [
-   [
-    "Keep.",
-    0.0,
-    0.24
-   ]
-  ]
- },
- "left": {
-  "text": "left.",
-  "words": [
-   [
-    "left.",
-    0.0,
-    0.88
-   ]
-  ]
- },
- "lights": {
-  "text": "lights.",
-  "words": [
-   [
-    "lights.",
-    0.0,
-    0.24
-   ]
-  ]
- },
- "long": {
-  "text": "long.",
-  "words": [
-   [
-    "long.",
-    0.0,
-    0.82
-   ]
-  ]
- },
- "merge": {
-  "text": "merge",
-  "words": [
-   [
-    "merge",
-    0.0,
-    1.04
-   ]
-  ]
- },
- "new-route": {
-  "text": "New route. Notes on.",
-  "words": [
-   [
-    "New",
-    0.0,
-    0.24
-   ],
-   [
-    "route.",
-    0.24,
-    0.56
-   ],
-   [
-    "Notes",
-    1.24,
-    1.36
-   ],
-   [
-    "on.",
-    1.36,
-    1.66
-   ]
-  ]
- },
- "nice": {
-  "text": "Nice!",
-  "words": [
-   [
-    "Nice!",
-    0.0,
-    0.22
-   ]
-  ]
- },
- "off-route": {
-  "text": "off-root. Recalculating.",
-  "words": [
-   [
-    "off",
-    0.0,
-    0.18
-   ],
-   [
-    "-root.",
-    0.18,
-    0.56
-   ],
-   [
-    "Recalculating.",
-    1.3,
-    2.24
-   ]
-  ]
- },
- "opens": {
-  "text": "opens.",
-  "words": [
-   [
-    "opens.",
-    0.0,
-    0.28
-   ]
-  ]
- },
- "over-crest": {
-  "text": "over Crest.",
-  "words": [
-   [
-    "over",
-    0.0,
-    0.24
-   ],
-   [
-    "Crest.",
-    0.24,
-    0.46
-   ]
-  ]
- },
- "rail-crossing": {
-  "text": "rail crossing.",
-  "words": [
-   [
-    "rail",
-    0.0,
-    0.92
-   ],
-   [
-    "crossing.",
-    0.92,
-    1.3
-   ]
-  ]
- },
- "ramp": {
-  "text": "ramp.",
-  "words": [
-   [
-    "ramp.",
-    0.0,
-    0.18
-   ]
-  ]
- },
- "ready": {
-  "text": "Co-driver ready. Stage start.",
-  "words": [
-   [
-    "Co",
-    0.0,
-    0.64
-   ],
-   [
-    "-driver",
-    0.64,
-    0.94
-   ],
-   [
-    "ready.",
-    0.94,
-    1.28
-   ],
-   [
-    "Stage",
-    2.0,
-    2.3
-   ],
-   [
-    "start.",
-    2.3,
-    2.6
-   ]
-  ]
- },
- "reroute-failed": {
-  "text": "could not recalculate.",
-  "words": [
-   [
-    "could",
-    0.0,
-    0.44
-   ],
-   [
-    "not",
-    0.44,
-    0.7
-   ],
-   [
-    "recalculate.",
-    0.7,
-    1.58
-   ]
-  ]
- },
- "right": {
-  "text": "Finally. Right.",
-  "words": [
-   [
-    "Finally.",
-    0.0,
-    0.26
-   ],
-   [
-    "Right.",
-    1.08,
-    1.38
-   ]
-  ]
- },
- "roundabout": {
-  "text": "Slap slash roundabout",
-  "words": [
-   [
-    "Slap",
-    0.0,
-    0.28
-   ],
-   [
-    "slash",
-    0.28,
-    0.52
-   ],
-   [
-    "roundabout",
-    0.52,
-    1.14
-   ]
-  ]
- },
- "speed-camera": {
-  "text": "speed camera.",
-  "words": [
-   [
-    "speed",
-    0.0,
-    0.3
-   ],
-   [
-    "camera.",
-    0.3,
-    0.62
-   ]
-  ]
- },
- "square": {
-  "text": "Squirt.",
-  "words": [
-   [
-    "Squirt.",
-    0.0,
-    0.28
-   ]
-  ]
- },
- "stage-complete": {
-  "text": "stage complete.",
-  "words": [
-   [
-    "stage",
-    0.0,
-    1.44
-   ],
-   [
-    "complete.",
-    1.44,
-    2.18
-   ]
-  ]
- },
- "stop-sign": {
-  "text": "Stop. Sign.",
-  "words": [
-   [
-    "Stop.",
-    0.0,
-    0.4
-   ],
-   [
-    "Sign.",
-    0.78,
-    1.12
-   ]
-  ]
- },
- "tightens": {
-  "text": "and Titans.",
-  "words": [
-   [
-    "and",
-    0.0,
-    0.08
-   ],
-   [
-    "Titans.",
-    0.08,
-    0.32
-   ]
-  ]
- },
- "water": {
-  "text": "water",
-  "words": [
-   [
-    "water",
-    0.0,
-    0.98
-   ]
-  ]
- },
- "wipers": {
-  "text": "WIPERS",
-  "words": [
-   [
-    "WIPERS",
-    0.0,
-    0.82
-   ]
-  ]
- }
+ "1": [
+  {
+   "start": 0.79,
+   "end": 1.07,
+   "energy": 0.3941,
+   "text": "1."
+  }
+ ],
+ "100": [
+  {
+   "start": 0.0,
+   "end": 0.5,
+   "energy": 0.4115,
+   "text": "and 100."
+  }
+ ],
+ "1000": [
+  {
+   "start": 0.0,
+   "end": 0.61,
+   "energy": 1.483,
+   "text": "1000"
+  }
+ ],
+ "120": [
+  {
+   "start": 0.02,
+   "end": 0.05,
+   "energy": 0.0025,
+   "text": "The"
+  },
+  {
+   "start": 1.0,
+   "end": 1.51,
+   "energy": 1.5502,
+   "text": "120"
+  }
+ ],
+ "150": [
+  {
+   "start": 0.0,
+   "end": 0.39,
+   "energy": 0.2146,
+   "text": "and 50."
+  },
+  {
+   "start": 1.29,
+   "end": 1.88,
+   "energy": 0.5752,
+   "text": "1.50"
+  }
+ ],
+ "2": [
+  {
+   "start": 0.0,
+   "end": 0.43,
+   "energy": 0.0871,
+   "text": "D3"
+  },
+  {
+   "start": 1.27,
+   "end": 1.56,
+   "energy": 0.5031,
+   "text": "to"
+  }
+ ],
+ "200": [
+  {
+   "start": 0.01,
+   "end": 0.59,
+   "energy": 0.7511,
+   "text": "200"
+  }
+ ],
+ "250": [
+  {
+   "start": 0.0,
+   "end": 0.5,
+   "energy": 0.3881,
+   "text": "and 2"
+  },
+  {
+   "start": 1.11,
+   "end": 1.36,
+   "energy": 0.2546,
+   "text": "50"
+  }
+ ],
+ "3": [
+  {
+   "start": 0.0,
+   "end": 0.32,
+   "energy": 0.1252,
+   "text": "3"
+  },
+  {
+   "start": 1.31,
+   "end": 1.56,
+   "energy": 0.5104,
+   "text": "3"
+  }
+ ],
+ "30": [
+  {
+   "start": 0.07,
+   "end": 0.29,
+   "energy": 0.4076,
+   "text": "30"
+  }
+ ],
+ "300": [
+  {
+   "start": 0.0,
+   "end": 0.5,
+   "energy": 0.5436,
+   "text": "300"
+  }
+ ],
+ "350": [
+  {
+   "start": 0.07,
+   "end": 0.18,
+   "energy": 0.01,
+   "text": ""
+  },
+  {
+   "start": 1.01,
+   "end": 1.5,
+   "energy": 0.7374,
+   "text": "350"
+  }
+ ],
+ "4": [
+  {
+   "start": 0.0,
+   "end": 0.35,
+   "energy": 0.0932,
+   "text": "In this"
+  },
+  {
+   "start": 1.4,
+   "end": 1.56,
+   "energy": 0.411,
+   "text": "For"
+  }
+ ],
+ "40": [
+  {
+   "start": 0.03,
+   "end": 0.23,
+   "energy": 1.0197,
+   "text": "40"
+  }
+ ],
+ "400": [
+  {
+   "start": 0.06,
+   "end": 0.55,
+   "energy": 1.9443,
+   "text": "400"
+  }
+ ],
+ "450": [
+  {
+   "start": 0.03,
+   "end": 0.31,
+   "energy": 0.7149,
+   "text": "4.50"
+  },
+  {
+   "start": 1.35,
+   "end": 1.54,
+   "energy": 1.1416,
+   "text": "100"
+  }
+ ],
+ "5": [
+  {
+   "start": 0.08,
+   "end": 0.27,
+   "energy": 0.0281,
+   "text": "five"
+  },
+  {
+   "start": 1.21,
+   "end": 1.48,
+   "energy": 1.0505,
+   "text": "5"
+  }
+ ],
+ "50": [
+  {
+   "start": 1.06,
+   "end": 1.26,
+   "energy": 0.8618,
+   "text": "50"
+  }
+ ],
+ "500": [
+  {
+   "start": 0.85,
+   "end": 1.36,
+   "energy": 0.9989,
+   "text": "500"
+  },
+  {
+   "start": 1.84,
+   "end": 1.87,
+   "energy": 0.5078,
+   "text": "You"
+  }
+ ],
+ "6": [
+  {
+   "start": 0.77,
+   "end": 1.21,
+   "energy": 0.6687,
+   "text": "6"
+  }
+ ],
+ "60": [
+  {
+   "start": 0.02,
+   "end": 0.38,
+   "energy": 0.7193,
+   "text": "60"
+  }
+ ],
+ "600": [
+  {
+   "start": 0.01,
+   "end": 0.64,
+   "energy": 0.8273,
+   "text": "600"
+  }
+ ],
+ "70": [
+  {
+   "start": 0.0,
+   "end": 0.55,
+   "energy": 0.3787,
+   "text": "and 70."
+  },
+  {
+   "start": 1.46,
+   "end": 1.55,
+   "energy": 0.6865,
+   "text": "R-"
+  }
+ ],
+ "700": [
+  {
+   "start": 0.0,
+   "end": 0.51,
+   "energy": 0.7983,
+   "text": "700"
+  }
+ ],
+ "80": [
+  {
+   "start": 0.0,
+   "end": 0.13,
+   "energy": 0.0326,
+   "text": "me"
+  },
+  {
+   "start": 0.88,
+   "end": 1.2,
+   "energy": 0.4601,
+   "text": "80"
+  }
+ ],
+ "800": [
+  {
+   "start": 0.0,
+   "end": 0.51,
+   "energy": 0.7209,
+   "text": "800."
+  }
+ ],
+ "900": [
+  {
+   "start": 0.0,
+   "end": 0.67,
+   "energy": 1.4897,
+   "text": "900"
+  }
+ ],
+ "and": [
+  {
+   "start": 0.0,
+   "end": 0.07,
+   "energy": 0.0016,
+   "text": "and"
+  },
+  {
+   "start": 1.15,
+   "end": 1.51,
+   "energy": 0.577,
+   "text": "and"
+  }
+ ],
+ "at": [
+  {
+   "start": 0.0,
+   "end": 0.08,
+   "energy": 0.0011,
+   "text": ""
+  },
+  {
+   "start": 0.81,
+   "end": 1.1,
+   "energy": 0.1881,
+   "text": "At"
+  }
+ ],
+ "bump": [
+  {
+   "start": 0.0,
+   "end": 0.3,
+   "energy": 0.9751,
+   "text": "Bump"
+  }
+ ],
+ "caution": [
+  {
+   "start": 0.0,
+   "end": 0.35,
+   "energy": 1.0674,
+   "text": "CAUTION!"
+  }
+ ],
+ "dont-cut": [
+  {
+   "start": 0.0,
+   "end": 0.3,
+   "energy": 0.298,
+   "text": "Cut"
+  },
+  {
+   "start": 1.34,
+   "end": 1.8,
+   "energy": 0.7073,
+   "text": "Don't cut."
+  }
+ ],
+ "exit": [
+  {
+   "start": 0.14,
+   "end": 0.15,
+   "energy": 0.0027,
+   "text": "Subs by www.zeoranger.co.uk"
+  },
+  {
+   "start": 1.5,
+   "end": 1.54,
+   "energy": 0.8879,
+   "text": "You"
+  }
+ ],
+ "ferry": [
+  {
+   "start": 0.0,
+   "end": 0.33,
+   "energy": 0.158,
+   "text": "very"
+  },
+  {
+   "start": 1.09,
+   "end": 1.39,
+   "energy": 0.8825,
+   "text": "Fairy"
+  }
+ ],
+ "finish": [
+  {
+   "start": 1.27,
+   "end": 1.54,
+   "energy": 0.4314,
+   "text": "finished."
+  }
+ ],
+ "go": [
+  {
+   "start": 0.0,
+   "end": 0.45,
+   "energy": 1.4813,
+   "text": "Go!"
+  }
+ ],
+ "hairpin": [
+  {
+   "start": 1.02,
+   "end": 1.42,
+   "energy": 1.1002,
+   "text": "Hairpin"
+  }
+ ],
+ "into": [
+  {
+   "start": 0.0,
+   "end": 0.33,
+   "energy": 0.2174,
+   "text": "into"
+  }
+ ],
+ "jump": [
+  {
+   "start": 0.0,
+   "end": 0.26,
+   "energy": 0.6733,
+   "text": "jump"
+  }
+ ],
+ "keep": [
+  {
+   "start": 0.0,
+   "end": 0.31,
+   "energy": 0.1801,
+   "text": "Keep"
+  }
+ ],
+ "left": [
+  {
+   "start": 0.0,
+   "end": 0.09,
+   "energy": 0.0157,
+   "text": "Thanks for watching!"
+  },
+  {
+   "start": 0.87,
+   "end": 1.24,
+   "energy": 0.1436,
+   "text": "Left."
+  }
+ ],
+ "lights": [
+  {
+   "start": 0.0,
+   "end": 0.47,
+   "energy": 0.6875,
+   "text": "Lights"
+  }
+ ],
+ "long": [
+  {
+   "start": 0.0,
+   "end": 0.27,
+   "energy": 0.0309,
+   "text": "Bling"
+  },
+  {
+   "start": 1.11,
+   "end": 1.5,
+   "energy": 0.7535,
+   "text": "Long"
+  }
+ ],
+ "merge": [
+  {
+   "start": 0.7,
+   "end": 1.22,
+   "energy": 0.571,
+   "text": "merge"
+  }
+ ],
+ "new-route": [
+  {
+   "start": 0.0,
+   "end": 0.45,
+   "energy": 0.7278,
+   "text": "New route"
+  },
+  {
+   "start": 1.13,
+   "end": 1.67,
+   "energy": 1.7822,
+   "text": "Notes on"
+  }
+ ],
+ "nice": [
+  {
+   "start": 0.0,
+   "end": 0.42,
+   "energy": 0.2409,
+   "text": "Nice."
+  }
+ ],
+ "off-route": [
+  {
+   "start": 0.0,
+   "end": 0.41,
+   "energy": 0.8249,
+   "text": "Off-roof."
+  },
+  {
+   "start": 1.5,
+   "end": 2.18,
+   "energy": 1.58,
+   "text": "Recalculating"
+  }
+ ],
+ "opens": [
+  {
+   "start": 0.0,
+   "end": 0.55,
+   "energy": 0.4584,
+   "text": "Opens"
+  }
+ ],
+ "over-crest": [
+  {
+   "start": 0.0,
+   "end": 0.59,
+   "energy": 0.6635,
+   "text": "Overcrest"
+  }
+ ],
+ "rail-crossing": [
+  {
+   "start": 0.05,
+   "end": 0.19,
+   "energy": 0.0091,
+   "text": "Psst."
+  },
+  {
+   "start": 0.68,
+   "end": 1.47,
+   "energy": 1.446,
+   "text": "Rail crossing"
+  }
+ ],
+ "ramp": [
+  {
+   "start": 0.0,
+   "end": 0.27,
+   "energy": 0.0301,
+   "text": "ramp"
+  }
+ ],
+ "ready": [
+  {
+   "start": 0.0,
+   "end": 0.02,
+   "energy": 0.003,
+   "text": "Thanks for watching!"
+  },
+  {
+   "start": 0.48,
+   "end": 1.26,
+   "energy": 2.6017,
+   "text": "Co-driver ready."
+  },
+  {
+   "start": 2.05,
+   "end": 2.61,
+   "energy": 0.3058,
+   "text": "Stage Start"
+  }
+ ],
+ "reroute-failed": [
+  {
+   "start": 0.35,
+   "end": 1.54,
+   "energy": 1.4435,
+   "text": "Could not recalculate"
+  },
+  {
+   "start": 2.27,
+   "end": 2.28,
+   "energy": 0.0013,
+   "text": "You"
+  }
+ ],
+ "right": [
+  {
+   "start": 0.0,
+   "end": 0.2,
+   "energy": 0.0119,
+   "text": "Nellie"
+  },
+  {
+   "start": 1.18,
+   "end": 1.49,
+   "energy": 0.4871,
+   "text": "Right."
+  }
+ ],
+ "roundabout": [
+  {
+   "start": 0.03,
+   "end": 1.19,
+   "energy": 1.1157,
+   "text": "Slap slash roundabout"
+  }
+ ],
+ "speed-camera": [
+  {
+   "start": 0.0,
+   "end": 0.71,
+   "energy": 0.2849,
+   "text": "speed camera"
+  }
+ ],
+ "square": [
+  {
+   "start": 0.0,
+   "end": 0.29,
+   "energy": 0.0628,
+   "text": "Square."
+  }
+ ],
+ "stage-complete": [
+  {
+   "start": 0.0,
+   "end": 0.59,
+   "energy": 0.4584,
+   "text": "and slash"
+  },
+  {
+   "start": 1.13,
+   "end": 2.29,
+   "energy": 0.7255,
+   "text": "Stage complete."
+  }
+ ],
+ "stop-sign": [
+  {
+   "start": 0.03,
+   "end": 0.36,
+   "energy": 1.0921,
+   "text": "Stop."
+  },
+  {
+   "start": 0.87,
+   "end": 1.24,
+   "energy": 0.4088,
+   "text": "Sign"
+  }
+ ],
+ "tightens": [
+  {
+   "start": 0.0,
+   "end": 0.57,
+   "energy": 0.3469,
+   "text": "and Titans."
+  }
+ ],
+ "water": [
+  {
+   "start": 0.72,
+   "end": 1.15,
+   "energy": 1.9438,
+   "text": "Water"
+  }
+ ],
+ "wipers": [
+  {
+   "start": 0.28,
+   "end": 0.78,
+   "energy": 0.5374,
+   "text": "WIPERS"
+  },
+  {
+   "start": 1.48,
+   "end": 1.54,
+   "energy": 0.0727,
+   "text": "The"
+  }
+ ]
 }
