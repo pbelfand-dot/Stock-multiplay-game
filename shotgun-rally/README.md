@@ -15,7 +15,8 @@ No friend online? The **AI co-driver** takes the seat.
 |---|---|
 | ![Driver](docs/screens/driver.jpg) | ![Co-driver looking at the map](docs/screens/codriver.jpg) |
 | ![Mud on the windshield](docs/screens/mud.jpg) | ![The start: five lights and a clock each side of the road](docs/screens/start.jpg) |
-| ![Your co-driver, seen from the driver's seat](docs/screens/crew.jpg) | ![The chase camera (C)](docs/screens/chase.jpg) |
+| ![Your co-driver, seen from the driver's seat](docs/screens/crew.jpg) | ![The chase camera (C): the wheels steer and bounce, the mud flaps swing](docs/screens/chase.jpg) |
+| ![Handbrake: the right hand leaves the wheel and yanks the lever](docs/screens/handbrake.jpg) | ![The loading screen](docs/screens/loading.jpg) |
 
 ## ⬇ Download (always the newest build)
 
@@ -28,6 +29,19 @@ The links never change. Every change to this folder on `main` replaces the files
 - **itch.io:** set-up steps in [`docs/ITCH.md`](docs/ITCH.md)
 
 > While this repo is **private**, the links only work for people with access to it.
+
+**It updates itself.** The menu shows your build number top right. Every time you open the game
+it checks for a newer build, downloads it in the background (a few MB), checks it's complete, and
+shows **RESTART TO UPDATE** (or it switches over by itself the next time you start it). If an
+update ever fails to start, the game drops it and starts as you installed it. Some changes (a
+new Godot version, new project settings) can't be sent that way: then the button says
+**OPEN DOWNLOAD PAGE** and you download the zip again.
+- **The first build with the updater has to be downloaded by hand once** (older copies don't
+  have it).
+- **While the repo is private** the game can't reach the update files: it says so and the button
+  opens the download page instead. Once the repo is public, updates just work, nothing to change.
+- Playing together: both of you need the same build. If you're on different builds the game tells
+  the one who joined who needs to update.
 
 The first time you open it:
 - **Mac:** unzip, double-click `SHOTGUN RALLY.app`. macOS will say it "could not verify" the app:
@@ -62,6 +76,21 @@ Free, PC only (Windows, Mac, Linux). Built in **Godot 4.7**, like BAGHOLDERS.
 6. **Flying finish**, results (the camera circles the car again), then the host picks: next stage,
    retry, or swap seats.
 
+### Inside the car
+
+- **Hands that drive.** Gloves wrap round the rim, fingers and thumb. Turn and the hands go with
+  the wheel; past where an arm can go, one hand lets go and takes a new grip further round
+  (hand-over-hand, never two at once, so the driver's arms never twist), and back near straight
+  they drift home to 9 and 3. **Handbrake:** the right hand drops off the wheel, grabs the tall
+  hydraulic lever beside the seat and yanks it back, then goes back to the wheel.
+- **A real cockpit:** bucket seats and a three-spoke suede wheel (Higgsfield models), a dial
+  binnacle (revs, speed, gear), the co-driver's trip meter, a fire extinguisher, padding and mats.
+- **The car outside** has its own wheels now: they steer, spin and move up and down with the
+  suspension, and the mud flaps swing behind them.
+- **Loading screen:** the stage number, how long it is and how many corners, a rally tip, and a
+  progress bar that follows the build ("Planting ten thousand trees..."). It stays up through the
+  first frames of the stage, which stutter while the graphics warm up, then fades out.
+
 ### How the car drives
 
 Rebuilt from research on real rally tyres and rally games (DiRT Rally, Richard Burns Rally, Assetto
@@ -71,14 +100,20 @@ Corsa's gamepad assist; sources in the commit history):
   tyres can do at that speed (their peak slip angle), wherever the car is pointing, so on keys or a
   stick you never steer past the limit and plough on (that was the "always understeering" feeling).
   Full opposite lock in a slide = the most countersteer. At parking speeds it's plain steering.
-- **Gravel tyres:** grip builds to a peak at ~10 deg of slip and then fades slowly (a gravel tyre
+- **Gravel tyres:** grip builds to a peak at ~8 deg of slip and then fades slowly (a gravel tyre
   pushes a little bank of stones), so a slide is something you drive.
 - **Weight transfer matters:** each tyre grips a bit less per kilo the more it's loaded, and the
   forces act at the contact patches. Brake or lift into a bend and the loaded nose bites; a light
   tail steps out. The handbrake locks the rears and declutches them (all the power to the front,
   like a real Rally2 car) for the hairpin flick.
-- ~0.85 g of cornering on gravel (real rally cars: ~0.8 g), 0-100 km/h in 4.3 s (a Rally2 car: ~4.2 s),
-  45 / 55 AWD.
+- **Grippy on purpose:** ~0.95 g of cornering on gravel, a bit more than a real Rally2 car (~0.8 g),
+  and the steering answers fast: on keys it comes on fully in ~0.17 s and centres in ~0.12 s. 0-100 km/h in 4.3 s (a Rally2 car: ~4.2 s), 45 / 55 AWD.
+- **A calmer ride.** The bouncing came from three things, all fixed: the hills were too steep
+  (up to 31 %: now at most 16 %, smoothed, and crests land gently), the springs hit a hard stop on
+  big landings (now a progressive bump stop, softer damping on the way down, and tyres that give a
+  little), and the camera was bolted to the car (now your head sits on a neck that soaks up the
+  jolts). The shaking at the driver's eye went from 8.6 to 4.0 m/s² on stage 3 and from ~12 to 3.5
+  on stage 15; the hardest landing from 20–25 g to 4–8 g (`tests/ride_check.gd` measures it).
 - `tests/handling_check.gd` measures it: at 50 / 80 / 110 km/h full steering has to be the most
   grip (before the rework, full steering at 110 km/h gave 0.68 g and 25 % gave 0.80 g).
 
@@ -127,7 +162,7 @@ real voice.
 | 0 | Reference breakdown, name, plan, co-driver research, voice pack | ✅ done |
 | 1 | **Playable grey box:** generated forest gravel stages, raycast rally car, first-person driver + co-driver seats, the co-driver's map board, mud + wipers, start countdown, jump starts, resets, results, 2 players online, builds | ✅ done |
 | 2 | **AI co-driver** | ✅ basic version done (calls by time, countdown, finish). Next: quick-call wheel for the human co-driver, call-timing setting in the menu, more lines |
-| 3 | **Art:** the car and both crew are Higgsfield models (concept art -> 3D, the crew rigged and posed in their seats: hands on the wheel / the map board, heads turning where the player looks); next: better trees, the car's own wheels turning | car + crew ✅ |
+| 3 | **Art:** the car and both crew are Higgsfield models (concept art -> 3D, the crew rigged and posed in their seats: hands on the wheel / the map board, heads turning where the player looks), the car's wheels and mud flaps move, gripping gloves + hand-over-hand steering, the interior, the loading screen; next: better trees | car + crew + cockpit ✅ |
 | 4 | **Jobs + content:** OK board, warning triangle, pushing the car, punctures, time cards, road book, recce mode, more biomes | |
 | 5 | Polish, crews racing each other | |
 
@@ -135,27 +170,38 @@ real voice.
 
 1. Install **Godot 4.7** (free) and open the `shotgun-rally/` folder (its `project.godot`), or run
    `godot --path shotgun-rally` from the repo root.
-2. Tests (headless, ~3 minutes): `GODOT=/path/to/godot shotgun-rally/tests/run_all.sh`
+2. Tests (headless, ~6 minutes): `GODOT=/path/to/godot shotgun-rally/tests/run_all.sh`
    - compiles every script; checks 20 generated stages (deterministic, never crossing themselves,
-     every corner gets a note)
-   - the autopilot drives whole stages: 0–100 km/h on gravel (4.8 s), braking, the handbrake flick
+     every corner gets a note, no hill steeper than 17 %)
+   - the autopilot drives whole stages: 0–100 km/h on gravel, braking, the handbrake flick
+   - handling: full steering is the most grip at 50 / 80 / 110 km/h; lift-off and handbrake turns rotate the car
+   - ride: how much the car shakes at the driver's eye on two stages, and the hardest landing
    - the AI co-driver says every call in time (90–240 m before the corner)
    - **2 players, both ways round:** one machine drives, the other rides along; both see the finish
+   - **the updater, start to finish:** a "build 5" copy finds "build 6" on a local web server,
+     downloads it, checks its SHA-256, restarts as build 6; a bad download is thrown away, an update
+     that never reached the menu is dropped
 3. Screenshots without a screen: `xvfb-run godot --path shotgun-rally -- --seed=11 --screenshot=out.png --shot_seat=codriver --shot_read`
+   (more options at the top of `scripts/main.gd`: look around, chase view, steering, handbrake, the loading screen)
+4. **Releasing:** push to `main`. CI tests it, builds the zips, stamps the build number, and
+   uploads the zips plus the update pack (`ShotgunRally.pck` + `version.json`) to the
+   `shotgun-latest` release. Everyone's game picks it up the next time they open it.
 
 | Folder | What's in it |
 |---|---|
 | `scripts/stage/` | the stage generator, the pacenotes, the world builder |
 | `scripts/vehicle/` | the rally car, cockpit + crew, map board, seat camera, AI co-driver, autopilot |
-| `scripts/net/` | settings, the input map, the 2-player connection |
+| `scripts/net/` | settings, the input map, the 2-player connection, the updater |
+| `scripts/ui/` | the menu, the loading screen, the start lights |
 | `assets/voice/fraser/` | the co-driver voice clips (new lines: [`assets/voice/fraser/README.md`](assets/voice/fraser/README.md)) |
 | `tests/` | the headless tests |
 | `docs/` | the plan, the reference breakdown, co-driver research, itch.io set-up |
 
 ## Credits & notes
 
-- Car and crew: made with Higgsfield (GPT Image concept art -> Meshy image-to-3D, the crew
-  auto-rigged), from your account. The concept art is in `docs/reference/models/`.
+- Car, crew, seats and steering wheel: made with Higgsfield (GPT Image concept art -> Meshy
+  image-to-3D, the crew auto-rigged), from your account; the loading screen art too. The concept
+  art is in `docs/reference/models/`.
 - Co-driver voice: Higgsfield Seed Audio 1.0, preset voice "Fraser", made for the Rally Co-Driver
   GPS app ([driver-test-app](https://github.com/pbelfand-dot/driver-test-app)).
 - Sound effects are synthesized (`tools/make_sfx.py`, plus BAGHOLDERS' engine / crash / bell sounds,

@@ -331,11 +331,17 @@ The first time you open it:
 - **Windows:** SmartScreen may say "unrecognized app". Click **More info → Run anyway**.
 - **Linux:** run `chmod +x ShotgunRally.x86_64`, then `./ShotgunRally.x86_64`.
 
+**It updates itself:** the menu shows your build number (top right), checks for a newer build each
+time you open the game, downloads it in the background and offers **RESTART TO UPDATE**. Download
+the zip by hand once more to get the first build that has this. While the repo is private the
+game can't reach the update files, so the button opens the download page instead.
+
 | | |
 |---|---|
 | ![Driver](shotgun-rally/docs/screens/driver.jpg) | ![Co-driver looking at the map](shotgun-rally/docs/screens/codriver.jpg) |
 | ![Mud on the windshield](shotgun-rally/docs/screens/mud.jpg) | ![The start: five lights and a clock each side of the road](shotgun-rally/docs/screens/start.jpg) |
-| ![Your co-driver, seen from the driver's seat](shotgun-rally/docs/screens/crew.jpg) | ![The chase camera (C)](shotgun-rally/docs/screens/chase.jpg) |
+| ![Your co-driver, seen from the driver's seat](shotgun-rally/docs/screens/crew.jpg) | ![The chase camera (C): the wheels steer and bounce, the mud flaps swing](shotgun-rally/docs/screens/chase.jpg) |
+| ![Handbrake: the right hand leaves the wheel and yanks the lever](shotgun-rally/docs/screens/handbrake.jpg) | ![The loading screen](shotgun-rally/docs/screens/loading.jpg) |
 
 ## How a SHOTGUN RALLY stage plays
 
