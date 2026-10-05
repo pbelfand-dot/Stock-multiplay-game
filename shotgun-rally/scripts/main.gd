@@ -13,7 +13,8 @@ extends Node
 ##                         --shot_steer=-1..1 --shot_handbrake --shot_loading (keep the loading screen up)
 ##                         --shot_drift (start it sliding sideways: the dirt flies)
 ##                         --shot_cam=x,y,z,tx,ty,tz (a free close-up camera, car-local: at xyz, looking at t; the car holds still, or drives with --autostart --autopilot)
-##                         --shot_jump (at 120 km/h onto the stage's first (big) jump: the picture is taken mid-air)]
+##                         --shot_jump (at 120 km/h onto the stage's first (big) jump: the picture is taken mid-air)
+##                         --shot_shift (with --autostart --autopilot: the picture is taken mid gear change)]
 ##   --menu_shot=out.png [--menu_panel=maps|cars|online --shot_wait=6]   a picture of the home screen
 ##   --story=RALLY[,STAGE]                   (with --solo / --screenshot) a story stage
 ##   --profile=PATH                          another save file (credits, garage, story)
@@ -37,6 +38,8 @@ var _test_t := 0.0
 var _smoke_done := false
 var _loading := false
 var _air_t := 0.0
+var _shift_gear := 0
+var _shift_t := -1.0
 
 
 func _ready() -> void:
@@ -288,6 +291,14 @@ func _process(dt: float) -> void:
 			flying = flying and game.car.comp[k] < 0.01
 		_air_t = _air_t + dt if flying else 0.0
 		shot_now = _air_t > float(Config.arg("shot_air", 0.45)) or _test_t > 8.0
+	if Config.flag("shot_shift") and game.built:     # the driver's hand on the lever (or give up after 20 s)
+		if _shift_gear > 0 and game.car.gear != _shift_gear and _shift_t < 0.0:
+			_shift_t = 0.0
+			Engine.time_scale = 0.1                  # slow motion: a software-rendered frame is longer than the whole reach
+		_shift_gear = game.car.gear
+		if _shift_t >= 0.0:
+			_shift_t += dt
+		shot_now = _shift_t > float(Config.arg("shot_after", 0.17)) or _test_t > 20.0
 	if Config.flag("screenshot") and shot_now:
 		var path := Config.arg("screenshot")
 		get_viewport().get_texture().get_image().save_png(path)

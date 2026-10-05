@@ -1,6 +1,12 @@
 # Rally physics rebuild: inspection and plan
 
-Status: **proposal, waiting for a go-ahead** (nothing below is built yet).
+Status: **agreed, not started** (the cockpit cosmetics come first). Decisions:
+- built **alongside** the current car (a lab scene, a `--physics=v2` switch), and it becomes the
+  car once it passes every current test plus the manoeuvre tests;
+- physics at **120 Hz**;
+- **every driver aid is its own switch in Settings** (ABS, traction control, stability control,
+  steering smoothing, steering damping, countersteer help, speed-sensitive steering); the base
+  physics is the same whatever is switched on.
 
 The brief: a custom rally-car physics system in GDScript on a `RigidBody3D` chassis (no
 `VehicleBody3D`), with its own wheels, suspension, tyres, drivetrain and surfaces, closer to Dirt

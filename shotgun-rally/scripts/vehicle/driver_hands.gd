@@ -14,6 +14,10 @@ extends Node3D
 ##   * the handbrake: the right hand leaves the wheel, takes the tall hydraulic
 ##     lever beside the seat and yanks it back; let go and the hand goes back
 ##     to the wheel
+##   * the gears: at each change the right hand flicks across to the sequential
+##     lever, pulls it back (up a gear) or pushes it forward (down), and comes
+##     back (about a third of a second). Not with the wheel wound round past
+##     SHIFT_MAX_TURN or the handbrake up: then both stay where they are
 ## Works in the cockpit's space (the car faces -Z). The arms reach for
 ## `wrists` (the crew model's IK targets).
 
@@ -24,7 +28,13 @@ const LEVER_BASE := Vector3(-0.12, -0.1, -0.14)
 const LEVER_LEN := 0.46          # tall, like a rally car's: the grip stands just right of the wheel's bottom
 const LEVER_TILT := -0.25       # rad: leans forward, parked
 const LEVER_PULL := 0.36        # rad back when pulled (still in view)
-const RIM_R := 0.019            # thickness of the rim / lever handle the fingers wrap
+const GEAR_BASE := Vector3(-0.025, -0.08, -0.22)    # the sequential lever's pivot, in the tunnel
+const GEAR_TOP := Vector3(-0.06, 0.19, -0.15)       # its knob, at rest: leaning back to the right hand
+const GEAR_THROW := 0.16        # rad the lever moves at a change (back: up a gear, forward: down)
+const SHIFT_REACH := 0.13       # s from the wheel to the knob
+const SHIFT_FLICK := 0.08       # s with the lever over
+const SHIFT_MAX_TURN := 1.2     # rad of wheel past which the hand stays on it
+const RIM_R := 0.0155           # thickness of the rim / lever handle the fingers wrap (a ~30 mm grip)
 const GRIP_ROLL := 0.55         # rad: the hand rolled round the rim toward the driver (you see the backs of your hands)
 const WRIST := Vector3(0.0, 0.01, 0.085)    # glove space (before the roll): where the forearm meets the hand
 ## The gauntlet's outline, from inside the glove out over the sleeve (which ends
@@ -42,10 +52,16 @@ var _cuffs: Array = []
 var _elbows: Array = []          # where the forearms come from (cockpit space; empty: a guess)
 var _lever: Node3D
 var _lever_pull := 0.0
+var _gear: Node3D                # the sequential lever (pivots at GEAR_BASE)
+var _gear_rest := Basis()
+var _gear_kick := 0.0            # -1 pushed .. 1 pulled
+var _last_gear := 0
 var _rim := 0.18
-# per hand: {mode: "grip" | "move" | "brake", g: grip angle on the wheel, from, to, t}
-var _hand := [{"mode": "grip", "g": PI, "from": PI, "to": PI, "t": 0.0},
-	{"mode": "grip", "g": 0.0, "from": 0.0, "to": 0.0, "t": 0.0}]
+# per hand: {mode: "grip" | "move" | "brake" | "shift", g: grip angle on the wheel,
+# from, to, t, src: where a move starts ("" the rim, "lever", "gear"), from_xf: the
+# glove where a reach started, dir: the shift (+1 up, -1 down)}
+var _hand := [{"mode": "grip", "g": PI, "from": PI, "to": PI, "t": 0.0, "src": "", "from_xf": Transform3D(), "dir": 0.0},
+	{"mode": "grip", "g": 0.0, "from": 0.0, "to": 0.0, "t": 0.0, "src": "", "from_xf": Transform3D(), "dir": 0.0}]
 var _last_w := 0.0
 
 
@@ -73,11 +89,12 @@ func setup(wheel_centre: Vector3, wheel_tilt: float, rim_radius: float) -> void:
 		add_child(c)
 		_cuffs.append(c)
 	_build_lever()
+	_build_gear()
 
 
-## Every frame: the wheel's turn (rad, + = clockwise as the driver sees it) and
-## whether the handbrake is on.
-func update(dt: float, wheel_turn: float, handbrake: bool) -> void:
+## Every frame: the wheel's turn (rad, + = clockwise as the driver sees it),
+## whether the handbrake is on, and the gear (0: no gearbox to follow).
+func update(dt: float, wheel_turn: float, handbrake: bool, gear := 0) -> void:
 	var w := wheel_turn
 	var turning := signf(w - _last_w)
 	_last_w = w
@@ -88,12 +105,25 @@ func update(dt: float, wheel_turn: float, handbrake: bool) -> void:
 	if handbrake and rh.mode != "brake":
 		rh.mode = "brake"
 		rh.t = 0.0
-		rh.from = _plane_angle(RIGHT, w)
+		rh.from_xf = (_gloves[RIGHT] as Node3D).transform
 	elif not handbrake and rh.mode == "brake":
 		rh.mode = "move"
 		rh.t = 0.0
-		rh.from = -1000.0                            # from the lever: see _target()
+		rh.src = "lever"
 		rh.to = _home(RIGHT) + w
+	# the right hand and the gear lever
+	if gear > 0 and _last_gear > 0 and gear != _last_gear and not handbrake:
+		var dir := signf(gear - _last_gear)
+		if rh.mode == "shift":
+			rh.dir = dir                                 # another change: flick it again once there
+			rh.t = minf(rh.t, SHIFT_REACH)
+		elif absf(w) < SHIFT_MAX_TURN and (rh.mode == "grip" or (rh.mode == "move" and rh.src != "")):
+			rh.mode = "shift"
+			rh.t = 0.0
+			rh.dir = dir
+			rh.from_xf = (_gloves[RIGHT] as Node3D).transform
+	if gear > 0:
+		_last_gear = gear
 	for k in 2:
 		var h: Dictionary = _hand[k]
 		match h.mode:
@@ -119,12 +149,26 @@ func update(dt: float, wheel_turn: float, handbrake: bool) -> void:
 					h.g = h.to
 			"brake":
 				h.t = minf(h.t + dt / MOVE_TIME, 1.0)
+			"shift":
+				h.t += dt
+				if h.t >= SHIFT_REACH + SHIFT_FLICK:
+					h.mode = "move"
+					h.t = 0.0
+					h.src = "gear"
+					h.to = _home(RIGHT) + w
+	# the lever: over while the hand flicks it, then it springs back to the middle
+	var kick := 0.0
+	if rh.mode == "shift" and rh.t > SHIFT_REACH:
+		kick = rh.dir
+	_gear_kick = move_toward(_gear_kick, kick, dt / (0.04 if kick != 0.0 else 0.07))
+	_gear.basis = _gear_rest * Basis(Vector3.RIGHT, GEAR_THROW * _gear_kick)
 	for k in 2:
 		_place(k, w)
 
 
 func _start_move(h: Dictionary, k: int, w: float, to_off: float) -> void:
 	h.mode = "move"
+	h.src = ""
 	h.t = 0.0
 	h.from = h.g - w
 	h.to = _home(k) + to_off + w
@@ -139,10 +183,6 @@ func _offset(k: int, plane_angle: float) -> float:
 	return wrapf(plane_angle - _home(k), -PI, PI)
 
 
-func _plane_angle(k: int, w: float) -> float:
-	return _hand[k].g - w
-
-
 ## Put glove k where its hand is, and the wrist target behind it.
 func _place(k: int, w: float) -> void:
 	var h: Dictionary = _hand[k]
@@ -153,15 +193,18 @@ func _place(k: int, w: float) -> void:
 		"move":
 			var u := _ease(h.t)
 			var to_a: float = h.to - w
-			if h.from < -999.0:
-				# coming back from the lever
+			if h.src == "lever":
 				xf = _lever_grip().interpolate_with(_rim_grip(to_a, 0.0), u)
+			elif h.src == "gear":
+				xf = _gear_grip().interpolate_with(_rim_grip(to_a, 0.0), u)
 			else:
 				var from_a: float = h.from
 				var a := from_a + wrapf(to_a - from_a, -PI, PI) * u
 				xf = _rim_grip(a, sin(u * PI) * 0.06)      # lifted off the rim on the way
 		"brake":
-			xf = _rim_grip(h.from, 0.0).interpolate_with(_lever_grip(), _ease(h.t))
+			xf = (h.from_xf as Transform3D).interpolate_with(_lever_grip(), _ease(h.t))
+		"shift":
+			xf = (h.from_xf as Transform3D).interpolate_with(_gear_grip(), _ease(minf(h.t / SHIFT_REACH, 1.0)))
 	(_gloves[k] as Node3D).transform = xf
 	wrists[k] = xf * (Basis(Vector3.RIGHT, GRIP_ROLL) * WRIST)
 	_aim_cuff(k)
@@ -205,6 +248,17 @@ func _lever_grip() -> Transform3D:
 	toward = (toward - up * toward.dot(up)).normalized()
 	var out := up.cross(toward).normalized()
 	return Transform3D(Basis(up, out, toward), top - up * 0.04)
+
+
+## The grip on the gear lever: fingers round the knob's front, palm to the driver.
+func _gear_grip() -> Transform3D:
+	var stem := GEAR_BASE.distance_to(GEAR_TOP)
+	var up := (_gear.transform.basis * Vector3.UP).normalized()
+	var top: Vector3 = _gear.transform * Vector3(0.0, stem - 0.02, 0.0)
+	var toward := Vector3(-0.7, 0.0, 0.72).normalized()          # back toward the driver's shoulder
+	toward = (toward - up * toward.dot(up)).normalized()
+	var out := up.cross(toward).normalized()
+	return Transform3D(Basis(up, out, toward), top)
 
 
 static func _ease(u: float) -> float:
@@ -421,3 +475,40 @@ func _build_lever() -> void:
 	grip.material_override = _mat(Color(0.8, 0.08, 0.06), 0.5)
 	grip.position = Vector3(0.0, LEVER_LEN - 0.05, 0.0)
 	_lever.add_child(grip)
+
+
+## The sequential gear lever, out of the tunnel (the cockpit has its boot): a
+## silver rod, a black grip and a red knob on top.
+func _build_gear() -> void:
+	var stem := GEAR_BASE.distance_to(GEAR_TOP)
+	var up := (GEAR_TOP - GEAR_BASE).normalized()
+	var x := (Vector3.RIGHT - up * up.dot(Vector3.RIGHT)).normalized()
+	_gear_rest = Basis(x, up, x.cross(up))
+	_gear = Node3D.new()
+	_gear.name = "GearLever"
+	_gear.position = GEAR_BASE
+	_gear.basis = _gear_rest
+	add_child(_gear)
+	for part in [[0.009, 0.009, stem, stem * 0.5, Color(0.62, 0.62, 0.65), 0.3],        # rod
+			[0.016, 0.016, 0.08, stem - 0.01, Color(0.06, 0.06, 0.06), 0.7]]:         # grip
+		var mi := MeshInstance3D.new()
+		var cm := CylinderMesh.new()
+		cm.top_radius = part[0]
+		cm.bottom_radius = part[1]
+		cm.height = part[2]
+		cm.radial_segments = 10
+		cm.rings = 1
+		mi.mesh = cm
+		mi.material_override = _mat(part[4], part[5])
+		mi.position = Vector3(0.0, part[3], 0.0)
+		_gear.add_child(mi)
+	var cap := MeshInstance3D.new()
+	var sm := SphereMesh.new()
+	sm.radius = 0.019
+	sm.height = 0.024
+	sm.radial_segments = 10
+	sm.rings = 4
+	cap.mesh = sm
+	cap.material_override = _mat(Color(0.85, 0.1, 0.1), 0.4)
+	cap.position = Vector3(0.0, stem + 0.035, 0.0)
+	_gear.add_child(cap)

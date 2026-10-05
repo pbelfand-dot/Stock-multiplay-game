@@ -141,6 +141,11 @@ func set_layer(layer: int) -> void:
 		mi.layers = _base_layers
 
 
+## The render layers it's drawn on (see set_layer).
+func layer_mask() -> int:
+	return _base_layers
+
+
 ## Put the hips at `hips` (cockpit space).
 func seat_at(hips: Vector3) -> void:
 	_update_to_skel()
@@ -180,6 +185,90 @@ func hide_hands(on: bool) -> void:
 ## Where the elbows are this frame (cockpit space): [left, right].
 func elbows() -> Array:
 	return [_to_skel.affine_inverse() * _pos("LeftForeArm"), _to_skel.affine_inverse() * _pos("RightForeArm")]
+
+
+## Where bone `name` is this frame (cockpit space).
+func bone(name: String) -> Vector3:
+	var i := skel.find_bone(name)
+	return _to_skel.affine_inverse() * skel.get_bone_global_pose(i).origin
+
+
+## The body as it's posed now, as points (cockpit space): its skinned surface
+## (the vertices, and points across the bigger triangles), leaving out the arms
+## and anything that moves with the head (the helmet comes down over the
+## shoulders; it and the hands are meshes of their own anyway), one per `cell`
+## m cube, only the triangles that start in `region` (if it's given). For
+## fitting things to it: the belts.
+func body_points(cell := 0.012, region := AABB()) -> PackedVector3Array:
+	var out := PackedVector3Array()
+	if _body == null:
+		return out
+	_update_to_skel()
+	var skin := _body.skin
+	var to_c := _to_skel.affine_inverse()
+	var skip := []
+	for n in ["LeftArm", "LeftForeArm", "LeftHand", "RightArm", "RightForeArm", "RightHand", "Head", "head_end", "headfront"]:
+		skip.append(skel.find_bone(n))
+	var xf: Array[Transform3D] = []                 # skin bind -> mesh to posed skeleton space
+	var skipped := PackedByteArray()
+	for b in skin.get_bind_count():
+		var bone := skin.get_bind_bone(b)
+		if bone < 0:
+			bone = skel.find_bone(skin.get_bind_name(b))
+		xf.append(skel.get_bone_global_pose(bone) * skin.get_bind_pose(b))
+		skipped.append(1 if bone in skip else 0)
+	var seen := {}
+	for surf in _body.mesh.get_surface_count():
+		var arr: Array = _body.mesh.surface_get_arrays(surf)
+		var verts: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
+		var bw = arr[Mesh.ARRAY_BONES]
+		var weights = arr[Mesh.ARRAY_WEIGHTS]
+		if bw == null or weights == null:
+			continue
+		var per := int(bw.size() / verts.size())
+		var idx: PackedInt32Array = arr[Mesh.ARRAY_INDEX]
+		var used := PackedByteArray()               # the arrays still hold the helmet's and hands' vertices
+		used.resize(verts.size())
+		for i in idx:
+			used[i] = 1
+		var posed := PackedVector3Array()
+		posed.resize(verts.size())
+		var keep := used.duplicate()                 # used, and not on an arm or the head
+		for v in verts.size():
+			if used[v] == 0:
+				continue
+			var p := Vector3.ZERO
+			var sum := 0.0
+			var off := 0.0
+			for j in per:
+				var w: float = weights[v * per + j]
+				if w <= 0.0:
+					continue
+				var bi: int = bw[v * per + j]
+				p += (xf[bi] * verts[v]) * w
+				sum += w
+				off += w * skipped[bi]
+			if sum <= 0.0 or off > 0.3 * sum:
+				keep[v] = 0
+				continue
+			posed[v] = to_c * (p / sum)
+		for t in range(0, idx.size(), 3):
+			if keep[idx[t]] == 0 or keep[idx[t + 1]] == 0 or keep[idx[t + 2]] == 0:
+				continue
+			var a := posed[idx[t]]
+			if region.has_volume() and not region.has_point(a):
+				continue
+			var ab := posed[idx[t + 1]] - a
+			var ac := posed[idx[t + 2]] - a
+			var n := ceili(maxf(maxf(ab.length(), ac.length()), (ac - ab).length()) / cell)
+			for i in n + 1:
+				for j in n + 1 - i:
+					var c := a + ab * (float(i) / n) + ac * (float(j) / n)
+					var key := Vector3i((c / cell).floor())
+					if not seen.has(key):
+						seen[key] = true
+						out.append(c)
+	return out
 
 
 ## Move the bare hands out of `src` into their own mesh (same skin, same

@@ -24,7 +24,9 @@ No friend online? The **AI co-driver** takes the seat.
 | ![A narrow, technical section (4.6 m): two worn wheel tracks, loose stones at the edges](docs/screens/road_narrow.jpg) | ![A wide, fast section (6.8 m)](docs/screens/road_wide.jpg) |
 | ![Spectators behind the tape at a jump, waving flags](docs/screens/crowd.jpg) | ![The crowds at the start](docs/screens/crowd_start.jpg) |
 | ![Racing gloves on the wheel, gauntlets over the sleeves](docs/screens/gloves.jpg) | ![Numbered dials, shift lights and the gear](docs/screens/dials.jpg) |
-| ![The cockpit from the co-driver's seat: switch panel, sequential lever, the driver's gloves](docs/screens/interior.jpg) | ![Driving in third: a shift light on, the wipers clearing a mud splat](docs/screens/dash.jpg) |
+| ![The cockpit from the co-driver's seat: the driver belted in, the wheel, switch panel, sequential lever and handbrake](docs/screens/interior.jpg) | ![Driving in third: a shift light on, the wipers clearing a mud splat](docs/screens/dash.jpg) |
+| ![Belted in: six-point harness, padded shoulder straps, steel adjusters, the cam-lock buckle](docs/screens/belts.jpg) | ![A gear change: the right hand on the sequential lever, pulling it back](docs/screens/shift.jpg) |
+| ![The rear-view mirror works: the road behind, framed by the cage](docs/screens/mirror.jpg) | ![The deep-dish suede wheel, the gloves at 9 and 3](docs/screens/wheel.jpg) |
 
 ## ⬇ Download (always the newest build)
 
@@ -133,14 +135,24 @@ light, filmed like rally TV (trackside cameras it flashes past, a chase camera, 
   the wheel; past where an arm can go, one hand lets go and takes a new grip further round
   (hand-over-hand, never two at once, so the driver's arms never twist), and back near straight
   they drift home to 9 and 3. **Handbrake:** the right hand drops off the wheel, grabs the tall
-  hydraulic lever beside the seat and yanks it back, then goes back to the wheel.
-- **A real cockpit,** stripped out like a rally car: bucket seats and a three-spoke suede wheel
-  (Higgsfield models); a black flock dash (no glare in the windshield) with numbered dials (revs
+  hydraulic lever beside the seat and yanks it back, then goes back to the wheel. **Gear
+  changes:** at every change the right hand flicks across to the sequential lever, pulls it back
+  (up a gear) or pushes it forward (down) and is back on the wheel in about a third of a second;
+  with the wheel wound round past ~70 degrees it stays on the wheel.
+- **Belted in.** Both crew wear six-point harnesses fitted to their bodies as they sit: the
+  shoulder straps come off the harness bar, through the seat's slots, over the shoulders (padded)
+  and down the chest; lap belts over the thighs; crotch straps; steel adjusters and a round
+  cam-lock buckle. Each strap is laid on the posed body like a tight strap (pulled straight, pushed
+  out of the suit, turned to lie flat on it), once when the stage loads.
+- **A real cockpit,** stripped out like a rally car: bucket seats (a Higgsfield model) and a
+  350 mm deep-dish suede wheel like a Momo Mod.08 (yellow marker at 12, three black spokes with
+  slots machined out, horn button, six bolts, quick-release boss); a black flock dash (no glare in the windshield) with numbered dials (revs
   0-8 x1000 with the red line, km/h 0-200), a green gear digit and **shift lights** that climb
   green, yellow, red with the revs and flash on the limiter; a **switch panel** (ignition under a
   red flip guard, START, the FIRE button, labelled toggles); a tall **sequential gear lever** and
-  the hydraulic handbrake; carbon door cards with red pull straps; a wide rear-view mirror and a
-  sun strip; harness belts to the cage's harness bar; the co-driver's trip meter, map lamp and
+  the hydraulic handbrake; carbon door cards with red pull straps; a wide rear-view mirror **that
+  works** (a camera behind the glass looks back down the car: the cage, the rear window, the road
+  behind) and a sun strip; the co-driver's trip meter, map lamp and
   ribbed aluminium footrest; a fire extinguisher, padding and a spare wheel strapped down in the back.
 - **The car outside** has its own wheels now: they steer, spin and move up and down with the
   suspension, and the mud flaps swing behind them.
@@ -241,7 +253,7 @@ real voice.
 | 0 | Reference breakdown, name, plan, co-driver research, voice pack | ✅ done |
 | 1 | **Playable grey box:** generated forest gravel stages, raycast rally car, first-person driver + co-driver seats, the co-driver's map board, mud + wipers, start countdown, jump starts, resets, results, 2 players online, builds | ✅ done |
 | 2 | **AI co-driver** | ✅ basic version done (calls by time, countdown, finish). Next: quick-call wheel for the human co-driver, call-timing setting in the menu, more lines |
-| 3 | **Art:** the car and both crew are Higgsfield models (concept art -> 3D, the crew rigged and posed in their seats: hands on the wheel / the map board, heads turning where the player looks), the car's wheels and mud flaps move, racing gloves + hand-over-hand steering, a stripped rally interior (numbered dials, shift lights, switch panel, sequential lever), the loading screen; next: better trees | car + crew + cockpit ✅ |
+| 3 | **Art:** the car and both crew are Higgsfield models (concept art -> 3D, the crew rigged and posed in their seats: hands on the wheel / the map board, heads turning where the player looks), the car's wheels and mud flaps move, racing gloves + hand-over-hand steering, a stripped rally interior (numbered dials, shift lights, switch panel, sequential lever, a deep-dish wheel, a working mirror), six-point harnesses fitted to the crew, the hand reaching for the lever at each gear change, the loading screen; next: better trees | car + crew + cockpit ✅ |
 | 4 | **Jobs + content:** OK board, warning triangle, pushing the car, punctures, time cards, road book, recce mode, more biomes | |
 | 5 | Polish, crews racing each other | |
 
@@ -284,11 +296,11 @@ real voice.
 | `scripts/ui/` | the menu, the loading screen, the start lights |
 | `assets/voice/fraser/` | the co-driver voice clips (new lines: [`assets/voice/fraser/README.md`](assets/voice/fraser/README.md)) |
 | `tests/` | the headless tests |
-| `docs/` | the plan, the reference breakdown, co-driver research, itch.io set-up |
+| `docs/` | the plan, the reference breakdown, co-driver research, itch.io set-up, the car references, the physics rebuild plan |
 
 ## Credits & notes
 
-- Car, crew, seats and steering wheel: made with Higgsfield (GPT Image concept art -> Meshy
+- Car, crew and seats: made with Higgsfield (GPT Image concept art -> Meshy
   image-to-3D, the crew auto-rigged), from your account; the loading screen art too. The concept
   art is in `docs/reference/models/`.
 - Co-driver voice: Higgsfield Seed Audio 1.0, preset voice "Fraser", made for the Rally Co-Driver

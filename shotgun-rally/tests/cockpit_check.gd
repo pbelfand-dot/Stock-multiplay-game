@@ -6,6 +6,12 @@ extends SceneTree
 ##     renderer does) and must be inside its gauntlet, and none may reach past
 ##     the wrist into the glove's hand (it would poke out of it)
 ##   * the bare hands are cut out of the body (not shrunk: that made spikes)
+##   * both crew are belted in: a harness each, on their own render layer, its
+##     chest straps lying on the body (not floating off it or sunk in it)
+##   * gear changes: the right hand goes to the sequential lever and pulls it
+##     back (up) or pushes it forward (down), then goes back to the wheel; with
+##     the wheel wound round it stays on it (the sleeve stays in the gauntlet
+##     on the lever too)
 ##   * the dials have their numbers (revs 0-8, km/h 0-200), the shift lights
 ##     come on with the revs
 ## Run: godot --headless --path . -s tests/cockpit_check.gd
@@ -21,6 +27,15 @@ var _states := [
 	{"name": "turned left", "steer": -0.3, "handbrake": false},
 	{"name": "turned right", "steer": 0.3, "handbrake": false},
 	{"name": "on the handbrake", "steer": 0.0, "handbrake": true},
+]
+# gear changes, stepped at a steady 60 fps: [name, steer, gear, seconds after it, where the hand should be]
+var _shifts := [
+	["changing up", 0.0, 2, 0.17, "pulled"],
+	["after changing up", 0.0, 2, 0.6, "wheel"],
+	["changing down", 0.0, 1, 0.17, "pushed"],
+	["after changing down", 0.0, 1, 0.6, "wheel"],
+	["wound round", 0.2, 1, 1.2, ""],
+	["changing up wound round", 0.2, 2, 0.17, "stays"],
 ]
 var _i := -1
 var _t := 0.0
@@ -49,6 +64,7 @@ func _initialize() -> void:
 		"the hand bones aren't shrunk (that pulled the sleeves into spikes)")
 	var cd = cockpit._models.get("codriver")
 	fails += _check(cd != null and cd._hand_mesh == null, "the co-driver keeps their own hands")
+	_harnesses()
 	_dials()
 	_next()
 
@@ -127,6 +143,76 @@ func _measure(state: Dictionary) -> void:
 			state.name, side, absf(out) * 100.0, "to spare" if out < 0.0 else "sticking out"])
 
 
+## Gear changes: step the cockpit at 60 fps and see where the right hand and the
+## lever are (and that the sleeve's still in the gauntlet on the lever).
+func _gear_changes() -> void:
+	cockpit.set_process(false)
+	car.inp = {"steer": 0.0, "throttle": 0.0, "brake": 0.0, "handbrake": false}
+	for sh in _shifts:
+		car.steer = sh[1]
+		car.gear = sh[2]
+		for f in roundi(sh[3] * 60.0):
+			cockpit._process(1.0 / 60.0)
+		if sh[4] == "pulled" or sh[4] == "pushed":
+			_measure({"name": sh[0]})
+		if sh[4] != "":
+			_shift({"name": sh[0], "hand": sh[4]})
+
+
+func _shift(state: Dictionary) -> void:
+	var h = cockpit.hands
+	var glove: Vector3 = (h._gloves[1] as Node3D).transform.origin
+	var knob: Vector3 = h._gear.transform * Vector3(0.0, DriverHands.GEAR_BASE.distance_to(DriverHands.GEAR_TOP), 0.0)
+	var on_knob: bool = glove.distance_to(h._gear_grip().origin) < 0.02
+	var mode: String = h._hand[1].mode
+	match state.hand:
+		"pulled":
+			fails += _check(on_knob and h._gear_kick > 0.5 and knob.z > DriverHands.GEAR_TOP.z + 0.01,
+				"%s: the right hand's on the lever and has pulled it back (knob %+.1f cm)" % [state.name, (knob.z - DriverHands.GEAR_TOP.z) * 100.0])
+		"pushed":
+			fails += _check(on_knob and h._gear_kick < -0.5 and knob.z < DriverHands.GEAR_TOP.z - 0.01,
+				"%s: the right hand's on the lever and has pushed it forward (knob %+.1f cm)" % [state.name, (knob.z - DriverHands.GEAR_TOP.z) * 100.0])
+		"wheel":
+			fails += _check(mode == "grip" and absf(h._gear_kick) < 0.01, "%s: the right hand's back on the wheel, the lever back in the middle" % state.name)
+		"stays":
+			fails += _check(mode != "shift" and h._gear_kick == 0.0, "%s: the right hand stays on the wheel (%s)" % [state.name, mode])
+
+
+## Each crew member's harness, and its chest straps lying on them.
+func _harnesses() -> void:
+	var harness: Array = cockpit.find_children("Harness*", "MeshInstance3D", false, false)
+	fails += _check(harness.size() == 2, "both crew are belted in (%d harnesses)" % harness.size())
+	for seat in ["driver", "codriver"]:
+		var m = cockpit._models[seat]
+		var hips: Vector3 = m.bone("Hips")
+		var mine: MeshInstance3D = null
+		for hm in harness:
+			var box: AABB = hm.get_aabb()
+			if absf(box.get_center().x - hips.x) < 0.1:
+				mine = hm
+		if mine == null:
+			fails += _check(false, "%s: has a harness" % seat)
+			continue
+		var pts: PackedVector3Array = m.body_points(0.01)
+		var web: PackedVector3Array = mine.mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
+		var offs: Array = []                         # how far each chest-strap vertex is from the body
+		for i in range(0, web.size(), 3):
+			var v := web[i]
+			if v.y < hips.y + 0.15 or v.y > hips.y + 0.4 or v.z > hips.z - 0.08:
+				continue                             # only the chest
+			var near := INF
+			for q in pts:
+				near = minf(near, q.distance_squared_to(v))
+			offs.append(sqrt(near))
+		fails += _check(mine.layers == m.layer_mask() and mine.mesh.get_surface_count() == 3,
+			"%s: the harness is drawn with the body (layers %d) in webbing, pads and steel" % [seat, mine.layers])
+		offs.sort()
+		var n := offs.size()
+		var typical: float = offs[n * 9 / 10] if n > 0 else INF      # 9 in 10 closer than this (a tight strap bridges hollows)
+		fails += _check(n > 40 and typical < 0.025, "%s: the chest straps lie on the body (%d vertices, 90 %% within %.1f cm of it, the furthest %.1f)" % [
+			seat, n, typical * 100.0, (offs[n - 1] if n > 0 else 0.0) * 100.0])
+
+
 ## The dials' numbers and the shift lights.
 func _dials() -> void:
 	var texts := []
@@ -165,6 +251,7 @@ func _tris(m: MeshInstance3D) -> int:
 
 
 func _done() -> bool:
+	_gear_changes()
 	var idle := _lights(0.0)
 	var high := _lights(0.85)                        # 0.18 + 0.85 * 0.82 = 0.877 of the dial: ~7000 rpm
 	fails += _check(idle == 0 and high == 4, "shift lights: none at idle, 4 of 5 near the red line (%d, %d)" % [idle, high])

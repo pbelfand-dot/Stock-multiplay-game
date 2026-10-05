@@ -34,7 +34,7 @@ echo "== garage + story: credits, buying, upgrades, car setups, championship unl
 run_g 120 --headless --path . -s tests/story_check.gd -- --profile=$T/story.cfg 2>&1 | grep -E "\[story\] (FAIL|STORY)" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
 echo "== road edges: flush flat grass past the edge, trees stand back, a slide wide can be saved"
 run_g 300 --headless --fixed-fps 60 --path . -s tests/runoff_check.gd 2>&1 | grep -E "\[runoff\] (FAIL|RUNOFF|ok   off)" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
-echo "== cockpit: the gloves cover the sleeve ends wherever the hands are, numbered dials, shift lights"
+echo "== cockpit: the gloves cover the sleeve ends wherever the hands are, both crew belted in, the hand on the gear lever, numbered dials, shift lights"
 run_g 180 --headless --path . -s tests/cockpit_check.gd 2>&1 | grep -E "\[cockpit\] (FAIL|COCKPIT|ok   straight)" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
 echo "== ride: how much the car bounces on two stages (shaking at the eye, the hardest landing)"
 for seed in 3 15; do

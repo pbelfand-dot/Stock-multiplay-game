@@ -23,6 +23,7 @@ extends Node3D
 const MapBoard = preload("res://scripts/vehicle/map_board.gd")
 const CrewModel = preload("res://scripts/vehicle/crew_model.gd")
 const DriverHands = preload("res://scripts/vehicle/driver_hands.gd")
+const Harness = preload("res://scripts/vehicle/harness.gd")
 
 const RED := Color(0.78, 0.12, 0.1)
 const GREY := Color(0.46, 0.45, 0.43)
@@ -39,8 +40,11 @@ const SUIT_C := Color(0.14, 0.24, 0.62)
 const EYE_DRIVER := Vector3(-0.37, 0.6, 0.26)
 const EYE_CODRIVER := Vector3(0.37, 0.6, 0.26)
 const WHEEL_C := Vector3(-0.37, 0.26, -0.17)        # clear of the dash, the binnacle and its hood (rim top 4 cm off them)
-const WHEEL_R := 0.18
+const WHEEL_R := 0.16                         # the rim's centreline: a 350 mm wheel (Momo Mod.08 size)
+const RIM_TUBE := 0.0155                      # ... a ~30 mm suede grip
+const WHEEL_DISH := 0.088                     # the hub sits 88 mm in front of the rim (a deep-dish rally wheel)
 const WHEEL_TILT := 0.42                      # rad back from vertical
+const HARNESS_BAR := Vector2(0.5, 0.66)       # the harness bar behind the seats: height, back (m)
 ## The windshield: bottom edge (cowl) and top edge, car-local.
 const WS_BOTTOM := Vector3(0.0, 0.32, -0.74)
 const WS_TOP := Vector3(0.0, 0.92, -0.3)
@@ -74,6 +78,9 @@ var _wheel_turn := 0.0                         # the steering wheel's turn (rad)
 var _needles := {}                             # "rpm" / "kmh" -> needle pivot
 var _gear_label: Label3D
 var _dial_font: Font
+var _mirror_vp: SubViewport
+var _mirror_cam: Camera3D
+var _mirror_t := 0.0
 var _shift_leds: Array = []                    # their materials, left to right
 var _trip_label: Label3D
 var _mats := {}
@@ -102,6 +109,56 @@ func build(the_car, stage) -> void:
 	map_board.position = Vector3(0.36, 0.25, 0.0)
 	map_board.rotation = Vector3(deg_to_rad(-52.0), deg_to_rad(4.0), 0.0)
 	_bake_static()
+	_harnesses()
+
+
+## The mirror works: a little camera just in front of it looks back down the car
+## (the crew's helmets, the cage, the rear window, the road behind) into a
+## low-resolution texture on the glass, flipped like a mirror. It renders about
+## 30 times a second, and not at all when nobody's in the cockpit view (the chase cam).
+func _mirror_glass(mirror: Node3D) -> void:
+	_mirror_vp = SubViewport.new()
+	_mirror_vp.name = "MirrorView"
+	_mirror_vp.size = Vector2i(400, 78)
+	_mirror_vp.render_target_update_mode = SubViewport.UPDATE_ONCE
+	add_child(_mirror_vp)
+	_mirror_cam = Camera3D.new()
+	_mirror_cam.keep_aspect = Camera3D.KEEP_WIDTH
+	_mirror_cam.fov = 52.0
+	_mirror_cam.near = 0.05
+	_mirror_cam.far = 220.0
+	_mirror_cam.cull_mask = 0xFFFFF & ~(1 << 1)        # not the driver's own helmet
+	_mirror_vp.add_child(_mirror_cam)
+	var glass := MeshInstance3D.new()
+	var q := QuadMesh.new()
+	q.size = Vector2(0.266, 0.052)
+	glass.mesh = q
+	var m := StandardMaterial3D.new()
+	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	m.albedo_texture = _mirror_vp.get_texture()
+	m.albedo_color = Color(0.92, 0.94, 0.97)            # a slight tint, like real mirror glass
+	m.uv1_scale = Vector3(-1.0, 1.0, 1.0)              # left and right swapped: a mirror
+	m.uv1_offset = Vector3(1.0, 0.0, 0.0)
+	glass.material_override = m
+	glass.position = Vector3(0, 0, 0.0095)
+	glass.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	mirror.add_child(glass)
+
+
+func _mirror(dt: float) -> void:
+	if _mirror_vp == null:
+		return
+	if not is_visible_in_tree():
+		_mirror_vp.render_target_update_mode = SubViewport.UPDATE_DISABLED
+		return
+	_mirror_t += dt
+	if _mirror_t < 1.0 / 30.0:
+		return
+	_mirror_t = 0.0
+	# just in front of the glass (so it doesn't see its own back), looking back and a touch down
+	_mirror_cam.global_transform = global_transform * Transform3D(
+		Basis(Vector3.UP, PI) * Basis(Vector3.RIGHT, deg_to_rad(-4.0)), Vector3(0.0, 0.84, -0.25))
+	_mirror_vp.render_target_update_mode = SubViewport.UPDATE_ONCE
 
 
 ## Paint the shell and the cage the car's colour (a white car is white inside, a
@@ -272,24 +329,8 @@ func _dash() -> void:
 	_box(Vector3(0.36, 0.02, 0.02), Vector3(0.38, 0.27, -0.3), CARBON_HI)     # a ledge in front of the co-driver
 	_box(Vector3(0.22, 0.2, 0.3), Vector3(0.0, -0.18, -0.15), Color(0.26, 0.26, 0.27))   # tunnel (bare, painted)
 	_switch_panel()
-	# the sequential gear lever: tall, out of the tunnel, leaning back to the driver's
-	# right hand; a black grip with a red top. Its rubber boot at the bottom
-	var lever_top := Vector3(-0.06, 0.19, -0.15)
-	var lever_base := Vector3(-0.025, -0.08, -0.22)
-	_tube(lever_base, lever_top, 0.009, Color(0.62, 0.62, 0.65))
-	var lever_dir := (lever_top - lever_base).normalized()
-	_tube(lever_top - lever_dir * 0.05, lever_top + lever_dir * 0.03, 0.016, Color(0.06, 0.06, 0.06))
-	var cap := MeshInstance3D.new()
-	var cm := SphereMesh.new()
-	cm.radius = 0.019
-	cm.height = 0.024
-	cm.radial_segments = 10
-	cm.rings = 4
-	cap.mesh = cm
-	cap.material_override = _mat(Color(0.85, 0.1, 0.1), 0.4)
-	cap.position = lever_top + lever_dir * 0.035
-	cap.basis = Basis(Quaternion(Vector3.UP, lever_dir))
-	add_child(cap)
+	# the sequential gear lever's rubber boot (the lever moves: driver_hands.gd)
+	var lever_base: Vector3 = DriverHands.GEAR_BASE
 	var boot := MeshInstance3D.new()
 	var bm := SphereMesh.new()
 	bm.radius = 0.045
@@ -523,22 +564,18 @@ func _details() -> void:
 	_box(Vector3(0.38, 0.006, 0.3), Vector3.ZERO, ALU, Vector3.ZERO, rest).material_override = _mat(ALU, 0.35)
 	for i in 7:
 		_box(Vector3(0.36, 0.008, 0.008), Vector3(0.0, 0.006, -0.12 + i * 0.04), ALU * Color(0.85, 0.85, 0.85), Vector3.ZERO, rest)
-	# cage: a bar across the roof and the harness bar behind the seats, the belts
-	# from it over the seat backs (6-point harnesses: blue for the co-driver)
+	# cage: a bar across the roof and the harness bar behind the seats (the
+	# harnesses come off it: harness.gd)
 	_tube(Vector3(-0.66, 0.9, 0.1), Vector3(0.66, 0.9, 0.1), 0.026, RED)
-	_tube(Vector3(-0.64, 0.5, 0.66), Vector3(0.64, 0.5, 0.66), 0.024, RED)
-	for x in [-0.37, 0.37]:
-		var belt: Color = STRAP if x < 0.0 else Color(0.15, 0.3, 0.75)
-		for side in [-1.0, 1.0]:
-			_box(Vector3(0.045, 0.004, 0.2), Vector3(x + side * 0.075, 0.535, 0.57), belt, Vector3(deg_to_rad(-18.0), 0, 0))
+	_tube(Vector3(-0.64, HARNESS_BAR.x, HARNESS_BAR.y), Vector3(0.64, HARNESS_BAR.x, HARNESS_BAR.y), 0.024, RED)
 	# the wide rear-view mirror at the top of the screen, on a stalk from the header
-	_tube(Vector3(0.0, 0.905, -0.31), Vector3(0.0, 0.865, -0.33), 0.008, DARK)
+	_tube(Vector3(0.0, 0.912, -0.285), Vector3(0.0, 0.858, -0.272), 0.008, DARK)
 	var mirror := Node3D.new()
-	mirror.position = Vector3(0.0, 0.85, -0.33)
+	mirror.position = Vector3(0.0, 0.84, -0.265)                  # 8 cm clear of the glass and the sun strip
 	mirror.rotation = Vector3(deg_to_rad(-8.0), deg_to_rad(-10.0), 0.0)     # angled at the driver
 	add_child(mirror)
 	_box(Vector3(0.28, 0.065, 0.018), Vector3.ZERO, Color(0.05, 0.05, 0.05), Vector3.ZERO, mirror)
-	_box(Vector3(0.266, 0.052, 0.004), Vector3(0, 0, 0.009), Color(0.62, 0.74, 0.84), Vector3.ZERO, mirror).material_override = _mat(Color(0.62, 0.74, 0.84), 0.08)
+	_mirror_glass(mirror)
 	# the sun strip across the top of the screen: dark vinyl, its print back to front from in here
 	var up := (WS_TOP - WS_BOTTOM).normalized()
 	var n := Vector3.RIGHT.cross(up).normalized()
@@ -609,28 +646,133 @@ func _seats() -> void:
 		_box(Vector3(0.12, 0.42, 0.4), Vector3(x + 0.24, -0.02, 0.38), SEAT * 0.9)
 
 
+## The steering wheel: a deep-dish rally wheel like a Momo Mod.08 (350 mm,
+## 88 mm of dish, a ~30 mm black suede rim with a yellow marker at the top,
+## three black aluminium spokes with slots machined out, a horn button and six
+## bolts on the hub plate) on a quick-release boss with a silver collar, on the
+## column. The rim's plane is where the gloves grip (driver_hands.gd); the hub is
+## WHEEL_DISH in front of it. One mesh, a surface per material.
 func _wheel() -> void:
-	_tube(Vector3(-0.37, 0.12, -0.46), WHEEL_C, 0.025, DARK)                 # column
+	var axis := Vector3(0.0, sin(WHEEL_TILT), cos(WHEEL_TILT))        # toward the driver
+	var boss_back := WHEEL_C - axis * (WHEEL_DISH + 0.06)
+	_tube(Vector3(-0.37, 0.12, -0.46), boss_back, 0.025, DARK)        # column
 	_steer_node = Node3D.new()
 	_steer_node.position = WHEEL_C
 	_steer_node.rotation.x = WHEEL_TILT
 	add_child(_steer_node)
-	var seg := 12
-	# the Higgsfield rally wheel (dished three-spoke, suede, yellow top marker); its rim
-	# runs at ~0.88 units from the hub, so this puts it at WHEEL_R where the gloves grip
-	const WHEEL_MODEL := "res://assets/models/steering_wheel.glb"
-	if ResourceLoader.exists(WHEEL_MODEL):
-		var w: Node3D = load(WHEEL_MODEL).instantiate()
-		w.scale = Vector3.ONE * (WHEEL_R / 0.88)
-		_steer_node.add_child(w)
-		return
-	for k in seg:
-		var a0 := TAU * k / seg
-		var a1 := TAU * (k + 1) / seg
-		_tube(Vector3(cos(a0), sin(a0), 0) * WHEEL_R, Vector3(cos(a1), sin(a1), 0) * WHEEL_R, 0.015, DARK, _steer_node)
-	for a in [PI, 0.0, -PI / 2.0]:
-		_tube(Vector3.ZERO, Vector3(cos(a), sin(a), 0) * WHEEL_R, 0.012, DARK, _steer_node)
-	_box(Vector3(0.06, 0.06, 0.03), Vector3.ZERO, Color(0.85, 0.1, 0.1), Vector3.ZERO, _steer_node)
+	var parts := {}
+	var mats := {
+		"suede": _mat(Color(0.055, 0.055, 0.06), 1.0),
+		"marker": _mat(Color(1.0, 0.78, 0.1), 0.7),
+		"alu": _mat(Color(0.07, 0.07, 0.075), 0.32),
+		"silver": _mat(Color(0.72, 0.73, 0.75), 0.25),
+		"red": _mat(Color(0.85, 0.1, 0.08), 0.4),
+	}
+	var flat := Basis(Vector3.RIGHT, PI / 2.0)                         # a Y-axis mesh turned to face the driver (+z)
+	# the rim, and its yellow 12 o'clock marker sitting just proud of the suede
+	var rim := TorusMesh.new()
+	rim.inner_radius = WHEEL_R - RIM_TUBE
+	rim.outer_radius = WHEEL_R + RIM_TUBE
+	rim.rings = 64
+	rim.ring_segments = 14
+	DriverHands._add(parts, "suede", rim, Transform3D(flat))
+	DriverHands._add(parts, "marker", _arc_tube(WHEEL_R, RIM_TUBE + 0.0007, deg_to_rad(84.0), deg_to_rad(96.0), 6), Transform3D.IDENTITY)
+	# three spokes: from the hub plate out and back to the rim, each two rails
+	# with bridges between them (the machined slots)
+	var hub_z := -WHEEL_DISH
+	for a in [0.0, PI, -PI / 2.0]:
+		var dir := Vector3(cos(a), sin(a), 0.0)
+		var tang := Vector3(-sin(a), cos(a), 0.0)
+		var p0 := dir * 0.045 + Vector3(0, 0, hub_z + 0.004)
+		var p1 := dir * (WHEEL_R - RIM_TUBE * 0.6) + Vector3(0, 0, -0.006)
+		var along := (p1 - p0).normalized()
+		var length := p0.distance_to(p1)
+		var normal := along.cross(tang).normalized()
+		for side in [-1.0, 1.0]:
+			var off: Vector3 = tang * side * 0.0125
+			DriverHands._add(parts, "alu", _box_mesh(Vector3(0.012, length, 0.0045)),
+				Transform3D(Basis(tang, along, normal), (p0 + p1) * 0.5 + off))
+		for b in [0.03, 0.5, 0.96]:                                    # the bridges: two long slots between them
+			DriverHands._add(parts, "alu", _box_mesh(Vector3(0.037, 0.016, 0.0045)),
+				Transform3D(Basis(tang, along, normal), p0.lerp(p1, b)))
+	# the hub plate, its six bolts, the horn button (a red ring on black)
+	var plate := CylinderMesh.new()
+	plate.top_radius = 0.052
+	plate.bottom_radius = 0.052
+	plate.height = 0.008
+	plate.radial_segments = 24
+	DriverHands._add(parts, "alu", plate, Transform3D(flat, Vector3(0, 0, hub_z)))
+	for i in 6:
+		var ang := TAU * i / 6.0 + PI / 6.0
+		var bolt := CylinderMesh.new()
+		bolt.top_radius = 0.0045
+		bolt.bottom_radius = 0.0045
+		bolt.height = 0.006
+		bolt.radial_segments = 6
+		DriverHands._add(parts, "silver", bolt, Transform3D(flat, Vector3(cos(ang), sin(ang), 0) * 0.043 + Vector3(0, 0, hub_z + 0.006)))
+	var button := CylinderMesh.new()
+	button.top_radius = 0.032
+	button.bottom_radius = 0.034
+	button.height = 0.012
+	button.radial_segments = 24
+	DriverHands._add(parts, "alu", button, Transform3D(flat, Vector3(0, 0, hub_z + 0.01)))
+	var ring := TorusMesh.new()
+	ring.inner_radius = 0.016
+	ring.outer_radius = 0.021
+	ring.rings = 24
+	ring.ring_segments = 6
+	DriverHands._add(parts, "red", ring, Transform3D(flat.scaled(Vector3(1.0, 1.0, 0.25)), Vector3(0, 0, hub_z + 0.0165)))
+	# the quick-release boss and its collar, behind the plate
+	var boss := CylinderMesh.new()
+	boss.top_radius = 0.026
+	boss.bottom_radius = 0.03
+	boss.height = 0.06
+	boss.radial_segments = 16
+	DriverHands._add(parts, "alu", boss, Transform3D(flat, Vector3(0, 0, hub_z - 0.034)))
+	var collar := CylinderMesh.new()
+	collar.top_radius = 0.032
+	collar.bottom_radius = 0.032
+	collar.height = 0.014
+	collar.radial_segments = 20
+	DriverHands._add(parts, "silver", collar, Transform3D(flat, Vector3(0, 0, hub_z - 0.03)))
+	var w := MeshInstance3D.new()
+	w.name = "SteeringWheel"
+	w.mesh = DriverHands._bake(parts, mats)
+	_steer_node.add_child(w)
+
+
+static func _box_mesh(size: Vector3) -> BoxMesh:
+	var b := BoxMesh.new()
+	b.size = size
+	return b
+
+
+## A tube of radius r along an arc of radius R in the XY plane, from angle a0 to a1.
+static func _arc_tube(R: float, r: float, a0: float, a1: float, seg: int) -> ArrayMesh:
+	var v := PackedVector3Array()
+	var nm := PackedVector3Array()
+	var idx := PackedInt32Array()
+	var ring := 10
+	for i in seg + 1:
+		var a := lerpf(a0, a1, float(i) / seg)
+		var out := Vector3(cos(a), sin(a), 0.0)
+		for j in ring + 1:
+			var b := TAU * j / ring
+			var n := out * cos(b) + Vector3.BACK * sin(b)
+			v.append(out * R + n * r)
+			nm.append(n)
+	for i in seg:
+		for j in ring:
+			var q := i * (ring + 1) + j
+			idx.append_array([q, q + ring + 1, q + 1, q + 1, q + ring + 1, q + ring + 2])
+	var arr := []
+	arr.resize(Mesh.ARRAY_MAX)
+	arr[Mesh.ARRAY_VERTEX] = v
+	arr[Mesh.ARRAY_NORMAL] = nm
+	arr[Mesh.ARRAY_INDEX] = idx
+	var m := ArrayMesh.new()
+	m.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arr)
+	return m
 
 
 func _windshield() -> void:
@@ -776,6 +918,24 @@ func _crew() -> void:
 	_box_crew()
 
 
+## Belt the crew in: pose them once as they'll sit (the driver's hands on the
+## wheel, the co-driver's on the map board), then fit each a harness (harness.gd).
+func _harnesses() -> void:
+	if _models.is_empty():
+		return
+	hands.update(0.0, 0.0, false)
+	if _models.has("driver"):
+		_models.driver.pose(hands.wrists, Vector3(0.35, -0.6, 0.15))
+	if _models.has("codriver") and map_board:
+		var board: Array = [map_board.transform * Vector3(-0.15, -0.05, 0.02), map_board.transform * Vector3(0.15, -0.05, 0.02)]
+		_models.codriver.pose(board, Vector3(0.3, -0.6, 0.25), 0.9)
+	for seat in _models:
+		var h := Harness.build(_models[seat], HARNESS_BAR.x, HARNESS_BAR.y, _models[seat].layer_mask())
+		if h:
+			h.name = "Harness" + seat.capitalize()
+			add_child(h)
+
+
 ## Which seat is yours: your own model loses its head (your camera is in it).
 func set_my_seat(seat: String) -> void:
 	for s in _models:
@@ -851,7 +1011,7 @@ func _process(dt: float) -> void:
 	_steer_node.rotate_object_local(Vector3.BACK, -wheel_turn)
 	# driver's hands: gloves round the rim, hand over hand when it turns a lot, the
 	# right one on the handbrake when it's pulled (driver_hands.gd)
-	hands.update(dt, wheel_turn, car.handbrake_on())
+	hands.update(dt, wheel_turn, car.handbrake_on(), car.gear)
 	var wheel_hands: Array = hands.wrists
 	if _models.is_empty():
 		for k in 2:
@@ -888,6 +1048,7 @@ func _process(dt: float) -> void:
 		if map_board:
 			_trip_label.text = "%.2f" % (maxf(map_board.car_s - 40.0, 0.0) / 1000.0)
 	_wipers(dt)
+	_mirror(dt)
 	_mud_mat.set_shader_parameter("mud", mud)
 	_mud_mat.set_shader_parameter("swept", PackedFloat32Array([deg_to_rad(swept[0]), deg_to_rad(swept[1])]))
 	_mud_mat.set_shader_parameter("residue", PackedFloat32Array(residue))
