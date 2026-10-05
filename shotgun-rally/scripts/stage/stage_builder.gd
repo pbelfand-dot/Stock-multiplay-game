@@ -1,6 +1,8 @@
 extends Node3D
 ## Turns a StageGen into the world: the gravel road (crowned, with two worn
-## wheel tracks), grass ditches and rolling ground out to ~75 m, a low-poly
+## wheel tracks, loose stones on the crown and out toward the edges where the
+## grip is worse (StageGen.lane_grip), berms of thrown-out gravel on the outside
+## of the bends), grass ditches and rolling ground out to ~75 m, a low-poly
 ## forest that crowds the INSIDE of corners (so you can't see round them:
 ## that's what the notes are for), rocks on the inside of "don't cut" corners,
 ## mud puddles, the start / finish arches, and the sky and sun.
@@ -54,7 +56,8 @@ func build_async(stage, report: Callable) -> void:
 const STEPS := [["_environment", "Checking the weather"], ["_road", "Grading the gravel road"],
 	["_ground", "Shaping the hills and ditches"], ["_base", "Shaping the hills and ditches"],
 	["_forest", "Planting ten thousand trees"], ["_rocks", "Rolling rocks onto the inside of the bends"],
-	["_puddles", "Filling the puddles"], ["_arches", "Putting up the start and finish"]]
+	["_puddles", "Filling the puddles"], ["_loose_stones", "Raking out the loose gravel"],
+	["_arches", "Putting up the start and finish"]]
 
 
 func _prepare(stage) -> void:
@@ -80,8 +83,9 @@ func _road() -> void:
 		var c: Vector3 = st.pts[i]
 		var r: Vector3 = st.right_at(s)
 		var row: Array = []
+		var berm := _berm(i)
 		for x in ROAD_X:
-			row.append(c + r * x[0] + Vector3.UP * x[1])
+			row.append(c + r * x[0] + Vector3.UP * (x[1] + _berm_lift(berm, x[0])))
 		if not prev.is_empty():
 			var shade := 0.94 + 0.06 * sin(s * 0.37) * cos(s * 0.11)
 			for k in ROAD_X.size() - 1:
@@ -98,6 +102,86 @@ func _road() -> void:
 	var f: Vector3 = st.forward_at(s0) * 0.4
 	sl.quad(a - f, b - f, b + f, a + f, Color(0.95, 0.95, 0.92))
 	_add(sl, "", "StartLine")
+
+
+## The berm at sample i: cars throw gravel to the outside of a bend, so it piles
+## up there, higher the tighter the bend. Vector2(side of the road it's on (-1
+## left / +1 right), height in m)
+func _berm(i: int) -> Vector2:
+	var k := 0.0
+	for j in range(maxi(0, i - 4), mini(st.curv.size(), i + 5)):
+		k += st.curv[j]
+	k /= 9.0
+	return Vector2(-signf(k), clampf(absf(k) * 4.0, 0.0, 0.14))
+
+
+## How much a road cross-section point at d is lifted by a berm.
+static func _berm_lift(berm: Vector2, d: float) -> float:
+	if absf(d) < 2.7 or signf(d) != berm.x:
+		return 0.0
+	return berm.y * (1.0 if absf(d) < 3.0 else 0.5)
+
+
+## Loose stones where the grip is worse: out toward the edges (thickest in the
+## berms) and a few on the crown between the wheel tracks. Never in the tracks.
+## In chunks of road, each drawn only when the camera is near (they're small).
+func _loose_stones() -> void:
+	var rock := SphereMesh.new()
+	rock.radius = 0.5
+	rock.height = 0.7
+	rock.radial_segments = 5
+	rock.rings = 1
+	var m := StandardMaterial3D.new()
+	m.vertex_color_use_as_albedo = true
+	m.roughness = 1.0
+	rock.material = m
+	var shades := [Color(0.42, 0.4, 0.38), Color(0.5, 0.45, 0.39), Color(0.35, 0.33, 0.32), Color(0.56, 0.5, 0.41)]
+	var per_chunk := int(CHUNK / st.STEP)
+	for c0 in range(0, st.pts.size(), per_chunk):
+		var xfs: Array = []
+		var cols: Array = []
+		for i in range(c0, mini(c0 + per_chunk, st.pts.size())):
+			var s: float = i * st.STEP
+			var berm := _berm(i)
+			var spots: Array = []
+			for side in [-1.0, 1.0]:
+				var n_edge := 2 + _rng.randi() % 2 + (3 if berm.x == side and berm.y > 0.05 else 0)
+				for k in n_edge:
+					spots.append(side * _rng.randf_range(1.5, 2.85))
+			if _rng.randf() < 0.6:
+				spots.append(_rng.randf_range(-0.35, 0.35))
+			for d in spots:
+				var at: float = s + _rng.randf_range(0.0, st.STEP)
+				var p: Vector3 = st.world_at(at, d) + Vector3.UP * (_road_height(d) + _berm_lift(berm, d) + 0.01)
+				var sz := _rng.randf_range(0.07, 0.17)
+				var b := Basis(Vector3.UP, _rng.randf() * TAU).scaled(Vector3(sz, sz * 0.55, sz * _rng.randf_range(0.8, 1.3)))
+				xfs.append(Transform3D(b, p))
+				cols.append(shades[_rng.randi() % shades.size()])
+		var mm := MultiMesh.new()
+		mm.transform_format = MultiMesh.TRANSFORM_3D
+		mm.use_colors = true
+		mm.mesh = rock
+		mm.instance_count = xfs.size()
+		for i in xfs.size():
+			mm.set_instance_transform(i, xfs[i])
+			mm.set_instance_color(i, cols[i])
+		var mi := MultiMeshInstance3D.new()
+		mi.name = "LooseStones%d" % c0
+		mi.multimesh = mm
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		mi.visibility_range_end = 140.0
+		mi.visibility_range_end_margin = 20.0
+		add_child(mi)
+
+
+## The road surface's height across the road (the crown and the edges), at d.
+static func _road_height(d: float) -> float:
+	for j in ROAD_X.size() - 1:
+		var a: Array = ROAD_X[j]
+		var b: Array = ROAD_X[j + 1]
+		if d >= a[0] and d <= b[0]:
+			return lerpf(a[1], b[1], (d - a[0]) / (b[0] - a[0]))
+	return 0.0
 
 
 # ── ground ────────────────────────────────────────────────────────────────

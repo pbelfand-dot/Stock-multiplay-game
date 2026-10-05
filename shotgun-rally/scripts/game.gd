@@ -55,6 +55,7 @@ var penalties := 0.0
 var resets := 0
 var jump_start := false
 var car_s := 0.0
+var _brake_eased := 0.0
 var car_d := 0.0
 var result := {}
 var my_seat := "driver"
@@ -225,6 +226,7 @@ func _physics_process(dt: float) -> void:
 	_hint = at.i
 	car_s = at.s
 	car_d = at.d
+	car.set_lanes(st, car_s, car_d)
 	cockpit.map_board.car_s = car_s
 	car.stream_ok = crew_ready()          # nobody to send to (or they're still loading): don't
 	match state:
@@ -306,8 +308,16 @@ func _drive_inputs() -> void:
 		return
 	var steer := Input.get_axis("steer_left", "steer_right")
 	car.analog_steer = absf(Input.get_joy_axis(0, JOY_AXIS_LEFT_X)) > 0.15
+	# the brake key comes on over ~0.25 s (a trigger is analog already): no ABS,
+	# so a stab of full brake would lock the fronts at once
+	var brake_in := Input.get_action_strength("brake")
+	if Input.get_joy_axis(0, JOY_AXIS_TRIGGER_LEFT) > 0.05:
+		_brake_eased = brake_in
+	else:
+		var dt := get_physics_process_delta_time()
+		_brake_eased = move_toward(_brake_eased, brake_in, dt * (4.0 if brake_in > _brake_eased else 10.0))
 	var inp := {"steer": steer, "throttle": Input.get_action_strength("throttle"),
-		"brake": Input.get_action_strength("brake"), "handbrake": Input.is_action_pressed("handbrake")}
+		"brake": _brake_eased, "handbrake": Input.is_action_pressed("handbrake")}
 	if state == "grid":
 		inp.handbrake = true                         # parked at the line until the countdown
 		inp.brake = maxf(inp.brake, 0.6)

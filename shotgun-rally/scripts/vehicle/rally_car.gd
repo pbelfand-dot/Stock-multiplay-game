@@ -75,7 +75,16 @@ const SHAPE_C := 1.35              # Magic Formula C: past the peak it fades slo
 const GRIP := {"gravel": 1.1, "dirt": 1.05, "grass": 0.7, "mud": 0.55, "tarmac": 1.25}
 const LOAD_SENS := 0.15            # mu drops 15 % per extra static load (a loaded tyre grips less per newton)
 const RELAX := 0.4                 # m: a tyre rolls this far before its side force catches up with a new slip angle
-const LOCKED_MU := 0.82            # a locked (handbraked) tyre slides at this much of its grip
+## Wheels: each has its own spin, so they can spin up under power and lock under
+## the brakes (rally cars have no ABS). Forward grip peaks at a slip ratio
+## (wheel speed vs ground speed) a bit higher on loose stuff, like the side grip
+const WHEEL_I := 1.3               # kg m^2: a wheel, its tyre and its share of the driveline
+const LOCKED_MU := 0.82            # a locked tyre (handbrake, or the brakes) slides at this much of its grip
+const SLIP_X_PEAK := {"gravel": 0.18, "dirt": 0.18, "grass": 0.22, "mud": 0.26, "tarmac": 0.1}
+const SLIP_V_MIN := 3.0            # m/s: slip ratio is measured against at least this (steady when slow)
+const DIFF_LOCK := 0.2            # limited-slip diffs: how hard the two wheels on an axle are tied (per tick,
+const CENTRE_LOCK := 0.3           # ... and the axles to each other) on full power. Like 1-way diffs they lock
+                                   # under power and let go off it, so the brakes can lock a wheel
 const GEARS := [13.0, 21.0, 29.0, 37.0, 47.0]   # top speed in each gear (m/s)
 ## In the air. Four wheels at 110 km/h carry ~480 N m s of spin: stopping them
 ## (brakes) tips a 1800 kg m^2 body nose-down ~10 deg over a 1 s jump
@@ -104,6 +113,9 @@ var on_surface := "gravel"         # what most of the tyres are on
 var grounded := 0                  # tyres touching
 var comp := [0.0, 0.0, 0.0, 0.0]   # spring compression per corner (m)
 var spin := [0.0, 0.0, 0.0, 0.0]   # wheel rotation (rad), for the visuals
+var omega := [0.0, 0.0, 0.0, 0.0]  # wheel spin (rad/s, + = rolling forward)
+var wheel_slip := [0.0, 0.0, 0.0, 0.0]   # slip ratio per wheel: + spinning up, -1 locked (driver's machine)
+var lane_mu := [1.0, 1.0, 1.0, 1.0]      # grip from where each tyre is across the road (the game sets it)
 var mud_mu := false                # set by the game while a tyre is in a puddle
 var wheel_nodes: Array = []        # Node3D per corner (steer + spin pivots)
 var body_model: Node3D             # the Higgsfield car (assets/models/car_parts/): seen from outside
@@ -242,6 +254,8 @@ func place(pos: Vector3, yaw: float) -> void:
 	steer = 0.0
 	_u = 0.0
 	_alpha = [0.0, 0.0, 0.0, 0.0]
+	omega = [0.0, 0.0, 0.0, 0.0]
+	wheel_slip = [0.0, 0.0, 0.0, 0.0]
 	reset_physics_interpolation()
 
 
@@ -258,6 +272,15 @@ func set_simulating(on: bool) -> void:
 	simulate = on
 	freeze_mode = RigidBody3D.FREEZE_MODE_KINEMATIC
 	freeze = not on
+
+
+## Where each tyre is across the road (car at road position s, d) -> its grip:
+## the clean wheel tracks or the loose gravel (stage_gen.lane_grip).
+func set_lanes(stage, s: float, d: float) -> void:
+	var right: Vector3 = stage.right_at(s)
+	for k in 4:
+		var w: Vector3 = global_transform * Vector3(WHEELS[k][0], 0.0, WHEELS[k][1])
+		lane_mu[k] = stage.lane_grip(d + (w - global_position).dot(right))
 
 
 ## Is the handbrake on? (the driver's input; on the co-driver's machine, from the stream)
@@ -292,6 +315,10 @@ func _drive(dt: float) -> void:
 	var v := linear_velocity
 	speed = v.dot(fwd)
 	var vabs := absf(speed)
+	if (v - _prev_v).length() > 12.0:
+		# put down at a speed (a reset, a test): the wheels roll with it, they don't start locked
+		for k in 4:
+			omega[k] = speed / RADIUS
 
 	# steering (see the top): the stick / keys, eased on keys
 	var u_target: float = clampf(inp.steer, -1.0, 1.0)
@@ -351,12 +378,22 @@ func _drive(dt: float) -> void:
 				best = surf_count[s]
 				on_surface = s
 
-	var slip_acc := 0.0
+	# the tyres, in two passes: (1) each wheel's spin under engine, brakes and
+	# the ground, then the diffs tie them together; (2) the forces from the slip
+	var tyre: Array = []
+	var split: float = 1.0 if inp.handbrake else DRIVE_FRONT    # the handbrake declutches the rear axle
 	for k in 4:
 		var h: Dictionary = hits[k]
-		if h.is_empty():
-			continue
 		var front: bool = WHEELS[k][2]
+		var locked: bool = (not front) and inp.handbrake
+		var t_drive: float = drive * (split * 0.5 if front else (1.0 - split) * 0.5) * RADIUS
+		var t_brake: float = brake * BRAKE_FORCE * (BRAKE_FRONT * 0.5 if front else (1.0 - BRAKE_FRONT) * 0.5) * RADIUS
+		if h.is_empty():
+			# in the air: the engine spins it up (to the rev limit), the brakes stop it
+			omega[k] += (t_drive - t_brake * signf(omega[k])) / WHEEL_I * dt
+			omega[k] = 0.0 if locked else clampf(omega[k], -REVERSE_MAX / RADIUS, V_MAX * 1.1 / RADIUS)
+			tyre.append({})
+			continue
 		var mate := k ^ 1                                           # the other wheel on this axle
 		var rebound: float = DAMP_REBOUND * (1.0 + DEEP_REBOUND * smoothstep(0.16, 0.3, h.c))
 		var fz: float = SPRING * h.c + (DAMP if h.cv > 0.0 else rebound) * h.cv
@@ -373,48 +410,84 @@ func _drive(dt: float) -> void:
 		var vp := v + angular_velocity.cross(r)
 		var vlong := vp.dot(f)
 		var vlat := vp.dot(side)
-		# grip: mu x load, a little less per newton the more the tyre is loaded
-		var mu: float = GRIP.get(h.surf, 0.9) * clampf(1.0 - LOAD_SENS * (fz / _fz0 - 1.0), 0.7, 1.15)
+		# grip: mu x load, a little less per newton the more the tyre is loaded, and
+		# where on the road it is (the clean wheel tracks grip, the loose gravel doesn't)
+		var mu: float = GRIP.get(h.surf, 0.9) * clampf(1.0 - LOAD_SENS * (fz / _fz0 - 1.0), 0.7, 1.15) * lane_mu[k]
 		var fmax := mu * fz
-		var locked: bool = (not front) and inp.handbrake
-
-		var flat := 0.0
+		var slow := Vector2(vlong, vlat).length() < 2.5
+		if not slow:
+			_alpha[k] = lerpf(_alpha[k], atan2(vlat, absf(vlong)), clampf(absf(vlong) * dt / RELAX, 0.0, 1.0))
+		var t := {"h": h, "fz": fz, "n": n, "f": f, "side": side, "r": r, "vlong": vlong, "vlat": vlat,
+			"fmax": fmax, "slow": slow, "ka": 0.0 if slow else _alpha[k] / PEAK.get(h.surf, SLIP_PEAK),
+			"kx": SLIP_X_PEAK.get(h.surf, 0.18), "den": maxf(absf(vlong), SLIP_V_MIN)}
+		tyre.append(t)
+		if locked:
+			omega[k] = 0.0
+			continue
+		# the wheel's spin, one implicit step (the tyre's pull, linearised around the
+		# spin it has now, so it settles instead of oscillating at 60 Hz)
+		var fx0 := _tyre_fx(t, omega[k])
+		var kk := maxf((_tyre_fx(t, omega[k] + 0.5) - fx0) / 0.5, 0.0)
+		var damp := 1.0 + dt * RADIUS * kk / WHEEL_I
+		var free: float = omega[k] + dt / WHEEL_I * (t_drive - fx0 * RADIUS) / damp
+		var w: float = omega[k] + dt / WHEEL_I * (t_drive - fx0 * RADIUS - t_brake * signf(free)) / damp
+		if t_brake > 0.0 and signf(w) != signf(free):
+			w = 0.0                                                  # the brakes hold it: locked
+		omega[k] = w
+	# limited-slip diffs, under power: the two wheels on an axle are tied together
+	# (an unloaded wheel can't just spin up), and the centre ties the axles (not
+	# with the handbrake on: then the rear is declutched)
+	var power: float = clampf(throttle, 0.0, 1.0)
+	for axle in [[0, 1], [2, 3]]:
+		var m: float = (omega[axle[0]] + omega[axle[1]]) * 0.5
+		for k in axle:
+			omega[k] = lerpf(omega[k], m, DIFF_LOCK * power)
+	if not inp.handbrake:
+		var fr: float = (omega[0] + omega[1]) * 0.5
+		var rr: float = (omega[2] + omega[3]) * 0.5
+		var mid: float = (fr + rr) * 0.5
+		for k in 4:
+			omega[k] += (mid - (fr if k < 2 else rr)) * CENTRE_LOCK * power
+	var slip_acc := 0.0
+	for k in 4:
+		var t: Dictionary = tyre[k]
+		if t.is_empty():
+			wheel_slip[k] = 0.0
+			continue
+		var fmax: float = t.fmax
 		var flong := 0.0
-		if locked and Vector2(vlong, vlat).length() > 0.6:
-			# a locked tyre just slides: the force is against the way it's sliding
-			var sv := Vector2(vlong, vlat).normalized() * (-LOCKED_MU * fmax)
+		var flat := 0.0
+		var kappa: float = (omega[k] * RADIUS - t.vlong) / t.den
+		var sx: float = kappa / t.kx
+		var sliding := Vector2(t.vlong, t.vlat)
+		if omega[k] == 0.0 and sliding.length() > 0.6:
+			# locked: it just slides, against the way it's going (no steering from it)
+			var sv := sliding.normalized() * (-LOCKED_MU * fmax)
 			flong = sv.x
 			flat = sv.y
+			slip_acc += 1.0
+		elif t.slow:
+			# parked / creeping: the tyres hold the car still sideways, the wheel model forwards
+			flat = clampf(-t.vlat * CAR_MASS * 2.0, -fmax, fmax)
+			flong = clampf(sx, -1.0, 1.0) * fmax * 0.95
 		else:
-			# sideways: slip angle -> Magic Formula (peak at the surface's peak slip angle)
-			if Vector2(vlong, vlat).length() < 2.5:
-				flat = clampf(-vlat * CAR_MASS * 2.0, -fmax, fmax)  # parked: no creeping
-			else:
-				_alpha[k] = lerpf(_alpha[k], atan2(vlat, absf(vlong)), clampf(absf(vlong) * dt / RELAX, 0.0, 1.0))
-				flat = -fmax * tyre_curve(_alpha[k] / PEAK.get(h.surf, SLIP_PEAK))
-			# forward: engine, brakes, rolling
-			# the handbrake declutches the rear axle (like a real rally car): it all goes to the front
-			var split: float = 1.0 if inp.handbrake else DRIVE_FRONT
-			flong = drive * (split * 0.5 if front else (1.0 - split) * 0.5)
-			var bf := brake * BRAKE_FORCE * (BRAKE_FRONT * 0.5 if front else (1.0 - BRAKE_FRONT) * 0.5)
-			if locked:
-				bf = maxf(bf, fmax)                                 # parked on the handbrake
-			if absf(vlong) > 0.5:
-				flong -= signf(vlong) * bf
-			else:
-				flong -= clampf(vlong * 4000.0, -bf, bf)
-			flong -= signf(vlong) * ROLLING * fz
-
-		# friction circle: what's left over is the tyre sliding (and the sound of it)
-		var total := Vector2(flong, flat).length()
-		if total > fmax and total > 0.0:
-			slip_acc += (total - fmax) / maxf(fmax, 1.0)
-			flong *= fmax / total
-			flat *= fmax / total
-		slip_acc += clampf(absf(vlat) / 7.0, 0.0, 1.0) * 0.5
-		apply_force(n * fz + f * flong + side * flat, r)
-		# visuals: spin with the ground (locked rears don't turn)
-		spin[k] = spin[k] if locked else spin[k] + vlong / RADIUS * dt
+			# combined slip: one slip vector (forwards in "peaks" of slip ratio, sideways in
+			# peaks of slip angle) -> how much grip, shared out in its direction. A spinning
+			# or locked wheel has little left for cornering: power slides, no steering locked
+			var sy: float = t.ka
+			var sl := sqrt(sx * sx + sy * sy)
+			if sl > 1e-5:
+				var grip := fmax * tyre_curve(sl)
+				flong = grip * sx / sl
+				flat = -grip * sy / sl
+			slip_acc += clampf((sl - 0.8) / 1.2, 0.0, 1.0)
+		flong -= signf(t.vlong) * ROLLING * t.fz
+		wheel_slip[k] = kappa
+		slip_acc += clampf(absf(t.vlat) / 7.0, 0.0, 1.0) * 0.5
+		apply_force(t.n * t.fz + t.f * flong + t.side * flat, t.r)
+	# visuals: the wheels turn at their own speed (spinning up, locking)
+	for k in 4:
+		spin[k] += omega[k] * dt
 
 	# air: drag, and in flight turn toward the ground below + pitch with the pedals
 	apply_central_force(-v * v.length() * DRAG)
@@ -464,6 +537,16 @@ func steer_target(u: float, vabs: float, surface := "gravel") -> float:
 
 ## Tyre sideways force vs slip, as a fraction of the most it can do: x = slip /
 ## peak slip. The Magic Formula sin(C atan(B x)) with B set so the peak is at 1.
+## A tyre's forward pull (N) at wheel spin w, for the tyre data `t` from _drive.
+func _tyre_fx(t: Dictionary, w: float) -> float:
+	var sx: float = (w * RADIUS - t.vlong) / t.den / t.kx
+	if t.slow:
+		return clampf(sx, -1.0, 1.0) * t.fmax * 0.95
+	var sy: float = t.ka
+	var sl := sqrt(sx * sx + sy * sy)
+	return t.fmax * tyre_curve(sl) * sx / sl if sl > 1e-5 else 0.0
+
+
 static func tyre_curve(x: float) -> float:
 	const B := 2.3183                                            # tan(PI / (2 C)) for C = 1.35
 	return sin(SHAPE_C * atan(B * x))

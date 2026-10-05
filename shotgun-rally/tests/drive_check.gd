@@ -60,6 +60,7 @@ func _physics_process(dt: float) -> bool:
 	t += dt
 	var at: Dictionary = st.locate(car.global_position, hint)
 	hint = at.i
+	car.set_lanes(st, at.s, at.d)                    # the clean wheel tracks grip, the loose gravel doesn't
 	lowest = minf(lowest, car.global_position.y - st.point_at(at.s).y)
 	match phase:
 		"settle":

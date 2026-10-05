@@ -346,6 +346,18 @@ func _hill_grade(s: float) -> float:
 	return g
 
 
+## Grip across the road (x the surface's): the two worn wheel tracks, packed
+## by every car before you, grip best; the loose crown between them a little
+## less, and the "marbles" out toward the edges least, so running wide costs
+## you. The builder paints the same bands (darker tracks).
+static func lane_grip(d: float) -> float:
+	var a := absf(d)
+	if a > ROAD_W * 0.5 + 0.3:
+		return 1.0                                  # off the road: just the ground's own surface
+	var track := smoothstep(0.35, 0.6, a) * (1.0 - smoothstep(1.2, 1.45, a))
+	return lerpf(lerpf(0.93, 1.0, track), 0.84, smoothstep(1.4, 2.6, a))
+
+
 ## Every stretch of (nearly) straight road at least `min_len` m long: [Vector2(from, to)].
 func _straight_runs(min_len: float) -> Array:
 	var out: Array = []

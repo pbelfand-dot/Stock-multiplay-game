@@ -67,6 +67,7 @@ func _physics_process(dt: float) -> bool:
 	t += dt
 	var at: Dictionary = st.locate(car.global_position, hint)
 	hint = at.i
+	car.set_lanes(st, at.s, at.d)                    # the clean wheel tracks grip, the loose gravel doesn't
 	car.inp = ap.drive(car, at.s, at.d) if t > 1.0 else {"steer": 0.0, "throttle": 0.0, "brake": 0.0, "handbrake": false}
 	# stuck (beached, spun): put it back on the road like R does, and don't count the
 	# next 2 s (a dropped-in car isn't the ride)

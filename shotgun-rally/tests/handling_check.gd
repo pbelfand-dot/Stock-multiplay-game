@@ -7,6 +7,8 @@ extends SceneTree
 ##     "always understeering and losing traction" a keyboard player feels)
 ##   * a lift-off turn-in and a handbrake turn rotate the car
 ##   * it brakes straight and stays straight flat out
+##   * the wheels: a launch spins them up a little; full brake while steering
+##     locks the fronts (no ABS) and the car barely turns, half brake still steers
 ## Run: godot --headless --fixed-fps 60 --path . -s tests/handling_check.gd [-- --report]
 ## Prints one [handling] line per check; exits 1 on any FAIL.
 
@@ -42,6 +44,9 @@ func _initialize() -> void:
 	_steps.append({"kind": "liftoff"})
 	_steps.append({"kind": "handbrake"})
 	_steps.append({"kind": "straight"})
+	_steps.append({"kind": "launch"})
+	_steps.append({"kind": "lock", "brake": 1.0})
+	_steps.append({"kind": "lock", "brake": 0.5})
 	_next()
 
 
@@ -112,6 +117,27 @@ func _physics_process(dt: float) -> bool:
 			if _t > 12.0:
 				s["result"] = {"yaw": rad_to_deg(absf(car.global_rotation.y)), "kmh": car.kmh()}
 				_next()
+		"launch":
+			# from a standstill, flat out: how far the rear wheels spin ahead of the ground
+			car.inp = {"steer": 0.0, "throttle": 1.0, "brake": 0.0, "handbrake": false}
+			if _t > 0.2:
+				_acc.lat = maxf(_acc.lat, (car.wheel_slip[2] + car.wheel_slip[3]) * 0.5)
+			if _t > 1.5:
+				s["result"] = {"slip": _acc.lat, "kmh": car.kmh()}
+				_next()
+		"lock":
+			# 100 km/h, then brake + full steering for 1 s: locked fronts don't steer
+			if _t < 0.1:
+				car.linear_velocity = Vector3(0, 0, -100.0 / 3.6)
+				_yaw0 = car.global_rotation.y
+			car.inp = {"steer": 1.0, "throttle": 0.0, "brake": s.brake, "handbrake": false}
+			if _t > 0.15:
+				_acc.n += 1
+				_acc.af += 1.0 if minf(car.wheel_slip[0], car.wheel_slip[1]) < -0.4 else 0.0   # a front sliding, (nearly) locked
+			if _t > 1.1:
+				s["result"] = {"deg": rad_to_deg(absf(wrapf(car.global_rotation.y - _yaw0, -PI, PI))),
+					"locked": _acc.af / maxf(_acc.n, 1.0), "kmh": car.kmh()}
+				_next()
 	return false
 
 
@@ -160,6 +186,19 @@ func _finish() -> bool:
 				fails += _check(s.result.deg > 60.0, "handbrake turn at 50 km/h rotated %.0f deg in 1.2 s" % s.result.deg)
 			"straight":
 				fails += _check(s.result.yaw < 3.0, "flat out for 12 s: %.0f km/h, drifted %.1f deg off straight" % [s.result.kmh, s.result.yaw])
+			"launch":
+				fails += _check(s.result.slip > 0.03 and s.result.slip < 0.6, "launch: the rear wheels spin %.0f %% ahead of the ground (a little wheelspin), %.0f km/h after 1.5 s" % [s.result.slip * 100.0, s.result.kmh])
+	var full: Dictionary = {}
+	var half: Dictionary = {}
+	for s in _steps:
+		if s.kind == "lock" and s.has("result"):
+			if s.brake == 1.0:
+				full = s.result
+			else:
+				half = s.result
+	if not full.is_empty() and not half.is_empty():
+		fails += _check(full.locked > 0.5, "full brake at 100 km/h, steering: a front wheel locks up and slides (%.0f %% of the time)" % (full.locked * 100.0))
+		fails += _check(half.locked < 0.2 and half.deg > full.deg * 1.6, "half brake still steers: turned %.0f deg vs %.0f locked" % [half.deg, full.deg])
 	print("[handling] %s" % ("HANDLING OK" if fails == 0 else "HANDLING FAIL"))
 	quit(1 if fails > 0 else 0)
 	return true

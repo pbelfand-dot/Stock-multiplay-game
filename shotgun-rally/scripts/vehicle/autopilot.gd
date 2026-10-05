@@ -6,7 +6,7 @@ extends RefCounted
 ##   * speed: the fastest the next 150 m allows: sqrt(mu g R) at every
 ##     corner, braked down to in time (v^2 = vc^2 + 2 a d)
 
-const MU := 0.5                  # how hard it dares to corner (fraction of g): ~2/3 of the car's grip
+const MU := 0.45                 # how hard it dares to corner (fraction of g): under half the car's grip, a margin for the loose gravel off the clean line
 const DECEL := 5.5               # how hard it plans to brake (m/s^2)
 
 var st                           # StageGen
@@ -58,5 +58,7 @@ func drive(car, s: float, d: float) -> Dictionary:
 	if spd < want - 1.0:
 		thr = clampf((want - spd) / 4.0, 0.25, 1.0)
 	elif spd > want + 1.5:
-		brk = clampf((spd - want) / 5.0, 0.2, 1.0)
+		# threshold braking, like a driver: never quite all of it (no ABS: full brake locks
+		# the fronts), and less while it's turning (a locked front doesn't steer)
+		brk = clampf((spd - want) / 5.0, 0.2, 0.85) * (1.0 - 0.45 * absf(steer_cmd))
 	return {"steer": steer_cmd, "throttle": thr, "brake": brk, "handbrake": false}

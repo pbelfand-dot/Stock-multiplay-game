@@ -19,6 +19,7 @@ No friend online? The **AI co-driver** takes the seat.
 | ![Handbrake: the right hand leaves the wheel and yanks the lever](docs/screens/handbrake.jpg) | ![The loading screen](docs/screens/loading.jpg) |
 | ![Drift dirt: lumpy dust clouds and a ribbon of gravel off the tyres](docs/screens/drift.jpg) | ![The dust rolling past the side window](docs/screens/drift_window.jpg) |
 | ![A big jump: off the brow at 120 km/h, the landing slope ahead](docs/screens/jump.jpg) | ![The same jump from the chase camera, 1.4 m up](docs/screens/jump_chase.jpg) |
+| ![The road: two worn wheel tracks that grip, loose stones toward the edges](docs/screens/road.jpg) | |
 
 ## ⬇ Download (always the newest build)
 
@@ -122,6 +123,16 @@ Corsa's gamepad assist; sources in the commit history):
   like a real Rally2 car) for the hairpin flick.
 - **Grippy on purpose:** ~0.95 g of cornering on gravel, a bit more than a real Rally2 car (~0.8 g),
   and the steering answers fast: on keys it comes on fully in ~0.17 s and centres in ~0.12 s. 0-100 km/h in 4.3 s (a Rally2 car: ~4.2 s), 45 / 55 AWD.
+- **Wheels that spin and lock.** Each wheel has its own spin, so the tyres slip forwards as well as
+  sideways and share one grip between the two: a launch spins the rears up a little, and power or
+  brakes mid-corner eat into the cornering grip. Rally cars have no ABS: **full brake while
+  turning locks a front wheel and the car stops steering**. Brake in a straight line, then turn
+  in (the brake key comes on over a quarter of a second; a trigger is analog). The diffs are
+  limited-slip, locking under power and letting go off it.
+- **Where you drive on the road matters.** The two darker worn wheel tracks grip best, the loose
+  crown between them a little less, and the "marbles" out toward the edges least (down to 84 %),
+  so running wide costs you. Loose stones lie where the grip is worse, and gravel piles up in
+  berms on the outside of the bends.
 - **In the air** the car leans toward the slope below it (a driver's feel), and the pedals work
   like a real car's: **brake in the air and the nose drops** (the wheels stop and hand their spin to
   the body, ~7 deg over a jump), gas lifts it a little. Landings squash the springs once and stay
@@ -192,7 +203,8 @@ real voice.
    - compiles every script; checks 20 generated stages (deterministic, never crossing themselves,
      every corner gets a note, no hill steeper than 17 %)
    - the autopilot drives whole stages: 0–100 km/h on gravel, braking, the handbrake flick
-   - handling: full steering is the most grip at 50 / 80 / 110 km/h; lift-off and handbrake turns rotate the car
+   - handling: full steering is the most grip at 50 / 80 / 110 km/h; lift-off and handbrake turns rotate the car;
+     a launch spins the wheels a little; full brake while steering locks a front, half brake still steers
    - ride: how much the car shakes at the driver's eye on two stages, and the hardest landing
    - jumps: air time by speed (a hop at 80 km/h, ~0.9 s at 120, longer off a big jump), landings on all
      four wheels within 12 deg of the slope, no second bounce, still on the road, and braking in the air dips the nose

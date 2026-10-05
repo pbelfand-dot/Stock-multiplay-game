@@ -72,6 +72,7 @@ var _acc_s := [0.0, 0.0, 0.0, 0.0]
 var _wind := Vector3.ZERO           # the dust drifts downwind (a new breeze each stage)
 var _air := 0.0                     # s with no tyre on the ground
 var _prev_basis := Basis()
+var _prev_pos := Vector3.ZERO
 var _w := Vector3.ZERO              # the car's spin (rad/s), from how it turned since last frame
 var _started := false
 
@@ -148,12 +149,16 @@ func _physics_process(dt: float) -> void:
 	if car == null or not is_instance_valid(car):
 		return
 	var xf := car.global_transform
+	if _started and xf.origin.distance_to(_prev_pos) > 3.0:
+		_started = false                              # put somewhere else (a reset, R): not a spin
+		_w = Vector3.ZERO
+	_prev_pos = xf.origin
 	if _started:
 		# how the car turned since last tick (the co-driver's copy has no physics spin)
 		var q := (xf.basis.orthonormalized() * _prev_basis.inverse()).get_rotation_quaternion()
 		var ang := q.get_angle()
 		var w := q.get_axis() * (wrapf(ang, -PI, PI) / dt) if ang > 1e-5 else Vector3.ZERO
-		_w = _w.lerp(w, 0.5)
+		_w = _w.lerp(w.limit_length(6.0), 0.5)
 	_prev_basis = xf.basis.orthonormalized()
 	_started = true
 	_spawn(xf, dt)

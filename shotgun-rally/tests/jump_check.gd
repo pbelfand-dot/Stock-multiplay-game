@@ -108,6 +108,7 @@ func _physics_process(dt: float) -> bool:
 	var r: Dictionary = _runs[_run]
 	var at: Dictionary = st.locate(car.global_position, _hint)
 	_hint = at.i
+	car.set_lanes(st, at.s, at.d)                    # the clean wheel tracks grip, the loose gravel doesn't
 	var s: float = at.s
 	var d: float = at.d
 	# the autopilot's line, this run's speed: flat out over the brow like a driver,
