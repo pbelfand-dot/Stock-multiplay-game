@@ -70,6 +70,9 @@ const LOAD_SENS := 0.15            # mu drops 15 % per extra static load (a load
 const RELAX := 0.4                 # m: a tyre rolls this far before its side force catches up with a new slip angle
 const LOCKED_MU := 0.82            # a locked (handbraked) tyre slides at this much of its grip
 const GEARS := [13.0, 21.0, 29.0, 37.0, 47.0]   # top speed in each gear (m/s)
+const PARTS := "res://assets/models/car_parts/"
+const MODEL_SCALE := 1.95          # model units -> m
+const STATIC_COMP := 0.11          # spring squash sitting still (m): where the model's wheels were modelled
 const NET_HZ := 30.0
 const NET_DELAY := 100.0           # ms behind the stream on the co-driver's machine
 
@@ -90,7 +93,10 @@ var comp := [0.0, 0.0, 0.0, 0.0]   # spring compression per corner (m)
 var spin := [0.0, 0.0, 0.0, 0.0]   # wheel rotation (rad), for the visuals
 var mud_mu := false                # set by the game while a tyre is in a puddle
 var wheel_nodes: Array = []        # Node3D per corner (steer + spin pivots)
-var body_model: Node3D             # the Higgsfield car (assets/models/rally_car.glb): seen from outside
+var body_model: Node3D             # the Higgsfield car (assets/models/car_parts/): seen from outside
+var _model_wheels: Array = []      # [pivot, spinner, rest position] per corner (model units)
+var _flaps: Array = []             # [hinge, angle, angular speed] per corner
+var _flap_prev_v := Vector3.ZERO
 
 var _prev_v := Vector3.ZERO
 var _u := 0.0                      # steering input after the key easing
@@ -154,15 +160,46 @@ func _ready() -> void:
 		hub.material_override = _flat(Color(0.85, 0.85, 0.8))
 		spinner.add_child(hub)
 		wheel_nodes.append(pivot)
-	# the outside of the car (only drawn when a camera is outside it: the cockpit is the inside)
-	const BODY := "res://assets/models/rally_car.glb"
-	if ResourceLoader.exists(BODY):
-		body_model = load(BODY).instantiate()
-		body_model.rotation.y = -PI / 2.0                # the model's nose points down -X
-		body_model.scale = Vector3.ONE * 1.95            # its 1.9 units long -> 3.7 m, like the body box
-		body_model.position = Vector3(0.0, 0.205, -0.02) # its tyres on the ground, centred on the axles
-		body_model.visible = false
-		add_child(body_model)
+	_build_body_model()
+
+
+## The outside of the car, from the Higgsfield model cut into parts by
+## tools/split_car.gd: the body, four wheels (turn, spin, ride the springs) and
+## four mud flaps (swing). Only drawn when a camera is outside the car: the
+## cockpit is the inside. Model units: x = back, y = up, z = left.
+func _build_body_model() -> void:
+	if not ResourceLoader.exists(PARTS + "body.res"):
+		return
+	var info = JSON.parse_string(FileAccess.get_file_as_string(PARTS + "parts.json"))
+	body_model = Node3D.new()
+	body_model.rotation.y = -PI / 2.0                    # the model's nose points down -X
+	body_model.scale = Vector3.ONE * MODEL_SCALE          # its 1.9 units long -> 3.7 m, like the body box
+	body_model.position = Vector3(0.0, 0.205, -0.02)     # its tyres on the ground, centred on the axles
+	body_model.visible = false
+	add_child(body_model)
+	var body := MeshInstance3D.new()
+	body.mesh = load(PARTS + "body.res")
+	body_model.add_child(body)
+	var names := ["fl", "fr", "rl", "rr"]                 # the same order as WHEELS
+	for k in 4:
+		var c: Array = info.wheels[k]
+		var pivot := Node3D.new()                        # moves with the spring, turns with the steering
+		pivot.position = Vector3(c[0], c[1], c[2])
+		body_model.add_child(pivot)
+		var spinner := Node3D.new()                      # rolls
+		pivot.add_child(spinner)
+		var wm := MeshInstance3D.new()
+		wm.mesh = load(PARTS + "wheel_%s.res" % names[k])
+		spinner.add_child(wm)
+		var h: Array = info.flaps[k]
+		var hinge := Node3D.new()
+		hinge.position = Vector3(h[0], h[1], h[2])
+		body_model.add_child(hinge)
+		var fm := MeshInstance3D.new()
+		fm.mesh = load(PARTS + "flap_%s.res" % names[k])
+		hinge.add_child(fm)
+		_model_wheels.append([pivot, spinner, pivot.position])
+		_flaps.append([hinge, 0.0, 0.0])                 # node, angle, angular speed
 
 
 func _box(size: Vector3, at: Vector3) -> void:
@@ -468,9 +505,35 @@ func _play_stream() -> void:
 		spin[k] += speed / RADIUS * get_physics_process_delta_time()
 
 
-func _wheel_visuals(_dt: float) -> void:
+func _wheel_visuals(dt: float) -> void:
 	for k in 4:
 		var pivot: Node3D = wheel_nodes[k]
 		pivot.position.y = -(REST - comp[k]) + 0.0
 		pivot.rotation.y = -steer if WHEELS[k][2] else 0.0
 		(pivot.get_node("Spin") as Node3D).rotation.x = -spin[k]
+	if body_model == null or not body_model.visible:
+		_flap_prev_v = linear_velocity
+		return
+	# the model's wheels: up and down with the spring (it was modelled sitting at its
+	# static squash), turned by the steering, rolling (its axle is the model's z)
+	for k in 4:
+		var mw: Array = _model_wheels[k]
+		var rest_at: Vector3 = mw[2]
+		mw[0].position.y = rest_at.y + (comp[k] - STATIC_COMP) / MODEL_SCALE
+		mw[0].rotation.y = -steer if WHEELS[k][2] else 0.0
+		mw[1].rotation.z = spin[k]
+	# the mud flaps: hanging pendulums. Speed blows them back, braking swings them
+	# forward, acceleration back, bumps set them flapping
+	var acc := (linear_velocity - _flap_prev_v) / maxf(dt, 1e-4)
+	_flap_prev_v = linear_velocity
+	var local_acc: Vector3 = global_transform.basis.inverse() * acc
+	var fwd_acc := -local_acc.z
+	var blow := clampf(speed * speed * 0.00025, 0.0, 0.7)     # ~0.3 rad at 100 km/h
+	for f in _flaps:
+		var ang: float = f[1]
+		var vel: float = f[2]
+		vel += (-40.0 * (ang - blow) - 4.0 * vel + fwd_acc * 0.9 + randf_range(-1.0, 1.0) * absf(local_acc.y) * 0.6) * dt
+		ang = clampf(ang + vel * dt, -0.7, 1.1)
+		f[1] = ang
+		f[2] = vel
+		(f[0] as Node3D).rotation.z = ang
