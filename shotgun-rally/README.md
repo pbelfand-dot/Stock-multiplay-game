@@ -19,7 +19,8 @@ No friend online? The **AI co-driver** takes the seat.
 | ![Handbrake: the right hand leaves the wheel and yanks the lever](docs/screens/handbrake.jpg) | ![The loading screen](docs/screens/loading.jpg) |
 | ![Drift dirt: lumpy dust clouds and a ribbon of gravel off the tyres](docs/screens/drift.jpg) | ![The dust rolling past the side window](docs/screens/drift_window.jpg) |
 | ![A big jump: off the brow at 120 km/h, the landing slope ahead](docs/screens/jump.jpg) | ![The same jump from the chase camera, 1.4 m up](docs/screens/jump_chase.jpg) |
-| ![The road: two worn wheel tracks that grip, loose stones toward the edges](docs/screens/road.jpg) | |
+| ![A narrow, technical section (4.6 m): two worn wheel tracks, loose stones at the edges](docs/screens/road_narrow.jpg) | ![A wide, fast section (6.8 m)](docs/screens/road_wide.jpg) |
+| ![Spectators behind the tape at a jump, waving flags](docs/screens/crowd.jpg) | ![The crowds at the start](docs/screens/crowd_start.jpg) |
 
 ## ⬇ Download (always the newest build)
 
@@ -74,6 +75,11 @@ Free, PC only (Windows, Mac, Linux). Built in **Godot 4.7**, like BAGHOLDERS.
      dip. How far you fly is up to your speed: under ~70 km/h the car stays down, at 100 km/h it's
      ~0.6 s in the air, at 120 km/h ~0.9 s, and a **big jump** (the co-driver says "caution, jump")
      ~1.1 s and 1.4 m up. Land at the right speed and all four wheels touch down together.
+   - **The road's width changes**, section by section, like real gravel roads: wide and fast (6.8 m),
+     normal (5.6 m), narrow and technical (4.6 m). Twisty sections lean narrow, open ones wide. The
+     co-driver's numbers account for it: on a narrow road the same bend is a lower (slower) number.
+   - **Spectators** stand well back behind red-and-white tape at the start, the finish, every jump
+     and some of the slow corners, in bright jackets, waving flags. They jump and cheer as you come past.
 3. **The map board** (our own design, not the reference's tablet) shows **only the map and where you
    are**: the road ahead as a line, heading-up like a GPS, ~300 m of it, with the stopwatch clipped on
    top. No grades, no warnings: reading the road and calling it is the co-driver's job.

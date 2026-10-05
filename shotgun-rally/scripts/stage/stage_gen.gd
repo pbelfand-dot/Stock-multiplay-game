@@ -15,7 +15,11 @@ extends RefCounted
 
 const STEP := 2.0
 const MAX_GRADE := 0.16         # steepest the road gets (16 %)
-const ROAD_W := 5.6             # gravel width (m)
+const ROAD_W := 5.6             # gravel width (m), the normal width: the start and finish areas
+## ... but the width changes along the stage, section by section, like real
+## gravel roads (Finland: wide hard roads, then narrow technical bits): narrow
+## where it's twisty, wide where it's open (widths[], width_at)
+const WIDTHS := [4.6, 5.6, 6.8]                # narrow technical, normal, wide and fast
 const START_S := 40.0           # the car waits here (start line)
 const FINISH_BACK := 110.0      # flying finish this far before the end of the road
 const CLEARANCE := 55.0         # two parts of the road that aren't neighbours stay this far apart (m)
@@ -33,13 +37,14 @@ const JUMP_CLIMB := 0.05        # grade of the climb back (the jump ends at the 
 ## using the whole road (like the driver-test-app pacenote engine): 6 = nearly
 ## flat, 1 = very slow. Upper bound of that radius for grades 1..6 (m).
 const GRADE_LIMITS := [25.0, 45.0, 75.0, 120.0, 200.0, 350.0]
-const LINE_ROOM := 3.0          # sideways room the driving line gets (road minus the car, a bit spare)
+const LINE_SPARE := 2.6         # the driving line's sideways room = the road's width minus this (the car, a bit spare)
 
 var seed_used := 0
 var pieces: Array = []          # [{kind: "straight", len} | {kind: "arc", dir, r, ang, r2, ang2}]
 var pts := PackedVector3Array()
 var heading := PackedFloat32Array()
 var curv := PackedFloat32Array()
+var widths := PackedFloat32Array()   # road width at each sample (m)
 var length := 0.0               # metres of road
 var finish_s := 0.0
 var corners: Array = []         # [{s0, s1, dir, r_min, r_in, r_out, ang (deg), line_r, grade, shape, mods}]
@@ -60,6 +65,7 @@ func generate(seed_value: int, target := 2600.0) -> void:
 		if _clear_of_itself():
 			break
 	finish_s = length - FINISH_BACK
+	_make_widths()
 	_make_elevation()
 	_find_corners()
 	_place_extras()
@@ -350,12 +356,58 @@ func _hill_grade(s: float) -> float:
 ## by every car before you, grip best; the loose crown between them a little
 ## less, and the "marbles" out toward the edges least, so running wide costs
 ## you. The builder paints the same bands (darker tracks).
-static func lane_grip(d: float) -> float:
+static func lane_grip(d: float, half := ROAD_W * 0.5) -> float:
 	var a := absf(d)
-	if a > ROAD_W * 0.5 + 0.3:
+	if a > half + 0.3:
 		return 1.0                                  # off the road: just the ground's own surface
 	var track := smoothstep(0.35, 0.6, a) * (1.0 - smoothstep(1.2, 1.45, a))
-	return lerpf(lerpf(0.93, 1.0, track), 0.84, smoothstep(1.4, 2.6, a))
+	return lerpf(lerpf(0.93, 1.0, track), 0.84, smoothstep(1.4, maxf(half - 0.2, 1.6), a))
+
+
+## The road's width along the stage: sections of 280-600 m, each narrow, normal
+## or wide (twisty sections lean narrow, open ones wide), blended over ~40 m;
+## the start and finish areas are normal width. Its own random numbers, so it
+## doesn't change the rest of the stage.
+func _make_widths() -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = hash([seed_used, "width"])
+	var raw := PackedFloat32Array()
+	raw.resize(pts.size())
+	var i := 0
+	while i < pts.size():
+		var n := int(rng.randf_range(280.0, 600.0) / STEP)
+		var twist := 0.0
+		for j in range(i, mini(i + n, pts.size())):
+			twist += absf(curv[j])
+		twist /= maxf(mini(i + n, pts.size()) - i, 1)          # mean 1/R: ~0.004 open .. ~0.02 twisty
+		var weights := [0.5 + twist * 90.0, 2.0, maxf(1.6 - twist * 70.0, 0.15)]
+		var x: float = rng.randf() * (weights[0] + weights[1] + weights[2])
+		var w: float = WIDTHS[0] if x < weights[0] else (WIDTHS[1] if x < weights[0] + weights[1] else WIDTHS[2])
+		for j in range(i, mini(i + n, pts.size())):
+			raw[j] = w
+		i += n
+	# blend the steps (two passes of a 40 m box), then normal width at the start and finish
+	for _pass in 2:
+		var src := raw.duplicate()
+		for j in pts.size():
+			var sum := 0.0
+			var cnt := 0
+			for q in range(maxi(0, j - 10), mini(pts.size(), j + 11)):
+				sum += src[q]
+				cnt += 1
+			raw[j] = sum / cnt
+	widths.resize(pts.size())
+	for j in pts.size():
+		var sj := j * STEP
+		var w: float = lerpf(ROAD_W, raw[j], smoothstep(START_S + 130.0, START_S + 190.0, sj))
+		widths[j] = lerpf(w, ROAD_W, smoothstep(finish_s - 170.0, finish_s - 110.0, sj))
+
+
+## Road width at s (m).
+func width_at(s: float) -> float:
+	var f := clampf(s / STEP, 0.0, widths.size() - 1.001)
+	var i := int(f)
+	return lerpf(widths[i], widths[i + 1], f - i)
 
 
 ## Every stretch of (nearly) straight road at least `min_len` m long: [Vector2(from, to)].
@@ -388,7 +440,8 @@ func _find_corners() -> void:
 		var total_ang: float = rad_to_deg(pc.ang + pc.ang2)
 		var r_min: float = pc.r if pc.ang2 == 0.0 else minf(pc.r, pc.r2)
 		# the driving line uses the road's width over the WHOLE corner: the room term uses the total angle
-		var room: float = LINE_ROOM / maxf(0.02, 1.0 - cos(deg_to_rad(minf(total_ang, 179.0)) * 0.5))
+		var line_room: float = width_at(s + (l1 + l2) * 0.5) - LINE_SPARE      # a narrow road: a tighter line
+		var room: float = line_room / maxf(0.02, 1.0 - cos(deg_to_rad(minf(total_ang, 179.0)) * 0.5))
 		var line_r: float = r_min + room
 		var c := {"s0": s, "s1": s + l1 + l2, "dir": pc.dir, "r_min": r_min, "r_in": pc.r,
 			"r_out": pc.r2 if pc.ang2 > 0.0 else pc.r, "ang": total_ang, "line_r": line_r,
@@ -432,13 +485,15 @@ func _place_extras() -> void:
 	while s < finish_s - 60.0:
 		var n := 1 + (1 if _rng.randf() < 0.4 else 0)
 		for k in n:
-			puddles.append({"s": s + k * _rng.randf_range(6, 12), "d": _rng.randf_range(-1.6, 1.6), "r": _rng.randf_range(1.4, 2.4)})
+			var ps: float = s + k * _rng.randf_range(6, 12)
+			var pd := minf(1.6, width_at(ps) * 0.5 - 1.2)
+			puddles.append({"s": ps, "d": _rng.randf_range(-pd, pd), "r": _rng.randf_range(1.4, 2.4)})
 		s += _rng.randf_range(260.0, 520.0)
 	for c in corners:
 		if (c.grade <= 4 or c.shape != "") and _rng.randf() < 0.45:
 			var apex: float = (c.s0 + c.s1) * 0.5
 			var rr := _rng.randf_range(0.55, 0.85)
-			rocks.append({"s": apex, "d": c.dir * (ROAD_W * 0.5 + 0.5 + rr), "r": rr})   # just off the inside edge
+			rocks.append({"s": apex, "d": c.dir * (width_at(apex) * 0.5 + 0.5 + rr), "r": rr})   # just off the inside edge
 			c.mods.append("dont-cut")
 
 

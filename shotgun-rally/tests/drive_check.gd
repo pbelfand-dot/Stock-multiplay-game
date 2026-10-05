@@ -84,7 +84,7 @@ func _physics_process(dt: float) -> bool:
 			max_kmh = maxf(max_kmh, kmh)
 			if t100 < 0.0 and kmh >= 100.0:
 				t100 = t
-			var off: bool = absf(at.d) > 4.2
+			var off: bool = absf(at.d) > st.width_at(at.s) * 0.5 + 1.4
 			if off and not off_now:
 				offs += 1
 			off_now = off

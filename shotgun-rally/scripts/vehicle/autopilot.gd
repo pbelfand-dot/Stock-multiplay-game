@@ -21,8 +21,19 @@ func _init(stage) -> void:
 		var k := 0.0
 		for j in range(maxi(0, i - 2), mini(st.curv.size(), i + 3)):
 			k = maxf(k, absf(st.curv[j]))
-		_vmax[i] = 60.0 if k < 1e-4 else minf(60.0, sqrt(MU * 9.8 / k))
-	# crests: lift so it doesn't fly into the next corner
+		# a narrow road leaves less room to straighten the bend: slower
+		var mu: float = MU * clampf(0.86 + 0.14 * (st.widths[i] - 4.6), 0.86, 1.0)
+		_vmax[i] = 60.0 if k < 1e-4 else minf(60.0, sqrt(mu * 9.8 / k))
+	# brows in a bend: lift so the tyres stay loaded (over a brow the car gets light
+	# at v^2 / R = g; light while turning, it slides wide)
+	for i in range(2, st.pts.size() - 2):
+		var kv: float = (st.pts[i + 2].y - 2.0 * st.pts[i].y + st.pts[i - 2].y) / (4.0 * st.STEP * st.STEP)
+		var bend := 0.0
+		for j in range(maxi(0, i - 6), mini(st.curv.size(), i + 7)):
+			bend = maxf(bend, absf(st.curv[j]))
+		if kv < -1e-3 and bend > 1.0 / 600.0:
+			_vmax[i] = minf(_vmax[i], sqrt(0.9 * 9.8 / -kv))
+		# crests: lift so it doesn't fly into the next corner
 	for c in st.crests:
 		var i := int(c.s / st.STEP)
 		for j in range(maxi(0, i - 8), mini(_vmax.size(), i + 4)):

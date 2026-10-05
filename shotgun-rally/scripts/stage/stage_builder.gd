@@ -2,13 +2,15 @@ extends Node3D
 ## Turns a StageGen into the world: the gravel road (crowned, with two worn
 ## wheel tracks, loose stones on the crown and out toward the edges where the
 ## grip is worse (StageGen.lane_grip), berms of thrown-out gravel on the outside
-## of the bends), grass ditches and rolling ground out to ~75 m, a low-poly
+## of the bends), spectators behind tape at the jumps, the start and finish and
+## some slow corners, grass ditches and rolling ground out to ~75 m, a low-poly
 ## forest that crowds the INSIDE of corners (so you can't see round them:
 ## that's what the notes are for), rocks on the inside of "don't cut" corners,
 ## mud puddles, the start / finish arches, and the sky and sun.
 ## Every surface the tyres can touch says what it is (meta "surface").
 
 const MeshBuf = preload("res://scripts/stage/mesh_buf.gd")
+const Crowd = preload("res://scripts/stage/crowd.gd")
 
 const GRAVEL := Color(0.71, 0.6, 0.44)
 const TRACK := Color(0.6, 0.5, 0.36)
@@ -16,10 +18,13 @@ const VERGE := Color(0.5, 0.52, 0.3)
 const GRASS := Color(0.34, 0.54, 0.21)
 const GRASS_FAR := Color(0.28, 0.46, 0.19)
 const DIRT := Color(0.45, 0.36, 0.25)
-## Road cross-section: [d, height, colour of the strip to the next point]
+## Road cross-section at the normal width (5.6 m): [d, height, colour of the strip
+## to the next point]. The edges move with the road's width (_road_x); the
+## crown and the two wheel tracks don't (the cars are the same width)
 const ROAD_X := [[-3.1, -0.12, VERGE], [-2.8, 0.0, GRAVEL], [-1.25, 0.04, TRACK], [-0.55, 0.05, GRAVEL],
 	[0.55, 0.05, TRACK], [1.25, 0.04, GRAVEL], [2.8, 0.0, VERGE], [3.1, -0.12, VERGE]]
-## Ground beyond the road, each side: [d, height above the road, noise amplitude]
+## Ground beyond the road, each side, at the normal width (moves out with a
+## wider road): [d, height above the road, noise amplitude]
 const GROUND_X := [[2.9, -0.2, 0.0], [4.3, -0.5, 0.0], [6.0, -0.15, 0.15], [10.0, 0.1, 0.5],
 	[18.0, 0.3, 1.2], [30.0, 0.6, 2.2], [50.0, 1.0, 3.2], [78.0, 1.6, 4.5]]
 
@@ -29,6 +34,9 @@ const TREE_DRAW := 520.0            # ... and a group further away than this isn
 var st
 var start_clocks: Array = []        # the countdown boards at the start line (driver's side, co-driver's side)
 var tree_count := 0
+var crowd_count := 0
+var people_count := 0
+var _clearings: Array = []          # [Vector2 (x, z), radius]: no trees there (a crowd stands there)
 var _noise := FastNoiseLite.new()
 var _road_grid := {}                # 20 m cells -> [sample indices], to keep trees off the road
 var _rng := RandomNumberGenerator.new()
@@ -55,7 +63,7 @@ func build_async(stage, report: Callable) -> void:
 
 const STEPS := [["_environment", "Checking the weather"], ["_road", "Grading the gravel road"],
 	["_ground", "Shaping the hills and ditches"], ["_base", "Shaping the hills and ditches"],
-	["_forest", "Planting ten thousand trees"], ["_rocks", "Rolling rocks onto the inside of the bends"],
+	["_spectators", "Letting the spectators in"], ["_forest", "Planting ten thousand trees"], ["_rocks", "Rolling rocks onto the inside of the bends"],
 	["_puddles", "Filling the puddles"], ["_loose_stones", "Raking out the loose gravel"],
 	["_arches", "Putting up the start and finish"]]
 
@@ -84,8 +92,9 @@ func _road() -> void:
 		var r: Vector3 = st.right_at(s)
 		var row: Array = []
 		var berm := _berm(i)
-		for x in ROAD_X:
-			row.append(c + r * x[0] + Vector3.UP * (x[1] + _berm_lift(berm, x[0])))
+		var half: float = st.widths[i] * 0.5
+		for x in _road_x(half):
+			row.append(c + r * x[0] + Vector3.UP * (x[1] + _berm_lift(berm, x[0], half)))
 		if not prev.is_empty():
 			var shade := 0.94 + 0.06 * sin(s * 0.37) * cos(s * 0.11)
 			for k in ROAD_X.size() - 1:
@@ -115,11 +124,23 @@ func _berm(i: int) -> Vector2:
 	return Vector2(-signf(k), clampf(absf(k) * 4.0, 0.0, 0.14))
 
 
-## How much a road cross-section point at d is lifted by a berm.
-static func _berm_lift(berm: Vector2, d: float) -> float:
-	if absf(d) < 2.7 or signf(d) != berm.x:
+## How much a road cross-section point at d is lifted by a berm (road half-width `half`).
+static func _berm_lift(berm: Vector2, d: float, half := 2.8) -> float:
+	if absf(d) < half - 0.1 or signf(d) != berm.x:
 		return 0.0
-	return berm.y * (1.0 if absf(d) < 3.0 else 0.5)
+	return berm.y * (1.0 if absf(d) < half + 0.2 else 0.5)
+
+
+## The road's cross-section for a half-width: the edges and verges move, the
+## crown and the wheel tracks stay.
+static func _road_x(half: float) -> Array:
+	var out: Array = []
+	for x in ROAD_X:
+		var d: float = x[0]
+		if absf(d) > 2.0:
+			d += signf(d) * (half - 2.8)
+		out.append([d, x[1], x[2]])
+	return out
 
 
 ## Loose stones where the grip is worse: out toward the edges (thickest in the
@@ -143,16 +164,17 @@ func _loose_stones() -> void:
 		for i in range(c0, mini(c0 + per_chunk, st.pts.size())):
 			var s: float = i * st.STEP
 			var berm := _berm(i)
+			var half: float = st.widths[i] * 0.5
 			var spots: Array = []
 			for side in [-1.0, 1.0]:
 				var n_edge := 2 + _rng.randi() % 2 + (3 if berm.x == side and berm.y > 0.05 else 0)
 				for k in n_edge:
-					spots.append(side * _rng.randf_range(1.5, 2.85))
+					spots.append(side * _rng.randf_range(1.5, half + 0.05))
 			if _rng.randf() < 0.6:
 				spots.append(_rng.randf_range(-0.35, 0.35))
 			for d in spots:
 				var at: float = s + _rng.randf_range(0.0, st.STEP)
-				var p: Vector3 = st.world_at(at, d) + Vector3.UP * (_road_height(d) + _berm_lift(berm, d) + 0.01)
+				var p: Vector3 = st.world_at(at, d) + Vector3.UP * (_road_height(d, half) + _berm_lift(berm, d, half) + 0.01)
 				var sz := _rng.randf_range(0.07, 0.17)
 				var b := Basis(Vector3.UP, _rng.randf() * TAU).scaled(Vector3(sz, sz * 0.55, sz * _rng.randf_range(0.8, 1.3)))
 				xfs.append(Transform3D(b, p))
@@ -175,13 +197,110 @@ func _loose_stones() -> void:
 
 
 ## The road surface's height across the road (the crown and the edges), at d.
-static func _road_height(d: float) -> float:
-	for j in ROAD_X.size() - 1:
-		var a: Array = ROAD_X[j]
-		var b: Array = ROAD_X[j + 1]
+static func _road_height(d: float, half := 2.8) -> float:
+	var xs := _road_x(half)
+	for j in xs.size() - 1:
+		var a: Array = xs[j]
+		var b: Array = xs[j + 1]
 		if d >= a[0] and d <= b[0]:
 			return lerpf(a[1], b[1], (d - a[0]) / (b[0] - a[0]))
 	return 0.0
+
+
+# ── spectators ────────────────────────────────────────────────────────────
+
+## Where the crowds stand: both sides of every jump's landing, the start and
+## the finish, and the outside of some slow corners' exits. Well back from the
+## road (7-10 m past the edge) on the bank, behind tape, in a clearing.
+func _spectators() -> void:
+	var spots: Array = [[st.START_S + 6.0, -1.0, 14], [st.START_S + 10.0, 1.0, 12],
+		[st.finish_s + 15.0, -1.0, 12], [st.finish_s + 22.0, 1.0, 10]]
+	for c in st.crests:
+		if c.jump:
+			for side in [-1.0, 1.0]:
+				spots.append([c.s + _rng.randf_range(12.0, 24.0), side, 10 + _rng.randi() % 8])
+	for c in st.corners:
+		if (c.grade <= 3 or c.shape != "") and _rng.randf() < 0.3:
+			spots.append([c.s1 + _rng.randf_range(4.0, 12.0), -float(c.dir), 5 + _rng.randi() % 8])
+	var jackets := [Color(0.85, 0.15, 0.12), Color(0.15, 0.35, 0.8), Color(0.95, 0.75, 0.1), Color(0.95, 0.45, 0.1),
+		Color(0.2, 0.6, 0.25), Color(0.92, 0.92, 0.9), Color(0.12, 0.12, 0.14), Color(0.55, 0.2, 0.6)]
+	var skins := [Color(0.96, 0.8, 0.66), Color(0.86, 0.66, 0.5), Color(0.62, 0.44, 0.3), Color(0.42, 0.29, 0.2)]
+	var hats := [Color(0.85, 0.15, 0.12), Color(0.12, 0.12, 0.14), Color(0.15, 0.35, 0.8), Color(0.95, 0.95, 0.95)]
+	var flags := [Color(0.1, 0.35, 0.9), Color(0.92, 0.12, 0.12), Color(1.0, 0.82, 0.1), Color(0.1, 0.7, 0.3), Color(0.98, 0.98, 1.0)]
+	for sp in spots:
+		var s: float = clampf(sp[0], 4.0, st.length - 4.0)
+		var side: float = sp[1]
+		var n: int = sp[2]
+		var back: float = st.width_at(s) * 0.5 + _rng.randf_range(7.0, 10.0)
+		var centre: Vector3 = st.world_at(s, side * back)
+		if _near_road(centre, back - 1.5):
+			continue                                    # another bit of road comes past here
+		var people: Array = []
+		var rows := 1 + mini(n / 6, 2)
+		var per_row := ceili(float(n) / rows)
+		for k in n:
+			var row := k / per_row
+			var along := (k % per_row - per_row * 0.5) * 0.85 + _rng.randf_range(-0.2, 0.2)
+			var deep := row * 0.95 + _rng.randf_range(-0.15, 0.15)
+			var at := clampf(s + along, 0.0, st.length)
+			var i0 := clampi(int(at / st.STEP), 0, st.pts.size() - 1)
+			var extra: float = st.widths[i0] * 0.5 - 2.8
+			var p: Vector3 = st.world_at(at, side * (back + deep))
+			p.y = _ground_height(st.pts[i0].y, back + deep - extra, p) - 0.05
+			var look: Vector3 = st.world_at(at, 0.0) - p
+			look.y = 0.0
+			var basis := Basis.looking_at(look.normalized(), Vector3.UP) if look.length() > 0.1 else Basis()
+			basis = basis.scaled(Vector3.ONE * _rng.randf_range(0.9, 1.08))
+			people.append({"xf": Transform3D(basis, p - centre), "phase": _rng.randf(),
+				"flag": _rng.randf() < 0.28, "hat": _rng.randf() < 0.45})
+		var crowd := Crowd.new()
+		crowd.name = "Crowd%d" % crowd_count
+		crowd.position = centre
+		crowd.people = people
+		add_child(crowd)
+		crowd.build(jackets, skins, hats, flags, _rng)
+		_tape(s, side, back - 1.4, per_row * 0.85 + 2.5)
+		_clearings.append([Vector2(centre.x, centre.z), per_row * 0.45 + rows + 3.5])
+		crowd_count += 1
+		people_count += n
+
+
+## Red-and-white tape on posts between a crowd and the road (d m out, `length` long).
+func _tape(s: float, side: float, d: float, length: float) -> void:
+	var mb := MeshBuf.new()
+	var post_col := Color(0.82, 0.8, 0.75)
+	var steps := maxi(int(length / 0.5), 2)
+	var prev_top := Vector3.ZERO
+	for k in steps + 1:
+		var at := clampf(s - length * 0.5 + k * 0.5, 0.0, st.length)
+		var i0 := clampi(int(at / st.STEP), 0, st.pts.size() - 1)
+		var extra: float = st.widths[i0] * 0.5 - 2.8
+		var p: Vector3 = st.world_at(at, side * d)
+		p.y = _ground_height(st.pts[i0].y, d - extra, p)
+		var top := p + Vector3.UP * 0.92
+		if k % 5 == 0:                                   # a post every 2.5 m
+			var w: Vector3 = st.forward_at(at) * 0.03
+			mb.tri_raw(p - w, p + w, top + w, post_col)
+			mb.tri_raw(p - w, top + w, top - w, post_col)
+			mb.tri_raw(top + w, p + w, p - w, post_col)
+			mb.tri_raw(top - w, top + w, p - w, post_col)
+		if k > 0:
+			var col := Color(0.9, 0.12, 0.1) if k % 2 == 0 else Color(0.95, 0.95, 0.95)
+			var h := Vector3.UP * 0.07
+			mb.tri_raw(prev_top - h, top - h, top + h, col)
+			mb.tri_raw(prev_top - h, top + h, prev_top + h, col)
+			mb.tri_raw(top + h, top - h, prev_top - h, col)
+			mb.tri_raw(prev_top + h, top + h, prev_top - h, col)
+		prev_top = top
+	var mi := _add(mb, "", "Tape")
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+
+
+func _in_clearing(p: Vector3) -> bool:
+	for c in _clearings:
+		if Vector2(p.x, p.z).distance_to(c[0]) < c[1]:
+			return true
+	return false
 
 
 # ── ground ────────────────────────────────────────────────────────────────
@@ -196,6 +315,7 @@ func _ground() -> void:
 			var s: float = i * st.STEP
 			var c: Vector3 = st.pts[i]
 			var r: Vector3 = st.right_at(s)
+			var extra: float = st.widths[i] * 0.5 - 2.8         # a wider road pushes the ground out
 			# on the inside of a bend the ground can't reach past the bend's centre: clamp it
 			var reach := 1e9
 			for j in range(maxi(0, i - 12), mini(n, i + 13)):
@@ -205,21 +325,22 @@ func _ground() -> void:
 			# ... and never out over another stretch of the same road (after a bend the road
 			# comes back past this spot): stop where some other road is closer than ours
 			for g in GROUND_X:
-				var probe: Vector3 = c + r * (g[0] * side)
-				if g[0] > 4.0 and _nearest_road(probe) < g[0] - 2.5:
-					reach = minf(reach, maxf(3.4, g[0] - 6.0))
+				var gd: float = g[0] + extra
+				var probe: Vector3 = c + r * (gd * side)
+				if g[0] > 4.0 and _nearest_road(probe) < gd - 2.5:
+					reach = minf(reach, maxf(3.4 + extra, gd - 6.0))
 					break
 			var row: Array = []
 			var cols: Array = []
 			for g in GROUND_X:
-				var d: float = minf(g[0], maxf(reach, 3.4))
+				var d: float = minf(g[0] + extra, maxf(reach, 3.4 + extra))
 				var p: Vector3 = c + r * (d * side)
 				var h: float = g[1] + g[2] * _noise.get_noise_2d(p.x, p.z)
 				row.append(p + Vector3.UP * h)
 				var col: Color = GRASS.lerp(GRASS_FAR, clampf(d / 60.0, 0.0, 1.0))
 				col = col * (0.92 + 0.12 * _noise.get_noise_2d(p.z * 3.0, p.x * 3.0))
 				col.a = 1.0
-				cols.append(col if d > 4.0 else GRASS * 0.85)
+				cols.append(col if d > 4.0 + extra else GRASS * 0.85)
 			if not prev.is_empty():
 				for k in GROUND_X.size() - 1:
 					mb.quad(prev[k], prev[k + 1], row[k + 1], row[k], cols[k], true)
@@ -290,6 +411,7 @@ func _forest() -> void:
 		var c: Vector3 = st.pts[i]
 		var r: Vector3 = st.right_at(s)
 		var k: float = st.curv[mini(i + 4, n - 1)]
+		var extra: float = st.widths[i] * 0.5 - 2.8              # a wider road: the trees stand back
 		for side in [-1.0, 1.0]:
 			var inside: bool = signf(k) == side and absf(k) > 1.0 / 160.0
 			# [from, to (m off the centreline), chance, how many tries]
@@ -301,14 +423,14 @@ func _forest() -> void:
 				for t in sl[3]:
 					if _rng.randf() > sl[2]:
 						continue
-					var d: float = _rng.randf_range(sl[0], sl[1])
+					var d: float = _rng.randf_range(sl[0], sl[1]) + extra
 					var along: Vector3 = st.forward_at(s) * _rng.randf_range(-2.0, 2.0)
 					var p: Vector3 = c + r * (d * side) + along
-					if _near_road(p, 4.4):
+					if _near_road(p, 4.4 + maxf(extra, 0.0)) or _in_clearing(p):
 						continue
-					p.y = _ground_height(c.y, d, p) - 0.15
+					p.y = _ground_height(c.y, d - extra, p) - 0.15
 					var kind: String = ["pine", "pine", "pine", "round", "birch", "bush"][_rng.randi() % 6]
-					if d < 6.0 and kind == "bush":
+					if d - extra < 6.0 and kind == "bush":
 						kind = "round"
 					var sc := _rng.randf_range(0.8, 1.4)
 					var xf := Transform3D(Basis(Vector3.UP, _rng.randf() * TAU).scaled(Vector3.ONE * sc), p)
@@ -317,7 +439,7 @@ func _forest() -> void:
 						chunks[ci] = {"pine": [], "round": [], "birch": [], "bush": []}
 					chunks[ci][kind].append(xf)
 					tree_count += 1
-					if d < 10.0 and kind != "bush":
+					if d - extra < 10.0 and kind != "bush":
 						var cs := CollisionShape3D.new()
 						var cyl := CylinderShape3D.new()
 						cyl.radius = 0.28 * sc

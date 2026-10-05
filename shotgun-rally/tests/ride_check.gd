@@ -85,7 +85,7 @@ func _physics_process(dt: float) -> bool:
 	var eye_acc := (eye_v - _prev_eye_v) / dt
 	_prev_eye = eye
 	_prev_eye_v = eye_v
-	if t > 5.0 and _since_reset > 2.0 and car.speed > 5.0 and absf(at.d) < 3.2:
+	if t > 5.0 and _since_reset > 2.0 and car.speed > 5.0 and absf(at.d) < st.width_at(at.s) * 0.5 + 0.4:
 		_peak = maxf(_peak, absf(acc.y))
 		var w_local: Vector3 = car.global_transform.basis.inverse() * car.angular_velocity
 		_n += 1

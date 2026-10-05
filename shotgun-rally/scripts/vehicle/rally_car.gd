@@ -278,9 +278,10 @@ func set_simulating(on: bool) -> void:
 ## the clean wheel tracks or the loose gravel (stage_gen.lane_grip).
 func set_lanes(stage, s: float, d: float) -> void:
 	var right: Vector3 = stage.right_at(s)
+	var half: float = stage.width_at(s) * 0.5
 	for k in 4:
 		var w: Vector3 = global_transform * Vector3(WHEELS[k][0], 0.0, WHEELS[k][1])
-		lane_mu[k] = stage.lane_grip(d + (w - global_position).dot(right))
+		lane_mu[k] = stage.lane_grip(d + (w - global_position).dot(right), half)
 
 
 ## Is the handbrake on? (the driver's input; on the co-driver's machine, from the stream)
