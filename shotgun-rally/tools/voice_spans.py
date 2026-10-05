@@ -4,7 +4,7 @@ recognition (faster-whisper, word timestamps), and writes
 assets/voice/fraser/spans.json: {clip: {"text": ..., "words": [[word, start, end], ...]}}.
 tools/trim_voice.py then cuts each clip down to its word. Runs in GitHub Actions
 (.github/workflows/shotgun-rally-voice-spans.yml): the Claude sandbox can't
-download the speech model.
+download the speech model. Needs ffmpeg.
 """
 import glob
 import json

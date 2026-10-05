@@ -20,6 +20,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Recognise the words
         run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
           pip install --quiet faster-whisper
           python3 shotgun-rally/tools/voice_spans.py
       - name: Commit spans.json
@@ -31,5 +32,5 @@ jobs:
             echo "Nothing to commit."
           else
             git commit -m "Store the co-driver clips' word spans"
-            git push
+            git pull --rebase origin "$GITHUB_REF_NAME" && git push
           fi
