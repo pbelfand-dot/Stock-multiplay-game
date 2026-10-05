@@ -375,7 +375,7 @@ game can't reach the update files, so the button opens the download page instead
 
 ## Play SHOTGUN RALLY with a friend
 
-1. One person clicks **HOST · I DRIVE** or **HOST · I RIDE SHOTGUN**. The other seat is the friend's.
+1. One person opens **ONLINE** and clicks **HOST · I DRIVE** or **HOST · I RIDE SHOTGUN**. The other seat is the friend's.
 2. The friend types the host's IP and clicks **JOIN**. The port is 7777, and the IP tips are the
    same as BAGHOLDERS' ([Play with friends](#play-with-friends)): local IP on the same Wi-Fi,
    **[Tailscale](https://tailscale.com)** from different houses.

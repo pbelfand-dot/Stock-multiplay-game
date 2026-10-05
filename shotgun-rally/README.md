@@ -13,6 +13,8 @@ No friend online? The **AI co-driver** takes the seat.
 
 | | |
 |---|---|
+| ![The home screen: your car flat out on a stage behind the menu](docs/screens/home.jpg) | ![The garage: buy, paint, upgrade](docs/screens/garage.jpg) |
+| ![Story mode: the Shotgun Series](docs/screens/maps.jpg) | ![Mountains on the horizon, the Mud & Mist rally's fog](docs/screens/mud_mist.jpg) |
 | ![Driver](docs/screens/driver.jpg) | ![Co-driver looking at the map](docs/screens/codriver.jpg) |
 | ![Mud on the windshield](docs/screens/mud.jpg) | ![The start: five lights and a clock each side of the road](docs/screens/start.jpg) |
 | ![Your co-driver, seen from the driver's seat](docs/screens/crew.jpg) | ![The chase camera (C): the wheels steer and bounce, the mud flaps swing](docs/screens/chase.jpg) |
@@ -57,6 +59,30 @@ The first time you open it:
 
 Free, PC only (Windows, Mac, Linux). Built in **Godot 4.7**, like BAGHOLDERS.
 
+## The home screen, story mode and the garage
+
+The game runs behind the menu: your own car, in your colours, flat out on a stage in the evening
+light, filmed like rally TV (trackside cameras it flashes past, a chase camera, a helicopter shot).
+
+- **PLAY NOW**: a random stage, straight in, the AI co-driver on the notes.
+- **MAPS**: story mode, **the Shotgun Series**: six rallies of three stages each, every one with its
+  own character: Pine Valley (short, gentle), Lakeland (fast, big jumps), Golden Hour (low sun),
+  Mud & Mist (fog, puddles everywhere), Highland (narrow and twisty), the Grand Final (long
+  stages). You're timed against five rival crews; finish a rally to open the next, and where you
+  finish pays prize money. Drive it alone or host it for a friend.
+- **CARS**: the garage. Four look-alike rally cars with their own names and liveries (no real
+  brands): the **Kestrel R4** you start with, the blue-and-gold **Blue Comet WRC** (gold wheels),
+  the white **Vortex Evo** with red and black slashes, and the **Martello 037** in white with navy,
+  sky blue and red stripes (nearly all its power at the back: it slides). Each drives differently
+  (power, grip, brakes, drive split). Paint any car you own (main, accent and stripe colours,
+  free), buy liveries (11, from twin stripes to tricolore and goldline) and wheels once and use
+  them on any car, pick your race number, and buy three steps each of engine, tyre and brake
+  upgrades. For now the cars share one body; new bodies come with the next round of art.
+- **Credits** come from finishing stages: a base, more for a longer stage, a bonus for beating the
+  pace and for a clean run, x1.5 in story mode, plus the rally prizes. Both players in a crew
+  earn. There's no real money anywhere.
+- **ONLINE**: your name, host (pick your seat) or join by IP.
+
 ## How a stage plays
 
 | | Driver | Co-driver (shotgun) |
@@ -72,6 +98,11 @@ Free, PC only (Windows, Mac, Linux). Built in **Godot 4.7**, like BAGHOLDERS.
 2. **The stage** is ~2.7 km of gravel through thick forest (~30,000 trees, ferns along the verges, a far belt out to 150 m): corners graded 6 (nearly flat) to 1 (very slow) plus
    hairpins, corners that tighten or open, blind crests, jumps, puddles and rocks on the inside of the
    "don't cut" corners. Every stage is generated from a number, so there's always a new one.
+   - **Room to save it:** the road's edge is flush with the grass, and it stays nearly flat for ~6 m
+     before the hills start (no ditch to drop a wheel into, berms only a low ridge, the trees stand
+     back 4.5 m+): run wide in a drift and you can catch it and get back on.
+   - **Mountains on the horizon**, snow on the highest peaks, mist at their feet, tinted to the light
+     (blue by day, warm at golden hour, grey in the fog); they keep their distance like real ones.
    - **Jumps, Finland style** (modelled on WRC Rally Finland footage): on the long straights, a gentle
      run-up, a sharp brow and a long landing slope that falls about as fast as the car flies, then a
      dip. How far you fly is up to your speed: under ~70 km/h the car stays down, at 100 km/h it's
@@ -181,7 +212,8 @@ Corsa's gamepad assist; sources in the commit history):
 
 ## Play with friends
 
-1. One person clicks **HOST · I DRIVE** or **HOST · I RIDE SHOTGUN**. The other seat is the friend's.
+1. One person opens **ONLINE** and clicks **HOST · I DRIVE** or **HOST · I RIDE SHOTGUN** (or hosts a story rally
+   from **MAPS**). The other seat is the friend's. The driver's car from their garage is the car on the stage.
 2. The friend types the host's IP and clicks **JOIN**. The port is 7777.
    - **Same Wi-Fi / same house:** the host's local IP (shown on the host's screen while it waits).
    - **Different houses (easiest):** both install **[Tailscale](https://tailscale.com)** (free) and
@@ -227,6 +259,10 @@ real voice.
    - jumps: air time by speed (a hop at 80 km/h, ~0.9 s at 120, longer off a big jump), landings on all
      four wheels within 12 deg of the slope, no second bounce, still on the road, and braking in the air dips the nose
    - drift dirt: dust and stones when the car slides, a light trail at speed, a burst on landing, nothing when cruising or in the air
+   - garage + story: stage credits, buying (not without the money, not twice), upgrades, car setups, rallies
+     unlocking in order, the standings and prizes, the save reloading
+   - road edges: the ground is flush with the road's edge and flat for 6 m past it (no ditch, no lip), the
+     trees stand back, and running wide at 70 km/h you can get back on the road
    - the cockpit: the driver's sleeves are skinned on the CPU with the hands on the wheel (straight, turned both
      ways) and on the handbrake, and every sleeve end has to be inside its glove's gauntlet; numbered dials; shift lights
    - the AI co-driver says every call in time (90–240 m before the corner)

@@ -12,8 +12,10 @@ signal server_gone
 signal wrong_version(text: String)
 
 const MAX_PLAYERS := 2
+const Profile = preload("res://scripts/game/profile.gd")
+const Catalog = preload("res://scripts/game/catalog.gd")
 
-var players := {}          # peer_id -> {name, seat ("driver" | "codriver")}
+var players := {}          # peer_id -> {name, seat ("driver" | "codriver"), car: their garage setup}
 var in_session := false
 
 
@@ -43,7 +45,7 @@ func host(port: int, seat: String) -> Error:
 	if err != OK:
 		return err
 	multiplayer.multiplayer_peer = peer
-	players = {1: {"name": Config.player_name, "seat": seat}}
+	players = {1: {"name": Config.player_name, "seat": seat, "car": Profile.setup()}}
 	in_session = true
 	roster_changed.emit()
 	return OK
@@ -63,7 +65,7 @@ func join(ip: String, port: int) -> Error:
 ## Solo: no network, you're the driver.
 func solo() -> void:
 	multiplayer.multiplayer_peer = OfflineMultiplayerPeer.new()
-	players = {1: {"name": Config.player_name, "seat": "driver"}}
+	players = {1: {"name": Config.player_name, "seat": "driver", "car": Profile.setup()}}
 	in_session = true
 	roster_changed.emit()
 
@@ -94,6 +96,13 @@ func my_seat() -> String:
 
 func crew_full() -> bool:
 	return peer_in("driver") != 0 and peer_in("codriver") != 0
+
+
+## The car on the stage: the driver's, from their garage (the starter car if
+## the driver's machine hasn't said yet).
+func car_setup() -> Dictionary:
+	var c = players.get(peer_in("driver"), {}).get("car", {})
+	return c if c is Dictionary and not c.is_empty() else Catalog.default_setup()
 
 
 # ── roster (server decides, everyone gets a copy) ─────────────────────────
@@ -131,6 +140,17 @@ func hello(player_name: String, build := 0) -> void:
 		bad_version.rpc_id(id, mine)
 		return
 	players[id].name = player_name.substr(0, 20)
+	_send_roster()
+
+
+## The joining player's car (their garage), sent after hello: if they drive, it's
+## the car on the stage. (Its own RPC, so hello and the build check stay as they were.)
+@rpc("any_peer", "reliable")
+func set_car(setup: Dictionary) -> void:
+	var id := multiplayer.get_remote_sender_id()
+	if not multiplayer.is_server() or not players.has(id):
+		return
+	players[id].car = setup
 	_send_roster()
 
 

@@ -3,7 +3,7 @@ extends Node3D
 ## wheel tracks, loose stones on the crown and out toward the edges where the
 ## grip is worse (StageGen.lane_grip), berms of thrown-out gravel on the outside
 ## of the bends), spectators behind tape at the jumps, the start and finish and
-## some slow corners, grass ditches and rolling ground out to ~75 m, a low-poly
+## some slow corners, flat grass run-off then rolling ground out to ~75 m, a low-poly
 ## forest that crowds the INSIDE of corners (so you can't see round them:
 ## that's what the notes are for), rocks on the inside of "don't cut" corners,
 ## mud puddles, the start / finish arches, and the sky and sun.
@@ -21,15 +21,23 @@ const DIRT := Color(0.45, 0.36, 0.25)
 ## Road cross-section at the normal width (5.6 m): [d, height, colour of the strip
 ## to the next point]. The edges move with the road's width (_road_x); the
 ## crown and the two wheel tracks don't (the cars are the same width)
-const ROAD_X := [[-3.1, -0.12, VERGE], [-2.8, 0.0, GRAVEL], [-1.25, 0.04, TRACK], [-0.55, 0.05, GRAVEL],
-	[0.55, 0.05, TRACK], [1.25, 0.04, GRAVEL], [2.8, 0.0, VERGE], [3.1, -0.12, VERGE]]
+const ROAD_X := [[-3.1, -0.03, VERGE], [-2.8, 0.0, GRAVEL], [-1.25, 0.04, TRACK], [-0.55, 0.05, GRAVEL],
+	[0.55, 0.05, TRACK], [1.25, 0.04, GRAVEL], [2.8, 0.0, VERGE], [3.1, -0.03, VERGE]]
 ## Ground beyond the road, each side, at the normal width (moves out with a
-## wider road): [d, height above the road, noise amplitude]
-const GROUND_X := [[2.9, -0.2, 0.0], [4.3, -0.5, 0.0], [6.0, -0.15, 0.15], [10.0, 0.1, 0.5],
-	[18.0, 0.3, 1.2], [30.0, 0.6, 2.2], [50.0, 1.0, 3.2], [78.0, 1.6, 4.5], [112.0, 2.3, 5.5], [154.0, 3.0, 6.5]]
+## wider road): [d, height above the road, noise amplitude]. Flush with the
+## road's edge and nearly flat for ~6 m past it: slide wide and you're on the
+## grass with time to catch it (no ditch to drop a wheel in, no bank to trip
+## on); the hills only start further out.
+const GROUND_X := [[2.9, -0.03, 0.0], [5.0, -0.05, 0.0], [8.5, -0.04, 0.06], [12.0, 0.05, 0.25],
+	[18.0, 0.15, 0.6], [30.0, 0.35, 1.4], [50.0, 0.7, 2.4], [78.0, 1.2, 3.6], [112.0, 1.8, 4.6], [154.0, 2.4, 5.6]]
+const TREE_LINE := 7.6              # m off the centreline (at the normal width) where the trees start
 
 const CHUNK := 160.0                # trees are grouped per this much road ...
 const TREE_DRAW := 520.0            # ... and a group further away than this isn't drawn
+var mood := "day"                  # the light (_environment): set before build
+var _range: MeshInstance3D      # the ranges on the horizon (they keep their distance: _process)
+var _mountain_y := 0.0
+var _horizon := Color(0.72, 0.82, 0.9)   # the sky at the horizon (the mountains fade into it)
 const FAR_DRAW := 340.0             # the far belt (76-150 m off the road): drawn closer than this (the fog has the rest)
 const FERN_DRAW := 150.0            # the ferns and undergrowth along the verges
 
@@ -63,8 +71,8 @@ func build_async(stage, report: Callable) -> void:
 	report.call(1.0, "")
 
 
-const STEPS := [["_environment", "Checking the weather"], ["_road", "Grading the gravel road"],
-	["_ground", "Shaping the hills and ditches"], ["_base", "Shaping the hills and ditches"],
+const STEPS := [["_environment", "Checking the weather"], ["_mountains", "Raising the mountains"], ["_road", "Grading the gravel road"],
+	["_ground", "Shaping the hills"], ["_base", "Shaping the hills"],
 	["_spectators", "Letting the spectators in"], ["_forest", "Planting ten thousand trees"], ["_rocks", "Rolling rocks onto the inside of the bends"],
 	["_puddles", "Filling the puddles"], ["_loose_stones", "Raking out the loose gravel"],
 	["_arches", "Putting up the start and finish"]]
@@ -123,7 +131,7 @@ func _berm(i: int) -> Vector2:
 	for j in range(maxi(0, i - 4), mini(st.curv.size(), i + 5)):
 		k += st.curv[j]
 	k /= 9.0
-	return Vector2(-signf(k), clampf(absf(k) * 4.0, 0.0, 0.14))
+	return Vector2(-signf(k), clampf(absf(k) * 2.0, 0.0, 0.06))      # a low ridge a slide rides over, not a kerb
 
 
 ## How much a road cross-section point at d is lifted by a berm (road half-width `half`).
@@ -334,10 +342,14 @@ func _ground() -> void:
 					break
 			var row: Array = []
 			var cols: Array = []
-			for g in GROUND_X:
+			var berm := _berm(i)
+			for gi in GROUND_X.size():
+				var g: Array = GROUND_X[gi]
 				var d: float = minf(g[0] + extra, maxf(reach, 3.4 + extra))
 				var p: Vector3 = c + r * (d * side)
 				var h: float = g[1] + g[2] * _noise.get_noise_2d(p.x, p.z)
+				if berm.x == side and gi < 2:
+					h += berm.y * (0.5 if gi == 0 else 0.2)       # the berm tapers off into the grass
 				row.append(p + Vector3.UP * h)
 				var col: Color = GRASS.lerp(GRASS_FAR, clampf(d / 60.0, 0.0, 1.0))
 				col = col * (0.92 + 0.12 * _noise.get_noise_2d(p.z * 3.0, p.x * 3.0))
@@ -419,10 +431,10 @@ func _forest() -> void:
 			# [from, to (m off the centreline), chance, how many tries]: a dense wall along
 			# the road, thick forest behind it, and a far belt out to 150 m so it never
 			# opens up into empty grass
-			var slots: Array = [[5.0, 9.0, 0.95 if inside else 0.7, 2],     # the wall along the road
-				[9.0, 18.0, 0.9, 5], [18.0, 40.0, 0.85, 7], [40.0, 76.0, 0.85, 5], [76.0, 150.0, 0.8, 8]]
+			var slots: Array = [[TREE_LINE, 11.0, 0.95 if inside else 0.75, 2],     # the wall along the road
+				[11.0, 18.0, 0.9, 5], [18.0, 40.0, 0.85, 7], [40.0, 76.0, 0.85, 5], [76.0, 150.0, 0.8, 8]]
 			if inside:
-				slots.append([4.6, 7.5, 0.8, 1])                           # thicker on the inside of bends
+				slots.append([TREE_LINE, TREE_LINE + 3.0, 0.8, 1])          # thicker on the inside of bends
 			for sl in slots:
 				for t in sl[3]:
 					if _rng.randf() > sl[2]:
@@ -430,7 +442,7 @@ func _forest() -> void:
 					var d: float = _rng.randf_range(sl[0], sl[1]) + extra
 					var along: Vector3 = st.forward_at(s) * _rng.randf_range(-2.0, 2.0)
 					var p: Vector3 = c + r * (d * side) + along
-					if _near_road(p, 4.4 + maxf(extra, 0.0)) or _in_clearing(p):
+					if _near_road(p, TREE_LINE - 0.4 + maxf(extra, 0.0)) or _in_clearing(p):
 						continue
 					p.y = _ground_height(c.y, d - extra, p) - 0.15
 					var kind: String = ["pine", "pine", "pine", "round", "birch", "bush"][_rng.randi() % 6]
@@ -447,7 +459,7 @@ func _forest() -> void:
 						chunks[ci][kind] = []
 					chunks[ci][kind].append(xf)
 					tree_count += 1
-					if d - extra < 10.0 and kind != "bush":
+					if d - extra < 12.0 and kind != "bush":
 						var cs := CollisionShape3D.new()
 						var cyl := CylinderShape3D.new()
 						cyl.radius = 0.28 * sc
@@ -455,7 +467,7 @@ func _forest() -> void:
 						cs.shape = cyl
 						cs.position = p + Vector3.UP * 2.0
 						trunks.add_child(cs)
-	# undergrowth: ferns between the ditch and the trees (no collision: you drive through them)
+	# undergrowth: ferns between the road and the trees (no collision: you drive through them)
 	for i in range(0, n, 2):
 		var s: float = i * st.STEP
 		if s < st.START_S - 30.0:
@@ -783,6 +795,100 @@ func _sign(s: float, d: float, text: String, col: Color) -> void:
 
 # ── sky ───────────────────────────────────────────────────────────────────
 
+## Mountains all round the horizon: three ridgelines one behind the other, the
+## far ones paler (they fade into the sky's horizon colour), snow on the highest
+## peaks, mist at their feet. They're a ring ~600-800 m out that follows the
+## camera across the ground (not up and down): like the real thing, they never
+## get any closer. No fog on them (the fog would hide them; the haze is in their
+## colours) and no shadows.
+func _mountains() -> void:
+	var lo := INF
+	for p in st.pts:
+		lo = minf(lo, p.y)
+	_mountain_y = lo - 25.0
+	var seg := 160
+	var layers := [[830.0, 260.0, 0.58], [730.0, 185.0, 0.4], [640.0, 120.0, 0.24]]   # radius, tallest, haze
+	var rock := Color(0.24, 0.31, 0.38) if mood != "golden" else Color(0.34, 0.27, 0.34)
+	if mood == "overcast":
+		rock = Color(0.34, 0.36, 0.38)
+	var verts := PackedVector3Array()
+	var cols := PackedColorArray()
+	var uvs := PackedVector2Array()
+	var idx := PackedInt32Array()
+	var noise := FastNoiseLite.new()
+	noise.seed = st.seed_used + 77
+	noise.frequency = 1.0
+	noise.fractal_octaves = 4
+	for li in layers.size():
+		var radius: float = layers[li][0]
+		var tall: float = layers[li][1]
+		var haze: float = layers[li][2]
+		if mood == "overcast":
+			haze = minf(haze * 1.7, 0.9)                     # the fog swallows them too
+		var base := verts.size()
+		for k in seg + 1:
+			var a := TAU * k / seg
+			# ridges: broad swells and sharp peaks, a different line per layer
+			var n := noise.get_noise_2d(cos(a) * 2.2 + li * 9.0, sin(a) * 2.2)
+			var peaks := pow(clampf(noise.get_noise_2d(cos(a) * 6.0 - li * 5.0, sin(a) * 6.0) * 0.5 + 0.5, 0.0, 1.0), 2.2)
+			var h := tall * clampf(0.35 + n * 0.6 + peaks * 0.75, 0.08, 1.15)
+			var dir := Vector3(cos(a), 0.0, sin(a))
+			verts.append(dir * radius + Vector3.UP * h)
+			verts.append(dir * radius + Vector3.DOWN * 60.0)
+			var c := rock.lerp(_horizon, haze)
+			c.a = haze
+			cols.append(c)
+			cols.append(c)
+			uvs.append(Vector2(tall * 0.74, 0.0))                     # the snow line (the shader paints it)
+			uvs.append(Vector2(tall * 0.74, 0.0))
+		for k in seg:
+			var a0 := base + k * 2
+			idx.append_array([a0, a0 + 2, a0 + 1, a0 + 1, a0 + 2, a0 + 3])
+	var arr := []
+	arr.resize(Mesh.ARRAY_MAX)
+	arr[Mesh.ARRAY_VERTEX] = verts
+	arr[Mesh.ARRAY_COLOR] = cols
+	arr[Mesh.ARRAY_TEX_UV] = uvs
+	arr[Mesh.ARRAY_INDEX] = idx
+	var mesh := ArrayMesh.new()
+	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arr)
+	var sh := Shader.new()
+	sh.code = """shader_type spatial;
+render_mode unshaded, cull_disabled, fog_disabled;
+uniform vec3 horizon : source_color;
+varying float y;
+void vertex() { y = VERTEX.y; }
+void fragment() {
+	vec3 c = COLOR.rgb;
+	vec3 snow = mix(vec3(0.94, 0.95, 0.97), horizon, COLOR.a * 0.6);
+	c = mix(c, snow, smoothstep(UV.x - 4.0, UV.x + 4.0, y));          // snow above the snow line
+	c = mix(c, mix(horizon, vec3(0.92), 0.15), (1.0 - smoothstep(-25.0, 70.0, y)) * 0.85);   // mist at the feet
+	ALBEDO = c;
+}
+"""
+	var m := ShaderMaterial.new()
+	m.shader = sh
+	m.set_shader_parameter("horizon", _horizon)
+	_range = MeshInstance3D.new()
+	_range.name = "Mountains"
+	_range.mesh = mesh
+	_range.material_override = m
+	_range.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_range.extra_cull_margin = 2000.0
+	add_child(_range)
+	_range.position = Vector3(st.pts[0].x, _mountain_y, st.pts[0].z)
+
+
+func _process(_dt: float) -> void:
+	if _range == null:
+		return
+	var cam := get_viewport().get_camera_3d()
+	if cam:
+		var c := cam.global_position
+		_range.global_position = Vector3(c.x, _mountain_y, c.z)
+
+## The light: "day" (high sun, blue sky), "golden" (an evening sun low through
+## the trees, warm and long-shadowed), "overcast" (grey sky, soft light, fog).
 func _environment() -> void:
 	var env := Environment.new()
 	var sky := Sky.new()
@@ -791,7 +897,17 @@ func _environment() -> void:
 	sm.sky_horizon_color = Color(0.72, 0.82, 0.9)
 	sm.ground_horizon_color = Color(0.6, 0.7, 0.62)
 	sm.ground_bottom_color = Color(0.25, 0.35, 0.22)
+	match mood:
+		"golden":
+			sm.sky_top_color = Color(0.3, 0.42, 0.7)
+			sm.sky_horizon_color = Color(1.0, 0.7, 0.42)
+			sm.ground_horizon_color = Color(0.7, 0.55, 0.4)
+		"overcast":
+			sm.sky_top_color = Color(0.52, 0.56, 0.6)
+			sm.sky_horizon_color = Color(0.7, 0.72, 0.74)
+			sm.ground_horizon_color = Color(0.55, 0.58, 0.56)
 	sky.sky_material = sm
+	_horizon = sm.sky_horizon_color
 	env.background_mode = Environment.BG_SKY
 	env.sky = sky
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
@@ -811,6 +927,21 @@ func _environment() -> void:
 	sun.rotation = Vector3(deg_to_rad(-52.0), deg_to_rad(35.0), 0.0)
 	sun.light_energy = 1.0
 	sun.light_color = Color(1.0, 0.96, 0.88)
+	match mood:
+		"golden":
+			sun.rotation = Vector3(deg_to_rad(-16.0), deg_to_rad(65.0), 0.0)
+			sun.light_color = Color(1.0, 0.72, 0.45)
+			sun.light_energy = 1.15
+			env.ambient_light_color = Color(0.62, 0.55, 0.52)
+			env.fog_light_color = Color(0.95, 0.72, 0.52)
+			env.fog_density = 0.006
+		"overcast":
+			sun.rotation = Vector3(deg_to_rad(-70.0), deg_to_rad(20.0), 0.0)
+			sun.light_color = Color(0.85, 0.88, 0.92)
+			sun.light_energy = 0.45
+			env.ambient_light_energy = 0.85
+			env.fog_light_color = Color(0.68, 0.71, 0.73)
+			env.fog_density = 0.016
 	sun.shadow_enabled = true
 	sun.directional_shadow_max_distance = 70.0
 	add_child(sun)

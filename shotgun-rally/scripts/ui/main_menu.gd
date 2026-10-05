@@ -1,12 +1,34 @@
 extends Control
-## The title screen: your name, then DRIVE SOLO (the AI co-driver calls),
-## HOST (pick your seat), or JOIN a host by IP. Controls at the bottom; the
-## build and updates (see Updater) top right.
+## The home screen. Behind it, the game itself (MenuBackdrop: your car flat out
+## on a stage, filmed like rally TV). Over it: the title, your credits, and
+## four ways in:
+##   PLAY NOW   a random stage, straight in (the AI co-driver calls)
+##   MAPS       story mode: the championship (MapsPanel)
+##   CARS       the garage: buy, paint, upgrade (GaragePanel)
+##   ONLINE     your name, host a crew (pick your seat) or join one by IP
+## ESC (or BACK) goes back to the home buttons. The build and updates are top
+## right (see Updater).
 
 signal solo
 signal host(seat: String)
 signal join(ip: String)
+signal story(rally: int, seat: String)
 
+const UI = preload("res://scripts/ui/ui_kit.gd")
+const Backdrop = preload("res://scripts/ui/menu_backdrop.gd")
+const GaragePanel = preload("res://scripts/ui/garage_panel.gd")
+const MapsPanel = preload("res://scripts/ui/maps_panel.gd")
+const Profile = preload("res://scripts/game/profile.gd")
+
+var start_panel := ""               # open on this panel ("maps" after a rally)
+var backdrop
+var _cover: ColorRect               # until the backdrop is built
+var _home: VBoxContainer
+var _area: Control                  # where a panel goes
+var _open: Control
+var _credits: Label
+var _sub: Label                     # the line under the title (hidden while a panel's open)
+var _name_chip: Button
 var _status: Label
 var _name: LineEdit
 var _ip: LineEdit
@@ -18,110 +40,228 @@ var _upd_action := ""
 
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)   # (plain set_anchors_preset keeps the old, zero size)
-	var bold: Font = load("res://assets/fonts/Oswald-Bold.woff2")
-	var med: Font = load("res://assets/fonts/Oswald-Medium.woff2")
-	var bg := ColorRect.new()
-	bg.color = Color(0.1, 0.16, 0.12)
-	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	add_child(bg)
-	var stripe := ColorRect.new()                      # a rally stripe across the screen
-	stripe.color = Color(0.78, 0.12, 0.1)
-	stripe.set_anchors_and_offsets_preset(Control.PRESET_TOP_WIDE)
-	stripe.offset_top = 210
-	stripe.offset_bottom = 226
+	Profile.ensure_loaded()
+	backdrop = Backdrop.new()
+	add_child(backdrop)
+	backdrop.show_car(Profile.setup())
+	backdrop.ready_to_show.connect(_on_backdrop_ready)
+	_cover = ColorRect.new()
+	_cover.color = Color(0.07, 0.1, 0.08)
+	_cover.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_cover.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(_cover)
+	# a dark wash on the left so the text reads over the scene
+	var shade := TextureRect.new()
+	var g := Gradient.new()
+	g.set_color(0, Color(0, 0, 0, 0.78))
+	g.set_color(1, Color(0, 0, 0, 0.0))
+	var gt := GradientTexture2D.new()
+	gt.gradient = g
+	gt.width = 256
+	gt.height = 4
+	shade.texture = gt
+	shade.stretch_mode = TextureRect.STRETCH_SCALE
+	shade.anchor_bottom = 1.0
+	shade.anchor_right = 0.62
+	shade.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(shade)
+	_title()
+	_top_right()
+	_home = VBoxContainer.new()
+	_home.position = Vector2(64, 300)
+	_home.add_theme_constant_override("separation", 14)
+	add_child(_home)
+	_home.add_child(UI.menu_item("PLAY NOW", "A random stage, straight in. The AI calls the notes.", func(): solo.emit(), true))
+	_home.add_child(UI.menu_item("MAPS", "The Shotgun Series: six rallies, rival crews, prize money.", _show.bind("maps")))
+	_home.add_child(UI.menu_item("CARS", "The garage: buy cars, paint them, upgrade them.", _show.bind("cars")))
+	_home.add_child(UI.menu_item("ONLINE", "Ride with a friend: one drives, one reads the map.", _show.bind("online")))
+	var quit := UI.button("QUIT", func(): get_tree().quit(), 20, 140)
+	quit.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	_home.add_child(UI.gap(6))
+	_home.add_child(quit)
+	_area = Control.new()
+	_area.position = Vector2(48, 200)
+	_area.size = Vector2(800, 640)
+	add_child(_area)
+	_status = UI.label("", 20, Color(1.0, 0.7, 0.4))
+	_status.set_anchors_and_offsets_preset(Control.PRESET_CENTER_BOTTOM)
+	_status.offset_top = -96
+	_status.offset_left = -700
+	_status.offset_right = 700
+	_status.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	add_child(_status)
+	var help := UI.label("DRIVER  WASD / arrows · SPACE handbrake · R reset      CO-DRIVER  hold RIGHT MOUSE / Q for the map · F wipers      "
+		+ "PAD  left stick · RT / LT · B handbrake", 15, Color(0.75, 0.77, 0.72))
+	help.set_anchors_and_offsets_preset(Control.PRESET_CENTER_BOTTOM)
+	help.offset_top = -40
+	help.offset_left = -800
+	help.offset_right = 800
+	help.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	add_child(help)
+	_update_corner()
+	if start_panel != "":
+		_show(start_panel)
+	else:
+		(_home.get_child(0).get_meta("button") as Button).grab_focus.call_deferred()
+
+
+func _on_backdrop_ready() -> void:
+	var tw := create_tween()
+	tw.tween_property(_cover, "modulate:a", 0.0, 0.9)
+	tw.tween_callback(_cover.hide)
+
+
+func _unhandled_input(e: InputEvent) -> void:
+	if e.is_action_pressed("ui_cancel") and _open != null:
+		_back()
+		get_viewport().set_input_as_handled()
+
+
+func _title() -> void:
+	var t := UI.label("SHOTGUN RALLY", 92, UI.CREAM, true)
+	t.position = Vector2(60, 34)
+	t.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.55))
+	t.add_theme_constant_override("shadow_offset_x", 4)
+	t.add_theme_constant_override("shadow_offset_y", 4)
+	add_child(t)
+	var stripe := HBoxContainer.new()
+	stripe.position = Vector2(66, 172)
+	stripe.add_theme_constant_override("separation", 0)
+	for c in [UI.RED, UI.YELLOW, Color(0.15, 0.35, 0.75)]:
+		var r := ColorRect.new()
+		r.color = c
+		r.custom_minimum_size = Vector2(120, 8)
+		stripe.add_child(r)
 	add_child(stripe)
-	var box := VBoxContainer.new()
-	box.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
-	box.grow_horizontal = Control.GROW_DIRECTION_BOTH
-	box.grow_vertical = Control.GROW_DIRECTION_BOTH
-	box.add_theme_constant_override("separation", 12)
-	add_child(box)
-	var title := Label.new()
-	title.text = "SHOTGUN RALLY"
-	title.add_theme_font_override("font", bold)
-	title.add_theme_font_size_override("font_size", 96)
-	title.add_theme_color_override("font_color", Color(0.98, 0.95, 0.85))
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	box.add_child(title)
-	var sub := Label.new()
-	sub.text = "You drive. Your friend rides shotgun with the map."
-	sub.add_theme_font_override("font", med)
-	sub.add_theme_font_size_override("font_size", 24)
-	sub.add_theme_color_override("font_color", Color(0.85, 0.82, 0.7))
-	sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	box.add_child(sub)
-	box.add_child(_gap(18))
+	_sub = UI.label("You drive. Your friend rides shotgun with the map.", 24, Color(0.9, 0.88, 0.8))
+	_sub.position = Vector2(66, 190)
+	add_child(_sub)
+
+
+## Top right: your credits and your name (click it: ONLINE, where you change it).
+func _top_right() -> void:
+	var row := HBoxContainer.new()
+	row.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT)
+	row.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	row.offset_top = 26
+	row.offset_right = -28
+	row.add_theme_constant_override("separation", 12)
+	add_child(row)
+	var chip := UI.panel(Color(0.04, 0.05, 0.06, 0.8))
+	chip.add_theme_stylebox_override("panel", UI.box(Color(0.04, 0.05, 0.06, 0.8), 22, 12))
+	_credits = UI.label("", 26, UI.YELLOW, true)
+	chip.add_child(_credits)
+	row.add_child(chip)
+	_name_chip = UI.button("", _show.bind("online"), 20)
+	row.add_child(_name_chip)
+	refresh()
+
+
+## Credits / name changed (a purchase, a new name): redraw the chips.
+func refresh() -> void:
+	_credits.text = "%s CR" % _money(Profile.credits)
+	_name_chip.text = "DRIVER  ·  %s" % Config.player_name.to_upper()
+
+
+func _show(which: String) -> void:
+	_back(false)
+	_home.visible = false
+	_sub.visible = false
+	match which:
+		"maps":
+			var m := MapsPanel.new()
+			m.start.connect(func(i: int, seat: String): story.emit(i, seat))
+			_open = m
+		"cars":
+			var g := GaragePanel.new()
+			g.backdrop = backdrop
+			g.changed.connect(refresh)
+			_open = g
+			backdrop.set_showroom(true)
+		"online":
+			_open = _online_panel()
+	_area.add_child(_open)
+	if _open.has_signal("back"):
+		_open.connect("back", _back)
+	_open.modulate.a = 0.0
+	_open.position.x = -30.0
+	var tw := _open.create_tween().set_parallel().set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	tw.tween_property(_open, "modulate:a", 1.0, 0.22)
+	tw.tween_property(_open, "position:x", 0.0, 0.22)
+
+
+func _back(home := true) -> void:
+	if _open:
+		_open.queue_free()
+		_open = null
+	backdrop.set_showroom(false)
+	backdrop.show_car(Profile.setup())
+	if home:
+		_home.visible = true
+		_sub.visible = true
+		(_home.get_child(0).get_meta("button") as Button).grab_focus()
+	refresh()
+
+
+func _online_panel() -> Control:
+	var p := UI.panel()
+	p.add_user_signal("back")
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 14)
+	p.add_child(v)
+	v.add_child(UI.label("ONLINE", 44, UI.CREAM, true))
+	v.add_child(UI.label("Two machines, one car: the driver's machine drives it, the co-driver gets the map.", 18, UI.DIM))
 	var name_row := HBoxContainer.new()
-	name_row.alignment = BoxContainer.ALIGNMENT_CENTER
-	box.add_child(name_row)
-	name_row.add_child(_label("YOUR NAME", med))
+	name_row.add_theme_constant_override("separation", 12)
+	name_row.add_child(UI.label("YOUR NAME", 22, UI.CREAM))
 	_name = LineEdit.new()
 	_name.text = Config.player_name
-	_name.custom_minimum_size = Vector2(260, 46)
-	_name.add_theme_font_override("font", med)
+	_name.custom_minimum_size = Vector2(300, 46)
+	_name.add_theme_font_override("font", UI.med())
 	_name.add_theme_font_size_override("font_size", 22)
-	_name.text_changed.connect(func(t): Config.player_name = t.strip_edges().substr(0, 20); Config.save())
+	_name.text_changed.connect(func(t): Config.player_name = t.strip_edges().substr(0, 20); Config.save(); refresh())
 	name_row.add_child(_name)
-	box.add_child(_button("DRIVE SOLO  ·  AI CO-DRIVER", bold, func(): solo.emit()))
-	box.add_child(_button("HOST  ·  I DRIVE", bold, func(): host.emit("driver")))
-	box.add_child(_button("HOST  ·  I RIDE SHOTGUN", bold, func(): host.emit("codriver")))
+	v.add_child(name_row)
+	v.add_child(UI.button("HOST  ·  I DRIVE", func(): host.emit("driver"), 24, 460))
+	v.add_child(UI.button("HOST  ·  I RIDE SHOTGUN", func(): host.emit("codriver"), 24, 460))
 	var join_row := HBoxContainer.new()
-	join_row.alignment = BoxContainer.ALIGNMENT_CENTER
-	box.add_child(join_row)
+	join_row.add_theme_constant_override("separation", 12)
 	_ip = LineEdit.new()
 	_ip.text = Config.last_ip
 	_ip.placeholder_text = "host's IP"
-	_ip.custom_minimum_size = Vector2(250, 56)
-	_ip.add_theme_font_override("font", med)
+	_ip.custom_minimum_size = Vector2(300, 52)
+	_ip.add_theme_font_override("font", UI.med())
 	_ip.add_theme_font_size_override("font_size", 22)
 	join_row.add_child(_ip)
-	var jb := _button("JOIN", bold, func(): join.emit(_ip.text.strip_edges()))
-	jb.custom_minimum_size = Vector2(170, 56)
-	join_row.add_child(jb)
-	box.add_child(_button("QUIT", bold, func(): get_tree().quit()))
-	_status = _label("", med)
-	_status.add_theme_color_override("font_color", Color(1.0, 0.7, 0.4))
-	_status.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	box.add_child(_status)
-	var help := Label.new()
-	help.text = ("DRIVER  WASD / arrows · SPACE handbrake · R reset      CO-DRIVER  hold RIGHT MOUSE / Q to look at the map · F wipers\n"
-		+ "Controller: left stick · RT / LT · B handbrake · hold LT (co-driver) · A wipers      Same Wi-Fi: join the host's IP. Different houses: Tailscale (see README).")
-	help.add_theme_font_override("font", med)
-	help.add_theme_font_size_override("font_size", 16)
-	help.add_theme_color_override("font_color", Color(0.7, 0.72, 0.65))
-	help.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	help.set_anchors_and_offsets_preset(Control.PRESET_CENTER_BOTTOM)
-	help.offset_top = -70
-	help.offset_left = -800
-	help.offset_right = 800
-	add_child(help)
-	_update_corner(bold, med)
+	join_row.add_child(UI.button("JOIN", func(): join.emit(_ip.text.strip_edges()), 24, 148))
+	v.add_child(join_row)
+	v.add_child(UI.label("Same Wi-Fi: join the host's IP (it's on their screen). Different houses: Tailscale (see the README).\n"
+		+ "The driver's car from their garage is the car on the stage.", 16, UI.DIM))
+	var back := UI.button("BACK", func(): p.emit_signal("back"), 20, 140)
+	back.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	v.add_child(back)
+	return p
 
 
-## Top right: this copy's build, what the updater is doing, and its button
-## (RESTART TO UPDATE once a new build is downloaded, or the download page).
-func _update_corner(bold: Font, med: Font) -> void:
+## Top right, under the chips: this copy's build, what the updater is doing, and
+## its button (RESTART TO UPDATE once a new build is downloaded, or the download page).
+func _update_corner() -> void:
 	var box := VBoxContainer.new()
 	box.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT)
 	box.grow_horizontal = Control.GROW_DIRECTION_BEGIN
 	box.offset_left = -520
 	box.offset_right = -28
-	box.offset_top = 22
+	box.offset_top = 90
 	box.add_theme_constant_override("separation", 6)
 	add_child(box)
-	_build = _label("BUILD %d" % Updater.current_build if Updater.current_build > 0 else "DEV BUILD", bold)
-	_build.add_theme_color_override("font_color", Color(0.98, 0.95, 0.85))
+	_build = UI.label("BUILD %d" % Updater.current_build if Updater.current_build > 0 else "DEV BUILD", 18, UI.CREAM, true)
 	_build.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	box.add_child(_build)
-	_upd = _label("", med)
-	_upd.add_theme_font_size_override("font_size", 17)
-	_upd.add_theme_color_override("font_color", Color(0.75, 0.78, 0.7))
+	_upd = UI.label("", 16, Color(0.75, 0.78, 0.7))
 	_upd.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	_upd.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	box.add_child(_upd)
-	_upd_btn = _button("", bold, _on_update_button)
-	_upd_btn.add_theme_font_size_override("font_size", 20)
-	_upd_btn.custom_minimum_size = Vector2(300, 46)
+	_upd_btn = UI.button("", _on_update_button, 20, 300)
 	_upd_btn.size_flags_horizontal = Control.SIZE_SHRINK_END
 	_upd_btn.visible = false
 	box.add_child(_upd_btn)
@@ -161,25 +301,10 @@ func status(msg: String) -> void:
 		_status.text = msg
 
 
-func _button(text: String, font: Font, cb: Callable) -> Button:
-	var b := Button.new()
-	b.text = text
-	b.add_theme_font_override("font", font)
-	b.add_theme_font_size_override("font_size", 26)
-	b.custom_minimum_size = Vector2(440, 56)
-	b.pressed.connect(cb)
-	return b
-
-
-func _label(text: String, font: Font) -> Label:
-	var l := Label.new()
-	l.text = text
-	l.add_theme_font_override("font", font)
-	l.add_theme_font_size_override("font_size", 22)
-	return l
-
-
-func _gap(h: float) -> Control:
-	var c := Control.new()
-	c.custom_minimum_size = Vector2(0, h)
-	return c
+static func _money(n: int) -> String:
+	var t := str(absi(n))
+	var out := ""
+	while t.length() > 3:
+		out = "," + t.substr(t.length() - 3) + out
+		t = t.substr(0, t.length() - 3)
+	return t + out

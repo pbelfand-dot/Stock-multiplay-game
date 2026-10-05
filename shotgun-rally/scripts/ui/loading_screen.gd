@@ -63,9 +63,9 @@ func _ready() -> void:
 	_root.add_child(shade)
 
 
-## Fill it in: stage number, what's coming (the stage itself is generated a
-## moment later, so the numbers come with set_stage).
-func begin(stage_no: int) -> void:
+## Fill it in: stage number (or a story stage's title), what's coming (the stage
+## itself is generated a moment later, so the numbers come with set_stage).
+func begin(stage_no: int, title_text := "") -> void:
 	_shown_at = Time.get_ticks_msec()
 	var bold: Font = load("res://assets/fonts/Oswald-Bold.woff2")
 	var medium: Font = load("res://assets/fonts/Oswald-Medium.woff2")
@@ -80,7 +80,7 @@ func begin(stage_no: int) -> void:
 	box.offset_bottom = -40
 	box.add_theme_constant_override("separation", 6)
 	_root.add_child(box)
-	var title := _label("STAGE %d" % stage_no, bold, 64, Color(1.0, 0.85, 0.25))
+	var title := _label(title_text if title_text != "" else "STAGE %d" % stage_no, bold, 64, Color(1.0, 0.85, 0.25))
 	title.name = "Title"
 	box.add_child(title)
 	var info := _label("Reading the road book...", medium, 24, Color(0.92, 0.92, 0.92))

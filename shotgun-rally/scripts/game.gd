@@ -58,6 +58,9 @@ var car_s := 0.0
 var _brake_eased := 0.0
 var car_d := 0.0
 var result := {}
+var opts := {}
+var _result_extra: Array = []       # credits, rally standings (Main fills them in)
+var _next_text := "next stage"
 var my_seat := "driver"
 var use_autopilot := false
 var all_loaded := false
@@ -86,21 +89,26 @@ var _gravel: AudioStreamPlayer3D
 
 
 ## Build the stage, a step a frame (await it): progress(fraction, what) feeds the
-## loading screen; stage_generated fires once the road is known.
-func start(seed_in: int, stage_in: int) -> void:
+## loading screen; stage_generated fires once the road is known. o: the stage's
+## settings (Main.opts): a story stage brings its length, light (mood), road
+## character (gen) and titles.
+func start(seed_in: int, stage_in: int, o := {}) -> void:
 	seed_value = seed_in
 	stage_no = stage_in
+	opts = o
 	use_autopilot = Config.flag("autopilot")
 	progress.emit(0.02, "Reading the road book")
 	await get_tree().process_frame
 	if not is_inside_tree():
 		return
 	st = StageGen.new()
-	st.generate(seed_value, float(Config.arg("length", 2600)))
+	st.opts = o.get("gen", {})
+	st.generate(seed_value, float(o.get("length", Config.arg("length", 2600))))
 	notes = Notes.build(st)
 	calls = Notes.calls(notes)
 	stage_generated.emit()
 	builder = StageBuilder.new()
+	builder.mood = o.get("mood", "day")
 	add_child(builder)
 	await builder.build_async(st, func(f: float, what: String): progress.emit(0.06 + f * 0.64, what))
 	if not is_inside_tree():
@@ -153,6 +161,9 @@ func start(seed_in: int, stage_in: int) -> void:
 func _apply_roster() -> void:
 	my_seat = Net.my_seat()
 	var driver_here: bool = my_seat == "driver"
+	var setup := Net.car_setup()                # the driver's car from their garage
+	car.apply_setup(setup)
+	cockpit.set_paint(setup.colours[0])
 	car.set_simulating(driver_here)
 	cam.attach(car, my_seat, Cockpit.EYE_DRIVER if driver_here else Cockpit.EYE_CODRIVER)
 	cockpit.set_my_seat(my_seat)
@@ -399,12 +410,12 @@ func _process(dt: float) -> void:
 		_toggle_pause()
 	if state == "finished" and Net.is_server() and not _pause.visible:
 		if Input.is_action_just_pressed("ready"):
-			get_parent().next_stage(seed_value + 1, stage_no + 1)
+			get_parent().continue_event()
 		elif Input.is_action_just_pressed("reset_car"):
-			get_parent().next_stage(seed_value, stage_no)
+			get_parent().retry_stage()
 		elif Input.is_key_pressed(KEY_TAB) and Net.online() and Net.crew_full():
 			Net.swap_seats()
-			get_parent().next_stage(seed_value, stage_no)
+			get_parent().retry_stage()
 	# the camera: circling the car before the countdown and after the finish; in the
 	# seat for the stage (the driver can press C for the chase cam)
 	if state == "running" and my_seat == "driver" and Input.is_action_just_pressed("camera"):
@@ -620,7 +631,8 @@ func _update_hint() -> void:
 		"running", "finished":
 			t = ""
 	_hint_label.text = t
-	_big_label.text = "STAGE %d" % stage_no if state == "grid" else ""
+	var title: String = "%s\n%s" % [opts.title, opts.stage_name] if opts.get("mode") == "story" else "STAGE %d" % stage_no
+	_big_label.text = title if state == "grid" else ""
 
 
 func _seat_help(pad: bool) -> String:
@@ -640,10 +652,20 @@ func _my_ips() -> Array:
 	return out.slice(0, 3)
 
 
+## Main's lines under the results (credits, rally standings) and what ENTER does.
+func set_result_extra(lines: Array, next_text: String) -> void:
+	_result_extra = lines
+	_next_text = next_text
+	if state == "finished":
+		_show_results()
+
+
 func _show_results() -> void:
 	_results.visible = true
 	var r := result
-	var lines := ["STAGE %d COMPLETE" % r.stage, "", "Time  %s" % fmt_time(r.time)]
+	var head: String = opts.stage_name + "  COMPLETE" if opts.get("mode") == "story" else "STAGE %d COMPLETE" % r.stage
+	var lines := [head, "", "Time  %s" % fmt_time(r.time)]
+	_results_label.add_theme_font_size_override("font_size", 22 if _result_extra.size() > 3 else 28)
 	if r.penalties > 0.0:
 		var why: Array = []
 		if r.jump_start:
@@ -652,9 +674,12 @@ func _show_results() -> void:
 			why.append("%d reset%s" % [r.resets, "s" if r.resets > 1 else ""])
 		lines.append("Penalties  +%.0f s  (%s)" % [r.penalties, ", ".join(why)])
 	lines.append("TOTAL  %s" % fmt_time(r.total))
+	if not _result_extra.is_empty():
+		lines.append("")
+		lines.append_array(_result_extra)
 	lines.append("")
 	if Net.is_server():
-		lines.append("ENTER  next stage     R  retry this one" + ("     TAB  swap seats" if Net.online() and Net.crew_full() else ""))
+		lines.append("ENTER  %s     R  retry this one" % _next_text + ("     TAB  swap seats" if Net.online() and Net.crew_full() else ""))
 	else:
 		lines.append("Waiting for the host...")
 	_results_label.text = "\n".join(lines)

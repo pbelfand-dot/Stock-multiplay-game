@@ -21,6 +21,10 @@ echo "== jumps: air time by speed, clean four-wheel landings, no second bounce, 
 "$G" --headless --fixed-fps 60 --path . -s tests/jump_check.gd 2>&1 | grep -E "\[jump\] (ok|FAIL|JUMPS|seed)" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
 echo "== drift dirt: dust + stones when it slides, none when it cruises or flies"
 "$G" --headless --fixed-fps 60 --path . -s tests/fx_check.gd 2>&1 | grep -E "\[fx\]" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
+echo "== garage + story: credits, buying, upgrades, car setups, championship unlocks and standings"
+"$G" --headless --path . -s tests/story_check.gd -- --profile=$T/story.cfg 2>&1 | grep -E "\[story\] (FAIL|STORY)" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
+echo "== road edges: flush flat grass past the edge, trees stand back, a slide wide can be saved"
+"$G" --headless --fixed-fps 60 --path . -s tests/runoff_check.gd 2>&1 | grep -E "\[runoff\] (FAIL|RUNOFF|ok   off)" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
 echo "== cockpit: the gloves cover the sleeve ends wherever the hands are, numbered dials, shift lights"
 "$G" --headless --path . -s tests/cockpit_check.gd 2>&1 | grep -E "\[cockpit\] (FAIL|COCKPIT|ok   straight)" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
 echo "== ride: how much the car bounces on two stages (shaking at the eye, the hardest landing)"
@@ -28,16 +32,16 @@ for seed in 3 15; do
   "$G" --headless --fixed-fps 60 --path . -s tests/ride_check.gd -- --seed=$seed 2>&1 | grep -E "\[ride\]" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
 done
 echo "== AI co-driver: every call said in time, from where the car is"
-"$G" --headless --fixed-fps 60 --path . -- --aicheck --autostart --autopilot --seed=8 --timeout=400 2>&1 | grep -E "\[ai\]" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
+"$G" --headless --fixed-fps 60 --path . -- --aicheck --autostart --autopilot --seed=8 --timeout=400 --profile=$T/ai.cfg 2>&1 | grep -E "\[ai\]" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
 for case in "driver codriver" "codriver driver"; do
   set -- $case
   echo "== 2 players: host $1, guest $2 (the driver's machine streams the car)"
   hp_ap=""; cl_ap=""
   [ "$1" = driver ] && hp_ap="--autopilot" || cl_ap="--autopilot"
-  "$G" --headless --path . -- --host --seat=$1 --autostart $hp_ap --smoke=host --port=$P --seed=5 --length=900 --timeout=180 > $T/host.log 2>&1 &
+  "$G" --headless --path . -- --host --seat=$1 --autostart $hp_ap --smoke=host --port=$P --seed=5 --length=900 --timeout=180 --profile=$T/host.cfg > $T/host.log 2>&1 &
   hp=$!
   sleep 3
-  "$G" --headless --path . -- --join=127.0.0.1 --port=$P --name=Bob $cl_ap --smoke=client --length=900 --timeout=180 > $T/client.log 2>&1; c=$?
+  "$G" --headless --path . -- --join=127.0.0.1 --port=$P --name=Bob $cl_ap --smoke=client --length=900 --timeout=180 --profile=$T/client.cfg > $T/client.log 2>&1; c=$?
   wait $hp; h=$?
   grep -h "\[smoke\]" $T/host.log $T/client.log
   if grep -hE -A2 "^(SCRIPT ERROR|ERROR: Node not found)" $T/host.log $T/client.log; then echo "!! engine errors above"; fail=1; fi

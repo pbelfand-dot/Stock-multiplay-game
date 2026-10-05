@@ -104,6 +104,16 @@ func build(the_car, stage) -> void:
 	_bake_static()
 
 
+## Paint the shell and the cage the car's colour (a white car is white inside, a
+## blue one blue): every material made in RED takes it.
+func set_paint(c: Color) -> void:
+	for m in _mats.values():
+		if not m.has_meta("paint") and (m as StandardMaterial3D).albedo_color.is_equal_approx(RED):
+			m.set_meta("paint", true)
+		if m.has_meta("paint"):
+			(m as StandardMaterial3D).albedo_color = c
+
+
 ## Every part of the cockpit that never moves (boxes, tubes, the dials' faces and
 ## ticks, the switches...) is baked into one mesh per material: a few hundred
 ## little parts would be a few hundred draw calls, and more again for the

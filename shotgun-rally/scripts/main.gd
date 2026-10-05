@@ -14,15 +14,25 @@ extends Node
 ##                         --shot_drift (start it sliding sideways: the dirt flies)
 ##                         --shot_cam=x,y,z,tx,ty,tz (a free close-up camera, car-local: at xyz, looking at t; the car holds still, or drives with --autostart --autopilot)
 ##                         --shot_jump (at 120 km/h onto the stage's first (big) jump: the picture is taken mid-air)]
+##   --menu_shot=out.png [--menu_panel=maps|cars|online --shot_wait=6]   a picture of the home screen
+##   --story=RALLY[,STAGE]                   (with --solo / --screenshot) a story stage
+##   --profile=PATH                          another save file (credits, garage, story)
 
 const Game = preload("res://scripts/game.gd")
 const Menu = preload("res://scripts/ui/main_menu.gd")
 const LoadingScreen = preload("res://scripts/ui/loading_screen.gd")
+const Profile = preload("res://scripts/game/profile.gd")
+const Championship = preload("res://scripts/game/championship.gd")
 
 var game: Node
 var menu: Control
 var seed_value := 1
 var stage_no := 1
+## What kind of stage this is (load_stage carries it to both machines):
+## {mode: "quick"} for PLAY NOW / online, or a story stage (Championship.stage_opts).
+var opts := {"mode": "quick"}
+var rally_times: Array = []                  # story: my total on each stage of this rally so far
+var rally_lengths: Array = []
 var _test_t := 0.0
 var _smoke_done := false
 var _loading := false
@@ -36,7 +46,9 @@ func _ready() -> void:
 	Net.wrong_version.connect(to_menu)
 	multiplayer.peer_connected.connect(_on_peer_connected)
 	seed_value = int(Config.arg("seed", randi() % 100000))
-	if Config.flag("screenshot") or Config.flag("solo") or Config.flag("aicheck"):
+	if Config.flag("menu_shot"):
+		show_menu("", Config.arg("menu_panel", ""))
+	elif Config.flag("screenshot") or Config.flag("solo") or Config.flag("aicheck"):
 		start_solo(seed_value)
 	elif Config.flag("host"):
 		host_game(Config.arg("seat", "driver"))
@@ -46,32 +58,48 @@ func _ready() -> void:
 		show_menu()
 
 
-func show_menu(msg := "") -> void:
+func show_menu(msg := "", panel := "") -> void:
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	# on a CanvasLayer: a Control under a plain Node has no screen to fill
 	var layer := CanvasLayer.new()
 	layer.name = "MenuLayer"
 	add_child(layer)
 	menu = Menu.new()
+	menu.start_panel = panel
 	layer.add_child(menu)
 	menu.status(msg)
 	menu.solo.connect(func(): start_solo(randi() % 100000))
 	menu.host.connect(host_game)
 	menu.join.connect(join_game)
+	menu.story.connect(start_story)
 
 
 func start_solo(s: int) -> void:
 	Net.solo()
 	if Config.flag("screenshot") and Config.arg("shot_seat") == "codriver":
 		Net.players[1].seat = "codriver"
-	load_stage(s, 1)
+	if Config.flag("story"):                         # tests / pictures: --story=RALLY[,STAGE]
+		var rs := Config.arg("story").split(",")
+		load_stage(0, 1, Championship.stage_opts(int(rs[0]), int(rs[1]) if rs.size() > 1 else 0))
+		return
+	load_stage(s, 1, {"mode": "quick"})
 
 
 func host_game(seat: String) -> void:
 	if Net.host(Config.port, seat) != OK:
 		to_menu("Couldn't host on port %d (is another game running?)" % Config.port)
 		return
-	load_stage(randi() % 100000 if not Config.flag("seed") else seed_value, 1)
+	load_stage(randi() % 100000 if not Config.flag("seed") else seed_value, 1, {"mode": "quick"})
+
+
+## Story mode: rally i from its first stage, alone (seat "") or hosting a crew.
+func start_story(i: int, seat := "") -> void:
+	if seat == "":
+		Net.solo()
+	elif Net.host(Config.port, seat) != OK:
+		to_menu("Couldn't host on port %d (is another game running?)" % Config.port)
+		return
+	load_stage(0, 1, Championship.stage_opts(i, 0))
 
 
 func join_game(ip: String) -> void:
@@ -86,6 +114,7 @@ func join_game(ip: String) -> void:
 
 func _on_connected() -> void:
 	Net.hello.rpc_id(1, Config.player_name, Updater.current_build)
+	Net.set_car.rpc_id(1, Profile.setup())
 
 
 ## Host: someone joined: everyone (re)loads the stage and meets at the start line.
@@ -98,19 +127,45 @@ func _on_peer_connected(id: int) -> void:
 			if game:
 				game.all_loaded = true         # turned away (another build) or gone already
 			return
-		next_stage(seed_value, stage_no)
+		next_stage(seed_value, stage_no, opts)
 
 
-func next_stage(s: int, n: int) -> void:
+func next_stage(s: int, n: int, o: Dictionary) -> void:
 	if Net.online():
 		# first everyone stops streaming the car, and the last packets land while the old
 		# stage is still there; only then both rebuild (otherwise the driver's old car can
 		# still be talking to a Game that's busy building and has no Car yet)
 		pause_stream.rpc()
 		await get_tree().create_timer(0.3).timeout
-		load_stage.rpc(s, n)
+		load_stage.rpc(s, n, o)
 	else:
-		load_stage(s, n)
+		load_stage(s, n, o)
+
+
+## Host, at the results: ENTER. Quick play: a new stage. Story: the rally's next
+## stage, or after the last one back to the championship.
+func continue_event() -> void:
+	if opts.get("mode") != "story":
+		next_stage(seed_value + 1, stage_no + 1, {"mode": "quick"})
+		return
+	var i: int = opts.rally
+	var j: int = opts.stage + 1
+	if j < Championship.rally(i).stages.size():
+		next_stage(0, stage_no + 1, Championship.stage_opts(i, j))
+	elif Net.online():
+		end_event.rpc()
+	else:
+		end_event()
+
+
+## Host, at the results: R. The same stage again.
+func retry_stage() -> void:
+	next_stage(seed_value, stage_no, opts)
+
+
+@rpc("authority", "call_local", "reliable")
+func end_event() -> void:
+	to_menu("", "maps")
 
 
 @rpc("authority", "call_local", "reliable")
@@ -120,12 +175,18 @@ func pause_stream() -> void:
 
 
 @rpc("authority", "call_local", "reliable")
-func load_stage(s: int, n: int) -> void:
+func load_stage(s: int, n: int, o: Dictionary) -> void:
 	while _loading:                                  # one stage at a time (a reload during a load waits)
 		await get_tree().process_frame
 	_loading = true
+	if o.get("mode") == "story":
+		s = int(o.seed)
+		if int(o.stage) == 0:
+			rally_times = []                         # a new rally (or its first stage again)
+			rally_lengths = []
 	seed_value = s
 	stage_no = n
+	opts = o
 	if menu:
 		menu.get_parent().queue_free()
 		menu = null
@@ -136,14 +197,14 @@ func load_stage(s: int, n: int) -> void:
 	if not Config.flag("screenshot") or Config.flag("shot_loading"):
 		screen = LoadingScreen.new()
 		add_child(screen)
-		screen.begin(n)
+		screen.begin(n, "%s  ·  %s" % [o.title, o.stage_name] if o.get("mode") == "story" else "")
 	game = Game.new()
 	game.name = "Game"
 	add_child(game)
 	if screen:
 		game.progress.connect(screen.progress)
 		game.stage_generated.connect(func(): screen.set_stage(game.st.length, game.st.corners.size(), s))
-	await game.start(s, n)
+	await game.start(s, n, o)
 	_loading = false
 	game.finished.connect(_on_stage_finished)
 	_test_setup()
@@ -151,13 +212,13 @@ func load_stage(s: int, n: int) -> void:
 		screen.finish()
 
 
-func to_menu(msg := "") -> void:
+func to_menu(msg := "", panel := "") -> void:
 	Net.leave()
 	if game:
 		game.queue_free()
 		game = null
 	if menu == null:
-		show_menu(msg)
+		show_menu(msg, panel)
 	else:
 		menu.status(msg)
 	if Config.flag("smoke"):
@@ -210,6 +271,13 @@ func _test_setup() -> void:
 
 
 func _process(dt: float) -> void:
+	if Config.flag("menu_shot") and menu:
+		_test_t += dt
+		if _test_t > float(Config.arg("shot_wait", 6.0)):
+			get_viewport().get_texture().get_image().save_png(Config.arg("menu_shot"))
+			print("[shot] saved ", Config.arg("menu_shot"))
+			get_tree().quit(0)
+		return
 	if game == null:
 		return
 	_test_t += dt
@@ -232,6 +300,7 @@ func _process(dt: float) -> void:
 
 
 func _on_stage_finished(r: Dictionary) -> void:
+	_reward(r)
 	if Config.flag("aicheck"):
 		_ai_report(r)
 	if not Config.flag("smoke") or _smoke_done:
@@ -253,6 +322,58 @@ func _on_stage_finished(r: Dictionary) -> void:
 	print("[smoke] %s: %s" % [role, "OK" if ok else "FAIL"])
 	await get_tree().create_timer(1.5).timeout
 	get_tree().quit(0 if ok else 1)
+
+
+## Credits for the stage (both players earn), the best time, and in story mode
+## the rally standings; at the end of a rally, where you finished and what it
+## pays. Shown under the results.
+func _reward(r: Dictionary) -> void:
+	var story: bool = opts.get("mode") == "story"
+	var length: float = game.st.length
+	var pay := Profile.stage_credits(r, length, story)
+	Profile.earn(pay.total)
+	var lines := ["+%s CR   (stage %d · pace %d · clean run %d%s)" % [money(pay.total), pay.base, pay.pace, pay.clean,
+		" · story x1.5" if story else ""]]
+	if Profile.record_stage(seed_value, length, r.total):
+		lines.append("NEW BEST ON THIS STAGE")
+	var next := "next stage"
+	if story:
+		var i: int = opts.rally
+		var j: int = opts.stage
+		var rally := Championship.rally(i)
+		while rally_times.size() < j:              # joined mid-rally: the stages you missed at the middle pace
+			rally_lengths.append(rally_lengths[-1] if rally_lengths.size() > 0 else length)
+			rally_times.append(Championship.rival_time(i, rally_times.size(), 2, rally_lengths[-1]))
+		rally_times.resize(j + 1)
+		rally_lengths.resize(j + 1)
+		rally_times[j] = float(r.total)
+		rally_lengths[j] = length
+		var rows := Championship.standings(i, rally_times, rally_lengths)
+		var pos := Championship.position(rows)
+		var last: bool = j + 1 >= rally.stages.size()
+		if not last:
+			var gap := "+%.1f s to %s" % [rows[pos - 1].total - rows[0].total, rows[0].name] if pos > 1 \
+				else "leading by %.1f s" % (rows[1].total - rows[0].total)
+			lines.append("%s after SS%d:  %s of %d  (%s)" % [rally.name, j + 1, Championship.ordinal(pos), rows.size(), gap])
+			next = "SS%d %s" % [j + 2, rally.stages[j + 1][0]]
+		else:
+			var prize := Championship.reward(i, pos)
+			Profile.earn(prize)
+			Profile.finish_rally(rally.id, pos, rows[pos - 1].total)
+			lines.append("%s FINISHED:  %s!   +%s CR" % [rally.name, Championship.ordinal(pos), money(prize)])
+			for p in mini(rows.size(), 6):
+				lines.append("%d.  %s   %s" % [p + 1, rows[p].name, game.fmt_time(rows[p].total)])
+			next = "back to the championship"
+	game.set_result_extra(lines, next)
+
+
+static func money(n: int) -> String:
+	var t := str(absi(n))
+	var out := ""
+	while t.length() > 3:
+		out = "," + t.substr(t.length() - 3) + out
+		t = t.substr(0, t.length() - 3)
+	return ("-" if n < 0 else "") + t + out
 
 
 ## Every call should come from where the car is: said before the car reaches

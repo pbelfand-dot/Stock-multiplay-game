@@ -52,6 +52,10 @@ var crests: Array = []          # [{s, h, w, jump}] (+ a jump's shape: big, up, 
 var puddles: Array = []         # [{s, d, r}]
 var rocks: Array = []           # [{s, d, r}] on the inside of some corners: "don't cut"
 var _rng := RandomNumberGenerator.new()
+## Story rallies give a stage some character (set before generate(); none = an
+## ordinary stage, exactly as before): narrow 0..1 leans the road narrow;
+## puddles x as many puddles (the extras from their own random numbers).
+var opts := {}
 var _hills: Array = []          # [[amp, wavelength, phase] x2]
 
 
@@ -381,6 +385,9 @@ func _make_widths() -> void:
 			twist += absf(curv[j])
 		twist /= maxf(mini(i + n, pts.size()) - i, 1)          # mean 1/R: ~0.004 open .. ~0.02 twisty
 		var weights := [0.5 + twist * 90.0, 2.0, maxf(1.6 - twist * 70.0, 0.15)]
+		var narrow: float = opts.get("narrow", 0.0)
+		weights[0] += narrow * 4.0
+		weights[2] *= 1.0 - narrow * 0.85
 		var x: float = rng.randf() * (weights[0] + weights[1] + weights[2])
 		var w: float = WIDTHS[0] if x < weights[0] else (WIDTHS[1] if x < weights[0] + weights[1] else WIDTHS[2])
 		for j in range(i, mini(i + n, pts.size())):
@@ -489,6 +496,15 @@ func _place_extras() -> void:
 			var pd := minf(1.6, width_at(ps) * 0.5 - 1.2)
 			puddles.append({"s": ps, "d": _rng.randf_range(-pd, pd), "r": _rng.randf_range(1.4, 2.4)})
 		s += _rng.randf_range(260.0, 520.0)
+	var more: float = opts.get("puddles", 1.0)
+	if more > 1.0:
+		var prng := RandomNumberGenerator.new()
+		prng.seed = hash([seed_used, "puddles"])
+		var ps := START_S + 150.0
+		while ps < finish_s - 60.0:
+			var pd := minf(1.6, width_at(ps) * 0.5 - 1.2)
+			puddles.append({"s": ps, "d": prng.randf_range(-pd, pd), "r": prng.randf_range(1.4, 2.4)})
+			ps += prng.randf_range(260.0, 520.0) / (more - 1.0)
 	for c in corners:
 		if (c.grade <= 4 or c.shape != "") and _rng.randf() < 0.45:
 			var apex: float = (c.s0 + c.s1) * 0.5

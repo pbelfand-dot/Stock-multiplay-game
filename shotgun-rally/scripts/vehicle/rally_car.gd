@@ -93,6 +93,7 @@ const AIR_DAMP := 320.0            # N m per rad/s
 const AIR_BRAKE := 900.0           # N m nose-down, full brake
 const AIR_GAS := 450.0             # N m nose-up, full gas
 const PARTS := "res://assets/models/car_parts/"
+const Livery = preload("res://scripts/vehicle/livery.gd")
 const MODEL_SCALE := 1.95          # model units -> m
 const STATIC_COMP := 0.11          # spring squash sitting still (m): where the model's wheels were modelled
 const NET_HZ := 30.0
@@ -117,6 +118,12 @@ var spin := [0.0, 0.0, 0.0, 0.0]   # wheel rotation (rad), for the visuals
 var omega := [0.0, 0.0, 0.0, 0.0]  # wheel spin (rad/s, + = rolling forward)
 var wheel_slip := [0.0, 0.0, 0.0, 0.0]   # slip ratio per wheel: + spinning up, -1 locked (driver's machine)
 var lane_mu := [1.0, 1.0, 1.0, 1.0]      # grip from where each tyre is across the road (the game sets it)
+# the car from the garage (apply_setup): x the base car's power, grip, brakes; the drive split
+var power_mult := 1.0
+var grip_mult := 1.0
+var brake_mult := 1.0
+var drive_front := DRIVE_FRONT
+var setup := {}
 var mud_mu := false                # set by the game while a tyre is in a puddle
 var wheel_nodes: Array = []        # Node3D per corner (steer + spin pivots)
 var body_model: Node3D             # the Higgsfield car (assets/models/car_parts/): seen from outside
@@ -245,6 +252,21 @@ func _flat(c: Color) -> StandardMaterial3D:
 	return m
 
 
+## The car from the garage (Catalog.setup): how it drives (power, grip, brakes,
+## drive split) and how it looks outside (Livery: paint, number, wheels).
+func apply_setup(s: Dictionary) -> void:
+	setup = s
+	power_mult = float(s.get("power", 1.0))
+	grip_mult = float(s.get("grip", 1.0))
+	brake_mult = float(s.get("brakes", 1.0))
+	drive_front = float(s.get("drive_front", DRIVE_FRONT))
+	if body_model:
+		var wheels: Array = []
+		for mw in _model_wheels:
+			wheels.append((mw[1] as Node3D).get_child(0))
+		Livery.paint(body_model.get_child(0), wheels, s, self)
+
+
 ## Put the car on the road at (pos, yaw), still.
 func place(pos: Vector3, yaw: float) -> void:
 	var xf := Transform3D(Basis(Vector3.UP, -yaw), pos + Vector3.UP * (RADIUS + REST * 0.75))
@@ -346,7 +368,7 @@ func _drive(dt: float) -> void:
 		brake = maxf(brake, throttle)                               # moving back + gas: brake first
 		throttle = 0.0
 	if throttle > 0.0 and speed < V_MAX:
-		drive = throttle * minf(ENGINE_FORCE, POWER / maxf(vabs, 1.0))
+		drive = throttle * minf(ENGINE_FORCE, POWER / maxf(vabs, 1.0)) * power_mult
 
 	# rays
 	var hits: Array = []
@@ -383,13 +405,13 @@ func _drive(dt: float) -> void:
 	# the tyres, in two passes: (1) each wheel's spin under engine, brakes and
 	# the ground, then the diffs tie them together; (2) the forces from the slip
 	var tyre: Array = []
-	var split: float = 1.0 if inp.handbrake else DRIVE_FRONT    # the handbrake declutches the rear axle
+	var split: float = 1.0 if inp.handbrake else drive_front    # the handbrake declutches the rear axle
 	for k in 4:
 		var h: Dictionary = hits[k]
 		var front: bool = WHEELS[k][2]
 		var locked: bool = (not front) and inp.handbrake
 		var t_drive: float = drive * (split * 0.5 if front else (1.0 - split) * 0.5) * RADIUS
-		var t_brake: float = brake * BRAKE_FORCE * (BRAKE_FRONT * 0.5 if front else (1.0 - BRAKE_FRONT) * 0.5) * RADIUS
+		var t_brake: float = brake * BRAKE_FORCE * brake_mult * (BRAKE_FRONT * 0.5 if front else (1.0 - BRAKE_FRONT) * 0.5) * RADIUS
 		if h.is_empty():
 			# in the air: the engine spins it up (to the rev limit), the brakes stop it
 			omega[k] += (t_drive - t_brake * signf(omega[k])) / WHEEL_I * dt
@@ -414,7 +436,7 @@ func _drive(dt: float) -> void:
 		var vlat := vp.dot(side)
 		# grip: mu x load, a little less per newton the more the tyre is loaded, and
 		# where on the road it is (the clean wheel tracks grip, the loose gravel doesn't)
-		var mu: float = GRIP.get(h.surf, 0.9) * clampf(1.0 - LOAD_SENS * (fz / _fz0 - 1.0), 0.7, 1.15) * lane_mu[k]
+		var mu: float = GRIP.get(h.surf, 0.9) * clampf(1.0 - LOAD_SENS * (fz / _fz0 - 1.0), 0.7, 1.15) * lane_mu[k] * grip_mult
 		var fmax := mu * fz
 		var slow := Vector2(vlong, vlat).length() < 2.5
 		if not slow:
