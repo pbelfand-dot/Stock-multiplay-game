@@ -6,7 +6,7 @@ runs in GitHub Actions (.github/workflows/shotgun-rally-assets.yml), or locally.
     {"files": {"assets/models/car.glb": "https://...", "docs/reference/models/car.jpg": "https://..."}}
 
 Paths are relative to shotgun-rally/. A .jpg target from a .png source is
-converted (and shrunk to 1024 px) so reference images stay small.
+converted (reference images under docs/ shrunk to 1024 px, game art to 1920).
 
     python3 tools/fetch_assets.py
 """
@@ -34,8 +34,8 @@ def main() -> None:
         if dest.endswith(".jpg") and not url.split("?")[0].lower().endswith((".jpg", ".jpeg")):
             from PIL import Image
             im = Image.open(io.BytesIO(raw)).convert("RGB")
-            im.thumbnail((1024, 1024))
-            im.save(dest, quality=85)
+            im.thumbnail((1024, 1024) if rel.startswith("docs/") else (1920, 1920))
+            im.save(dest, quality=85 if rel.startswith("docs/") else 90)
         else:
             open(dest, "wb").write(raw)
         print("saved", rel, os.path.getsize(dest), "bytes")
