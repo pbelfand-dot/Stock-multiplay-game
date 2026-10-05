@@ -1,0 +1,38 @@
+; Engine configuration file.
+; Godot 4.7 project — SHOTGUN RALLY
+
+config_version=5
+
+[application]
+
+config/name="SHOTGUN RALLY"
+config/description="Co-op rally: one drives, one rides shotgun with the notes."
+run/main_scene="res://scenes/main.tscn"
+config/features=PackedStringArray("4.7", "GL Compatibility")
+config/icon="res://icon.png"
+
+[autoload]
+
+Config="*res://scripts/net/config.gd"
+Controls="*res://scripts/net/controls.gd"
+Net="*res://scripts/net/net.gd"
+
+[display]
+
+window/size/viewport_width=1600
+window/size/viewport_height=900
+window/stretch/mode="canvas_items"
+window/stretch/aspect="expand"
+
+[physics]
+
+3d/physics_engine="Jolt Physics"
+common/physics_ticks_per_second=60
+common/physics_interpolation=true
+
+[rendering]
+
+renderer/rendering_method="gl_compatibility"
+renderer/rendering_method.mobile="gl_compatibility"
+anti_aliasing/quality/msaa_3d=1
+textures/vram_compression/import_etc2_astc=true

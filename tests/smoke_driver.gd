@@ -217,7 +217,9 @@ func _client() -> void:
 		return
 	_say("rode up in the car (z=%.2f) and walked out to z=%.2f" % [_deepest, wl.local_player.global_position.z])
 	var start_bal: float = m.my_acct().balance
-	m.request_open("BTC", 1, 10_000.0, 100)
+	# $2K of margin, not $10K: the trade can be liquidated in the second it's open (the market
+	# fights back), and the desk still has to afford the cigar, the brick and the $8K TOROLA after
+	m.request_open("BTC", 1, 2_000.0, 100)
 	if not await _wait_for(func(): return m.my_acct().get("positions", []).size() == 1, 5.0, "position open"):
 		return
 	_say("position open, cash %f -> %f" % [start_bal, m.my_acct().balance])
