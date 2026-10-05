@@ -38,8 +38,12 @@ const WHEELS := [                  # x, z, front
 const REST := 0.36                 # spring travel (m)
 const RADIUS := 0.31               # tyre radius (m)
 const SPRING := 26000.0            # N/m per corner
-const DAMP := 2400.0               # N per m/s
-const BUMP_STOP := 0.29            # past this compression the bump stop takes over
+const DAMP := 3000.0               # N per m/s, the spring squashing (bump)
+const DAMP_REBOUND := 4200.0       # ... and stretching back (rebound): stiffer, so it settles instead of bouncing
+const BUMP_STOP := 0.24            # past this compression the (progressive, hydraulic) bump stop joins in
+const BUMP_RATE := 1.1e6           # N per m^2 past it: soft at first, firm deep in (lands jumps without a slam)
+const BUMP_DAMP := 5000.0          # N per m/s extra while on it, squashing (it soaks the landing up)
+const TYRE_GIVE := 0.035           # s: how quickly the tyre passes a step in the ground on to the spring
 const ANTI_ROLL_F := 7000.0        # N per m of left/right difference (more at the back: a car that turns)
 const ANTI_ROLL_R := 13000.0
 const CAR_MASS := 1150.0
@@ -53,15 +57,15 @@ const DRIVE_FRONT := 0.45          # AWD split (a Rally2 car is a locked 50 / 50
 const DRAG := 0.46                 # N per (m/s)^2
 const ROLLING := 0.022             # rolling resistance, x the load
 const STEER_LOCK := 0.58           # front wheels at full lock (rad, 33 deg): parking speeds
-const STEER_RATE := 3.0            # how fast the front wheels can turn (rad/s, at the road)
-const KEY_ON := 4.5                # keys: steering builds this fast (full in ~0.2 s) ...
-const KEY_OFF := 7.0               # ... and comes back this fast
+const STEER_RATE := 4.0            # how fast the front wheels can turn (rad/s, at the road)
+const KEY_ON := 6.0                # keys: steering builds this fast (full in ~0.17 s) ...
+const KEY_OFF := 8.0               # ... and comes back this fast
 ## Tyres. Peak slip angle (rad) per surface: on loose gravel the tyre plows a
 ## little bank of stones, so it peaks later and fades more gently than on tarmac.
-const PEAK := {"gravel": 0.17, "dirt": 0.16, "grass": 0.19, "mud": 0.21, "tarmac": 0.105}
-const SLIP_PEAK := 0.17            # gravel (the autopilot and the HUD use it)
+const PEAK := {"gravel": 0.14, "dirt": 0.14, "grass": 0.17, "mud": 0.19, "tarmac": 0.1}
+const SLIP_PEAK := 0.14            # gravel (the autopilot and the HUD use it)
 const SHAPE_C := 1.35              # Magic Formula C: past the peak it fades slowly (94 % at 3x the peak, 85 % at most)
-const GRIP := {"gravel": 0.95, "dirt": 0.92, "grass": 0.62, "mud": 0.5, "tarmac": 1.15}
+const GRIP := {"gravel": 1.1, "dirt": 1.05, "grass": 0.7, "mud": 0.55, "tarmac": 1.25}
 const LOAD_SENS := 0.15            # mu drops 15 % per extra static load (a loaded tyre grips less per newton)
 const RELAX := 0.4                 # m: a tyre rolls this far before its side force catches up with a new slip angle
 const LOCKED_MU := 0.82            # a locked (handbraked) tyre slides at this much of its grip
@@ -271,7 +275,10 @@ func _drive(dt: float) -> void:
 			hits.append({})
 			comp[k] = move_toward(comp[k], 0.0, dt * 2.0)
 			continue
-		var c: float = REST + RADIUS - mount.distance_to(h.position)
+		var raw: float = REST + RADIUS - mount.distance_to(h.position)
+		# the tyre's own give: it soaks up the little kinks in the road surface (the
+		# ground is flat panels; without this every joint is a jolt through the seat)
+		var c: float = raw if comp[k] <= 0.0 else lerpf(comp[k], raw, clampf(dt / TYRE_GIVE, 0.0, 1.0))
 		var surf: String = "gravel"
 		if h.collider and h.collider.has_meta("surface"):
 			surf = h.collider.get_meta("surface")
@@ -295,9 +302,10 @@ func _drive(dt: float) -> void:
 			continue
 		var front: bool = WHEELS[k][2]
 		var mate := k ^ 1                                           # the other wheel on this axle
-		var fz: float = SPRING * h.c + DAMP * h.cv
+		var fz: float = SPRING * h.c + (DAMP if h.cv > 0.0 else DAMP_REBOUND) * h.cv
 		if h.c > BUMP_STOP:
-			fz += (h.c - BUMP_STOP) * SPRING * 8.0
+			var into: float = h.c - BUMP_STOP
+			fz += BUMP_RATE * into * into + (BUMP_DAMP * h.cv if h.cv > 0.0 else 0.0)
 		fz += (ANTI_ROLL_F if front else ANTI_ROLL_R) * (h.c - comp[mate]) if not hits[mate].is_empty() else 0.0
 		fz = maxf(fz, 0.0)
 		var n: Vector3 = h.n

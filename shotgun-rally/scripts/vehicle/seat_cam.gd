@@ -17,6 +17,8 @@ const YAW_MAX := 2.0            # rad: almost over your shoulder
 const PITCH_MIN := -1.25
 const PITCH_MAX := 0.5
 const BOOK_LOOK := Vector2(0.06, -0.98)   # yaw, pitch that puts the map board in view
+const NECK_K := 380.0           # the neck's spring (1/s^2): ~3 Hz
+const NECK_C := 30.0            # ... and damping: it settles in a bob or two
 
 var car
 var seat := "driver"
@@ -33,6 +35,7 @@ var _acc_local := Vector3.ZERO
 var _bump := 0.0
 var _orbit := 0.6               # rad around the car
 var _buzz_t := 0.0
+var _neck_v := 0.0
 var _chase_pos := Vector3.ZERO
 var _chase_ready := false
 
@@ -86,13 +89,19 @@ func _process(dt: float) -> void:
 	var look_yaw := lerpf(yaw, BOOK_LOOK.x, b)
 	var look_pitch := lerpf(pitch, BOOK_LOOK.y, b)
 
-	# g-forces: the head lags the car (car-local acceleration -> lean the other way)
+	# g-forces: the head lags the car (car-local acceleration -> lean the other way).
+	# Up and down it's a head on a neck: a soft spring that soaks up the hits and
+	# settles (it used to snap the view down on every jolt, which read as bouncing)
 	var xf: Transform3D = car.get_global_transform_interpolated()
-	var target := Vector3(-_acc_local.x * 0.0035, -absf(_acc_local.y) * 0.001, -_acc_local.z * 0.004)
-	target = target.clamp(Vector3(-0.07, -0.05, -0.07), Vector3(0.07, 0.03, 0.07))
-	_lean = _lean.lerp(target, clampf(dt * 8.0, 0.0, 1.0))
+	var target := Vector3(-_acc_local.x * 0.0035, 0.0, -_acc_local.z * 0.004)
+	target = target.clamp(Vector3(-0.07, 0.0, -0.07), Vector3(0.07, 0.0, 0.07))
+	_lean.x = lerpf(_lean.x, target.x, clampf(dt * 8.0, 0.0, 1.0))
+	_lean.z = lerpf(_lean.z, target.z, clampf(dt * 8.0, 0.0, 1.0))
+	var push := clampf(_acc_local.y, -40.0, 40.0) * 0.6        # how hard the seat moves under you
+	_neck_v += (-NECK_K * _lean.y - NECK_C * _neck_v - push) * dt
+	_lean.y = clampf(_lean.y + _neck_v * dt, -0.035, 0.025)
 	_bump = move_toward(_bump, 0.0, dt * 0.6)
-	var shake := Vector3(randf_range(-1, 1), randf_range(-1, 1), 0.0) * _bump * 0.02
+	var shake := Vector3(randf_range(-1, 1), randf_range(-1, 1), 0.0) * _bump * 0.008
 	# the gravel through the seat: a fine buzz that grows with speed (more off the road),
 	# and the view opens up a little when you're quick
 	var spd: float = car.linear_velocity.length()

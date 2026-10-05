@@ -34,7 +34,7 @@ func _process(_d: float) -> bool:
 		var max_slope := 0.0
 		for i in range(1, st.pts.size()):
 			max_slope = maxf(max_slope, absf(st.pts[i].y - st.pts[i - 1].y) / st.STEP)
-		if max_slope > 0.45:
+		if max_slope > 0.17:
 			fails += _fail("seed %d: slope %.2f" % [seed_value, max_slope])
 		var notes: Array = Notes.build(st)
 		var corner_notes := 0

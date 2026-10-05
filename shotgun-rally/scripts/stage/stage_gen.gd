@@ -14,6 +14,7 @@ extends RefCounted
 ## Same seed -> same stage on every machine (host and co-driver build their own).
 
 const STEP := 2.0
+const MAX_GRADE := 0.16         # steepest the road gets (16 %)
 const ROAD_W := 5.6             # gravel width (m)
 const START_S := 40.0           # the car waits here (start line)
 const FINISH_BACK := 110.0      # flying finish this far before the end of the road
@@ -189,8 +190,8 @@ func _clear_of_itself() -> bool:
 
 func _make_elevation() -> void:
 	_hills = [
-		[_rng.randf_range(3.0, 7.0), _rng.randf_range(260, 480), _rng.randf() * TAU],
-		[_rng.randf_range(1.5, 3.5), _rng.randf_range(110, 200), _rng.randf() * TAU],
+		[_rng.randf_range(2.5, 5.0), _rng.randf_range(320, 520), _rng.randf() * TAU],
+		[_rng.randf_range(1.0, 2.2), _rng.randf_range(150, 240), _rng.randf() * TAU],
 	]
 	# crests every 180-380 m; on a long-enough straight some are JUMPS (sharper, taller)
 	crests.clear()
@@ -199,10 +200,28 @@ func _make_elevation() -> void:
 		var straight := _straight_room(s)
 		var jump := straight > 70.0 and _rng.randf() < 0.45
 		crests.append({"s": s, "h": _rng.randf_range(1.6, 2.4) if jump else _rng.randf_range(1.0, 1.8),
-			"w": _rng.randf_range(9.0, 12.0) if jump else _rng.randf_range(16.0, 26.0), "jump": jump})
+			"w": _rng.randf_range(13.0, 17.0) if jump else _rng.randf_range(16.0, 26.0), "jump": jump})
 		s += _rng.randf_range(180.0, 380.0)
 	for i in pts.size():
 		pts[i].y = height_at(i * STEP)
+	_limit_grade()
+
+
+## No steeper than MAX_GRADE either way (a gravel road, not a ski jump: a crest on top
+## of a steep drop used to throw the car 7 m down onto the flat at 110 km/h), then
+## round the corners that leaves so the brows and dips stay smooth.
+func _limit_grade() -> void:
+	var step_max := MAX_GRADE * STEP
+	for i in range(1, pts.size()):
+		pts[i].y = clampf(pts[i].y, pts[i - 1].y - step_max, pts[i - 1].y + step_max)
+	for i in range(pts.size() - 2, -1, -1):
+		pts[i].y = clampf(pts[i].y, pts[i + 1].y - step_max, pts[i + 1].y + step_max)
+	for _pass in 3:
+		var ys := PackedFloat32Array()
+		for p in pts:
+			ys.append(p.y)
+		for i in range(1, pts.size() - 1):
+			pts[i].y = (ys[i - 1] + ys[i] * 2.0 + ys[i + 1]) * 0.25
 
 
 ## Elevation of the road at s (m): two rolling hills plus the crests, flat at the start and finish.
@@ -211,9 +230,13 @@ func height_at(s: float) -> float:
 	for hl in _hills:
 		y += hl[0] * sin(s / hl[1] * TAU + hl[2])
 	for c in crests:
-		var u: float = (s - c.s) / c.w
+		# a smooth bump, sharp enough to hide what's behind; its far side is longer and
+		# gentler (a landing slope: 3x for a jump), so you come down onto road going down
+		# with you, not into the dip after it
+		var back: float = c.w * (3.0 if c.jump else 1.6)
+		var u: float = (s - c.s) / (c.w if s < c.s else back)
 		if absf(u) < 1.0:
-			y += c.h * 0.5 * (1.0 + cos(u * PI))      # a smooth bump, sharp enough to hide what's behind
+			y += c.h * 0.5 * (1.0 + cos(u * PI))
 	var flat := smoothstep(0.0, 120.0, s) * smoothstep(length, finish_s - 20.0, s)
 	return y * flat
 
@@ -347,12 +370,21 @@ func locate(p: Vector3, hint := -1) -> Dictionary:
 		if d2 < best_d2:
 			best_d2 = d2
 			best = i
-	# project onto the segment best..best+1
+	# project onto the segment best..best+1, or best-1..best if the point is behind
+	# best (otherwise s sticks at best's value for a while: it moved in 2 m jerks)
 	var a := pts[best]
 	var b := pts[best + 1]
 	var ab := Vector2(b.x - a.x, b.z - a.z)
 	var ap := Vector2(p.x - a.x, p.z - a.z)
-	var t := clampf(ap.dot(ab) / maxf(ab.length_squared(), 1e-6), 0.0, 1.0)
+	var t := ap.dot(ab) / maxf(ab.length_squared(), 1e-6)
+	if t < 0.0 and best > 0:
+		best -= 1
+		a = pts[best]
+		b = pts[best + 1]
+		ab = Vector2(b.x - a.x, b.z - a.z)
+		ap = Vector2(p.x - a.x, p.z - a.z)
+		t = ap.dot(ab) / maxf(ab.length_squared(), 1e-6)
+	t = clampf(t, 0.0, 1.0)
 	var s := (best + t) * STEP
 	var side := right_at(s)
 	var on := a.lerp(b, t)
