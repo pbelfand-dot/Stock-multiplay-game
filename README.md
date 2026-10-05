@@ -5,6 +5,12 @@ You're a desk of degenerate traders at a hedge fund. Everyone trades from **one 
 **5 minutes a day** to hit a **profit quota that keeps going up**, and if you get too greedy, **the cops
 come out of the elevator.**
 
+> **Also in this repo: [SHOTGUN RALLY](shotgun-rally/README.md)**, a cartoony co-op rally game: you
+> drive, your friend rides shotgun with the map. It's its own Godot project in `shotgun-rally/`, with
+> its own downloads ([Mac](https://github.com/pbelfand-dot/Stock-multiplay-game/releases/download/shotgun-latest/ShotgunRally.zip) ·
+> [Windows](https://github.com/pbelfand-dot/Stock-multiplay-game/releases/download/shotgun-latest/ShotgunRally-Windows.zip) ·
+> [all](https://github.com/pbelfand-dot/Stock-multiplay-game/releases/tag/shotgun-latest)).
+
 ## ⬇ Download (always the newest build)
 
 The links never change. Every update to `main` replaces the files behind them:

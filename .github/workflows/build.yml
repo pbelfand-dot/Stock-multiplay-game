@@ -4,7 +4,10 @@ on:
   push:
     branches: ["**"]
     tags: ["v*"]
+    # SHOTGUN RALLY (shotgun-rally/) has its own workflow: changes there don't rebuild BAGHOLDERS
+    paths-ignore: ["shotgun-rally/**", ".github/workflows/shotgun-rally*.yml"]
   pull_request:
+    paths-ignore: ["shotgun-rally/**", ".github/workflows/shotgun-rally*.yml"]
   workflow_dispatch:
 
 env:
