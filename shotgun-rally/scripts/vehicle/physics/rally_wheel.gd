@@ -8,18 +8,27 @@ extends Node3D
 ##     the road's panels and snags on edges; a sphere rolls over them like a tyre
 ##   * the spring + damper + bump stop (suspension.gd) push the body up at the
 ##     contact point, along the ground's normal, by the strut force's share
-##     that's square to the ground. That's the tyre's load, which the tyre
-##     forces will use (phase 2 on). Pushing at the contact, not the body's
-##     middle, is what makes braking dip the nose and cornering roll the body
+##     that's square to the ground. That's the tyre's load. Pushing at the
+##     contact, not the body's middle, is what makes braking dip the nose and
+##     cornering roll the body
+##   * the tyre (tire_model.gd): the contact patch's own velocity (the body's,
+##     plus its spin times the lever arm to the patch), split along and across
+##     the wheel's heading in the ground's plane; the sideways part winds up the
+##     slip state and the curve turns it into a side force, mu x load at most,
+##     pushed at the patch too (phase 2; along the wheel comes in phase 3)
 ##   * the wheel has no mass of its own here: in the air it hangs at full droop
-## The WheelMesh child is only the look: put where the simulation says.
+## The node's own Y rotation is the steering (the car sets it). The WheelMesh
+## child is only the look: put where the simulation says.
 
 const Suspension = preload("res://scripts/vehicle/physics/suspension.gd")
+const TireModel = preload("res://scripts/vehicle/physics/tire_model.gd")
 
 @export var front := true
 
 var car: RigidBody3D
 var cfg: Resource                  # SuspensionConfig
+var tire: Resource                 # TireConfig
+var surface_mu := 1.0              # the surface's grip relative to the tyre's reference (phase 6)
 var radius := 0.32
 var width := 0.2
 var cast: ShapeCast3D
@@ -35,6 +44,11 @@ var contact := Vector3.ZERO        # world
 var normal := Vector3.UP           # world
 var collider: Object
 var wheel_center := Vector3.ZERO   # world
+var heading := Vector3.FORWARD     # world: along the wheel, in the ground's plane
+var v_long := 0.0                  # m/s: the contact patch's speed along the wheel ...
+var v_lat := 0.0                   # ... and across it (+ = toward the wheel's right)
+var slip_lat := 0.0                # the sideways slip state (tan of the slip angle; + = sliding left)
+var lateral_force := 0.0           # N, + = pushing the car to the wheel's right
 var spin := 0.0                    # rad (the look)
 
 var _prev_compression := 0.0
@@ -43,9 +57,10 @@ var _drop := 0.0                   # the look in the air: how far down the trave
 
 
 ## Hook the corner up (the car calls it): the suspension it uses and the tyre.
-func setup(the_car: RigidBody3D, suspension: Resource, tyre_radius: float, tyre_width: float) -> void:
+func setup(the_car: RigidBody3D, suspension: Resource, tyre: Resource, tyre_radius: float, tyre_width: float) -> void:
 	car = the_car
 	cfg = suspension
+	tire = tyre
 	radius = tyre_radius
 	width = tyre_width
 	cast = get_node_or_null("ShapeCast3D")
@@ -79,12 +94,24 @@ func step(dt: float) -> void:
 	cast.force_shapecast_update()
 	var axis := -global_transform.basis.y            # down the strut
 	if cast.is_colliding():
-		var fraction := cast.get_closest_collision_safe_fraction()
-		compression = cfg.travel * (1.0 - fraction)
 		contact = cast.get_collision_point(0)
 		normal = cast.get_collision_normal(0)
 		collider = cast.get_collider(0)
-		wheel_center = global_position + axis * cfg.travel * fraction
+		# How far down the travel the sphere touches. The cast's own answer comes
+		# in ~2 mm steps (each step would read as a jolt of suspension speed), so
+		# solve it exactly: the centre on the strut's line, one radius off the
+		# ground's plane at the contact. At an edge, where the plane guess is off,
+		# fall back to the cast's.
+		var rough: float = cfg.travel * cast.get_closest_collision_safe_fraction()
+		var down := rough
+		var across := axis.dot(normal)
+		if across < -0.2:
+			var exact := (radius - (global_position - contact).dot(normal)) / across
+			if absf(exact - rough) < 0.02:
+				down = exact
+		down = clampf(down, 0.0, cfg.travel)
+		compression = cfg.travel - down
+		wheel_center = global_position + axis * down
 		grounded = true
 	else:
 		compression = 0.0
@@ -105,21 +132,39 @@ func step(dt: float) -> void:
 	if not grounded:
 		strut_force = 0.0
 		load = 0.0
+		lateral_force = 0.0
+		slip_lat = 0.0                               # off the ground the carcass springs back
 		return
 	strut_force = Suspension.force(cfg, compression, compression_velocity)
 	var square := maxf(-axis.dot(normal), 0.0)      # the strut's push that's square to the ground
 	load = strut_force * square
-	car.apply_force(normal * load, contact - car.global_position)
+	# the tyre: the patch's velocity along / across the wheel, in the ground's plane
+	var fwd := -global_transform.basis.z
+	heading = (fwd - normal * fwd.dot(normal)).normalized()
+	var right := heading.cross(normal)
+	var vc := _point_velocity(contact)
+	v_long = vc.dot(heading)
+	v_lat = vc.dot(right)
+	spin += v_long / radius * dt                     # rolling freely (until phase 3 gives it its own spin)
+	slip_lat = TireModel.lateral_slip(tire, slip_lat, v_long, v_lat, dt)
+	var mu: float = tire.lateral_mu * surface_mu
+	lateral_force = TireModel.lateral_force(tire, slip_lat, load, mu, v_long, v_lat)
+	car.apply_force(normal * load + right * lateral_force, contact - car.global_position)
+
+
+## The slip angle the tyre is at (deg, + = its patch sliding toward its right).
+func slip_angle_deg() -> float:
+	return -rad_to_deg(atan(slip_lat))
 
 
 ## Place the wheel's look (call every frame): on the ground, or hanging in the air.
-func update_visual(dt: float, steer_angle := 0.0) -> void:
+func update_visual(dt: float) -> void:
 	if mesh == null:
 		return
 	var target: float = cfg.travel - compression if grounded else cfg.travel
 	_drop = target if grounded else move_toward(_drop, target, dt * 2.0)
 	mesh.position = Vector3(0.0, -_drop, 0.0)
-	mesh.rotation = Vector3(spin, steer_angle, 0.0)
+	mesh.rotation = Vector3(-spin, 0.0, 0.0)          # (steering: this node's own rotation)
 
 
 ## A point on the car's velocity (world), from its linear and angular velocity.

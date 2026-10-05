@@ -1,7 +1,9 @@
-[gd_resource type="Resource" load_steps=5 format=3]
+[gd_resource type="Resource" format=3]
 
 [ext_resource type="Script" path="res://scripts/vehicle/physics/config/car_config.gd" id="1_car"]
 [ext_resource type="Script" path="res://scripts/vehicle/physics/config/suspension_config.gd" id="2_susp"]
+[ext_resource type="Script" path="res://scripts/vehicle/physics/config/tire_config.gd" id="3_tire"]
+[ext_resource type="Script" path="res://scripts/vehicle/physics/config/steering_config.gd" id="4_steer"]
 
 [sub_resource type="Resource" id="Resource_front"]
 script = ExtResource("2_susp")
@@ -25,6 +27,28 @@ bump_stop_rate = 4000000.0
 bump_stop_damping = 9000.0
 max_force = 90000.0
 
+[sub_resource type="Resource" id="Resource_tire_front"]
+script = ExtResource("3_tire")
+lateral_mu = 1.0
+lateral_peak_deg = 7.0
+lateral_shape = 1.35
+relaxation_length = 0.35
+standstill_damping = 8000.0
+
+[sub_resource type="Resource" id="Resource_tire_rear"]
+script = ExtResource("3_tire")
+lateral_mu = 1.0
+lateral_peak_deg = 7.0
+lateral_shape = 1.35
+relaxation_length = 0.35
+standstill_damping = 8000.0
+
+[sub_resource type="Resource" id="Resource_steering"]
+script = ExtResource("4_steer")
+max_angle_deg = 30.0
+rack_speed_deg = 180.0
+ackermann = 0.4
+
 [resource]
 script = ExtResource("1_car")
 mass = 1280.0
@@ -39,6 +63,9 @@ tyre_radius = 0.32
 tyre_width = 0.2
 front_suspension = SubResource("Resource_front")
 rear_suspension = SubResource("Resource_rear")
+front_tire = SubResource("Resource_tire_front")
+rear_tire = SubResource("Resource_tire_rear")
+steering = SubResource("Resource_steering")
 body_size = Vector3(1.7, 0.8, 3.9)
 body_center = Vector3(0, 0.22, 0)
 cabin_size = Vector3(1.4, 0.5, 2)

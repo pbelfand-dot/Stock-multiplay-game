@@ -1,6 +1,6 @@
 extends SceneTree
-## Physics v2, phase 1: the chassis on its four suspension corners, in the lab
-## course (scripts/physics_lab.gd), at 120 ticks a second.
+## Physics v2 in the lab course (scripts/physics_lab.gd), at 120 ticks a second.
+## Phase 1, the chassis on its four suspension corners:
 ##   * static: it sits level at the ride height the springs and its weight give
 ##     (each corner squashed by its share of the weight / the spring rate)
 ##   * bounce: lifted 5 cm and let go, it bounces at about the ride frequency
@@ -9,6 +9,14 @@ extends SceneTree
 ##     hitting the ground, doesn't bounce back into the air, and settles
 ##   * bumps: rolling over full-width bumps pitches it; over bumps under the
 ##     left wheels only, it rolls; the forces act at the corners, nothing levels it
+## Phase 2, the tyres grip sideways and the front wheels steer:
+##   * skid pad: towed round at 15 m/s with the wheel held at 2, 4, 8 and 15
+##     degrees: the cornering force grows with the steering (at first just what
+##     the geometry asks: v^2 x angle / wheelbase) and tops out at the tyres'
+##     grip (mu g), never past it; front and rear slip angles reported
+##   * side slope: parked across a 10 degree slope with no brakes, the tyres hold
+##     it (the carcass sticks like a spring at a standstill): no creep, no wobble
+##   * straight: at 20 m/s with the wheel straight it runs straight
 ## Run: godot --headless --fixed-fps 120 --path . -s tests/physics_v2_check.gd
 ## Prints [physics] lines; exits 1 on any FAIL.
 
@@ -22,7 +30,10 @@ var _t := 0.0
 var _log: Array = []               # per tick: [t, y, pitch, roll, grounded, max comp, min body clearance]
 var _y0 := 0.0
 var _lift_t := 0.0
-var _phases := ["static", "bounce", "drop", "bumps", "left bumps"]
+var _phases := ["static", "bounce", "drop", "bumps", "left bumps", "skid 2", "skid 4", "skid 8", "skid 15",
+	"side slope", "straight"]
+var _skid := {}                    # steering deg -> {a: lateral accel m/s², front / rear slip deg}
+var _yaw0 := 0.0
 
 
 func _initialize() -> void:
@@ -61,6 +72,14 @@ func _next() -> void:
 			Lab.launch(car, Vector3(0.0, 0.0, Lab.BUMPS_Z + 10.0), 12.0)
 		"left bumps":
 			Lab.launch(car, Vector3(Lab.BUMP_LANE_X, 0.0, Lab.BUMPS_Z + 10.0), 12.0)
+		"skid 2", "skid 4", "skid 8", "skid 15":
+			Lab.launch(car, Lab.SKID, 15.0)
+			car.inp.steer = float(_phases[_phase].split(" ")[1]) / car.config.steering.max_angle_deg
+		"side slope":
+			Lab.park_on_slope(car)
+		"straight":
+			Lab.launch(car, Lab.SKID, 20.0)
+			_yaw0 = car.global_rotation.y
 
 
 func _physics_process(dt: float) -> bool:
@@ -68,6 +87,10 @@ func _physics_process(dt: float) -> bool:
 		return _done()
 	_t += dt
 	var name: String = _phases[_phase]
+	if name.begins_with("skid"):
+		Lab.tow(car, 15.0)
+	elif name == "straight":
+		Lab.tow(car, 20.0)
 	if name == "bounce" and _t > 2.0 and _y0 == 0.0:
 		_y0 = car.global_position.y                  # settled: lift it 5 cm and let go
 		_lift_t = _t
@@ -80,10 +103,18 @@ func _physics_process(dt: float) -> bool:
 	var max_c := 0.0
 	for w in car.wheels:
 		max_c = maxf(max_c, w.compression)
+	var w: Array = car.wheels
 	_log.append([_t, car.global_position.y, rad_to_deg(asin(clampf(fwd.y, -1, 1))), rad_to_deg(asin(clampf(xf.basis.x.y, -1, 1))),
-		car.grounded, max_c, _clearance()])
-	var length := {"static": 3.0, "bounce": 5.5, "drop": 4.5, "bumps": 4.0, "left bumps": 4.0}
-	if _t >= length[name]:
+		car.grounded, max_c, _clearance(),
+		car.linear_velocity.length(), rad_to_deg(car.angular_velocity.y),                       # 7, 8
+		(w[0].slip_angle_deg() + w[1].slip_angle_deg()) * 0.5, (w[2].slip_angle_deg() + w[3].slip_angle_deg()) * 0.5,  # 9, 10
+		car.global_position, car.linear_velocity.dot(xf.basis.x)])                                # 11, 12
+	var length := {"static": 3.0, "bounce": 5.5, "drop": 4.5, "bumps": 4.0, "left bumps": 4.0,
+		"skid 2": 5.0, "skid 4": 5.0, "skid 8": 5.0, "skid 15": 5.0, "side slope": 5.0, "straight": 3.0}
+	if name.begins_with("skid") and _t >= length[name]:
+		_judge_skid(int(name.split(" ")[1]))
+		_next()
+	elif _t >= length[name]:
 		call(StringName("_judge_" + name.replace(" ", "_")))
 		_next()
 	return false
@@ -189,6 +220,70 @@ func _judge_left_bumps() -> void:
 		roll = maxf(roll, absf(e[3]))
 	fails += _check(roll > 0.4, "left-side bumps: they roll it (up to %.1f deg)" % roll)
 	fails += _check(car.global_transform.basis.y.y > 0.99, "left-side bumps: still upright")
+
+
+## Steady state on the skid pad (the last 1.5 s): cornering force, slip angles, how steady.
+func _judge_skid(deg: int) -> void:
+	var a := 0.0
+	var sf := 0.0
+	var sr := 0.0
+	var n := 0
+	var yaw: Array = []
+	for e in _log:
+		if e[0] > _log[_log.size() - 1][0] - 1.5:
+			a += e[7] * deg_to_rad(absf(e[8]))      # v x yaw rate: the cornering acceleration
+			sf += absf(e[9])
+			sr += absf(e[10])
+			yaw.append(absf(e[8]))
+			n += 1
+	a /= n
+	sf /= n
+	sr /= n
+	var spread: float = yaw.max() - yaw.min()
+	_skid[deg] = {"a": a, "front": sf, "rear": sr}
+	var base: float = car.config.rear_axle - car.config.front_axle
+	var geo := 15.0 * 15.0 * deg_to_rad(deg) / base     # what the geometry alone would give (no slip)
+	var mu_g: float = car.config.front_tire.lateral_mu * 9.8
+	print("[physics]      skid pad, wheel at %2d deg: %.2f m/s² (%.2f g; geometry alone %.1f), slip front %.2f / rear %.2f deg, yaw rate steady within %.2f deg/s" % [
+		deg, a, a / 9.8, geo, sf, sr, spread])
+	if deg <= 4:
+		fails += _check(spread < 0.2 and car.grounded == 4, "skid pad %d deg: a steady circle" % deg)
+	else:                                            # at the limit it hunts, like a real car: it must hold on
+		fails += _check(yaw.max() < 60.0 and car.grounded == 4 and car.global_transform.basis.y.y > 0.95,
+			"skid pad %d deg: at the limit it holds on (no spin, no lift: yaw rate %.0f-%.0f deg/s)" % [deg, yaw.min(), yaw.max()])
+	if deg <= 4:
+		fails += _check(absf(a - minf(geo, mu_g)) < geo * 0.15, "skid pad %d deg: below the limit the car goes where it's steered (%.2f vs %.2f m/s²)" % [deg, a, geo])
+	if deg == 15:
+		var order: bool = _skid[2].a < _skid[4].a and _skid[4].a < _skid[8].a and _skid[8].a <= _skid[15].a + 0.3
+		fails += _check(order, "skid pad: more steering, more cornering force, until it tops out (%.1f, %.1f, %.1f, %.1f m/s²)" % [
+			_skid[2].a, _skid[4].a, _skid[8].a, _skid[15].a])
+		fails += _check(a > 0.75 * mu_g and a < 1.05 * mu_g, "skid pad 15 deg: at the tyres' grip and never past it (%.2f m/s², mu g = %.2f)" % [a, mu_g])
+
+
+func _judge_side_slope() -> void:
+	var start: Vector3 = Vector3.ZERO
+	for e in _log:
+		if e[0] >= 2.5:                              # settled on its springs (the body leans downhill first)
+			start = e[11]
+			break
+	var last: Array = _log[_log.size() - 1]
+	var across: Vector3 = car.global_transform.basis.x     # down the slope (phase 2 has no brakes: along the car it could roll)
+	var drift: float = absf(((last[11] as Vector3) - start).dot(across))
+	fails += _check(drift < 0.003 and absf(last[12]) < 0.001,
+		"side slope %.0f deg, no brakes: the tyres hold it (%.1f mm in 2.5 s, %.2f mm/s at the end)" % [Lab.SLOPE_DEG, drift * 1000.0, absf(last[12]) * 1000.0])
+	fails += _check(car.grounded == 4 and car.global_transform.basis.y.dot(Vector3.UP) > 0.95, "side slope: on all four, upright")
+
+
+func _judge_straight() -> void:
+	var yaw := 0.0
+	var lat := 0.0
+	for e in _log:
+		if e[0] > 0.5:
+			yaw = maxf(yaw, absf(e[8]))
+			lat = maxf(lat, absf(e[12]))
+	var turned := rad_to_deg(absf(wrapf(car.global_rotation.y - _yaw0, -PI, PI)))
+	fails += _check(yaw < 0.5 and lat < 0.05 and turned < 0.5,
+		"straight at 20 m/s: runs straight (yaw rate %.2f deg/s at most, %.3f m/s sideways, %.2f deg off its heading)" % [yaw, lat, turned])
 
 
 func _check(ok: bool, msg: String) -> int:

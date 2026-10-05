@@ -6,7 +6,10 @@ extends RigidBody3D
 ## corners (rally_wheel.gd: a ShapeCast3D tyre each, spring + damper + bump
 ## stop pushing at the contact patch). Nothing is faked: no damping on the
 ## body, no levelling, no smoothing; pitch and roll come from where the forces
-## act. No tyre grip yet (phase 2), so on its own it rolls like a car on ice.
+## act.
+## Phase 2: the tyres grip sideways (slip angle -> side force at each patch)
+## and the front wheels steer: input x lock, no faster than the rack turns,
+## split by the Ackermann geometry. No drive or brakes yet (phase 3).
 ## Runs at 120 physics ticks a second (the scene that uses it sets that).
 ##
 ## The scene (scenes/rally_car_v2.tscn): RallyCarV2 (this) > CollisionShape3D x2,
@@ -35,11 +38,15 @@ var speed := 0.0                   # along the car (m/s, + = forward)
 var steer := 0.0                   # front wheel angle (rad)
 var grounded := 0                  # tyres touching
 var comp := [0.0, 0.0, 0.0, 0.0]   # spring compression per corner (m)
+var wheel_angles := [0.0, 0.0]     # front left / right road-wheel angles (rad, + = right)
+var accel := Vector3.ZERO          # the body's acceleration last tick (m/s², world)
 var on_surface := "gravel"
 var wheels: Array = []             # RallyWheel: FL, FR, RL, RR
 var telemetry: CanvasLayer
 
 var _air := 0.0
+var _rack := 0.0                   # the steering rack: the "bicycle" front-wheel angle (rad, + = right)
+var _prev_v := Vector3.ZERO
 
 
 func _ready() -> void:
@@ -79,7 +86,8 @@ func _ready() -> void:
 			add_child(w)
 		w.position = mounts[k]
 		w.front = k < 2
-		w.setup(self, config.front_suspension if k < 2 else config.rear_suspension, config.tyre_radius, config.tyre_width)
+		w.setup(self, config.front_suspension if k < 2 else config.rear_suspension,
+			config.front_tire if k < 2 else config.rear_tire, config.tyre_radius, config.tyre_width)
 		wheels.append(w)
 	telemetry = get_node_or_null("Telemetry")
 	if telemetry == null:
@@ -105,6 +113,12 @@ func place(pos: Vector3, yaw: float) -> void:
 	global_transform = Transform3D(Basis(Vector3.UP, -yaw), pos + Vector3.UP * ride_height())
 	linear_velocity = Vector3.ZERO
 	angular_velocity = Vector3.ZERO
+	_prev_v = Vector3.ZERO
+	_rack = 0.0                                      # wheels straight (a car put down doesn't keep its old lock)
+	inp.steer = 0.0
+	_steer(0.0)
+	for w in wheels:
+		w.slip_lat = 0.0
 	reset_physics_interpolation()
 
 
@@ -133,6 +147,9 @@ func _physics_process(dt: float) -> void:
 	if not simulate:
 		return
 	speed = linear_velocity.dot(-global_transform.basis.z)
+	accel = (linear_velocity - _prev_v) / dt
+	_prev_v = linear_velocity
+	_steer(dt)
 	var was := grounded
 	grounded = 0
 	for k in 4:
@@ -151,9 +168,33 @@ func _physics_process(dt: float) -> void:
 		_air = 0.0
 
 
+## The rack follows the input (no faster than rack_speed); each front wheel's
+## angle from the geometry: with full Ackermann the inside wheel turns more, so
+## both roll round the same centre (on the rear axle's line).
+func _steer(dt: float) -> void:
+	var st: Resource = config.steering
+	var lock := deg_to_rad(st.max_angle_deg)
+	_rack = move_toward(_rack, clampf(float(inp.steer), -1.0, 1.0) * lock, deg_to_rad(st.rack_speed_deg) * dt)
+	steer = _rack
+	var a := absf(_rack)
+	var inner := a
+	var outer := a
+	if a > 1e-4:
+		var base: float = config.rear_axle - config.front_axle
+		var r := base / tan(a)                       # the turn's radius at the rear axle's middle
+		var half: float = config.front_track * 0.5
+		inner = lerpf(a, atan(base / (r - half)), st.ackermann)
+		outer = lerpf(a, atan(base / (r + half)), st.ackermann)
+	var s := signf(_rack)
+	# turning right (+), the right wheel (FR) is on the inside
+	wheel_angles = [s * (outer if s > 0.0 else inner), s * (inner if s > 0.0 else outer)]
+	for k in 2:
+		wheels[k].rotation.y = -wheel_angles[k]      # + steer = right = clockwise from above
+
+
 func _process(dt: float) -> void:
 	for k in 4:
-		wheels[k].update_visual(dt, steer if k < 2 else 0.0)
+		wheels[k].update_visual(dt)
 
 
 func _gravity() -> float:

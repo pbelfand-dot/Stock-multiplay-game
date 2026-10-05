@@ -1,14 +1,17 @@
 extends Node3D
 ## The physics lab (scenes/physics_lab.tscn): somewhere to try physics v2 and
 ## watch its telemetry. Run it: godot --path . scenes/physics_lab.tscn
-##   * a big flat gravel pad
+##   * a big flat gravel pad, with room for a skid pad (circles at a steady speed)
 ##   * a strip of full-width bumps (8 cm, ~0.8 m long), to see the car pitch
 ##   * a lane of bumps under the left wheels only, to see it roll
-## Keys: R back on the pad   J drop it from a metre up   B roll it over the
-## bumps at 12 m/s   N over the left-side bumps   F3 numbers   F4 force arrows
-## Phase 1 has no tyre grip (it can't drive yet): these set it going instead.
+##   * a 10 degree side slope, to see the tyres hold a parked car
+## Keys: arrows / A D steer   C tow it along at 15 m/s (there's no engine until
+## phase 5: the tow pulls through the centre of mass, so it doesn't tip or turn
+## the car)   R back on the pad   J drop it from a metre up   B roll it over the
+## bumps at 12 m/s   N over the left-side bumps   S park it on the side slope
+## F3 numbers   F4 force arrows
 ## The tests build the same course (build_course) without the scene.
-## A picture: ... scenes/physics_lab.tscn -- --screenshot=out.png [--lab=drop|bumps|left
+## A picture: ... scenes/physics_lab.tscn -- --screenshot=out.png [--lab=drop|bumps|left|skid|slope
 ## --shot_wait=1.5 --vectors]
 
 const RallyCarV2 = preload("res://scripts/vehicle/physics/rally_car_v2.gd")
@@ -20,11 +23,17 @@ const BUMP_N := 6
 const BUMP_GAP := 4.0              # m between bumps
 const BUMP_R := 1.0                # each bump is the top of a cylinder this big ...
 const BUMP_H := 0.08               # ... standing this far out of the ground
+const SKID := Vector3(-150.0, 0.0, 150.0)   # skid pad runs start here, heading -Z (open ground all round)
+const SLOPE := Vector3(80.0, 0.0, 120.0)    # the side slope's middle (its top surface passes through here)
+const SLOPE_DEG := 10.0            # tilted about the car's long axis (Z): left side up
+const TOW_SPEED := 15.0
 
 var car: RigidBody3D
 var cam: Camera3D
 var _orbit := 0.6
 var _shot_t := 0.0
+var _tow := false
+var _hold_steer := false           # keep a preset steering (the skid pad picture) until a key is pressed
 
 
 func _ready() -> void:
@@ -40,7 +49,7 @@ func _ready() -> void:
 	add_child(cam)
 	cam.current = true
 	var hint := Label.new()
-	hint.text = "R reset   J drop 1 m   B bumps   N left-side bumps   F3 numbers   F4 forces"
+	hint.text = "arrows steer   C tow 15 m/s   R reset   J drop 1 m   B bumps   N left bumps   S side slope   F3 numbers   F4 forces"
 	hint.add_theme_font_size_override("font_size", 16)
 	hint.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_LEFT, Control.PRESET_MODE_MINSIZE, 14)
 	var ui := CanvasLayer.new()
@@ -54,13 +63,37 @@ func _ready() -> void:
 			launch(car, Vector3(0.0, 0.0, BUMPS_Z + 8.0), 12.0)
 		"left":
 			launch(car, Vector3(BUMP_LANE_X, 0.0, BUMPS_Z + 8.0), 12.0)
+		"skid":
+			launch(car, SKID, TOW_SPEED)
+			_tow = true
+			car.inp.steer = 0.3
+			_hold_steer = true
+		"slope":
+			park_on_slope(car)
 	car.telemetry.vectors = config != null and config.flag("vectors")
 
 
 ## The lab's ground and bumps under `parent`.
 static func build_course(parent: Node) -> void:
 	var gravel := _mat(Color(0.62, 0.55, 0.43))
-	_slab(parent, Vector3(0.0, -0.5, -40.0), Vector3(200.0, 1.0, 200.0), gravel, "gravel")
+	_slab(parent, Vector3(0.0, -0.5, 0.0), Vector3(600.0, 1.0, 600.0), gravel, "gravel")
+	# the side slope: a slab tilted about Z, its top through SLOPE + 1.5 m (clear of the flat)
+	var slope := StaticBody3D.new()
+	slope.set_meta("surface", "gravel")
+	var tilt := Basis(Vector3.BACK, deg_to_rad(SLOPE_DEG))
+	slope.transform = Transform3D(tilt, slope_top() - tilt * Vector3(0.0, 0.5, 0.0))
+	var cs := CollisionShape3D.new()
+	var b := BoxShape3D.new()
+	b.size = Vector3(16.0, 1.0, 16.0)
+	cs.shape = b
+	slope.add_child(cs)
+	var mi := MeshInstance3D.new()
+	var bm := BoxMesh.new()
+	bm.size = b.size
+	mi.mesh = bm
+	mi.material_override = _mat(Color(0.56, 0.5, 0.4))
+	slope.add_child(mi)
+	parent.add_child(slope)
 	var bump_mat := _mat(Color(0.5, 0.44, 0.34))
 	for i in BUMP_N:
 		var z := BUMPS_Z - i * BUMP_GAP
@@ -72,6 +105,31 @@ static func build_course(parent: Node) -> void:
 static func launch(c: RigidBody3D, at: Vector3, v: float) -> void:
 	c.place(at, 0.0)
 	c.linear_velocity = Vector3(0.0, 0.0, -v)
+	c.inp.steer = 0.0
+
+
+## The middle of the side slope's top surface.
+static func slope_top() -> Vector3:
+	return SLOPE + Vector3(0.0, 1.5, 0.0)
+
+
+## Put the car on the side slope, square to it, still.
+static func park_on_slope(c: RigidBody3D) -> void:
+	c.place(slope_top(), 0.0)
+	var tilt := Basis(Vector3.BACK, deg_to_rad(SLOPE_DEG))
+	c.global_transform = Transform3D(tilt, slope_top() + tilt * Vector3(0.0, c.ride_height(), 0.0))
+	c.reset_physics_interpolation()
+	c.inp.steer = 0.0
+
+
+## A tow along the car's heading toward `target` m/s, through the centre of mass
+## (call every physics tick): there's no engine until phase 5. Not part of the car.
+static func tow(c: RigidBody3D, target: float) -> void:
+	var fwd := -c.global_transform.basis.z
+	fwd.y = 0.0
+	fwd = fwd.normalized()
+	var v := c.linear_velocity.dot(fwd)
+	c.apply_central_force(fwd * c.mass * clampf((target - v) * 2.0, -4.0, 4.0))
 
 
 func _unhandled_input(e: InputEvent) -> void:
@@ -87,6 +145,25 @@ func _unhandled_input(e: InputEvent) -> void:
 			launch(car, Vector3(0.0, 0.0, BUMPS_Z + 12.0), 12.0)
 		KEY_N:
 			launch(car, Vector3(BUMP_LANE_X, 0.0, BUMPS_Z + 12.0), 12.0)
+		KEY_C:
+			_tow = not _tow
+		KEY_S:
+			_tow = false
+			park_on_slope(car)
+
+
+func _physics_process(_dt: float) -> void:
+	var keys := 0.0
+	if Input.is_key_pressed(KEY_LEFT) or Input.is_key_pressed(KEY_A):
+		keys -= 1.0
+	if Input.is_key_pressed(KEY_RIGHT) or Input.is_key_pressed(KEY_D):
+		keys += 1.0
+	if keys != 0.0:
+		_hold_steer = false
+	if not _hold_steer:
+		car.inp.steer = keys
+	if _tow:
+		tow(car, TOW_SPEED)
 
 
 func _process(dt: float) -> void:

@@ -172,9 +172,11 @@ light, filmed like rally TV (trackside cameras it flashes past, a chase camera, 
 A new car physics is being built next to this one, closer to Dirt Rally / RBR
 ([docs/physics_rebuild.md](docs/physics_rebuild.md)): a RigidBody3D chassis on four ShapeCast tyres
 with real suspension, then tyres, drivetrain, surfaces, aero and driver aids (each its own switch),
-in nine tested phases, at 120 Hz. **Phase 1 is done:** the chassis on its springs, dampers and
-bump stops, in a physics lab (`godot --path . scenes/physics_lab.tscn`: R reset, J drop, B / N
-bumps, F3 telemetry, F4 force arrows). The game still uses the car below until v2 drives better.
+in nine tested phases, at 120 Hz. **Phases 1-2 are done:** the chassis on its springs, dampers
+and bump stops; the tyres' side grip (slip angle, a Magic Formula curve, a carcass that holds a
+parked car) and Ackermann steering. Try it in the physics lab
+(`godot --path . scenes/physics_lab.tscn`: arrows steer, C tow, R reset, J drop, B / N bumps,
+S side slope, F3 telemetry, F4 force arrows). The game still uses the car below until v2 drives better.
 
 ### How the car drives
 

@@ -1,7 +1,7 @@
 extends Resource
 ## The car as a body: its mass and how it's spread (centre of mass, inertia),
-## where the wheels are, the tyre size, the suspension on each axle and the
-## collision shape. The car (rally_car_v2.gd) reads it once, when it's added.
+## where the wheels are, the tyre size, the suspension and tyres on each axle,
+## the steering and the collision shape. The car (rally_car_v2.gd) reads it once, when it's added.
 ## Units: m, kg, N. Edit it in the inspector (data/cars/*.tres).
 ## Car space: the car faces -Z, +X is its right, +Y up; the origin is the
 ## middle of the chassis at the height of the suspension mounts.
@@ -30,6 +30,11 @@ extends Resource
 @export_group("Suspension")
 @export var front_suspension: Resource      ## SuspensionConfig
 @export var rear_suspension: Resource       ## SuspensionConfig
+
+@export_group("Tyres and steering")
+@export var front_tire: Resource            ## TireConfig
+@export var rear_tire: Resource             ## TireConfig
+@export var steering: Resource              ## SteeringConfig
 
 @export_group("Collision")
 ## The body box (car space) and the cabin above it: what lands on the ground in a

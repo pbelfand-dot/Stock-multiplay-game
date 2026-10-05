@@ -1,7 +1,7 @@
 # Rally physics rebuild: inspection and plan
 
-Status: **phase 1 done** (the chassis on its suspension, in the lab; see "Phase reports" at the
-end). Decisions:
+Status: **phases 1-2 done** (the chassis on its suspension; the tyres' side grip and the
+steering; in the lab, see "Phase reports" at the end). Decisions:
 - built **alongside** the current car (a lab scene, a `--physics=v2` switch once it drives), and it
   becomes the car once it passes every current test plus the manoeuvre tests;
 - physics at **120 Hz** (set by whatever runs the v2 car, so the current car and the auto-updater's
@@ -194,3 +194,53 @@ looping on errors until the time limit.
 
 No tyre grip yet: the car rolls like it's on ice (phase 2 adds contact velocity, slip angle and the
 lateral force).
+
+### Phase 2: contact velocity, slip angle, side force, steering
+
+**1. The code**
+- `config/tire_config.gd`: `TireConfig` (lateral mu, peak slip angle, Magic Formula shape,
+  relaxation length, standstill damping). `config/steering_config.gd`: `SteeringConfig` (lock,
+  rack speed, Ackermann). Both on `CarConfig` (`front_tire`, `rear_tire`, `steering`).
+- `tire_model.gd`: the side force (`mu x load x sin(C atan(B slip))`, B from the peak angle), the
+  cornering stiffness, and the slip state: `d(slip)/dt = (-v_y - |v_x| slip) / relaxation_length`,
+  stepped implicitly. At speed it's the slip angle (lagging over the relaxation length); at a
+  standstill it winds up with the patch's sideways movement, so the carcass is a spring and a
+  parked car holds; crawling and sliding, it's capped where the tyre lets go.
+- `rally_wheel.gd`: the contact patch's velocity (`v + omega x r` to the patch), split along /
+  across the wheel's heading in the ground's plane; the side force pushed at the patch. Also: the
+  compression is now solved exactly from the contact point and the ground's normal (the cast's own
+  distance comes in ~2 mm steps, which read as jolts of suspension speed: noisy loads).
+- `rally_car_v2.gd`: the steering. Input x lock, no faster than the rack, split by Ackermann (the
+  inside wheel turns more); the wheel nodes turn; `wheel_angles`, `accel`.
+- The lab: a skid pad, a 10 degree side slope, the tow (C: 15 m/s through the centre of mass,
+  standing in for the engine until phase 5), arrow keys steer. Telemetry: slip angle and side
+  force per wheel, lateral g, the steering; orange side-force arrows.
+
+**2-3. Where / nodes:** as phase 1; the `*_WheelPoint` nodes now turn (their Y rotation is the
+steering).
+
+**4. In the inspector:** tyres mu 1.0, peak 7 degrees (a gravel tyre peaks late), shape 1.35 (85 %
+left far past the peak), relaxation 0.35 m, standstill damping 8,000 N/(m/s). Steering: 30 degree
+lock, 180 deg/s at the road wheels, Ackermann 0.4.
+
+**5. How to test:** the lab (arrows + C on the skid pad, S for the slope), or
+`tests/physics_v2_check.gd`.
+
+**6. What correct looks like** (measured):
+- skid pad at 15 m/s: 2 degrees of steering gives 3.14 m/s² (the geometry predicts 3.14), 4 degrees
+  6.22 (6.28): below the limit the car goes where it's steered, front and rear slip equal
+  (0.75 / 0.75, 1.70 / 1.71 degrees: neutral, as tyres whose grip is proportional to load must be);
+  8 degrees reaches the limit, 9.4 m/s² (0.96 g); 15 degrees stays there (9.3 m/s²) with the fronts
+  past their peak (12.6 degrees) and the rears at 4: it understeers at the limit and never exceeds
+  mu g. At the limit it hunts slowly, as a real car does; it never spins or lifts a wheel;
+- body roll ~5 degrees at 1 g, the outside tyres carrying ~80 % of the load (no anti-roll bars yet);
+- parked across a 10 degree slope with no brakes: holds, 0.0 mm of creep;
+- straight at 20 m/s: 0.00 deg/s of yaw.
+
+**7. Bugs found:** the cast's coarse distance (fixed: solved exactly); the first slip model
+unwound at a minimum speed, which made a parked car creep 1.6 mm/s (fixed: no floor, a slide cap
+instead); a car put down kept its old steering lock (fixed: `place()` straightens the wheels).
+
+Balance note: with every tyre's grip exactly proportional to its load, the car is neutral until
+the fronts pass their peak. Load sensitivity (phase 4) and the anti-roll bars (phase 7) are what
+give a real car its balance; there's no drive yet, so no power oversteer either.
