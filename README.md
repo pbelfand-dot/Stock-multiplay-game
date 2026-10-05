@@ -334,17 +334,19 @@ The first time you open it:
 | | |
 |---|---|
 | ![Driver](shotgun-rally/docs/screens/driver.jpg) | ![Co-driver looking at the map](shotgun-rally/docs/screens/codriver.jpg) |
-| ![Mud on the windshield](shotgun-rally/docs/screens/mud.jpg) | ![The start line](shotgun-rally/docs/screens/start.jpg) |
+| ![Mud on the windshield](shotgun-rally/docs/screens/mud.jpg) | ![The start: five lights and a clock each side of the road](shotgun-rally/docs/screens/start.jpg) |
+| ![Your co-driver, seen from the driver's seat](shotgun-rally/docs/screens/crew.jpg) | ![The chase camera (C)](shotgun-rally/docs/screens/chase.jpg) |
 
 ## How a SHOTGUN RALLY stage plays
 
 | | Driver | Co-driver (shotgun) |
 |---|---|---|
-| Sees | The road through the windshield. **No map, no minimap, no HUD.** Thick forest on both sides, crests hide what's next | The **map board** in their lap: the road ahead and where the car is, nothing else. *Or* the road if they look up. Never both at once |
+| Sees | The road through the windshield. **No map, no minimap**: just the start lights and the stage clock. Thick forest on both sides, crests hide what's next | The **map board** in their lap: the road ahead and where the car is, nothing else. *Or* the road if they look up. Never both at once |
 | Does | Steers, brakes, handbrakes, trusts | Reads the bends off the map and yells them (that's the skill), counts down the start, works the **wipers** when a puddle covers the windshield in mud |
-| Alone? | The **AI co-driver** calls the stage in the "Fraser" voice ("4 left, 100, over crest") and wipes the mud off for you | — |
+| Alone? | The **AI co-driver** calls the stage in the "Fraser" voice ("4 left, 100, over crest") from where the car is, ~2 s before each corner, and wipes the mud off for you | — |
 
-- **Start:** the host presses ENTER for a 5-second countdown. Move early and it's a **jump start: +10 s**.
+- **Start:** the host presses ENTER for a 5-second countdown: five start lights on screen and a start clock
+  each side of the road. Move early and it's a **jump start: +10 s**.
 - **Stages** are ~2.7 km of gravel through thick forest: corners from 6 (nearly flat) to 1 (very slow),
   hairpins, crests, jumps, puddles and rocks. Every stage is generated, so there's always a new one.
 - Stuck? **R** puts the car back on the road (**+5 s**). After the finish the host picks: next stage,
@@ -361,6 +363,7 @@ The first time you open it:
 | **Co-driver:** wipers (the driver's job when alone) | F | A |
 | Look around | mouse | right stick |
 | Reset car (+5 s) | R | Y |
+| **Driver:** chase camera on / off | C | right stick click |
 | Start / next stage (host) | ENTER | START |
 | Pause | ESC | BACK |
 

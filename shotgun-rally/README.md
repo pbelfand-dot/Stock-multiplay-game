@@ -14,7 +14,8 @@ No friend online? The **AI co-driver** takes the seat.
 | | |
 |---|---|
 | ![Driver](docs/screens/driver.jpg) | ![Co-driver looking at the map](docs/screens/codriver.jpg) |
-| ![Mud on the windshield](docs/screens/mud.jpg) | ![The start line](docs/screens/start.jpg) |
+| ![Mud on the windshield](docs/screens/mud.jpg) | ![The start: five lights and a clock each side of the road](docs/screens/start.jpg) |
+| ![Your co-driver, seen from the driver's seat](docs/screens/crew.jpg) | ![The chase camera (C)](docs/screens/chase.jpg) |
 
 ## ⬇ Download (always the newest build)
 
@@ -40,12 +41,14 @@ Free, PC only (Windows, Mac, Linux). Built in **Godot 4.7**, like BAGHOLDERS.
 
 | | Driver | Co-driver (shotgun) |
 |---|---|---|
-| Sees | The road through the windshield. **No map, no minimap, no HUD.** Thick forest on both sides, crests hide what's next | The **map board** in their lap: the road ahead and where the car is, nothing else. *Or* the road if they look up. Never both at once |
-| Does | Steers, brakes, handbrakes, trusts | Reads the bends off the map and turns them into calls (that's the skill), counts down the start (the start clock is on their side), works the **wipers** when a puddle covers the windshield in mud |
-| Alone? | The **AI co-driver** calls the stage in the "Fraser" voice ("4 left, 100, over crest"), early enough that you hear it all before the corner, and wipes the mud off for you | — |
+| Sees | The road through the windshield. **No map, no minimap**: just the start lights and the stage clock. Thick forest on both sides, crests hide what's next | The **map board** in their lap: the road ahead and where the car is, nothing else. *Or* the road if they look up. Never both at once |
+| Does | Steers, brakes, handbrakes, trusts | Reads the bends off the map and turns them into calls (that's the skill), counts down the start, works the **wipers** when a puddle covers the windshield in mud |
+| Alone? | The **AI co-driver** calls the stage in the "Fraser" voice ("4 left, 100, over crest") from **where the car is**: each call ~2 s before its corner at the speed you're doing, one at a time, never corners you've already passed. It wipes the mud off for you too | — |
 
-1. **Start line.** The host presses ENTER and the 5-second countdown starts. Moving off early is a
-   **jump start: +10 s**.
+1. **Start line.** The camera circles the car on the line until the host presses ENTER; then you're
+   in your seat for the 5-second countdown: **five start lights** on screen and a start clock on each
+   side of the road. Moving off early is a **jump start: +10 s**. The stage clock (and any penalties)
+   stays at the top of the screen.
 2. **The stage** is ~2.7 km of gravel through thick forest (~10,000 trees): corners graded 6 (nearly flat) to 1 (very slow) plus
    hairpins, corners that tighten or open, crests, jumps, puddles and rocks on the inside of the
    "don't cut" corners. Every stage is generated from a number, so there's always a new one.
@@ -54,8 +57,30 @@ Free, PC only (Windows, Mac, Linux). Built in **Godot 4.7**, like BAGHOLDERS.
    top. No grades, no warnings: reading the road and calling it is the co-driver's job.
 4. **Mud:** a puddle at speed covers the **whole windshield**. The wipers clear their two arcs, a bit
    more each stroke (it takes about two to see properly), and the corners stay dirty.
-5. Stuck? **R** puts the car back on the road (**+5 s**).
-6. **Flying finish**, results, then the host picks: next stage, retry, or swap seats.
+5. Stuck? **R** puts the car back on the road (**+5 s**). Driver: **C** swaps to a chase camera
+   behind the car (the co-driver stays in their seat).
+6. **Flying finish**, results (the camera circles the car again), then the host picks: next stage,
+   retry, or swap seats.
+
+### How the car drives
+
+Rebuilt from research on real rally tyres and rally games (DiRT Rally, Richard Burns Rally, Assetto
+Corsa's gamepad assist; sources in the commit history):
+
+- **Steering asks the front tyres for grip, not for an angle.** Full steering = the most the front
+  tyres can do at that speed (their peak slip angle), wherever the car is pointing, so on keys or a
+  stick you never steer past the limit and plough on (that was the "always understeering" feeling).
+  Full opposite lock in a slide = the most countersteer. At parking speeds it's plain steering.
+- **Gravel tyres:** grip builds to a peak at ~10 deg of slip and then fades slowly (a gravel tyre
+  pushes a little bank of stones), so a slide is something you drive.
+- **Weight transfer matters:** each tyre grips a bit less per kilo the more it's loaded, and the
+  forces act at the contact patches. Brake or lift into a bend and the loaded nose bites; a light
+  tail steps out. The handbrake locks the rears and declutches them (all the power to the front,
+  like a real Rally2 car) for the hairpin flick.
+- ~0.85 g of cornering on gravel (real rally cars: ~0.8 g), 0-100 km/h in 4.3 s (a Rally2 car: ~4.2 s),
+  45 / 55 AWD.
+- `tests/handling_check.gd` measures it: at 50 / 80 / 110 km/h full steering has to be the most
+  grip (before the rework, full steering at 110 km/h gave 0.68 g and 25 % gave 0.80 g).
 
 ## Controls
 
@@ -68,6 +93,7 @@ Free, PC only (Windows, Mac, Linux). Built in **Godot 4.7**, like BAGHOLDERS.
 | **Co-driver:** wipers (the driver's job when alone) | F | A |
 | Look around | mouse | right stick |
 | Reset car (+5 s) | R | Y |
+| **Driver:** chase camera on / off | C | right stick click |
 | Start / next stage (host) | ENTER | START |
 | Pause | ESC | BACK |
 
@@ -101,7 +127,7 @@ real voice.
 | 0 | Reference breakdown, name, plan, co-driver research, voice pack | ✅ done |
 | 1 | **Playable grey box:** generated forest gravel stages, raycast rally car, first-person driver + co-driver seats, the co-driver's map board, mud + wipers, start countdown, jump starts, resets, results, 2 players online, builds | ✅ done |
 | 2 | **AI co-driver** | ✅ basic version done (calls by time, countdown, finish). Next: quick-call wheel for the human co-driver, call-timing setting in the menu, more lines |
-| 3 | **Art:** low-poly car and cockpit (Blender scripts + Higgsfield), better trees, helmets and arms | next |
+| 3 | **Art:** the car and both crew are Higgsfield models (concept art -> 3D, the crew rigged and posed in their seats: hands on the wheel / the map board, heads turning where the player looks); next: better trees, the car's own wheels turning | car + crew ✅ |
 | 4 | **Jobs + content:** OK board, warning triangle, pushing the car, punctures, time cards, road book, recce mode, more biomes | |
 | 5 | Polish, crews racing each other | |
 
@@ -128,6 +154,8 @@ real voice.
 
 ## Credits & notes
 
+- Car and crew: made with Higgsfield (GPT Image concept art -> Meshy image-to-3D, the crew
+  auto-rigged), from your account. The concept art is in `docs/reference/models/`.
 - Co-driver voice: Higgsfield Seed Audio 1.0, preset voice "Fraser", made for the Rally Co-Driver
   GPS app ([driver-test-app](https://github.com/pbelfand-dot/driver-test-app)).
 - Sound effects are synthesized (`tools/make_sfx.py`, plus BAGHOLDERS' engine / crash / bell sounds,

@@ -10,7 +10,7 @@
 | Name | **SHOTGUN RALLY** ✅ confirmed. "Riding shotgun" is the passenger seat, and the passenger seat is the game |
 | Where | The `shotgun-rally/` folder on `main`, next to BAGHOLDERS: its own Godot project and its own build. Downloads come from a separate release tag, `shotgun-latest` |
 | Price | **Free**: GitHub downloads + **itch.io** (set-up ready: [`ITCH.md`](ITCH.md)) |
-| Budget | This Claude plan + your Higgsfield credits (**844.5**, Plus plan, checked 2026-10-04) |
+| Budget | This Claude plan + your Higgsfield credits (**844.5**, Plus plan, checked 2026-10-04; **716.4** after the car + crew models on 2026-10-05) |
 | Co-driver | Sits in the car and can look out the windows. Does **the real co-driver's jobs**: see [`CO_DRIVER_JOBS.md`](CO_DRIVER_JOBS.md) |
 | Players | 2 (one crew) now. Crews racing each other later |
 | Controls | Keyboard + controller (no steering wheel for now: you don't have one to test with) |
@@ -97,7 +97,7 @@ It's free, so "business" means **getting players and keeping costs at zero.**
 |---|---|
 | Godot, GitHub, GitHub Actions builds | $0 (Actions minutes are free on public repos; private repos get a monthly free allowance) |
 | Voice (more Fraser lines) | ~0.2 credits a line, **< 10 credits** total |
-| 3D models (Higgsfield Meshy, textured low poly) | 25 credits each. Budget: **~150–250 credits** for a car body or two, props, animals and spectators |
+| 3D models (Higgsfield Meshy, textured low poly) | Planned 25 credits each; actually **~42–44** (Meshy 7, textured, the crew auto-rigged; its low-poly mode failed 3 times, refunded). Spent so far: **127.5 credits** for the car, driver and co-driver plus 6 concept images (0.25 each). Budget left for props, animals and spectators: plenty |
 | Images (concept art, map board art, logo) | a few credits each |
 | Keep in reserve | **~500 credits** for later content |
 | Mac signing ($99/yr) | Skip it, like BAGHOLDERS (players use "Open Anyway") |
