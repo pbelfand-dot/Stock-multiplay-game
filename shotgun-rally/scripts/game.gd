@@ -22,6 +22,7 @@ const StageBuilder = preload("res://scripts/stage/stage_builder.gd")
 const Notes = preload("res://scripts/stage/pacenotes.gd")
 const RallyCar = preload("res://scripts/vehicle/rally_car.gd")
 const Cockpit = preload("res://scripts/vehicle/cockpit.gd")
+const DriftFx = preload("res://scripts/vehicle/drift_fx.gd")
 const SeatCam = preload("res://scripts/vehicle/seat_cam.gd")
 const AICoDriver = preload("res://scripts/vehicle/ai_codriver.gd")
 const Autopilot = preload("res://scripts/vehicle/autopilot.gd")
@@ -114,6 +115,10 @@ func start(seed_in: int, stage_in: int) -> void:
 	car.place(_start_pos, st.heading_at(st.START_S))
 	car.hit.connect(_on_hit)
 	car.landed.connect(_on_landed)
+	var fx := DriftFx.new()                       # dirt + stones off the tyres when it slides
+	fx.name = "DriftFx"
+	fx.car = car
+	car.add_child(fx)
 	progress.emit(0.84, "Strapping in the crew")
 	await get_tree().process_frame
 	if not is_inside_tree():

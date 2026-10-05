@@ -87,6 +87,10 @@ Free, PC only (Windows, Mac, Linux). Built in **Godot 4.7**, like BAGHOLDERS.
   binnacle (revs, speed, gear), the co-driver's trip meter, a fire extinguisher, padding and mats.
 - **The car outside** has its own wheels now: they steer, spin and move up and down with the
   suspension, and the mud flaps swing behind them.
+- **Drift dirt:** slide, flick the handbrake or throw it sideways and the tyres kick up big
+  cartoony dust clouds (they swell, float up and shrink away) and spray little stones out to the
+  side and back, bouncing once. Tan off gravel, brown off dirt, clods off mud, green bits off the
+  grass. At speed a light trail of dust follows the rear wheels. Your co-driver sees the same spray.
 - **Loading screen:** the stage number, how long it is and how many corners, a rally tip, and a
   progress bar that follows the build ("Planting ten thousand trees..."). It stays up through the
   first frames of the stage, which stutter while the graphics warm up, then fades out.
@@ -176,6 +180,7 @@ real voice.
    - the autopilot drives whole stages: 0–100 km/h on gravel, braking, the handbrake flick
    - handling: full steering is the most grip at 50 / 80 / 110 km/h; lift-off and handbrake turns rotate the car
    - ride: how much the car shakes at the driver's eye on two stages, and the hardest landing
+   - drift dirt: dust and stones when the car slides, a light trail at speed, nothing when cruising or in the air
    - the AI co-driver says every call in time (90–240 m before the corner)
    - **2 players, both ways round:** one machine drives, the other rides along; both see the finish
    - **the updater, start to finish:** a "build 5" copy finds "build 6" on a local web server,

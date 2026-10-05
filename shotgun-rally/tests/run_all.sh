@@ -17,6 +17,8 @@ for seed in 3 7 15; do
 done
 echo "== handling: full steering = the most grip at 50 / 80 / 110 km/h, lift-off + handbrake rotation"
 "$G" --headless --fixed-fps 60 --path . -s tests/handling_check.gd 2>&1 | grep -E "\[handling\]" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
+echo "== drift dirt: dust + stones when it slides, none when it cruises or flies"
+"$G" --headless --fixed-fps 60 --path . -s tests/fx_check.gd 2>&1 | grep -E "\[fx\]" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
 echo "== ride: how much the car bounces on two stages (shaking at the eye, the hardest landing)"
 for seed in 3 15; do
   "$G" --headless --fixed-fps 60 --path . -s tests/ride_check.gd -- --seed=$seed 2>&1 | grep -E "\[ride\]" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1

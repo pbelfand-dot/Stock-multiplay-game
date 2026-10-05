@@ -10,7 +10,8 @@ extends Node
 ##   --aicheck                               solo test: the AI co-driver's calls come in time
 ##   --screenshot=out.png [--shot_seat=codriver --shot_s=300 --shot_read --shot_mud [--shot_wipe=N] --shot_nohud
 ##                         --shot_yaw=1.2 --shot_pitch=-0.3 (look around, rad) --shot_view=seat|chase|orbit
-##                         --shot_steer=-1..1 --shot_handbrake --shot_loading (keep the loading screen up)]
+##                         --shot_steer=-1..1 --shot_handbrake --shot_loading (keep the loading screen up)
+##                         --shot_drift (start it sliding sideways: the dirt flies)]
 
 const Game = preload("res://scripts/game.gd")
 const Menu = preload("res://scripts/ui/main_menu.gd")
@@ -167,6 +168,10 @@ func _test_setup() -> void:
 				game.cockpit.wipe(int(Config.arg("shot_wipe", 1)))
 		if Config.flag("shot_nohud"):
 			game._hud.visible = false
+		if Config.flag("shot_drift"):                # sliding sideways on the handbrake: the dirt flies
+			var xf: Transform3D = game.car.global_transform
+			game.car.linear_velocity = -xf.basis.z * 17.0 + xf.basis.x * 8.0
+			game.car.angular_velocity = Vector3(0, 0.9, 0)
 
 
 func _process(dt: float) -> void:
