@@ -21,8 +21,9 @@ extends Node3D
 ##     slows or speeds the spin). Both share one patch of rubber (the combined-
 ##     slip ellipse: braking hard leaves less for turning), and a heavily loaded
 ##     tyre grips less per newton (load sensitivity). Both pushed at the patch
-##   * the tyre's states are stiff, so they're stepped SUBSTEPS times a tick
-##     (with the body's velocity held), implicitly; the body gets the average force
+##   * the tyre's states are stiff, so the car steps them several times a tick
+##     (with the body's velocity held), implicitly, with the drivetrain and the
+##     brakes solved in between (drivetrain.gd); the body gets the average force
 ##   * the wheel's mass isn't carried by the suspension here: in the air it hangs
 ##     at full droop
 ## The node's own Y rotation is the steering (the car sets it). The WheelMesh
@@ -30,7 +31,6 @@ extends Node3D
 
 const Suspension = preload("res://scripts/vehicle/physics/suspension.gd")
 const TireModel = preload("res://scripts/vehicle/physics/tire_model.gd")
-const SUBSTEPS := 8                # tyre / wheel-spin steps per physics tick
 
 @export var front := true
 
@@ -43,8 +43,12 @@ var width := 0.2
 var inertia := 1.1                 # kg m², the wheel's spin
 
 # set by the car each tick
-var drive_torque := 0.0            # N m turning the wheel forward (the drivetrain, phase 5; tests set it)
+var drive_torque := 0.0            # N m of extra drive (the lab's and tests' test torque; the engine comes through the drivetrain)
 var brake_torque := 0.0            # N m the brake can apply (friction)
+
+# for the drivetrain, each substep
+var i_eff := 1.1                   # kg m²: how heavy the wheel feels (its inertia + the tyre's grip resisting)
+var resist_torque := 0.0           # N m of friction holding it (brake + rolling resistance)
 var cast: ShapeCast3D
 var mesh: Node3D
 
@@ -68,6 +72,11 @@ var slip_long := 0.0               # the slip ratio state (+ = spinning up, -1 =
 var long_force := 0.0              # N along the wheel, + = pushing the car forward
 var spin := 0.0                    # rad (the look)
 
+var _mu_x := 1.0
+var _mu_y := 1.0
+var _fx := 0.0
+var _fy := 0.0
+var _n := 0
 var _prev_compression := 0.0
 var _was_grounded := false
 var _drop := 0.0                   # the look in the air: how far down the travel the wheel hangs
@@ -107,8 +116,9 @@ func setup(the_car: RigidBody3D, suspension: Resource, tyre: Resource, tyre_radi
 	_drop = cfg.travel
 
 
-## This tick: sweep, work out the compression, push the body (call from the
-## car's _physics_process).
+## Once a tick, first: sweep, work out the compression and the load, and the
+## contact patch's velocity (the car then runs the substeps: tyre_predict, the
+## drivetrain, tyre_finalize; then apply_forces).
 func step(dt: float) -> void:
 	cast.force_shapecast_update()
 	var axis := -global_transform.basis.y            # down the strut
@@ -148,54 +158,73 @@ func step(dt: float) -> void:
 		compression_velocity = 0.0
 	_prev_compression = compression
 	_was_grounded = grounded
-	var h := dt / SUBSTEPS
 	if not grounded:
 		strut_force = 0.0
 		load = 0.0
-		lateral_force = 0.0
-		long_force = 0.0
 		slip_lat = 0.0                               # off the ground the carcass springs back
 		slip_long = 0.0
-		for i in SUBSTEPS:                           # the drive spins it up, the brakes stop it
-			omega = TireModel.air_spin(omega, inertia, drive_torque, brake_torque, h)
-		spin += omega * dt
+		resist_torque = brake_torque
+	else:
+		strut_force = Suspension.force(cfg, compression, compression_velocity)
+		var square := maxf(-axis.dot(normal), 0.0)  # the strut's push that's square to the ground
+		load = strut_force * square
+		# the tyre: the patch's velocity along / across the wheel, in the ground's plane
+		var fwd := -global_transform.basis.z
+		heading = (fwd - normal * fwd.dot(normal)).normalized()
+		var vc := _point_velocity(contact)
+		v_long = vc.dot(heading)
+		v_lat = vc.dot(heading.cross(normal))
+		var lf := TireModel.load_mu_factor(tire, load)   # a heavily loaded tyre grips less per newton
+		_mu_y = tire.lateral_mu * surface_mu * lf
+		_mu_x = tire.longitudinal_mu * surface_mu * lf
+		resist_torque = brake_torque + tire.rolling_resistance * load * radius
+	_fx = 0.0
+	_fy = 0.0
+	_n = 0
+
+
+## A substep, first half: the side slip, and the wheel's spin from its tyre (and
+## any test drive torque) alone, with its effective inertia (i_eff) for the
+## drivetrain and brakes, which come next (drivetrain.gd).
+func tyre_predict(h: float) -> void:
+	if not grounded:
+		omega += h * drive_torque / inertia
+		i_eff = inertia
 		return
-	strut_force = Suspension.force(cfg, compression, compression_velocity)
-	var square := maxf(-axis.dot(normal), 0.0)      # the strut's push that's square to the ground
-	load = strut_force * square
-	# the tyre: the patch's velocity along / across the wheel, in the ground's plane
-	var fwd := -global_transform.basis.z
-	heading = (fwd - normal * fwd.dot(normal)).normalized()
-	var right := heading.cross(normal)
-	var vc := _point_velocity(contact)
-	v_long = vc.dot(heading)
-	v_lat = vc.dot(right)
-	var lf := TireModel.load_mu_factor(tire, load)  # a heavily loaded tyre grips less per newton
-	var mu_y: float = tire.lateral_mu * surface_mu * lf
-	var mu_x: float = tire.longitudinal_mu * surface_mu * lf
-	var resist: float = brake_torque + tire.rolling_resistance * load * radius
-	var fx := 0.0
-	var fy := 0.0
-	for i in SUBSTEPS:
-		slip_lat = TireModel.lateral_slip(tire, slip_lat, v_long, v_lat, h)
-		var r: Array = TireModel.spin_step(tire, omega, slip_long, slip_lat, v_long, load, mu_x, mu_y, inertia, radius,
-			drive_torque, resist, h)
-		omega = r[0]
-		slip_long = r[1]
-		fx += r[2]
-		fy += TireModel.lateral_force(tire, slip_long, slip_lat, load, mu_x, mu_y, v_long, v_lat)
-	fx /= SUBSTEPS
-	fy /= SUBSTEPS
+	slip_lat = TireModel.lateral_slip(tire, slip_lat, v_long, v_lat, h)
+	var p: Array = TireModel.spin_predict(tire, omega, slip_long, slip_lat, v_long, load, _mu_x, _mu_y, inertia, radius, drive_torque, h)
+	omega = p[0]
+	i_eff = p[1]
+
+
+## A substep, second half (the spin is final): the slip ratio follows, and the forces.
+func tyre_finalize(h: float) -> void:
+	if not grounded:
+		return
+	slip_long = TireModel.slip_after(tire, slip_long, omega, v_long, radius, h)
+	_fx += TireModel.long_force(tire, slip_long, slip_lat, omega, v_long, load, _mu_x, _mu_y, radius)
+	_fy += TireModel.lateral_force(tire, slip_long, slip_lat, load, _mu_x, _mu_y, v_long, v_lat)
+	_n += 1
+
+
+## After the substeps: push the body with the averaged forces at the patch.
+func apply_forces(dt: float) -> void:
+	spin += omega * dt
+	if not grounded or _n == 0:
+		long_force = 0.0
+		lateral_force = 0.0
+		return
+	var fx := _fx / _n
+	var fy := _fy / _n
 	# (the combined slip keeps them inside the ellipse; this only catches the damping's extra)
-	var limit := maxf(mu_x, mu_y) * load
+	var limit := maxf(_mu_x, _mu_y) * load
 	var total := sqrt(fx * fx + fy * fy)
 	if total > limit:
 		fx *= limit / total
 		fy *= limit / total
 	long_force = fx
 	lateral_force = fy
-	spin += omega * dt
-	car.apply_force(normal * load + heading * fx + right * fy, contact - car.global_position)
+	car.apply_force(normal * load + heading * fx + heading.cross(normal) * fy, contact - car.global_position)
 
 
 ## The slip angle the tyre is at (deg, + = its patch sliding toward its right).

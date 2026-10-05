@@ -18,12 +18,14 @@ extends RefCounted
 ## Along the wheel: the same carcass model on the slip ratio, wound up by the
 ## difference between the tyre's surface speed (spin x radius) and the ground's:
 ##     d(slip)/dt = ((spin x radius - v_x) - |v_x| slip) / longitudinal_relaxation
-## and it's solved together with the wheel's spin (spin_step), implicitly:
-##     inertia x d(spin)/dt = drive torque - brakes / rolling resistance - force x radius
+## and it's solved together with the wheel's spin, implicitly:
+##     inertia x d(spin)/dt = drivetrain - brakes / rolling resistance - force x radius
 ## The two are stiff together (a gravel tyre settles its slip in a few ms), so
-## the car calls it several times a tick. The brakes (and rolling resistance)
-## are friction: they slow the wheel, can hold it still, never turn it back. A
-## wheel locks only when the brake beats what the tyre can take from the road.
+## the car steps them several times a tick: spin_predict() (the tyre alone),
+## then the drivetrain's and brakes' impulses (drivetrain.gd), then slip_after().
+## The brakes (and rolling resistance) are friction: they slow the wheel, can
+## hold it still, never turn it back. A wheel locks only when the brake beats
+## what the tyre can take from the road.
 ##
 ## Both at once (combined): a tyre has one patch of rubber for both jobs. Each
 ## slip is measured against its own peak (slip ratio / peak, tan slip angle /
@@ -97,33 +99,45 @@ static func longitudinal_slope(cfg: Resource, slip: float) -> float:
 	return c * b * cos(c * atan(u)) / (1.0 + u * u)
 
 
-## One implicit step (h seconds) of a wheel's spin and its slip ratio state on
-## the ground (slip_y: the side slip, which shares the grip). t_drive: torque
-## turning it (+ = forward); t_resist: brakes + rolling resistance (>= 0,
-## friction). Returns [spin rad/s, slip state, force N along the wheel
-## (+ = pushing the car forward)].
-static func spin_step(cfg: Resource, spin: float, slip: float, slip_y: float, v_x: float, load: float, mu: float, mu_y: float,
-		inertia: float, radius: float, t_drive: float, t_resist: float, h: float) -> Array:
+## The wheel's spin over one substep (h s) from its tyre alone (and any extra
+## drive torque), solved implicitly: returns [spin, effective inertia]. The
+## effective inertia is how heavy the wheel feels to the drivetrain and brakes
+## this substep: its own plus the tyre's grip resisting a change of speed. The
+## drivetrain's and brakes' impulses then change the spin by impulse / that,
+## and slip_after() moves the slip on to match. (slip_y: the side slip, which
+## shares the grip.)
+static func spin_predict(cfg: Resource, spin: float, slip: float, slip_y: float, v_x: float, load: float, mu: float, mu_y: float,
+		inertia: float, radius: float, t_drive: float, h: float) -> Array:
 	var sigma: float = cfg.longitudinal_relaxation
 	var a := 1.0 + h * absf(v_x) / sigma
 	var f0 := combined(cfg, slip, slip_y, load, mu, mu_y).x
 	var e := 1e-4                                    # the force's growth with slip (not past the peak)
 	var k := maxf((combined(cfg, slip + e, slip_y, load, mu, mu_y).x - combined(cfg, slip - e, slip_y, load, mu, mu_y).x) / (2.0 * e), 0.0)
 	var i_eff := inertia + h * h * radius * radius * k / (sigma * a)
-	# the spin's momentum after the drive and the tyre, before the friction torques
 	var n := inertia * spin + h * t_drive - h * radius * f0 - h * radius * k * (slip * (1.0 - a) - h * v_x / sigma) / a
-	var stop := h * t_resist
-	var w := 0.0 if absf(n) <= stop else (n - signf(n) * stop) / i_eff   # friction stops it, or slows it
-	var s := (slip + h * (w * radius - v_x) / sigma) / a
+	return [n / i_eff, i_eff]
+
+
+## The slip ratio state after the substep, given the wheel's final spin.
+static func slip_after(cfg: Resource, slip: float, spin: float, v_x: float, radius: float, h: float) -> float:
+	var sigma: float = cfg.longitudinal_relaxation
+	var a := 1.0 + h * absf(v_x) / sigma
+	var s := (slip + h * (spin * radius - v_x) / sigma) / a
 	if absf(v_x) < V_CRAWL:                          # crawling and spinning / sliding: capped where it lets go
-		var limit := maxf(cfg.longitudinal_peak, absf(w * radius - v_x) / V_CRAWL)
+		var limit := maxf(cfg.longitudinal_peak, absf(spin * radius - v_x) / V_CRAWL)
 		s = clampf(s, -limit, limit)
-	var f := combined(cfg, s, slip_y, load, mu, mu_y).x
+	return s
+
+
+## The force along the wheel (N, + = pushing the car forward) for the slips,
+## with the carcass's damping when it's slow, never more than mu x load.
+static func long_force(cfg: Resource, slip: float, slip_y: float, spin: float, v_x: float, load: float, mu: float, mu_y: float,
+		radius: float) -> float:
+	var f := combined(cfg, slip, slip_y, load, mu, mu_y).x
 	# slow or stopped, the wound-up carcass is a spring along the wheel too: damp it
 	# (a braked car on a slope would rock on its tyres otherwise)
 	var still := 1.0 - clampf(absf(v_x) / 3.0, 0.0, 1.0)
-	f = clampf(f + cfg.standstill_damping * (w * radius - v_x) * still, -mu * load, mu * load)
-	return [w, s, f]
+	return clampf(f + cfg.standstill_damping * (spin * radius - v_x) * still, -mu * load, mu * load)
 
 
 ## The wheel in the air: only the drive and the friction torques act on it.

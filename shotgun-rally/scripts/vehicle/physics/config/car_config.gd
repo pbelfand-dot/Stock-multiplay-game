@@ -48,6 +48,10 @@ extends Resource
 @export var rear_tire: Resource             ## TireConfig
 @export var steering: Resource              ## SteeringConfig
 
+@export_group("Engine and drivetrain")
+@export var engine: Resource                ## EngineConfig (none: no engine, the wheels roll free)
+@export var drivetrain: Resource            ## DrivetrainConfig
+
 @export_group("Collision")
 ## The body box (car space) and the cabin above it: what lands on the ground in a
 ## rollover, slides on its roof, hits trees. Kept clear of the ground at full bump.

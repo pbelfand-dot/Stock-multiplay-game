@@ -4,6 +4,9 @@
 [ext_resource type="Script" path="res://scripts/vehicle/physics/config/suspension_config.gd" id="2_susp"]
 [ext_resource type="Script" path="res://scripts/vehicle/physics/config/tire_config.gd" id="3_tire"]
 [ext_resource type="Script" path="res://scripts/vehicle/physics/config/steering_config.gd" id="4_steer"]
+[ext_resource type="Script" path="res://scripts/vehicle/physics/config/engine_config.gd" id="5_engine"]
+[ext_resource type="Script" path="res://scripts/vehicle/physics/config/drivetrain_config.gd" id="6_drive"]
+[ext_resource type="Script" path="res://scripts/vehicle/physics/config/differential_config.gd" id="7_diff"]
 
 [sub_resource type="Resource" id="Resource_front"]
 script = ExtResource("2_susp")
@@ -63,6 +66,60 @@ max_angle_deg = 30.0
 rack_speed_deg = 180.0
 ackermann = 0.4
 
+[sub_resource type="Resource" id="Resource_engine"]
+script = ExtResource("5_engine")
+rpm_points = PackedFloat32Array(1000, 2000, 3000, 4000, 5000, 6000, 7000, 7500)
+torque_points = PackedFloat32Array(0.4, 0.62, 0.88, 1, 0.98, 0.9, 0.78, 0.7)
+max_torque = 400.0
+idle_rpm = 1000.0
+limiter_rpm = 7600.0
+inertia = 0.15
+friction = 15.0
+friction_per_rpm = 0.004
+closed_throttle_per_rpm = 0.006
+turbo_share = 0.35
+spool_start_rpm = 2200.0
+spool_full_rpm = 3800.0
+spool_time = 0.35
+anti_lag = true
+
+[sub_resource type="Resource" id="Resource_center_diff"]
+script = ExtResource("7_diff")
+kind = 1
+power_lock = 0.5
+coast_lock = 0.3
+preload_torque = 60.0
+
+[sub_resource type="Resource" id="Resource_front_diff"]
+script = ExtResource("7_diff")
+kind = 2
+power_lock = 0.4
+coast_lock = 0.2
+preload_torque = 50.0
+
+[sub_resource type="Resource" id="Resource_rear_diff"]
+script = ExtResource("7_diff")
+kind = 2
+power_lock = 0.6
+coast_lock = 0.35
+preload_torque = 70.0
+
+[sub_resource type="Resource" id="Resource_drivetrain"]
+script = ExtResource("6_drive")
+gear_ratios = PackedFloat32Array(2.92, 2.05, 1.6, 1.29, 1.06)
+final_drive = 4.7
+reverse_ratio = 3.0
+shift_time = 0.06
+clutch_torque = 600.0
+launch_rpm = 4000.0
+front_share = 0.5
+center_diff = SubResource("Resource_center_diff")
+front_diff = SubResource("Resource_front_diff")
+rear_diff = SubResource("Resource_rear_diff")
+auto_shift = true
+upshift_rpm = 7200.0
+downshift_rpm = 3300.0
+
 [resource]
 script = ExtResource("1_car")
 mass = 1280.0
@@ -83,6 +140,8 @@ rear_suspension = SubResource("Resource_rear")
 front_tire = SubResource("Resource_tire_front")
 rear_tire = SubResource("Resource_tire_rear")
 steering = SubResource("Resource_steering")
+engine = SubResource("Resource_engine")
+drivetrain = SubResource("Resource_drivetrain")
 body_size = Vector3(1.7, 0.8, 3.9)
 body_center = Vector3(0, 0.22, 0)
 cabin_size = Vector3(1.4, 0.5, 2)

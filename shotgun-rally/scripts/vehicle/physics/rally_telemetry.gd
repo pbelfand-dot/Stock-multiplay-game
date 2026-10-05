@@ -1,7 +1,7 @@
 extends CanvasLayer
 ## The physics telemetry: F3 shows the numbers, F4 draws the forces.
 ##   * numbers: speed, lateral g, pitch / roll, the steering, the physics tick
-##     rate, and per wheel the compression (mm), how fast it's moving, the
+##     rate, the engine (rpm, gear, throttle, boost, clutch, torque), and per wheel the compression (mm), how fast it's moving, the
 ##     tyre's load, its slip angle and side force, the wheel's own speed, its
 ##     slip ratio and drive / brake force, and what it's on (LOCKED: a wheel
 ##     stopped while the car moves)
@@ -80,6 +80,12 @@ func text() -> String:
 	var s := "PHYSICS V2   %d Hz   %5.1f km/h   lateral %+4.2f g   pitch %+5.1f   roll %+5.1f   tyres down %d\n" % [
 		Engine.physics_ticks_per_second, car.linear_velocity.length() * 3.6, lat_g, pitch, roll, car.grounded]
 	s += "steering %+5.1f deg (wheels %+5.1f / %+5.1f)\n" % [rad_to_deg(car.steer), rad_to_deg(car.wheel_angles[0]), rad_to_deg(car.wheel_angles[1])]
+	var d = car.drivetrain
+	if d:
+		var g := "R" if d.gear < 0 else ("N" if d.gear == 0 else str(d.gear))
+		s += "engine %5.0f rpm  gear %s  throttle %3.0f %%  boost %3.0f %%  clutch %3.0f %%  %4.0f N m  (clutch carries %4.0f)%s%s\n" % [
+			d.rpm(), g, d.throttle * 100.0, d.boost * 100.0, d.clutch * 100.0, d.engine_torque, d.clutch_torque,
+			"  SHIFT" if d.shifting() else "", "  LIMITER" if d.limiter else ""]
 	s += "        comp mm   load kN   slip deg   side kN   wheel km/h   slip %   drive kN   on\n"
 	for k in 4:
 		var w = car.wheels[k]
@@ -87,7 +93,7 @@ func text() -> String:
 		var state := ""
 		if w.compression > w.cfg.bump_stop_start:
 			state += "  BUMP STOP"
-		if w.omega == 0.0 and absf(w.v_long) > 0.5:
+		if absf(w.omega) < 0.01 and absf(w.v_long) > 0.5:
 			state += "  LOCKED"
 		s += "  %s    %6.0f   %7.2f   %+7.2f   %+6.2f   %9.1f   %+6.0f   %+7.2f   %s%s\n" % [car.NAMES[k], w.compression * 1000.0,
 			w.load / 1000.0, w.slip_angle_deg(), w.lateral_force / 1000.0, w.wheel_speed() * 3.6, w.slip_long * 100.0,

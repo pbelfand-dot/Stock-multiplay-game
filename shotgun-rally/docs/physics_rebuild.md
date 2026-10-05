@@ -1,8 +1,9 @@
 # Rally physics rebuild: inspection and plan
 
-Status: **phases 1-4 done** (the chassis on its suspension; the tyres' side grip and the
+Status: **phases 1-5 done** (the chassis on its suspension; the tyres' side grip and the
 steering; the wheels' spin, the drive / brake force and the brakes; the combined-slip ellipse and
-load sensitivity; in the lab, see "Phase reports" at the end). Decisions:
+load sensitivity; the engine, clutch, sequential gearbox and four-wheel-drive diffs; in the lab,
+see "Phase reports" at the end). Decisions:
 - built **alongside** the current car (a lab scene, a `--physics=v2` switch once it drives), and it
   becomes the car once it passes every current test plus the manoeuvre tests;
 - physics at **120 Hz** (set by whatever runs the v2 car, so the current car and the auto-updater's
@@ -321,3 +322,95 @@ grip spins up without end. Phase 5 brings the engine, clutch, gearbox and diffs.
 **7. Bugs found:** none in the code. The first trail-braking test used a corner (5 degrees at
 20 m/s, asking for 14 m/s²) far past the tyres' grip: both runs were four-wheel slides, which
 proves nothing about trail braking; it now uses a corner under the limit.
+
+### Phase 5: engine, clutch, sequential gearbox, four-wheel-drive diffs
+
+**1. The code**
+- `engine.gd` (pure functions): the torque curve (points, straight lines between), the turbo
+  (a share of the torque that comes with boost; boost spools between two rpm figures over a spool
+  time, anti-lag keeping it up off the throttle), friction (fixed + per rpm, more with the throttle
+  shut: that's engine braking), power.
+- `drivetrain.gd` (the state: engine spin, boost, gear, clutch):
+  - `control()`, once a tick: the shift timer (a sequential box: the drive is cut for 0.06 s and
+    the next gear is in), the limiter (cuts at 7,600 rpm, back on 150 rpm lower), idle control,
+    the boost, the automatic clutch (out in neutral and while shifting; pulling away it takes up
+    as the revs rise, higher with more throttle; rolling it's in), auto-shift (up at 7,200 rpm,
+    down at 3,300 if the lower gear won't over-rev).
+  - `solve()`, each of the 8 substeps: the engine and the four wheels together. The engine spins up
+    with its torque and down with its friction; each wheel brings its spin from its tyre alone
+    and how heavy it feels (its inertia plus the tyre's grip resisting a change of speed). Then the
+    couplings, as friction-limited constraints solved 8 times round (sequential impulses): the
+    clutch (engine speed = ratio x the driveline's speed, up to the clutch's capacity, then it
+    slips carrying its capacity), the centre diff (front / rear), the front and rear diffs
+    (left / right), and the brakes and rolling resistance (friction holding each wheel, up to
+    their torque). An **open** diff adds nothing (so a light wheel spins up and its partner gets
+    only what it takes to spin it); **locked** holds both sides together; an **LSD** holds them
+    together up to preload + lock x the torque going through it (power and coast figures). None
+    of the diffs' behaviour is scripted: it's the couplings and the tyres.
+- `tire_model.gd`: the wheel's spin solve is split in two so the drivetrain can sit in between:
+  `spin_predict()` (the tyre alone, implicit, returning the effective inertia) and
+  `slip_after()` (the slip ratio follows the final spin). Phase 3's `spin_step()` is gone.
+- `rally_wheel.gd`: `tyre_predict()` / `tyre_finalize()` around the drivetrain each substep;
+  `resist_torque` (brake + rolling resistance) for the solver.
+- `rally_car_v2.gd`: the substep loop (predict → drivetrain → finalize, 8 times, then the forces);
+  `gear` and `rpm`; the pedals: stopped in gear and holding the brake for 0.35 s selects reverse,
+  where the brake pedal drives it backwards and the throttle brakes (as in the current car).
+- Config: `EngineConfig`, `DrivetrainConfig`, `DifferentialConfig` (`data/cars/awd_rally.tres`
+  has all three as sub-resources).
+- Lab: up / W is now the throttle through the engine, E / Q change up / down (it also changes by
+  itself), `--lab=launch` a full-throttle start. Telemetry (F3): an engine line (rpm, gear,
+  throttle, boost, clutch, engine torque, what the clutch carries, SHIFT / LIMITER).
+
+**2. Where:** `scripts/vehicle/physics/engine.gd`, `drivetrain.gd`,
+`config/engine_config.gd`, `config/drivetrain_config.gd`, `config/differential_config.gd`.
+
+**3. Nodes:** none new: the drivetrain is a plain object the car owns (`car.drivetrain`), set up
+from `CarConfig.engine` / `.drivetrain`. A car with no engine config keeps phase 4's free wheels.
+
+**4. In the inspector** (`data/cars/awd_rally.tres` → Engine / Drivetrain):
+- engine: 400 N m peak at 4,000 rpm, 229 kW (307 hp) at 7,000, idle 1,000, limiter 7,600, inertia
+  0.15 kg m², friction 15 + 0.004 / rpm (+ 0.006 / rpm with the throttle shut), turbo 35 % of the
+  torque, spooling 2,200-3,800 rpm in 0.35 s, anti-lag on. (A Rally2 car quotes about 214 kW and
+  425 N m; phase 9 tunes the curve.)
+- gearbox: 2.92 / 2.05 / 1.60 / 1.29 / 1.06, final drive 4.7 (63 / 90 / 116 / 143 / 174 km/h at
+  7,200 rpm; 184 km/h on the limiter), reverse 3.0, 0.06 s shifts; clutch 600 N m, launch rpm 4,000.
+- four-wheel drive: 50 / 50; centre **locked** (Rally2 cars have no centre diff at all, a solid
+  shaft, which is the same thing); front LSD 0.4 power / 0.2 coast / 50 N m preload; rear LSD
+  0.6 / 0.35 / 70 N m. Auto-shift on (an aid: it'll be its own Settings switch in phase 8).
+
+**5. How to test:** `godot --headless --fixed-fps 120 --path . -s tests/physics_v2_check.gd`
+(phases 1-4 run in neutral so their numbers stay about the tyres; phase 5 adds five runs). In the
+lab: hold W from a standstill, watch the engine line with F3.
+
+**6. What correct looks like** (measured):
+- full throttle from a standstill: 0-100 km/h in **4.9 s**, the tyres slipping up to 20 % pulling
+  away (gravel digs in at 15 %); it changes up by itself at ~7,200 rpm, and in each gear the engine
+  turns at exactly the gear's ratio x the wheels' speed (within 3 %), so each change drops the revs
+  by the ratio (7,229 → 5,677 rpm for 1 → 2: x0.70); the limiter holds it under 7,230 rpm;
+- the clutch carries +178 N m on average pulling away (+ = driving);
+- lifting off in third at 80 km/h: engine braking, 1.25 m/s² (coasting in neutral: 0.24), the
+  clutch carrying -58 N m (the wheels turning the engine);
+- one rear wheel on ice: with all three diffs open the car barely moves (1.20 m/s², that wheel
+  spinning at 225 km/h with the car at 11); with the car's locked centre and LSDs it pulls away at
+  4.39 m/s²;
+- stopped, holding the brake: reverse, and it backs up.
+
+The drivetrain changes how the car corners, as it does in a real one: the locked centre diff
+makes the front and rear axles turn at the same average speed, but in a corner the front wheels
+travel further, so the tyres fight it and the car pushes on a little more. With the diffs open the
+phase 2-4 numbers come back exactly; with the car's diffs the skid pad limit is 0.89 g (open:
+0.93 g) and turn-in yaw for the steering 0.87 coasting / 1.06 trail braking (open: 0.96 / 1.20).
+Trail braking still rotates the car 22 % more. Phase 7's handbrake disconnects the rear (as a
+Rally2 car's handbrake clutch does), which is how a rally driver gets it turned anyway.
+
+**7. Bugs found:**
+- the clutch's torque came out with the wrong sign (its impulse is negative when the engine drives
+  the wheels), so under power the LSDs used their *coast* lock and the telemetry said the clutch
+  carried -113 N m while pulling away. Found in the launch screenshot; fixed, with a test that the
+  clutch reads + driving and - engine braking;
+- neutral selected reverse (stopped in neutral with the brake held): reverse now only comes from
+  a gear;
+- the ice test changed up on the spinning wheel (the revs hit 7,200 with the car at 11 km/h): those
+  runs have auto-shift off, as a driver would hold first;
+- `Engine` shadowed Godot's own class and `preload` is a keyword: renamed `EngineModel`,
+  `preload_torque`.

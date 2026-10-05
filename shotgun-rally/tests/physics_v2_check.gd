@@ -33,6 +33,15 @@ extends SceneTree
 ##   * the same corner entered braking (trail braking) rotates the car more than
 ##     coasting into it: the nose loads and bites, the tail goes light
 ##   * a tyre with twice the load grips less per newton (load sensitivity)
+## (phases 1-4 run in neutral: the tyres and brakes alone)
+## Phase 5, the engine, clutch, gearbox and diffs:
+##   * full throttle from a standstill: the clutch slips it away, the tyres
+##     spin a little, it changes up by itself, each change drops the revs by
+##     the ratio, the limiter is never passed, 0-100 km/h in a rally car's time
+##   * lifting off in third: engine braking, several times coasting's
+##   * one wheel on ice: with open diffs that wheel spins and the car hardly
+##     moves; with the car's LSDs and locked centre it pulls away
+##   * stopped, holding the brake: reverse, and it backs up
 ## Run: godot --headless --fixed-fps 120 --path . -s tests/physics_v2_check.gd
 ## Prints [physics] lines; exits 1 on any FAIL.
 
@@ -49,9 +58,19 @@ var _y0 := 0.0
 var _lift_t := 0.0
 var _phases := ["static", "bounce", "drop", "bumps", "left bumps", "skid 2", "skid 4", "skid 8", "skid 15",
 	"side slope", "straight", "drive gently", "wheelspin", "brake gently", "brake locked", "coast",
-	"slope braked", "slope rolling", "brake in turn", "turn in coasting", "turn in braking", "load"]
+	"slope braked", "slope rolling", "brake in turn", "turn in coasting", "turn in braking", "load",
+	"launch", "engine braking", "ice open diffs", "ice locked diffs", "reverse"]
+const ENGINE_RUNS := ["launch", "engine braking", "ice open diffs", "ice locked diffs", "reverse"]
+var _ice := {}
+var _shifts: Array = []            # [t, from gear, to gear, rpm before, rpm after]
+var _last_gear := 1
+var _real_drivetrain: Resource
 var _turn := {}                    # "coasting" / "braking" -> yaw gain
 var _v0 := Vector3.ZERO
+var _rpm_before := 0.0
+var _shift_from := 0
+var _drive_before := 0.0
+var _shift_in := -1.0
 var _skid := {}                    # steering deg -> {a: lateral accel m/s², front / rear slip deg}
 var _yaw0 := 0.0
 
@@ -74,6 +93,10 @@ func _process(_dt: float) -> bool:
 
 
 func _next() -> void:
+	if car.drivetrain and _real_drivetrain:
+		car.drivetrain.cfg = _real_drivetrain        # (after the open-diff run)
+	for w in car.wheels:
+		w.surface_mu = 1.0
 	_phase += 1
 	_t = 0.0
 	_log.clear()
@@ -115,7 +138,21 @@ func _next() -> void:
 		"turn in coasting", "turn in braking":
 			Lab.launch(car, Lab.SKID, 20.0)
 			car.inp.steer = 2.5 / car.config.steering.max_angle_deg     # ~7 m/s²: under the limit
+		"launch", "reverse":
+			car.place(Lab.SKID, 0.0)
+			_shifts.clear()
+			_last_gear = 1
+		"engine braking":
+			Lab.launch(car, Lab.SKID, 22.0)
+			car.drivetrain.gear = 3
+			car.drivetrain.omega_e = car.wheels[0].omega * car.drivetrain.ratio()
+		"ice open diffs", "ice locked diffs":
+			car.place(Lab.SKID, 0.0)
+			car.drivetrain.cfg = _ice_drivetrain(name_open(_phases[_phase]))
+			car.wheels[3].surface_mu = 0.1           # the right rear on ice
 	_v0 = car.global_position
+	if car.drivetrain and not (_phases[_phase] in ENGINE_RUNS):
+		car.drivetrain.gear = 0                      # the tyres and brakes alone
 	_inputs(_phases[_phase])
 
 
@@ -123,7 +160,8 @@ func _next() -> void:
 func _inputs(name: String) -> void:
 	for w in car.wheels:
 		w.drive_torque = {"drive gently": 400.0, "wheelspin": 2500.0}.get(name, 0.0)
-	car.inp.brake = {"brake gently": 0.3, "brake locked": 1.0, "slope braked": 1.0, "turn in braking": 0.25}.get(name, 0.0)
+	car.inp.brake = {"brake gently": 0.3, "brake locked": 1.0, "slope braked": 1.0, "turn in braking": 0.25, "reverse": 1.0}.get(name, 0.0)
+	car.inp.throttle = 1.0 if name in ["launch", "ice open diffs", "ice locked diffs"] else 0.0
 	if name == "brake in turn":
 		car.inp.brake = 0.4 if _t >= 4.0 else 0.0
 
@@ -160,12 +198,27 @@ func _physics_process(dt: float) -> bool:
 		(w[0].slip_angle_deg() + w[1].slip_angle_deg()) * 0.5, (w[2].slip_angle_deg() + w[3].slip_angle_deg()) * 0.5,  # 9, 10
 		car.global_position, car.linear_velocity.dot(xf.basis.x),                                 # 11, 12
 		car.linear_velocity.dot(fwd), _max_slip(), _all_locked(), car.accel, car.linear_velocity,  # 13-17
-		(car.wheel_angles[0] + car.wheel_angles[1]) * 0.5])                                         # 18
+		(car.wheel_angles[0] + car.wheel_angles[1]) * 0.5,                                          # 18
+		car.drivetrain.rpm() if car.drivetrain else 0.0,                                            # 19
+		car.drivetrain.clutch_torque if car.drivetrain else 0.0])                                   # 20
 	var length := {"static": 3.0, "bounce": 5.5, "drop": 4.5, "bumps": 4.0, "left bumps": 4.0,
 		"skid 2": 5.0, "skid 4": 5.0, "skid 8": 5.0, "skid 15": 5.0, "side slope": 5.0, "straight": 3.0,
 		"drive gently": 3.0, "wheelspin": 2.0, "brake gently": 2.0, "brake locked": 6.0, "coast": 3.0,
 		"slope braked": 4.0, "slope rolling": 2.0, "brake in turn": 5.5, "turn in coasting": 1.4, "turn in braking": 1.4,
-		"load": 0.1}
+		"load": 0.1, "launch": 9.0, "engine braking": 1.5, "ice open diffs": 2.0, "ice locked diffs": 2.0, "reverse": 2.5}
+	if name == "launch":
+		if car.drivetrain.shifting() and _shift_from == 0:
+			_shift_from = car.gear                   # the cut starts: the revs before, and the wheels' speed
+			_rpm_before = car.drivetrain.rpm()
+			_drive_before = car.drivetrain.driveline_speed(car.wheels)
+		elif not car.drivetrain.shifting() and _shift_from != 0 and car.gear != _shift_from:
+			if _shift_in < 0.0:
+				_shift_in = _t
+			elif _t - _shift_in > 0.15:              # in gear and the clutch has matched the revs
+				_shifts.append([_shift_in, _shift_from, car.gear, _rpm_before, car.drivetrain.rpm(),
+					_drive_before, car.drivetrain.driveline_speed(car.wheels)])
+				_shift_from = 0
+				_shift_in = -1.0
 	if name.begins_with("skid") and _t >= length[name]:
 		_judge_skid(int(name.split(" ")[1]))
 		_next()
@@ -352,7 +405,7 @@ func _max_slip() -> float:
 
 func _all_locked() -> bool:
 	for w in car.wheels:
-		if w.omega != 0.0:
+		if absf(w.omega) > 0.01:
 			return false
 	return true
 
@@ -533,6 +586,94 @@ func _judge_load() -> void:
 	var per_n_2: float = TireModel.combined(t, 0.0, py, 2.0 * nominal, 1.0, TireModel.load_mu_factor(t, 2.0 * nominal)).y / (2.0 * nominal)
 	fails += _check(per_n_2 < per_n_1 and absf(per_n_2 / per_n_1 - (1.0 - t.load_sensitivity)) < 0.01,
 		"load sensitivity: a tyre with twice the load grips %.0f %% less per newton (%.3f vs %.3f)" % [(1.0 - per_n_2 / per_n_1) * 100.0, per_n_2, per_n_1])
+
+
+func name_open(n: String) -> bool:
+	return n == "ice open diffs"
+
+
+## The car's drivetrain for the ice runs: held in first (as a driver would:
+## an auto box would change up on the spinning wheel's revs), and with all
+## three diffs open for the open run.
+func _ice_drivetrain(open_diffs: bool) -> Resource:
+	if _real_drivetrain == null:
+		_real_drivetrain = car.drivetrain.cfg
+	var d: Resource = _real_drivetrain.duplicate()
+	d.auto_shift = false
+	if open_diffs:
+		for slot in ["center_diff", "front_diff", "rear_diff"]:
+			var open: Resource = (d.get(slot) as Resource).duplicate()
+			open.kind = 0                            # OPEN
+			d.set(slot, open)
+	return d
+
+
+func _judge_launch() -> void:
+	var t100 := -1.0
+	var spin := 0.0
+	var max_rpm := 0.0
+	for e in _log:
+		if t100 < 0.0 and e[13] >= 100.0 / 3.6:
+			t100 = e[0]
+		if e[0] < 1.5:
+			spin = maxf(spin, e[14])
+	var e_cfg: Resource = car.config.engine
+	fails += _check(t100 > 3.5 and t100 < 7.0, "full throttle from a standstill: 0-100 km/h in %.2f s (a Rally2 car on gravel: ~4-5 s)" % t100)
+	fails += _check(spin > 0.08 and spin < 1.0, "pulling away: the tyres spin a little (slip ratio up to %.0f %%), they don't just bog or go up in smoke" % (spin * 100.0))
+	# in each gear the engine turns at exactly the gear's ratio x the wheels' speed
+	# (clutch in, nothing slipping), so a change drops the revs by the ratio
+	var ok := _shifts.size() >= 2
+	var lines := ""
+	var to_rpm := 60.0 / TAU
+	for sh in _shifts:
+		var g0: float = car.drivetrain.ratio_for(sh[1])
+		var g1: float = car.drivetrain.ratio_for(sh[2])
+		var err0: float = absf(sh[3] / (g0 * sh[5] * to_rpm) - 1.0)
+		var err1: float = absf(sh[4] / (g1 * sh[6] * to_rpm) - 1.0)
+		lines += " %d->%d at %.1f s, %.0f->%.0f rpm (ratio x%.2f);" % [sh[1], sh[2], sh[0], sh[3], sh[4], g1 / g0]
+		ok = ok and err0 < 0.03 and err1 < 0.03
+	fails += _check(ok, "it changes up by itself, the engine turning at each gear's ratio x the wheels' speed:" + lines)
+	for e in _log:
+		max_rpm = maxf(max_rpm, e[19])
+	fails += _check(max_rpm < e_cfg.limiter_rpm + 150.0, "the limiter holds it (%.0f rpm at most, limiter %.0f)" % [max_rpm, e_cfg.limiter_rpm])
+	# the clutch's torque reads + driving (the LSDs pick their power or coast lock by it)
+	fails += _check(_mean(20, 0.5, 2.5) > 50.0, "pulling away the clutch carries the engine's drive: %+.0f N m on average (+ = driving)" % _mean(20, 0.5, 2.5))
+
+
+func _judge_engine_braking() -> void:
+	var rr: float = car.config.front_tire.rolling_resistance
+	var coast := rr * car.mass * 9.8 / _m_eff()
+	var got := -_accel(0.3, 1.5)
+	fails += _check(got > 3.0 * coast and got < 2.5, "lifting off in third at 80 km/h: engine braking, %.2f m/s² (coasting: %.2f)" % [got, coast])
+	fails += _check(_mean(20, 0.3, 1.5) < -20.0, "and the clutch carries it the other way: %+.0f N m (- = the wheels turning the engine)" % _mean(20, 0.3, 1.5))
+
+
+func _judge_ice_open_diffs() -> void:
+	_ice["open"] = _accel(0.7, 2.0)
+	_ice["open_spin"] = car.wheels[3].wheel_speed()
+	_ice["open_ground"] = car.speed
+
+
+func _judge_ice_locked_diffs() -> void:
+	var locked := _accel(0.7, 2.0)
+	fails += _check(_ice.open < 0.4 * locked and _ice.open_spin > 3.0 * maxf(_ice.open_ground, 0.5),
+		"one wheel on ice: open diffs lose the drive to it (%.2f m/s², that wheel at %.0f km/h, the car at %.0f); the car's LSDs and locked centre pull away (%.2f m/s²)" % [
+			_ice.open, _ice.open_spin * 3.6, _ice.open_ground * 3.6, locked])
+
+
+func _judge_reverse() -> void:
+	fails += _check(car.gear == -1 and car.speed < -1.0, "stopped, holding the brake: reverse, and it backs up (gear %d, %.1f m/s)" % [car.gear, car.speed])
+
+
+## The average of a logged column between two times (s).
+func _mean(col: int, t0: float, t1: float) -> float:
+	var sum := 0.0
+	var n := 0
+	for e in _log:
+		if e[0] >= t0 and e[0] <= t1:
+			sum += e[col]
+			n += 1
+	return sum / maxf(n, 1)
 
 
 func _check(ok: bool, msg: String) -> int:

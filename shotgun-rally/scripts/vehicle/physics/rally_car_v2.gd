@@ -9,7 +9,13 @@ extends RigidBody3D
 ## act.
 ## Phase 2: the tyres grip sideways (slip angle -> side force at each patch)
 ## and the front wheels steer: input x lock, no faster than the rack turns,
-## split by the Ackermann geometry. No drive or brakes yet (phase 3).
+## split by the Ackermann geometry.
+## Phase 3-4: each wheel spins on its own (drive, brakes, the tyre's slip ratio),
+## both forces sharing one patch of rubber, load sensitivity.
+## Phase 5: the engine, clutch, sequential gearbox and three diffs
+## (drivetrain.gd), solved with the wheels SUBSTEPS times a tick. Throttle and
+## brake are the pedals; stopped, holding the brake selects reverse (as the
+## current car does) and then the brake drives it backwards.
 ## Runs at 120 physics ticks a second (the scene that uses it sets that).
 ##
 ## The scene (scenes/rally_car_v2.tscn): RallyCarV2 (this) > CollisionShape3D x2,
@@ -21,10 +27,12 @@ extends RigidBody3D
 signal landed(impact: float)       # came down onto its wheels (m/s downward)
 
 const RallyWheel = preload("res://scripts/vehicle/physics/rally_wheel.gd")
+const Drivetrain = preload("res://scripts/vehicle/physics/drivetrain.gd")
 const Telemetry = preload("res://scripts/vehicle/physics/rally_telemetry.gd")
 const DEFAULT_CONFIG := "res://data/cars/awd_rally.tres"
 const TICKS := 120                 # physics ticks per second (see the plan: the wheels are stiff)
 const NAMES := ["FL", "FR", "RL", "RR"]
+const SUBSTEPS := 8                # tyre / wheel-spin / drivetrain steps per tick
 
 ## The car's numbers (a CarConfig resource).
 @export var config: Resource
@@ -35,6 +43,8 @@ const NAMES := ["FL", "FR", "RL", "RR"]
 var inp := {"steer": 0.0, "throttle": 0.0, "brake": 0.0, "handbrake": false}
 var simulate := true
 var speed := 0.0                   # along the car (m/s, + = forward)
+var gear := 1                      # the gear (R = -1, N = 0), as the current car's
+var rpm := 0.0                     # 0..1 from idle to the limiter, as the current car's (the sound uses it)
 var steer := 0.0                   # front wheel angle (rad)
 var grounded := 0                  # tyres touching
 var comp := [0.0, 0.0, 0.0, 0.0]   # spring compression per corner (m)
@@ -43,10 +53,12 @@ var accel := Vector3.ZERO          # the body's acceleration last tick (m/s², w
 var on_surface := "gravel"
 var wheels: Array = []             # RallyWheel: FL, FR, RL, RR
 var telemetry: CanvasLayer
+var drivetrain                     # Drivetrain (null: no engine in the config, the wheels roll free)
 
 var _air := 0.0
 var _rack := 0.0                   # the steering rack: the "bicycle" front-wheel angle (rad, + = right)
 var _prev_v := Vector3.ZERO
+var _reverse_t := 0.0
 
 
 func _ready() -> void:
@@ -89,6 +101,9 @@ func _ready() -> void:
 		w.setup(self, config.front_suspension if k < 2 else config.rear_suspension,
 			config.front_tire if k < 2 else config.rear_tire, config.tyre_radius, config.tyre_width, config.wheel_inertia)
 		wheels.append(w)
+	if config.drivetrain and config.engine:
+		drivetrain = Drivetrain.new()
+		drivetrain.setup(config.drivetrain, config.engine)
 	telemetry = get_node_or_null("Telemetry")
 	if telemetry == null:
 		telemetry = Telemetry.new()
@@ -121,6 +136,8 @@ func place(pos: Vector3, yaw: float) -> void:
 		w.slip_lat = 0.0
 		w.slip_long = 0.0
 		w.omega = 0.0
+	if drivetrain:
+		drivetrain.reset()
 	reset_physics_interpolation()
 
 
@@ -161,7 +178,8 @@ func _physics_process(dt: float) -> void:
 	accel = (linear_velocity - _prev_v) / dt
 	_prev_v = linear_velocity
 	_steer(dt)
-	_brakes()
+	var pedals := _pedals(dt)
+	_brakes(pedals.y)
 	var was := grounded
 	grounded = 0
 	for k in 4:
@@ -172,6 +190,24 @@ func _physics_process(dt: float) -> void:
 			grounded += 1
 			if w.collider and w.collider.has_meta("surface"):
 				on_surface = w.collider.get_meta("surface")
+	if drivetrain:
+		drivetrain.control(dt, pedals.x, wheels)
+	var h := dt / SUBSTEPS
+	for i in SUBSTEPS:
+		for w in wheels:
+			w.tyre_predict(h)
+		if drivetrain:
+			drivetrain.solve(h, wheels)
+		else:
+			_free_wheels(h)
+		for w in wheels:
+			w.tyre_finalize(h)
+	for w in wheels:
+		w.apply_forces(dt)
+	if drivetrain:
+		gear = drivetrain.gear
+		var e: Resource = config.engine
+		rpm = clampf((drivetrain.rpm() - e.idle_rpm) / (e.limiter_rpm - e.idle_rpm), 0.0, 1.0)
 	if grounded == 0:
 		_air += dt
 	else:
@@ -180,9 +216,37 @@ func _physics_process(dt: float) -> void:
 		_air = 0.0
 
 
+## The pedals as (throttle, brake). Stopped and holding the brake (off the
+## throttle) for a moment selects reverse; in reverse the brake pedal drives it
+## backwards and the throttle brakes, until it's stopped and the throttle picks first.
+func _pedals(dt: float) -> Vector2:
+	var thr := clampf(float(inp.throttle), 0.0, 1.0)
+	var brk := clampf(float(inp.brake), 0.0, 1.0)
+	if drivetrain == null:
+		return Vector2(thr, brk)
+	if drivetrain.gear >= 0:
+		var stopped_in_gear: bool = drivetrain.gear >= 1 and absf(speed) < 0.5   # (not from neutral)
+		_reverse_t = _reverse_t + dt if brk > 0.5 and thr < 0.05 and stopped_in_gear and not bool(inp.handbrake) else 0.0
+		if _reverse_t > 0.35:
+			drivetrain.shift(-1)
+			_reverse_t = 0.0
+		return Vector2(thr, brk)
+	if thr > 0.05 and speed > -0.5:
+		drivetrain.shift(1)
+		return Vector2(thr, 0.0)
+	return Vector2(brk, thr)
+
+
+## Without a drivetrain: just the brakes and rolling resistance on each wheel.
+func _free_wheels(h: float) -> void:
+	for w in wheels:
+		var stop: float = h * w.resist_torque
+		var n: float = w.omega * w.i_eff
+		w.omega = 0.0 if absf(n) <= stop else (n - signf(n) * stop) / w.i_eff
+
+
 ## The pedal: the brakes' torque, split front / rear by the bias, left / right evenly.
-func _brakes() -> void:
-	var pedal := clampf(float(inp.brake), 0.0, 1.0)
+func _brakes(pedal: float) -> void:
 	var front: float = config.brake_torque * config.brake_bias * 0.5 * pedal
 	var rear: float = config.brake_torque * (1.0 - config.brake_bias) * 0.5 * pedal
 	for k in 4:
