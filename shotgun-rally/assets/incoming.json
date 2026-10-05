@@ -1,8 +1,3 @@
 {
-  "files": {
-    "assets/models/seat.glb": "https://d8j0ntlcm91z4.cloudfront.net/user_3J4KnKF0J3DHfVp8orb2QnoKhME/hf_20261005_022546_9a766a38-7caf-4020-95a0-ed021715af73.glb",
-    "assets/models/steering_wheel.glb": "https://d8j0ntlcm91z4.cloudfront.net/user_3J4KnKF0J3DHfVp8orb2QnoKhME/hf_20261005_022547_dfc36da7-c2c5-4cf9-aeb2-008f5706b2b1.glb",
-    "docs/reference/models/seat.jpg": "https://d8j0ntlcm91z4.cloudfront.net/user_3J4KnKF0J3DHfVp8orb2QnoKhME/hf_20261005_021624_f05214e0-deca-439d-ba12-2032b81856fe.png",
-    "docs/reference/models/steering_wheel.jpg": "https://d8j0ntlcm91z4.cloudfront.net/user_3J4KnKF0J3DHfVp8orb2QnoKhME/hf_20261005_021625_949e5e02-3e44-4fcf-9387-9ecf157adc79.png"
-  }
+  "files": {}
 }
