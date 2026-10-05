@@ -2,14 +2,27 @@ extends RigidBody3D
 ## The rally car: a rigid body on four raycast springs (not BAGHOLDERS' highway
 ## CharacterBody: a rally car has to jump, land, slide and roll).
 ##   * each corner casts a ray down; the spring + damper push the body up at
-##     the contact point, an anti-roll bar shares the load across each axle
-##   * each tyre makes a sideways force from its slip angle (peaks at
-##     SLIP_PEAK, falls off past it: that's the slide) and a forward force
-##     from the engine / brakes, both inside one friction circle (mu x load);
-##     mu depends on what the tyre is on: gravel, grass, mud
-##   * four-wheel drive (42 / 58 front / rear), the handbrake locks the rears
-##     and halves their side grip (the hairpin flick)
-##   * steering lock shrinks with speed; keyboard steering eases on / off
+##     the contact point, an anti-roll bar shares the load across each axle.
+##     The tyre forces act at the contact patches, so braking really loads the
+##     nose and a hard left really loads the right side (weight transfer)
+##   * each tyre's grip is mu x load, and mu drops a little as the load goes up
+##     (load sensitivity): weight transfer changes which end grips. A loaded
+##     nose bites (lift off / brake into a bend and the car turns in), a light
+##     tail lets go
+##   * sideways force from the slip angle on a Magic Formula curve: it builds
+##     to a peak (later and softer on gravel than on tarmac) and then only fades
+##     slowly, so a slide is something you drive, not something that happens.
+##     Forward force (engine / brakes) and sideways share one friction circle:
+##     too much throttle in a bend and the tyres that are driven let go
+##   * four-wheel drive split 45 / 55 front / rear; the handbrake locks the
+##     rears and declutches them (all the power to the front, like a Rally2
+##     car): a locked tyre slides along its own velocity, so the tail comes
+##     round (the hairpin flick)
+##   * steering, at speed, asks the front tyres for a slip angle: full steering
+##     is the most grip they have, wherever the car is pointing (on keys there's
+##     no way to hold the wheel just short of the limit, so the car does it).
+##     Opposite steering in a slide is the most countersteer. At parking speeds
+##     it's plain wheel angle
 ##   * in the air the body gently levels itself (arcade landings)
 ## The machine of whoever is DRIVING simulates it (`simulate`) and streams its
 ## state ~30x a second; the co-driver's machine plays that stream back 100 ms
@@ -27,20 +40,31 @@ const RADIUS := 0.31               # tyre radius (m)
 const SPRING := 26000.0            # N/m per corner
 const DAMP := 2400.0               # N per m/s
 const BUMP_STOP := 0.29            # past this compression the bump stop takes over
-const ANTI_ROLL_F := 13000.0       # N per m of left/right difference (front stiffer: stable at speed)
-const ANTI_ROLL_R := 5000.0
+const ANTI_ROLL_F := 7000.0        # N per m of left/right difference (more at the back: a car that turns)
+const ANTI_ROLL_R := 13000.0
 const CAR_MASS := 1150.0
-const ENGINE_FORCE := 7400.0       # at the wheels, low speed (N)
-const POWER := 150000.0            # W: above ~20 m/s the force is POWER / speed
+const ENGINE_FORCE := 8200.0       # at the wheels, low speed (N)
+const POWER := 170000.0            # W (~230 hp): above ~20 m/s the force is POWER / speed
 const V_MAX := 47.0                # rev limiter in 5th (m/s, 170 km/h)
 const REVERSE_MAX := 8.0
-const BRAKE_FORCE := 13000.0       # total (N), 68 % front
+const BRAKE_FORCE := 11500.0       # total (N)
+const BRAKE_FRONT := 0.7           # of it on the front axle (the nose is loaded when braking)
+const DRIVE_FRONT := 0.45          # AWD split (a Rally2 car is a locked 50 / 50; a bit more rear here)
 const DRAG := 0.46                 # N per (m/s)^2
-const ROLLING := 170.0             # N
-const STEER_LOCK := 0.58           # front wheels at full lock, parked (rad)
-const STEER_FAST := 0.13           # ... at top speed (the rest is added at low speed, see steer_lock)
-const SLIP_PEAK := 0.10            # rad
-const GRIP := {"gravel": 0.92, "dirt": 0.9, "grass": 0.62, "mud": 0.55, "tarmac": 1.1}
+const ROLLING := 0.022             # rolling resistance, x the load
+const STEER_LOCK := 0.58           # front wheels at full lock (rad, 33 deg): parking speeds
+const STEER_RATE := 3.0            # how fast the front wheels can turn (rad/s, at the road)
+const KEY_ON := 4.5                # keys: steering builds this fast (full in ~0.2 s) ...
+const KEY_OFF := 7.0               # ... and comes back this fast
+## Tyres. Peak slip angle (rad) per surface: on loose gravel the tyre plows a
+## little bank of stones, so it peaks later and fades more gently than on tarmac.
+const PEAK := {"gravel": 0.17, "dirt": 0.16, "grass": 0.19, "mud": 0.21, "tarmac": 0.105}
+const SLIP_PEAK := 0.17            # gravel (the autopilot and the HUD use it)
+const SHAPE_C := 1.35              # Magic Formula C: past the peak it fades slowly (94 % at 3x the peak, 85 % at most)
+const GRIP := {"gravel": 0.95, "dirt": 0.92, "grass": 0.62, "mud": 0.5, "tarmac": 1.15}
+const LOAD_SENS := 0.15            # mu drops 15 % per extra static load (a loaded tyre grips less per newton)
+const RELAX := 0.4                 # m: a tyre rolls this far before its side force catches up with a new slip angle
+const LOCKED_MU := 0.82            # a locked (handbraked) tyre slides at this much of its grip
 const GEARS := [13.0, 21.0, 29.0, 37.0, 47.0]   # top speed in each gear (m/s)
 const NET_HZ := 30.0
 const NET_DELAY := 100.0           # ms behind the stream on the co-driver's machine
@@ -62,8 +86,12 @@ var comp := [0.0, 0.0, 0.0, 0.0]   # spring compression per corner (m)
 var spin := [0.0, 0.0, 0.0, 0.0]   # wheel rotation (rad), for the visuals
 var mud_mu := false                # set by the game while a tyre is in a puddle
 var wheel_nodes: Array = []        # Node3D per corner (steer + spin pivots)
+var body_model: Node3D             # the Higgsfield car (assets/models/rally_car.glb): seen from outside
 
 var _prev_v := Vector3.ZERO
+var _u := 0.0                      # steering input after the key easing
+var _fz0 := CAR_MASS * 9.8 / 4.0   # static load per tyre (N)
+var _alpha := [0.0, 0.0, 0.0, 0.0] # slip angle each tyre is "at" (lags the real one by RELAX)
 var _brake_held := 0.0
 var _air_time := 0.0
 var _net_acc := 0.0
@@ -122,6 +150,15 @@ func _ready() -> void:
 		hub.material_override = _flat(Color(0.85, 0.85, 0.8))
 		spinner.add_child(hub)
 		wheel_nodes.append(pivot)
+	# the outside of the car (only drawn when a camera is outside it: the cockpit is the inside)
+	const BODY := "res://assets/models/rally_car.glb"
+	if ResourceLoader.exists(BODY):
+		body_model = load(BODY).instantiate()
+		body_model.rotation.y = -PI / 2.0                # the model's nose points down -X
+		body_model.scale = Vector3.ONE * 1.95            # its 1.9 units long -> 3.7 m, like the body box
+		body_model.position = Vector3(0.0, 0.205, -0.02) # its tyres on the ground, centred on the axles
+		body_model.visible = false
+		add_child(body_model)
 
 
 func _box(size: Vector3, at: Vector3) -> void:
@@ -148,7 +185,18 @@ func place(pos: Vector3, yaw: float) -> void:
 	angular_velocity = Vector3.ZERO
 	_prev_v = Vector3.ZERO
 	steer = 0.0
+	_u = 0.0
+	_alpha = [0.0, 0.0, 0.0, 0.0]
 	reset_physics_interpolation()
+
+
+## A camera outside the car: draw the body model (its own wheels), not the plain tyres.
+func set_outside(on: bool) -> void:
+	if body_model == null:
+		return
+	body_model.visible = on
+	for w in wheel_nodes:
+		w.visible = not on
 
 
 func set_simulating(on: bool) -> void:
@@ -185,17 +233,14 @@ func _drive(dt: float) -> void:
 	speed = v.dot(fwd)
 	var vabs := absf(speed)
 
-	# steering: lock shrinks with speed so full lock is about what the front tyres can
-	# use (peak slip + the bend's own angle), plus however far the car is sideways,
-	# so a slide can always be caught; keys ease on and come back faster
-	var lock := steer_lock(vabs, atan2(v.dot(xf.basis.x), maxf(vabs, 3.0)))
-	var target: float = clampf(inp.steer, -1.0, 1.0) * lock
+	# steering (see the top): the stick / keys, eased on keys
+	var u_target: float = clampf(inp.steer, -1.0, 1.0)
 	if analog_steer:
-		steer = lerpf(steer, target, clampf(dt * 14.0, 0.0, 1.0))
+		_u = lerpf(_u, u_target, clampf(dt * 20.0, 0.0, 1.0))
 	else:
-		var rate := 1.9 if absf(target) > absf(steer) and signf(target) == signf(steer) else 3.2
-		steer = move_toward(steer, target, rate * dt)
-
+		var building := absf(u_target) > absf(_u) and signf(u_target) == signf(_u)
+		_u = move_toward(_u, u_target, (KEY_ON if building or _u == 0.0 else KEY_OFF) * dt)
+	steer = move_toward(steer, steer_target(_u, vabs, on_surface), STEER_RATE * dt)
 	# what the driver asks for: drive force (+ forward / - reverse) and brake
 	var throttle: float = inp.throttle
 	var brake: float = inp.brake
@@ -263,37 +308,39 @@ func _drive(dt: float) -> void:
 		var vp := v + angular_velocity.cross(r)
 		var vlong := vp.dot(f)
 		var vlat := vp.dot(side)
-		var mu: float = GRIP.get(h.surf, 0.9)
+		# grip: mu x load, a little less per newton the more the tyre is loaded
+		var mu: float = GRIP.get(h.surf, 0.9) * clampf(1.0 - LOAD_SENS * (fz / _fz0 - 1.0), 0.7, 1.15)
 		var fmax := mu * fz
 		var locked: bool = (not front) and inp.handbrake
 
-		# sideways: slip angle -> force, falling off past the peak
-		var flat: float
-		if Vector2(vlong, vlat).length() < 2.5:
-			flat = clampf(-vlat * CAR_MASS * 2.0, -fmax, fmax)      # parked: no creeping
+		var flat := 0.0
+		var flong := 0.0
+		if locked and Vector2(vlong, vlat).length() > 0.6:
+			# a locked tyre just slides: the force is against the way it's sliding
+			var sv := Vector2(vlong, vlat).normalized() * (-LOCKED_MU * fmax)
+			flong = sv.x
+			flat = sv.y
 		else:
-			# the rears peak a little later and let go more gently: braking into a bend
-			# shouldn't spin you, the handbrake should
-			var peak: float = SLIP_PEAK if front else SLIP_PEAK * 1.25
-			var drop: float = 0.2 if front else 0.12
-			var x := atan2(vlat, absf(vlong)) / peak
-			var shape := x if absf(x) <= 1.0 else signf(x) * (1.0 - drop * clampf(absf(x) - 1.0, 0.0, 1.0))
-			flat = -fmax * shape
-		if locked:
-			flat *= 0.25
+			# sideways: slip angle -> Magic Formula (peak at the surface's peak slip angle)
+			if Vector2(vlong, vlat).length() < 2.5:
+				flat = clampf(-vlat * CAR_MASS * 2.0, -fmax, fmax)  # parked: no creeping
+			else:
+				_alpha[k] = lerpf(_alpha[k], atan2(vlat, absf(vlong)), clampf(absf(vlong) * dt / RELAX, 0.0, 1.0))
+				flat = -fmax * tyre_curve(_alpha[k] / PEAK.get(h.surf, SLIP_PEAK))
+			# forward: engine, brakes, rolling
+			# the handbrake declutches the rear axle (like a real rally car): it all goes to the front
+			var split: float = 1.0 if inp.handbrake else DRIVE_FRONT
+			flong = drive * (split * 0.5 if front else (1.0 - split) * 0.5)
+			var bf := brake * BRAKE_FORCE * (BRAKE_FRONT * 0.5 if front else (1.0 - BRAKE_FRONT) * 0.5)
+			if locked:
+				bf = maxf(bf, fmax)                                 # parked on the handbrake
+			if absf(vlong) > 0.5:
+				flong -= signf(vlong) * bf
+			else:
+				flong -= clampf(vlong * 4000.0, -bf, bf)
+			flong -= signf(vlong) * ROLLING * fz
 
-		# forward: engine, brakes, handbrake, rolling
-		var flong := drive * (0.21 if front else 0.29)
-		var bf := brake * BRAKE_FORCE * (0.34 if front else 0.16)
-		if absf(vlong) > 0.5:
-			flong -= signf(vlong) * bf
-		else:
-			flong -= clampf(vlong * 4000.0, -bf, bf)
-		if locked:
-			flong -= signf(vlong) * fmax * 0.75 if absf(vlong) > 0.3 else vlong * 2000.0
-		flong -= signf(vlong) * ROLLING * 0.25
-
-		# friction circle
+		# friction circle: what's left over is the tyre sliding (and the sound of it)
 		var total := Vector2(flong, flat).length()
 		if total > fmax and total > 0.0:
 			slip_acc += (total - fmax) / maxf(fmax, 1.0)
@@ -325,9 +372,28 @@ func _drive(dt: float) -> void:
 	_gearbox(vabs, throttle)
 
 
-## Front wheel angle at full lock (rad) at a speed, with the body `slide` angle (rad).
-func steer_lock(vabs: float, slide := 0.0) -> float:
-	return minf(STEER_LOCK, STEER_FAST + 16.0 / maxf(vabs * vabs, 1.0) + absf(slide))
+## Front wheel angle (rad, + = right) for steering input u (-1..1) at a speed.
+## At speed: the angle the front axle is already travelling at, plus u x the
+## tyres' peak slip angle, so full steering = the most grip, never past it.
+## Blends to plain wheel angle (u x full lock) below ~30 km/h.
+func steer_target(u: float, vabs: float, surface := "gravel") -> float:
+	var geo := u * STEER_LOCK
+	var xf := global_transform
+	var vf := linear_velocity + angular_velocity.cross(xf.basis * Vector3(0.0, 0.0, WHEELS[0][1]))
+	var along := vf.dot(-xf.basis.z)
+	if along < 1.0:
+		return geo                                               # rolling back / sideways: plain steering
+	var travel := atan2(vf.dot(xf.basis.x), along)
+	var grip: float = clampf(travel, -0.45, 0.45) + u * PEAK.get(surface, SLIP_PEAK)
+	var w := smoothstep(5.0, 10.0, vabs)
+	return clampf(lerpf(geo, grip, w), -STEER_LOCK, STEER_LOCK)
+
+
+## Tyre sideways force vs slip, as a fraction of the most it can do: x = slip /
+## peak slip. The Magic Formula sin(C atan(B x)) with B set so the peak is at 1.
+static func tyre_curve(x: float) -> float:
+	const B := 2.3183                                            # tan(PI / (2 C)) for C = 1.35
+	return sin(SHAPE_C * atan(B * x))
 
 
 ## An automatic 5-speed: just for the engine note.

@@ -15,7 +15,9 @@ echo "== car + stage: the autopilot drives whole stages, 0-100, braking, handbra
 for seed in 3 7 15; do
   "$G" --headless --fixed-fps 60 --path . -s tests/drive_check.gd -- --seed=$seed 2>&1 | grep -E "\[drive\] (FAIL|DRIVE|ok   finished)" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
 done
-echo "== AI co-driver: every call said in time"
+echo "== handling: full steering = the most grip at 50 / 80 / 110 km/h, lift-off + handbrake rotation"
+"$G" --headless --fixed-fps 60 --path . -s tests/handling_check.gd 2>&1 | grep -E "\[handling\]" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
+echo "== AI co-driver: every call said in time, from where the car is"
 "$G" --headless --fixed-fps 60 --path . -- --aicheck --autostart --autopilot --seed=8 --timeout=400 2>&1 | grep -E "\[ai\]" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
 for case in "driver codriver" "codriver driver"; do
   set -- $case

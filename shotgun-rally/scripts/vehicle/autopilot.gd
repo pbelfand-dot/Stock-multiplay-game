@@ -42,12 +42,9 @@ func drive(car, s: float, d: float) -> Dictionary:
 	var fwd: Vector3 = -car.global_transform.basis.z
 	var right: Vector3 = car.global_transform.basis.x
 	var ang := atan2(to.dot(right), to.dot(fwd))
-	var lock: float = car.steer_lock(spd)
-	# never ask the front tyres for much more than their peak slip (plus the corner's own
-	# geometry): past that they let go and the car runs wide
-	var useful: float = car.SLIP_PEAK * 1.4 + 2.4 * absf(st.curv[clampi(int(s / st.STEP), 0, st.curv.size() - 1)])
-	var steer_cmd := clampf(ang * 1.3, -useful, useful) / lock
-	steer_cmd = clampf(steer_cmd, -1.0, 1.0)
+	# steering asks the front tyres for grip (full = their peak), so it's just how far off
+	# the aim point the nose is
+	var steer_cmd := clampf(ang * 2.6, -1.0, 1.0)
 	# speed: the lowest braking-allowed speed over the next 150 m
 	var want := 60.0
 	var i0 := int(s / st.STEP)
