@@ -27,6 +27,18 @@ extends Resource
 @export_range(0.2, 0.5, 0.005, "suffix:m") var tyre_radius := 0.32
 @export_range(0.1, 0.4, 0.005, "suffix:m") var tyre_width := 0.2
 
+## A wheel's spin inertia: the rim, tyre, brake disc and hub (the driveline's
+## share joins in phase 5).
+@export_range(0.2, 5.0, 0.05, "suffix:kg m²") var wheel_inertia := 1.1
+
+@export_group("Brakes")
+## The four brakes' torque together at full pedal (N m). More than the tyres can
+## take: they lock if you stamp on it (no ABS: that's an aid, its own switch).
+@export_range(500.0, 20000.0, 50.0, "suffix:N m") var brake_torque := 5000.0
+## The front axle's share (the nose is loaded under braking: front-heavy so the
+## fronts lock first and the car stays straight).
+@export_range(0.3, 0.9, 0.01) var brake_bias := 0.7
+
 @export_group("Suspension")
 @export var front_suspension: Resource      ## SuspensionConfig
 @export var rear_suspension: Resource       ## SuspensionConfig

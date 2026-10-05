@@ -1,7 +1,8 @@
 # Rally physics rebuild: inspection and plan
 
-Status: **phases 1-2 done** (the chassis on its suspension; the tyres' side grip and the
-steering; in the lab, see "Phase reports" at the end). Decisions:
+Status: **phases 1-3 done** (the chassis on its suspension; the tyres' side grip and the
+steering; the wheels' spin, the drive / brake force and the brakes; in the lab, see "Phase
+reports" at the end). Decisions:
 - built **alongside** the current car (a lab scene, a `--physics=v2` switch once it drives), and it
   becomes the car once it passes every current test plus the manoeuvre tests;
 - physics at **120 Hz** (set by whatever runs the v2 car, so the current car and the auto-updater's
@@ -244,3 +245,49 @@ instead); a car put down kept its old steering lock (fixed: `place()` straighten
 Balance note: with every tyre's grip exactly proportional to its load, the car is neutral until
 the fronts pass their peak. Load sensitivity (phase 4) and the anti-roll bars (phase 7) are what
 give a real car its balance; there's no drive yet, so no power oversteer either.
+
+### Phase 3: wheel spin, slip ratio, the force along the wheel, brakes
+
+**1. The code**
+- `tire_model.gd`: the force along the wheel (`mu x load x sin(C atan(B slip))`, its own peak and
+  shape) and `spin_step()`: the wheel's spin and its slip-ratio state solved together, implicitly
+  (backward Euler, the tyre force linearised about the current slip):
+  `inertia x d(spin)/dt = drive - force x radius - friction` and
+  `d(slip)/dt = ((spin x radius - v_x) - |v_x| slip) / longitudinal_relaxation`. The brakes and
+  rolling resistance are friction torques: they slow the wheel, can hold it, never turn it back,
+  so a wheel locks only when its brake beats what its tyre can take from the road. Slow or
+  stopped, the carcass is damped along the wheel as across it. `air_spin()` for a wheel in the air.
+- `rally_wheel.gd`: each wheel has its own spin (`omega`), `drive_torque` (the drivetrain will set
+  it in phase 5; the lab and the tests do now) and `brake_torque`. The tyre (both directions) is
+  stepped 8 times a tick with the body's velocity held; the body gets the average force. Side and
+  drive / brake force together are capped at mu x load (phase 4 makes that the combined-slip
+  ellipse). `set_speed()` on the car launches it with its wheels turning.
+- `rally_car_v2.gd`: the brake pedal x the brakes' torque, split by the bias.
+- Config: `TireConfig` longitudinal mu / peak / shape / relaxation, rolling resistance;
+  `CarConfig` wheel inertia, brake torque, brake bias.
+- Lab: up / W a test torque on all four wheels (600 N m each), down / S the brakes, O nose up the
+  slope. Telemetry: each wheel's own speed, slip ratio, drive / brake force, LOCKED; violet arrows.
+
+**4. In the inspector:** longitudinal mu 1.0, peak slip 0.15 (gravel digs in: late), shape 1.45
+(a locked tyre keeps 83 % at -100 % slip), relaxation 0.12 m, rolling resistance 0.025; wheel
+inertia 1.1 kg m²; brakes 5,000 N m at full pedal, 70 % on the front (they lock first, so it stays
+straight).
+
+**6. What correct looks like** (measured):
+- 400 N m on each wheel: 3.56 m/s² (torque / (mass + the wheels' spin inertia), minus rolling
+  resistance: 3.54), the tyres slipping under 4 %;
+- 2,500 N m on each wheel (more than the grip): wheelspin, 7.5 m/s², what the tyres can take;
+- brakes at 30 %: 3.78 m/s² exactly as the brakes' torque gives, no locking (slip under 4 %);
+- full brakes from 100 km/h: all four lock (the rears, whose brakes only just beat their grip, a
+  moment later), stopped in 47 m and 3.3 s, 0.85 g on locked tyres, the nose down 1.6 degrees and
+  70 % of the load on the front;
+- coasting: rolling resistance, 0.237 m/s² (as predicted);
+- nose up a 10 degree slope: held by the brakes, 0.0 mm; brakes off, it rolls back down at 1.39 m/s²
+  (gravity minus rolling resistance: 1.41).
+
+**7. Bugs found:** a braked car rocked on its tyres on a slope (the carcass's fore-aft spring had no
+damping at a standstill: fixed); a test applied the previous run's torque for one tick (fixed);
+scripts that place a car before it's in the scene tree now get a car that waits.
+
+No engine yet: the drive is a test torque, so there's no rev limit and a wheel given more than its
+grip spins up without end. Phase 5 brings the engine, clutch, gearbox and diffs.

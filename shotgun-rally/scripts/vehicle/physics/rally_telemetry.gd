@@ -2,10 +2,13 @@ extends CanvasLayer
 ## The physics telemetry: F3 shows the numbers, F4 draws the forces.
 ##   * numbers: speed, lateral g, pitch / roll, the steering, the physics tick
 ##     rate, and per wheel the compression (mm), how fast it's moving, the
-##     tyre's load, its slip angle and side force, and what it's on
+##     tyre's load, its slip angle and side force, the wheel's own speed, its
+##     slip ratio and drive / brake force, and what it's on (LOCKED: a wheel
+##     stopped while the car moves)
 ##   * arrows (in the world): each tyre's load straight out of the ground at its
 ##     contact patch (1 m per 10 kN, green; red on the bump stop), its side
-##     force along the ground (orange), the suspension travel as a line from the
+##     force (orange) and drive / brake force (violet) along the ground, the
+##     suspension travel as a line from the
 ##     mount to the wheel, and the centre of mass as a yellow cross
 ## More columns join as the phases add them (slip, tyre forces, drivetrain).
 
@@ -77,13 +80,18 @@ func text() -> String:
 	var s := "PHYSICS V2   %d Hz   %5.1f km/h   lateral %+4.2f g   pitch %+5.1f   roll %+5.1f   tyres down %d\n" % [
 		Engine.physics_ticks_per_second, car.linear_velocity.length() * 3.6, lat_g, pitch, roll, car.grounded]
 	s += "steering %+5.1f deg (wheels %+5.1f / %+5.1f)\n" % [rad_to_deg(car.steer), rad_to_deg(car.wheel_angles[0]), rad_to_deg(car.wheel_angles[1])]
-	s += "        comp mm   m/s     load kN   slip deg   side kN   on\n"
+	s += "        comp mm   load kN   slip deg   side kN   wheel km/h   slip %   drive kN   on\n"
 	for k in 4:
 		var w = car.wheels[k]
 		ground = String(w.collider.get_meta("surface")) if w.grounded and w.collider and w.collider.has_meta("surface") else ("ground" if w.grounded else "air")
-		s += "  %s    %6.0f   %+6.2f   %7.2f   %+7.2f   %+6.2f   %s%s\n" % [car.NAMES[k], w.compression * 1000.0,
-			w.compression_velocity, w.load / 1000.0, w.slip_angle_deg(), w.lateral_force / 1000.0, ground,
-			"  BUMP STOP" if w.compression > w.cfg.bump_stop_start else ""]
+		var state := ""
+		if w.compression > w.cfg.bump_stop_start:
+			state += "  BUMP STOP"
+		if w.omega == 0.0 and absf(w.v_long) > 0.5:
+			state += "  LOCKED"
+		s += "  %s    %6.0f   %7.2f   %+7.2f   %+6.2f   %9.1f   %+6.0f   %+7.2f   %s%s\n" % [car.NAMES[k], w.compression * 1000.0,
+			w.load / 1000.0, w.slip_angle_deg(), w.lateral_force / 1000.0, w.wheel_speed() * 3.6, w.slip_long * 100.0,
+			w.long_force / 1000.0, ground, state]
 	return s
 
 
@@ -95,6 +103,7 @@ func _arrows() -> void:
 			_line(w.contact, w.contact + w.normal * (w.load / N_PER_M), col)
 			var right: Vector3 = w.heading.cross(w.normal)
 			_line(w.contact, w.contact + right * (w.lateral_force / N_PER_M), Color(1.0, 0.55, 0.1))
+			_line(w.contact, w.contact + w.heading * (w.long_force / N_PER_M), Color(0.9, 0.3, 1.0))
 		_line(w.global_position, w.wheel_center, Color(0.4, 0.7, 1.0))
 	var com: Vector3 = car.global_transform * car.center_of_mass
 	var c := Color(1.0, 0.85, 0.1)

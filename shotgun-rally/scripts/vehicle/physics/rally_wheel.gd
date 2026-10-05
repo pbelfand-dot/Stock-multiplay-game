@@ -13,15 +13,23 @@ extends Node3D
 ##     cornering roll the body
 ##   * the tyre (tire_model.gd): the contact patch's own velocity (the body's,
 ##     plus its spin times the lever arm to the patch), split along and across
-##     the wheel's heading in the ground's plane; the sideways part winds up the
-##     slip state and the curve turns it into a side force, mu x load at most,
-##     pushed at the patch too (phase 2; along the wheel comes in phase 3)
-##   * the wheel has no mass of its own here: in the air it hangs at full droop
+##     the wheel's heading in the ground's plane. Across: it winds up the side
+##     slip and the curve turns that into a side force. Along: the wheel has its
+##     own spin, driven by the drive torque, slowed by the brakes and rolling
+##     resistance, and the difference between its surface speed and the ground's
+##     is the slip ratio, which gives the force along the wheel (its reaction
+##     slows or speeds the spin). Both pushed at the patch, never more than mu x
+##     load together (phase 4 makes that a proper combined-slip ellipse)
+##   * the tyre's states are stiff, so they're stepped SUBSTEPS times a tick
+##     (with the body's velocity held), implicitly; the body gets the average force
+##   * the wheel's mass isn't carried by the suspension here: in the air it hangs
+##     at full droop
 ## The node's own Y rotation is the steering (the car sets it). The WheelMesh
 ## child is only the look: put where the simulation says.
 
 const Suspension = preload("res://scripts/vehicle/physics/suspension.gd")
 const TireModel = preload("res://scripts/vehicle/physics/tire_model.gd")
+const SUBSTEPS := 8                # tyre / wheel-spin steps per physics tick
 
 @export var front := true
 
@@ -31,6 +39,11 @@ var tire: Resource                 # TireConfig
 var surface_mu := 1.0              # the surface's grip relative to the tyre's reference (phase 6)
 var radius := 0.32
 var width := 0.2
+var inertia := 1.1                 # kg m², the wheel's spin
+
+# set by the car each tick
+var drive_torque := 0.0            # N m turning the wheel forward (the drivetrain, phase 5; tests set it)
+var brake_torque := 0.0            # N m the brake can apply (friction)
 var cast: ShapeCast3D
 var mesh: Node3D
 
@@ -49,6 +62,9 @@ var v_long := 0.0                  # m/s: the contact patch's speed along the wh
 var v_lat := 0.0                   # ... and across it (+ = toward the wheel's right)
 var slip_lat := 0.0                # the sideways slip state (tan of the slip angle; + = sliding left)
 var lateral_force := 0.0           # N, + = pushing the car to the wheel's right
+var omega := 0.0                   # rad/s, the wheel's spin (+ = rolling forward)
+var slip_long := 0.0               # the slip ratio state (+ = spinning up, -1 = locked going forward)
+var long_force := 0.0              # N along the wheel, + = pushing the car forward
 var spin := 0.0                    # rad (the look)
 
 var _prev_compression := 0.0
@@ -57,12 +73,14 @@ var _drop := 0.0                   # the look in the air: how far down the trave
 
 
 ## Hook the corner up (the car calls it): the suspension it uses and the tyre.
-func setup(the_car: RigidBody3D, suspension: Resource, tyre: Resource, tyre_radius: float, tyre_width: float) -> void:
+func setup(the_car: RigidBody3D, suspension: Resource, tyre: Resource, tyre_radius: float, tyre_width: float,
+		wheel_inertia: float) -> void:
 	car = the_car
 	cfg = suspension
 	tire = tyre
 	radius = tyre_radius
 	width = tyre_width
+	inertia = wheel_inertia
 	cast = get_node_or_null("ShapeCast3D")
 	if cast == null:
 		cast = ShapeCast3D.new()
@@ -129,11 +147,17 @@ func step(dt: float) -> void:
 		compression_velocity = 0.0
 	_prev_compression = compression
 	_was_grounded = grounded
+	var h := dt / SUBSTEPS
 	if not grounded:
 		strut_force = 0.0
 		load = 0.0
 		lateral_force = 0.0
+		long_force = 0.0
 		slip_lat = 0.0                               # off the ground the carcass springs back
+		slip_long = 0.0
+		for i in SUBSTEPS:                           # the drive spins it up, the brakes stop it
+			omega = TireModel.air_spin(omega, inertia, drive_torque, brake_torque, h)
+		spin += omega * dt
 		return
 	strut_force = Suspension.force(cfg, compression, compression_velocity)
 	var square := maxf(-axis.dot(normal), 0.0)      # the strut's push that's square to the ground
@@ -145,16 +169,40 @@ func step(dt: float) -> void:
 	var vc := _point_velocity(contact)
 	v_long = vc.dot(heading)
 	v_lat = vc.dot(right)
-	spin += v_long / radius * dt                     # rolling freely (until phase 3 gives it its own spin)
-	slip_lat = TireModel.lateral_slip(tire, slip_lat, v_long, v_lat, dt)
-	var mu: float = tire.lateral_mu * surface_mu
-	lateral_force = TireModel.lateral_force(tire, slip_lat, load, mu, v_long, v_lat)
-	car.apply_force(normal * load + right * lateral_force, contact - car.global_position)
+	var mu_y: float = tire.lateral_mu * surface_mu
+	var mu_x: float = tire.longitudinal_mu * surface_mu
+	var resist: float = brake_torque + tire.rolling_resistance * load * radius
+	var fx := 0.0
+	var fy := 0.0
+	for i in SUBSTEPS:
+		slip_lat = TireModel.lateral_slip(tire, slip_lat, v_long, v_lat, h)
+		fy += TireModel.lateral_force(tire, slip_lat, load, mu_y, v_long, v_lat)
+		var r: Array = TireModel.spin_step(tire, omega, slip_long, v_long, load, mu_x, inertia, radius, drive_torque, resist, h)
+		omega = r[0]
+		slip_long = r[1]
+		fx += r[2]
+	fx /= SUBSTEPS
+	fy /= SUBSTEPS
+	# together never more than the tyre's grip (phase 4: the combined-slip ellipse)
+	var limit := maxf(mu_x, mu_y) * load
+	var total := sqrt(fx * fx + fy * fy)
+	if total > limit:
+		fx *= limit / total
+		fy *= limit / total
+	long_force = fx
+	lateral_force = fy
+	spin += omega * dt
+	car.apply_force(normal * load + heading * fx + right * fy, contact - car.global_position)
 
 
 ## The slip angle the tyre is at (deg, + = its patch sliding toward its right).
 func slip_angle_deg() -> float:
 	return -rad_to_deg(atan(slip_lat))
+
+
+## The wheel's own speed at its rim (m/s): what a wheel-speed sensor would read.
+func wheel_speed() -> float:
+	return omega * radius
 
 
 ## Place the wheel's look (call every frame): on the ground, or hanging in the air.

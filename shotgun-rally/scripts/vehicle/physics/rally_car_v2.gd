@@ -87,7 +87,7 @@ func _ready() -> void:
 		w.position = mounts[k]
 		w.front = k < 2
 		w.setup(self, config.front_suspension if k < 2 else config.rear_suspension,
-			config.front_tire if k < 2 else config.rear_tire, config.tyre_radius, config.tyre_width)
+			config.front_tire if k < 2 else config.rear_tire, config.tyre_radius, config.tyre_width, config.wheel_inertia)
 		wheels.append(w)
 	telemetry = get_node_or_null("Telemetry")
 	if telemetry == null:
@@ -119,7 +119,18 @@ func place(pos: Vector3, yaw: float) -> void:
 	_steer(0.0)
 	for w in wheels:
 		w.slip_lat = 0.0
+		w.slip_long = 0.0
+		w.omega = 0.0
 	reset_physics_interpolation()
+
+
+## Set it rolling straight ahead at v m/s, the wheels turning with it (a car
+## launched with still wheels would skid them up to speed first).
+func set_speed(v: float) -> void:
+	linear_velocity = -global_transform.basis.z * v
+	_prev_v = linear_velocity
+	for w in wheels:
+		w.omega = v / w.radius
 
 
 ## How high the mounts sit above flat ground with the car standing still (m),
@@ -150,6 +161,7 @@ func _physics_process(dt: float) -> void:
 	accel = (linear_velocity - _prev_v) / dt
 	_prev_v = linear_velocity
 	_steer(dt)
+	_brakes()
 	var was := grounded
 	grounded = 0
 	for k in 4:
@@ -168,10 +180,21 @@ func _physics_process(dt: float) -> void:
 		_air = 0.0
 
 
+## The pedal: the brakes' torque, split front / rear by the bias, left / right evenly.
+func _brakes() -> void:
+	var pedal := clampf(float(inp.brake), 0.0, 1.0)
+	var front: float = config.brake_torque * config.brake_bias * 0.5 * pedal
+	var rear: float = config.brake_torque * (1.0 - config.brake_bias) * 0.5 * pedal
+	for k in 4:
+		wheels[k].brake_torque = front if k < 2 else rear
+
+
 ## The rack follows the input (no faster than rack_speed); each front wheel's
 ## angle from the geometry: with full Ackermann the inside wheel turns more, so
 ## both roll round the same centre (on the rear axle's line).
 func _steer(dt: float) -> void:
+	if wheels.size() != 4:                           # not set up yet (placed before it's in the tree)
+		return
 	var st: Resource = config.steering
 	var lock := deg_to_rad(st.max_angle_deg)
 	_rack = move_toward(_rack, clampf(float(inp.steer), -1.0, 1.0) * lock, deg_to_rad(st.rack_speed_deg) * dt)
