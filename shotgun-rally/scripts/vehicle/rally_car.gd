@@ -102,7 +102,8 @@ const NET_DELAY := 100.0           # ms behind the stream on the co-driver's mac
 var inp := {"steer": 0.0, "throttle": 0.0, "brake": 0.0, "handbrake": false}
 var analog_steer := false          # controller: no easing
 var simulate := true
-var stream_ok := true              # the game turns this off until both machines have loaded
+var stream_ok := false             # quiet until the game says both machines have loaded (a car still being
+                                   # built must not talk to a machine that has no Car yet)
 var states_received := 0           # co-driver side: stream packets in (tests)
 var steer := 0.0                   # front wheel angle (rad, + = right)
 var speed := 0.0                   # along the car (m/s, + = forward)

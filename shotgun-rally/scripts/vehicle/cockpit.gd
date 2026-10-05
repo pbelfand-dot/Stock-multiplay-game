@@ -3,7 +3,8 @@ extends Node3D
 ## cage, grey dash, black wheel, a gear stick with a red knob, the red hood
 ## out front. Two crew: the DRIVER (left, red helmet) with hands that follow
 ## the wheel, and the CO-DRIVER (right, blue helmet) holding the map board.
-## Also the windshield mud (a splat covers ALL of it) and the two wipers that
+## Also the windshield mud (cartoon splats from a puddle: one always right in
+## front of the driver, with flicked droplets and drips that run down) and the two wipers that
 ## clear their arcs of it, a bit more each stroke; the corners stay dirty.
 ## A child of the car, so it moves with it. Car-local units: the car faces -Z,
 ## origin = chassis middle at wheel-mount height (the ground is ~0.56 below).
@@ -29,7 +30,7 @@ const SUIT_D := Color(0.75, 0.13, 0.12)
 const SUIT_C := Color(0.14, 0.24, 0.62)
 const EYE_DRIVER := Vector3(-0.37, 0.6, 0.26)
 const EYE_CODRIVER := Vector3(0.37, 0.6, 0.26)
-const WHEEL_C := Vector3(-0.37, 0.26, -0.27)
+const WHEEL_C := Vector3(-0.37, 0.26, -0.17)        # clear of the dash, the binnacle and its hood (rim top 4 cm off them)
 const WHEEL_R := 0.18
 const WHEEL_TILT := 0.42                      # rad back from vertical
 ## The windshield: bottom edge (cowl) and top edge, car-local.
@@ -48,6 +49,8 @@ var mud := 0.0                                # 0..1: how thick the mud is on th
 var swept := [0.0, 0.0]                       # deg each wiper has swept since the last splat
 var residue := [1.0, 1.0]                     # mud left inside each wiper's arc (1 = untouched)
 var mud_seed := 0.0
+var _mud_age := 0.0                            # s since the splat (the drips run down)
+var _splats := PackedVector4Array()            # [x, y (m on the glass from its bottom-centre), radius, seed]
 var wipe_strokes := 0                          # strokes left to do
 var _wiper_t := 0.0
 var _wiper_pivots: Array = []
@@ -371,8 +374,11 @@ func _mud_shader() -> Shader:
 	sh.code = """
 shader_type spatial;
 render_mode unshaded, cull_disabled, depth_draw_never, blend_mix;
-uniform float mud = 0.0;             // 0..1 thickness over the whole glass
+uniform float mud = 0.0;             // 0..1: 1 = fresh; lower thins the splats down to their middles
 uniform vec2 size_m;                 // the glass, metres
+uniform vec4 splats[8];              // x, y (m from the bottom-centre), radius, seed
+uniform int count = 0;
+uniform float age = 0.0;             // s since the splat: the drips run down
 uniform vec2 pivots[2];              // wiper pivots, metres from the bottom-centre
 uniform float swept[2];              // radians each wiper has swept (from park)
 uniform float residue[2];            // mud left inside each wiped arc
@@ -384,24 +390,62 @@ float vnoise(vec2 p) {
 	vec2 i = floor(p); vec2 f = fract(p); f = f * f * (3.0 - 2.0 * f);
 	return mix(mix(hash(i), hash(i + vec2(1, 0)), f.x), mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), f.x), f.y);
 }
+// how far inside one splat p is, in its radii (> 0 inside): a lumpy blob with
+// spikes, droplets flicked out around it, and drips running down from it
+float splat(vec2 p, vec4 s) {
+	vec2 d = p - s.xy;
+	float R = s.z;
+	float sd = s.w;
+	float ang = atan(d.y, d.x);
+	float edge = R * (0.78 + 0.11 * sin(ang * 3.0 + sd) + 0.07 * sin(ang * 5.0 + sd * 2.1) + 0.05 * sin(ang * 11.0 + sd * 3.7));
+	edge += pow(max(sin(ang * 7.0 + sd * 1.3), 0.0), 14.0) * R * 0.5;
+	float f = (edge - length(d)) / R;
+	for (int k = 0; k < 7; k++) {
+		float a = hash(vec2(sd, float(k))) * 6.2832;
+		float dist = R * (1.12 + hash(vec2(float(k), sd)) * 0.75);
+		float rr = R * (0.04 + 0.08 * hash(vec2(sd * 1.7, float(k) * 3.1)));
+		f = max(f, (rr - length(p - s.xy - vec2(cos(a), sin(a)) * dist)) / R);
+	}
+	for (int k = 0; k < 3; k++) {
+		float hx = hash(vec2(sd * 2.3, float(k) * 7.0));
+		if (hx < 0.3) { continue; }
+		float x = s.x + (hash(vec2(float(k) * 1.3, sd)) - 0.5) * 1.1 * R;
+		float y0 = s.y - 0.5 * R;
+		float len = min(R * (0.5 + hx), age * (0.02 + 0.05 * hx));
+		float w = R * (0.045 + 0.035 * hx);
+		f = max(f, (w - length(p - vec2(x, clamp(p.y, y0 - len, y0)))) / R);
+		f = max(f, (w * 1.6 - length(p - vec2(x, y0 - len))) / R);
+	}
+	return f;
+}
 void fragment() {
 	vec2 p = vec2((UV.x - 0.5) * size_m.x, (1.0 - UV.y) * size_m.y);
 	float n = vnoise(p * 9.0 + seed) * 0.6 + vnoise(p * 23.0 - seed) * 0.4;
-	float a = mud * (0.93 + 0.07 * n);
+	float f = -1.0;
+	for (int i = 0; i < count; i++) {
+		f = max(f, splat(p, splats[i]));
+	}
+	float th = (1.0 - mud) * 0.4;                      // thinning: only the thick middles stay
+	float a = smoothstep(th, th + max(fwidth(f), 0.004), f);
 	for (int i = 0; i < 2; i++) {
-		vec2 d = p - pivots[i];
-		float r = length(d);
-		float ang = atan(d.y, d.x);
-		// a ragged edge where the blade stopped
-		float edge = park + swept[i] + (n - 0.5) * 0.08;
-		if (r > 0.05 && r < reach + (n - 0.5) * 0.03 && ang > park - 0.05 && ang < edge) {
-			a *= residue[i] + (1.0 - residue[i]) * smoothstep(0.75, 1.0, n) * 0.3;   // streaks
+		vec2 dd = p - pivots[i];
+		float r = length(dd);
+		float ang = atan(dd.y, dd.x);
+		// a ragged edge where the blade stopped; inside, smeared streaks
+		float stop = park + swept[i] + (n - 0.5) * 0.08;
+		if (r > 0.05 && r < reach + (n - 0.5) * 0.03 && ang > park - 0.05 && ang < stop) {
+			a *= residue[i] * (0.4 + 0.6 * smoothstep(0.78, 0.9, fract(r * 30.0 + n * 1.5)));
 		}
 	}
-	vec3 dark = vec3(0.22, 0.15, 0.08);
-	vec3 light = vec3(0.42, 0.31, 0.18);
-	ALBEDO = mix(dark, light, n);
-	ALPHA = clamp(a, 0.0, 0.98);
+	// cartoon colour: a darker rim, the mud, a glossy wet highlight in the thick parts
+	vec3 mud_col = mix(vec3(0.36, 0.25, 0.13), vec3(0.45, 0.33, 0.18), n);
+	vec3 rim_col = vec3(0.2, 0.13, 0.07);
+	float rim = 1.0 - smoothstep(th + 0.02, th + 0.14, f);
+	vec3 col = mix(mud_col, rim_col, rim * 0.85);
+	float shine = step(0.4, f) * step(0.72, vnoise(p * 6.0 + seed * 1.7 + vec2(0.0, 0.6)));
+	col = mix(col, vec3(0.7, 0.58, 0.42), shine * 0.6);
+	ALBEDO = col;
+	ALPHA = clamp(a, 0.0, 0.97);
 }
 """
 	return sh
@@ -542,17 +586,34 @@ func _process(dt: float) -> void:
 	_mud_mat.set_shader_parameter("swept", PackedFloat32Array([deg_to_rad(swept[0]), deg_to_rad(swept[1])]))
 	_mud_mat.set_shader_parameter("residue", PackedFloat32Array(residue))
 	_mud_mat.set_shader_parameter("seed", mud_seed)
+	_mud_age += dt
+	_mud_mat.set_shader_parameter("age", _mud_age)
 
 
 # ── mud + wipers ──────────────────────────────────────────────────────────
 
-## A splat from a puddle: the WHOLE windshield goes brown, wiped arcs too.
-## (`amount` is kept for later: today every splat covers it all.)
-func splat(_amount: float, seed_value: int) -> void:
+## A splat from a puddle: a big cartoon splat right in front of the driver, a
+## few more across the glass (more the harder the hit), droplets and drips.
+## Same seed -> the same splats on both machines.
+func splat(amount: float, seed_value: int) -> void:
 	mud = 1.0
 	swept = [0.0, 0.0]
 	residue = [1.0, 1.0]
 	mud_seed = float(seed_value % 1000) * 0.37
+	_mud_age = 0.0
+	var rng := RandomNumberGenerator.new()
+	rng.seed = seed_value
+	var h := (WS_TOP - WS_BOTTOM).length()
+	_splats = PackedVector4Array()
+	# the one that matters: where the driver looks at the road
+	_splats.append(Vector4(EYE_DRIVER.x + rng.randf_range(-0.1, 0.1), h * rng.randf_range(0.36, 0.5),
+		rng.randf_range(0.27, 0.34), rng.randf() * 100.0))
+	var n := 3 + int(clampf(amount, 0.0, 1.0) * 4.0)
+	for k in n:
+		_splats.append(Vector4(rng.randf_range(-WS_W * 0.45, WS_W * 0.45), h * rng.randf_range(0.15, 0.85),
+			rng.randf_range(0.09, 0.22), rng.randf() * 100.0))
+	_mud_mat.set_shader_parameter("splats", _splats)
+	_mud_mat.set_shader_parameter("count", _splats.size())
 
 
 ## 0..1: how much of the view is still blocked (the AI co-driver reacts to it).

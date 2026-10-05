@@ -67,7 +67,7 @@ Free, PC only (Windows, Mac, Linux). Built in **Godot 4.7**, like BAGHOLDERS.
    in your seat for the 5-second countdown: **five start lights** on screen and a start clock on each
    side of the road. Moving off early is a **jump start: +10 s**. The stage clock (and any penalties)
    stays at the top of the screen.
-2. **The stage** is ~2.7 km of gravel through thick forest (~10,000 trees): corners graded 6 (nearly flat) to 1 (very slow) plus
+2. **The stage** is ~2.7 km of gravel through thick forest (~30,000 trees, ferns along the verges, a far belt out to 150 m): corners graded 6 (nearly flat) to 1 (very slow) plus
    hairpins, corners that tighten or open, blind crests, jumps, puddles and rocks on the inside of the
    "don't cut" corners. Every stage is generated from a number, so there's always a new one.
    - **Jumps, Finland style** (modelled on WRC Rally Finland footage): on the long straights, a gentle
@@ -83,8 +83,10 @@ Free, PC only (Windows, Mac, Linux). Built in **Godot 4.7**, like BAGHOLDERS.
 3. **The map board** (our own design, not the reference's tablet) shows **only the map and where you
    are**: the road ahead as a line, heading-up like a GPS, ~300 m of it, with the stopwatch clipped on
    top. No grades, no warnings: reading the road and calling it is the co-driver's job.
-4. **Mud:** a puddle at speed covers the **whole windshield**. The wipers clear their two arcs, a bit
-   more each stroke (it takes about two to see properly), and the corners stay dirty.
+4. **Mud:** a puddle at speed throws cartoon mud splats over the windshield: a big one right where
+   the driver looks at the road, more across the glass the harder the hit, flicked droplets, and
+   drips that slowly run down. The wipers smear through their two arcs (it takes about two strokes
+   to see properly) and the corners stay dirty.
 5. Stuck? **R** puts the car back on the road (**+5 s**). Driver: **C** swaps to a chase camera
    behind the car (the co-driver stays in their seat).
 6. **Flying finish**, results (the camera circles the car again), then the host picks: next stage,

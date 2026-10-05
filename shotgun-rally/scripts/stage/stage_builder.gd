@@ -26,10 +26,12 @@ const ROAD_X := [[-3.1, -0.12, VERGE], [-2.8, 0.0, GRAVEL], [-1.25, 0.04, TRACK]
 ## Ground beyond the road, each side, at the normal width (moves out with a
 ## wider road): [d, height above the road, noise amplitude]
 const GROUND_X := [[2.9, -0.2, 0.0], [4.3, -0.5, 0.0], [6.0, -0.15, 0.15], [10.0, 0.1, 0.5],
-	[18.0, 0.3, 1.2], [30.0, 0.6, 2.2], [50.0, 1.0, 3.2], [78.0, 1.6, 4.5]]
+	[18.0, 0.3, 1.2], [30.0, 0.6, 2.2], [50.0, 1.0, 3.2], [78.0, 1.6, 4.5], [112.0, 2.3, 5.5], [154.0, 3.0, 6.5]]
 
 const CHUNK := 160.0                # trees are grouped per this much road ...
 const TREE_DRAW := 520.0            # ... and a group further away than this isn't drawn
+const FAR_DRAW := 340.0             # the far belt (76-150 m off the road): drawn closer than this (the fog has the rest)
+const FERN_DRAW := 150.0            # the ferns and undergrowth along the verges
 
 var st
 var start_clocks: Array = []        # the countdown boards at the start line (driver's side, co-driver's side)
@@ -414,9 +416,11 @@ func _forest() -> void:
 		var extra: float = st.widths[i] * 0.5 - 2.8              # a wider road: the trees stand back
 		for side in [-1.0, 1.0]:
 			var inside: bool = signf(k) == side and absf(k) > 1.0 / 160.0
-			# [from, to (m off the centreline), chance, how many tries]
-			var slots: Array = [[5.0, 9.0, 0.95 if inside else 0.6, 1],     # the wall along the road
-				[9.0, 18.0, 0.9, 2], [18.0, 40.0, 0.85, 3], [40.0, 76.0, 0.8, 3]]
+			# [from, to (m off the centreline), chance, how many tries]: a dense wall along
+			# the road, thick forest behind it, and a far belt out to 150 m so it never
+			# opens up into empty grass
+			var slots: Array = [[5.0, 9.0, 0.95 if inside else 0.7, 2],     # the wall along the road
+				[9.0, 18.0, 0.9, 5], [18.0, 40.0, 0.85, 7], [40.0, 76.0, 0.85, 5], [76.0, 150.0, 0.8, 8]]
 			if inside:
 				slots.append([4.6, 7.5, 0.8, 1])                           # thicker on the inside of bends
 			for sl in slots:
@@ -432,11 +436,15 @@ func _forest() -> void:
 					var kind: String = ["pine", "pine", "pine", "round", "birch", "bush"][_rng.randi() % 6]
 					if d - extra < 6.0 and kind == "bush":
 						kind = "round"
-					var sc := _rng.randf_range(0.8, 1.4)
+					if sl[0] >= 76.0:
+						kind = (["pine", "pine", "round", "birch"][_rng.randi() % 4]) + "_far"   # no shadows, drawn nearer
+					var sc := _rng.randf_range(0.85, 1.55)
 					var xf := Transform3D(Basis(Vector3.UP, _rng.randf() * TAU).scaled(Vector3.ONE * sc), p)
 					var ci := int(s / CHUNK)
 					if not chunks.has(ci):
-						chunks[ci] = {"pine": [], "round": [], "birch": [], "bush": []}
+						chunks[ci] = {}
+					if not chunks[ci].has(kind):
+						chunks[ci][kind] = []
 					chunks[ci][kind].append(xf)
 					tree_count += 1
 					if d - extra < 10.0 and kind != "bush":
@@ -447,8 +455,30 @@ func _forest() -> void:
 						cs.shape = cyl
 						cs.position = p + Vector3.UP * 2.0
 						trunks.add_child(cs)
+	# undergrowth: ferns between the ditch and the trees (no collision: you drive through them)
+	for i in range(0, n, 2):
+		var s: float = i * st.STEP
+		if s < st.START_S - 30.0:
+			continue
+		var c: Vector3 = st.pts[i]
+		var r: Vector3 = st.right_at(s)
+		var extra: float = st.widths[i] * 0.5 - 2.8
+		for side in [-1.0, 1.0]:
+			for t in 3:
+				var d: float = _rng.randf_range(4.4, 14.0) + extra
+				var p: Vector3 = c + r * (d * side) + st.forward_at(s) * _rng.randf_range(-2.0, 2.0)
+				if _near_road(p, 4.0 + maxf(extra, 0.0)) or _in_clearing(p):
+					continue
+				p.y = _ground_height(c.y, d - extra, p) - 0.05
+				var xf := Transform3D(Basis(Vector3.UP, _rng.randf() * TAU).scaled(Vector3.ONE * _rng.randf_range(0.7, 1.3)), p)
+				var ci := int(s / CHUNK)
+				if not chunks.has(ci):
+					chunks[ci] = {}
+				if not chunks[ci].has("fern"):
+					chunks[ci]["fern"] = []
+				chunks[ci]["fern"].append(xf)
 	var meshes := {}
-	for kind in ["pine", "round", "birch", "bush"]:
+	for kind in ["pine", "round", "birch", "bush", "fern"]:
 		meshes[kind] = _tree_mesh(kind)
 	var mat := MeshBuf.material()
 	for ci in chunks:
@@ -458,7 +488,7 @@ func _forest() -> void:
 				continue
 			var mm := MultiMesh.new()
 			mm.transform_format = MultiMesh.TRANSFORM_3D
-			mm.mesh = meshes[kind]
+			mm.mesh = meshes[kind.trim_suffix("_far")]
 			mm.instance_count = list.size()
 			for j in list.size():
 				mm.set_instance_transform(j, list[j])
@@ -466,10 +496,10 @@ func _forest() -> void:
 			mmi.name = "Trees_%d_%s" % [ci, kind]
 			mmi.multimesh = mm
 			mmi.material_override = mat
-			mmi.visibility_range_end = TREE_DRAW
+			mmi.visibility_range_end = FAR_DRAW if kind.ends_with("_far") else (FERN_DRAW if kind == "fern" else TREE_DRAW)
 			mmi.visibility_range_end_margin = 40.0
 			mmi.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_DISABLED
-			if kind == "bush":
+			if kind == "bush" or kind == "fern" or kind.ends_with("_far"):
 				mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 			add_child(mmi)
 
@@ -532,6 +562,14 @@ func _tree_mesh(kind: String) -> ArrayMesh:
 			_blob(mb, Vector3(0, 4.3, 0), Vector3(1.3, 1.6, 1.3), Color(0.45, 0.66, 0.28))
 		"bush":
 			_blob(mb, Vector3(0, 0.55, 0), Vector3(1.2, 0.8, 1.2), Color(0.26, 0.5, 0.2))
+		"fern":
+			# a spiky clump: a few leaning fronds (thin cones) round a middle
+			var fg := [Color(0.22, 0.48, 0.18), Color(0.28, 0.56, 0.2), Color(0.18, 0.42, 0.16)]
+			for k in 5:
+				var a := k * TAU / 5.0
+				var lean := Vector3(cos(a), 0.0, sin(a)) * 0.28
+				_cone(mb, lean, 0.16, 0.75, 4, fg[k % 3])
+			_cone(mb, Vector3.ZERO, 0.2, 0.9, 5, fg[1])
 	return mb.mesh()
 
 

@@ -102,9 +102,20 @@ func _on_peer_connected(id: int) -> void:
 
 func next_stage(s: int, n: int) -> void:
 	if Net.online():
+		# first everyone stops streaming the car, and the last packets land while the old
+		# stage is still there; only then both rebuild (otherwise the driver's old car can
+		# still be talking to a Game that's busy building and has no Car yet)
+		pause_stream.rpc()
+		await get_tree().create_timer(0.3).timeout
 		load_stage.rpc(s, n)
 	else:
 		load_stage(s, n)
+
+
+@rpc("authority", "call_local", "reliable")
+func pause_stream() -> void:
+	if game:
+		game.all_loaded = false                      # crew_ready() false: the car stops streaming
 
 
 @rpc("authority", "call_local", "reliable")
