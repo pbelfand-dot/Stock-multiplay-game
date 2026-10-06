@@ -1,0 +1,69 @@
+{
+ "id": "sport_quattro",
+ "front": "-Y",
+ "wheelbase": 2.224,
+ "wheel": [
+  "^Mesh1[0378]$",
+  "SM_Hub",
+  "SM_Disk"
+ ],
+ "caliper": [
+  "SM_Brake"
+ ],
+ "drop": [
+  "SM_Root_Audi"
+ ],
+ "paint": [
+  "Red_Base"
+ ],
+ "glass": [
+  "MAT_Glass",
+  "^glass_R"
+ ],
+ "materials": [
+  [
+   "MAT_Glass",
+   "glass"
+  ]
+ ],
+ "wheel_faces": 3500,
+ "body_faces": 45000,
+ "retexture": [
+  [
+   "^TEX_Details_EXT_D\\.png$",
+   "TEX_Details_EXT_D_clean.png"
+  ],
+  [
+   "^TEX_Details_INT_D\\.png$",
+   "TEX_Details_INT_D_clean.png"
+  ]
+ ],
+ "drop_boxes": [
+  {
+   "box": [
+    -0.17,
+    0.17,
+    1.975,
+    2.03,
+    0.595,
+    0.705
+   ],
+   "mats": [
+    "MAT_Details_MAT"
+   ]
+  },
+  {
+   "box": [
+    -0.62,
+    0.66,
+    -2.2,
+    -1.95,
+    0.893,
+    0.958
+   ],
+   "mats": [
+    "MAT_Details_MAT"
+   ]
+  }
+ ]
+}

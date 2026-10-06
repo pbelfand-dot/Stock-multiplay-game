@@ -2,6 +2,8 @@ extends SceneTree
 ## The car and the stage, together: the autopilot drives a whole stage.
 ## Run: godot --headless --fixed-fps 120 --path . -s tests/drive_check.gd -- --seed=3
 ##   [--surface=tarmac | mixed] [--ice]   an asphalt or mixed stage (snow and ice on the asphalt)
+##   [--car=ID [--max100=S]]              a car from the garage (Catalog) instead of the starter car
+##                                        (0-100 km/h under S s: a slower road car's)
 ##   * it gets off the line (0-100 km/h in a sane time) and reaches the finish
 ##   * it stays on the road (few offs) and never falls through the world
 ##   * the springs hold the car at ride height, the handbrake flicks it
@@ -32,6 +34,7 @@ var flick_yaw := 0.0
 var stuck := 0.0
 var resets := 0
 var surf_seen := {}                 # what the tyres were on (car.on_surface), physics ticks
+var max100 := 8.0                   # s: 0-100 km/h must beat it
 
 
 func _initialize() -> void:
@@ -41,6 +44,7 @@ func _initialize() -> void:
 	Autopilot = load("res://scripts/vehicle/autopilot.gd")
 	var seed_value := 3
 	var gen := {}
+	var car_id := ""
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--seed="):
 			seed_value = int(a.split("=")[1])
@@ -48,6 +52,10 @@ func _initialize() -> void:
 			gen["surface"] = a.split("=")[1]
 		if a == "--ice":
 			gen["ice"] = true
+		if a.begins_with("--car="):
+			car_id = a.split("=")[1]
+		if a.begins_with("--max100="):
+			max100 = float(a.split("=")[1])
 	st = StageGen.new()
 	st.opts = gen
 	st.generate(seed_value)
@@ -55,6 +63,9 @@ func _initialize() -> void:
 	root.add_child(b)
 	b.build(st)
 	car = RallyCar.new()
+	if car_id != "":
+		var Catalog = load("res://scripts/game/catalog.gd")
+		car.setup = Catalog.for_stage(Catalog.setup(car_id), st)
 	root.add_child(car)
 	car.place(st.world_at(st.START_S - 4.0, 0.0), st.heading_at(st.START_S))
 	ap = Autopilot.new(st)
@@ -159,7 +170,7 @@ func _physics_process(dt: float) -> bool:
 				car.inp = {"steer": 0.0, "throttle": 1.0, "brake": 0.0, "handbrake": false}
 				if car.kmh() >= 100.0:
 					t100 = t
-					fails += _check(t100 < 8.0, "0-100 km/h in %.1f s on gravel" % t100)
+					fails += _check(t100 < max100, "0-100 km/h in %.1f s on gravel (under %.0f s)" % [t100, max100])
 				elif t > 15.0:
 					fails += _check(false, "0-100 km/h: only %.0f km/h after 15 s" % car.kmh())
 					return _finish()

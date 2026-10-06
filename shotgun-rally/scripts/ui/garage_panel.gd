@@ -1,6 +1,6 @@
 extends PanelContainer
 ## CARS, the garage. Flick through the cars (◀ ▶): what each costs, how it
-## drives (power, grip, brakes, the drive split), and the one you drive. A car
+## drives (power, weight, grip, brakes, the drive split), and the one you drive. A car
 ## you own can be painted (main, accent and stripe colours: free), given a
 ## livery and wheels (bought once, then yours on any car), a race number,
 ## upgrades (engine, tyres, brakes: three steps each), and its tyres and setup
@@ -13,6 +13,7 @@ signal changed                      # credits or the car changed: the menu redra
 const UI = preload("res://scripts/ui/ui_kit.gd")
 const Catalog = preload("res://scripts/game/catalog.gd")
 const Profile = preload("res://scripts/game/profile.gd")
+const CarSpecs = preload("res://scripts/vehicle/car_specs.gd")
 
 var backdrop
 var _i := 0
@@ -65,17 +66,22 @@ func _rebuild() -> void:
 	blurb.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	blurb.custom_minimum_size = Vector2(676, 0)
 	_body.add_child(blurb)
-	# how it drives (with its upgrades)
+	# how it drives (with its upgrades): its power and weight (its own engine and
+	# body: CarSpecs), the grip and brakes its upgrades add, which wheels drive
+	var cfg: Resource = CarSpecs.config(str(setup.get("model", "")))
+	var ps := CarSpecs.power_ps(cfg, setup.power)
 	var stats := GridContainer.new()
 	stats.columns = 2
 	stats.add_theme_constant_override("h_separation", 22)
 	stats.add_theme_constant_override("v_separation", 6)
-	stats.add_child(UI.stat_bar("POWER", (setup.power - 0.95) / 0.4, "%+d %%" % roundi((setup.power - 1.0) * 100.0), 150.0))
+	stats.add_child(UI.stat_bar("POWER", ps / 520.0, "%d PS" % roundi(ps), 150.0))
+	stats.add_child(UI.stat_bar("WEIGHT", (1450.0 - cfg.mass) / 450.0, "%d kg" % roundi(cfg.mass), 150.0))
 	stats.add_child(UI.stat_bar("GRIP", (setup.grip - 0.94) / 0.18, "%+d %%" % roundi((setup.grip - 1.0) * 100.0), 150.0))
 	stats.add_child(UI.stat_bar("BRAKES", (setup.brakes - 0.95) / 0.3, "%+d %%" % roundi((setup.brakes - 1.0) * 100.0), 150.0))
 	var front := roundi(setup.drive_front * 100.0)
-	stats.add_child(UI.stat_bar("DRIVE", 1.0 - setup.drive_front, "%d/%d F/R%s" % [front, 100 - front,
-		" slides" if setup.drive_front < 0.25 else ""], 150.0))
+	var layout := "FRONT-DRIVE" if front >= 100 else ("REAR-DRIVE" if front <= 0 else "%d/%d F/R%s" % [front, 100 - front,
+		" slides" if setup.drive_front < 0.25 else ""])
+	stats.add_child(UI.stat_bar("DRIVE", 1.0 - setup.drive_front, layout, 150.0))
 	_body.add_child(stats)
 	# buy / drive it
 	var act := HBoxContainer.new()

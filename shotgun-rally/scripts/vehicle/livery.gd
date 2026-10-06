@@ -7,12 +7,15 @@ extends RefCounted
 ## up, the window line at ~0.1, the sills at ~-0.22; z = left). Its shading
 ## (panel edges, grime) carries over. The race number sits in a white roundel on
 ## both doors. The wheels' silver rims take the wheel colour.
+## The cars with models of their own (paint_model) get the same patterns and
+## number, mapped from their own size onto those units, in a clear-coated paint.
 
 const IDS := {"kestrel": 0, "plain": 1, "stripes": 2, "two_tone": 3, "comet": 4, "vortex": 5, "martello": 6,
 	"tricolore": 7, "charge": 8, "quattro": 9, "goldline": 10}
 
 static var _body_shader: Shader
 static var _wheel_shader: Shader
+static var _model_shader: Shader
 
 
 ## Paint body (MeshInstance3D) and wheels ([MeshInstance3D]) for this setup. The
@@ -37,6 +40,40 @@ static func paint(body: MeshInstance3D, wheels: Array, setup: Dictionary, holder
 		wm.set_shader_parameter("tex", wsrc.albedo_texture if wsrc is BaseMaterial3D else null)
 		wm.set_shader_parameter("rim", wc)
 		(w as MeshInstance3D).material_override = wm
+
+
+## The same for a car with a model of its own (tools/import_car.py): its
+## "paint" surface (body, surface) gets the livery, mapped by the body's size
+## (info: its parts.json: the length, the sills and the window line, the wheels),
+## and the rims (materials "rim_..." on the wheels) the wheel colour.
+static func paint_model(body: MeshInstance3D, surface: int, wheels: Array, setup: Dictionary, holder: Node, info: Dictionary) -> void:
+	var m := ShaderMaterial.new()
+	m.shader = _model()
+	var cols: Array = setup.get("colours", [])
+	for i in 4:
+		m.set_shader_parameter("c%d" % (i + 1), cols[i] if i < cols.size() else Color.WHITE)
+	m.set_shader_parameter("livery", IDS.get(setup.get("livery", "kestrel"), 0))
+	m.set_shader_parameter("number_tex", number_texture(holder, int(setup.get("number", 7))))
+	var lo: Array = info.body_min
+	var hi: Array = info.body_max
+	var sill: float = lo[1] if info.get("sill") == null else float(info.sill)
+	var belt: float = sill + 0.45 if info.get("belt") == null else float(info.belt)
+	var half_w: float = absf(info.wheels[0][0]) + info.width[0] * 0.5    # (the mirrors would make the body wider)
+	m.set_shader_parameter("map_z", Vector2((lo[2] + hi[2]) * 0.5, 0.95 / maxf((hi[2] - lo[2]) * 0.5, 1.0)))
+	m.set_shader_parameter("map_y", Vector2(sill, 0.32 / maxf(belt - sill, 0.15)))
+	m.set_shader_parameter("map_x", 0.45 / half_w)
+	m.set_shader_parameter("metal", 0.12)
+	body.set_surface_override_material(surface, m)
+	var rim := StandardMaterial3D.new()
+	rim.albedo_color = setup.get("wheel_colour", Color(0.72, 0.73, 0.75))
+	rim.metallic = 0.7
+	rim.roughness = 0.3
+	for w in wheels:
+		var mi := w as MeshInstance3D
+		for i in mi.mesh.get_surface_count():
+			var sm := mi.mesh.surface_get_material(i)
+			if sm and sm.resource_name.begins_with("rim_"):
+				mi.set_surface_override_material(i, rim)
 
 
 ## The number, black on a clear background, rendered once into a texture.
@@ -65,14 +102,7 @@ static func number_texture(holder: Node, number: int) -> Texture2D:
 	return vp.get_texture()
 
 
-static func _body() -> Shader:
-	if _body_shader:
-		return _body_shader
-	_body_shader = Shader.new()
-	_body_shader.code = """
-shader_type spatial;
-uniform sampler2D tex : source_color, filter_linear_mipmap;
-uniform sampler2D number_tex : source_color, filter_linear;
+const _UNIFORMS := """uniform sampler2D number_tex : source_color, filter_linear;
 uniform vec4 c1 : source_color = vec4(0.78, 0.12, 0.1, 1.0);
 uniform vec4 c2 : source_color = vec4(1.0);
 uniform vec4 c3 : source_color = vec4(0.08, 0.08, 0.09, 1.0);
@@ -81,23 +111,12 @@ uniform int livery = 0;
 uniform vec2 roundel = vec2(-0.03, -0.07);      // on the doors (x, y)
 uniform float roundel_r = 0.092;
 
-varying vec3 mp;
+"""
+const _VARYINGS := """varying vec3 mp;
 varying vec3 mn;
 
-void vertex() {
-	mp = VERTEX;
-	mn = NORMAL;
-}
-
-// the model's red paint (not the white stripes, the glass, the trim, the tyres)
-float paint_mask(vec3 c) {
-	float hi = max(c.r, max(c.g, c.b));
-	float lo = min(c.r, min(c.g, c.b));
-	float sat = (hi - lo) / max(hi, 0.001);
-	return step(max(c.g, c.b) * 1.7, c.r) * smoothstep(0.35, 0.55, sat) * smoothstep(0.12, 0.25, hi);
-}
-
-float band(float v, float a, float b) {
+"""
+const _PATTERN := """float band(float v, float a, float b) {
 	return step(a, v) * step(v, b);
 }
 
@@ -161,6 +180,29 @@ vec3 pattern(vec3 p, vec3 n) {
 	return col;
 }
 
+"""
+
+
+static func _body() -> Shader:
+	if _body_shader:
+		return _body_shader
+	_body_shader = Shader.new()
+	_body_shader.code = "shader_type spatial;\nuniform sampler2D tex : source_color, filter_linear_mipmap;\n" \
+		+ _UNIFORMS + _VARYINGS + """
+void vertex() {
+	mp = VERTEX;
+	mn = NORMAL;
+}
+
+// the model's red paint (not the white stripes, the glass, the trim, the tyres)
+float paint_mask(vec3 c) {
+	float hi = max(c.r, max(c.g, c.b));
+	float lo = min(c.r, min(c.g, c.b));
+	float sat = (hi - lo) / max(hi, 0.001);
+	return step(max(c.g, c.b) * 1.7, c.r) * smoothstep(0.35, 0.55, sat) * smoothstep(0.12, 0.25, hi);
+}
+
+""" + _PATTERN + """
 void fragment() {
 	vec3 o = texture(tex, UV).rgb;
 	float m = paint_mask(o);
@@ -184,6 +226,47 @@ void fragment() {
 }
 """
 	return _body_shader
+
+
+## The model cars' paint: the same patterns and number, mapped from the body's
+## own metres (map_*: see paint_model) onto the Higgsfield body's units; no
+## texture under it, a clear coat over it.
+static func _model() -> Shader:
+	if _model_shader:
+		return _model_shader
+	_model_shader = Shader.new()
+	_model_shader.code = """shader_type spatial;
+uniform vec2 map_z = vec2(0.0, 0.43);            // the body's middle along it (m), and m -> units
+uniform vec2 map_y = vec2(0.3, 0.7);             // its sills' height (m), and m -> units
+uniform float map_x = 0.5;                       // m -> units across
+uniform float metal = 0.1;
+""" + _UNIFORMS + _VARYINGS + """
+void vertex() {
+	// the model: x right, y up, -z forward (m); the Higgsfield body: x back, y up, z left
+	mp = vec3((VERTEX.z - map_z.x) * map_z.y, -0.22 + (VERTEX.y - map_y.x) * map_y.y, -VERTEX.x * map_x);
+	mn = vec3(NORMAL.z, NORMAL.y, -NORMAL.x);
+}
+""" + _PATTERN + """
+void fragment() {
+	vec3 albedo = pattern(mp, mn);
+	float side = smoothstep(0.6, 0.8, abs(mn.z));
+	vec2 q = vec2(mp.x - roundel.x, mp.y - roundel.y);
+	float r = length(q);
+	if (side > 0.0 && r < roundel_r) {
+		vec2 uv = vec2((mp.z > 0.0 ? q.x : -q.x) / (2.0 * roundel_r) + 0.5, 0.5 - q.y / (2.0 * roundel_r));
+		vec3 disc = mix(vec3(0.95), vec3(0.04), smoothstep(roundel_r * 0.9, roundel_r * 0.94, r));
+		disc = mix(disc, vec3(0.04), texture(number_tex, uv).a);
+		albedo = mix(albedo, disc, side);
+	}
+	ALBEDO = albedo;
+	METALLIC = metal;
+	ROUGHNESS = 0.32;
+	SPECULAR = 0.5;
+	CLEARCOAT = 1.0;
+	CLEARCOAT_ROUGHNESS = 0.05;
+}
+"""
+	return _model_shader
 
 
 static func _wheel() -> Shader:

@@ -1,13 +1,16 @@
 extends RefCounted
 ## Everything the garage sells: the cars, their liveries, colours, wheels and
 ## upgrades, and what they cost (credits, earned by finishing stages: see
-## Profile). The cars are look-alikes of real rally cars, with their own names
-## and badges (no real brands). For now they share one body; each has its own
-## livery and how it drives.
+## Profile). The cars are look-alikes of real rally and road cars, with their
+## own names and no badges (no real brands). The first four share one body (the
+## Higgsfield car) with their own livery and how they drive; the rest ("model")
+## have bodies of their own, realistic ones, and the real cars' numbers
+## (CarSpecs: weight, engine, gearbox, which wheels drive).
 
-## power / grip / brakes: x the base car's. drive_front: the share of the
-## engine's torque to the front axle (0.5 = four-wheel drive, an even split like
-## a modern rally car's; 0.15 = nearly all at the back: it slides).
+## power / grip / brakes: x the base car's (a car with its own model: x its own).
+## drive_front: the share of the engine's torque to the front axle (0.5 =
+## four-wheel drive, an even split like a modern rally car's; 0.15 = nearly all
+## at the back: it slides; 0 = rear-drive, 1 = front-drive).
 const CARS := [
 	{"id": "kestrel", "name": "KESTREL R4", "price": 0, "livery": "kestrel", "number": 7,
 		"colours": [Color(0.78, 0.12, 0.1), Color(0.95, 0.95, 0.93), Color(0.08, 0.08, 0.09), Color(0.95, 0.95, 0.93)],
@@ -25,6 +28,30 @@ const CARS := [
 		"colours": [Color(0.96, 0.96, 0.94), Color(0.06, 0.13, 0.38), Color(0.3, 0.62, 0.9), Color(0.85, 0.1, 0.08)],
 		"wheels": "white", "power": 1.2, "grip": 0.97, "brakes": 1.05, "drive_front": 0.15,
 		"blurb": "The last great rear-drive rally car, in white with navy, sky blue and red stripes. Wild."},
+	{"id": "nimbus", "name": "NIMBUS EG", "price": 5000, "livery": "plain", "number": 16, "model": "civic_eg",
+		"colours": [Color(0.72, 0.08, 0.08), Color(0.95, 0.95, 0.94), Color(0.07, 0.07, 0.08), Color(0.95, 0.95, 0.94)],
+		"wheels": "silver", "power": 1.0, "grip": 1.0, "brakes": 1.0, "drive_front": 1.0,
+		"blurb": "A light early-90s hatch with a twin-cam that sings to 8,000 rpm. Front-drive, cheap, quick: it pulls you out of every hairpin."},
+	{"id": "rotora_fc", "name": "ROTORA FC", "price": 8000, "livery": "plain", "number": 13, "model": "rx7_fc",
+		"colours": [Color(0.93, 0.93, 0.92), Color(0.07, 0.07, 0.08), Color(0.78, 0.1, 0.08), Color(0.93, 0.93, 0.92)],
+		"wheels": "silver", "power": 1.0, "grip": 1.0, "brakes": 1.0, "drive_front": 0.0,
+		"blurb": "The 80s rotary coupe: a turbo two-rotor, rear-drive, balanced near 50/50. The mountain-pass drifter's first love."},
+	{"id": "kaiser", "name": "KAISER 30", "price": 14000, "livery": "plain", "number": 30, "model": "e30",
+		"colours": [Color(0.93, 0.93, 0.92), Color(0.08, 0.2, 0.55), Color(0.78, 0.1, 0.08), Color(0.3, 0.62, 0.9)],
+		"wheels": "silver", "power": 1.0, "grip": 1.0, "brakes": 1.0, "drive_front": 0.0,
+		"blurb": "A boxy 80s touring-car hero with a screaming four-cylinder. Rear-drive, light, sharp on tarmac and a handful on gravel."},
+	{"id": "rotora_fd", "name": "ROTORA FD", "price": 16000, "livery": "plain", "number": 7, "model": "rx7_fd",
+		"colours": [Color(1.0, 0.76, 0.06), Color(0.07, 0.07, 0.08), Color(0.95, 0.95, 0.94), Color(1.0, 0.76, 0.06)],
+		"wheels": "silver", "power": 1.0, "grip": 1.0, "brakes": 1.0, "drive_front": 0.0,
+		"blurb": "The 90s rotary legend: twin turbos, perfect balance, sharp as a knife. Rear-drive, and it revs to eight thousand."},
+	{"id": "vierrad", "name": "VIERRAD S1", "price": 30000, "livery": "quattro", "number": 2, "model": "sport_quattro",
+		"colours": [Color(0.95, 0.95, 0.94), Color(1.0, 0.78, 0.1), Color(0.8, 0.1, 0.08), Color(0.95, 0.95, 0.94)],
+		"wheels": "white", "power": 1.0, "grip": 1.0, "brakes": 1.0, "drive_front": 0.5,
+		"blurb": "The short, brutal four-wheel-drive monster of the Group B years: a five-cylinder turbo with huge lag, then everything at once, and a locked centre diff that wants to go straight."},
+	{"id": "ocelot", "name": "OCELOT R1", "price": 40000, "livery": "two_tone", "number": 8, "model": "puma_rally1",
+		"colours": [Color(0.05, 0.16, 0.45), Color(0.95, 0.95, 0.94), Color(0.95, 0.42, 0.06), Color(0.95, 0.95, 0.94)],
+		"wheels": "white", "power": 1.0, "grip": 1.0, "brakes": 1.0, "drive_front": 0.5,
+		"blurb": "Today's top-class rally car: a turbo, a huge wing, long travel and real downforce. The fastest thing in the garage."},
 ]
 
 ## Liveries (patterns painted over the body: see livery.gd). Each car comes
@@ -109,7 +136,7 @@ static func wheels(id: String) -> Dictionary:
 ## tuning: {tyre, preset} ("auto" until the stage settles it: for_stage).
 static func setup(car_id: String, paint := {}, levels := {}, tuning := {}) -> Dictionary:
 	var c := car(car_id)
-	var s := {"car": c.id, "name": c.name, "livery": paint.get("livery", c.livery),
+	var s := {"car": c.id, "name": c.name, "model": str(c.get("model", "")), "livery": paint.get("livery", c.livery),
 		"colours": paint.get("colours", c.colours).duplicate(), "wheels": paint.get("wheels", c.wheels),
 		"number": int(paint.get("number", c.number)), "drive_front": c.drive_front,
 		"tyre": str(tuning.get("tyre", "auto")), "preset": str(tuning.get("preset", "auto"))}

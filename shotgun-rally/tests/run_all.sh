@@ -48,6 +48,11 @@ echo "== drift dirt: dust + stones when it slides, none when it cruises or flies
 run_g 180 --headless --fixed-fps 120 --path . -s tests/fx_check.gd 2>&1 | grep -E "\[fx\]" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
 echo "== garage + story: credits, buying, upgrades, car setups, championship unlocks and standings"
 run_g 120 --headless --path . -s tests/story_check.gd -- --profile=$T/story.cfg 2>&1 | grep -E "\[story\] (FAIL|STORY)" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
+echo "== the cars with models of their own: each builds, sits on its wheels, pulls away (the right wheels driven); the garage swaps them"
+run_g 300 --headless --fixed-fps 120 --path . -s tests/car_models_check.gd 2>&1 | grep -E "\[models\] (FAIL|MODELS|ok   .*0-100)" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
+echo "== a rear-drive and a front-drive road car: the autopilot drives a whole stage in each"
+run_g 360 --headless --fixed-fps 120 --path . -s tests/drive_check.gd -- --seed=3 --car=rotora_fd 2>&1 | grep -E "\[drive\] (FAIL|DRIVE|ok   finished)" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
+run_g 360 --headless --fixed-fps 120 --path . -s tests/drive_check.gd -- --seed=7 --car=nimbus --max100=11 2>&1 | grep -E "\[drive\] (FAIL|DRIVE|ok   finished)" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
 echo "== road edges: flush flat grass past the edge, trees stand back, a slide wide can be saved"
 run_g 300 --headless --fixed-fps 120 --path . -s tests/runoff_check.gd 2>&1 | grep -E "\[runoff\] (FAIL|RUNOFF|ok   off)" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
 echo "== physics v2 (phases 1-9): suspension, bumps; skid pad, slope; drive, wheelspin, brakes, lock-ups; braking in turns, trail braking; engine, gears, diffs; surfaces; handbrake, anti-roll bars, dampers; aero, driver aids, Settings, telemetry; the rally manoeuvres (120 Hz)"

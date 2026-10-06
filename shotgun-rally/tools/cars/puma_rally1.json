@@ -1,0 +1,96 @@
+{
+ "id": "puma_rally1",
+ "front": "+X",
+ "wheelbase": 2.6,
+ "wheel": [
+  "SM_Wheel_Tm"
+ ],
+ "drop": [
+  "SK_Int"
+ ],
+ "paint": [
+  "^dummy_material_2\\.001$"
+ ],
+ "glass": [
+  "^dummy_material_4\\.001$"
+ ],
+ "rims": [
+  "^MI_Tm_Wheel$"
+ ],
+ "materials": [
+  [
+   "^dummy_material_0\\.001$",
+   "carbon"
+  ],
+  [
+   "^dummy_material_4\\.001$",
+   "glass"
+  ],
+  [
+   "^dummy_material_1[678]$",
+   "glass"
+  ],
+  [
+   "^dummy_material_5\\.001$",
+   "glass"
+  ],
+  [
+   "^dummy_material_9\\.001$",
+   {
+    "texture": "AnyConv.com__T_Lights_D.png",
+    "rough": 0.15
+   }
+  ],
+  [
+   "^dummy_material_12\\.001$",
+   "chrome"
+  ],
+  [
+   "^dummy_material_1\\.001$",
+   "black"
+  ],
+  [
+   "^dummy_material_14$",
+   "carbon"
+  ],
+  [
+   "^dummy_material_11\\.001$",
+   "carbon"
+  ],
+  [
+   "^dummy_material_10\\.001$",
+   "black"
+  ],
+  [
+   "^dummy_material_3\\.001$",
+   "interior"
+  ],
+  [
+   "^dummy_material_15$",
+   "dark_metal"
+  ],
+  [
+   "^dummy_material_",
+   "black"
+  ],
+  [
+   "^MI_Tm_Tread",
+   "rubber"
+  ],
+  [
+   "^MI_Tm_Wheel$",
+   "rim"
+  ]
+ ],
+ "wheel_faces": 3500,
+ "body_faces": 45000,
+ "sidewall": {
+  "mats": [
+   "^MI_Tm_Wheel$"
+  ],
+  "from": 0.71
+ },
+ "drop_mats": [
+  "^dummy_material_8\\.001$"
+ ]
+}

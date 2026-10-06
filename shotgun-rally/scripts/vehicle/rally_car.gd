@@ -56,6 +56,7 @@ const AssistConfig = preload("res://scripts/vehicle/physics/config/assist_config
 const Surfaces = preload("res://scripts/vehicle/physics/surfaces.gd")
 const Livery = preload("res://scripts/vehicle/livery.gd")
 const WheelMesh = preload("res://scripts/vehicle/wheel_mesh.gd")
+const CarSpecs = preload("res://scripts/vehicle/car_specs.gd")
 const DEFAULT_CONFIG := "res://data/cars/awd_rally.tres"
 const TICKS := 120                 # physics ticks per second (see the plan: the wheels are stiff)
 const NAMES := ["FL", "FR", "RL", "RR"]
@@ -104,7 +105,8 @@ var setup := {}
 var power_mult := 1.0
 var grip_mult := 1.0
 var brake_mult := 1.0
-var body_model: Node3D             # the Higgsfield car (assets/models/car_parts/): seen from outside
+var body_model: Node3D             # the Higgsfield car (assets/models/car_parts/) or the car's own model: seen from outside
+var model_id := ""                 # the car's own model (CarSpecs, assets/models/cars/<id>/); "": the Higgsfield car
 
 var _air := 0.0
 var _rack := 0.0                   # the steering rack: the "bicycle" front-wheel angle (rad, + = right)
@@ -119,6 +121,12 @@ var _tuned_grip := -1.0
 var _base_parts := {}              # its own suspension, tyres and rack, before a setup changed them
 var _mud: Resource
 var _model_wheels: Array = []      # [pivot, spinner, rest position] per corner (model units)
+var _model_scale := MODEL_SCALE    # m per model unit (a car's own model: 1)
+var _model_info := {}              # its parts.json
+var _fixed_config := false         # given a config (the physics lab, a test): the garage doesn't swap it
+var _config_from_setup := false    # the config came from the setup's car (_load_config)
+var _made_boxes := false           # the collision boxes are this script's (not the scene's)
+var _outside := false              # a camera outside: the body model drawn (set_outside)
 var _flaps: Array = []             # [hinge, angle, angular speed] per corner
 var _flap_prev_v := Vector3.ZERO
 var _static_comp := [0.11, 0.11]   # front / rear compression standing still (m): the model's rest pose
@@ -129,6 +137,7 @@ var _offset := INF                 # local ms - sender ms (latency + clock diffe
 
 
 func _ready() -> void:
+	_fixed_config = config != null and not _config_from_setup   # (the physics lab's, a test's: the garage doesn't swap it)
 	_load_config()
 	if assists == null:
 		assists = AssistConfig.new()                 # all off: the base physics ...
@@ -143,10 +152,6 @@ func _ready() -> void:
 	assist = DriverAssist.new()
 	assist.setup(assists)
 	_mud = Surfaces.named("mud")
-	mass = config.mass
-	center_of_mass_mode = RigidBody3D.CENTER_OF_MASS_MODE_CUSTOM
-	center_of_mass = config.center_of_mass
-	inertia = config.inertia
 	# no invented drag on the body: REPLACE the project's default damping with none
 	linear_damp_mode = RigidBody3D.DAMP_MODE_REPLACE
 	linear_damp = 0.0
@@ -159,7 +164,27 @@ func _ready() -> void:
 	pm.friction = 0.4                                # the body sliding on its roof / side
 	pm.bounce = 0.05
 	physics_material_override = pm
-	if find_children("*", "CollisionShape3D", false, false).is_empty():
+	_made_boxes = find_children("*", "CollisionShape3D", false, false).is_empty()
+	telemetry = get_node_or_null("Telemetry")
+	if telemetry == null:
+		telemetry = Telemetry.new()
+		telemetry.name = "Telemetry"
+		add_child(telemetry)
+	telemetry.car = self
+	telemetry.visible = show_telemetry
+	_configure()
+	if not setup.is_empty():
+		apply_setup(setup)
+
+
+## The body from the config: its weight, its collision boxes, its four corners,
+## its drivetrain and its model. Again when the garage swaps the car (apply_setup).
+func _configure() -> void:
+	mass = config.mass
+	center_of_mass_mode = RigidBody3D.CENTER_OF_MASS_MODE_CUSTOM
+	center_of_mass = config.center_of_mass
+	inertia = config.inertia
+	if _made_boxes:
 		_box("Body", config.body_size, config.body_center)
 		_box("Cabin", config.cabin_size, config.cabin_center)
 	var com_marker := get_node_or_null("CenterOfMass") as Node3D
@@ -169,6 +194,7 @@ func _ready() -> void:
 		add_child(com_marker)
 	com_marker.position = config.center_of_mass
 	var mounts: Array = config.mounts()
+	wheels.clear()
 	for k in 4:
 		var w = get_node_or_null(NAMES[k] + "_WheelPoint")
 		if w == null:
@@ -180,50 +206,55 @@ func _ready() -> void:
 		w.setup(self, config.front_suspension if k < 2 else config.rear_suspension,
 			config.front_tire if k < 2 else config.rear_tire, config.tyre_radius, config.tyre_width, config.wheel_inertia)
 		wheels.append(w)
+	drivetrain = null
 	if config.drivetrain and config.engine:
 		drivetrain = Drivetrain.new()
 		drivetrain.setup(config.drivetrain, config.engine)
-	telemetry = get_node_or_null("Telemetry")
-	if telemetry == null:
-		telemetry = Telemetry.new()
-		telemetry.name = "Telemetry"
-		add_child(telemetry)
-	telemetry.car = self
-	telemetry.visible = show_telemetry
 	var loads: Array = config.static_loads(_gravity())
 	_static_comp = [RallyWheel.Suspension.static_compression(config.front_suspension, loads[0]),
 		RallyWheel.Suspension.static_compression(config.rear_suspension, loads[1])]
 	_build_body_model()
-	if not setup.is_empty():
-		apply_setup(setup)
+	set_outside(_outside)
 
 
 func _box(n: String, size: Vector3, at: Vector3) -> void:
-	var cs := CollisionShape3D.new()
-	cs.name = n
+	var cs := get_node_or_null(n) as CollisionShape3D
+	if cs == null:
+		cs = CollisionShape3D.new()
+		cs.name = n
+		add_child(cs)
 	var b := BoxShape3D.new()
 	b.size = size
 	cs.shape = b
 	cs.position = at
-	add_child(cs)
 
 
 ## The outside of the car, from the Higgsfield model cut into parts by
 ## tools/split_car.gd: the body, four wheels (turn, spin, ride the springs) and
 ## four mud flaps (swing). Only drawn when a camera is outside the car (the
 ## cockpit is the inside). Model units: x = back, y = up, z = left.
+## A car with a model of its own: _build_own_model.
 func _build_body_model() -> void:
-	if not ResourceLoader.exists(PARTS + "body.res") or get_node_or_null("CarMesh"):
+	if body_model:
+		remove_child(body_model)
+		body_model.queue_free()
+		body_model = null
+	_model_wheels.clear()
+	_flaps.clear()
+	if get_node_or_null("CarMesh"):
 		return
+	if model_id != "" and _build_own_model():
+		return
+	if not ResourceLoader.exists(PARTS + "body.res"):
+		return
+	_model_scale = MODEL_SCALE
 	var info = JSON.parse_string(FileAccess.get_file_as_string(PARTS + "parts.json"))
 	body_model = Node3D.new()
 	body_model.name = "BodyModel"
 	body_model.rotation.y = -PI / 2.0                    # the model's nose points down -X
 	body_model.scale = Vector3.ONE * MODEL_SCALE          # its 1.9 units long -> 3.7 m
 	# its tyres on the ground with the car standing still, centred between the axles
-	var ground: float = (config.front_suspension.travel + config.rear_suspension.travel) * 0.5 \
-		- (_static_comp[0] + _static_comp[1]) * 0.5 + config.tyre_radius - config.mount_height
-	body_model.position = Vector3(0.0, 0.205 + MODEL_GROUND - ground, (config.front_axle + config.rear_axle) * 0.5)
+	body_model.position = Vector3(0.0, 0.205 + MODEL_GROUND - _ground(), (config.front_axle + config.rear_axle) * 0.5)
 	body_model.visible = false
 	add_child(body_model)
 	var body := MeshInstance3D.new()
@@ -253,16 +284,86 @@ func _build_body_model() -> void:
 		_flaps.append([hinge, 0.0, 0.0])                 # node, angle, angular speed
 
 
+## The car's own model (assets/models/cars/<id>/: tools/import_car.py): in m,
+## -z forward, its origin on the ground midway between its axles, which are
+## where the physics wheels are (CarSpecs). Its Body; each corner's Wheel_..
+## (turns, rolls round x, rides the spring) and Caliper_.. (turns, rides).
+func _build_own_model() -> bool:
+	var path := CarSpecs.MODELS + model_id + "/" + model_id + ".glb"
+	if not ResourceLoader.exists(path):
+		return false
+	_model_scale = 1.0
+	_model_info = CarSpecs.parts(model_id)
+	var src: Node = (load(path) as PackedScene).instantiate()
+	body_model = Node3D.new()
+	body_model.name = "BodyModel"
+	body_model.position = Vector3(0.0, -_ground(), 0.0)
+	body_model.visible = false
+	add_child(body_model)
+	_unown(src, src)
+	var body := src.find_child("Body", true, false) as Node3D
+	if body:
+		body.get_parent().remove_child(body)
+		body.transform = Transform3D.IDENTITY
+		body.name = "Body"
+		body_model.add_child(body)
+	for k in 4:
+		var w := src.find_child("Wheel_" + NAMES[k], true, false) as Node3D
+		var pivot := Node3D.new()                        # moves with the spring, turns with the steering
+		pivot.position = w.position if w else config.mounts()[k]
+		body_model.add_child(pivot)
+		var spinner := Node3D.new()                      # rolls
+		pivot.add_child(spinner)
+		if w:
+			w.get_parent().remove_child(w)
+			w.transform = Transform3D.IDENTITY
+			spinner.add_child(w)
+		var cal := src.find_child("Caliper_" + NAMES[k], true, false) as Node3D
+		if cal:
+			cal.get_parent().remove_child(cal)
+			cal.transform = Transform3D.IDENTITY
+			pivot.add_child(cal)
+		_model_wheels.append([pivot, spinner, pivot.position])
+	src.free()
+	return true
+
+
+func _unown(n: Node, scene: Node) -> void:
+	for ch in n.get_children():
+		if ch.owner == scene:
+			ch.owner = null
+		_unown(ch, scene)
+
+
+## How far below the car's origin its tyres touch the ground, standing still (m).
+func _ground() -> float:
+	return (config.front_suspension.travel + config.rear_suspension.travel) * 0.5 \
+		- (_static_comp[0] + _static_comp[1]) * 0.5 + config.tyre_radius - config.mount_height
+
+
 ## The car from the garage (Catalog.setup): how it drives (x the base car's power,
 ## grip and brakes; the share of the drive to the front) and how it looks outside
-## (Livery: paint, number, wheels).
-func apply_setup(s: Dictionary) -> void:
+## (Livery: paint, number, wheels). A car with a model of its own ("model":
+## CarSpecs) brings its own numbers and body: a different one from the car's
+## now swaps them (true: it did; put the car down again).
+func apply_setup(s: Dictionary) -> bool:
 	setup = s
 	power_mult = float(s.get("power", 1.0))
 	grip_mult = float(s.get("grip", 1.0))
 	brake_mult = float(s.get("brakes", 1.0))
 	if config == null or not is_node_ready():
-		return                                         # (_ready applies it)
+		return false                                   # (_ready applies it)
+	var swapped := false
+	var want := str(s.get("model", ""))
+	if want != model_id and not _fixed_config:
+		model_id = want
+		config = CarSpecs.config(model_id)
+		_own_config = false
+		_base_parts = {}
+		tyre_kind = ""
+		setup_kind = ""
+		_configure()
+		swapped = true
 	if not _own_config:
 		# this car's own numbers from now on (the profile is shared by every car)
 		config = config.duplicate(true)
@@ -280,7 +381,17 @@ func apply_setup(s: Dictionary) -> void:
 	_tune(str(s.get("tyre", "gravel")), str(s.get("preset", "gravel")))
 	for k in 4:
 		wheels[k].surface_mu = lane_mu[k] * grip_mult
-	if body_model:
+	if body_model and model_id != "":
+		var body := body_model.get_node_or_null("Body") as MeshInstance3D
+		var spun: Array = []
+		for mw in _model_wheels:
+			if (mw[1] as Node3D).get_child_count() > 0:
+				spun.append((mw[1] as Node3D).get_child(0))
+		for i in (body.mesh.get_surface_count() if body else 0):
+			var m := body.mesh.surface_get_material(i)
+			if m and m.resource_name == "paint":
+				Livery.paint_model(body, i, spun, s, self, _model_info)
+	elif body_model:
 		Livery.paint(body_model.get_child(0), [], s, self)
 		var rim := StandardMaterial3D.new()             # the rims take the wheel colour
 		rim.albedo_color = s.get("wheel_colour", Color(0.72, 0.73, 0.75))
@@ -289,6 +400,7 @@ func apply_setup(s: Dictionary) -> void:
 		rim.cull_mode = BaseMaterial3D.CULL_DISABLED
 		for mw in _model_wheels:
 			((mw[1] as Node3D).get_child(0) as MeshInstance3D).set_surface_override_material(1, rim)
+	return swapped
 
 
 ## The tyres and the setup (the garage's SETUP tab; "auto" is settled by the game
@@ -381,6 +493,7 @@ func ride_height() -> float:
 
 ## A camera outside the car: draw the body model (its own wheels), not the plain tyres.
 func set_outside(on: bool) -> void:
+	_outside = on
 	if body_model == null:
 		return
 	body_model.visible = on
@@ -761,12 +874,15 @@ func _process(dt: float) -> void:
 		return
 	# the model's wheels: up and down with the spring (it was modelled sitting at its
 	# static squash), turned by the steering, rolling (its axle is the model's z)
-	for k in 4:
+	for k in _model_wheels.size():
 		var mw: Array = _model_wheels[k]
 		var rest_at: Vector3 = mw[2]
-		mw[0].position.y = rest_at.y + (comp[k] - _static_comp[0 if k < 2 else 1]) / MODEL_SCALE
+		mw[0].position.y = rest_at.y + (comp[k] - _static_comp[0 if k < 2 else 1]) / _model_scale
 		mw[0].rotation.y = -wheel_angles[k] if k < 2 else 0.0
-		mw[1].rotation.z = wheels[k].spin
+		if model_id != "":
+			mw[1].rotation.x = -wheels[k].spin              # (a model of its own: its axle is x)
+		else:
+			mw[1].rotation.z = wheels[k].spin
 
 
 ## The mud flaps: hanging pendulums. Speed blows them back, braking swings them
@@ -790,10 +906,13 @@ func _flaps_swing(dt: float) -> void:
 		(f[0] as Node3D).rotation.z = ang
 
 
-## The CarConfig, the default profile if none was given (place() can come before _ready).
+## The CarConfig: the setup's car's (CarSpecs; the default profile for the
+## Higgsfield cars) if none was given (place() can come before _ready).
 func _load_config() -> void:
 	if config == null:
-		config = load(DEFAULT_CONFIG)
+		model_id = str(setup.get("model", ""))
+		config = CarSpecs.config(model_id)
+		_config_from_setup = true
 
 
 func _gravity() -> float:

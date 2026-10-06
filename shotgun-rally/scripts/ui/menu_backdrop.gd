@@ -67,11 +67,10 @@ func _build() -> void:
 		return
 	car = RallyCar.new()
 	car.name = "MenuCar"
+	car.setup = _setup
 	add_child(car)
 	car.set_simulating(true)
 	car.set_outside(true)
-	if not _setup.is_empty():
-		car.apply_setup(_setup)
 	var fx = DriftFx.new()
 	fx.car = car
 	car.add_child(fx)
@@ -81,7 +80,10 @@ func _build() -> void:
 		if run.x > st.START_S + 150.0:
 			_park_s = (run.x + run.y) * 0.5
 			break
-	_restart()
+	if showroom:                                  # (the garage opened before the car was built)
+		car.place(st.world_at(_park_s, 0.0), st.heading_at(_park_s))
+	else:
+		_restart()
 	built = true
 	_next_shot()
 	ready_to_show.emit()
@@ -90,8 +92,11 @@ func _build() -> void:
 ## Paint the car (the garage calls this as you shop): a Catalog.setup.
 func show_car(setup: Dictionary) -> void:
 	_setup = setup
-	if car:
-		car.apply_setup(setup)
+	if car and car.apply_setup(setup):              # another car: its own body and wheels, put down again
+		if showroom:
+			car.place(st.world_at(_park_s, 0.0), st.heading_at(_park_s))
+		else:
+			_restart()
 
 
 ## Garage: park and circle the car; home: back to racing.
@@ -124,8 +129,8 @@ func _physics_process(dt: float) -> void:
 	var at: Dictionary = st.locate(car.global_position, _hint)
 	_hint = at.i
 	car.set_lanes(st, at.s, at.d)
-	if showroom:
-		car.inp = {"steer": 0.0, "throttle": 0.0, "brake": 1.0, "handbrake": false}
+	if showroom:                                  # parked (the handbrake too: a held brake alone picks reverse)
+		car.inp = {"steer": 0.0, "throttle": 0.0, "brake": 1.0, "handbrake": true}
 		return
 	car.inp = _ap.drive(car, at.s, at.d)
 	# round again from the start at the end of the road, or if it ever gets stuck / rolls

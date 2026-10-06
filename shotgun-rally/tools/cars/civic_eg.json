@@ -1,0 +1,196 @@
+{
+ "id": "civic_eg",
+ "front": "-Y",
+ "wheelbase": 2.57,
+ "wheel": [
+  "^Plane\\.0(08|36|37|38)$",
+  "^Plane\\.131$"
+ ],
+ "drop_mats": [
+  "Honda_Logo",
+  "Honda_Rim_Logo",
+  "Nameplate",
+  "VTEC",
+  "^SiR$",
+  "^Civic$",
+  "^Material\\.036$"
+ ],
+ "paint": [
+  "^Body Paint"
+ ],
+ "glass": [
+  "^Windshield$",
+  "^Window ",
+  "^Rear Windshield$"
+ ],
+ "rims": [
+  "^Rim_[FR]$"
+ ],
+ "materials": [
+  [
+   "^Windshield$",
+   "glass"
+  ],
+  [
+   "^Window ",
+   "glass"
+  ],
+  [
+   "^Rear Windshield$",
+   "glass"
+  ],
+  [
+   "WA$",
+   "black"
+  ],
+  [
+   "WE$",
+   "rubber"
+  ],
+  [
+   "^WND-E$",
+   "rubber"
+  ],
+  [
+   "^UND",
+   "black"
+  ],
+  [
+   "^WW-",
+   "black"
+  ],
+  [
+   "^Interior$",
+   "interior"
+  ],
+  [
+   "^TL-BP$",
+   "black"
+  ],
+  [
+   "^BR-LG$",
+   "red_lens"
+  ],
+  [
+   "^SP-LG$",
+   "red_lens"
+  ],
+  [
+   "^IND-R-LG$",
+   "amber_lens"
+  ],
+  [
+   "^IND-R-LG-BL$",
+   "amber_lens"
+  ],
+  [
+   "^RV-LG$",
+   "clear_lens"
+  ],
+  [
+   "^TL-BP-P",
+   "chrome"
+  ],
+  [
+   "^KY-HL",
+   "black"
+  ],
+  [
+   "^F-BR-BG",
+   "black"
+  ],
+  [
+   "^HDL",
+   "clear_lens"
+  ],
+  [
+   "^Material\\.00[3478]$",
+   "chrome"
+  ],
+  [
+   "^Material\\.006$",
+   "clear_lens"
+  ],
+  [
+   "^IND-F$",
+   "amber_lens"
+  ],
+  [
+   "^F-IND-N$",
+   "amber_lens"
+  ],
+  [
+   "^IND_F_BL",
+   "amber_lens"
+  ],
+  [
+   "^IND-F-FD",
+   "amber_lens"
+  ],
+  [
+   "^Side-Br$",
+   {
+    "look": "black",
+    "color": [
+     0.06,
+     0.06,
+     0.065
+    ]
+   }
+  ],
+  [
+   "^SD-Mirror$",
+   "chrome"
+  ],
+  [
+   "^Hd_PL-P$",
+   "black"
+  ],
+  [
+   "^Hd-E$",
+   "black"
+  ],
+  [
+   "^Wipers$",
+   "black"
+  ],
+  [
+   "^EXH$",
+   "dark_metal"
+  ],
+  [
+   "^MFL$",
+   "dark_metal"
+  ],
+  [
+   "^Material\\.001$",
+   "black"
+  ],
+  [
+   "^RVW-Mirror$",
+   "chrome"
+  ],
+  [
+   "^RVW-Mirror-BP$",
+   "black"
+  ],
+  [
+   "^Rim_[FR]$",
+   "rim"
+  ],
+  [
+   "^DOHC_DCL$",
+   {
+    "color": [
+     0.9,
+     0.9,
+     0.9
+    ],
+    "texture": "DOHC_DCL.png",
+    "alpha_from_texture": true
+   }
+  ]
+ ],
+ "wheel_faces": 3500,
+ "body_faces": 45000
+}

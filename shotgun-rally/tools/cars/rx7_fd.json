@@ -1,0 +1,47 @@
+{
+ "id": "rx7_fd",
+ "front": "-Y",
+ "wheelbase": 2.425,
+ "wheel": [
+  "^Circle\\.0(08|09|10|11)$"
+ ],
+ "paint": [
+  "^Material\\.007$"
+ ],
+ "glass": [
+  "^Material\\.003$"
+ ],
+ "rims": [
+  "^Material\\.014$"
+ ],
+ "wheel_faces": 3500,
+ "body_faces": 45000,
+ "drop_boxes": [
+  {
+   "box": [
+    -0.13,
+    0.13,
+    1.6,
+    2.4,
+    0.55,
+    0.82
+   ],
+   "mats": [
+    "^Material\\.009$"
+   ]
+  },
+  {
+   "box": [
+    -0.46,
+    0.46,
+    -2.4,
+    -1.6,
+    0.62,
+    0.88
+   ],
+   "mats": [
+    "^Material\\.009$"
+   ]
+  }
+ ]
+}

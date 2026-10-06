@@ -1,0 +1,123 @@
+{
+ "id": "e30",
+ "front": "-Y",
+ "wheelbase": 2.562,
+ "wheel": [
+  "^[FR][LR]wheel"
+ ],
+ "caliper": [
+  "^[FR][LR]brake"
+ ],
+ "drop": [
+  "BMW_logo",
+  "M3_logo"
+ ],
+ "paint": [
+  "^Material\\.001$"
+ ],
+ "glass": [
+  "^Material\\.005$"
+ ],
+ "rims": [
+  "^Material\\.009$"
+ ],
+ "materials": [
+  [
+   "^Material\\.011$",
+   "red_lens"
+  ],
+  [
+   "^Material\\.014$",
+   "black"
+  ],
+  [
+   "^Material\\.005$",
+   "glass"
+  ],
+  [
+   "^Material\\.002$",
+   "black"
+  ],
+  [
+   "^Material\\.007$",
+   "black"
+  ],
+  [
+   "^Material\\.009$",
+   "rim"
+  ],
+  [
+   "^Material\\.016$",
+   "silver"
+  ],
+  [
+   "^rubber",
+   "rubber"
+  ],
+  [
+   "^Material\\.012$",
+   "chrome"
+  ],
+  [
+   "^brake_disc$",
+   "dark_metal"
+  ],
+  [
+   "^brake_disc1$",
+   "dark_metal"
+  ],
+  [
+   "^interior$",
+   "interior"
+  ],
+  [
+   "^nothing",
+   "black"
+  ],
+  [
+   "^Material\\.015$",
+   "amber_lens"
+  ],
+  [
+   "^Material\\.017$",
+   "chrome"
+  ],
+  [
+   "^Material$",
+   "clear_lens"
+  ],
+  [
+   "^Material\\.013$",
+   "chrome"
+  ],
+  [
+   "^Material\\.003$",
+   "white"
+  ],
+  [
+   "^Material\\.022$",
+   {
+    "look": "clear_lens",
+    "color": [
+     0.95,
+     0.85,
+     0.4
+    ]
+   }
+  ],
+  [
+   "^Material\\.024$",
+   "white"
+  ],
+  [
+   "^Material\\.025$",
+   "clear_lens"
+  ],
+  [
+   "^Material\\.026$",
+   "dark_metal"
+  ]
+ ],
+ "wheel_faces": 3500,
+ "body_faces": 45000
+}

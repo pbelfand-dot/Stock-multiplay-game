@@ -1,0 +1,25 @@
+{
+ "id": "rx7_fc",
+ "front": "-Y",
+ "wheelbase": 2.43,
+ "wheel": [
+  "^Circle\\.00[1-4]$"
+ ],
+ "drop": [
+  "^Plane$"
+ ],
+ "paint": [
+  "^Material$"
+ ],
+ "glass": [
+  "^Material\\.002$"
+ ],
+ "rims": [
+  "^Material\\.005$"
+ ],
+ "wheel_faces": 3500,
+ "body_faces": 45000,
+ "drop_mats": [
+  "^Material\\.021$"
+ ]
+}

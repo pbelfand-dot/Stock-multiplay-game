@@ -23,7 +23,9 @@ extends RefCounted
 ##          up to their torque
 ##        * pulling the handbrake lets the rear axle go (a clutch in the drive to
 ##          it, as on a Rally2 car): the gearbox then drives the fronts, and the
-##          rears only through that clutch, slipping; let go, it bites again
+##          rears only through that clutch, slipping; let go, it bites again.
+##          A road car's driven rear axle has no such clutch: the clutch pedal
+##          goes down instead while the handbrake's on (control())
 ##   So an open diff losing drive to a wheel in the air, a locked centre diff
 ##   pushing the car straight on, an LSD's power-on bite: none of it is
 ##   scripted, it's the couplings and the tyres.
@@ -170,6 +172,8 @@ func control(dt: float, pedal: float, wheels: Array, launch := -1.0) -> void:
 		# cuts the throttle the clutch passes on the smaller torque instead of grabbing.
 		var made: float = EngineModel.torque(eng, r, throttle, boost) - EngineModel.friction(eng, r, throttle)
 		clutch = clampf((maxf(made, 0.0) + LAUNCH_GAIN * (r - hold)) / cfg.clutch_torque, 0.0, 1.0)
+	if not cfg.handbrake_disconnects_rear and handbrake > 0.25 and cfg.front_share < 1.0:
+		clutch = 0.0                                 # no rally handbrake clutch: the left foot dips the clutch instead
 	if cfg.auto_shift and not shifting() and gear >= 1:
 		if r > cfg.upshift_rpm and gear < gears():
 			shift_up()

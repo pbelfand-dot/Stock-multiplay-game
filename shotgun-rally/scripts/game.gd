@@ -123,6 +123,7 @@ func start(seed_in: int, stage_in: int, o := {}) -> void:
 		return
 	car = RallyCar.new()
 	car.name = "Car"
+	car.setup = Catalog.for_stage(Net.car_setup(), st)   # (built as the driver's car from the start: its own body and numbers)
 	add_child(car)
 	_start_pos = st.world_at(st.START_S - 3.0, 0.0)
 	car.place(_start_pos, st.heading_at(st.START_S))
@@ -166,7 +167,8 @@ func _apply_roster() -> void:
 	my_seat = Net.my_seat()
 	var driver_here: bool = my_seat == "driver"
 	var setup := Catalog.for_stage(Net.car_setup(), st)   # the driver's car from their garage, its tyres for this stage
-	car.apply_setup(setup)
+	if car.apply_setup(setup) and state == "grid":     # another car (a new driver's): put it down again
+		car.place(_start_pos, st.heading_at(st.START_S))
 	cockpit.set_paint(setup.colours[0])
 	car.set_simulating(driver_here)
 	cam.attach(car, my_seat, Cockpit.EYE_DRIVER if driver_here else Cockpit.EYE_CODRIVER)
