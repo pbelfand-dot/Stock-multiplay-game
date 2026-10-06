@@ -2,7 +2,8 @@ extends SceneTree
 ## The road's edges: slide off and you can save it.
 ##   * the ground: rays down every few metres along two stages, from the road's
 ##     edge out to 6 m past it, both sides: it's flush with the edge (no ditch to
-##     drop a wheel in, no bank to trip on) and no step between samples
+##     drop a wheel in, no bank to trip on) and no step between samples (but at
+##     a bridge: its gully is meant to be there, and its rails stop you)
 ##   * no tree trunk within 4.5 m of the road's edge (the wall stands back)
 ##   * running wide: the car goes off the road at 70 km/h, 10 and 15 deg out,
 ##     sliding; after 0.4 s the "driver" gently steers back: at 10 deg (a drift
@@ -80,6 +81,9 @@ func _scan(seed_value: int) -> void:
 	var step_at := ""
 	var s: float = _st.START_S + 20.0
 	while s < _st.finish_s:
+		if _st.on_bridge(s, 8.0):                    # (a bridge's rails are what stop you there)
+			s += 6.0
+			continue
 		var half: float = _st.width_at(s) * 0.5
 		var edge_y: float = _st.world_at(s, half).y
 		for side in [-1.0, 1.0]:
@@ -105,10 +109,9 @@ func _scan(seed_value: int) -> void:
 	fails += _check(worst_step < MAX_STEP, "seed %d: no step in it (worst %.3f m in 0.5 m, %s)" % [seed_value, worst_step, step_at])
 
 
-## Trees and the "don't cut" rocks on the inside of some corners are things to
-## hit, not the ground (the rocks are meant to be there: the co-driver warns you).
+## Trees are things to hit, not the ground.
 func _is_obstacle(o: Object) -> bool:
-	return o is Node and (o as Node).name in ["Trunks", "Rocks"]
+	return o is Node and (o as Node).name in ["Trunks"]
 
 
 func _trees(seed_value: int) -> void:
@@ -129,7 +132,7 @@ func _start_slides() -> void:
 	_car = RallyCar.new()
 	root.add_child(_car)
 	_ap = Autopilot.new(_st)
-	var runs: Array = _st._straight_runs(60.0)
+	var runs: Array = _st._straight_runs(60.0).filter(func(r): return not _st.on_bridge((r.x + r.y) * 0.5, 40.0))   # (not at a bridge: its rails stop you)
 	for k in mini(runs.size(), 3):
 		for side in [-1.0, 1.0]:
 			_runs.append({"s": (runs[k].x + runs[k].y) * 0.5, "side": side, "deg": 10.0 if k % 2 == 0 else 15.0})

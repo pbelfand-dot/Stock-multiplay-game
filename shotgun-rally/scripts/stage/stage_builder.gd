@@ -1,12 +1,12 @@
 extends Node3D
 ## Turns a StageGen into the world: the gravel road (crowned, with two worn
-## wheel tracks, loose stones on the crown and out toward the edges where the
+## wheel tracks, looser gravel on the crown and out toward the edges where the
 ## grip is worse (StageGen.lane_grip), berms of thrown-out gravel on the outside
 ## of the bends), spectators behind tape at the jumps, the start and finish and
 ## some slow corners, flat grass run-off then rolling ground out to ~75 m, a low-poly
 ## forest that crowds the INSIDE of corners (so you can't see round them:
-## that's what the notes are for), rocks on the inside of "don't cut" corners,
-## mud puddles, the start / finish arches, and the sky and sun.
+## that's what the notes are for), mud puddles, wooden bridges over gullies with
+## a stream in them, the start / finish arches, and the sky and sun.
 ## Every surface the tyres can touch says what it is (meta "surface").
 
 const MeshBuf = preload("res://scripts/stage/mesh_buf.gd")
@@ -73,8 +73,8 @@ func build_async(stage, report: Callable) -> void:
 
 const STEPS := [["_environment", "Checking the weather"], ["_mountains", "Raising the mountains"], ["_road", "Grading the gravel road"],
 	["_ground", "Shaping the hills"], ["_base", "Shaping the hills"],
-	["_spectators", "Letting the spectators in"], ["_forest", "Planting ten thousand trees"], ["_rocks", "Rolling rocks onto the inside of the bends"],
-	["_puddles", "Filling the puddles"], ["_loose_stones", "Raking out the loose gravel"],
+	["_spectators", "Letting the spectators in"], ["_forest", "Planting ten thousand trees"],
+	["_puddles", "Filling the puddles"], ["_bridges", "Building the bridges"],
 	["_arches", "Putting up the start and finish"]]
 
 
@@ -88,6 +88,11 @@ func _prepare(stage) -> void:
 		if not _road_grid.has(key):
 			_road_grid[key] = []
 		_road_grid[key].append(i)
+	for b in st.bridges:                             # no trees down in a bridge's gully
+		var mid: float = (b.s0 + b.s1) * 0.5
+		for d in range(-60, 61, 12):
+			var p: Vector3 = st.world_at(mid, d)
+			_clearings.append([Vector2(p.x, p.z), 14.0])
 
 
 # ── road ──────────────────────────────────────────────────────────────────
@@ -105,7 +110,7 @@ func _road() -> void:
 		var half: float = st.widths[i] * 0.5
 		for x in _road_x(half):
 			row.append(c + r * x[0] + Vector3.UP * (x[1] + _berm_lift(berm, x[0], half)))
-		if not prev.is_empty():
+		if not prev.is_empty() and not st.on_bridge(s - st.STEP * 0.5):   # (a bridge's deck is the road there)
 			var shade := 0.94 + 0.06 * sin(s * 0.37) * cos(s * 0.11)
 			for k in ROAD_X.size() - 1:
 				var col: Color = ROAD_X[k][2] * shade
@@ -151,59 +156,6 @@ static func _road_x(half: float) -> Array:
 			d += signf(d) * (half - 2.8)
 		out.append([d, x[1], x[2]])
 	return out
-
-
-## Loose stones where the grip is worse: out toward the edges (thickest in the
-## berms) and a few on the crown between the wheel tracks. Never in the tracks.
-## In chunks of road, each drawn only when the camera is near (they're small).
-func _loose_stones() -> void:
-	var rock := SphereMesh.new()
-	rock.radius = 0.5
-	rock.height = 0.7
-	rock.radial_segments = 5
-	rock.rings = 1
-	var m := StandardMaterial3D.new()
-	m.vertex_color_use_as_albedo = true
-	m.roughness = 1.0
-	rock.material = m
-	var shades := [Color(0.42, 0.4, 0.38), Color(0.5, 0.45, 0.39), Color(0.35, 0.33, 0.32), Color(0.56, 0.5, 0.41)]
-	var per_chunk := int(CHUNK / st.STEP)
-	for c0 in range(0, st.pts.size(), per_chunk):
-		var xfs: Array = []
-		var cols: Array = []
-		for i in range(c0, mini(c0 + per_chunk, st.pts.size())):
-			var s: float = i * st.STEP
-			var berm := _berm(i)
-			var half: float = st.widths[i] * 0.5
-			var spots: Array = []
-			for side in [-1.0, 1.0]:
-				var n_edge := 2 + _rng.randi() % 2 + (3 if berm.x == side and berm.y > 0.05 else 0)
-				for k in n_edge:
-					spots.append(side * _rng.randf_range(1.5, half + 0.05))
-			if _rng.randf() < 0.6:
-				spots.append(_rng.randf_range(-0.35, 0.35))
-			for d in spots:
-				var at: float = s + _rng.randf_range(0.0, st.STEP)
-				var p: Vector3 = st.world_at(at, d) + Vector3.UP * (_road_height(d, half) + _berm_lift(berm, d, half) + 0.01)
-				var sz := _rng.randf_range(0.07, 0.17)
-				var b := Basis(Vector3.UP, _rng.randf() * TAU).scaled(Vector3(sz, sz * 0.55, sz * _rng.randf_range(0.8, 1.3)))
-				xfs.append(Transform3D(b, p))
-				cols.append(shades[_rng.randi() % shades.size()])
-		var mm := MultiMesh.new()
-		mm.transform_format = MultiMesh.TRANSFORM_3D
-		mm.use_colors = true
-		mm.mesh = rock
-		mm.instance_count = xfs.size()
-		for i in xfs.size():
-			mm.set_instance_transform(i, xfs[i])
-			mm.set_instance_color(i, cols[i])
-		var mi := MultiMeshInstance3D.new()
-		mi.name = "LooseStones%d" % c0
-		mi.multimesh = mm
-		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		mi.visibility_range_end = 140.0
-		mi.visibility_range_end_margin = 20.0
-		add_child(mi)
 
 
 ## The road surface's height across the road (the crown and the edges), at d.
@@ -319,9 +271,13 @@ func _ground() -> void:
 	var mb := MeshBuf.new()
 	var n: int = st.pts.size()
 	var stride := 2                                     # every 4 m is plenty off the road
+	var rows: Array = []                             # every 4 m, every 2 m round a bridge (its gully)
+	for i in n:
+		if i % stride == 0 or st.on_bridge(i * st.STEP, 6.0):
+			rows.append(i)
 	for side in [-1.0, 1.0]:
 		var prev: Array = []
-		for i in range(0, n, stride):
+		for i in rows:
 			var s: float = i * st.STEP
 			var c: Vector3 = st.pts[i]
 			var r: Vector3 = st.right_at(s)
@@ -347,14 +303,17 @@ func _ground() -> void:
 				var g: Array = GROUND_X[gi]
 				var d: float = minf(g[0] + extra, maxf(reach, 3.4 + extra))
 				var p: Vector3 = c + r * (d * side)
-				var h: float = g[1] + g[2] * _noise.get_noise_2d(p.x, p.z)
+				var h: float = g[1] + g[2] * _noise.get_noise_2d(p.x, p.z) - st.gully_depth(s, d * side)
 				if berm.x == side and gi < 2:
 					h += berm.y * (0.5 if gi == 0 else 0.2)       # the berm tapers off into the grass
 				row.append(p + Vector3.UP * h)
 				var col: Color = GRASS.lerp(GRASS_FAR, clampf(d / 60.0, 0.0, 1.0))
 				col = col * (0.92 + 0.12 * _noise.get_noise_2d(p.z * 3.0, p.x * 3.0))
+				var dug: float = st.gully_depth(s, d * side)
+				if dug > 0.0:                                     # a gully's banks: earth showing, mud at the bottom
+					col = col.lerp(MUD, clampf(dug / 2.5, 0.0, 0.85))
 				col.a = 1.0
-				cols.append(col if d > 4.0 + extra else GRASS * 0.85)
+				cols.append(col if d > 4.0 + extra or st.gully_depth(s, d * side) > 0.0 else GRASS * 0.85)
 			if not prev.is_empty():
 				for k in GROUND_X.size() - 1:
 					mb.quad(prev[k], prev[k + 1], row[k + 1], row[k], cols[k], true)
@@ -371,7 +330,10 @@ func _base() -> void:
 		lo = minf(lo, p.y)
 		mn = Vector3(minf(mn.x, p.x), 0, minf(mn.z, p.z))
 		mx = Vector3(maxf(mx.x, p.x), 0, maxf(mx.z, p.z))
-	var y := lo - 1.6
+	var deepest := 0.0
+	for b in st.bridges:
+		deepest = maxf(deepest, b.depth)
+	var y := lo - maxf(1.6, deepest + 1.2)           # (below the bottom of any gully)
 	mn -= Vector3(200, 0, 200)
 	mx += Vector3(200, 0, 200)
 	var mb := MeshBuf.new()
@@ -626,30 +588,178 @@ func _blob(mb, c: Vector3, sz: Vector3, col: Color) -> void:
 		mb.tri_raw(ring_lo[k1], ring_lo[k], bot, col * 0.7)
 
 
-# ── rocks, puddles, arches ────────────────────────────────────────────────
+# ── puddles, arches ───────────────────────────────────────────────────────
 
-func _rocks() -> void:
-	var body := StaticBody3D.new()
-	body.name = "Rocks"
-	body.set_meta("surface", "gravel")
-	add_child(body)
+# ── bridges ───────────────────────────────────────────────────────────────
+
+const PLANK := 0.33                 # m of deck per plank, along the road
+const DECK_TOP := 0.05              # the deck's top above the road's centre line (level with the crown)
+const DECK_DEPTH := 0.28            # the deck's planks and joists, top to underside
+const WOOD := [Color(0.47, 0.33, 0.2), Color(0.52, 0.37, 0.22), Color(0.43, 0.3, 0.18), Color(0.55, 0.4, 0.25)]
+const TIMBER := Color(0.52, 0.38, 0.24)
+const MUD := Color(0.33, 0.27, 0.2)
+
+
+## Each bridge: a plank deck the car drives on (surface "wood") with timber wheel
+## guards along its edges, posts and two rails each side (hit them and they
+## stop you), joists and trestles with cross braces down to the gully floor,
+## the floor (mud) and the stream.
+func _bridges() -> void:
+	for bi in st.bridges.size():
+		var b: Dictionary = st.bridges[bi]
+		var deck := MeshBuf.new()
+		var frame := MeshBuf.new()
+		var floor_mb := MeshBuf.new()
+		var rails := StaticBody3D.new()
+		rails.name = "BridgeRails%d" % bi
+		rails.set_meta("surface", "wood")
+		add_child(rails)
+		# the planks
+		var s: float = b.s0
+		var k := 0
+		while s < b.s1 - 0.01:
+			var s2: float = minf(s + PLANK, b.s1)
+			var h0 := _deck_half(s)
+			var h1 := _deck_half(s2)
+			var col: Color = WOOD[k % WOOD.size()] * (0.93 + 0.14 * _rng.randf())
+			col.a = 1.0
+			deck.quad(_deck(s, -h0), _deck(s, h0), _deck(s2, h1), _deck(s2, -h1), col, true)
+			s = s2
+			k += 1
+		# along it, every 2 m: the deck's edge boards, the wheel guards, posts and rails, joists
+		var n := int(round((b.s1 - b.s0) / st.STEP))
+		for j in n + 1:
+			var sa: float = b.s0 + j * st.STEP
+			var r: Vector3 = st.right_at(sa)
+			for side in [-1.0, 1.0]:
+				var edge: Vector3 = _deck(sa, side * _deck_half(sa))
+				var post: Vector3 = edge + r * side * 0.1
+				_box(frame, post - Vector3.UP * DECK_DEPTH, post + Vector3.UP * 1.05, r, 0.13, 0.13, TIMBER)
+				if j == n:
+					continue
+				var sb: float = sa + st.STEP
+				var edge2: Vector3 = _deck(sb, side * _deck_half(sb))
+				var post2: Vector3 = edge2 + st.right_at(sb) * side * 0.1
+				_face(frame, edge, edge2, edge2 - Vector3.UP * DECK_DEPTH, edge - Vector3.UP * DECK_DEPTH, r * side, _shade(TIMBER, 0.9))
+				var guard: Vector3 = r * side * 0.12
+				_box(frame, edge - guard + Vector3.UP * 0.09, edge2 - guard + Vector3.UP * 0.09, r, 0.2, 0.18, _shade(TIMBER, 1.1))
+				for y in [0.55, 0.98]:
+					_box(frame, post + Vector3.UP * y, post2 + Vector3.UP * y, r, 0.08, 0.13, TIMBER)
+				var joist: Vector3 = r * side * 0.5
+				_box(frame, edge - joist - Vector3.UP * (DECK_DEPTH + 0.12), edge2 - joist - Vector3.UP * (DECK_DEPTH + 0.12), r, 0.2, 0.24, _shade(TIMBER, 0.8))
+				# the rail's collision: a 1 m wall along the segment, and the wheel guard
+				_wall(rails, (post + post2) * 0.5 + Vector3.UP * 0.55, post2 - post, r, 0.16, 1.0)
+				_wall(rails, (edge + edge2) * 0.5 - guard + Vector3.UP * 0.09, edge2 - edge, r, 0.2, 0.18)
+			# a trestle every 4 m where the gully is deep enough
+			if j % 2 == 1 and st.gully_depth(sa, 0.0) > 0.6:
+				var half := _deck_half(sa) - 0.5
+				var top_l := _deck(sa, -half) - Vector3.UP * (DECK_DEPTH + 0.24)
+				var top_r := _deck(sa, half) - Vector3.UP * (DECK_DEPTH + 0.24)
+				var foot_l := _gully_floor(sa, -half) - Vector3.UP * 0.3
+				var foot_r := _gully_floor(sa, half) - Vector3.UP * 0.3
+				var fwd: Vector3 = st.forward_at(sa)
+				_box(frame, foot_l, top_l, fwd, 0.22, 0.22, TIMBER)
+				_box(frame, foot_r, top_r, fwd, 0.22, 0.22, TIMBER)
+				_box(frame, top_l - r * 0.3, top_r + r * 0.3, fwd, 0.22, 0.2, _shade(TIMBER, 0.85))
+				if top_l.y - foot_l.y > 1.4:
+					_box(frame, foot_l + Vector3.UP * 0.5, top_r - Vector3.UP * 0.2, fwd, 0.09, 0.12, _shade(TIMBER, 0.75))
+					_box(frame, foot_r + Vector3.UP * 0.5, top_l - Vector3.UP * 0.2, fwd, 0.09, 0.12, _shade(TIMBER, 0.75))
+		# the gully floor under the deck (the ground's ribbons stop at the road's edges)
+		for j in n:
+			var sa: float = b.s0 + j * st.STEP
+			var sb: float = sa + st.STEP
+			var ha: float = st.width_at(sa) * 0.5 + 0.1
+			var hb: float = st.width_at(sb) * 0.5 + 0.1
+			floor_mb.quad(_gully_floor(sa, -ha), _gully_floor(sa, ha), _gully_floor(sb, hb), _gully_floor(sb, -hb), MUD, true)
+		var dm := _add(deck, "wood", "BridgeDeck%d" % bi)
+		dm.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+		_add(frame, "", "BridgeFrame%d" % bi)
+		_add(floor_mb, "mud", "GullyFloor%d" % bi)
+		_stream(b, bi)
+
+
+## The stream along the bottom of a bridge's gully: a flat sheet of water.
+func _stream(b: Dictionary, bi: int) -> void:
+	var len: float = b.s1 - b.s0
+	var sa: float = b.s0 + len * 0.28
+	var sb: float = b.s1 - len * 0.28
+	var y: float = st.point_at((b.s0 + b.s1) * 0.5).y - 0.03 - b.depth + 0.35
+	var corners: Array = []
+	for p in [st.world_at(sa, -60.0), st.world_at(sa, 60.0), st.world_at(sb, 60.0), st.world_at(sb, -60.0)]:
+		corners.append(Vector3(p.x, y, p.z))
 	var mb := MeshBuf.new()
-	for rk in st.rocks:
-		var p: Vector3 = st.world_at(rk.s, rk.d)
-		var r: float = rk.r
-		_blob(mb, p + Vector3.UP * r * 0.35, Vector3(r, r * 0.75, r * 0.9), Color(0.55, 0.54, 0.5))
-		var cs := CollisionShape3D.new()
-		var sph := SphereShape3D.new()
-		sph.radius = r * 0.85
-		cs.shape = sph
-		cs.position = p + Vector3.UP * r * 0.3
-		body.add_child(cs)
-	if not mb.is_empty():
-		var mi := MeshInstance3D.new()
-		mi.name = "RockMesh"
-		mi.mesh = mb.mesh()
-		mi.material_override = MeshBuf.material()
-		add_child(mi)
+	mb.quad(corners[0], corners[1], corners[2], corners[3], Color(0.13, 0.22, 0.22))
+	var mi := MeshInstance3D.new()
+	mi.name = "Stream%d" % bi
+	mi.mesh = mb.mesh()
+	var m := StandardMaterial3D.new()
+	m.vertex_color_use_as_albedo = true
+	m.vertex_color_is_srgb = true
+	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	m.albedo_color = Color(1, 1, 1, 0.88)
+	m.roughness = 0.12
+	m.metallic_specular = 0.6
+	mi.material_override = m
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(mi)
+
+
+## Half the deck's width at s: the road's, and a little more.
+func _deck_half(s: float) -> float:
+	return st.width_at(s) * 0.5 + 0.25
+
+
+## A point on the deck's top (road coordinates s, d).
+func _deck(s: float, d: float) -> Vector3:
+	var p: Vector3 = st.world_at(s, d)
+	return Vector3(p.x, st.point_at(s).y + DECK_TOP, p.z)
+
+
+## The gully's floor under the road (road coordinates s, d).
+func _gully_floor(s: float, d: float) -> Vector3:
+	var p: Vector3 = st.world_at(s, d)
+	return Vector3(p.x, st.point_at(s).y + GROUND_X[0][1] - st.gully_depth(s, d), p.z)
+
+
+## A box from a to b (its centre line), w wide (along `side`) and h tall.
+func _box(mb, a: Vector3, b: Vector3, side: Vector3, w: float, h: float, col: Color) -> void:
+	var along := (b - a).normalized()
+	var up := along.cross(side).normalized()
+	side = up.cross(along).normalized()
+	var hw := side * (w * 0.5)
+	var hh := up * (h * 0.5)
+	var c := [a - hw - hh, a + hw - hh, a + hw + hh, a - hw + hh, b - hw - hh, b + hw - hh, b + hw + hh, b - hw + hh]
+	_face(mb, c[1], c[5], c[6], c[2], side, col)
+	_face(mb, c[0], c[3], c[7], c[4], -side, col)
+	_face(mb, c[3], c[2], c[6], c[7], up, _shade(col, 1.08))
+	_face(mb, c[0], c[4], c[5], c[1], -up, _shade(col, 0.8))
+	_face(mb, c[0], c[1], c[2], c[3], -along, _shade(col, 0.9))
+	_face(mb, c[4], c[7], c[6], c[5], along, _shade(col, 0.9))
+
+
+## A quad facing `out` (whichever way round its corners come).
+func _face(mb, a: Vector3, b: Vector3, c: Vector3, d: Vector3, out: Vector3, col: Color) -> void:
+	if (b - a).cross(c - a).dot(out) < 0.0:
+		mb.quad(a, d, c, b, col)
+	else:
+		mb.quad(a, b, c, d, col)
+
+
+## A collision box on `body`: centred at c, `along` long (and pointing that way),
+## thick across (`side`) and tall.
+func _wall(body: StaticBody3D, c: Vector3, along: Vector3, side: Vector3, thick: float, tall: float) -> void:
+	var z := along.normalized()
+	var x := Vector3.UP.cross(z).normalized()
+	var cs := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = Vector3(thick, tall, along.length())
+	cs.shape = box
+	cs.transform = Transform3D(Basis(x, z.cross(x), z), c)
+	body.add_child(cs)
+
+
+static func _shade(col: Color, k: float) -> Color:
+	return Color(col.r * k, col.g * k, col.b * k, 1.0)
 
 
 func _puddles() -> void:

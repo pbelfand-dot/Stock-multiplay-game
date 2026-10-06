@@ -6,7 +6,7 @@ extends RefCounted
 ## when corners run together, otherwise the distance to the next note, and
 ## notes close together are read out as one call.
 ##
-## A note: {kind: "corner" | "crest" | "jump" | "water" | "finish", s, s_end,
+## A note: {kind: "corner" | "crest" | "jump" | "water" | "bridge" | "finish", s, s_end,
 ##   dir (-1 left / +1 right), grade, grade2, shape ("" | "hairpin" | "square"),
 ##   mods [...], caution, link ("" | "into" | "and"), dist (m, 0 = none)}
 ## Words are voice clip names (assets/voice/fraser/<word>.mp3).
@@ -33,6 +33,8 @@ static func build(st) -> Array:
 		if p.s - last_water > 30.0:              # a pair of puddles is one note
 			out.append({"kind": "water", "s": p.s - p.r, "s_end": p.s + p.r})
 			last_water = p.s
+	for b in st.bridges:
+		out.append({"kind": "bridge", "s": b.s0 - 4.0, "s_end": b.s1})
 	out.append({"kind": "finish", "s": st.finish_s, "s_end": st.finish_s})
 	out.sort_custom(func(a, b): return a.s < b.s)
 	# links and distances
@@ -80,6 +82,8 @@ static func words(n: Dictionary) -> Array:
 			return ["caution", "jump"] if n.get("big", false) else ["jump"]
 		"water":
 			return ["water"]
+		"bridge":
+			return ["caution"]                       # (a narrow wooden bridge: the voice has no word "bridge")
 		"finish":
 			return ["finish"]
 	var w: Array = []
@@ -130,6 +134,8 @@ static func calls(notes: Array) -> Array:
 
 ## Human-readable text of a note, for logs.
 static func text(n: Dictionary) -> String:
+	if n.kind == "bridge":
+		return " ".join(["CAUTION, BRIDGE"] + link_words(n).map(func(w): return str(w).to_upper()))
 	var parts: Array = []
 	for w in words(n) + link_words(n):
 		parts.append(String(w).replace("-", " ").to_upper().replace("DONT", "DON'T"))

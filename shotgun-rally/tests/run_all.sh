@@ -18,8 +18,8 @@ run_g() {
 }
 echo "== compile check"
 run_g 180 --headless --path . -s tests/check_scripts.gd 2>&1 | grep -E "checked|COMPILE FAIL" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
-echo "== stages: 20 seeds, deterministic, no crossings, every corner has a note"
-run_g 240 --headless --path . -s tests/stage_check.gd 2>&1 | grep -E "\[stage\] (FAIL|STAGES|words)" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
+echo "== stages: 20 seeds, deterministic, no crossings, every corner has a note, wooden bridges"
+run_g 240 --headless --path . -s tests/stage_check.gd 2>&1 | grep -E "\[stage\] (FAIL|STAGES|words|[0-9]+ wooden)" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
 echo "== car + stage: the autopilot drives whole stages, 0-100, braking, handbrake flick"
 for seed in 3 7 15; do
   run_g 360 --headless --fixed-fps 60 --path . -s tests/drive_check.gd -- --seed=$seed 2>&1 | grep -E "\[drive\] (FAIL|DRIVE|ok   finished)" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1

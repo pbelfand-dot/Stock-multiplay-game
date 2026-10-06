@@ -50,7 +50,7 @@ var finish_s := 0.0
 var corners: Array = []         # [{s0, s1, dir, r_min, r_in, r_out, ang (deg), line_r, grade, shape, mods}]
 var crests: Array = []          # [{s, h, w, jump}] (+ a jump's shape: big, up, down, a, land, u, x0, prof)
 var puddles: Array = []         # [{s, d, r}]
-var rocks: Array = []           # [{s, d, r}] on the inside of some corners: "don't cut"
+var bridges: Array = []         # [{s0, s1, depth}] wooden bridges over a gully (depth: m below the deck)
 var _rng := RandomNumberGenerator.new()
 ## Story rallies give a stage some character (set before generate(); none = an
 ## ordinary stage, exactly as before): narrow 0..1 leans the road narrow;
@@ -73,6 +73,7 @@ func generate(seed_value: int, target := 2600.0) -> void:
 	_make_elevation()
 	_find_corners()
 	_place_extras()
+	_place_bridges()
 
 
 # ── pieces ────────────────────────────────────────────────────────────────
@@ -483,11 +484,10 @@ func grade_for(line_r: float) -> int:
 	return 0
 
 
-# ── puddles and rocks ─────────────────────────────────────────────────────
+# ── puddles ───────────────────────────────────────────────────────────────
 
 func _place_extras() -> void:
 	puddles.clear()
-	rocks.clear()
 	var s := START_S + 90.0
 	while s < finish_s - 60.0:
 		var n := 1 + (1 if _rng.randf() < 0.4 else 0)
@@ -505,12 +505,83 @@ func _place_extras() -> void:
 			var pd := minf(1.6, width_at(ps) * 0.5 - 1.2)
 			puddles.append({"s": ps, "d": prng.randf_range(-pd, pd), "r": prng.randf_range(1.4, 2.4)})
 			ps += prng.randf_range(260.0, 520.0) / (more - 1.0)
+
+
+# ── bridges ───────────────────────────────────────────────────────────────
+
+const BRIDGE_GAP := 600.0       # m at least between two bridges
+
+
+## Wooden bridges over a gully with a stream in it, on straight, level road away
+## from the corners, the crests and jumps, and the start and finish: about one
+## every 1-1.5 km, 14-22 m long. Their own random numbers, so the rest of the
+## stage is the same with or without them; puddles on one are taken away.
+## opts.bridges = 0: none.
+func _place_bridges() -> void:
+	bridges.clear()
+	if float(opts.get("bridges", 1.0)) <= 0.0:
+		return
+	var brng := RandomNumberGenerator.new()
+	brng.seed = hash([seed_used, "bridges"])
+	for max_curv in [1.0 / 220.0, 1.0 / 140.0]:      # (a twisty stage with none: try again, allowing a gentle bend)
+		var s := START_S + 200.0 + brng.randf_range(0.0, 250.0)
+		while s < finish_s - 200.0:
+			s = snappedf(s, STEP)                    # (its ends on the road's samples: the road stops exactly where it starts)
+			var span := snappedf(brng.randf_range(14.0, 22.0), STEP)
+			if _bridge_fits(s, span, max_curv):
+				bridges.append({"s0": s, "s1": s + span, "depth": brng.randf_range(2.8, 4.0)})
+				s += span + BRIDGE_GAP + brng.randf_range(0.0, 500.0)
+			else:
+				s += 6.0
+		if not bridges.is_empty():
+			break
+	puddles = puddles.filter(func(p): return not on_bridge(p.s, p.r + 8.0))
+
+
+## Can a bridge go from s for `span` m? Straight (or nearly: no more curvature
+## than max_curv) from 10 m before it to 10 m after, level, not on a corner, a
+## crest or a jump (or their run-up and landing).
+func _bridge_fits(s: float, span: float, max_curv: float) -> bool:
+	var a := s - 10.0
+	var b := s + span + 10.0
+	for i in range(int(a / STEP), int(b / STEP) + 2):
+		if i < 0 or i >= curv.size() or absf(curv[i]) > max_curv:
+			return false
 	for c in corners:
-		if (c.grade <= 4 or c.shape != "") and _rng.randf() < 0.45:
-			var apex: float = (c.s0 + c.s1) * 0.5
-			var rr := _rng.randf_range(0.55, 0.85)
-			rocks.append({"s": apex, "d": c.dir * (width_at(apex) * 0.5 + 0.5 + rr), "r": rr})   # just off the inside edge
-			c.mods.append("dont-cut")
+		if c.s1 > a and c.s0 < b:
+			return false
+	for c in crests:
+		var lo: float = c.s - c.w * 0.5 - 15.0
+		var hi: float = c.s + c.w * 0.8 + 15.0
+		if c.jump:
+			lo = c.s + c.x0 - 25.0
+			hi = c.s + c.x0 + c.prof.size() + 25.0
+		if hi > a and lo < b:
+			return false
+	return absf(point_at(s + span).y - point_at(s).y) < span * 0.03
+
+
+## The bridge at s (within `margin` m of it), or an empty Dictionary.
+func bridge_at(s: float, margin := 0.0) -> Dictionary:
+	for b in bridges:
+		if s >= b.s0 - margin and s <= b.s1 + margin:
+			return b
+	return {}
+
+
+func on_bridge(s: float, margin := 0.0) -> bool:
+	return not bridge_at(s, margin).is_empty()
+
+
+## How far the ground is dug down at road coordinates (s, d) for a bridge's gully
+## (m): deepest under the middle of the bridge, banks under its ends, closing in
+## 35-70 m out to each side.
+func gully_depth(s: float, d: float) -> float:
+	var b := bridge_at(s)
+	if b.is_empty():
+		return 0.0
+	var u: float = (s - b.s0) / (b.s1 - b.s0)
+	return b.depth * smoothstep(0.0, 0.3, u) * smoothstep(0.0, 0.3, 1.0 - u) * (1.0 - smoothstep(35.0, 70.0, absf(d)))
 
 
 # ── queries ───────────────────────────────────────────────────────────────

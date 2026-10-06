@@ -69,10 +69,10 @@ const KEY_ON := 6.0                # keys: steering builds this fast (full in ~0
 const KEY_OFF := 8.0               # ... and comes back this fast
 ## Tyres. Peak slip angle (rad) per surface: on loose gravel the tyre plows a
 ## little bank of stones, so it peaks later and fades more gently than on tarmac.
-const PEAK := {"gravel": 0.14, "dirt": 0.14, "grass": 0.17, "mud": 0.19, "tarmac": 0.1}
+const PEAK := {"gravel": 0.14, "dirt": 0.14, "grass": 0.17, "mud": 0.19, "tarmac": 0.1, "wood": 0.11}
 const SLIP_PEAK := 0.14            # gravel (the autopilot and the HUD use it)
 const SHAPE_C := 1.35              # Magic Formula C: past the peak it fades slowly (94 % at 3x the peak, 85 % at most)
-const GRIP := {"gravel": 1.1, "dirt": 1.05, "grass": 0.7, "mud": 0.55, "tarmac": 1.25}
+const GRIP := {"gravel": 1.1, "dirt": 1.05, "grass": 0.7, "mud": 0.55, "tarmac": 1.25, "wood": 1.0}   # (wood: a bridge's planks)
 const LOAD_SENS := 0.15            # mu drops 15 % per extra static load (a loaded tyre grips less per newton)
 const RELAX := 0.4                 # m: a tyre rolls this far before its side force catches up with a new slip angle
 ## Wheels: each has its own spin, so they can spin up under power and lock under
@@ -80,7 +80,7 @@ const RELAX := 0.4                 # m: a tyre rolls this far before its side fo
 ## (wheel speed vs ground speed) a bit higher on loose stuff, like the side grip
 const WHEEL_I := 1.3               # kg m^2: a wheel, its tyre and its share of the driveline
 const LOCKED_MU := 0.82            # a locked tyre (handbrake, or the brakes) slides at this much of its grip
-const SLIP_X_PEAK := {"gravel": 0.18, "dirt": 0.18, "grass": 0.22, "mud": 0.26, "tarmac": 0.1}
+const SLIP_X_PEAK := {"gravel": 0.18, "dirt": 0.18, "grass": 0.22, "mud": 0.26, "tarmac": 0.1, "wood": 0.12}
 const SLIP_V_MIN := 3.0            # m/s: slip ratio is measured against at least this (steady when slow)
 const DIFF_LOCK := 0.2            # limited-slip diffs: how hard the two wheels on an axle are tied (per tick,
 const CENTRE_LOCK := 0.3           # ... and the axles to each other) on full power. Like 1-way diffs they lock

@@ -17,7 +17,7 @@ const TIPS := [
 	"Moving before the green is a jump start: +10 seconds.",
 	"Driver: press C (right stick click) for the chase camera.",
 	"Stuck? R puts you back on the road for a 5-second penalty.",
-	"\"Don't cut\": there are rocks on the inside of that corner.",
+	"\"Tightens\": the corner gets slower as you go. Don't commit to the entry speed.",
 ]
 
 var _bar: ProgressBar

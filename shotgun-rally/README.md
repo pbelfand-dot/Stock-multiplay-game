@@ -21,7 +21,8 @@ No friend online? The **AI co-driver** takes the seat.
 | ![Handbrake: the right hand leaves the wheel and yanks the lever](docs/screens/handbrake.jpg) | ![The loading screen](docs/screens/loading.jpg) |
 | ![Drift dirt: lumpy dust clouds and a ribbon of gravel off the tyres](docs/screens/drift.jpg) | ![The dust rolling past the side window](docs/screens/drift_window.jpg) |
 | ![A big jump: off the brow at 120 km/h, the landing slope ahead](docs/screens/jump.jpg) | ![The same jump from the chase camera, 1.4 m up](docs/screens/jump_chase.jpg) |
-| ![A narrow, technical section (4.6 m): two worn wheel tracks, loose stones at the edges](docs/screens/road_narrow.jpg) | ![A wide, fast section (6.8 m)](docs/screens/road_wide.jpg) |
+| ![A narrow, technical section (4.6 m): two worn wheel tracks, looser gravel at the edges](docs/screens/road_narrow.jpg) | ![A wide, fast section (6.8 m)](docs/screens/road_wide.jpg) |
+| ![A wooden bridge over a gully: plank deck, rails, timber trestles, the stream below](docs/screens/bridge.jpg) | ![Onto the bridge from the driver's seat](docs/screens/bridge_seat.jpg) |
 | ![Spectators behind the tape at a jump, waving flags](docs/screens/crowd.jpg) | ![The crowds at the start](docs/screens/crowd_start.jpg) |
 | ![Racing gloves on the wheel, gauntlets over the sleeves](docs/screens/gloves.jpg) | ![Numbered dials, shift lights and the gear](docs/screens/dials.jpg) |
 | ![The cockpit from the co-driver's seat: the driver belted in, the wheel, switch panel, sequential lever and handbrake](docs/screens/interior.jpg) | ![Driving in third: a shift light on, the wipers clearing a mud splat](docs/screens/dash.jpg) |
@@ -100,8 +101,10 @@ light, filmed like rally TV (trackside cameras it flashes past, a chase camera, 
    side of the road. Moving off early is a **jump start: +10 s**. The stage clock (and any penalties)
    stays at the top of the screen.
 2. **The stage** is ~2.7 km of gravel through thick forest (~30,000 trees, ferns along the verges, a far belt out to 150 m): corners graded 6 (nearly flat) to 1 (very slow) plus
-   hairpins, corners that tighten or open, blind crests, jumps, puddles and rocks on the inside of the
-   "don't cut" corners. Every stage is generated from a number, so there's always a new one.
+   hairpins, corners that tighten or open, blind crests, jumps, puddles and wooden bridges over
+   gullies with a stream in them (about one a stage, on straight level road: a plank deck that
+   drives like wood, rails each side, the co-driver calls "caution"). Every stage is generated
+   from a number, so there's always a new one.
    - **Room to save it:** the road's edge is flush with the grass, and it stays nearly flat for ~6 m
      before the hills start (no ditch to drop a wheel into, berms only a low ridge, the trees stand
      back 4.5 m+): run wide in a drift and you can catch it and get back on.
@@ -219,7 +222,7 @@ Corsa's gamepad assist; sources in the commit history):
   limited-slip, locking under power and letting go off it.
 - **Where you drive on the road matters.** The two darker worn wheel tracks grip best, the loose
   crown between them a little less, and the "marbles" out toward the edges least (down to 84 %),
-  so running wide costs you. Loose stones lie where the grip is worse, and gravel piles up in
+  so running wide costs you. The gravel is looser (lighter) where the grip is worse, and it piles up in
   berms on the outside of the bends.
 - **In the air** the car leans toward the slope below it (a driver's feel), and the pedals work
   like a real car's: **brake in the air and the nose drops** (the wheels stop and hand their spin to
@@ -281,7 +284,7 @@ real voice.
 | 1 | **Playable grey box:** generated forest gravel stages, raycast rally car, first-person driver + co-driver seats, the co-driver's map board, mud + wipers, start countdown, jump starts, resets, results, 2 players online, builds | ✅ done |
 | 2 | **AI co-driver** | ✅ basic version done (calls by time, countdown, finish). Next: quick-call wheel for the human co-driver, call-timing setting in the menu, more lines |
 | 3 | **Art:** the car and both crew are Higgsfield models (concept art -> 3D, the crew rigged and posed in their seats: hands on the wheel / the map board, heads turning where the player looks), the car's wheels and mud flaps move, racing gloves + hand-over-hand steering, a stripped rally interior (numbered dials, shift lights, switch panel, sequential lever, a deep-dish wheel, a working mirror), six-point harnesses fitted to the crew, the hand reaching for the lever at each gear change, the loading screen; next: better trees | car + crew + cockpit ✅ |
-| 4 | **Jobs + content:** OK board, warning triangle, pushing the car, punctures, time cards, road book, recce mode, more biomes | |
+| 4 | **Jobs + content:** OK board, warning triangle, pushing the car, punctures, time cards, road book, recce mode, more biomes, wooden bridges, street (tarmac) and mixed-surface stages ([the plan](docs/street_and_mixed_maps.md)) | bridges ✅ |
 | 5 | Polish, crews racing each other | |
 
 ## Run from source / keep building it

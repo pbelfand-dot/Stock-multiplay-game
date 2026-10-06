@@ -6,7 +6,8 @@ extends Node3D
 ##
 ## The map is heading-up, like a GPS: the car marker stays put near the bottom
 ## and the road turns around it as the car turns. ~280 m of road ahead, a bit
-## behind, the start and finish lines when they're near.
+## behind, the start and finish lines when they're near, and bridges (the map
+## symbol: the road drawn as planks with a rail each side).
 ##
 ## Drawn into a SubViewport (2D) shown on a quad: board-local units are metres,
 ## the map faces +Z (toward the co-driver's eyes).
@@ -140,6 +141,23 @@ func _draw_map() -> void:
 	if ahead.size() > 1:
 		_map.draw_polyline(ahead, Color(0.18, 0.15, 0.12), 9.0)
 		_map.draw_polyline(ahead, Color(0.98, 0.84, 0.32), 4.0)
+	# bridges: the map's symbol (planks between two rails)
+	for b in st.bridges:
+		if b.s1 < car_s - BEHIND or b.s0 > car_s + AHEAD:
+			continue
+		var ia := maxi(int(b.s0 / st.STEP), i0)
+		var ib := mini(int(b.s1 / st.STEP), i1)
+		if ib <= ia:
+			continue
+		for side in [-1.0, 1.0]:
+			var rail := PackedVector2Array()
+			for i in range(ia, ib + 1):
+				rail.append(_to_map(st.world_at(i * st.STEP, side * 7.0), origin, fwd, right))
+			_map.draw_polyline(rail, Color(0.18, 0.15, 0.12), 2.0)
+		for i in range(ia, ib + 1):
+			var a := _to_map(st.world_at(i * st.STEP, -4.5), origin, fwd, right)
+			var c := _to_map(st.world_at(i * st.STEP, 4.5), origin, fwd, right)
+			_map.draw_line(a, c, Color(0.45, 0.3, 0.16), 2.0)
 	# start and finish lines when they're on the map
 	for mark in [[st.START_S, Color(0.85, 0.12, 0.1)], [st.finish_s, Color(0.1, 0.1, 0.1)]]:
 		var s: float = mark[0]

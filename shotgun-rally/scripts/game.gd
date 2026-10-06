@@ -518,7 +518,8 @@ func _engine_audio() -> void:
 	var spd: float = car.linear_velocity.length()
 	var on_ground := 1.0 if car.grounded > 0 or not car.simulate else 0.0
 	var loud: float = clampf(spd / 25.0, 0.0, 1.0) * 0.7 + car.slip * 0.6
-	_gravel.volume_db = linear_to_db(maxf(loud * on_ground, 0.001)) - 4.0
+	var gravel := 0.25 if car.on_surface == "wood" else 1.0   # (on a bridge's planks: no gravel noise)
+	_gravel.volume_db = linear_to_db(maxf(loud * on_ground * gravel, 0.001)) - 4.0
 	_gravel.pitch_scale = 0.8 + clampf(spd / 40.0, 0.0, 0.5)
 
 
