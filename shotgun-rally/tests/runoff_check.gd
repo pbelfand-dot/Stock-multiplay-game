@@ -9,7 +9,7 @@ extends SceneTree
 ##     sliding; after 0.4 s the "driver" gently steers back: at 10 deg (a drift
 ##     run wide) it's back on the road within a few seconds; at 15 deg (a big
 ##     moment: it can reach the trees) it at least stays on its wheels
-## Run: godot --headless --fixed-fps 60 --path . -s tests/runoff_check.gd
+## Run: godot --headless --fixed-fps 120 --path . -s tests/runoff_check.gd
 ## Prints [runoff] lines; exits 1 on any FAIL.
 
 const SEEDS := [3, 15]
@@ -151,8 +151,11 @@ func _next() -> void:
 	_car.place(_st.world_at(s, r.side * 1.0), _st.heading_at(s) + r.side * a * 1.5)
 	var fwd: Vector3 = _st.forward_at(s)
 	var right: Vector3 = _st.right_at(s)
-	# 70 km/h, heading out toward the edge, the nose pointing out further still (sliding)
-	_car.linear_velocity = (fwd * cos(a) + right * r.side * sin(a)) * 70.0 / 3.6
+	# 70 km/h, heading out toward the edge, the nose pointing out further still (sliding),
+	# the wheels rolling with it (not skidding up to speed)
+	var v: Vector3 = (fwd * cos(a) + right * r.side * sin(a)) * 70.0 / 3.6
+	_car.set_speed(v.dot(-_car.global_transform.basis.z))
+	_car.linear_velocity = v
 	_car.angular_velocity = Vector3.UP * -r.side * 0.4
 	_m = {"max_d": 0.0, "upright": true, "back": -1.0}
 

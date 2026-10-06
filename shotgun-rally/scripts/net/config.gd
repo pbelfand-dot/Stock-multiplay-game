@@ -11,11 +11,19 @@ var port := 7777
 var mouse_sens := 0.0022       # radians per pixel
 var invert_y := false
 var call_early := 0.0          # AI co-driver: -1 (late) .. +1 (early)
-var volume := 0.8
-## The driver aids for the new car physics (physics v2), each its own switch: all
-## off is the base physics. Keys as in AssistConfig.
-var aids := {"anti_lock": false, "traction_control": false, "stability_control": false, "steering_smoothing": false,
-	"steering_damping": false, "countersteer_help": false, "speed_sensitive_steering": false}
+var volume := 0.8              # everything
+var sfx_volume := 0.45         # the engine, the gravel, crashes ... (the "SFX" bus)
+var voice_volume := 1.0        # the co-driver's voice (the "Voice" bus)
+## The driver aids, each its own switch (keys as in AssistConfig): all off is the
+## base physics. Out of the box the steering helps are on: a key can't hold part
+## of the lock, so at speed it asks for all of it (smoothing eases it in, speed-
+## sensitive steering keeps it to what the tyres can use), and countersteer help
+## catches the tail (without it, holding the speed at the limit at 110 km/h spins
+## it: tests/handling_check.gd). The rest are off (a rally car has no ABS).
+const AIDS_DEFAULT := {"anti_lock": false, "traction_control": false, "stability_control": false,
+	"steering_smoothing": true, "steering_damping": false, "countersteer_help": true, "speed_sensitive_steering": true}
+const AIDS_VERSION := 2         # settings saved before this (the old car) take the new defaults once
+var aids := AIDS_DEFAULT.duplicate()
 var args := {}                 # --key=value / --flag from the command line
 
 
@@ -29,8 +37,11 @@ func _ready() -> void:
 		invert_y = cf.get_value("controls", "invert_y", invert_y)
 		call_early = cf.get_value("codriver", "call_early", call_early)
 		volume = cf.get_value("audio", "volume", volume)
-		for key in aids:
-			aids[key] = cf.get_value("aids", key, aids[key])
+		sfx_volume = cf.get_value("audio", "effects", sfx_volume)
+		voice_volume = cf.get_value("audio", "voice", voice_volume)
+		if int(cf.get_value("aids", "version", 1)) >= AIDS_VERSION:
+			for key in aids:
+				aids[key] = cf.get_value("aids", key, aids[key])
 	for a in OS.get_cmdline_user_args():
 		var kv := a.trim_prefix("--").split("=", true, 1)
 		args[kv[0]] = kv[1] if kv.size() > 1 else "1"
@@ -38,7 +49,36 @@ func _ready() -> void:
 		player_name = args.name
 	if args.has("port"):
 		port = int(args.port)
-	AudioServer.set_bus_volume_db(0, linear_to_db(volume))
+	_buses()
+
+
+## Two buses into the master: "SFX" (the car, the gravel, crashes, the countdown)
+## and "Voice" (the co-driver). The co-driver must always be heard, so while the
+## co-driver talks the SFX bus dips (a compressor keyed by the Voice bus), like a rally
+## car's intercom over the engine.
+func _buses() -> void:
+	for n in ["SFX", "Voice"]:                   # (Voice last: buses mix from the last one down,
+		if AudioServer.get_bus_index(n) == -1:   # so it's ready when SFX's compressor listens to it)
+			AudioServer.add_bus()
+			var i := AudioServer.bus_count - 1
+			AudioServer.set_bus_name(i, n)
+			AudioServer.set_bus_send(i, "Master")
+	var sfx := AudioServer.get_bus_index("SFX")
+	if AudioServer.get_bus_effect_count(sfx) == 0:
+		var duck := AudioEffectCompressor.new()
+		duck.sidechain = "Voice"
+		duck.threshold = -32.0                    # any speech ...
+		duck.ratio = 4.0                          # ... dips the rest ~10 dB
+		duck.attack_us = 8000.0
+		duck.release_ms = 400.0                   # and it comes back up gently
+		AudioServer.add_bus_effect(sfx, duck)
+	apply_volumes()
+
+
+func apply_volumes() -> void:
+	AudioServer.set_bus_volume_db(0, linear_to_db(maxf(volume, 0.0001)))
+	AudioServer.set_bus_volume_db(AudioServer.get_bus_index("SFX"), linear_to_db(maxf(sfx_volume, 0.0001)))
+	AudioServer.set_bus_volume_db(AudioServer.get_bus_index("Voice"), linear_to_db(maxf(voice_volume, 0.0001)))
 
 
 func save() -> void:
@@ -50,8 +90,11 @@ func save() -> void:
 	cf.set_value("controls", "invert_y", invert_y)
 	cf.set_value("codriver", "call_early", call_early)
 	cf.set_value("audio", "volume", volume)
+	cf.set_value("audio", "effects", sfx_volume)
+	cf.set_value("audio", "voice", voice_volume)
 	for key in aids:
 		cf.set_value("aids", key, aids[key])
+	cf.set_value("aids", "version", AIDS_VERSION)
 	cf.save(PATH)
 
 

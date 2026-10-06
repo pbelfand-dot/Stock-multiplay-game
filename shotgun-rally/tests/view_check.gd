@@ -6,7 +6,7 @@ extends SceneTree
 ## view up and down 6 cm EVERY frame: "the car bounces very rapidly, and it's not
 ## from anything on the road". Fails if the eye reverses direction frame after
 ## frame (more than 1 % of frames, by over 2 mm each way) or jumps too far in one.
-## Run: godot --headless --fixed-fps 60 --path . -s tests/view_check.gd
+## Run: godot --headless --fixed-fps 120 --path . -s tests/view_check.gd
 
 const SECS := 45.0
 const MAX_FLIP_SHARE := 0.01

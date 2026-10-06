@@ -2,6 +2,8 @@ extends RefCounted
 ## The suspension's force: pure functions of a SuspensionConfig, how far the
 ## corner is squashed and how fast. No state, so it's easy to test.
 
+const DEEP := 0.08                 # m before the bump stop where its damping starts building
+
 
 ## How hard the corner pushes the body up (N, along the strut). compression:
 ## m from full droop; velocity: m/s, + = squashing; extra: the anti-roll bar's
@@ -10,11 +12,14 @@ extends RefCounted
 ## wheel is simply going light.
 static func force(cfg: Resource, compression: float, velocity: float, extra := 0.0) -> float:
 	var f: float = cfg.spring_rate * compression + damping(cfg, velocity) + extra
+	# deep in the travel the damper firms up (position-sensitive, as a rally damper is):
+	# it builds over the last DEEP m before the bump stop, so a big landing is slowed
+	# before the stop instead of hitting it at full speed; ordinary bumps never get there
+	if velocity > 0.0:
+		f += cfg.bump_stop_damping * velocity * smoothstep(cfg.bump_stop_start - DEEP, cfg.bump_stop_start, compression)
 	var past: float = compression - cfg.bump_stop_start
 	if past > 0.0:
 		f += cfg.bump_stop_rate * past * past
-		if velocity > 0.0:
-			f += cfg.bump_stop_damping * velocity
 	return clampf(f, 0.0, cfg.max_force)
 
 

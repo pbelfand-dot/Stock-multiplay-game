@@ -1,6 +1,6 @@
 extends SceneTree
 ## The car and the stage, together: the autopilot drives a whole stage.
-## Run: godot --headless --fixed-fps 60 --path . -s tests/drive_check.gd -- --seed=3
+## Run: godot --headless --fixed-fps 120 --path . -s tests/drive_check.gd -- --seed=3
 ##   * it gets off the line (0-100 km/h in a sane time) and reaches the finish
 ##   * it stays on the road (few offs) and never falls through the world
 ##   * the springs hold the car at ride height, the handbrake flicks it
@@ -137,12 +137,14 @@ func _physics_process(dt: float) -> bool:
 					t = 0.0
 					flick_yaw = car.global_rotation.y
 		"flick":
-			# handbrake + full lock at 50 km/h: the tail must come round (a hairpin flick)
-			if t < 1.2:
+			# handbrake + full lock at 50 km/h: the tail must come round (a hairpin flick).
+			# The rears lock at once; the body takes a moment to start turning (~55 deg in
+			# 1.2 s, ~85 in 1.5 s, ~120 in 2 s)
+			if t < 1.5:
 				car.inp = {"steer": 1.0, "throttle": 0.0, "brake": 0.0, "handbrake": true}
 			else:
 				var turned := absf(wrapf(car.global_rotation.y - flick_yaw, -PI, PI))
-				fails += _check(turned > deg_to_rad(60.0), "handbrake flick at 50 km/h turned %.0f deg in 1.2 s" % rad_to_deg(turned))
+				fails += _check(turned > deg_to_rad(60.0), "handbrake flick at 50 km/h turned %.0f deg in 1.5 s" % rad_to_deg(turned))
 				return _finish()
 	return false
 

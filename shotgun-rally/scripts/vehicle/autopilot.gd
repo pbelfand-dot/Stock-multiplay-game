@@ -1,13 +1,24 @@
 extends RefCounted
 ## Drives the car down the stage with the same inputs a player has: the
 ## tests' stand-in driver (and a way to try the co-driver seat alone later).
-##   * steering: aim at a point down the road (further at speed), on a line
-##     that drifts to the inside of the next corner
+##   * steering (the car's steering is a wheel angle: input x lock): it picks
+##     the curve to drive (1/m): the road's bend just ahead, plus turning back
+##     parallel to the road, plus closing the gap to its line (a damped spring:
+##     gentle at speed, where a little steering turns the car a lot), measured
+##     at the front axle; then the wheel angle for that curve: the bicycle
+##     geometry (atan(wheelbase x curvature)), plus the slip angle the front
+##     tyres need for that much side force, measured from the way the REAR axle
+##     is going (when the tail steps out, that's countersteer, as a driver
+##     would). The line drifts to the inside of the next corner
 ##   * speed: the fastest the next 150 m allows: sqrt(mu g R) at every
 ##     corner, braked down to in time (v^2 = vc^2 + 2 a d)
 
 const MU := 0.45                 # how hard it dares to corner (fraction of g): under half the car's grip, a margin for the loose gravel off the clean line
 const DECEL := 5.5               # how hard it plans to brake (m/s^2)
+const HOLD := 1.6                # rad/s: how briskly it gets back onto its line (the spring) ...
+const HOLD_DAMP := 0.9           # ... damped (1 = no overshoot)
+const PREVIEW := 0.35            # s: the bend it steers for is this far ahead (the steering takes a moment)
+const CATCH := 1.0               # how much of the tail's angle it countersteers
 
 var st                           # StageGen
 var _vmax := PackedFloat32Array()  # corner speed limit per centerline sample
@@ -43,19 +54,49 @@ func _init(stage) -> void:
 ## Inputs for the car at road position (s, d) going at speed (m/s).
 func drive(car, s: float, d: float) -> Dictionary:
 	var spd: float = car.linear_velocity.length()
-	# where to aim: ahead on the road, toward the inside of what's coming
+	var xf: Transform3D = car.global_transform
+	var fwd: Vector3 = -xf.basis.z
+	var base: float = car.config.rear_axle - car.config.front_axle
+	var lock: float = deg_to_rad(car.config.steering.max_angle_deg)
+	# its line: toward the inside of what's coming
 	var look := 6.0 + spd * 0.45
 	var ahead_i := clampi(int((s + look) / st.STEP), 0, st.curv.size() - 1)
 	var bend: float = st.curv[ahead_i]
 	var line_d := clampf(bend * 30.0, -0.6, 0.6)         # + curvature = a right turn, whose inside is d > 0
-	var aim: Vector3 = st.world_at(s + look, line_d)
-	var to: Vector3 = aim - car.global_position
-	var fwd: Vector3 = -car.global_transform.basis.z
-	var right: Vector3 = car.global_transform.basis.x
-	var ang := atan2(to.dot(right), to.dot(fwd))
-	# steering asks the front tyres for grip (full = their peak), so it's just how far off
-	# the aim point the nose is
-	var steer_cmd := clampf(ang * 2.6, -1.0, 1.0)
+	# where the front axle is on the road
+	var front: Vector3 = car.global_position + fwd * -car.config.front_axle
+	var fs: float = s + fwd.dot(st.forward_at(s)) * -car.config.front_axle
+	var fd: float = (front - st.point_at(fs)).dot(st.right_at(fs))
+	# the bend just ahead (averaged: the road is sampled every STEP m)
+	var k := 0.0
+	var n := 0
+	var reach := maxf(spd * PREVIEW, st.STEP)
+	var x := fs
+	while x <= fs + reach:
+		k += st.curv[clampi(int(x / st.STEP), 0, st.curv.size() - 1)]
+		n += 1
+		x += st.STEP * 0.5
+	k /= maxf(n, 1)
+	# the way the rear axle is going (once it's moving): how far the tail is out (+ = to the right) ...
+	var right: Vector3 = xf.basis.x
+	var rear_v: Vector3 = car.linear_velocity + car.angular_velocity.cross(xf.basis * Vector3(0.0, 0.0, car.config.rear_axle))
+	var tail := 0.0
+	var dir := fwd
+	if spd > 4.0:
+		tail = atan2(rear_v.dot(right), maxf(rear_v.dot(fwd), 0.5))
+		dir = (rear_v - xf.basis.y * rear_v.dot(xf.basis.y)).normalized()
+	# ... back parallel to the road ...
+	var road_yaw: float = st.heading_at(fs)
+	var yaw: float = atan2(dir.x, -dir.z)                      # (the same convention as the road's heading)
+	var v := maxf(spd, 4.0)
+	k += 2.0 * HOLD_DAMP * HOLD * wrapf(road_yaw - yaw, -PI, PI) / v
+	# ... and onto its line
+	k += HOLD * HOLD * (line_d - fd) / (v * v)
+	# the front tyres' slip angle for that much side force (a share of their grip)
+	var tyre: Resource = car.wheels[0].surface_tire
+	var share := clampf(spd * spd * absf(k) / (tyre.lateral_mu * 9.8), 0.0, 1.0)
+	var slip := deg_to_rad(tyre.lateral_peak_deg) * (1.0 - sqrt(1.0 - share)) * signf(k)
+	var steer_cmd := clampf((atan(base * k) + slip + CATCH * tail) / lock, -1.0, 1.0)
 	# speed: the lowest braking-allowed speed over the next 150 m
 	var want := 60.0
 	var i0 := int(s / st.STEP)
@@ -72,4 +113,7 @@ func drive(car, s: float, d: float) -> Dictionary:
 		# threshold braking, like a driver: never quite all of it (no ABS: full brake locks
 		# the fronts), and less while it's turning (a locked front doesn't steer)
 		brk = clampf((spd - want) / 5.0, 0.2, 0.85) * (1.0 - 0.45 * absf(steer_cmd))
-	return {"steer": steer_cmd, "throttle": thr, "brake": brk, "handbrake": false}
+		brk *= clampf(1.0 - absf(tail) / 0.15, 0.3, 1.0)   # the tail's stepping out: ease off, like a driver
+	# (pressed so that it gets there through the steering smoothing aid, if that's on)
+	var press: float = car.assist.input_for(steer_cmd, 1.0 / Engine.physics_ticks_per_second)
+	return {"steer": press, "throttle": thr, "brake": brk, "handbrake": false}

@@ -20,7 +20,7 @@ high_speed_rebound = 2500.0
 anti_roll_rate = 7000.0
 bump_stop_start = 0.22
 bump_stop_rate = 4000000.0
-bump_stop_damping = 9000.0
+bump_stop_damping = 6000.0
 max_force = 90000.0
 
 [sub_resource type="Resource" id="Resource_rear"]
@@ -35,7 +35,7 @@ high_speed_rebound = 2100.0
 anti_roll_rate = 16000.0
 bump_stop_start = 0.22
 bump_stop_rate = 4000000.0
-bump_stop_damping = 9000.0
+bump_stop_damping = 6000.0
 max_force = 90000.0
 
 [sub_resource type="Resource" id="Resource_tire_front"]

@@ -49,7 +49,7 @@ func _initialize() -> void:
 	Profile.set_paint("comet", "colours", [Color.BLACK, Color.WHITE, Color.RED, Color.GOLD])
 	var painted := Profile.setup()
 	fails += _check(painted.number == 42 and painted.colours[0] == Color.BLACK, "paint and number stick")
-	fails += _check(is_equal_approx(Catalog.setup("martello").drive_front, 0.1), "the Martello sends most of its power to the back")
+	fails += _check(is_equal_approx(Catalog.setup("martello").drive_front, 0.15), "the Martello sends most of its power to the back")
 	# the championship
 	var rallies := Championship.RALLIES
 	fails += _check(Profile.rally_open(0, rallies) and not Profile.rally_open(1, rallies), "only the first rally is open")

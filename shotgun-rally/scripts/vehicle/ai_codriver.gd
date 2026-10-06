@@ -38,6 +38,7 @@ var _last_s := -INF
 func _ready() -> void:
 	_player = AudioStreamPlayer.new()
 	_player.volume_db = 2.0
+	_player.bus = "Voice"
 	add_child(_player)
 	# list_directory (not DirAccess) also works in exported builds, where the mp3s are imported
 	for f in ResourceLoader.list_directory(VOICE_DIR):

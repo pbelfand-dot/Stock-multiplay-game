@@ -17,7 +17,7 @@ G="$(command -v "$G" || echo "$G")"
 cd "$(dirname "$0")/.."
 T=$(mktemp -d)
 PORT=${SR_UPDATE_PORT:-$((20000 + RANDOM % 30000))}
-USERDIR="$HOME/.local/share/ShotgunRallyUpdateTest"
+USERDIR="${XDG_DATA_HOME:-$HOME/.local/share}/ShotgunRallyUpdateTest"
 fail=0
 ok()  { echo "[update] ok   $1"; }
 bad() { echo "[update] FAIL $1"; fail=1; }

@@ -5,7 +5,7 @@ extends SceneTree
 ##   * flat out in a straight line: a light dust trail, no stones
 ##   * in the air: nothing new
 ##   * landing a jump: a burst of dust and stones
-## Run: godot --headless --fixed-fps 60 --path . -s tests/fx_check.gd
+## Run: godot --headless --fixed-fps 120 --path . -s tests/fx_check.gd
 ## Prints one [fx] line per check; exits 1 on any FAIL.
 
 var RallyCar

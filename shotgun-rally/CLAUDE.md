@@ -17,7 +17,9 @@
   (headless, `blender -b --python ...`; install with apt if missing) or in code. Not Higgsfield.
 
 ## Tests
-- `GODOT=/path/to/godot tests/run_all.sh` runs everything headless (~7 minutes). The physics v2
-  suite alone: `godot --headless --fixed-fps 120 --path . -s tests/physics_v2_check.gd` (~30 s).
+- `GODOT=/path/to/godot tests/run_all.sh` runs everything headless (~10 minutes; each run gets a
+  fresh user:// through XDG_DATA_HOME). The physics runs at 120 ticks a second: tests use
+  `--fixed-fps 120`. The physics suite alone: `godot --headless --fixed-fps 120 --path . -s
+  tests/physics_v2_check.gd` (~30 s).
 - New test run names in `tests/physics_v2_check.gd` become judge function names (`_judge_<name>`):
   no hyphens or colons, and no " on " (that marks a surface run).

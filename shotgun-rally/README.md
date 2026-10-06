@@ -172,9 +172,9 @@ light, filmed like rally TV (trackside cameras it flashes past, a chase camera, 
   progress bar that follows the build ("Planting ten thousand trees..."). It stays up through the
   first frames of the stage, which stutter while the graphics warm up, then fades out.
 
-### Physics v2 (built: switching the game over next)
+### The car's physics (v2: in the game)
 
-A new car physics is being built next to this one, closer to Dirt Rally / RBR
+The car's physics, closer to Dirt Rally / RBR
 ([docs/physics_rebuild.md](docs/physics_rebuild.md)): a RigidBody3D chassis on four ShapeCast tyres
 with real suspension, then tyres, drivetrain, surfaces, aero and driver aids (each its own switch),
 in nine tested phases, at 120 Hz. **All nine are done:** the chassis on its springs, dampers
@@ -197,7 +197,19 @@ oversteer, a four-wheel drift held, a countersteer catch, the Scandinavian flick
 to slide. Try it in
 the physics lab (`godot --path . scenes/physics_lab.tscn`: arrows steer / throttle / brake, space handbrake,
 E / Q gears, C tow, R reset, J drop, B / N bumps, P / O slope, 1-8 surface pads, 9 split pad, F5-F11
-aids, F2 record, F3 telemetry, F4 force arrows). The game still uses the car below until v2 takes over (next).
+aids, F2 record, F3 telemetry, F4 force arrows).
+
+**In the game now.** It replaced the first car (October 2026): the same game around it (cockpit,
+dust, sound, the co-driver's stream, the garage's power / grip / brakes / drive split), 120
+physics ticks a second. Out of the box three aids are on: steering smoothing and speed-sensitive
+steering (a key can't hold part of the lock) and countersteer help (without it, holding the speed
+at the limit at 110 km/h spins it); switch any of them in SETTINGS. The autopilot (the tests'
+driver, the menu's car) steers like a driver: the curve it wants, the slip angle the tyres need
+for it, countersteer when the tail steps out. Found on the way, all fixed: a bottomed-out wheel
+read as "no compression" (big landings slammed the body down), a car put down somewhere new kicked
+itself into the air (its suspension remembered the old spot), braking in the air didn't dip the
+nose (the wheels now hand their spin to the body), and the bump stop's damping hit all at once
+(now it builds over the last 8 cm: the big jump lands at 11 g instead of 16).
 
 ### How the car drives
 
@@ -226,9 +238,9 @@ Corsa's gamepad assist; sources in the commit history):
   crown between them a little less, and the "marbles" out toward the edges least (down to 84 %),
   so running wide costs you. The gravel is looser (lighter) where the grip is worse, and it piles up in
   berms on the outside of the bends.
-- **In the air** the car leans toward the slope below it (a driver's feel), and the pedals work
-  like a real car's: **brake in the air and the nose drops** (the wheels stop and hand their spin to
-  the body, ~7 deg over a jump), gas lifts it a little. Landings squash the springs once and stay
+- **In the air** it flies as it was launched (nothing steers it), and the pedals work like a real
+  car's: **brake in the air and the nose drops** (the wheels stop and hand their spin to the body,
+  ~14 deg over a big jump), gas lifts it a little. Landings squash the springs once and stay
   down: the dampers soak up a big landing deep in their travel instead of throwing the car back up.
 - **A calmer ride.** The bouncing came from three things, all fixed: the hills were too steep
   (up to 31 %: now at most 16 %, smoothed, and crests land gently), the springs hit a hard stop on

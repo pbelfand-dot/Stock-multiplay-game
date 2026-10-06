@@ -190,13 +190,12 @@ func _spawn(xf: Transform3D, dt: float) -> void:
 			_land_burst(xf, v, surf, clampf((_air - 0.35) / 0.6, 0.3, 1.0))
 		_air = 0.0
 	for k in 4:
-		var front: bool = RallyCar.WHEELS[k][2]
+		var front: bool = k < 2
 		var c: float = car.comp[k]
 		if c <= 0.01:                                     # in the air
 			intensity[k] = 0.0
 			continue
-		var mount: Vector3 = xf * Vector3(RallyCar.WHEELS[k][0], 0.0, RallyCar.WHEELS[k][1])
-		var contact := mount - up * (RallyCar.REST - c + RallyCar.RADIUS)
+		var contact: Vector3 = car.contact_point(k)
 		var vc := v + _w.cross(contact - xf.origin)
 		if vc.length() < 2.0:
 			intensity[k] = 0.0
@@ -226,7 +225,7 @@ func _spawn(xf: Transform3D, dt: float) -> void:
 
 func _land_burst(xf: Transform3D, v: Vector3, surf: Array, power: float) -> void:
 	for k in 4:
-		var contact: Vector3 = xf * Vector3(RallyCar.WHEELS[k][0], -RallyCar.REST - RallyCar.RADIUS + 0.1, RallyCar.WHEELS[k][1])
+		var contact: Vector3 = car.contact_point(k) + xf.basis.y * 0.1
 		var out := (contact - xf.origin)
 		out.y = 0.0
 		out = out.normalized()

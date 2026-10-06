@@ -10,7 +10,8 @@ extends RefCounted
 ##     sliding round too far, the outside front; not turning enough, the inside rear
 ##   * steering smoothing (the input eased), damping (slower at speed),
 ##     speed-sensitive steering (never more angle than the front tyres can use
-##     at this speed) and countersteer help (sliding, the front wheels pointed
+##     at this speed; not while the handbrake's pulled: a hairpin flick wants
+##     all the lock) and countersteer help (sliding, the front wheels pointed
 ##     where the car is going)
 ## With them all on, a car driven inside its grip does exactly what it does
 ## with them off.
@@ -57,7 +58,7 @@ func steering(car, dt: float, input: float) -> Vector2:
 	var v := absf(float(car.speed))
 	var lock := deg_to_rad(car.config.steering.max_angle_deg)
 	var target := s * lock
-	if cfg.speed_sensitive_steering and v > 1.0:
+	if cfg.speed_sensitive_steering and v > 1.0 and float(car.inp.handbrake) < 0.05:
 		# no more than helps: the geometry of the tightest turn the fronts' grip
 		# allows at this speed, plus their peak slip angle (less is left alone)
 		var t: Resource = car.wheels[0].surface_tire
@@ -82,6 +83,16 @@ func steering(car, dt: float, input: float) -> Vector2:
 			countersteer = blended - target
 			target = blended
 	return Vector2(target, rate)
+
+
+## The steering input that gets the wheels' target (-1..1) this tick through the
+## smoothing: what a driver who knows the car presses (the autopilot drives with
+## it, so the aid's easing doesn't make it weave). Without smoothing: the target.
+func input_for(target: float, dt: float) -> float:
+	if not cfg.steering_smoothing:
+		return target
+	var a := 1.0 - exp(-dt / cfg.smoothing_time)
+	return clampf(_smooth + (target - _smooth) / a, -1.0, 1.0)
 
 
 ## The throttle after traction control.

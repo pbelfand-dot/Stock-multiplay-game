@@ -1,7 +1,7 @@
 extends Resource
 ## The car as a body: its mass and how it's spread (centre of mass, inertia),
 ## where the wheels are, the tyre size, the suspension and tyres on each axle,
-## the steering and the collision shape. The car (rally_car_v2.gd) reads it once, when it's added.
+## the steering and the collision shape. The car (rally_car.gd) reads it once, when it's added.
 ## Units: m, kg, N. Edit it in the inspector (data/cars/*.tres).
 ## Car space: the car faces -Z, +X is its right, +Y up; the origin is the
 ## middle of the chassis at the height of the suspension mounts.

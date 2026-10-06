@@ -45,6 +45,7 @@ var tire: Resource                 # TireConfig (on its reference surface, grave
 var surface: Resource              # SurfaceConfig: what it's on (or was, last on the ground)
 var surface_tire: Resource         # the tyre on that surface (TireModel.on_surface)
 var surface_mu := 1.0              # grip x this on top of the surface's (the game's grip across the road; a test's ice patch)
+var surface_override: Resource     # a SurfaceConfig to be on whatever it touches (a puddle: mud), or null
 var radius := 0.32
 var width := 0.2
 var inertia := 1.1                 # kg m², the wheel's spin
@@ -140,13 +141,15 @@ func step(dt: float) -> void:
 		# in ~2 mm steps (each step would read as a jolt of suspension speed), so
 		# solve it exactly: the centre on the strut's line, one radius off the
 		# ground's plane at the contact. At an edge, where the plane guess is off,
-		# fall back to the cast's.
+		# fall back to the cast's. Already in the ground at the top of the travel (bottomed
+		# out on a big landing), the sweep doesn't see what it starts inside and says
+		# "free": the plane says fully squashed, and that's what it is.
 		var rough: float = cfg.travel * cast.get_closest_collision_safe_fraction()
 		var down := rough
 		var across := axis.dot(normal)
 		if across < -0.2:
 			var exact := (radius - (global_position - contact).dot(normal)) / across
-			if absf(exact - rough) < 0.02:
+			if absf(exact - rough) < 0.02 or exact <= 0.0:
 				down = exact
 		down = clampf(down, 0.0, cfg.travel)
 		compression = cfg.travel - down
@@ -182,7 +185,12 @@ func settle() -> void:
 		slip_long = 0.0
 		resist_torque = brake_torque
 	else:
-		if collider != _surface_of:
+		if surface_override:
+			if surface != surface_override:
+				surface = surface_override
+				surface_tire = TireModel.on_surface(tire, surface)
+				_surface_of = null                       # (looked up again once it's off)
+		elif collider != _surface_of:
 			_on_surface(collider)
 		strut_force = Suspension.force(cfg, compression, compression_velocity, anti_roll)
 		var square := maxf(-axis.dot(normal), 0.0)  # the strut's push that's square to the ground
@@ -256,6 +264,28 @@ func slip_angle_deg() -> float:
 ## The wheel's own speed at its rim (m/s): what a wheel-speed sensor would read.
 func wheel_speed() -> float:
 	return omega * radius
+
+
+## The car was put somewhere new (place()): forget where the suspension was, or its
+## next tick reads the jump from the old spot to the new one as the suspension
+## moving that far in 1/120 s and the damper kicks the car into the air.
+func reset() -> void:
+	grounded = false
+	_was_grounded = false
+	compression = 0.0
+	_prev_compression = 0.0
+	compression_velocity = 0.0
+	slip_lat = 0.0
+	slip_long = 0.0
+	omega = 0.0
+
+
+## On the co-driver's machine (the car isn't simulated there): the streamed
+## compression, and the wheel rolling with the car (`dt`: the tick).
+func show_remote(c: float, car_speed: float, dt: float) -> void:
+	compression = c
+	grounded = c > 0.005
+	spin += car_speed / radius * dt
 
 
 ## Place the wheel's look (call every frame): on the ground, or hanging in the air.

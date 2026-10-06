@@ -43,7 +43,13 @@ func _ready() -> void:
 	left.add_child(UI.label("SOUND", 20, UI.YELLOW, true))
 	left.add_child(_slider("VOLUME", 0.0, 1.0, config.volume, func(x):
 		config.volume = x
-		AudioServer.set_bus_volume_db(0, linear_to_db(maxf(x, 0.0001)))))
+		config.apply_volumes()))
+	left.add_child(_slider("EFFECTS  (ENGINE, GRAVEL)", 0.0, 1.0, config.sfx_volume, func(x):
+		config.sfx_volume = x
+		config.apply_volumes()))
+	left.add_child(_slider("CO-DRIVER VOICE", 0.0, 1.0, config.voice_volume, func(x):
+		config.voice_volume = x
+		config.apply_volumes()))
 	left.add_child(UI.gap(6))
 	left.add_child(UI.label("CO-DRIVER", 20, UI.YELLOW, true))
 	left.add_child(_slider("CALLS  LATE  ·  EARLY", -1.0, 1.0, config.call_early, func(x): config.call_early = x))

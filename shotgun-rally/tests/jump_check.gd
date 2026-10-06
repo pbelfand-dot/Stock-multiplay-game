@@ -8,7 +8,7 @@ extends SceneTree
 ##     the road, upright
 ##   * braking in the air tips the nose down (the wheels hand their spin to the body)
 ##   * a BIG jump ("caution, jump") flies longer, and still lands clean
-## Run: godot --headless --fixed-fps 60 --path . -s tests/jump_check.gd [-- --report]
+## Run: godot --headless --fixed-fps 120 --path . -s tests/jump_check.gd [-- --report]
 ## Prints one [jump] line per run and check; exits 1 on any FAIL.
 
 const MAX_JOLT := 95.0          # m/s^2, same limit as the ride check
@@ -37,6 +37,7 @@ var _t := 0.0
 var _hint := -1
 var _m := {}
 var _prev_vy := 0.0
+var _vys: Array = []            # the last 1/60 s of vertical speeds
 
 
 func _initialize() -> void:
@@ -97,6 +98,7 @@ func _next() -> void:
 	car.place(st.world_at(s0, 0.0), st.heading_at(s0))
 	car.linear_velocity = st.forward_at(s0) * _runs[_run].kmh / 3.6
 	_prev_vy = 0.0
+	_vys.clear()
 	_m = {"phase": "approach", "air": 0.0, "air_frames": 0, "top": -INF, "base": 0.0, "pitch": 0.0,
 		"land_kmh": 0.0, "jolt": 0.0, "since_land": 0.0, "bounce": 0.0, "bounce_now": 0.0, "max_d": 0.0}
 
@@ -127,8 +129,14 @@ func _physics_process(dt: float) -> bool:
 		brk = 0.5
 	car.inp = {"steer": steer, "throttle": thr, "brake": brk, "handbrake": false}
 	_m.max_d = maxf(_m.max_d, absf(d)) if s > jump.s - 20.0 else _m.max_d
+	# the jolt over 1/60 s, whatever the tick rate (the limits were set at 60 ticks a second;
+	# at 120 the same landing reads higher tick to tick)
 	var vy: float = car.linear_velocity.y
-	var acc_y := (vy - _prev_vy) / dt
+	_vys.append(vy)
+	var back := maxi(int(round(1.0 / (60.0 * dt))), 1)
+	while _vys.size() > back + 1:
+		_vys.pop_front()
+	var acc_y: float = (vy - _vys[0]) / (dt * (_vys.size() - 1)) if _vys.size() > 1 else 0.0
 	_prev_vy = vy
 	var above: float = car.global_position.y - st.point_at(s).y
 	# off the ground = no tyre pressing: every spring (nearly) unloaded

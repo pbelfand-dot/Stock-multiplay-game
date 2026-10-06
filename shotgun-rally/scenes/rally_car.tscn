@@ -1,6 +1,6 @@
 [gd_scene format=3]
 
-[ext_resource type="Script" path="res://scripts/vehicle/physics/rally_car_v2.gd" id="1_car"]
+[ext_resource type="Script" path="res://scripts/vehicle/rally_car.gd" id="1_car"]
 [ext_resource type="Resource" path="res://data/cars/awd_rally.tres" id="2_cfg"]
 [ext_resource type="Script" path="res://scripts/vehicle/physics/rally_wheel.gd" id="3_wheel"]
 [ext_resource type="Script" path="res://scripts/vehicle/physics/rally_telemetry.gd" id="4_tel"]
@@ -27,7 +27,7 @@ size = Vector3(1.7, 0.62, 3.9)
 material = SubResource("Mat_glass")
 size = Vector3(1.38, 0.48, 1.95)
 
-[node name="RallyCarV2" type="RigidBody3D"]
+[node name="RallyCar" type="RigidBody3D"]
 script = ExtResource("1_car")
 config = ExtResource("2_cfg")
 

@@ -20,8 +20,8 @@ extends Node3D
 ## A picture: ... scenes/physics_lab.tscn -- --screenshot=out.png [--lab=drop|bumps|left|skid|slope|brake|launch|handbrake|<a surface>
 ## --shot_wait=1.5 --vectors]
 
-const RallyCarV2 = preload("res://scripts/vehicle/physics/rally_car_v2.gd")
-const CAR_SCENE := "res://scenes/rally_car_v2.tscn"
+const RallyCar = preload("res://scripts/vehicle/rally_car.gd")
+const CAR_SCENE := "res://scenes/rally_car.tscn"
 const PAD := Vector3(0.0, 0.0, 0.0)
 const BUMPS_Z := -30.0             # the full-width bumps start here (the car drives -Z) ...
 const BUMP_LANE_X := 10.0          # ... and the left-side ones in a lane over here
@@ -54,7 +54,7 @@ var _auto_handbrake := -1.0        # the handbrake picture: pulled until this ru
 
 
 func _ready() -> void:
-	Engine.physics_ticks_per_second = RallyCarV2.TICKS
+	Engine.physics_ticks_per_second = RallyCar.TICKS
 	build_course(self)
 	_light()
 	car = (load(CAR_SCENE) as PackedScene).instantiate()

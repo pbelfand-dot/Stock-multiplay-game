@@ -318,7 +318,6 @@ func _drive_inputs() -> void:
 			reset_car()
 		return
 	var steer := Input.get_axis("steer_left", "steer_right")
-	car.analog_steer = absf(Input.get_joy_axis(0, JOY_AXIS_LEFT_X)) > 0.15
 	# the brake key comes on over ~0.25 s (a trigger is analog already): no ABS,
 	# so a stab of full brake would lock the fronts at once
 	var brake_in := Input.get_action_strength("brake")
@@ -349,6 +348,8 @@ func _drive_inputs() -> void:
 
 func reset_car() -> void:
 	var s := clampf(car_s, st.START_S, st.finish_s)
+	if Config.flag("smoke") or Config.flag("aicheck"):
+		print("[stage] reset at s=%.0f d=%.1f, %.0f km/h" % [car_s, car_d, car.kmh()])
 	car.place(st.world_at(s, 0.0), st.heading_at(s))
 	resets += 1
 	penalties += RESET_PENALTY
@@ -481,17 +482,20 @@ func _audio() -> void:
 	_engine.stream = _looped("res://assets/sfx/engine.wav")
 	_engine.unit_size = 6.0
 	_engine.volume_db = -12.0
+	_engine.bus = "SFX"
 	car.add_child(_engine)
 	_engine.play()
 	_gravel = AudioStreamPlayer3D.new()
 	_gravel.stream = _looped("res://assets/sfx/gravel.wav")
 	_gravel.unit_size = 6.0
 	_gravel.volume_db = -40.0
+	_gravel.bus = "SFX"
 	car.add_child(_gravel)
 	_gravel.play()
 	for n in ["tick", "bell", "splat", "wiper", "thud", "crash"]:
 		var p := AudioStreamPlayer.new()
 		p.stream = load("res://assets/sfx/%s.wav" % n)
+		p.bus = "SFX"
 		add_child(p)
 		_sfx[n] = p
 
@@ -514,12 +518,12 @@ func _engine_audio() -> void:
 	var rpm: float = car.rpm
 	var thr: float = car.inp.throttle if car.simulate else rpm
 	_engine.pitch_scale = 0.55 + rpm * 1.25 + (car.gear - 1) * 0.04
-	_engine.volume_db = -16.0 + rpm * 7.0 + thr * 4.0
+	_engine.volume_db = -20.0 + rpm * 6.0 + thr * 3.0
 	var spd: float = car.linear_velocity.length()
 	var on_ground := 1.0 if car.grounded > 0 or not car.simulate else 0.0
 	var loud: float = clampf(spd / 25.0, 0.0, 1.0) * 0.7 + car.slip * 0.6
 	var gravel := 0.25 if car.on_surface == "wood" else 1.0   # (on a bridge's planks: no gravel noise)
-	_gravel.volume_db = linear_to_db(maxf(loud * on_ground * gravel, 0.001)) - 4.0
+	_gravel.volume_db = linear_to_db(maxf(loud * on_ground * gravel, 0.001)) - 14.0   # (well under the voice)
 	_gravel.pitch_scale = 0.8 + clampf(spd / 40.0, 0.0, 0.5)
 
 

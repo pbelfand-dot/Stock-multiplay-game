@@ -4,8 +4,8 @@ Status: **all nine phases done** (the chassis on its suspension; the tyres' side
 steering; the wheels' spin, the drive / brake force and the brakes; the combined-slip ellipse and
 load sensitivity; the engine, clutch, sequential gearbox and four-wheel-drive diffs; surfaces; the
 handbrake, anti-roll bars and two-stage dampers; aero, the driver aids and telemetry; the rally
-tuning and manoeuvres; see "Phase reports" at the end). Next: it replaces the current car in the
-game (section 4). Decisions:
+tuning and manoeuvres; see "Phase reports" at the end), and **it is the car in the game** (October
+2026: "The switch", at the end). Decisions:
 - built **alongside** the current car (a lab scene, a `--physics=v2` switch once it drives), and it
   becomes the car once it passes every current test plus the manoeuvre tests;
 - physics at **120 Hz** (set by whatever runs the v2 car, so the current car and the auto-updater's
@@ -738,3 +738,34 @@ the drift are driven by a driver that steers toward where the car's going and re
 **Physics v2 is complete.** Next: it replaces the current car in the game (section 4: the same
 public API, the cockpit, the effects, the autopilot and the network switched over and their tests
 passing), then the drone-chase cinematic on the home screen.
+
+### The switch: the car in the game
+
+The v2 script took over `scripts/vehicle/rally_car.gd` (the first car is in git history), so the
+game, cockpit, dust, menu and tests load it by the same path; `scenes/rally_car.tscn` is the lab's.
+- **What the game needed from it:** `hit` (crashes) and `landed`, `slip` (sound, dust), `mud_mu`
+  (puddles: all four tyres on mud), `set_lanes` (the road's grip across it, on each wheel's
+  `surface_mu`), `apply_setup` (the garage: engine torque x power, brake torque x brakes, grip x
+  grip, the centre's front share = the car's drive split; the car gets its own copy of its config
+  first), `handbrake_on`, the co-driver's stream (30 Hz, played 100 ms behind), the Higgsfield
+  body model with its wheels (riding the springs from the new car's static squash) and swinging
+  mud flaps, `contact_point(k)` for the dust.
+- **120 ticks a second** in `project.godot` (a new update "base": players get the new download once).
+- **Default aids** (Config.AIDS_DEFAULT, migrated once for old settings files): steering smoothing,
+  speed-sensitive steering (not while the handbrake's pulled) and countersteer help.
+- **The autopilot**: picks a curvature (the road's bend ahead + back parallel + onto its line, a
+  damped spring in curvature: gentle at speed), then the wheel angle: atan(wheelbase x curvature)
+  + the front tyres' slip angle for that side force + countersteer by the rear axle's slip; it
+  presses the steering through the smoothing aid (DriverAssist.input_for).
+- **Bugs the stage tests found:** a wheel bottomed out on a landing started its sweep inside the
+  ground, which the sweep ignores ("free": no force, the body slammed down and bounced); a car
+  placed somewhere new read the jump as suspension speed and kicked into the air (wheels reset
+  in `place()`); the wheels' spin didn't react on the body (now it does: braking in the air dips
+  the nose 14 deg); the bump stop's damping came in all at once (now over the last 8 cm before it:
+  bump_stop_damping 6000).
+- **Tests moved to it**: 120 fps, jolts and ride measured over 1/60 s (as when their limits were
+  set), wheels spun up when a test sets the car rolling (`set_speed`), the handbrake flick judged
+  over 1.5 s (55 deg in 1.2 s, 101 in 1.5: the rears lock at once, the body takes a moment), the
+  launch judged as "spins up and pulls away" (0-100 in 4.3 s), braking-and-steering by how far the
+  path turns. All pass.
+

@@ -6,7 +6,7 @@ extends SceneTree
 ##   * the hardest single jolt (a landing), and how often it bounces up / down
 ## (only while it's moving on the road: off the road is meant to be rough, a beached
 ## car is put back on the road, like R, and the two seconds after that don't count)
-## Run: godot --headless --fixed-fps 60 --path . -s tests/ride_check.gd -- --seed=3 [--secs=40]
+## Run: godot --headless --fixed-fps 120 --path . -s tests/ride_check.gd -- --seed=3 [--secs=40]
 ## Prints [ride] lines; fails if the ride is rougher than the limits below.
 
 const MAX_EYE_ACC := 4.5        # m/s^2 RMS at the driver's eye (before the rework: 8.5-11)
@@ -39,6 +39,8 @@ var _lp_acc := 0.0
 var _stuck := 0.0
 var _since_reset := 99.0
 var _peak := 0.0
+var _sample_t := 0.0
+var _last_s := 0.0
 
 
 func _initialize() -> void:
@@ -67,6 +69,7 @@ func _physics_process(dt: float) -> bool:
 	t += dt
 	var at: Dictionary = st.locate(car.global_position, hint)
 	hint = at.i
+	_last_s = at.s
 	car.set_lanes(st, at.s, at.d)                    # the clean wheel tracks grip, the loose gravel doesn't
 	car.inp = ap.drive(car, at.s, at.d) if t > 1.0 else {"steer": 0.0, "throttle": 0.0, "brake": 0.0, "handbrake": false}
 	# stuck (beached, spun): put it back on the road like R does, and don't count the
@@ -77,12 +80,19 @@ func _physics_process(dt: float) -> bool:
 		_stuck = 0.0
 		_since_reset = 0.0
 		car.place(st.world_at(at.s + 5.0, 0.0), st.heading_at(at.s + 5.0))
+	# measured every 1/60 s whatever the tick rate (the limits were set at 60 ticks a
+	# second; at 120 the same ride reads rougher tick to tick)
+	_sample_t += dt
+	if _sample_t < 1.0 / 60.0 - 1e-5:
+		return t > 5.0 + secs and _report()
+	var sdt := _sample_t
+	_sample_t = 0.0
 	var v: Vector3 = car.linear_velocity
-	var acc := (v - _prev_v) / dt
+	var acc := (v - _prev_v) / sdt
 	_prev_v = v
 	var eye: Vector3 = car.global_transform * Vector3(-0.37, 0.6, 0.26)
-	var eye_v := (eye.y - _prev_eye.y) / dt
-	var eye_acc := (eye_v - _prev_eye_v) / dt
+	var eye_v := (eye.y - _prev_eye.y) / sdt
+	var eye_acc := (eye_v - _prev_eye_v) / sdt
 	_prev_eye = eye
 	_prev_eye_v = eye_v
 	if t > 5.0 and _since_reset > 2.0 and car.speed > 5.0 and absf(at.d) < st.width_at(at.s) * 0.5 + 0.4:
@@ -100,17 +110,21 @@ func _physics_process(dt: float) -> bool:
 		if car.grounded < 4:
 			_air += 1
 		for c in car.comp:
-			if c > car.BUMP_STOP:
+			if c > car.config.front_suspension.bump_stop_start:
 				_stop += 1
 				break
 		_lp_acc = lerpf(_lp_acc, acc.y, 0.15)       # ~1.5 Hz low-pass: what's left is the buzz
 		_hf2 += pow(acc.y - _lp_acc, 2)
-	if t > 5.0 + secs:
+	return t > 5.0 + secs and _report()
+
+
+func _report() -> bool:
+	if true:
 		var n := float(maxi(_n, 1))
 		var eye_rms := sqrt(_eye2 / n)
 		var hz := _flips / 2.0 / secs
 		print("[ride] body vertical %.2f m/s^2 RMS, eye %.2f m/s^2 RMS, pitch %.1f deg/s, roll %.1f deg/s, bounce %.2f Hz (%.0f km/h avg)" % [
-			sqrt(_acc2 / n), eye_rms, sqrt(_pitch2 / n), sqrt(_roll2 / n), hz, at.s / t * 3.6])
+			sqrt(_acc2 / n), eye_rms, sqrt(_pitch2 / n), sqrt(_roll2 / n), hz, _last_s / t * 3.6])
 		print("[ride] fast shaking (> ~2 Hz) %.2f m/s^2 RMS, a wheel off the ground %.0f %% of the time, on a bump stop %.0f %%, hardest jolt %.0f m/s^2 (%.1f g)" % [
 			sqrt(_hf2 / n), 100.0 * _air / n, 100.0 * _stop / n, _peak, _peak / 9.8])
 		var ok := eye_rms < MAX_EYE_ACC and _peak < MAX_JOLT
