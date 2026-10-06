@@ -51,6 +51,7 @@ const DriverAssist = preload("res://scripts/vehicle/physics/driver_assist.gd")
 const AssistConfig = preload("res://scripts/vehicle/physics/config/assist_config.gd")
 const Surfaces = preload("res://scripts/vehicle/physics/surfaces.gd")
 const Livery = preload("res://scripts/vehicle/livery.gd")
+const WheelMesh = preload("res://scripts/vehicle/wheel_mesh.gd")
 const DEFAULT_CONFIG := "res://data/cars/awd_rally.tres"
 const TICKS := 120                 # physics ticks per second (see the plan: the wheels are stiff)
 const NAMES := ["FL", "FR", "RL", "RR"]
@@ -223,8 +224,10 @@ func _build_body_model() -> void:
 		body_model.add_child(pivot)
 		var spinner := Node3D.new()                      # rolls
 		pivot.add_child(spinner)
+		# the wheel: built in code (wheel_mesh.gd), the model's own size; its axle is the model's z
 		var wm := MeshInstance3D.new()
-		wm.mesh = load(PARTS + "wheel_%s.res" % names[k])
+		var r: float = info.radius[k] if info.has("radius") else 0.17
+		wm.mesh = WheelMesh.build(r, r * 0.66, "z")
 		spinner.add_child(wm)
 		var h: Array = info.flaps[k]
 		var hinge := Node3D.new()
@@ -264,10 +267,14 @@ func apply_setup(s: Dictionary) -> void:
 	for k in 4:
 		wheels[k].surface_mu = lane_mu[k] * grip_mult
 	if body_model:
-		var rims: Array = []
+		Livery.paint(body_model.get_child(0), [], s, self)
+		var rim := StandardMaterial3D.new()             # the rims take the wheel colour
+		rim.albedo_color = s.get("wheel_colour", Color(0.72, 0.73, 0.75))
+		rim.metallic = 0.5
+		rim.roughness = 0.35
+		rim.cull_mode = BaseMaterial3D.CULL_DISABLED
 		for mw in _model_wheels:
-			rims.append((mw[1] as Node3D).get_child(0))
-		Livery.paint(body_model.get_child(0), rims, s, self)
+			((mw[1] as Node3D).get_child(0) as MeshInstance3D).set_surface_override_material(1, rim)
 
 
 ## Put the car down at (pos, yaw), still, sitting at its ride height above pos.

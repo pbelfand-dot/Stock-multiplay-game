@@ -312,33 +312,6 @@ func _point_velocity(p: Vector3) -> Vector3:
 
 
 func _tyre_mesh() -> Node3D:
-	var root := Node3D.new()
 	var tyre := MeshInstance3D.new()
-	var cm := CylinderMesh.new()
-	cm.top_radius = radius
-	cm.bottom_radius = radius
-	cm.height = width
-	cm.radial_segments = 16
-	cm.rings = 1
-	tyre.mesh = cm
-	tyre.rotation.z = PI / 2.0
-	var m := StandardMaterial3D.new()
-	m.albedo_color = Color(0.1, 0.1, 0.11)
-	m.roughness = 0.95
-	tyre.material_override = m
-	root.add_child(tyre)
-	var rim := MeshInstance3D.new()
-	var rm := CylinderMesh.new()
-	rm.top_radius = radius * 0.6
-	rm.bottom_radius = radius * 0.6
-	rm.height = width + 0.01
-	rm.radial_segments = 8
-	rm.rings = 1
-	rim.mesh = rm
-	rim.rotation.z = PI / 2.0
-	var mr := StandardMaterial3D.new()
-	mr.albedo_color = Color(0.85, 0.85, 0.82)
-	mr.roughness = 0.4
-	rim.material_override = mr
-	root.add_child(rim)
-	return root
+	tyre.mesh = (load("res://scripts/vehicle/wheel_mesh.gd") as GDScript).build(radius, width, "x")
+	return tyre
