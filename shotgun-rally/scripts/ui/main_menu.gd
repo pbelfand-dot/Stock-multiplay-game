@@ -82,7 +82,7 @@ func _ready() -> void:
 			_status.text = "Online play needs the download version: a browser can't connect two machines.\nGet it from the SHOTGUN RALLY download page (Chromebook: the .deb, with Linux turned on)."))
 	else:
 		_home.add_child(UI.menu_item("ONLINE", "Ride with a friend: one drives, one reads the map.", _show.bind("online")))
-	_home.add_child(UI.menu_item("SETTINGS", "Controls, sound, the co-driver's timing, driving aids.", _show.bind("settings")))
+	_home.add_child(UI.menu_item("SETTINGS", "Controls, sound, the co-driver's timing, stage surface, driving aids.", _show.bind("settings")))
 	if not OS.has_feature("web"):                      # (a browser tab is closed, not quit)
 		var quit := UI.button("QUIT", func(): get_tree().quit(), 20, 140)
 		quit.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN

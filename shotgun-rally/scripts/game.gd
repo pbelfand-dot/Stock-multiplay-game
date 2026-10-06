@@ -87,6 +87,8 @@ var _t_alive := 0.0
 var _sfx := {}
 var _engine                        # EngineSound
 var _gravel: AudioStreamPlayer3D
+var _squeal: AudioStreamPlayer3D     # the tyres on the asphalt, sliding
+var _squeal_amt := 0.0
 
 
 ## Build the stage, a step a frame (await it): progress(fraction, what) feeds the
@@ -484,26 +486,25 @@ func _audio() -> void:
 	_engine.car = car
 	car.add_child(_engine)
 	_gravel = AudioStreamPlayer3D.new()
-	_gravel.stream = _looped("res://assets/sfx/gravel.wav")
+	_gravel.stream = EngineSound.looped("res://assets/sfx/gravel.wav")
 	_gravel.unit_size = 6.0
 	_gravel.volume_db = -40.0
 	_gravel.bus = "SFX"
 	car.add_child(_gravel)
 	_gravel.play()
+	_squeal = AudioStreamPlayer3D.new()
+	_squeal.stream = EngineSound.looped("res://assets/sfx/squeal.wav")
+	_squeal.unit_size = 6.0
+	_squeal.volume_db = -80.0
+	_squeal.bus = "SFX"
+	car.add_child(_squeal)
+	_squeal.play()
 	for n in ["tick", "bell", "splat", "wiper", "thud", "crash"]:
 		var p := AudioStreamPlayer.new()
 		p.stream = load("res://assets/sfx/%s.wav" % n)
 		p.bus = "SFX"
 		add_child(p)
 		_sfx[n] = p
-
-
-func _looped(path: String) -> AudioStream:
-	var w: AudioStreamWAV = load(path).duplicate()
-	w.loop_mode = AudioStreamWAV.LOOP_FORWARD
-	w.loop_begin = 0
-	w.loop_end = w.data.size() / (2 * (2 if w.stereo else 1))
-	return w
 
 
 func _play(n: String, db := 0.0) -> void:
@@ -517,9 +518,16 @@ func _engine_audio() -> void:
 	var spd: float = car.linear_velocity.length()
 	var on_ground := 1.0 if car.grounded > 0 or not car.simulate else 0.0
 	var loud: float = clampf(spd / 25.0, 0.0, 1.0) * 0.7 + car.slip * 0.6
-	var gravel := 0.25 if car.on_surface == "wood" else 1.0   # (on a bridge's planks: no gravel noise)
+	# the gravel under the tyres: quieter on a bridge's planks or snow, just a little
+	# road noise on asphalt and ice
+	var gravel: float = {"wood": 0.25, "asphalt": 0.12, "ice": 0.12, "snow": 0.5}.get(car.on_surface, 1.0)
 	_gravel.volume_db = linear_to_db(maxf(loud * on_ground * gravel, 0.001)) - 14.0   # (well under the voice)
 	_gravel.pitch_scale = 0.8 + clampf(spd / 40.0, 0.0, 0.5)
+	# on the asphalt a sliding tyre squeals
+	var sq: float = car.slip * on_ground * clampf(spd / 8.0, 0.0, 1.0) if car.on_surface == "asphalt" else 0.0
+	_squeal_amt = move_toward(_squeal_amt, sq, get_process_delta_time() * 6.0)
+	_squeal.volume_db = linear_to_db(maxf(_squeal_amt, 0.001)) - 13.0
+	_squeal.pitch_scale = 0.92 + _squeal_amt * 0.16
 
 
 func _on_hit(impact: float) -> void:
@@ -631,7 +639,7 @@ func _update_hint() -> void:
 		"running", "finished":
 			t = ""
 	_hint_label.text = t
-	var title: String = "%s\n%s" % [opts.title, opts.stage_name] if opts.get("mode") == "story" else "STAGE %d" % stage_no
+	var title: String = "%s\n%s" % [opts.title, opts.stage_name] if opts.get("mode") == "story" else "STAGE %d\n%s" % [stage_no, st.describe()]
 	_big_label.text = title if state == "grid" else ""
 
 

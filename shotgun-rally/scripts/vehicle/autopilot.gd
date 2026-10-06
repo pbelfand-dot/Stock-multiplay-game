@@ -11,7 +11,8 @@ extends RefCounted
 ##     is going (when the tail steps out, that's countersteer, as a driver
 ##     would). The line drifts to the inside of the next corner
 ##   * speed: the fastest the next 150 m allows: sqrt(mu g R) at every
-##     corner, braked down to in time (v^2 = vc^2 + 2 a d)
+##     corner (mu from the surface on its line: StageGen.grip_at), braked down to
+##     in time (v^2 = vc^2 + 2 a d)
 
 const MU := 0.45                 # how hard it dares to corner (fraction of g): under half the car's grip, a margin for the loose gravel off the clean line
 const DECEL := 5.5               # how hard it plans to brake (m/s^2)
@@ -32,9 +33,14 @@ func _init(stage) -> void:
 		var k := 0.0
 		for j in range(maxi(0, i - 2), mini(st.curv.size(), i + 3)):
 			k = maxf(k, absf(st.curv[j]))
-		# a narrow road leaves less room to straighten the bend: slower
+		# a narrow road leaves less room to straighten the bend: slower; and the surface
+		# along its line (toward the inside): the asphalt grips more, ice and snow far less
 		var mu: float = MU * clampf(0.86 + 0.14 * (st.widths[i] - 4.6), 0.86, 1.0)
+		var g: float = st.grip_at(i * st.STEP, clampf(st.curv[i] * 30.0, -0.6, 0.6))
+		mu *= g
 		_vmax[i] = 60.0 if k < 1e-4 else minf(60.0, sqrt(mu * 9.8 / k))
+		if g < 0.5:
+			_vmax[i] = minf(_vmax[i], 24.0)              # ice or snow under it: lift, even on a straight
 	# brows in a bend: lift so the tyres stay loaded (over a brow the car gets light
 	# at v^2 / R = g; light while turning, it slides wide)
 	for i in range(2, st.pts.size() - 2):

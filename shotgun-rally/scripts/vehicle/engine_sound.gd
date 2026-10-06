@@ -32,7 +32,7 @@ func _ready() -> void:
 	_rng.randomize()
 	for n in LOOPS:
 		var p := AudioStreamPlayer3D.new()
-		p.stream = _looped(DIR + "%s.wav" % n)
+		p.stream = looped(DIR + "%s.wav" % n)
 		p.unit_size = 6.0
 		p.bus = "SFX"
 		p.volume_db = -80.0
@@ -44,11 +44,14 @@ func _ready() -> void:
 	_shift = load(DIR + "shift.wav")
 
 
-func _looped(path: String) -> AudioStream:
+## A sound file made to loop end to end (its whole length; the game's gravel and
+## squeal loops too). The loops are imported uncompressed: they're short, and a
+## loop point lands exactly where it's put.
+static func looped(path: String) -> AudioStreamWAV:
 	var w: AudioStreamWAV = load(path).duplicate()
 	w.loop_mode = AudioStreamWAV.LOOP_FORWARD
 	w.loop_begin = 0
-	w.loop_end = w.data.size() / (2 * (2 if w.stereo else 1))
+	w.loop_end = int(round(w.get_length() * w.mix_rate))   # (in samples: data.size() isn't, once it's compressed)
 	return w
 
 

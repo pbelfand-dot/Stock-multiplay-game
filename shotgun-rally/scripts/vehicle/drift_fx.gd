@@ -36,6 +36,9 @@ const SURF := {
 	"mud": [Color(0.52, 0.4, 0.27), [Color(0.33, 0.24, 0.15), Color(0.41, 0.31, 0.2)], 0.45, 1.4],
 	"grass": [Color(0.78, 0.8, 0.56), [Color(0.33, 0.56, 0.2), Color(0.42, 0.62, 0.24), Color(0.46, 0.37, 0.23)], 0.55, 0.8],
 	"tarmac": [Color(0.92, 0.92, 0.94), [], 0.8, 0.0],
+	"asphalt": [Color(0.92, 0.92, 0.94), [], 0.8, 0.0],       # tyre smoke, nothing thrown
+	"ice": [Color(0.9, 0.94, 0.98), [], 0.25, 0.0],
+	"snow": [Color(0.96, 0.97, 1.0), [Color(0.93, 0.95, 0.98), Color(0.84, 0.87, 0.92)], 1.2, 0.7],
 }
 
 static var _cloud: ImageTexture     # made once, shared by every stage's car
@@ -186,7 +189,7 @@ func _spawn(xf: Transform3D, dt: float) -> void:
 	if touching == 0:
 		_air += dt
 	elif _air > 0.0:
-		if _air > 0.35 and car.on_surface != "tarmac":
+		if _air > 0.35 and not car.on_surface in ["tarmac", "asphalt", "ice"]:
 			_land_burst(xf, v, surf, clampf((_air - 0.35) / 0.6, 0.3, 1.0))
 		_air = 0.0
 	for k in 4:

@@ -1,6 +1,8 @@
 extends SceneTree
 ## The sound: the engine (engine_sound.gd: four loops from real recordings,
 ## blended by the revs) and the mix (Config's buses).
+##   * the loops (the engine's, the gravel, the asphalt squeal) play their whole
+##     length, end to end
 ##   * the blend: at each loop's own revs it's all that loop; off the throttle at
 ##     high revs the anti-lag crackle takes over
 ##   * driving: flat out on a pad it changes up (a shift sound each time), lifting
@@ -32,6 +34,16 @@ func _initialize() -> void:
 	fails += _check(m.high > 0.99, "at 7,350 rpm, all the high loop (%.2f)" % m.high)
 	m = EngineSound.mix(6500.0, 0.0)
 	fails += _check(m.overrun > 0.95 and m.high < 0.4, "off the throttle at 6,500 rpm, the anti-lag crackle (%.2f, high %.2f)" % [m.overrun, m.high])
+	# every loop plays its whole length (a compressed import once looped just its first fifth)
+	var whole := true
+	var info := []
+	for n in ["engine/idle", "engine/mid", "engine/high", "engine/overrun", "gravel", "squeal"]:
+		var w: AudioStreamWAV = EngineSound.looped("res://assets/sfx/%s.wav" % n)
+		var samples := int(round(w.get_length() * w.mix_rate))
+		whole = whole and w.loop_mode == AudioStreamWAV.LOOP_FORWARD and w.loop_begin == 0 and w.loop_end == samples \
+			and w.format == AudioStreamWAV.FORMAT_16_BITS
+		info.append("%s %.2f s" % [n.get_file(), float(w.loop_end) / w.mix_rate])
+	fails += _check(whole, "every loop plays end to end, uncompressed (%s)" % ", ".join(info))
 	var pad := StaticBody3D.new()
 	pad.set_meta("surface", "gravel")
 	var cs := CollisionShape3D.new()

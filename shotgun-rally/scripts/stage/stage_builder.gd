@@ -1,8 +1,9 @@
 extends Node3D
-## Turns a StageGen into the world: the gravel road (crowned, with two worn
+## Turns a StageGen into the world: the road, gravel (crowned, with two worn
 ## wheel tracks, looser gravel on the crown and out toward the edges where the
 ## grip is worse (StageGen.lane_grip), berms of thrown-out gravel on the outside
-## of the bends), spectators behind tape at the jumps, the start and finish and
+## of the bends) or asphalt (edge lines, a centre line, gravel dragged onto it,
+## snow and ice: _road), spectators behind tape at the jumps, the start and finish and
 ## some slow corners, flat grass run-off then rolling ground out to ~75 m, a low-poly
 ## forest that crowds the INSIDE of corners (so you can't see round them:
 ## that's what the notes are for), mud puddles, wooden bridges over gullies with
@@ -18,6 +19,15 @@ const VERGE := Color(0.5, 0.52, 0.3)
 const GRASS := Color(0.34, 0.54, 0.21)
 const GRASS_FAR := Color(0.28, 0.46, 0.19)
 const DIRT := Color(0.45, 0.36, 0.25)
+## The asphalt (tarmac stages and sections): dark, a white line along each edge, a
+## dashed centre line where it's wide enough, a gravel shoulder; no wheel tracks,
+## no berms. Snow and ice lying on it (StageGen.patches).
+const ASPHALT := Color(0.27, 0.27, 0.28)
+const PAINT := Color(0.9, 0.9, 0.86)
+const SHOULDER := Color(0.5, 0.46, 0.38)
+const SNOW := Color(0.93, 0.95, 0.98)
+const ICE := Color(0.5, 0.62, 0.74)
+const CENTRE_LINE_W := 5.4          # roads at least this wide get a centre line
 ## Road cross-section at the normal width (5.6 m): [d, height, colour of the strip
 ## to the next point]. The edges move with the road's width (_road_x); the
 ## crown and the two wheel tracks don't (the cars are the same width)
@@ -98,26 +108,49 @@ func _prepare(stage) -> void:
 # ── road ──────────────────────────────────────────────────────────────────
 
 func _road() -> void:
-	var mb := MeshBuf.new()
+	var bufs := {}                                   # surface -> MeshBuf: each its own body (what the tyres feel)
 	var n: int = st.pts.size()
-	var prev: Array = []
+	var prev_g: Array = []
+	var prev_a: Array = []
 	for i in n:
 		var s: float = i * st.STEP
 		var c: Vector3 = st.pts[i]
 		var r: Vector3 = st.right_at(s)
-		var row: Array = []
-		var berm := _berm(i)
 		var half: float = st.widths[i] * 0.5
+		var berm := _berm(i)
+		# both cross-sections at every sample (cheap): the gravel's and the asphalt's
+		var row_g: Array = []
 		for x in _road_x(half):
-			row.append(c + r * x[0] + Vector3.UP * (x[1] + _berm_lift(berm, x[0], half)))
-		if not prev.is_empty() and not st.on_bridge(s - st.STEP * 0.5):   # (a bridge's deck is the road there)
+			row_g.append(c + r * x[0] + Vector3.UP * (x[1] + _berm_lift(berm, x[0], half)))
+		var xs_a := _asphalt_x(half)
+		var row_a: Array = []
+		for d in xs_a:
+			row_a.append(c + r * d + Vector3.UP * _road_height(d, half))
+		if i > 0 and not st.on_bridge(s - st.STEP * 0.5):   # (a bridge's deck is the road there)
+			var sm: float = s - st.STEP * 0.5
 			var shade := 0.94 + 0.06 * sin(s * 0.37) * cos(s * 0.11)
-			for k in ROAD_X.size() - 1:
-				var col: Color = ROAD_X[k][2] * shade
-				col.a = 1.0
-				mb.quad(prev[k], prev[k + 1], row[k + 1], row[k], col, true)
-		prev = row
-	_add(mb, "gravel", "Road")
+			if st.surface_at(sm) == "gravel":
+				for k in ROAD_X.size() - 1:
+					var col: Color = ROAD_X[k][2] * shade
+					col.a = 1.0
+					_buf(bufs, "gravel").quad(prev_g[k], prev_g[k + 1], row_g[k + 1], row_g[k], col, true)
+			else:
+				var wide: bool = st.width_at(sm) >= CENTRE_LINE_W
+				for k in xs_a.size() - 1:
+					var dm: float = (xs_a[k] + xs_a[k + 1]) * 0.5
+					var patch: Dictionary = st.patch_at(sm, dm)
+					var surf: String = patch.surface if not patch.is_empty() else "asphalt"
+					var shoulder: bool = k == 0 or k == xs_a.size() - 2
+					var col := _asphalt_col(k, xs_a.size() - 2, sm, wide, shade, patch)
+					if shoulder and surf == "asphalt":
+						surf = "gravel"                          # (the shoulder: loose stuff)
+					_buf(bufs, surf).quad(prev_a[k], prev_a[k + 1], row_a[k + 1], row_a[k], col, true)
+		prev_g = row_g
+		prev_a = row_a
+	for surf in bufs:
+		var mi := _add(bufs[surf], surf, "Road" if surf == "gravel" else "Road_" + surf, _surface_material(surf))
+		if surf == "ice":
+			mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	# the start line
 	var sl := MeshBuf.new()
 	var s0: float = st.START_S
@@ -128,10 +161,63 @@ func _road() -> void:
 	_add(sl, "", "StartLine")
 
 
+static func _buf(bufs: Dictionary, surf: String):
+	if not bufs.has(surf):
+		bufs[surf] = MeshBuf.new()
+	return bufs[surf]
+
+
+## The asphalt's cross-section points for a half-width (d, m): the shoulder, the
+## edge line, the lanes (meeting the wheel-track points the patches use, +-1.25),
+## the centre line, and the same on the other side. Its heights are the gravel
+## road's (_road_height): the same crown, so the two meet flush at a join.
+static func _asphalt_x(half: float) -> Array:
+	return [-(half + 0.3), -half, -(half - 0.14), -1.25, -0.55, -0.07, 0.07, 0.55, 1.25, half - 0.14, half, half + 0.3]
+
+
+## The colour of asphalt strip k (of _asphalt_x; `last` is the far shoulder's) at
+## s, with whatever's lying on it (a patch: gravel, snow, ice).
+func _asphalt_col(k: int, last: int, s: float, wide: bool, shade: float, patch: Dictionary) -> Color:
+	var col := ASPHALT * (0.97 + 0.03 * shade)
+	if k == 0 or k == last:
+		col = SHOULDER * shade
+	elif k == 1 or k == last - 1:
+		col = PAINT
+	elif k == 5 and wide and fmod(s, 12.0) < 4.5:
+		col = PAINT                                      # the dashed centre line
+	if not patch.is_empty():
+		match patch.surface:
+			"snow":
+				col = SNOW * (0.97 + 0.03 * shade)
+			"ice":
+				col = col.lerp(ICE, 0.65)
+			"gravel":
+				# dragged on: thick at a join, thinning out over JOIN_DIRT m; a dusty smear in a corner
+				var thick := 0.75
+				if patch.kind == "join":
+					thick = lerpf(0.9, 0.3, clampf((s - float(patch.s0)) / (float(patch.s1) - float(patch.s0)), 0.0, 1.0))
+				col = col.lerp(GRAVEL * 0.9, thick)
+	col.a = 1.0
+	return col
+
+
+## The material for a road surface's mesh: ice shines.
+static func _surface_material(surf: String) -> StandardMaterial3D:
+	var m := MeshBuf.material()
+	if surf == "ice":
+		m.roughness = 0.12
+		m.metallic_specular = 0.9
+	elif surf == "asphalt":
+		m.roughness = 0.85
+	return m
+
+
 ## The berm at sample i: cars throw gravel to the outside of a bend, so it piles
 ## up there, higher the tighter the bend. Vector2(side of the road it's on (-1
 ## left / +1 right), height in m)
 func _berm(i: int) -> Vector2:
+	if st.surface_at(i * st.STEP) != "gravel":
+		return Vector2.ZERO                              # (asphalt: nothing thrown out)
 	var k := 0.0
 	for j in range(maxi(0, i - 4), mini(st.curv.size(), i + 5)):
 		k += st.curv[j]
@@ -352,11 +438,11 @@ func _base() -> void:
 
 
 ## Mesh + (if `surface` isn't "") a static body with its triangles.
-func _add(mb, surface: String, node_name: String) -> MeshInstance3D:
+func _add(mb, surface: String, node_name: String, mat: Material = null) -> MeshInstance3D:
 	var mi := MeshInstance3D.new()
 	mi.name = node_name
 	mi.mesh = mb.mesh()
-	mi.material_override = MeshBuf.material()
+	mi.material_override = mat if mat else MeshBuf.material()
 	add_child(mi)
 	if surface != "" and not mb.faces.is_empty():
 		var sb := StaticBody3D.new()

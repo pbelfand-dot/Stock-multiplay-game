@@ -17,6 +17,7 @@ extends Node
 ##                         --shot_shift (with --autostart --autopilot: the picture is taken mid gear change)]
 ##   --menu_shot=out.png [--menu_panel=maps|cars|online --shot_wait=6]   a picture of the home screen
 ##   --story=RALLY[,STAGE]                   (with --solo / --screenshot) a story stage
+##   --surface=gravel|tarmac|mixed|any [--ice]   a quick stage's surface (else Settings')
 ##   --profile=PATH                          another save file (credits, garage, story)
 
 const Game = preload("res://scripts/game.gd")
@@ -85,14 +86,34 @@ func start_solo(s: int) -> void:
 		var rs := Config.arg("story").split(",")
 		load_stage(0, 1, Championship.stage_opts(int(rs[0]), int(rs[1]) if rs.size() > 1 else 0))
 		return
-	load_stage(s, 1, {"mode": "quick"})
+	load_stage(s, 1, quick_opts(s))
+
+
+## A quick stage's settings (PLAY NOW, online): its surface from Settings (or
+## --surface=gravel|tarmac|mixed, --ice); "any" lets the seed pick: mostly gravel,
+## some tarmac, some mixed, a third of those with snow and ice on the asphalt.
+## They ride along with load_stage, so both machines build the same stage.
+func quick_opts(s: int) -> Dictionary:
+	var surf: String = Config.arg("surface", Config.quick_surface)
+	var ice := Config.flag("ice")
+	if surf == "any":
+		var x := absi(hash([s, "surface"])) % 100
+		surf = "gravel" if x < 55 else ("tarmac" if x < 80 else "mixed")
+		ice = ice or (surf != "gravel" and x % 3 == 0)
+	var gen := {}
+	if surf != "gravel":
+		gen["surface"] = surf
+	if ice:
+		gen["ice"] = true
+	return {"mode": "quick", "gen": gen}
 
 
 func host_game(seat: String) -> void:
 	if Net.host(Config.port, seat) != OK:
 		to_menu("Couldn't host on port %d (is another game running?)" % Config.port)
 		return
-	load_stage(randi() % 100000 if not Config.flag("seed") else seed_value, 1, {"mode": "quick"})
+	var s := randi() % 100000 if not Config.flag("seed") else seed_value
+	load_stage(s, 1, quick_opts(s))
 
 
 ## Story mode: rally i from its first stage, alone (seat "") or hosting a crew.
@@ -149,7 +170,7 @@ func next_stage(s: int, n: int, o: Dictionary) -> void:
 ## stage, or after the last one back to the championship.
 func continue_event() -> void:
 	if opts.get("mode") != "story":
-		next_stage(seed_value + 1, stage_no + 1, {"mode": "quick"})
+		next_stage(seed_value + 1, stage_no + 1, quick_opts(seed_value + 1))
 		return
 	var i: int = opts.rally
 	var j: int = opts.stage + 1
@@ -328,6 +349,8 @@ func _on_stage_finished(r: Dictionary) -> void:
 	# the co-driver's machine only knows where the car is from the driver's stream
 	if game.my_seat == "codriver":
 		print("[smoke] %s: %d car updates received" % [role, game.car.states_received])
+	# both machines must have built the same road surfaces (they only share the seed and settings)
+	print("[smoke] %s: surfaces %s #%d" % [role, game.st.describe(), hash(str(game.st.sections) + str(game.st.patches))])
 	var ok: bool = gap < 40.0 and (game.my_seat == "driver" or game.car.states_received > 100) \
 		and r.penalties == 0.0
 	print("[smoke] %s: %s" % [role, "OK" if ok else "FAIL"])

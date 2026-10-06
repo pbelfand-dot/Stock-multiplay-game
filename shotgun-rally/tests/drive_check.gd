@@ -1,9 +1,11 @@
 extends SceneTree
 ## The car and the stage, together: the autopilot drives a whole stage.
 ## Run: godot --headless --fixed-fps 120 --path . -s tests/drive_check.gd -- --seed=3
+##   [--surface=tarmac | mixed] [--ice]   an asphalt or mixed stage (snow and ice on the asphalt)
 ##   * it gets off the line (0-100 km/h in a sane time) and reaches the finish
 ##   * it stays on the road (few offs) and never falls through the world
 ##   * the springs hold the car at ride height, the handbrake flicks it
+##   * the tyres feel the road's surface (gravel, asphalt, what's lying on it)
 ## Prints one [drive] line per check; exits 1 on any FAIL.
 
 # loaded at run time, not preloaded: the game scripts use the autoloads (Net...),
@@ -29,6 +31,7 @@ var ride := 0.0
 var flick_yaw := 0.0
 var stuck := 0.0
 var resets := 0
+var surf_seen := {}                 # what the tyres were on (car.on_surface), physics ticks
 
 
 func _initialize() -> void:
@@ -37,10 +40,16 @@ func _initialize() -> void:
 	RallyCar = load("res://scripts/vehicle/rally_car.gd")
 	Autopilot = load("res://scripts/vehicle/autopilot.gd")
 	var seed_value := 3
+	var gen := {}
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--seed="):
 			seed_value = int(a.split("=")[1])
+		if a.begins_with("--surface="):
+			gen["surface"] = a.split("=")[1]
+		if a == "--ice":
+			gen["ice"] = true
 	st = StageGen.new()
+	st.opts = gen
 	st.generate(seed_value)
 	var b = StageBuilder.new()
 	root.add_child(b)
@@ -49,7 +58,8 @@ func _initialize() -> void:
 	root.add_child(car)
 	car.place(st.world_at(st.START_S - 4.0, 0.0), st.heading_at(st.START_S))
 	ap = Autopilot.new(st)
-	print("[drive] stage seed %d: %.0f m, %d trees" % [seed_value, st.length, b.tree_count])
+	var secs: Array = st.sections.map(func(x): return "%s %.0f-%.0f" % [x.surface, x.s0, x.s1])
+	print("[drive] stage seed %d: %.0f m, %d trees, %s, %d patches" % [seed_value, st.length, b.tree_count, ", ".join(secs), st.patches.size()])
 
 
 func _physics_process(dt: float) -> bool:
@@ -82,6 +92,7 @@ func _physics_process(dt: float) -> bool:
 					t, at.s, at.d, kmh, car.inp.steer, car.inp.throttle, car.inp.brake, car.grounded, car.on_surface,
 					rad_to_deg(wrapf(car_yaw - road_yaw, -PI, PI)), vlat, st.curv[at.i]])
 			max_kmh = maxf(max_kmh, kmh)
+			surf_seen[car.on_surface] = int(surf_seen.get(car.on_surface, 0)) + 1
 			if t100 < 0.0 and kmh >= 100.0:
 				t100 = t
 			var off: bool = absf(at.d) > st.width_at(at.s) * 0.5 + 1.4
@@ -93,6 +104,18 @@ func _physics_process(dt: float) -> bool:
 					t, (st.finish_s - st.START_S) / t * 3.6, max_kmh, offs, resets])
 				fails += _check(offs <= 5, "%d offs (<= 5: the autopilot is a careful test driver, not a racer)" % offs)
 				fails += _check(lowest > -1.0, "never fell through (lowest %.2f m)" % lowest)
+				# the tyres felt the road's surfaces (each the road body's own meta)
+				var total := 0.0
+				for k in surf_seen:
+					total += surf_seen[k]
+				var share := func(k): return float(surf_seen.get(k, 0)) / maxf(total, 1.0)
+				var want: String = st.opts.get("surface", "gravel")
+				var felt: bool = (share.call("gravel") > 0.85 if want == "gravel" else (share.call("asphalt") > 0.75 if want == "tarmac"
+					else share.call("asphalt") > 0.15 and share.call("gravel") > 0.15))
+				if st.opts.get("ice", false):
+					felt = felt and share.call("ice") + share.call("snow") > 0.0
+				var parts: Array = surf_seen.keys().map(func(k): return "%s %.0f%%" % [k, share.call(k) * 100.0])
+				fails += _check(felt, "the tyres felt the road: %s" % ", ".join(parts))
 				phase = "accel"
 				t = 0.0
 				t100 = -1.0

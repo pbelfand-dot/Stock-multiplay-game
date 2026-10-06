@@ -14,6 +14,7 @@ var call_early := 0.0          # AI co-driver: -1 (late) .. +1 (early)
 var volume := 0.8              # everything
 var sfx_volume := 0.45         # the engine, the gravel, crashes ... (the "SFX" bus)
 var voice_volume := 1.0        # the co-driver's voice (the "Voice" bus)
+var quick_surface := "any"     # PLAY NOW / online stages: "gravel", "tarmac", "mixed" or "any" (Main.quick_opts)
 ## The driver aids, each its own switch (keys as in AssistConfig): all off is the
 ## base physics. Out of the box the steering helps are on: a key can't hold part
 ## of the lock, so at speed it asks for all of it (smoothing eases it in, speed-
@@ -39,6 +40,7 @@ func _ready() -> void:
 		volume = cf.get_value("audio", "volume", volume)
 		sfx_volume = cf.get_value("audio", "effects", sfx_volume)
 		voice_volume = cf.get_value("audio", "voice", voice_volume)
+		quick_surface = cf.get_value("stage", "surface", quick_surface)
 		if int(cf.get_value("aids", "version", 1)) >= AIDS_VERSION:
 			for key in aids:
 				aids[key] = cf.get_value("aids", key, aids[key])
@@ -92,6 +94,7 @@ func save() -> void:
 	cf.set_value("audio", "volume", volume)
 	cf.set_value("audio", "effects", sfx_volume)
 	cf.set_value("audio", "voice", voice_volume)
+	cf.set_value("stage", "surface", quick_surface)
 	for key in aids:
 		cf.set_value("aids", key, aids[key])
 	cf.set_value("aids", "version", AIDS_VERSION)

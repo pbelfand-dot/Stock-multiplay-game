@@ -6,7 +6,7 @@ extends RefCounted
 ## when corners run together, otherwise the distance to the next note, and
 ## notes close together are read out as one call.
 ##
-## A note: {kind: "corner" | "crest" | "jump" | "water" | "bridge" | "finish", s, s_end,
+## A note: {kind: "corner" | "crest" | "jump" | "water" | "bridge" | "surface" | "ice" | "finish", s, s_end,
 ##   dir (-1 left / +1 right), grade, grade2, shape ("" | "hairpin" | "square"),
 ##   mods [...], caution, link ("" | "into" | "and"), dist (m, 0 = none)}
 ## Words are voice clip names (assets/voice/fraser/<word>.mp3).
@@ -35,6 +35,12 @@ static func build(st) -> Array:
 			last_water = p.s
 	for b in st.bridges:
 		out.append({"kind": "bridge", "s": b.s0 - 4.0, "s_end": b.s1})
+	for j in st.joins:                           # the surface changes: gravel to asphalt or back
+		out.append({"kind": "surface", "s": j.s - 6.0, "s_end": j.s, "to": j.to})
+	for p in st.patches:
+		if p.kind == "ice":                       # side: the lane it's on (+1 right), 0 = all across
+			var side := 0 if p.d0 < -50.0 and p.d1 > 50.0 else (1 if p.d0 >= 0.0 else -1)
+			out.append({"kind": "ice", "s": p.s0 - 4.0, "s_end": p.s1, "side": side})
 	out.append({"kind": "finish", "s": st.finish_s, "s_end": st.finish_s})
 	out.sort_custom(func(a, b): return a.s < b.s)
 	# links and distances
@@ -84,6 +90,11 @@ static func words(n: Dictionary) -> Array:
 			return ["water"]
 		"bridge":
 			return ["caution"]                       # (a narrow wooden bridge: the voice has no word "bridge")
+		"surface":
+			return ["caution"]                       # (onto tarmac / gravel: no such words in the voice either)
+		"ice":                                       # ice on one lane: keep to the other
+			var side: int = n.get("side", 0)
+			return ["caution"] if side == 0 else ["caution", "keep", "left" if side > 0 else "right"]
 		"finish":
 			return ["finish"]
 	var w: Array = []
@@ -134,8 +145,13 @@ static func calls(notes: Array) -> Array:
 
 ## Human-readable text of a note, for logs.
 static func text(n: Dictionary) -> String:
-	if n.kind == "bridge":
-		return " ".join(["CAUTION, BRIDGE"] + link_words(n).map(func(w): return str(w).to_upper()))
+	var keep := ""
+	if n.kind == "ice" and int(n.get("side", 0)) != 0:
+		keep = ", KEEP " + ("LEFT" if int(n.side) > 0 else "RIGHT")
+	var named := {"bridge": "CAUTION, BRIDGE", "ice": "CAUTION, ICE" + keep,
+		"surface": "CAUTION, ONTO %s" % ("TARMAC" if n.get("to") == "asphalt" else "GRAVEL")}
+	if named.has(n.kind):
+		return " ".join([named[n.kind]] + link_words(n).map(func(w): return str(w).to_upper()))
 	var parts: Array = []
 	for w in words(n) + link_words(n):
 		parts.append(String(w).replace("-", " ").to_upper().replace("DONT", "DON'T"))

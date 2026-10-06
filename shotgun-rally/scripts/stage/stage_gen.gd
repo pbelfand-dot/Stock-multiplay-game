@@ -51,10 +51,15 @@ var corners: Array = []         # [{s0, s1, dir, r_min, r_in, r_out, ang (deg), 
 var crests: Array = []          # [{s, h, w, jump}] (+ a jump's shape: big, up, down, a, land, u, x0, prof)
 var puddles: Array = []         # [{s, d, r}]
 var bridges: Array = []         # [{s0, s1, depth}] wooden bridges over a gully (depth: m below the deck)
+var sections: Array = []        # [{s0, s1, surface ("gravel" | "asphalt")}], end to end (_make_sections)
+var joins: Array = []           # [{s, to}]: where the surface changes (to: what it is after)
+var patches: Array = []         # [{s0, s1, d0, d1, surface, kind}]: gravel, ice, snow lying on the asphalt
 var _rng := RandomNumberGenerator.new()
 ## Story rallies give a stage some character (set before generate(); none = an
 ## ordinary stage, exactly as before): narrow 0..1 leans the road narrow;
-## puddles x as many puddles (the extras from their own random numbers).
+## puddles x as many puddles (the extras from their own random numbers);
+## surface "gravel" (the default) / "tarmac" / "mixed", ice true: snow and ice
+## on the asphalt (_make_sections, _make_patches).
 var opts := {}
 var _hills: Array = []          # [[amp, wavelength, phase] x2]
 
@@ -69,11 +74,13 @@ func generate(seed_value: int, target := 2600.0) -> void:
 		if _clear_of_itself():
 			break
 	finish_s = length - FINISH_BACK
+	_make_sections()
 	_make_widths()
 	_make_elevation()
 	_find_corners()
 	_place_extras()
 	_place_bridges()
+	_make_patches()
 
 
 # ── pieces ────────────────────────────────────────────────────────────────
@@ -222,6 +229,8 @@ func _make_elevation() -> void:
 		var at: float = run.x + _rng.randf_range(36.0, 46.0)
 		if at < START_S + 140.0 or at > finish_s - 240.0 or run.y - at < 58.0:
 			continue
+		if not all_gravel(at - 70.0, at + 170.0):
+			continue                                     # (no Finnish jumps on an asphalt road)
 		var steepest := 0.0
 		for x in [-40.0, -20.0, 0.0, 20.0, 40.0, 60.0]:
 			steepest = maxf(steepest, absf(_hill_grade(at + x)))
@@ -505,6 +514,7 @@ func _place_extras() -> void:
 			var pd := minf(1.6, width_at(ps) * 0.5 - 1.2)
 			puddles.append({"s": ps, "d": prng.randf_range(-pd, pd), "r": prng.randf_range(1.4, 2.4)})
 			ps += prng.randf_range(260.0, 520.0) / (more - 1.0)
+	puddles = puddles.filter(func(p): return all_gravel(p.s - p.r - 2.0, p.s + p.r + 2.0))   # (mud puddles: the gravel's)
 
 
 # ── bridges ───────────────────────────────────────────────────────────────
@@ -544,6 +554,8 @@ func _place_bridges() -> void:
 func _bridge_fits(s: float, span: float, max_curv: float) -> bool:
 	var a := s - 10.0
 	var b := s + span + 10.0
+	if not all_gravel(a, b):
+		return false                                     # (wooden bridges are on the gravel roads)
 	for i in range(int(a / STEP), int(b / STEP) + 2):
 		if i < 0 or i >= curv.size() or absf(curv[i]) > max_curv:
 			return false
@@ -582,6 +594,193 @@ func gully_depth(s: float, d: float) -> float:
 		return 0.0
 	var u: float = (s - b.s0) / (b.s1 - b.s0)
 	return b.depth * smoothstep(0.0, 0.3, u) * smoothstep(0.0, 0.3, 1.0 - u) * (1.0 - smoothstep(35.0, 70.0, absf(d)))
+
+
+# ── surfaces ──────────────────────────────────────────────────────────────
+
+const JOIN_DIRT := 50.0         # m of gravel carried onto the asphalt after a join from gravel
+## roughly how much grip, against gravel (the autopilot's corner speeds)
+const SURFACE_GRIP := {"gravel": 1.0, "asphalt": 1.25, "snow": 0.45, "ice": 0.15}
+
+
+## The road's sections: gravel all the way (the default: an ordinary stage, just
+## as before), asphalt all the way (opts.surface "tarmac": a mountain road), or
+## "mixed": two or three sections, gravel and asphalt in turn (like Rally
+## Catalunya's), each join in the middle of a straight. Its own random numbers.
+func _make_sections() -> void:
+	sections.clear()
+	joins.clear()
+	var kind: String = opts.get("surface", "gravel")
+	if kind != "mixed":
+		sections = [{"s0": 0.0, "s1": length, "surface": "asphalt" if kind == "tarmac" else "gravel"}]
+		return
+	var rng := RandomNumberGenerator.new()
+	rng.seed = hash([seed_used, "surface"])
+	var splits: Array = [rng.randf_range(0.4, 0.6)] if rng.randf() < 0.5 else [rng.randf_range(0.28, 0.4), rng.randf_range(0.6, 0.74)]
+	var surf := "gravel" if rng.randf() < 0.5 else "asphalt"
+	var runs := _straight_runs(50.0)
+	var s0 := 0.0
+	for u in splits:
+		var at := _join_spot(START_S + (finish_s - START_S) * float(u), runs)
+		if at < s0 + 300.0 or at > finish_s - 200.0:
+			continue
+		sections.append({"s0": s0, "s1": at, "surface": surf})
+		surf = "asphalt" if surf == "gravel" else "gravel"
+		joins.append({"s": at, "to": surf})
+		s0 = at
+	sections.append({"s0": s0, "s1": length, "surface": surf})
+
+
+## Where a join goes near `want`: the middle of the nearest straight (within 300
+## m), or else the straightest spot within 150 m.
+func _join_spot(want: float, runs: Array) -> float:
+	var best := -1.0
+	for r in runs:
+		var mid: float = snappedf((r.x + r.y) * 0.5, STEP)
+		if absf(mid - want) < 300.0 and (best < 0.0 or absf(mid - want) < absf(best - want)):
+			best = mid
+	if best >= 0.0:
+		return best
+	var lo := int(maxf(want - 150.0, 0.0) / STEP)
+	var hi := mini(int((want + 150.0) / STEP), curv.size() - 1)
+	var bi := lo
+	for i in range(lo, hi + 1):
+		if absf(curv[i]) < absf(curv[bi]):
+			bi = i
+	return bi * STEP
+
+
+## What lies on the asphalt (its own random numbers): gravel dragged onto it, for
+## JOIN_DIRT m after a join from gravel (all across) and on the inside of slow
+## corners where the cars cut them (the co-driver adds "don't cut"); and with
+## opts.ice, Monte Carlo's winter: ice across a lane (or, on a straight, the whole
+## road) and snow along an edge. Across the road a patch goes from d0 to d1 (m
+## from the centre line, + = right); its edges are the wheel tracks (+-1.25), the
+## centre line or beyond the road's edge, which is where the builder's strips meet,
+## so what you see is exactly where the grip changes.
+func _make_patches() -> void:
+	patches.clear()
+	var rng := RandomNumberGenerator.new()
+	rng.seed = hash([seed_used, "patches"])
+	for j in joins:
+		if j.to == "asphalt":
+			patches.append({"s0": j.s, "s1": j.s + JOIN_DIRT, "d0": -99.0, "d1": 99.0, "surface": "gravel", "kind": "join"})
+	for c in corners:
+		if surface_at(c.s0) != "asphalt" or surface_at(c.s1) != "asphalt":
+			continue
+		if (c.grade > 3 and c.shape == "") or c.ang < 40.0 or rng.randf() > 0.4:
+			continue
+		var l: float = c.s1 - c.s0
+		patches.append({"s0": c.s0 + l * 0.2, "s1": c.s1 - l * 0.05, "d0": 1.25 if c.dir > 0 else -99.0,
+			"d1": 99.0 if c.dir > 0 else -1.25, "surface": "gravel", "kind": "cut"})
+		c.mods.append("dont-cut")
+	if opts.get("ice", false):
+		rng.seed = hash([seed_used, "ice"])              # (its own numbers: the corners' dirt doesn't move it)
+		var s := START_S + 160.0 + rng.randf_range(0.0, 200.0)
+		while s < finish_s - 90.0:
+			var right := rng.randf() < 0.5
+			var snow := rng.randf() < 0.5
+			var l := rng.randf_range(35.0, 110.0) if snow else rng.randf_range(10.0, 26.0)
+			if surface_at(s) != "asphalt" or surface_at(s + l) != "asphalt" or (not snow and _slow_corner(s - 25.0, s + l + 10.0)):
+				s += 30.0
+				continue
+			if snow:                                     # ploughed to the side, a strip of it along one edge
+				patches.append({"s0": s, "s1": s + l, "d0": 1.25 if right else -99.0, "d1": 99.0 if right else -1.25,
+					"surface": "snow", "kind": "snow"})
+			else:                                        # ice: a lane in the shade, or the whole road on a straight
+				var whole := rng.randf() < 0.5 and _straightish(s - 30.0, s + l + 20.0)
+				patches.append({"s0": s, "s1": s + l, "d0": -99.0 if whole or not right else 0.0,
+					"d1": 99.0 if whole or right else 0.0, "surface": "ice", "kind": "ice"})
+			s += l + rng.randf_range(200.0, 450.0)
+	patches.sort_custom(func(a, b): return a.s0 < b.s0)
+
+
+## Is there a slow corner (grade 1-2, a hairpin, a square) between a and b?
+func _slow_corner(a: float, b: float) -> bool:
+	for c in corners:
+		if c.s1 > a and c.s0 < b and (c.grade <= 2 or c.shape != ""):
+			return true
+	return false
+
+
+## Is the road nearly straight (no tighter than 150 m) all the way from a to b?
+func _straightish(a: float, b: float) -> bool:
+	for i in range(maxi(int(a / STEP), 0), mini(int(b / STEP) + 1, curv.size())):
+		if absf(curv[i]) > 1.0 / 150.0:
+			return false
+	return true
+
+
+## The stage's surface in words (the start line's title): "GRAVEL", "TARMAC",
+## "TARMAC · SNOW AND ICE", "MIXED · GRAVEL / TARMAC / GRAVEL".
+func describe() -> String:
+	var names: Array = sections.map(func(x): return "TARMAC" if x.surface == "asphalt" else "GRAVEL")
+	var out: String = names[0] if names.size() == 1 else "MIXED · " + " / ".join(names)
+	for p in patches:
+		if p.kind == "ice" or p.kind == "snow":
+			return out + " · SNOW AND ICE"
+	return out
+
+
+## The road's own surface at s: "gravel" or "asphalt".
+func surface_at(s: float) -> String:
+	for sec in sections:
+		if s < sec.s1:
+			return sec.surface
+	return sections[-1].surface if not sections.is_empty() else "gravel"
+
+
+## Is the road gravel all the way from a to b?
+func all_gravel(a: float, b: float) -> bool:
+	for sec in sections:
+		if sec.surface != "gravel" and sec.s1 > a and sec.s0 < b:
+			return false
+	return true
+
+
+## What's under a tyre at road coordinates (s, d): the section's own surface, or
+## what's lying on it there (gravel dragged on, ice, snow).
+func surface_at_d(s: float, d: float) -> String:
+	var out := surface_at(s)
+	for p in patches:
+		if p.s0 > s:
+			break
+		if s <= p.s1 and d >= p.d0 and d <= p.d1:
+			out = p.surface
+	return out
+
+
+## The patch (of `kind`, or any) at road coordinates (s, d), or {}.
+func patch_at(s: float, d: float, kind := "") -> Dictionary:
+	var out := {}
+	for p in patches:
+		if p.s0 > s:
+			break
+		if s <= p.s1 and d >= p.d0 and d <= p.d1 and (kind == "" or p.kind == kind):
+			out = p
+	return out
+
+
+## Grip across the road at (s, d), on top of the surface's own: on gravel the
+## wheel tracks and the loose stuff (lane_grip); asphalt, ice and snow are the
+## same all the way across.
+func lane_mu(s: float, d: float) -> float:
+	if surface_at_d(s, d) == "gravel":
+		return lane_grip(d, width_at(s) * 0.5)
+	return 1.0
+
+
+## Roughly how much grip a car on the line d at s has, against gravel (the
+## autopilot's corner speeds): more on the asphalt, much less on ice and snow
+## under either side's tyres.
+func grip_at(s: float, d := 0.0) -> float:
+	var g: float = SURFACE_GRIP.get(surface_at(s), 1.0)
+	for p in patches:
+		if p.s0 > s + 4.0:
+			break
+		if s <= p.s1 + 4.0 and p.d0 < d + 0.9 and p.d1 > d - 0.9:
+			g = minf(g, SURFACE_GRIP.get(p.surface, 1.0))
+	return g
 
 
 # ── queries ───────────────────────────────────────────────────────────────

@@ -331,14 +331,15 @@ func set_simulating(on: bool) -> void:
 	freeze = not on
 
 
-## Where each tyre is across the road (car at road position s, d) -> its grip:
-## the clean wheel tracks or the loose gravel (stage_gen.lane_grip).
+## Where each tyre is on the road (car at road position s, d) -> its grip: on
+## gravel the clean wheel tracks or the loose stuff, on asphalt the same all
+## across (stage_gen.lane_mu).
 func set_lanes(stage, s: float, d: float) -> void:
 	var right: Vector3 = stage.right_at(s)
-	var half: float = stage.width_at(s) * 0.5
+	var fwd: Vector3 = stage.forward_at(s)
 	for k in 4:
-		var w: Vector3 = wheels[k].global_position
-		lane_mu[k] = stage.lane_grip(d + (w - global_position).dot(right), half)
+		var off: Vector3 = wheels[k].global_position - global_position
+		lane_mu[k] = stage.lane_mu(s + off.dot(fwd), d + off.dot(right))
 		wheels[k].surface_mu = lane_mu[k] * grip_mult
 
 

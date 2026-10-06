@@ -21,11 +21,15 @@ run_g() {
 }
 echo "== compile check"
 run_g 180 --headless --path . -s tests/check_scripts.gd 2>&1 | grep -E "checked|COMPILE FAIL" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
-echo "== stages: 20 seeds, deterministic, no crossings, every corner has a note, wooden bridges"
+echo "== stages: 20 seeds, deterministic, no crossings, every corner has a note, wooden bridges; tarmac and mixed stages"
 run_g 240 --headless --path . -s tests/stage_check.gd 2>&1 | grep -E "\[stage\] (FAIL|STAGES|words|[0-9]+ wooden)" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
 echo "== car + stage: the autopilot drives whole stages, 0-100, braking, handbrake flick"
 for seed in 3 7 15; do
   run_g 360 --headless --fixed-fps 120 --path . -s tests/drive_check.gd -- --seed=$seed 2>&1 | grep -E "\[drive\] (FAIL|DRIVE|ok   finished)" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
+done
+echo "== tarmac (with snow and ice) and a mixed stage: the autopilot drives them, the tyres feel each surface"
+for args in "--seed=21 --surface=tarmac --ice" "--seed=7 --surface=mixed"; do
+  run_g 360 --headless --fixed-fps 120 --path . -s tests/drive_check.gd -- $args 2>&1 | grep -E "\[drive\] (FAIL|DRIVE|ok   finished|ok   the tyres)" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
 done
 echo "== handling: full steering = the most grip at 50 / 80 / 110 km/h, lift-off + handbrake rotation"
 run_g 300 --headless --fixed-fps 120 --path . -s tests/handling_check.gd 2>&1 | grep -E "\[handling\]" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
@@ -51,17 +55,19 @@ echo "== sound: the engine's four loops blended by the revs, shifts and anti-lag
 run_g 120 --headless --fixed-fps 120 --path . -s tests/sound_check.gd 2>&1 | grep -E "\[sound\]" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
 echo "== AI co-driver: every call said in time, from where the car is"
 run_g 480 --headless --fixed-fps 120 --path . -- --aicheck --autostart --autopilot --seed=8 --timeout=400 --profile=$T/ai.cfg 2>&1 | grep -E "\[ai\]" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
-for case in "driver codriver" "codriver driver"; do
+for case in "driver codriver gravel" "codriver driver mixed"; do
   set -- $case
-  echo "== 2 players: host $1, guest $2 (the driver's machine streams the car)"
+  echo "== 2 players: host $1, guest $2 (the driver's machine streams the car), a $3 stage: both build the same surfaces"
   hp_ap=""; cl_ap=""
   [ "$1" = driver ] && hp_ap="--autopilot" || cl_ap="--autopilot"
-  run_g 260 --headless --path . -- --host --seat=$1 --autostart $hp_ap --smoke=host --port=$P --seed=5 --length=900 --timeout=180 --profile=$T/host.cfg > $T/host.log 2>&1 &
+  run_g 260 --headless --path . -- --host --seat=$1 --autostart $hp_ap --smoke=host --port=$P --seed=5 --surface=$3 --length=900 --timeout=180 --profile=$T/host.cfg > $T/host.log 2>&1 &
   hp=$!
   sleep 3
   run_g 260 --headless --path . -- --join=127.0.0.1 --port=$P --name=Bob $cl_ap --smoke=client --length=900 --timeout=180 --profile=$T/client.cfg > $T/client.log 2>&1; c=$?
   wait $hp; h=$?
   grep -h "\[smoke\]" $T/host.log $T/client.log
+  hs=$(grep -ho "surfaces .*" $T/host.log); cs=$(grep -ho "surfaces .*" $T/client.log)
+  if [ -z "$hs" ] || [ "$hs" != "$cs" ]; then echo "!! the two machines built different surfaces: '$hs' / '$cs'"; fail=1; fi
   if grep -hE -A2 "^(SCRIPT ERROR|ERROR: Node not found)" $T/host.log $T/client.log; then echo "!! engine errors above"; fail=1; fi
   [ $c -eq 0 ] && [ $h -eq 0 ] || fail=1
   P=$((P + 1))

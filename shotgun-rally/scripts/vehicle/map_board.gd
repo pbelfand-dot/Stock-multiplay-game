@@ -6,8 +6,9 @@ extends Node3D
 ##
 ## The map is heading-up, like a GPS: the car marker stays put near the bottom
 ## and the road turns around it as the car turns. ~280 m of road ahead, a bit
-## behind, the start and finish lines when they're near, and bridges (the map
-## symbol: the road drawn as planks with a rail each side).
+## behind, the start and finish lines when they're near, bridges (the map
+## symbol: the road drawn as planks with a rail each side), the asphalt in grey
+## (gravel is yellow: you see a surface change coming) and ice in pale blue.
 ##
 ## Drawn into a SubViewport (2D) shown on a quad: board-local units are metres,
 ## the map faces +Z (toward the co-driver's eyes).
@@ -105,6 +106,19 @@ func _to_map(p: Vector3, origin: Vector3, fwd: Vector3, right: Vector3) -> Vecto
 	return CAR_AT + Vector2(d.dot(right), -d.dot(fwd)) * SCALE
 
 
+## The road from a to b (m) as a line on the map, if any of it is there.
+func _draw_stretch(a: float, b: float, col: Color, w: float, origin: Vector3, fwd: Vector3, right: Vector3) -> void:
+	if b - a < 1.0:
+		return
+	var line := PackedVector2Array()
+	var s := a
+	while s < b:
+		line.append(_to_map(st.point_at(s), origin, fwd, right))
+		s += st.STEP
+	line.append(_to_map(st.point_at(b), origin, fwd, right))
+	_map.draw_polyline(line, col, w)
+
+
 func _draw_map() -> void:
 	var w := float(MAP_PX.x)
 	var h := float(MAP_PX.y)
@@ -141,6 +155,13 @@ func _draw_map() -> void:
 	if ahead.size() > 1:
 		_map.draw_polyline(ahead, Color(0.18, 0.15, 0.12), 9.0)
 		_map.draw_polyline(ahead, Color(0.98, 0.84, 0.32), 4.0)
+	# the asphalt sections in grey (the gravel stays yellow), ice in pale blue
+	for sec in st.sections:
+		if sec.surface == "asphalt":
+			_draw_stretch(maxf(sec.s0, car_s), minf(sec.s1, car_s + AHEAD), Color(0.55, 0.56, 0.6), 4.0, origin, fwd, right)
+	for p in st.patches:
+		if p.kind == "ice":
+			_draw_stretch(maxf(p.s0, car_s), minf(p.s1, car_s + AHEAD), Color(0.55, 0.85, 1.0), 7.0, origin, fwd, right)
 	# bridges: the map's symbol (planks between two rails)
 	for b in st.bridges:
 		if b.s1 < car_s - BEHIND or b.s0 > car_s + AHEAD:

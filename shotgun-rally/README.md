@@ -129,6 +129,17 @@ front, banking into the turns), trackside cameras it flashes past, a chase camer
      co-driver's numbers account for it: on a narrow road the same bend is a lower (slower) number.
    - **Spectators** stand well back behind red-and-white tape at the start, the finish, every jump
      and some of the slow corners, in bright jackets, waving flags. They jump and cheer as you come past.
+   - **Tarmac and mixed stages.** A stage can also be **asphalt** all the way (dark road, white
+     edge lines, a dashed centre line where it's wide enough, gravel shoulders; no jumps, wooden
+     bridges or mud puddles) or **mixed**: two or three sections, gravel and asphalt in turn (like
+     Rally Catalunya), each join on a straight, called "caution", with gravel dragged across the
+     asphalt for 50 m after a join and on the inside of slow corners where the cars cut them (the
+     co-driver adds "don't cut"). Some tarmac stages have **Monte Carlo's winter**: snow ploughed
+     along an edge and **ice** across a lane ("caution, keep left") or, on a straight, the whole
+     road. Each is its own surface to the tyres (asphalt 1.18 g in a corner, gravel 0.93, snow 0.42,
+     ice 0.13), so it drives differently: on tarmac the car grips harder and lets go sooner, and
+     a sliding tyre squeals. The co-driver's map shows the asphalt in grey and the ice in blue.
+     PLAY NOW picks the surface (SETTINGS: STAGE SURFACE: any, gravel, tarmac, mixed).
 3. **The map board** (our own design, not the reference's tablet) shows **only the map and where you
    are**: the road ahead as a line, heading-up like a GPS, ~300 m of it, with the stopwatch clipped on
    top. No grades, no warnings: reading the road and calling it is the co-driver's job.
@@ -321,7 +332,7 @@ real voice.
 | 1 | **Playable grey box:** generated forest gravel stages, raycast rally car, first-person driver + co-driver seats, the co-driver's map board, mud + wipers, start countdown, jump starts, resets, results, 2 players online, builds | ✅ done |
 | 2 | **AI co-driver** | ✅ basic version done (calls by time, countdown, finish). Next: quick-call wheel for the human co-driver, call-timing setting in the menu, more lines |
 | 3 | **Art:** the car and both crew are Higgsfield models (concept art -> 3D, the crew rigged and posed in their seats: hands on the wheel / the map board, heads turning where the player looks), the car's wheels and mud flaps move, racing gloves + hand-over-hand steering, a stripped rally interior (numbered dials, shift lights, switch panel, sequential lever, a deep-dish wheel, a working mirror), six-point harnesses fitted to the crew, the hand reaching for the lever at each gear change, the loading screen; next: better trees | car + crew + cockpit ✅ |
-| 4 | **Jobs + content:** OK board, warning triangle, pushing the car, punctures, time cards, road book, recce mode, more biomes, wooden bridges, street (tarmac) and mixed-surface stages ([the plan](docs/street_and_mixed_maps.md)) | bridges ✅ |
+| 4 | **Jobs + content:** OK board, warning triangle, pushing the car, punctures, time cards, road book, recce mode, more biomes, wooden bridges, street (tarmac) and mixed-surface stages ([the plan](docs/street_and_mixed_maps.md)) | bridges ✅, tarmac + mixed stages ✅ |
 | 5 | Polish, crews racing each other | |
 
 ## Run from source / keep building it

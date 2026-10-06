@@ -8,6 +8,7 @@ extends SceneTree
 ##   * wooden bridges: about one a stage, the same for the same seed, on straight
 ##     level road (not on a corner, a crest or a jump), no puddle on one, the
 ##     ground dug into a gully under it, a note ("caution") for each
+##   * tarmac and mixed stages (_surfaces), every word said has a voice clip
 
 const StageGen = preload("res://scripts/stage/stage_gen.gd")
 const Notes = preload("res://scripts/stage/pacenotes.gd")
@@ -88,6 +89,7 @@ func _process(_d: float) -> bool:
 				for w in calls[k].words:
 					line += String(w) + " "
 				print("[stage]   %5.0f m: %s" % [calls[k].s, line])
+	fails += _surfaces(words)
 	if bridges < 12:
 		fails += _fail("only %d bridges in 20 stages" % bridges)
 	print("[stage] %d wooden bridges in 20 stages" % bridges)
@@ -100,9 +102,86 @@ func _process(_d: float) -> bool:
 		if not FileAccess.file_exists("res://assets/voice/fraser/%s.mp3" % w):
 			missing.append(w)
 	print("[stage] words used: %d, without a voice clip yet: %s" % [words.size(), missing])
+	if not missing.is_empty():
+		fails += _fail("words with no voice clip: %s" % [missing])
 	print("[stage] %s (%d ms)" % ["STAGES OK" if fails == 0 else "STAGES FAIL", Time.get_ticks_msec() - t0])
 	quit(1 if fails > 0 else 0)
 	return false
+
+
+## Tarmac and mixed stages (10 seeds each, the tarmac ones with snow and ice):
+## the same seed makes the same sections and patches; an ordinary stage is all
+## gravel with nothing on it; asphalt has no jumps, wooden bridges or mud
+## puddles; a mixed stage's joins are on straight road, each called, the one onto
+## asphalt with gravel dragged across it; what lies on the asphalt is only on
+## asphalt, ice never in a slow corner, each called (and a dirty corner inside
+## says "don't cut").
+func _surfaces(words: Dictionary) -> int:
+	var fails := 0
+	var counts := {"join": 0, "cut": 0, "ice": 0, "snow": 0}
+	for seed_value in range(1, 11):
+		var plain = StageGen.new()
+		plain.generate(seed_value)
+		if plain.sections.size() != 1 or plain.sections[0].surface != "gravel" or not plain.patches.is_empty() or not plain.joins.is_empty():
+			fails += _fail("seed %d: an ordinary stage isn't plain gravel" % seed_value)
+		for gen in [{"surface": "tarmac", "ice": true}, {"surface": "mixed"}]:
+			var st = StageGen.new()
+			st.opts = gen
+			st.generate(seed_value)
+			var st2 = StageGen.new()
+			st2.opts = gen
+			st2.generate(seed_value)
+			var tag := "seed %d %s" % [seed_value, gen.surface]
+			if str(st.sections) != str(st2.sections) or str(st.patches) != str(st2.patches):
+				fails += _fail("%s: sections / patches not deterministic" % tag)
+			if gen.surface == "tarmac" and (st.sections.size() != 1 or st.sections[0].surface != "asphalt"):
+				fails += _fail("%s: not all asphalt" % tag)
+			if gen.surface == "mixed":
+				if st.sections.size() < 2:
+					fails += _fail("%s: only one section" % tag)
+				for k in range(1, st.sections.size()):
+					if st.sections[k].surface == st.sections[k - 1].surface or st.sections[k].s0 != st.sections[k - 1].s1:
+						fails += _fail("%s: sections don't alternate end to end" % tag)
+			var notes: Array = Notes.build(st)
+			for j in st.joins:
+				for x in range(int((j.s - 10.0) / st.STEP), int((j.s + 10.0) / st.STEP)):
+					if absf(st.curv[x]) > 1.0 / 150.0:
+						fails += _fail("%s: the join at %.0f m isn't on a straight" % [tag, j.s])
+						break
+				if notes.filter(func(n): return n.kind == "surface" and n.s_end == j.s).size() != 1:
+					fails += _fail("%s: the join at %.0f m isn't called" % [tag, j.s])
+				if j.to == "asphalt" and st.patch_at(j.s + 10.0, 0.0, "join").is_empty():
+					fails += _fail("%s: no gravel dragged onto the asphalt after the join at %.0f m" % [tag, j.s])
+			for c in st.crests:
+				if c.jump and not st.all_gravel(c.s + c.x0, c.s + c.x0 + c.prof.size()):
+					fails += _fail("%s: a jump on the asphalt at %.0f m" % [tag, c.s])
+			for b in st.bridges:
+				if not st.all_gravel(b.s0, b.s1):
+					fails += _fail("%s: a wooden bridge on the asphalt at %.0f m" % [tag, b.s0])
+			for p in st.puddles:
+				if not st.all_gravel(p.s - p.r, p.s + p.r):
+					fails += _fail("%s: a mud puddle on the asphalt at %.0f m" % [tag, p.s])
+			for p in st.patches:
+				counts[p.kind] += 1
+				if st.surface_at(p.s0) != "asphalt" or st.surface_at(p.s1) != "asphalt":
+					fails += _fail("%s: a %s patch off the asphalt at %.0f m" % [tag, p.kind, p.s0])
+				if p.kind == "ice":
+					if st._slow_corner(p.s0 - 5.0, p.s1):
+						fails += _fail("%s: ice in a slow corner at %.0f m" % [tag, p.s0])
+					if notes.filter(func(n): return n.kind == "ice" and n.s_end == p.s1).size() != 1:
+						fails += _fail("%s: the ice at %.0f m isn't called" % [tag, p.s0])
+			for c in st.corners:
+				if "dont-cut" in c.mods and st.patch_at((c.s0 + c.s1) * 0.5, 2.0 * c.dir, "cut").is_empty():
+					fails += _fail("%s: \"don't cut\" at %.0f m with no gravel on the inside" % [tag, c.s0])
+			for c in Notes.calls(notes):
+				for w in c.words:
+					words[w] = true
+	print("[stage] tarmac / mixed: %d joins, %d dirty corners (don't cut), %d ice patches, %d snowy edges in 20 stages" % [
+		counts.join, counts.cut, counts.ice, counts.snow])
+	for k in counts:
+		if counts[k] < 3:
+			fails += _fail("only %d %s patches" % [counts[k], k])
+	return fails
 
 
 func _fail(msg: String) -> int:

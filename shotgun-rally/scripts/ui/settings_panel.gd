@@ -1,11 +1,13 @@
 extends PanelContainer
-## SETTINGS: the controls, the sound, the AI co-driver's timing, and the driving
-## aids, each its own switch (off: the car as it is). Saved as you change them
-## (Config, user://settings.cfg).
+## SETTINGS: the controls, the sound, the AI co-driver's timing, what surface
+## quick stages are, and the driving aids, each its own switch (off: the car as it
+## is). Saved as you change them (Config, user://settings.cfg).
 
 signal back
 
 const UI = preload("res://scripts/ui/ui_kit.gd")
+## What PLAY NOW and online stages are (Config.quick_surface, Main.quick_opts).
+const SURFACES := [["any", "ANY: GRAVEL, TARMAC OR MIXED"], ["gravel", "GRAVEL"], ["tarmac", "TARMAC"], ["mixed", "MIXED: GRAVEL + TARMAC"]]
 const AIDS := [
 	["anti_lock", "ABS", "A locking wheel gets its brake eased off: brake hard and still steer."],
 	["traction_control", "TRACTION CONTROL", "Spinning wheels get the throttle cut: flat out off the line, no smoke."],
@@ -54,9 +56,11 @@ func _ready() -> void:
 	left.add_child(UI.label("CO-DRIVER", 20, UI.YELLOW, true))
 	left.add_child(_slider("CALLS  LATE  ·  EARLY", -1.0, 1.0, config.call_early, func(x): config.call_early = x))
 	right.add_child(UI.label("DRIVING AIDS", 20, UI.YELLOW, true))
-	right.add_child(_note("For the new car physics, which takes over from the current car when it's done (try them now in the physics lab).", 600))
+	right.add_child(_note("Each its own switch: all off is the car as it is.", 600))
 	for a in AIDS:
 		right.add_child(_toggle(a[1], a[2], bool(config.aids.get(a[0], false)), func(on): config.aids[a[0]] = on))
+	right.add_child(UI.label("STAGES", 20, UI.YELLOW, true))
+	right.add_child(_cycle("SURFACE  (PLAY NOW, ONLINE)", SURFACES, config.quick_surface, func(k): config.quick_surface = k))
 	var back_btn := UI.button("BACK", func(): back.emit(), 20, 140)
 	back_btn.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	v.add_child(UI.gap(4))
@@ -86,6 +90,25 @@ func _toggle(title: String, what: String, on: bool, apply: Callable) -> Control:
 		get_node("/root/Config").save())
 	row.add_child(b)
 	return row
+
+
+## A setting with a few choices ([key, label]): a button that steps through them;
+## apply(key) is called, then the settings are saved.
+func _cycle(title: String, choices: Array, current: String, apply: Callable) -> Control:
+	var box := HBoxContainer.new()
+	box.add_theme_constant_override("separation", 12)
+	var l := UI.label(title, 18, UI.CREAM)
+	l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	box.add_child(l)
+	var at := maxi(0, choices.map(func(c): return c[0]).find(current))
+	var b := UI.button(choices[at][1], func(): pass, 17, 300)
+	b.pressed.connect(func():
+		at = (at + 1) % choices.size()
+		b.text = choices[at][1]
+		apply.call(choices[at][0])
+		get_node("/root/Config").save())
+	box.add_child(b)
+	return box
 
 
 ## A slider with its name; apply(value) is called, then the settings are saved.
