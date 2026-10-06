@@ -14,7 +14,7 @@ No friend online? The **AI co-driver** takes the seat.
 | | |
 |---|---|
 | ![The home screen: your car flat out on a stage behind the menu](docs/screens/home.jpg) | ![The garage: buy, paint, upgrade](docs/screens/garage.jpg) |
-| ![The realistic cars: Rotora FD in the garage, real power and weight](docs/screens/garage_fd.jpg) | ![The six realistic cars](docs/screens/cars_lineup.jpg) |
+| ![The realistic cars: Rotora FD in the garage, real power and weight](docs/screens/garage_fd.jpg) | ![The nine realistic cars](docs/screens/cars_lineup.jpg) |
 | ![Story mode: the Shotgun Series](docs/screens/maps.jpg) | ![Mountains on the horizon, the Mud & Mist rally's fog](docs/screens/mud_mist.jpg) |
 | ![Driver](docs/screens/driver.jpg) | ![Co-driver looking at the map](docs/screens/codriver.jpg) |
 | ![Mountain tarmac: switchbacks up a hillside, a village, snow and armco on a winter stage](docs/screens/mountain.jpg) | ![Into a village: houses with shutters, a church tower, a stone wall](docs/screens/village.jpg) |
@@ -87,19 +87,21 @@ front, banking into the turns), trackside cameras it flashes past, a chase camer
   tarmac in the same stage), Isola Rossa (dry mountain tarmac, hairpins and villages), Riviera Alps
   (snow and ice), the Grand Final (long stages). You're timed against five rival crews; finish a rally to open the next, and where you
   finish pays prize money. Drive it alone or host it for a friend.
-- **CARS**: the garage. Ten look-alike cars with their own names (no real brands or badges).
+- **CARS**: the garage. Thirteen look-alike cars with their own names (no real brands or badges).
   - **The rally cars on the shared body:** the **Kestrel R4** you start with, the blue-and-gold
     **Blue Comet WRC** (gold wheels), the white **Vortex Evo** with red and black slashes, and the
     **Martello 037** in white with navy, sky blue and red stripes (nearly all its power at the back:
     it slides).
-  - **Six realistic cars with bodies of their own and the real cars' numbers** (weight, engine
+  - **Nine realistic cars with bodies of their own and the real cars' numbers** (weight, engine
     curve, turbo, gearbox, which wheels drive: [docs/cars.md](docs/cars.md) has the sources):
-    - three stock touge cars: the front-drive **Nimbus EG** (Civic EG6: 170 PS, 1,050 kg), and the
-      rear-drive rotaries **Rotora FC** (RX-7 FC Turbo II: 205 PS) and **Rotora FD** (RX-7 FD:
-      255 PS, 50/50);
-    - three rally cars: the **Kaiser 30** (E30 M3 Group A: ~290 PS, 1,050 kg, rear-drive), the
-      **Vierrad S1** (Sport quattro Group B: ~455 PS, turbo lag, a locked centre diff), and the
-      **Ocelot R1** (Puma Rally1: ~385 PS, spool, wings).
+    - five stock touge cars: the rear-drive **Hachi 86** (AE86 Trueno: 120 PS, 940 kg, the
+      cheapest), the front-drive **Nimbus EG** (Civic EG6: 170 PS, 1,050 kg), the rear-drive
+      rotaries **Rotora FC** (RX-7 FC Turbo II: 205 PS) and **Rotora FD** (RX-7 FD: 255 PS, 50/50),
+      and the **Sylph S15** (Silvia Spec-R on a widebody kit: 250 PS turbo, six-speed);
+    - four rally cars: the **Kaiser 30** (E30 M3 Group A: ~290 PS, 1,050 kg, rear-drive), the
+      **Martello Sedici** (Delta Integrale Group A, 1992: ~315 PS, 1,100 kg, four-wheel drive with
+      the Martello's stripes), the **Vierrad S1** (Sport quattro Group B: ~455 PS, turbo lag, a
+      locked centre diff), and the **Ocelot R1** (Puma Rally1: ~385 PS, spool, wings).
   - The realistic cars sit in the cartoon world on purpose: clear-coated paint, glass you can see
     through, chrome. The garage shows each car's real power, weight and drive layout.
   - Paint any car you own (main, accent and stripe colours, free). Liveries (11, from twin stripes

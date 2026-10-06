@@ -1,0 +1,8 @@
+{"id": "ae86", "front": "-Y", "wheelbase": 2.4,
+ "wheel": ["_Wheel$"], "caliper": ["_Caliper$"],
+ "drop_mats": ["^Trueno$", "^Shadow$"],
+ "paint": ["^Primary$"], "glass": ["^Windows$"], "rims": ["^RimMaterial$"],
+ "retexture": [["^Trim2_Color\\.png$", "Trim2_Color_clean.png"]],
+ "materials": [["^Windows$", "glass"], ["^LicensePlate$", "white"], ["^TireMaterial$", "rubber"], ["^RimMaterial$", "rim"]],
+ "decimate_parts": [["^Interior$", 0.12], ["^SteeringWheel$", 0.2]],
+ "wheel_faces": 3500, "body_faces": 45000}

@@ -1,19 +1,22 @@
 # The cars with bodies of their own
 
-Six garage cars have realistic bodies of their own and the real cars' numbers. In the
+Nine garage cars have realistic bodies of their own and the real cars' numbers. In the
 game they go by look-alike names, and their maker badges and nameplates are taken off
 the models (the game has no real brands):
 
 | Garage name | Based on | Drive | Weight | Power | 0-100 km/h in the game (gravel) |
 |---|---|---|---|---|---|
+| HACHI 86 | Toyota Sprinter Trueno GT-APEX (AE86, 1983-85) | rear | 940 kg | 120 PS | ~10.2 s |
 | NIMBUS EG | Honda Civic SiR II (EG6, 1992) | front | 1,050 kg | 170 PS | ~9.3 s |
 | ROTORA FC | Mazda RX-7 FC3S Turbo II (JDM GT-X, 1989) | rear | 1,250 kg | 205 PS | ~6.3 s |
+| SYLPH S15 | Nissan Silvia Spec-R (S15, 1999-2002), on a widebody kit | rear | 1,240 kg | 250 PS | ~5.8 s |
 | KAISER 30 | BMW M3 E30, Prodrive Group A rally car (1987) | rear | 1,050 kg | ~290 PS | ~4.3 s |
 | ROTORA FD | Mazda RX-7 FD3S Type R (1992) | rear | 1,260 kg | 255 PS | ~5.4 s |
+| MARTELLO SEDICI | Lancia Delta HF Integrale, Group A works rally car (1992) | all | 1,100 kg | ~315 PS | ~3.8 s |
 | VIERRAD S1 | Audi Sport quattro, Group B rally car (1984-85) | all | 1,100 kg | ~455 PS | ~3.5 s |
 | OCELOT R1 | Ford Puma Rally1 (2022) | all | 1,260 kg | ~385 PS | ~3.4 s (real: ~3.2 s) |
 
-The touge cars (NIMBUS, both ROTORAs) are stock road cars. The rally cars are their
+The touge cars (HACHI, NIMBUS, both ROTORAs, SYLPH) are stock road cars. The rally cars are their
 rally versions.
 
 ## Where the numbers come from
@@ -41,6 +44,26 @@ ones marked *estimate* aren't published, so they're the closest sensible value.
   - Gearbox 3.483 / 2.015 / 1.391 / 1.000 / 0.719, final drive 4.100.
   - Wheelbase 2,425, track 1,460 mm.
   - Sources: automobile-catalog (Efini RX-7 Type R), carfromjapan, encycarpedia.
+- **AE86 Sprinter Trueno GT-APEX (zenki)**
+  - 4A-GEU: Toyota's catalogue says 130 PS @ 6,600 and 149 Nm @ 5,200, but those are the old
+    Japanese *gross* figures. The game uses the net figures, 120 PS and 142 Nm, because every other
+    car here is rated net.
+  - 940 kg kerb weight. Toyota's history page lists 1,215 kg, but that is the gross vehicle weight.
+  - 7,500 rpm redline.
+  - T50 gearbox 3.587 / 2.022 / 1.384 / 1.000 / 0.861, final drive 4.300.
+  - An LSD was an option, so the game fits a mild one.
+  - Wheelbase 2,400 mm, tyres 185/70R13.
+  - The ~53/47 weight split is an *estimate*.
+  - Sources: toyota-global.com (75 years, vehicle lineage), kurumaerabi.com catalogue, ateupwithmotor, aeu86.org, Wikipedia (Toyota AE86).
+- **Silvia S15 Spec-R**
+  - SR20DET: 250 PS @ 6,400, 275 Nm @ 4,800, 7,500 rpm redline.
+  - 1,240 kg (1,250 with the aero kit or HICAS).
+  - Aisin AZ6 six-speed 3.626 / 2.200 / 1.541 / 1.213 / 1.000 / 0.767, final drive 3.692.
+  - Helical LSD as standard.
+  - Wheelbase 2,525, track 1,470 / 1,460 mm.
+  - The model has a widebody kit; the numbers are the stock car's.
+  - The ~55/45 weight split is an *estimate*.
+  - Sources: goo-net.com and 221616.com catalogues, Wikipedia (Nissan Silvia, ja and en), supercars.net, jdmbuysell.
 - **E30 M3, Prodrive Group A**
   - 1,050 kg in 1987 (later 1,025 kg).
   - 280-300 hp @ 8,400 and 285 Nm @ 6,500: 270 bhp in 1987, rising to 295 by 1989.
@@ -54,6 +77,16 @@ ones marked *estimate* aren't published, so they're the closest sensible value.
   - Centre diff 100 % locked, LSDs front and rear.
   - Wheelbase 2,224 mm, the most cited figure (2,204 is also quoted).
   - Source: tech-racingcars.wikidot (Audi Sport quattro); audi.com and audi-mediacenter for the road car.
+- **Delta HF Integrale Evoluzione, Group A works car (1992)**
+  - 1,100 kg, the FIA minimum for its class. Turbo engines count ×1.7, so its 1,995 cc counts as 3,392 cc.
+  - The 38 mm turbo restrictor limits it to 300+ hp @ 6,000 and 420+ Nm @ 4,500 (4T magazine, March 1992). Other sites claim 330-365 hp; the game uses ~315 PS.
+  - A 45/55 front/rear split through a viscous centre diff, with LSDs front and rear.
+  - A six-speed Abarth gearbox. Its ratios aren't published, so they're *estimates*, and so is the final drive.
+  - Wheelbase 2,480, track 1,575 / 1,565 mm.
+  - It was nose-heavy; the 57/43 split is an *estimate*.
+  - No anti-lag in the game, because none is confirmed for it.
+  - The model is the Evo II road car (215 PS, 1,340 kg); the game runs it as the 1992 rally car, like the other rally cars.
+  - Sources: FIA Appendix J 1992 (Art. 252-3.1, 255-4, 255-5.1.8.3), iceal.wikidot (reprints 4T #258), tech-racingcars.wikidot (Lancia Deltona), rallysportmag, Wikipedia (Lancia Delta HF).
 - **Puma Rally1**
   - 1,260 kg minimum weight (2022-24).
   - ~380 hp / 420 Nm from the engine; with the hybrid's 100 kW boosts, over 500 hp and over 500 Nm. The game has no hybrid: 450 Nm stands in for it.

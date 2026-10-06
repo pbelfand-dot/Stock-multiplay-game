@@ -1,0 +1,132 @@
+{
+ "id": "s15",
+ "front": "+Y",
+ "wheelbase": 2.525,
+ "wheel": [],
+ "wheel_mats": [
+  "^blitz03$",
+  "^blitz_bolts$",
+  "^blitz_cap$",
+  "^tire",
+  "^rotor$"
+ ],
+ "drop_mats": [
+  "^logo$",
+  "^turbine$",
+  "^turboisolation$",
+  "^sr20base$",
+  "^SR20_TOP$",
+  "^waterreservoirbyreitax$",
+  "^enginetags$",
+  "^blitz_bolts_gold$",
+  "^tessera2$",
+  "^thrash$",
+  "^pillownaoki$",
+  "^brushed_metal$",
+  "^nfsframe$",
+  "^CHROME_TUBES$"
+ ],
+ "paint": [
+  "^BODY$",
+  "^BODY_MISC$"
+ ],
+ "glass": [
+  "^WINDOWS$"
+ ],
+ "rims": [
+  "^blitz03$"
+ ],
+ "materials": [
+  [
+   "^WINDOWS$",
+   "glass"
+  ],
+  [
+   "^blitz03$",
+   "rim"
+  ],
+  [
+   "^blitz_bolts$",
+   "silver"
+  ],
+  [
+   "^blitz_cap$",
+   "dark_metal"
+  ],
+  [
+   "^tire",
+   "rubber"
+  ],
+  [
+   "^rotor$",
+   "dark_metal"
+  ],
+  [
+   "^exh_hks$",
+   "dark_metal"
+  ],
+  [
+   "^intercooler_mishimoto$",
+   "silver"
+  ],
+  [
+   "^pioneer_avh$",
+   "black"
+  ],
+  [
+   "^licensePlatejp$",
+   "white"
+  ],
+  [
+   "^MIRROR_TRANSPARENT$",
+   "chrome"
+  ],
+  [
+   "^mirrors$",
+   "chrome"
+  ],
+  [
+   "^black[12]$",
+   "black"
+  ]
+ ],
+ "wheel_faces": 3500,
+ "body_faces": 70000,
+ "split_mats": {
+  "interior": [
+   "^alcnt_blue$",
+   "^leather$",
+   "^carpet$",
+   "^seatdriver$",
+   "^cinture$",
+   "^belt$",
+   "^audio$",
+   "^pioneer_avh$",
+   "^pedals$",
+   "^dashglow$",
+   "^gauage$",
+   "^ckpt_buttom$",
+   "^red_steeringwheel$",
+   "^plastic$",
+   "^plastic2$",
+   "^interior_mats$",
+   "^red$"
+  ],
+  "trim": [
+   "^black1$",
+   "^black2$",
+   "^grey$",
+   "^Matte__FF141414$"
+  ]
+ },
+ "decimate_parts": [
+  [
+   "_interior$",
+   0.08
+  ],
+  [
+   "_trim$",
+   0.15
+  ]
+ ]
+}

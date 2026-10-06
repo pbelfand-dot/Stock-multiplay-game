@@ -75,6 +75,33 @@ const SPECS := {
 		"idle": 750.0, "limiter": 8200.0, "turbo": 0.0,
 		"gears": [3.230, 2.105, 1.458, 1.107, 0.848], "final": 4.40, "drive": "fwd",
 		"front_diff": [OPEN, 0.0, 0.0, 0.0], "cd": 0.32, "area": 1.85, "down": 0.0, "brake": 0.8},
+	# Sprinter Trueno GT-APEX (AE86, zenki, 1983-85 JDM): 940 kg; 4A-GEU, 130 PS at 6,600 and 149 N m
+	# at 5,200 in the catalogue (the old JIS gross way), 120 PS / 142 N m net, the way the others are
+	# rated: net here; 7,500 rpm; T50 3.587/2.022/1.384/1.000/0.861, final 4.300; open diff (an LSD
+	# was an option: a mild one here); the ~53/47 split is an estimate
+	"ae86": {"mass": 940.0, "front": 0.53, "torque": 142.0,
+		"curve": [[1000, 0.6], [2000, 0.72], [3000, 0.82], [4000, 0.92], [5200, 1.0], [6000, 0.98], [6600, 0.9], [7200, 0.8], [7600, 0.72]],
+		"idle": 800.0, "limiter": 7600.0, "turbo": 0.0,
+		"gears": [3.587, 2.022, 1.384, 1.0, 0.861], "final": 4.30, "drive": "rwd",
+		"rear": [LSD, 0.25, 0.1, 15.0], "cd": 0.35, "area": 1.75, "down": 0.0, "brake": 0.75},
+	# Silvia Spec-R (S15, 1999-2002 JDM): 1,240 kg; SR20DET, 250 PS at 6,400, 275 N m at 4,800,
+	# 7,500 rpm; Aisin AZ6 six-speed 3.626/2.200/1.541/1.213/1.000/0.767, final 3.692; a helical
+	# LSD as standard; the ~55/45 split is an estimate
+	"s15": {"mass": 1240.0, "front": 0.55, "torque": 275.0,
+		"curve": [[1000, 0.4], [2000, 0.6], [3000, 0.85], [4000, 0.97], [4800, 1.0], [5600, 1.0], [6400, 0.99], [7000, 0.88], [7500, 0.78]],
+		"idle": 800.0, "limiter": 7500.0, "turbo": 0.45, "spool": [2400.0, 3800.0], "spool_time": 0.4, "anti_lag": false,
+		"gears": [3.626, 2.2, 1.541, 1.213, 1.0, 0.767], "final": 3.692, "drive": "rwd",
+		"rear": [LSD, 0.35, 0.1, 10.0], "cd": 0.3, "area": 1.85, "down": 0.0, "brake": 0.9},
+	# the Group A works car (HF Integrale Evoluzione, 1992): 1,100 kg (the class minimum); a 38 mm
+	# restrictor: 300+ hp at 6,000, 420+ N m at 4,500; a six-speed (ratios not published: estimates);
+	# 45/55 front/rear through a viscous centre, LSDs front and rear; nose-heavy (the split is an
+	# estimate). Anti-lag isn't confirmed for it: none here
+	"delta_evo2": {"mass": 1100.0, "front": 0.57, "torque": 430.0,
+		"curve": [[1000, 0.3], [2000, 0.5], [3000, 0.78], [4000, 0.95], [4500, 1.0], [5000, 0.98], [5500, 0.93], [6000, 0.86], [6500, 0.76], [7000, 0.66]],
+		"idle": 1000.0, "limiter": 7000.0, "turbo": 0.45, "spool": [2600.0, 4000.0], "spool_time": 0.4, "anti_lag": false,
+		"gears": [3.0, 2.15, 1.7, 1.39, 1.16, 0.99], "final": 4.4, "drive": "awd", "front_share": 0.45,
+		"centre": [LSD, 0.3, 0.3, 30.0], "front_diff": [LSD, 0.2, 0.1, 20.0], "rear": [LSD, 0.5, 0.25, 40.0],
+		"cd": 0.39, "area": 2.0, "down": 0.2, "brake": 1.0},
 }
 
 ## The rally car's size (body, cabin) the inertia scales from: length, width, height (m).

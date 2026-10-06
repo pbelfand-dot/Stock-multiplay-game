@@ -15,7 +15,8 @@ extends SceneTree
 
 ## 0-100 km/h (s) each must beat on gravel, flat out from a standstill (the real
 ## car's on tarmac, give or take: these are on gravel, auto-shifting).
-const CHECKS := {"nimbus": 11.0, "rotora_fc": 9.5, "kaiser": 8.0, "rotora_fd": 8.0, "vierrad": 6.5, "ocelot": 6.0}
+const CHECKS := {"nimbus": 11.0, "rotora_fc": 9.5, "kaiser": 8.0, "rotora_fd": 8.0, "vierrad": 6.5, "ocelot": 6.0,
+	"hachi": 12.0, "sylph": 9.0, "sedici": 7.0}
 
 var RallyCar
 var Catalog

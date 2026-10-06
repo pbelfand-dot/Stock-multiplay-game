@@ -1,0 +1,43 @@
+[remap]
+
+importer="texture"
+type="CompressedTexture2D"
+uid="uid://delgd8qaq8pwp"
+path="res://.godot/imported/delta_evo2_Light_Light Bump_Roughness.png-80f644dc66fa2421f646af96fbf5bf9a.ctex"
+metadata={
+"vram_texture": false
+}
+generator_parameters={
+"md5": "3c78aae44d947a6fe9a2be5fd8149cef"
+}
+
+[deps]
+
+source_file="res://assets/models/cars/delta_evo2/delta_evo2_Light_Light Bump_Roughness.png"
+dest_files=["res://.godot/imported/delta_evo2_Light_Light Bump_Roughness.png-80f644dc66fa2421f646af96fbf5bf9a.ctex"]
+
+[params]
+
+compress/mode=0
+compress/high_quality=false
+compress/lossy_quality=0.7
+compress/uastc_level=0
+compress/rdo_quality_loss=0.0
+compress/hdr_compression=1
+compress/normal_map=0
+compress/channel_pack=0
+mipmaps/generate=true
+mipmaps/limit=-1
+roughness/mode=0
+roughness/src_normal=""
+process/channel_remap/red=0
+process/channel_remap/green=1
+process/channel_remap/blue=2
+process/channel_remap/alpha=3
+process/fix_alpha_border=true
+process/premult_alpha=false
+process/normal_map_invert_y=false
+process/hdr_as_srgb=false
+process/hdr_clamp_exposure=false
+process/size_limit=0
+detect_3d/compress_to=1

@@ -1,0 +1,7 @@
+{"id": "delta_evo2", "front": "-Y", "wheelbase": 2.48,
+ "wheel": ["^rim F", "^rim 2", "^Tire_Low"],
+ "drop": ["^Plane", "^Shield$", "^Number Plate\\.001$"],
+ "drop_mats": ["^Logo$", "^Legend$", "^Legion$", "^Red Suns$", "^Shield 2$"],
+ "paint": ["^Paint$"], "glass": ["^glass$"], "rims": ["^Rim$"],
+ "materials": [["^glass$", "glass"], ["^Rim$", "rim"], ["^rim 2$", "dark_metal"], ["^Number$", "white"]],
+ "wheel_faces": 3500, "body_faces": 45000}

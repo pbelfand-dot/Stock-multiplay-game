@@ -14,6 +14,10 @@ The spec (tools/cars/<id>.json) says what's what in the model:
     disc); "caliper": the parts that stay on the hub without spinning. A part
     holding more than one wheel is cut up, each face going to the corner it's in. "straighten": false leaves
     the front wheels as they are (they're found turned by more than 2 deg)
+  * "wheel_mats" / "caliper_mats": a model all in one piece: the material
+    patterns of its wheels' (calipers') faces, made parts of their own;
+    "split_mats": {"name": [patterns]}: more parts of their own ("<part>_name":
+    an interior, to thin harder with "decimate_parts")
   * "mirror": name patterns of parts the model only has on one side (a missing
     tyre): copied, mirrored, to the other
   * "drop": name patterns of parts to leave out (badges); "drop_mats": material
@@ -33,6 +37,8 @@ The spec (tools/cars/<id>.json) says what's what in the model:
   * "sidewall": {"mats": [patterns], "from": 0.7}: a wheel modelled with its
     tyre's sidewalls in the rim's material: those faces past "from" x the tyre's
     radius become rubber
+  * "decimate_parts": [[name pattern, ratio]]: parts thinned harder first (an
+    interior seen through the windows)
   * "wheel_faces" / "body_faces": the most triangles a wheel / the body keeps
     (decimated: the download stays small)
 Then every part's transform and modifiers are applied, a front wheel saved
@@ -60,6 +66,12 @@ CORNERS = ["FL", "FR", "RL", "RR"]
 
 def matches(name, patterns):
     return any(re.search(p, name, re.I) for p in patterns)
+
+
+def strip_loose(bm):
+    """Vertices and edges no face uses go (some models carry them: they'd stretch a part's bounds)."""
+    bmesh.ops.delete(bm, geom=[e for e in bm.edges if not e.link_faces], context='EDGES')
+    bmesh.ops.delete(bm, geom=[v for v in bm.verts if not v.link_faces], context='VERTS')
 
 
 # ── load: real meshes, modifiers and transforms applied ──────────────────
@@ -106,6 +118,13 @@ for o in meshes:
 vl.objects.active = meshes[0]
 bpy.ops.object.make_single_user(object=True, obdata=True)
 bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
+for o in bpy.data.objects:
+    if o.type == 'MESH':
+        bm = bmesh.new()
+        bm.from_mesh(o.data)
+        strip_loose(bm)
+        bm.to_mesh(o.data)
+        bm.free()
 for o in list(bpy.data.objects):
     if matches(o.name, spec.get("drop", [])) or len(o.data.polygons) == 0:
         bpy.data.objects.remove(o, do_unlink=True)
@@ -124,6 +143,7 @@ if drop_mats:
         bm = bmesh.new()
         bm.from_mesh(o.data)
         bmesh.ops.delete(bm, geom=[f for f in bm.faces if f.material_index in bad], context='FACES')
+        strip_loose(bm)
         bm.to_mesh(o.data)
         bm.free()
         if len(o.data.polygons) == 0:
@@ -183,6 +203,32 @@ def centre(objs):
 # ── the corners ──────────────────────────────────────────────────────────
 fwd = {"+X": Vector((1, 0, 0)), "-X": Vector((-1, 0, 0)), "+Y": Vector((0, 1, 0)), "-Y": Vector((0, -1, 0))}[spec["front"]]
 right = fwd.cross(Vector((0, 0, 1)))
+# a model all in one piece: its wheels' (and calipers') faces, by material, made parts of their own
+splits = [(spec.get("wheel_mats", []), "_wheelpart"), (spec.get("caliper_mats", []), "_caliperpart")]
+splits += [(pats, "_" + name) for name, pats in spec.get("split_mats", {}).items()]
+suffixes = tuple(sfx for _, sfx in splits)
+for pats, suffix in splits:
+    if not pats:
+        continue
+    for o in list(meshes):
+        idx = {i for i, sl in enumerate(o.material_slots) if sl.material and matches(sl.material.name, pats)}
+        if not idx or o.name.endswith(suffixes):
+            continue
+        n = o.copy()
+        n.data = o.data.copy()
+        bpy.context.collection.objects.link(n)
+        for ob, keep in ((o, False), (n, True)):
+            bm = bmesh.new()
+            bm.from_mesh(ob.data)
+            bmesh.ops.delete(bm, geom=[f for f in bm.faces if (f.material_index in idx) != keep], context='FACES')
+            strip_loose(bm)
+            bm.to_mesh(ob.data)
+            bm.free()
+        n.name = o.name + suffix
+        meshes.append(n)
+        print("%s: %d faces by material" % (n.name, len(n.data.polygons)))
+spec["wheel"] = spec.get("wheel", []) + (["_wheelpart$"] if spec.get("wheel_mats") else [])
+spec["caliper"] = spec.get("caliper", []) + (["_caliperpart$"] if spec.get("caliper_mats") else [])
 spin = [o for o in meshes if matches(o.name, spec["wheel"])]
 if not spin:
     raise SystemExit("no wheel parts: check the spec's \"wheel\" patterns")
@@ -200,6 +246,7 @@ for o in [o for o in meshes if matches(o.name, spec.get("mirror", []))]:
     bm = bmesh.new()                              # (a mirror turns the faces inside out)
     bm.from_mesh(n.data)
     bmesh.ops.reverse_faces(bm, faces=bm.faces)
+    strip_loose(bm)
     bm.to_mesh(n.data)
     bm.free()
     n.name = o.name + "_mirrored"
@@ -227,6 +274,7 @@ def split_corners(o):
         bm.from_mesh(n.data)
         bm.faces.ensure_lookup_table()
         bmesh.ops.delete(bm, geom=[f for f, kk in zip(bm.faces, keys) if kk != k], context='FACES')
+        strip_loose(bm)
         bm.to_mesh(n.data)
         bm.free()
         n.name = "%s_%s" % (o.name, k)
@@ -293,6 +341,10 @@ if sw:
                 if f and p.material_index in idx:
                     p.material_index = ri
 
+for k in CORNERS:
+    c = corner[k]["c"]
+    print("corner %s at (%.3f, %.3f, %.3f), %d parts" % (k, c.x, c.y, c.z, len(corner[k]["spin"])))
+
 # the car's own frame: nose to +Y, the wheelbase the real one, tyres on z 0
 front = (corner["FL"]["c"] + corner["FR"]["c"]) * 0.5
 rear = (corner["RL"]["c"] + corner["RR"]["c"]) * 0.5
@@ -322,6 +374,7 @@ for b in spec.get("drop_boxes", []):
             and y0 <= f.calc_center_median().y <= y1 and z0 <= f.calc_center_median().z <= z1]
         gone += len(dead)
         bmesh.ops.delete(bm, geom=dead, context='FACES')
+        strip_loose(bm)
         bm.to_mesh(o.data)
         bm.free()
     print("dropped %d faces in %s" % (gone, b["box"]))
@@ -458,12 +511,35 @@ def decimate(o, most):
         m.ratio = most / n
         vl.objects.active = o
         bpy.ops.object.modifier_apply(modifier=m.name)
+        smooth(o)
         print("%s: %d -> %d triangles" % (o.name, n, tris(o)))
+
+
+def smooth(o):
+    """After a decimation: smooth shading again, creases kept (by angle), so the
+    surfaces aren't left faceted."""
+    for p in o.data.polygons:
+        p.use_smooth = True
+    if hasattr(o.data, "use_auto_smooth"):
+        o.data.use_auto_smooth = True
+        o.data.auto_smooth_angle = math.radians(40.0)
 
 
 def game(v):
     return [float(v[0]), float(v[2]), float(-v[1])]      # the game's axes: y up, -z forward
 
+
+# parts that only show through the windows (an interior): thinned harder before the body's budget
+for pat, ratio in spec.get("decimate_parts", []):
+    for o in meshes:
+        if re.search(pat, o.name, re.I) and all(o not in corner[k]["spin"] + corner[k]["cal"] for k in CORNERS):
+            n = tris(o)
+            m = o.modifiers.new("dec", 'DECIMATE')
+            m.ratio = ratio
+            vl.objects.active = o
+            bpy.ops.object.modifier_apply(modifier=m.name)
+            smooth(o)
+            print("%s: %d -> %d triangles (its own ratio)" % (o.name, n, tris(o)))
 
 parts = {"wheels": [], "radius": [], "width": []}
 rest = set(meshes)
