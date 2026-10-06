@@ -73,7 +73,8 @@ Free, PC only (Windows, Mac, Linux). Built in **Godot 4.7**, like BAGHOLDERS.
 ## The home screen, story mode and the garage
 
 The game runs behind the menu: your own car, in your colours, flat out on a stage in the evening
-light, filmed like rally TV (trackside cameras it flashes past, a chase camera, a helicopter shot).
+light, filmed like rally TV: an FPV drone chasing it (low behind, alongside, over the roof and out in
+front, banking into the turns), trackside cameras it flashes past, a chase camera, a helicopter shot.
 
 - **PLAY NOW**: a random stage, straight in, the AI co-driver on the notes.
 - **MAPS**: story mode, **the Shotgun Series**: six rallies of three stages each, every one with its

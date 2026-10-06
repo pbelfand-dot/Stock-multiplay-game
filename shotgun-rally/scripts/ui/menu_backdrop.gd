@@ -1,9 +1,11 @@
 extends Node3D
 ## Behind the home screen: the game itself. A short stage, golden evening
 ## light, and your own car (from the garage, in its livery) driving it flat out
-## by itself, filmed like rally TV: trackside cameras it flashes past, a chase
-## camera, a helicopter shot. In the garage the car parks on a straight and the
-## camera circles it slowly (show_car() repaints it as you shop).
+## by itself, filmed like rally TV: an FPV drone chasing it (swooping from low
+## behind to alongside, over the roof and ahead, banking into its turns),
+## trackside cameras it flashes past, a chase camera, a helicopter shot. In the
+## garage the car parks on a straight and the camera circles it slowly
+## (show_car() repaints it as you shop).
 ## Built a step a frame after the menu appears (ready_to_show when it's there).
 
 signal ready_to_show
@@ -30,6 +32,18 @@ var _park_s := 0.0
 var _orbit := 0.0
 var _stuck := 0.0
 var _setup := {}
+# the FPV drone: where it is, how fast it's going, how far it's banked
+var _drone := Vector3.ZERO
+var _drone_v := Vector3.ZERO
+var _drone_roll := 0.0
+var _drone_leg := 0
+var _drone_leg_t := 0.0
+var _wobble_t := 0.0
+## where the drone heads, round the car (car-local: x right, y up, z behind), in turn
+const DRONE_LEGS := [Vector3(0.0, 1.1, 7.0), Vector3(3.4, 0.9, 1.5), Vector3(0.0, 3.4, -4.0), Vector3(-3.2, 1.0, 2.0),
+	Vector3(0.0, 0.7, 9.0), Vector3(2.6, 2.2, -1.0)]
+const DRONE_LEG_TIME := 2.6       # s on each
+const DRONE_STEP := 1.0 / 120.0   # its flight is worked out in steps this short, whatever the frame rate
 
 
 func _ready() -> void:
@@ -154,6 +168,10 @@ func _process(dt: float) -> void:
 			cam.fov = lerpf(cam.fov, 50.0, dt * 2.0)
 			if _shot_t > 6.0:
 				_next_shot()
+		"fpv":
+			_fpv(dt, c, fwd)
+			if _shot_t > 13.0:
+				_next_shot()
 		"front":                         # just ahead of the bonnet, looking back at it
 			_place(c + fwd * 6.5 + Vector3.UP * 0.9, c + Vector3.UP * 0.5, dt, 6.0)
 			cam.fov = lerpf(cam.fov, 55.0, dt * 2.0)
@@ -168,8 +186,57 @@ func _place(p: Vector3, t: Vector3, dt: float, smooth: float) -> void:
 		cam.global_transform = Transform3D(Basis(), to).looking_at(t, Vector3.UP)
 
 
+## The FPV drone: a little quad flying a spring toward its spot round the car (the
+## car's own speed carried, so it keeps up), banking into the turns it makes as
+## FPV drones do, a wide lens, a touch of prop-wash wobble; never into the
+## ground, and in front of a tree rather than behind it.
+func _fpv(dt: float, c: Vector3, fwd: Vector3) -> void:
+	_drone_leg_t += dt
+	if _drone_leg_t > DRONE_LEG_TIME:
+		_drone_leg_t = 0.0
+		_drone_leg = (_drone_leg + 1) % DRONE_LEGS.size()
+	var right := fwd.cross(Vector3.UP).normalized()
+	var o: Vector3 = DRONE_LEGS[_drone_leg]
+	var goal := c + right * o.x + Vector3.UP * o.y - fwd * o.z
+	var carv: Vector3 = car.linear_velocity
+	var steps := ceili(minf(dt, 0.1) / DRONE_STEP)
+	var h := minf(dt, 0.1) / maxi(steps, 1)
+	var acc := Vector3.ZERO
+	for i in steps:
+		# a damped spring toward the goal, relative to the car's own motion
+		acc = (goal - _drone) * 7.0 + (carv - _drone_v) * 4.2
+		_drone_v += acc * h
+		_drone += _drone_v * h
+	# never below 0.5 m over the ground, never behind a tree from the car
+	var space := get_world_3d().direct_space_state
+	var down := PhysicsRayQueryParameters3D.create(_drone + Vector3.UP * 3.0, _drone - Vector3.UP * 3.0, 1, [car.get_rid()])
+	var g := space.intersect_ray(down)
+	if not g.is_empty() and _drone.y < g.position.y + 0.5:
+		_drone.y = g.position.y + 0.5
+		_drone_v.y = maxf(_drone_v.y, 0.0)
+	var los := PhysicsRayQueryParameters3D.create(c + Vector3.UP * 0.8, _drone, 1, [car.get_rid()])
+	var hit := space.intersect_ray(los)
+	if not hit.is_empty():
+		_drone = (hit.position as Vector3).lerp(c + Vector3.UP * 0.8, 0.15)
+	# look ahead of the car (at the car itself once the drone's out in front),
+	# banked by the turn the drone is making
+	var ahead := (_drone - c).dot(fwd)
+	var look := c + fwd * 3.0 * clampf(1.0 - ahead / 4.0, 0.0, 1.0) + Vector3.UP * 0.4
+	var view := (look - _drone).normalized()
+	var side := view.cross(Vector3.UP).normalized()
+	var bank := clampf(-acc.dot(side) * 0.035, -0.75, 0.75)
+	_drone_roll = lerpf(_drone_roll, bank, clampf(dt * 5.0, 0.0, 1.0))
+	_wobble_t += dt
+	var wob := Vector3(sin(_wobble_t * 37.0) * 0.004 + sin(_wobble_t * 23.0) * 0.003, 0.0, sin(_wobble_t * 29.0) * 0.006)
+	if _drone.distance_to(look) > 0.2:
+		var xf := Transform3D(Basis(), _drone).looking_at(look, Vector3.UP)
+		xf.basis = xf.basis * Basis(Vector3.FORWARD, _drone_roll) * Basis.from_euler(wob)
+		cam.global_transform = xf
+	cam.fov = lerpf(cam.fov, 96.0, clampf(dt * 3.0, 0.0, 1.0))
+
+
 func _next_shot() -> void:
-	var kinds := ["trackside", "chase", "trackside", "heli", "trackside", "front"]
+	var kinds := ["fpv", "trackside", "chase", "fpv", "heli", "trackside", "front"]
 	var kind: String = kinds[_shot_i % kinds.size()]
 	_shot_i += 1
 	_shot_t = 0.0
@@ -184,8 +251,15 @@ func _next_shot() -> void:
 			cam.global_position = p
 		"heli":
 			_shot = {"kind": kind, "side": -1.0 if randf() < 0.5 else 1.0}
+		"fpv":
+			_shot = {"kind": kind}
+			var cf: Vector3 = -car.global_transform.basis.z
+			_drone = car.global_position + Vector3.UP * 1.5 - cf * 8.0
+			_drone_v = car.linear_velocity
+			_drone_leg = 0
+			_drone_leg_t = 0.0
 		_:
 			_shot = {"kind": kind}
-	if kind != "trackside":
+	if kind != "trackside" and kind != "fpv":
 		var c: Vector3 = car.global_position
 		cam.global_position = c + Vector3(0.0, 3.0, 0.0) - (-car.global_transform.basis.z) * 8.0
