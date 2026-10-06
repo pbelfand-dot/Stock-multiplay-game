@@ -18,6 +18,7 @@ const AIDS := [
 	["steering_damping", "STEERING DAMPING", "The wheels turn more slowly at speed: calmer when it's quick."],
 	["countersteer_help", "COUNTERSTEER HELP", "When the tail slides, the front wheels are pointed where you're going."],
 	["speed_sensitive_steering", "SPEED-SENSITIVE STEERING", "Never more lock than the tyres can use at that speed."],
+	["drift_assist", "DRIFT ASSIST", "A drift holds at its angle instead of swinging round into a spin."],
 ]
 
 
@@ -25,9 +26,9 @@ func _ready() -> void:
 	add_theme_stylebox_override("panel", UI.box())
 	custom_minimum_size = Vector2(1040, 0)
 	var v := VBoxContainer.new()
-	v.add_theme_constant_override("separation", 6)
+	v.add_theme_constant_override("separation", 4)
 	add_child(v)
-	v.add_child(UI.label("SETTINGS", 38, UI.CREAM, true))
+	v.add_child(UI.label("SETTINGS", 34, UI.CREAM, true))
 	var cols := HBoxContainer.new()
 	cols.add_theme_constant_override("separation", 30)
 	v.add_child(cols)
@@ -37,7 +38,7 @@ func _ready() -> void:
 	cols.add_child(left)
 	var right := VBoxContainer.new()
 	right.custom_minimum_size = Vector2(620, 0)
-	right.add_theme_constant_override("separation", 4)
+	right.add_theme_constant_override("separation", 2)
 	cols.add_child(right)
 	var config := get_node("/root/Config")
 	left.add_child(UI.label("CONTROLS", 20, UI.YELLOW, true))
@@ -61,8 +62,7 @@ func _ready() -> void:
 	for a in AIDS:
 		right.add_child(_toggle(a[1], a[2], bool(config.aids.get(a[0], false)), func(on): config.aids[a[0]] = on))
 	right.add_child(_cycle("TYRE GRIP", GRIPS, "%.1f" % config.grip_assist, func(k): config.grip_assist = float(k)))
-	right.add_child(UI.label("STAGES", 20, UI.YELLOW, true))
-	right.add_child(_cycle("SURFACE  (PLAY NOW, ONLINE)", SURFACES, config.quick_surface, func(k): config.quick_surface = k))
+	right.add_child(_cycle("STAGES  (PLAY NOW, ONLINE)", SURFACES, config.quick_surface, func(k): config.quick_surface = k))
 	var back_btn := UI.button("BACK", func(): back.emit(), 20, 140)
 	back_btn.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	v.add_child(back_btn)
@@ -77,9 +77,9 @@ func _toggle(title: String, what: String, on: bool, apply: Callable) -> Control:
 	var text := VBoxContainer.new()
 	text.add_theme_constant_override("separation", 0)
 	text.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	text.add_child(UI.label(title, 18, UI.CREAM))
+	text.add_child(UI.label(title, 17, UI.CREAM))
 	if what != "":
-		text.add_child(_note(what, 500))
+		text.add_child(_note(what, 500, 13))
 	row.add_child(text)
 	var b := UI.button("ON" if on else "OFF", func(): pass, 17, 78)
 	b.toggle_mode = true
@@ -131,8 +131,8 @@ func _slider(title: String, lo: float, hi: float, value: float, apply: Callable)
 	return box
 
 
-func _note(text: String, width := 300.0) -> Label:
-	var l := UI.label(text, 14, UI.DIM)
+func _note(text: String, width := 300.0, size := 14) -> Label:
+	var l := UI.label(text, size, UI.DIM)
 	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	l.custom_minimum_size = Vector2(width, 0)
 	return l

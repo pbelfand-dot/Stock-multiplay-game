@@ -13,6 +13,10 @@ extends RefCounted
 ##     at this speed; not while the handbrake's pulled: a hairpin flick wants
 ##     all the lock) and countersteer help (sliding, the front wheels pointed
 ##     where the car is going)
+##   * drift assist (an arcade aid: the one that pushes on the body itself): a
+##     slide that swings the tail round past a drift angle (30-45 deg of body
+##     slip) gets a turning force against it, growing past the angle, so a
+##     drift holds instead of spinning (drift_torque)
 ## With them all on, a car driven inside its grip does exactly what it does
 ## with them off.
 
@@ -22,6 +26,7 @@ var tc_cut := 1.0                  # the throttle share traction control leaves
 var esc_wheel := -1                # the wheel stability control is braking (-1: none) ...
 var esc_torque := 0.0              # ... with this much (N m)
 var countersteer := 0.0            # rad the countersteer help turned the wheels (+ = right)
+var drift_hold := 0.0              # N m the drift assist is turning the body with (+ = to the left)
 
 var _smooth := 0.0
 
@@ -37,13 +42,14 @@ func reset() -> void:
 	esc_wheel = -1
 	esc_torque = 0.0
 	countersteer = 0.0
+	drift_hold = 0.0
 	_smooth = 0.0
 
 
 ## Any aid on?
 func any() -> bool:
 	return cfg.anti_lock or cfg.traction_control or cfg.stability_control or cfg.steering_smoothing \
-		or cfg.steering_damping or cfg.countersteer_help or cfg.speed_sensitive_steering
+		or cfg.steering_damping or cfg.countersteer_help or cfg.speed_sensitive_steering or cfg.drift_assist
 
 
 ## Where the steering asks the front wheels to point (the rack, rad, + = right)
@@ -84,6 +90,45 @@ func steering(car, dt: float, input: float) -> Vector2:
 			countersteer = blended - target
 			target = blended
 	return Vector2(target, rate)
+
+
+## Drift assist: the turning force (N m, round the car's up axis, + = to the
+## left) that holds a slide at the drift angle. Past drift_from_deg of body slip
+## it grows to its full strength by drift_max_deg (and on past it), and while
+## the tail is still swinging further round it also brakes the swing (so the
+## slide doesn't overshoot the angle). Only on the ground, going forward
+## (sliding backwards past 100 deg, or reversing, it leaves alone), and it fades
+## out at walking pace.
+func drift_torque(car) -> float:
+	drift_hold = 0.0
+	if not cfg.drift_assist or int(car.grounded) < 2:
+		return 0.0
+	var b: Basis = car.global_transform.basis
+	var v: Vector3 = car.linear_velocity
+	var fwd := v.dot(-b.z)
+	var side := v.dot(b.x)
+	var spd := sqrt(fwd * fwd + side * side)
+	if spd < cfg.drift_min_speed * 0.5:
+		return 0.0
+	var beta := atan2(side, fwd)                     # + = going to the right of where it points (the nose swung left)
+	if absf(beta) > deg_to_rad(100.0):
+		return 0.0
+	var from := deg_to_rad(cfg.drift_from_deg)
+	var most := deg_to_rad(cfg.drift_max_deg)
+	if float(car.inp.handbrake) > 0.05:
+		from += deg_to_rad(cfg.drift_handbrake_deg)
+		most += deg_to_rad(cfg.drift_handbrake_deg)
+	var full: float = cfg.drift_strength * float(car.mass) * 9.8 * (car.config.rear_axle - car.config.front_axle)
+	var past := (absf(beta) - from) / maxf(most - from, 0.01)
+	var swing: float = car.angular_velocity.dot(b.y) * signf(beta)   # rad/s the tail is swinging further round
+	var t := 0.0
+	if past > 0.0:
+		t += full * minf(past, 1.5)
+	if swing > 0.0 and past > -0.5:
+		t += full * swing / 1.5 * clampf(past + 0.5, 0.0, 1.0)
+	t = minf(t, full * 2.0) * clampf((spd - cfg.drift_min_speed * 0.5) / (cfg.drift_min_speed * 0.5), 0.0, 1.0)
+	drift_hold = -signf(beta) * t
+	return drift_hold
 
 
 ## The steering input that gets the wheels' target (-1..1) this tick through the

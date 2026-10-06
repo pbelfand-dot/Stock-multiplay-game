@@ -22,6 +22,10 @@ extends Resource
 ## Speed-sensitive steering: never more angle than the front tyres can use at
 ## this speed (full input on keys doesn't plough on with the wheels turned too far).
 @export var speed_sensitive_steering := false
+## Drift assist: a slide that swings round past a drift angle is held there
+## instead of spinning the car (an arcade aid: a turning force on the body, not
+## the controls).
+@export var drift_assist := false
 
 @export_group("ABS")
 ## How far past the tyre's peak slip a wheel may lock before its brake is fully off
@@ -60,3 +64,15 @@ extends Resource
 ## speed, plus this share of their peak slip angle (all of it asked a key press for
 ## more than the tyres hold: full steering left the fronts past their peak).
 @export_range(0.0, 1.5, 0.05) var speed_sensitive_slip := 0.7
+
+@export_group("Drift assist")
+## The body's slip angle (between where it points and where it's going) where it
+## starts to hold the slide, and where it holds with all its strength.
+@export_range(5.0, 80.0, 0.5, "suffix:deg") var drift_from_deg := 30.0
+@export_range(10.0, 100.0, 0.5, "suffix:deg") var drift_max_deg := 45.0
+## With the handbrake pulled it lets the tail round this much further (a hairpin).
+@export_range(0.0, 60.0, 0.5, "suffix:deg") var drift_handbrake_deg := 20.0
+## Its strongest turning force, x the car's weight x its wheelbase.
+@export_range(0.0, 2.0, 0.01) var drift_strength := 0.5
+## Below this speed it fades out (a slow handbrake spin in a hairpin is yours).
+@export_range(0.0, 20.0, 0.5, "suffix:m/s") var drift_min_speed := 6.0

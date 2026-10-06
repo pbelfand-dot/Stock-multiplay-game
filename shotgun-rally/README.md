@@ -242,14 +242,14 @@ record to a CSV (F2); and the rally tuning, tested as manoeuvres: lift-off overs
 oversteer, a four-wheel drift held, a countersteer catch, the Scandinavian flick, a pendulum slide
 to slide. Try it in
 the physics lab (`godot --path . scenes/physics_lab.tscn`: arrows steer / throttle / brake, space handbrake,
-E / Q gears, C tow, R reset, J drop, B / N bumps, P / O slope, 1-8 surface pads, 9 split pad, F5-F11
+E / Q gears, C tow, R reset, J drop, B / N bumps, P / O slope, 1-8 surface pads, 9 split pad, F5-F12
 aids, F2 record, F3 telemetry, F4 force arrows).
 
 **In the game now.** It replaced the first car (October 2026): the same game around it (cockpit,
 dust, sound, the co-driver's stream, the garage's power / grip / brakes / drive split), 120
-physics ticks a second. Out of the box three aids are on: steering smoothing and speed-sensitive
-steering (a key can't hold part of the lock) and countersteer help (without it, holding the speed
-at the limit at 110 km/h spins it); switch any of them in SETTINGS. Countersteer help was retuned
+physics ticks a second. Out of the box four aids are on: steering smoothing and speed-sensitive
+steering (a key can't hold part of the lock), countersteer help (without it, holding the speed
+at the limit at 110 km/h spins it) and drift assist (below); switch any of them in SETTINGS. Countersteer help was retuned
 after "I'm going into drift for no reason": at 100 km/h off the throttle, a keyboard lane change
 (right half a second, left half a second) or full lock held a second and let go spun the car
 (~80 deg sideways); now it slides 10-12 deg and straightens (the help points the front wheels
@@ -267,7 +267,18 @@ of what it does; handbrake turns still swing it round (105-110 deg), and a keybo
 (the step before): on gravel 1.20 g instead of 0.93, 100-0 km/h in 34 m instead of 47; asphalt
 1.30 g instead of 1.15. MORE GRIP: 1.33 g on gravel. REAL: the tyres as they are (the physics
 tests run on those). Settings saved on GRIPPY (the old out of the box) move to ARCADE once; any
-other choice stays. The autopilot (the tests'
+other choice stays. Then "I spin out every time I drift" and "the car flips over a lot while
+turning": it was mostly rolling over. Anti-roll bars only share the load across an axle and keep
+the body flatter; a car tips once its tyres grip harder than its track and centre of mass allow
+(~1.6 g here), and ARCADE on tarmac tyres grips ~1.9 g, so full lock at 80-110 km/h, a flick, or
+a corner over bumps rolled it onto its roof (6 of 30 hard-turning cases). Now, on any extra grip,
+a **tip guard** pushes a side that lifts in a corner back down (0 of 90 cases tip; 8 deg of roll
+at most; in the air it leaves the car alone, so jumps land as before). And **DRIFT ASSIST** (a new
+aid, on out of the box) holds a drift at its angle: past 30 deg of body slip a turning force
+grows against the slide (all of it by 45 deg, 20 deg more with the handbrake pulled), so a
+rear-drive handbrake hairpin held on full lock and throttle drifts at 31 deg and leaves at 66 km/h
+where without it it swung round to 71 deg and stalled; a slow handbrake U-turn is untouched
+(tests/drift_check.gd). The autopilot (the tests'
 driver, the menu's car) steers like a driver: the curve it wants, the slip angle the tyres need
 for it, countersteer when the tail steps out. Found on the way, all fixed: a bottomed-out wheel
 read as "no compression" (big landings slammed the body down), a car put down somewhere new kicked

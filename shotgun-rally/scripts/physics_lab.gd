@@ -13,9 +13,9 @@ extends Node3D
 ## C a tow at 15 m/s through the centre of mass   R back on the pad   J drop it from a metre up
 ## B roll it over the bumps at 12 m/s   N over the left-side bumps   P park it
 ## across the side slope (O: nose uphill)   1-8 rolling at 15 m/s on a surface
-## pad (9: the split pad)   F5-F11 the driver aids (ABS, traction control,
+## pad (9: the split pad)   F5-F12 the driver aids (ABS, traction control,
 ## stability control, steering smoothing, damping, countersteer help,
-## speed-sensitive steering)   F2 record telemetry (a CSV)   F3 numbers   F4 force arrows
+## speed-sensitive steering, drift assist)   F2 record telemetry (a CSV)   F3 numbers   F4 force arrows
 ## The tests build the same course (build_course) without the scene.
 ## A picture: ... scenes/physics_lab.tscn -- --screenshot=out.png [--lab=drop|bumps|left|skid|slope|brake|launch|handbrake|<a surface>
 ## --shot_wait=1.5 --vectors]
@@ -34,7 +34,7 @@ const SLOPE := Vector3(80.0, 0.0, 120.0)    # the side slope's middle (its top s
 const SLOPE_DEG := 10.0            # tilted about the car's long axis (Z): left side up
 const TOW_SPEED := 15.0
 const AID_KEYS := {KEY_F5: "anti_lock", KEY_F6: "traction_control", KEY_F7: "stability_control", KEY_F8: "steering_smoothing",
-	KEY_F9: "steering_damping", KEY_F10: "countersteer_help", KEY_F11: "speed_sensitive_steering"}
+	KEY_F9: "steering_damping", KEY_F10: "countersteer_help", KEY_F11: "speed_sensitive_steering", KEY_F12: "drift_assist"}
 const SURFACES := ["asphalt", "wet asphalt", "gravel", "dirt", "snow", "ice", "mud", "grass"]
 const SURFACE_ROW := Vector3(-900.0, 0.0, 1000.0)   # the first pad's middle; the rest every SURFACE_GAP along +X ...
 const SURFACE_GAP := 260.0
@@ -66,7 +66,7 @@ func _ready() -> void:
 	add_child(cam)
 	cam.current = true
 	var hint := Label.new()
-	hint.text = "arrows steer / throttle / brake   space handbrake   E Q gears   C tow   R reset   J drop   B / N bumps   P / O slope   1-8 surfaces   9 split   F5-F11 aids   F2 record   F3 numbers   F4 forces"
+	hint.text = "arrows steer / throttle / brake   space handbrake   E Q gears   C tow   R reset   J drop   B / N bumps   P / O slope   1-8 surfaces   9 split   F5-F12 aids   F2 record   F3 numbers   F4 forces"
 	hint.add_theme_font_size_override("font_size", 16)
 	hint.add_theme_constant_override("outline_size", 5)  # (readable on the snow pad too)
 	hint.add_theme_color_override("font_outline_color", Color(0.0, 0.0, 0.0, 0.8))
@@ -216,7 +216,7 @@ func _unhandled_input(e: InputEvent) -> void:
 		KEY_1, KEY_2, KEY_3, KEY_4, KEY_5, KEY_6, KEY_7, KEY_8:
 			_tow = false
 			launch(car, surface_start(SURFACES[e.keycode - KEY_1]), TOW_SPEED)
-		KEY_F5, KEY_F6, KEY_F7, KEY_F8, KEY_F9, KEY_F10, KEY_F11:
+		KEY_F5, KEY_F6, KEY_F7, KEY_F8, KEY_F9, KEY_F10, KEY_F11, KEY_F12:
 			var aid: String = AID_KEYS[e.keycode]
 			car.assists.set(aid, not car.assists.get(aid))
 		KEY_9:

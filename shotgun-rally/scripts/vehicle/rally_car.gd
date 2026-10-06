@@ -20,7 +20,11 @@ extends RigidBody3D
 ##     rack follows the input, Ackermann splits it)
 ##   * the driver aids (driver_assist.gd, an AssistConfig), each its own switch
 ##     in Settings (Config.aids): they only change what the pedals, brakes and
-##     steering ask for, never the physics
+##     steering ask for, never the physics, except drift assist (an arcade aid:
+##     a turning force on the body holds a drift at its angle)
+##   * on extra grip (Settings > TYRE GRIP above REAL) the tip guard: the tyres
+##     can corner harder than the car could without tipping, so a side lifting
+##     in a corner is pushed back down (_tip_guard)
 ## Stopped, holding the brake selects reverse; then the brake drives it back.
 ## Runs at 120 physics ticks a second (project.godot: the wheels are stiff).
 ##
@@ -489,6 +493,8 @@ func _simulate(dt: float) -> void:
 		var w = wheels[k]
 		react += w.global_transform.basis.x * (w.inertia * (w.omega - spin_before[k]) / dt)
 	apply_torque(react)
+	apply_torque(global_transform.basis.y * assist.drift_torque(self))   # (drift assist: a slide held at its angle)
+	_tip_guard()
 	_aero()
 	slip = _slip()
 	if drivetrain:
@@ -578,6 +584,36 @@ func _aero() -> void:
 	var h: float = config.center_of_mass.y
 	apply_force(down * aero_down.x, b * Vector3(0.0, h, config.front_axle))
 	apply_force(down * aero_down.y, b * Vector3(0.0, h, config.rear_axle))
+
+
+## The tip guard (extra grip only, Settings > TYRE GRIP above REAL): the extra
+## grip lets the tyres corner harder (up to ~1.9 g on tarmac tyres) than the
+## car's track and centre of mass can take before it tips (~1.6 g), so a hard
+## flick or catch rolled it. With a wheel off the ground and the body tipped
+## more than TIP_FROM to the ground under it, a torque round its length puts it
+## back down (and damps the tipping), as a lower-slung arcade car would stay
+## down. In the air (no wheel down) it leaves alone: jumps land as they land.
+const TIP_FROM := deg_to_rad(5.0)
+const TIP_RATE := 30000.0          # N m per rad tipped past TIP_FROM
+const TIP_DAMP := 6000.0           # N m per rad/s tipping further
+const TIP_MAX := 14000.0           # N m at most
+
+func _tip_guard() -> void:
+	if _tuned_grip <= 0.0 or grounded == 0 or grounded == 4:
+		return
+	var n := Vector3.ZERO
+	for w in wheels:
+		if w.grounded:
+			n += w.normal
+	n = n.normalized()
+	var b := global_transform.basis
+	var tip := asin(clampf(b.x.dot(n), -1.0, 1.0))  # + = the right side up
+	if absf(tip) < TIP_FROM:
+		return
+	var fwd := -b.z
+	var rate := -angular_velocity.dot(fwd)            # rad/s the right side's rising
+	var t := TIP_RATE * (absf(tip) - TIP_FROM) + TIP_DAMP * maxf(rate * signf(tip), 0.0)
+	apply_torque(fwd * signf(tip) * minf(t, TIP_MAX))  # (+ round the nose: the right side down)
 
 
 ## The anti-roll bars: each axle's bar pushes its more squashed corner up and pulls

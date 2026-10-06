@@ -110,7 +110,7 @@ const Surfaces = preload("res://scripts/vehicle/physics/surfaces.gd")
 const Aero = preload("res://scripts/vehicle/physics/aero.gd")
 const AssistConfig = preload("res://scripts/vehicle/physics/config/assist_config.gd")
 const AIDS := ["anti_lock", "traction_control", "stability_control", "steering_smoothing", "steering_damping",
-	"countersteer_help", "speed_sensitive_steering"]
+	"countersteer_help", "speed_sensitive_steering", "drift_assist"]
 
 var car: RigidBody3D
 var fails := 0
@@ -1475,7 +1475,7 @@ func _judge_all_aids_corner() -> void:
 	var b := _balance()
 	var base: Dictionary = _skid[4]
 	fails += _check(absf(b.a / base.a - 1.0) < 0.015 and absf(b.front - base.front) < 0.05 and absf(b.rear - base.rear) < 0.05,
-		"all seven aids on, a steady corner inside the grip: %.2f m/s², slip front %.2f / rear %.2f deg (all off: %.2f, %.2f / %.2f): the same car" % [
+		"all eight aids on, a steady corner inside the grip: %.2f m/s², slip front %.2f / rear %.2f deg (all off: %.2f, %.2f / %.2f): the same car" % [
 			b.a, b.front, b.rear, base.a, base.front, base.rear])
 
 
@@ -1483,7 +1483,7 @@ func _judge_all_aids_braking() -> void:
 	var got := _accel(0.3, 2.0)
 	var base: float = _p8["brake gently"]
 	fails += _check(absf(got / base - 1.0) < 0.01,
-		"all seven aids on, braking at 30 %%: %.3f m/s² (all off: %.3f): the same car" % [got, base])
+		"all eight aids on, braking at 30 %%: %.3f m/s² (all off: %.3f): the same car" % [got, base])
 
 
 func _judge_abs_stop() -> void:
