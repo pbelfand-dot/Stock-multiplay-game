@@ -26,6 +26,7 @@ const DriftFx = preload("res://scripts/vehicle/drift_fx.gd")
 const SeatCam = preload("res://scripts/vehicle/seat_cam.gd")
 const AICoDriver = preload("res://scripts/vehicle/ai_codriver.gd")
 const Autopilot = preload("res://scripts/vehicle/autopilot.gd")
+const EngineSound = preload("res://scripts/vehicle/engine_sound.gd")
 const StartLights = preload("res://scripts/ui/start_lights.gd")
 
 signal progress(fraction: float, what: String)
@@ -84,7 +85,7 @@ var _results_label: Label
 var _pause: PanelContainer
 var _t_alive := 0.0
 var _sfx := {}
-var _engine: AudioStreamPlayer3D
+var _engine                        # EngineSound
 var _gravel: AudioStreamPlayer3D
 
 
@@ -478,13 +479,10 @@ static func fmt_time(t: float) -> String:
 # ── sound ─────────────────────────────────────────────────────────────────
 
 func _audio() -> void:
-	_engine = AudioStreamPlayer3D.new()
-	_engine.stream = _looped("res://assets/sfx/engine.wav")
-	_engine.unit_size = 6.0
-	_engine.volume_db = -12.0
-	_engine.bus = "SFX"
+	_engine = EngineSound.new()                      # (real recordings: engine_sound.gd)
+	_engine.name = "EngineSound"
+	_engine.car = car
 	car.add_child(_engine)
-	_engine.play()
 	_gravel = AudioStreamPlayer3D.new()
 	_gravel.stream = _looped("res://assets/sfx/gravel.wav")
 	_gravel.unit_size = 6.0
@@ -515,10 +513,7 @@ func _play(n: String, db := 0.0) -> void:
 
 
 func _engine_audio() -> void:
-	var rpm: float = car.rpm
-	var thr: float = car.inp.throttle if car.simulate else rpm
-	_engine.pitch_scale = 0.55 + rpm * 1.25 + (car.gear - 1) * 0.04
-	_engine.volume_db = -20.0 + rpm * 6.0 + thr * 3.0
+	# (the engine itself plays from EngineSound, under the car)
 	var spd: float = car.linear_velocity.length()
 	var on_ground := 1.0 if car.grounded > 0 or not car.simulate else 0.0
 	var loud: float = clampf(spd / 25.0, 0.0, 1.0) * 0.7 + car.slip * 0.6

@@ -46,7 +46,7 @@ func _init() -> void:
 ## A downloaded pack newer than this build: load it over the game's files now,
 ## before the other autoloads and the main scene load.
 func _apply_pending() -> void:
-	if base_build == 0:
+	if base_build == 0 or OS.has_feature("web"):
 		return
 	var vf := DIR + "version.json"
 	var pck := DIR + "ShotgunRally.pck"
@@ -85,6 +85,9 @@ func check() -> void:
 		status_changed.emit(status, action)
 		return
 	_checked = true
+	if OS.has_feature("web"):
+		_post("Browser version: reload the page for the newest", "")   # (the page always serves the newest)
+		return
 	if base_build == 0 and not Config.flag("update_url"):
 		_post("Development copy: no updates", "")
 		return

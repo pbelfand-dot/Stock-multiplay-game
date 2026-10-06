@@ -76,12 +76,18 @@ func _ready() -> void:
 	_home.add_child(UI.menu_item("PLAY NOW", "A random stage, straight in. The AI calls the notes.", func(): solo.emit(), true))
 	_home.add_child(UI.menu_item("MAPS", "The Shotgun Series: six rallies, rival crews, prize money.", _show.bind("maps")))
 	_home.add_child(UI.menu_item("CARS", "The garage: buy cars, paint them, upgrade them.", _show.bind("cars")))
-	_home.add_child(UI.menu_item("ONLINE", "Ride with a friend: one drives, one reads the map.", _show.bind("online")))
+	if OS.has_feature("web"):
+		# a browser can't connect two machines the way the game does (UDP): online is the download's
+		_home.add_child(UI.menu_item("ONLINE", "Needs the download (Windows, Mac, Linux, Chromebook with Linux).", func():
+			_status.text = "Online play needs the download version: a browser can't connect two machines.\nGet it from the SHOTGUN RALLY download page (Chromebook: the .deb, with Linux turned on)."))
+	else:
+		_home.add_child(UI.menu_item("ONLINE", "Ride with a friend: one drives, one reads the map.", _show.bind("online")))
 	_home.add_child(UI.menu_item("SETTINGS", "Controls, sound, the co-driver's timing, driving aids.", _show.bind("settings")))
-	var quit := UI.button("QUIT", func(): get_tree().quit(), 20, 140)
-	quit.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
-	_home.add_child(UI.gap(6))
-	_home.add_child(quit)
+	if not OS.has_feature("web"):                      # (a browser tab is closed, not quit)
+		var quit := UI.button("QUIT", func(): get_tree().quit(), 20, 140)
+		quit.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+		_home.add_child(UI.gap(6))
+		_home.add_child(quit)
 	_area = Control.new()
 	_area.position = Vector2(48, 200)
 	_area.size = Vector2(800, 640)

@@ -59,8 +59,8 @@ jobs:
           T="$HOME/.local/share/godot/export_templates/${GODOT_VERSION}.stable"
           mkdir -p "$T"
           unzip -q -j "$RUNNER_TEMP/templates.tpz" \
-            templates/windows_release_x86_64.exe templates/linux_release.x86_64 \
-            templates/macos.zip templates/version.txt -d "$T"
+            templates/windows_release_x86_64.exe templates/linux_release.x86_64 templates/linux_release.arm64 \
+            templates/web_nothreads_release.zip templates/macos.zip templates/version.txt -d "$T"
       # The auto-updater (scripts/net/updater.gd): the game knows its build number,
       # and its "base": a fingerprint of what an update pack can't change (the
       # engine, project.godot, the updater itself). Same base -> players get the
@@ -75,10 +75,12 @@ jobs:
         run: |
           G="$RUNNER_TEMP/godot"
           "$G" --headless --path . --import || true
-          mkdir -p build/windows build/linux build/macos
+          mkdir -p build/windows build/linux build/linux_arm64 build/macos build/web
           "$G" --headless --path . --export-release "Windows"
           "$G" --headless --path . --export-release "Linux"
+          "$G" --headless --path . --export-release "Linux ARM64"
           "$G" --headless --path . --export-release "macOS"
+          "$G" --headless --path . --export-release "Web"
           # the update pack: the whole game's content, which every platform's copy loads
           "$G" --headless --path . --export-pack "Linux" build/ShotgunRally.pck
           python3 - <<'PY'
@@ -93,6 +95,12 @@ jobs:
           cd build
           (cd windows && zip -q ../ShotgunRally-Windows.zip ShotgunRally.exe)
           (cd linux && zip -q ../ShotgunRally-Linux.zip ShotgunRally.x86_64)
+          # Chromebooks (Linux turned on): a .deb you double-click in Files; most are
+          # Intel / AMD, the ARM one is for MediaTek / Snapdragon Chromebooks
+          ../tools/make_deb.sh linux/ShotgunRally.x86_64 amd64 "0.1.$GITHUB_RUN_NUMBER" ShotgunRally-Chromebook.deb
+          ../tools/make_deb.sh linux_arm64/ShotgunRally.arm64 arm64 "0.1.$GITHUB_RUN_NUMBER" ShotgunRally-Chromebook-ARM.deb
+          # the browser version (single-threaded: runs on any web host, itch.io included)
+          (cd web && zip -q -r ../ShotgunRally-Web.zip .)
           cp macos/ShotgunRally.zip ShotgunRally-macOS.zip
           python3 ../tools/thin_macos.py macos/ShotgunRally.zip . ShotgunRally
           ls -la
@@ -107,8 +115,9 @@ jobs:
           cd build
           R="$GITHUB_REPOSITORY"
           NOTES="Always the newest SHOTGUN RALLY build.
-          Mac: ShotgunRally.zip (older Intel Macs: ShotgunRally-Intel.zip). Windows / Linux zips below.
-          Unzip, double-click SHOTGUN RALLY.app. The first time macOS says it could not verify it: System Settings -> Privacy & Security -> Open Anyway.
+          Mac: ShotgunRally.zip (older Intel Macs: ShotgunRally-Intel.zip). Unzip, double-click SHOTGUN RALLY.app. The first time macOS says it could not verify it: System Settings -> Privacy & Security -> Open Anyway.
+          Windows / Linux: the zips below.
+          Chromebook: turn on Linux once (Settings -> About ChromeOS -> Developers -> Linux development environment -> Set up), download ShotgunRally-Chromebook.deb (an ARM Chromebook, MediaTek / Snapdragon: ShotgunRally-Chromebook-ARM.deb), double-click it in Files -> Install, then open SHOTGUN RALLY from the launcher. Online play works. School Chromebooks often have Linux switched off: then the browser version (ShotgunRally-Web.zip, solo play) needs putting on a web host, e.g. itch.io.
           ShotgunRally.pck and version.json are for the game's auto-updater: you don't need to download them."
           if ! gh release view shotgun-latest --repo "$R" > /dev/null 2>&1; then
             gh release create shotgun-latest --repo "$R" --target "$GITHUB_SHA" --title "SHOTGUN RALLY - latest build" --notes "$NOTES" --prerelease --latest=false
@@ -122,7 +131,8 @@ jobs:
             exit 0
           fi
           gh release upload shotgun-latest --repo "$R" --clobber \
-            ShotgunRally.zip ShotgunRally-Intel.zip ShotgunRally-Windows.zip ShotgunRally-Linux.zip ShotgunRally.pck
+            ShotgunRally.zip ShotgunRally-Intel.zip ShotgunRally-Windows.zip ShotgunRally-Linux.zip ShotgunRally.pck \
+            ShotgunRally-Chromebook.deb ShotgunRally-Chromebook-ARM.deb ShotgunRally-Web.zip
           # version.json last: the games only see the new build once its pack is there
           # (and a pack that doesn't match version.json's SHA-256 is never used)
           gh release upload shotgun-latest --repo "$R" --clobber version.json
@@ -138,6 +148,7 @@ jobs:
           "$RUNNER_TEMP/butler/butler" push build/ShotgunRally-Windows.zip "$ITCH_PROJECT:windows" --userversion "$V"
           "$RUNNER_TEMP/butler/butler" push build/ShotgunRally-Linux.zip "$ITCH_PROJECT:linux" --userversion "$V"
           "$RUNNER_TEMP/butler/butler" push build/ShotgunRally-macOS.zip "$ITCH_PROJECT:mac-universal" --userversion "$V"
+          "$RUNNER_TEMP/butler/butler" push build/web "$ITCH_PROJECT:html5" --userversion "$V"
       - name: Publish a numbered release (tags only)
         if: startsWith(github.ref, 'refs/tags/shotgun-v')
         uses: softprops/action-gh-release@v2
@@ -149,3 +160,6 @@ jobs:
             shotgun-rally/build/ShotgunRally.zip
             shotgun-rally/build/ShotgunRally-Intel.zip
             shotgun-rally/build/ShotgunRally-Linux.zip
+            shotgun-rally/build/ShotgunRally-Chromebook.deb
+            shotgun-rally/build/ShotgunRally-Chromebook-ARM.deb
+            shotgun-rally/build/ShotgunRally-Web.zip

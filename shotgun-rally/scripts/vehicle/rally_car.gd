@@ -86,6 +86,7 @@ var accel := Vector3.ZERO          # the body's acceleration last tick (m/s², w
 var on_surface := "gravel"         # what most of the tyres are on
 var lane_mu := [1.0, 1.0, 1.0, 1.0]   # grip from where each tyre is across the road (set_lanes)
 var mud_mu := false                # set by the game while a tyre is in a puddle: all four on mud
+var net_throttle := 0.0            # co-driver side: the driver's throttle, from the stream (the engine's sound)
 var wheels: Array = []             # RallyWheel: FL, FR, RL, RR
 var telemetry: CanvasLayer
 var drivetrain                     # Drivetrain (null: no engine in the config, the wheels roll free)
@@ -356,7 +357,8 @@ func _physics_process(dt: float) -> void:
 		if _net_acc >= 1.0 / NET_HZ and stream_ok and _online():
 			_net_acc = 0.0
 			net_state.rpc(Time.get_ticks_msec(), global_position, global_transform.basis.get_rotation_quaternion(),
-				linear_velocity, steer, rpm, gear, PackedFloat32Array(comp), slip, on_surface, bool(inp.handbrake))
+				linear_velocity, steer, rpm, gear, PackedFloat32Array(comp), slip, on_surface, bool(inp.handbrake),
+				clampf(float(inp.throttle), 0.0, 1.0))
 	else:
 		_play_stream(dt)
 	_flaps_swing(dt)
@@ -564,14 +566,14 @@ func _wheel_angles() -> void:
 
 @rpc("any_peer", "unreliable_ordered")
 func net_state(t: int, pos: Vector3, rot: Quaternion, vel: Vector3, st: float, r: float, g: int,
-		c: PackedFloat32Array, sl: float, surf: String, hb: bool) -> void:
+		c: PackedFloat32Array, sl: float, surf: String, hb: bool, thr: float) -> void:
 	if simulate:
 		return
 	states_received += 1
 	var now := Time.get_ticks_msec()
 	_offset = minf(_offset + 0.5, float(now - t))      # creep up slowly, snap down to the fastest packet
 	_buf.append({"t": float(t), "pos": pos, "rot": rot, "vel": vel, "steer": st, "rpm": r, "gear": g,
-		"comp": c, "slip": sl, "surf": surf, "hb": hb})
+		"comp": c, "slip": sl, "surf": surf, "hb": hb, "thr": thr})
 	while _buf.size() > 40:
 		_buf.pop_front()
 
@@ -606,6 +608,7 @@ func _play_stream(dt: float) -> void:
 	slip = a.slip
 	on_surface = a.surf
 	_net_handbrake = a.hb
+	net_throttle = a.thr
 	speed = a.vel.dot(-global_transform.basis.z)
 	_wheel_angles()
 	for k in 4:

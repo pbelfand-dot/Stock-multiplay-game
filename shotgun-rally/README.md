@@ -36,6 +36,14 @@ The links never change. Every change to this folder on `main` replaces the files
 - **Mac:** [ShotgunRally.zip](https://github.com/pbelfand-dot/Stock-multiplay-game/releases/download/shotgun-latest/ShotgunRally.zip)
 - **Mac (older Intel, pre-2020):** [ShotgunRally-Intel.zip](https://github.com/pbelfand-dot/Stock-multiplay-game/releases/download/shotgun-latest/ShotgunRally-Intel.zip)
 - Windows: [ShotgunRally-Windows.zip](https://github.com/pbelfand-dot/Stock-multiplay-game/releases/download/shotgun-latest/ShotgunRally-Windows.zip) · Linux: [ShotgunRally-Linux.zip](https://github.com/pbelfand-dot/Stock-multiplay-game/releases/download/shotgun-latest/ShotgunRally-Linux.zip)
+- **Chromebook:** turn on Linux once (Settings → About ChromeOS → Developers → Linux development
+  environment → Set up), download [ShotgunRally-Chromebook.deb](https://github.com/pbelfand-dot/Stock-multiplay-game/releases/download/shotgun-latest/ShotgunRally-Chromebook.deb),
+  double-click it in Files → Install, then open SHOTGUN RALLY from the launcher (online play works). An
+  ARM Chromebook (MediaTek / Snapdragon; `chrome://version` says `aarch64`): [ShotgunRally-Chromebook-ARM.deb](https://github.com/pbelfand-dot/Stock-multiplay-game/releases/download/shotgun-latest/ShotgunRally-Chromebook-ARM.deb).
+  School Chromebooks often have Linux switched off: for those there's a browser version,
+  [ShotgunRally-Web.zip](https://github.com/pbelfand-dot/Stock-multiplay-game/releases/download/shotgun-latest/ShotgunRally-Web.zip)
+  (solo play: a browser can't connect two machines), which has to be put on a web host first:
+  upload the zip to [itch.io](https://itch.io) as an HTML game (free), or GitHub Pages once the repo is public.
 - All of them on one page: [releases/shotgun-latest](https://github.com/pbelfand-dot/Stock-multiplay-game/releases/tag/shotgun-latest)
 - **itch.io:** set-up steps in [`docs/ITCH.md`](docs/ITCH.md)
 
@@ -171,6 +179,16 @@ light, filmed like rally TV (trackside cameras it flashes past, a chase camera, 
 - **Loading screen:** the stage number, how long it is and how many corners, a rally tip, and a
   progress bar that follows the build ("Planting ten thousand trees..."). It stays up through the
   first frames of the stage, which stutter while the graphics warm up, then fades out.
+
+### The engine sound (a real Fiesta WRC)
+
+The engine is four loops cut from recordings of a Ford Fiesta WRC (its anti-lag idle, pulling
+through a gear at ~5,900 and ~7,350 rpm, and the launch-control crackle), each pitched exactly to
+the revs and blended between, plus the gear change (the cut and the bang) and anti-lag pops when you
+lift at high revs; the co-driver's machine hears the same. Every effect is on its own bus and dips
+~10 dB whenever the co-driver talks (SETTINGS: EFFECTS and CO-DRIVER VOICE). How they were made,
+and a licence note (they're YouTube recordings: fine among friends, to be replaced before a public
+release): [tools/engine_sound/README.md](tools/engine_sound/README.md).
 
 ### The car's physics (v2: in the game)
 
@@ -317,6 +335,7 @@ real voice.
      a launch spins the wheels a little; full brake while steering locks a front, half brake still steers
    - ride: how much the car shakes at the driver's eye on two stages, and the hardest landing
    - view: the driver's eye at 144 down to 12 fps and through hitches, never shaking frame to frame
+   - sound: the engine's loops blend by the revs, it sounds its shifts and pops, the co-driver is over the effects
    - jumps: air time by speed (a hop at 80 km/h, ~0.9 s at 120, longer off a big jump), landings on all
      four wheels within 12 deg of the slope, no second bounce, still on the road, and braking in the air dips the nose
    - drift dirt: dust and stones when the car slides, a light trail at speed, a burst on landing, nothing when cruising or in the air

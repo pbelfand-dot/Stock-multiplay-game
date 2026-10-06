@@ -47,6 +47,8 @@ for seed in 3 15; do
 done
 echo "== view: the driver's eye at 144 down to 12 fps and through hitches: no shaking frame to frame"
 run_g 120 --headless --fixed-fps 120 --path . -s tests/view_check.gd 2>&1 | grep -E "\[view\]" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
+echo "== sound: the engine's four loops blended by the revs, shifts and anti-lag pops, the co-driver over the effects"
+run_g 120 --headless --fixed-fps 120 --path . -s tests/sound_check.gd 2>&1 | grep -E "\[sound\]" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
 echo "== AI co-driver: every call said in time, from where the car is"
 run_g 480 --headless --fixed-fps 120 --path . -- --aicheck --autostart --autopilot --seed=8 --timeout=400 --profile=$T/ai.cfg 2>&1 | grep -E "\[ai\]" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
 for case in "driver codriver" "codriver driver"; do

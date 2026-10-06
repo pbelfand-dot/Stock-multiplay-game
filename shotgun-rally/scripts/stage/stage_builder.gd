@@ -470,7 +470,8 @@ func _forest() -> void:
 			mmi.name = "Trees_%d_%s" % [ci, kind]
 			mmi.multimesh = mm
 			mmi.material_override = mat
-			mmi.visibility_range_end = FAR_DRAW if kind.ends_with("_far") else (FERN_DRAW if kind == "fern" else TREE_DRAW)
+			var near: float = (FERN_DRAW if kind == "fern" else TREE_DRAW) * (0.65 if OS.has_feature("web") else 1.0)
+			mmi.visibility_range_end = FAR_DRAW if kind.ends_with("_far") else near
 			mmi.visibility_range_end_margin = 40.0
 			mmi.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_DISABLED
 			if kind == "bush" or kind == "fern" or kind.ends_with("_far"):
@@ -1052,6 +1053,6 @@ func _environment() -> void:
 			env.ambient_light_energy = 0.85
 			env.fog_light_color = Color(0.68, 0.71, 0.73)
 			env.fog_density = 0.016
-	sun.shadow_enabled = true
+	sun.shadow_enabled = not OS.has_feature("web")     # (a browser on a Chromebook: lighter)
 	sun.directional_shadow_max_distance = 70.0
 	add_child(sun)
