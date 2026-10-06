@@ -236,6 +236,10 @@ Corsa's gamepad assist; sources in the commit history):
   little), and the camera was bolted to the car (now your head sits on a neck that soaks up the
   jolts). The shaking at the driver's eye went from 8.6 to 4.0 m/s² on stage 3 and from ~12 to 3.5
   on stage 15; the hardest landing from 20–25 g to 4–8 g (`tests/ride_check.gd` measures it).
+- **No more shaking when the frame rate drops.** The head's neck spring was worked out once per
+  frame, so below ~20 fps it went unstable and slammed the view 6 cm up and down every frame: the
+  car seemed to bounce very fast with nothing on the road. It now steps in fixed 1/120 s steps at
+  any frame rate (`tests/view_check.gd` runs the view at 144 down to 12 fps and through hitches).
 - `tests/handling_check.gd` measures it: at 50 / 80 / 110 km/h full steering has to be the most
   grip (before the rework, full steering at 110 km/h gave 0.68 g and 25 % gave 0.80 g).
 
@@ -300,6 +304,7 @@ real voice.
    - handling: full steering is the most grip at 50 / 80 / 110 km/h; lift-off and handbrake turns rotate the car;
      a launch spins the wheels a little; full brake while steering locks a front, half brake still steers
    - ride: how much the car shakes at the driver's eye on two stages, and the hardest landing
+   - view: the driver's eye at 144 down to 12 fps and through hitches, never shaking frame to frame
    - jumps: air time by speed (a hop at 80 km/h, ~0.9 s at 120, longer off a big jump), landings on all
      four wheels within 12 deg of the slope, no second bounce, still on the road, and braking in the air dips the nose
    - drift dirt: dust and stones when the car slides, a light trail at speed, a burst on landing, nothing when cruising or in the air

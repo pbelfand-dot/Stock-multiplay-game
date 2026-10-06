@@ -19,6 +19,9 @@ const PITCH_MAX := 0.5
 const BOOK_LOOK := Vector2(0.06, -0.98)   # yaw, pitch that puts the map board in view
 const NECK_K := 380.0           # the neck's spring (1/s^2): ~3 Hz
 const NECK_C := 30.0            # ... and damping: it settles in a bob or two
+const NECK_STEP := 1.0 / 120.0  # s: the neck is worked out in steps no longer than this
+const NECK_LOW := -0.035        # m: how far the head can drop ...
+const NECK_HIGH := 0.025        # ... and rise
 
 var car
 var seat := "driver"
@@ -98,8 +101,17 @@ func _process(dt: float) -> void:
 	_lean.x = lerpf(_lean.x, target.x, clampf(dt * 8.0, 0.0, 1.0))
 	_lean.z = lerpf(_lean.z, target.z, clampf(dt * 8.0, 0.0, 1.0))
 	var push := clampf(_acc_local.y, -40.0, 40.0) * 0.6        # how hard the seat moves under you
-	_neck_v += (-NECK_K * _lean.y - NECK_C * _neck_v - push) * dt
-	_lean.y = clampf(_lean.y + _neck_v * dt, -0.035, 0.025)
+	# in small fixed steps, whatever the frame rate: one step per frame went unstable
+	# below ~20 fps and slammed the view up and down 6 cm every frame (the "rapid
+	# bouncing" with nothing on the road); at the end of its travel it stops dead
+	var steps := ceili(minf(dt, 0.1) / NECK_STEP)
+	var h := minf(dt, 0.1) / maxi(steps, 1)
+	for i in steps:
+		_neck_v += (-NECK_K * _lean.y - NECK_C * _neck_v - push) * h
+		_lean.y += _neck_v * h
+		if _lean.y < NECK_LOW or _lean.y > NECK_HIGH:
+			_lean.y = clampf(_lean.y, NECK_LOW, NECK_HIGH)
+			_neck_v = 0.0
 	_bump = move_toward(_bump, 0.0, dt * 0.6)
 	var shake := Vector3(randf_range(-1, 1), randf_range(-1, 1), 0.0) * _bump * 0.008
 	# the gravel through the seat: a fine buzz that grows with speed (more off the road),
