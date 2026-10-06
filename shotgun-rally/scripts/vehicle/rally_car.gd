@@ -107,6 +107,9 @@ var _prev_v := Vector3.ZERO
 var _reverse_t := 0.0
 var _own_config := false           # config is this car's own copy (the garage changes it)
 var _base := {}                    # the config's numbers before the garage's multipliers
+var tyre_kind := ""                # the tyres on it, "gravel" or "tarmac", and its setup (apply_setup: _tune)
+var setup_kind := ""
+var _base_parts := {}              # its own suspension, tyres and rack, before a setup changed them
 var _mud: Resource
 var _model_wheels: Array = []      # [pivot, spinner, rest position] per corner (model units)
 var _flaps: Array = []             # [hinge, angle, angular speed] per corner
@@ -264,6 +267,7 @@ func apply_setup(s: Dictionary) -> void:
 	config.brake_torque = _base.brakes * brake_mult
 	if config.drivetrain:
 		config.drivetrain.front_share = float(s.get("drive_front", _base.front))
+	_tune(str(s.get("tyre", "gravel")), str(s.get("preset", "gravel")))
 	for k in 4:
 		wheels[k].surface_mu = lane_mu[k] * grip_mult
 	if body_model:
@@ -275,6 +279,52 @@ func apply_setup(s: Dictionary) -> void:
 		rim.cull_mode = BaseMaterial3D.CULL_DISABLED
 		for mw in _model_wheels:
 			((mw[1] as Node3D).get_child(0) as MeshInstance3D).set_surface_override_material(1, rim)
+
+
+## The tyres and the setup (the garage's SETUP tab; "auto" is settled by the game
+## for the stage before it gets here). Tarmac tyres: TireModel.tarmac_tyre.
+## A tarmac setup: springs x1.5, dampers x1.3, anti-roll bars x1.5 (it rolls and
+## pitches less, turns in sharper), a rack a quarter quicker; the travel is
+## shortened by what the stiffer springs no longer squash, so it stands at the
+## same height with the same room to the bump stops.
+func _tune(tyre: String, kind: String) -> void:
+	tyre = "tarmac" if tyre == "tarmac" else "gravel"
+	kind = "tarmac" if kind == "tarmac" else "gravel"
+	if tyre == tyre_kind and kind == setup_kind:
+		return
+	if _base_parts.is_empty():
+		_base_parts = {"front": config.front_suspension, "rear": config.rear_suspension, "ft": config.front_tire,
+			"rt": config.rear_tire, "rack": config.steering.rack_speed_deg if config.steering else 0.0,
+			"ft_tarmac": RallyWheel.TireModel.tarmac_tyre(config.front_tire),
+			"rt_tarmac": RallyWheel.TireModel.tarmac_tyre(config.rear_tire)}
+	tyre_kind = tyre
+	setup_kind = kind
+	var loads: Array = config.static_loads(_gravity())
+	var sus: Array = []
+	for k in 2:
+		var base: Resource = _base_parts.front if k == 0 else _base_parts.rear
+		var t: Resource = base
+		if kind == "tarmac":
+			t = base.duplicate()
+			t.spring_rate = base.spring_rate * 1.5
+			for f in ["bump_damping", "rebound_damping", "high_speed_bump", "high_speed_rebound"]:
+				t.set(f, float(base.get(f)) * 1.3)
+			t.anti_roll_rate = base.anti_roll_rate * 1.5
+			var dc: float = RallyWheel.Suspension.static_compression(base, loads[k]) - RallyWheel.Suspension.static_compression(t, loads[k])
+			t.travel = base.travel - dc
+			t.bump_stop_start = base.bump_stop_start - dc
+		sus.append(t)
+	config.front_suspension = sus[0]
+	config.rear_suspension = sus[1]
+	config.front_tire = _base_parts.ft_tarmac if tyre == "tarmac" else _base_parts.ft
+	config.rear_tire = _base_parts.rt_tarmac if tyre == "tarmac" else _base_parts.rt
+	if config.steering:
+		config.steering.rack_speed_deg = _base_parts.rack * (1.25 if kind == "tarmac" else 1.0)
+	for k in 4:
+		wheels[k].setup(self, config.front_suspension if k < 2 else config.rear_suspension,
+			config.front_tire if k < 2 else config.rear_tire, config.tyre_radius, config.tyre_width, config.wheel_inertia)
+	_static_comp = [RallyWheel.Suspension.static_compression(config.front_suspension, loads[0]),
+		RallyWheel.Suspension.static_compression(config.rear_suspension, loads[1])]
 
 
 ## Put the car down at (pos, yaw), still, sitting at its ride height above pos.

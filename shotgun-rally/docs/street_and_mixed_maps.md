@@ -1,5 +1,30 @@
 # Street (tarmac) and mixed-surface maps: the plan
 
+**Status (built):** steps 1, 2, 3 and 5 of the order below are in the game; step 4 (town streets)
+isn't yet.
+- **Surface sections**: a stage is gravel, tarmac or mixed (`StageGen.sections`, its own random
+  numbers, so an ordinary stage is exactly as before). The asphalt road (edge lines, a centre line
+  where it's wide, gravel shoulders), each surface its own collision body, gravel dragged onto the
+  asphalt after a join and on the inside of slow corners ("don't cut"), Monte Carlo snow and ice
+  as an option ("caution, keep left"). Tyre smoke and a squeal on asphalt. The co-driver's map
+  shows asphalt in grey and ice in blue. SETTINGS > STAGES > SURFACE for PLAY NOW / online.
+- **Mountain kit** (every tarmac stage): the road climbs across a hillside (a tilted slope with
+  ridges, bent to meet the road), more hairpins (switchbacks), armco or stone walls where it drops
+  away, rock cut banks above, sparse trees, villages with houses, shutters and a church tower,
+  snow lying about on a winter stage.
+- **Tyres and setups**: CARS > SETUP: tyres AUTO / GRAVEL / TARMAC and setup AUTO / GRAVEL /
+  TARMAC. Tarmac tyres corner ~10 % harder on asphalt and ~25 % worse on gravel; the tarmac setup
+  rolls about a third less (tests/tuning_check.gd).
+- **Story mode**: COSTA MIXTA (mixed), ISOLA ROSSA (dry mountain tarmac), RIVIERA ALPS (snow and
+  ice) before the GRAND FINAL.
+
+![Mountain tarmac](screens/mountain.jpg)
+![The garage's SETUP tab](screens/garage_setup.jpg)
+
+- The questions at the end were answered "do both": snow and ice as an option and dry tarmac;
+  tyres and setups yes; no new voice clips (the notes use "caution", "keep left / right" and
+  "don't cut", which the voice already has); built on the new car physics.
+
 Asked for: "street and mixed maps... street control would be different than the control on the
 dirt". Decided so far: **both kinds of street map, mountain tarmac first** (Monte Carlo / Spain /
 Croatia style), town streets later; **mixed = sections in one stage** (part gravel, part tarmac,

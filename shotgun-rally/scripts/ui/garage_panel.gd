@@ -2,8 +2,9 @@ extends PanelContainer
 ## CARS, the garage. Flick through the cars (◀ ▶): what each costs, how it
 ## drives (power, grip, brakes, the drive split), and the one you drive. A car
 ## you own can be painted (main, accent and stripe colours: free), given a
-## livery and wheels (bought once, then yours on any car), a race number, and
-## upgrades (engine, tyres, brakes: three steps each). The car behind the menu
+## livery and wheels (bought once, then yours on any car), a race number,
+## upgrades (engine, tyres, brakes: three steps each), and its tyres and setup
+## for gravel or tarmac (free; AUTO matches the stage). The car behind the menu
 ## parks and shows every change as you make it. Everything is in Profile.
 
 signal back
@@ -29,6 +30,7 @@ func _ready() -> void:
 	for k in Catalog.CARS.size():
 		if Catalog.CARS[k].id == Profile.car:
 			_i = k
+	_tab = get_node("/root/Config").arg("garage_tab", _tab)      # (pictures: --garage_tab=setup)
 	_rebuild()
 
 
@@ -92,8 +94,8 @@ func _rebuild() -> void:
 	if owned:
 		var tabs := HBoxContainer.new()
 		tabs.add_theme_constant_override("separation", 8)
-		for t in [["paint", "PAINT"], ["livery", "LIVERY"], ["wheels", "WHEELS"], ["number", "NUMBER"], ["upgrades", "UPGRADES"]]:
-			var tb := UI.button(t[1], func(): _tab = t[0]; _rebuild(), 18, 120)
+		for t in [["paint", "PAINT"], ["livery", "LIVERY"], ["wheels", "WHEELS"], ["number", "NUMBER"], ["upgrades", "UPGRADES"], ["setup", "SETUP"]]:
+			var tb := UI.button(t[1], func(): _tab = t[0]; _rebuild(), 18, 104)
 			if t[0] == _tab:
 				tb.add_theme_stylebox_override("normal", UI.box(UI.RED, 8, 10))
 			tabs.add_child(tb)
@@ -108,6 +110,7 @@ func _rebuild() -> void:
 			"wheels": _wheels(content, setup)
 			"number": _number(content, setup)
 			"upgrades": _upgrades(content)
+			"setup": _tuning(content, setup)
 	else:
 		_body.add_child(UI.label("Buy it to paint it and upgrade it. This is how it comes.", 18, UI.DIM))
 	var bottom := HBoxContainer.new()
@@ -230,6 +233,28 @@ func _number(box: VBoxContainer, setup: Dictionary) -> void:
 func _bump(d: int, now: int) -> void:
 	Profile.set_paint(_car().id, "number", posmod(now - 1 + d, 99) + 1)
 	_rebuild()
+
+
+## The tyres and the setup (free): each a button that steps through AUTO, GRAVEL,
+## TARMAC, with what the choice does.
+func _tuning(box: VBoxContainer, setup: Dictionary) -> void:
+	for key in Catalog.TUNING:
+		var t: Dictionary = Catalog.TUNING[key]
+		var choices: Array = t.choices
+		var at := maxi(0, choices.map(func(c): return c[0]).find(str(setup.get(key, "auto"))))
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", 14)
+		var l := UI.label(t.name, 22, UI.CREAM, true)
+		l.custom_minimum_size = Vector2(90, 0)
+		row.add_child(l)
+		row.add_child(UI.button(choices[at][1], func():
+			Profile.set_tuning(_car().id, key, choices[(at + 1) % choices.size()][0])
+			_rebuild(), 18, 130))
+		var what := UI.label(choices[at][2], 15, UI.DIM)
+		what.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		what.custom_minimum_size = Vector2(420, 0)
+		row.add_child(what)
+		box.add_child(row)
 
 
 func _upgrades(box: VBoxContainer) -> void:

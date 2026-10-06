@@ -42,3 +42,11 @@ extends Resource
 ## At a standstill the wound-up carcass is a spring; this damps it (N per m/s),
 ## fading out by 3 m/s. Without it a parked car would wobble on its tyres.
 @export_range(0.0, 30000.0, 100.0, "suffix:N/(m/s)") var standstill_damping := 8000.0
+
+@export_group("Made for")
+## Its grip on a sealed surface (asphalt) and on a loose one (gravel, dirt, snow,
+## mud, grass, ice), x the surface's own: a gravel tyre is 1 and 1 (the surfaces
+## are measured with it); a tarmac tyre grips more on asphalt and far less on
+## gravel (TireModel.tarmac_tyre).
+@export_range(0.3, 1.6, 0.01) var sealed_grip := 1.0
+@export_range(0.3, 1.6, 0.01) var loose_grip := 1.0

@@ -9,3 +9,4 @@ grip = 1.3
 peak_scale = 0.6
 slide_grip = 0.92
 rolling_scale = 0.5
+sealed = true

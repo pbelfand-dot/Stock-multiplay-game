@@ -75,12 +75,14 @@ func generate(seed_value: int, target := 2600.0) -> void:
 			break
 	finish_s = length - FINISH_BACK
 	_make_sections()
+	mountain = opts.get("surface", "gravel") == "tarmac"
 	_make_widths()
 	_make_elevation()
 	_find_corners()
 	_place_extras()
 	_place_bridges()
 	_make_patches()
+	_place_villages()
 
 
 # ── pieces ────────────────────────────────────────────────────────────────
@@ -112,8 +114,8 @@ func _make_pieces(target: float) -> void:
 ## meanders forward instead of curling into itself; `force_flip` makes the
 ## second half of an S-bend go the other way.
 func _corner(yaw: float, force_flip: int) -> Dictionary:
-	# radius classes, from hairpin to fast sweeper
-	var cls := _pick([2, 3, 4, 4, 3, 2])
+	# radius classes, from hairpin to fast sweeper (a mountain road: more hairpins and slow corners)
+	var cls := _pick([4, 4, 4, 3, 2, 1] if opts.get("surface", "gravel") == "tarmac" else [2, 3, 4, 4, 3, 2])
 	var r: float = [12.0, 22.0, 38.0, 65.0, 110.0, 190.0][cls] * _rng.randf_range(0.85, 1.2)
 	var ang_deg: float
 	match cls:
@@ -252,9 +254,13 @@ func _make_elevation() -> void:
 			crests.append({"s": s, "h": _rng.randf_range(1.0, 1.8), "w": _rng.randf_range(16.0, 26.0), "jump": false})
 			s += _rng.randf_range(180.0, 380.0)
 	crests.sort_custom(func(p, q): return p.s < q.s)
+	if mountain:
+		_make_terrain()
 	for i in pts.size():
 		pts[i].y = height_at(i * STEP)
 	_limit_grade()
+	if mountain:
+		_fit_terrain()
 
 
 ## No steeper than MAX_GRADE either way (a gravel road, not a ski jump: a crest on top
@@ -274,11 +280,13 @@ func _limit_grade() -> void:
 			pts[i].y = (ys[i - 1] + ys[i] * 2.0 + ys[i + 1]) * 0.25
 
 
-## Elevation of the road at s (m): two rolling hills plus the crests, flat at the start and finish.
+## Elevation of the road at s (m): two rolling hills (on a mountain stage, the
+## mountainside) plus the crests, the crests flat at the start and finish.
 func height_at(s: float) -> float:
 	var y := 0.0
-	for hl in _hills:
-		y += hl[0] * sin(s / hl[1] * TAU + hl[2])
+	if not mountain:
+		for hl in _hills:
+			y += hl[0] * sin(s / hl[1] * TAU + hl[2])
 	for c in crests:
 		if c.jump:
 			# the jump's own shape, worked out once (_make_jump), every metre
@@ -296,6 +304,8 @@ func height_at(s: float) -> float:
 		if absf(u) < 1.0:
 			y += c.h * 0.5 * (1.0 + cos(u * PI))
 	var flat := smoothstep(0.0, 120.0, s) * smoothstep(length, finish_s - 20.0, s)
+	if mountain:
+		return _mountain_road(s) + y * flat * 0.7
 	return y * flat
 
 
@@ -594,6 +604,163 @@ func gully_depth(s: float, d: float) -> float:
 		return 0.0
 	var u: float = (s - b.s0) / (b.s1 - b.s0)
 	return b.depth * smoothstep(0.0, 0.3, u) * smoothstep(0.0, 0.3, 1.0 - u) * (1.0 - smoothstep(35.0, 70.0, absf(d)))
+
+
+# ── the mountainside (tarmac stages) ──────────────────────────────────────
+
+## MOUNTAIN stages (the tarmac ones): the road climbs across a hillside, Monte
+## Carlo / Corsica style, instead of rolling through a forest. The ground is one
+## slope tilted across the stage's general direction (MOUNTAIN_SLOPE) with broad
+## ridges on it (terrain_at). The road keeps to it along the centre line, so it
+## runs level along the slope and climbs or drops as it turns across it (a pair
+## of hairpins is a switchback), and the builder cuts it in: a bank on the uphill
+## side, a drop on the other (armco or a stone wall where it's steep), and
+## villages along the way. Its own random numbers.
+const MOUNTAIN_SLOPE := 0.24
+var mountain := false
+var _tilt := Vector2.ZERO               # the slope (rise per metre in x, z)
+var _ridges: Array = []                 # [[amplitude (m), wave (rad per m, in x and z), phase]]
+var _t0 := 0.0                          # the mountainside's height at the start line: the road's zero there
+
+
+func _make_terrain() -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = hash([seed_used, "mountain"])
+	var along := Vector2(pts[pts.size() - 1].x - pts[0].x, pts[pts.size() - 1].z - pts[0].z).normalized()
+	_tilt = Vector2(-along.y, along.x) * MOUNTAIN_SLOPE * (1.0 if rng.randf() < 0.5 else -1.0)
+	_ridges.clear()
+	for k in 2:
+		var a := rng.randf() * TAU
+		var wl: float = rng.randf_range(300.0, 450.0) if k == 0 else rng.randf_range(110.0, 180.0)
+		_ridges.append([rng.randf_range(4.0, 7.0) if k == 0 else rng.randf_range(1.0, 2.0), Vector2(cos(a), sin(a)) * TAU / wl, rng.randf() * TAU])
+	_t0 = 0.0
+	var i0 := int(START_S / STEP)
+	_t0 = terrain_at(pts[i0].x, pts[i0].z)
+
+
+## The mountainside's height at (x, z) (0 at the start line): the slope, bent to
+## meet the road (_fit_terrain). Flat (0) on a stage that isn't a mountain one.
+func terrain_at(x: float, z: float) -> float:
+	if not mountain:
+		return 0.0
+	var y: float = _tilt.x * (x - pts[0].x) + _tilt.y * (z - pts[0].z) - _t0
+	for r in _ridges:
+		y += r[0] * sin(r[1].x * x + r[1].y * z + r[2])
+	if not _fit.is_empty():
+		var fx := clampf((x - _fit_o.x) / FIT_CELL, 0.0, _fit_nx - 1.001)
+		var fz := clampf((z - _fit_o.y) / FIT_CELL, 0.0, _fit_nz - 1.001)
+		var ix := int(fx)
+		var iz := int(fz)
+		var k := iz * _fit_nx + ix
+		var u := fx - ix
+		var v := fz - iz
+		y += lerpf(lerpf(_fit[k], _fit[k + 1], u), lerpf(_fit[k + _fit_nx], _fit[k + _fit_nx + 1], u), v)
+	return y
+
+
+## Where the road can't keep to the slope (it's no steeper than MAX_GRADE, and
+## smoothed) the slope is bent to meet it, so it isn't in a canyon or up on a dyke:
+## the road's height minus the slope's, in the cells of a grid (FIT_CELL m) the road
+## crosses, spread out from there (relaxed: each other cell the average of its
+## neighbours, fading), so it eases back to the plain slope over ~150 m.
+const FIT_CELL := 16.0
+const FIT_OUT := 320.0
+var _fit := PackedFloat32Array()
+var _fit_o := Vector2.ZERO
+var _fit_nx := 0
+var _fit_nz := 0
+
+
+func _fit_terrain() -> void:
+	_fit = PackedFloat32Array()
+	var mn := Vector2(INF, INF)
+	var mx := Vector2(-INF, -INF)
+	for p in pts:
+		mn = Vector2(minf(mn.x, p.x), minf(mn.y, p.z))
+		mx = Vector2(maxf(mx.x, p.x), maxf(mx.y, p.z))
+	_fit_o = mn - Vector2(FIT_OUT, FIT_OUT)
+	var nx := int((mx.x - mn.x + 2.0 * FIT_OUT) / FIT_CELL) + 2
+	var nz := int((mx.y - mn.y + 2.0 * FIT_OUT) / FIT_CELL) + 2
+	var field := PackedFloat32Array()
+	field.resize(nx * nz)
+	# twice: the second time what's left over (the grid's cells are coarser than the road's bends)
+	for _pass in 2:
+		var sum := PackedFloat32Array()
+		sum.resize(nx * nz)
+		var cnt := PackedInt32Array()
+		cnt.resize(nx * nz)
+		for p in pts:
+			var k := int(round((p.z - _fit_o.y) / FIT_CELL)) * nx + int(round((p.x - _fit_o.x) / FIT_CELL))
+			sum[k] += p.y - terrain_at(p.x, p.z)
+			cnt[k] += 1
+		var add := PackedFloat32Array()
+		add.resize(nx * nz)
+		var free := PackedInt32Array()               # the cells the road doesn't cross (not edge cells)
+		for k in nx * nz:
+			if cnt[k] > 0:
+				add[k] = sum[k] / cnt[k]
+			elif k % nx > 0 and k % nx < nx - 1 and k >= nx and k < nx * (nz - 1):
+				free.append(k)
+		for _it in 40:
+			var src := add.duplicate()
+			for k in free:
+				add[k] = (src[k - 1] + src[k + 1] + src[k - nx] + src[k + nx]) * 0.2475
+		for k in nx * nz:
+			field[k] += add[k]
+		_fit_nx = nx
+		_fit_nz = nz
+		_fit = field.duplicate()
+
+
+## The road's height on the mountainside at s, level through the start and the finish.
+func _mountain_road(s: float) -> float:
+	var p := point_at(s)
+	var f := point_at(minf(finish_s + 30.0, length))
+	var y := terrain_at(p.x, p.z) * smoothstep(START_S + 20.0, START_S + 150.0, s)
+	return lerpf(y, terrain_at(f.x, f.z), smoothstep(finish_s - 90.0, finish_s, s))
+
+
+## VILLAGES on the asphalt (a mountain road's, or a mixed stage's tarmac): one
+## every 900-1400 m, on a stretch of 110-160 m that bends no tighter than 70 m,
+## clear of the start, the finish and a join. Houses close to the road, a church
+## tower, stone walls; the builder makes them. Their own random numbers.
+const VILLAGE_NAMES := ["VALBRUNE", "SAINT-ORSO", "LES ARCELLES", "CASTELROC", "MONTAGNOLE", "PRAZ-SUR-ARVE",
+	"SAINT-JULIEN", "LA BAUME", "COL-DE-FER", "BELVÉDÈRE", "LUCÉRAC", "ROQUEVAL"]
+var villages: Array = []        # [{s0, s1, name}]
+
+
+func _place_villages() -> void:
+	villages.clear()
+	var rng := RandomNumberGenerator.new()
+	rng.seed = hash([seed_used, "villages"])
+	var s := START_S + 260.0 + rng.randf_range(0.0, 300.0)
+	while s < finish_s - 320.0:
+		var l := rng.randf_range(110.0, 160.0)
+		var ok := surface_at(s - 30.0) == "asphalt" and surface_at(s + l + 30.0) == "asphalt" and _gentle(s, s + l, 1.0 / 70.0) \
+			and s + l < finish_s - 220.0
+		for j in joins:
+			ok = ok and (j.s < s - 80.0 or j.s > s + l + 80.0)
+		if ok:
+			villages.append({"s0": s, "s1": s + l, "name": VILLAGE_NAMES[absi(hash([seed_used, villages.size()])) % VILLAGE_NAMES.size()]})
+			s += l + rng.randf_range(900.0, 1400.0)
+		else:
+			s += 40.0
+
+
+## Does the road bend no tighter than max_k (1/m) from a to b?
+func _gentle(a: float, b: float, max_k: float) -> bool:
+	for i in range(maxi(int(a / STEP), 0), mini(int(b / STEP) + 1, curv.size())):
+		if absf(curv[i]) > max_k:
+			return false
+	return true
+
+
+## The village at s (within `margin` m of it), or {}.
+func village_at(s: float, margin := 0.0) -> Dictionary:
+	for v in villages:
+		if s >= v.s0 - margin and s <= v.s1 + margin:
+			return v
+	return {}
 
 
 # ── surfaces ──────────────────────────────────────────────────────────────

@@ -1,7 +1,8 @@
 extends RefCounted
-## Story mode: the SHOTGUN SERIES, a season of six rallies driven in order.
+## Story mode: the SHOTGUN SERIES, a season of nine rallies driven in order.
 ## Each rally is three stages (fixed seeds, so everyone drives the same roads)
-## with its own character: the light (mood), how long, narrow roads, puddles.
+## with its own character: the light (mood), how long, narrow roads, puddles,
+## the surface (gravel, mixed, mountain tarmac, snow and ice).
 ## Finish a rally to unlock the next. You're timed against five rival crews;
 ## where you finish pays credits (Profile).
 
@@ -11,7 +12,9 @@ const RIVALS := [
 ]
 
 ## pace: the middle rival's average speed (km/h); seeds picked so each stage fits
-## the rally (Lakeland and the final have big jumps, Highland is twisty).
+## the rally (Lakeland and the final have big jumps, Highland is twisty, Costa
+## Mixta's stages have three sections each, Isola Rossa's and the Riviera's are
+## full of hairpins, villages and (the Riviera) ice).
 const RALLIES := [
 	{"id": "pine", "name": "PINE VALLEY RALLY", "blurb": "Gentle forest gravel to learn the calls on. Short stages, wide open.",
 		"mood": "day", "pace": 52.0, "reward": 3000, "gen": {},
@@ -28,6 +31,15 @@ const RALLIES := [
 	{"id": "highland", "name": "HIGHLAND RALLY", "blurb": "Narrow, twisty mountain roads. Every metre of the road book counts.",
 		"mood": "day", "pace": 50.0, "reward": 7000, "gen": {"narrow": 0.8},
 		"stages": [["CORRIE BENDS", 5504, 2400], ["THE NEEDLE", 5518, 2400], ["DEVIL'S ELBOW", 5528, 2400]]},
+	{"id": "costa", "name": "COSTA MIXTA RALLY", "blurb": "Gravel, then tarmac, then gravel again, in one stage. The grip changes under you at every join.",
+		"mood": "day", "pace": 58.0, "reward": 7500, "gen": {"surface": "mixed"},
+		"stages": [["LA SERRA", 7700, 2600], ["RIERA SECA", 7708, 2600], ["EL COLL", 7717, 2600]]},
+	{"id": "isola", "name": "ISOLA ROSSA RALLY", "blurb": "Dry mountain tarmac, a thousand corners: hairpins up a hillside, villages, armco and a long drop.",
+		"mood": "golden", "pace": 54.0, "reward": 8000, "gen": {"surface": "tarmac"},
+		"stages": [["COL DE L'AIGLE", 8803, 2400], ["LES CORNICHES", 8814, 2400], ["MILLE VIRAGES", 8811, 2400]]},
+	{"id": "riviera", "name": "RIVIERA ALPS RALLY", "blurb": "Winter in the Alps: snow on the verges, ice in the shade. The co-driver calls it; you believe it.",
+		"mood": "day", "pace": 46.0, "reward": 9000, "gen": {"surface": "tarmac", "ice": true},
+		"stages": [["COL DES GIVRES", 9900, 2400], ["NUIT BLANCHE", 9901, 2400], ["LA DESCENTE", 9904, 2400]]},
 	{"id": "final", "name": "GRAND FINAL", "blurb": "Three long stages, big jumps, the season on the line.",
 		"mood": "golden", "pace": 60.0, "reward": 10000, "gen": {},
 		"stages": [["THE LONG ROAD", 6600, 3600], ["CHAMPION'S LEAP", 6608, 3600], ["FINAL CALL", 6623, 3600]]},

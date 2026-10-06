@@ -1,6 +1,7 @@
 extends RefCounted
 ## The player's save (user://profile.cfg, or --profile=PATH for tests):
-## credits, the cars and paint they own, how each car is set up, story
+## credits, the cars and paint they own, how each car is set up (upgrades,
+## tyres and setup), story
 ## progress and best stage times. One per copy of the game; everything is
 ## static (use it straight off the script: Profile.credits, Profile.buy_car()).
 ##
@@ -16,6 +17,7 @@ static var car := "kestrel"                 # the one you drive
 static var owned := {"cars": ["kestrel"], "liveries": [], "wheels": ["silver"]}
 static var paint := {}                      # car id -> {colours, livery, wheels, number}
 static var levels := {}                     # car id -> {engine, tyres, brakes}: upgrade steps bought
+static var tuning := {}                     # car id -> {tyre, preset}: "auto", "gravel" or "tarmac"
 static var story := {}                      # rally id -> {done, best_pos, best_total}
 static var bests := {}                      # "seed/length" -> best total (s)
 static var _loaded := false
@@ -41,6 +43,7 @@ static func ensure_loaded() -> void:
 	owned = cf.get_value("garage", "owned", owned)
 	paint = cf.get_value("garage", "paint", paint)
 	levels = cf.get_value("garage", "levels", levels)
+	tuning = cf.get_value("garage", "tuning", tuning)
 	story = cf.get_value("story", "rallies", story)
 	bests = cf.get_value("story", "bests", bests)
 	for k in ["cars", "liveries", "wheels"]:              # an old or hand-edited file
@@ -59,6 +62,7 @@ static func save() -> void:
 	cf.set_value("garage", "owned", owned)
 	cf.set_value("garage", "paint", paint)
 	cf.set_value("garage", "levels", levels)
+	cf.set_value("garage", "tuning", tuning)
 	cf.set_value("story", "rallies", story)
 	cf.set_value("story", "bests", bests)
 	cf.save(path())
@@ -156,15 +160,29 @@ static func upgrade(car_id: String, part: String) -> bool:
 	return true
 
 
+## A car's tyres and setup: {tyre, preset}.
+static func tuning_of(car_id: String) -> Dictionary:
+	ensure_loaded()
+	return tuning.get(car_id, {})
+
+
+static func set_tuning(car_id: String, key: String, value: String) -> void:
+	ensure_loaded()
+	if not tuning.has(car_id):
+		tuning[car_id] = {}
+	tuning[car_id][key] = value
+	save()
+
+
 ## The car you'll drive, as the game builds it (and sends to your crewmate).
 static func setup() -> Dictionary:
 	ensure_loaded()
-	return Catalog.setup(car, paint_of(car), levels.get(car, {}))
+	return Catalog.setup(car, paint_of(car), levels.get(car, {}), tuning_of(car))
 
 
 static func setup_for(car_id: String) -> Dictionary:
 	ensure_loaded()
-	return Catalog.setup(car_id, paint_of(car_id), levels.get(car_id, {}))
+	return Catalog.setup(car_id, paint_of(car_id), levels.get(car_id, {}), tuning_of(car_id))
 
 
 # ── story ─────────────────────────────────────────────────────────────────
@@ -174,9 +192,16 @@ static func rally_record(id: String) -> Dictionary:
 	return story.get(id, {})
 
 
-## Rally i is open once the one before it has been finished.
+## Rally i is open once the one before it has been finished (or once it, or a
+## rally after it, has been driven: new rallies slot into the season without
+## locking anyone out of what they'd already reached).
 static func rally_open(i: int, rallies: Array) -> bool:
-	return i == 0 or rally_record(rallies[i - 1].id).get("done", false)
+	if i == 0 or rally_record(rallies[i - 1].id).get("done", false):
+		return true
+	for k in range(i, rallies.size()):
+		if not rally_record(rallies[k].id).is_empty():
+			return true
+	return false
 
 
 static func finish_rally(id: String, pos: int, total: float) -> void:
@@ -208,6 +233,7 @@ static func reset() -> void:
 	owned = {"cars": ["kestrel"], "liveries": [], "wheels": ["silver"]}
 	paint = {}
 	levels = {}
+	tuning = {}
 	story = {}
 	bests = {}
 	_loaded = true

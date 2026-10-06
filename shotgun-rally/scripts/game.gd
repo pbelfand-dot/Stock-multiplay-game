@@ -28,6 +28,7 @@ const AICoDriver = preload("res://scripts/vehicle/ai_codriver.gd")
 const Autopilot = preload("res://scripts/vehicle/autopilot.gd")
 const EngineSound = preload("res://scripts/vehicle/engine_sound.gd")
 const StartLights = preload("res://scripts/ui/start_lights.gd")
+const Catalog = preload("res://scripts/game/catalog.gd")
 
 signal progress(fraction: float, what: String)
 signal stage_generated
@@ -164,7 +165,7 @@ func start(seed_in: int, stage_in: int, o := {}) -> void:
 func _apply_roster() -> void:
 	my_seat = Net.my_seat()
 	var driver_here: bool = my_seat == "driver"
-	var setup := Net.car_setup()                # the driver's car from their garage
+	var setup := Catalog.for_stage(Net.car_setup(), st)   # the driver's car from their garage, its tyres for this stage
 	car.apply_setup(setup)
 	cockpit.set_paint(setup.colours[0])
 	car.set_simulating(driver_here)

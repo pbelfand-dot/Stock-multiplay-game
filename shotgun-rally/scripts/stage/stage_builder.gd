@@ -41,6 +41,12 @@ const ROAD_X := [[-3.1, -0.03, VERGE], [-2.8, 0.0, GRAVEL], [-1.25, 0.04, TRACK]
 const GROUND_X := [[2.9, -0.03, 0.0], [5.0, -0.05, 0.0], [8.5, -0.04, 0.06], [12.0, 0.05, 0.25],
 	[18.0, 0.15, 0.6], [30.0, 0.35, 1.4], [50.0, 0.7, 2.4], [78.0, 1.2, 3.6], [112.0, 1.8, 4.6], [154.0, 2.4, 5.6]]
 const TREE_LINE := 7.6              # m off the centreline (at the normal width) where the trees start
+## The ground's points on a mountain stage (m out, at the normal width): closer
+## together, the mountainside isn't a straight line between them (_mountain_h).
+const MOUNTAIN_X := [[2.9], [5.0], [6.5], [8.5], [10.5], [13.0], [17.0], [22.0], [30.0], [40.0], [52.0], [66.0],
+	[82.0], [100.0], [122.0], [154.0]]
+const ROCK := Color(0.52, 0.49, 0.45)
+var _lowest := INF                  # the lowest the ground goes (the mountainside's far field goes under it)
 
 const CHUNK := 160.0                # trees are grouped per this much road ...
 const TREE_DRAW := 520.0            # ... and a group further away than this isn't drawn
@@ -81,9 +87,9 @@ func build_async(stage, report: Callable) -> void:
 	report.call(1.0, "")
 
 
-const STEPS := [["_environment", "Checking the weather"], ["_mountains", "Raising the mountains"], ["_road", "Grading the gravel road"],
-	["_ground", "Shaping the hills"], ["_base", "Shaping the hills"],
-	["_spectators", "Letting the spectators in"], ["_forest", "Planting ten thousand trees"],
+const STEPS := [["_environment", "Checking the weather"], ["_mountains", "Raising the mountains"], ["_road", "Laying the road"],
+	["_ground", "Shaping the hills"], ["_base", "Shaping the hills"], ["_villages", "Building the villages"],
+	["_barriers", "Bolting up the armco"], ["_spectators", "Letting the spectators in"], ["_forest", "Planting ten thousand trees"],
 	["_puddles", "Filling the puddles"], ["_bridges", "Building the bridges"],
 	["_arches", "Putting up the start and finish"]]
 
@@ -283,6 +289,8 @@ func _spectators() -> void:
 		var centre: Vector3 = st.world_at(s, side * back)
 		if _near_road(centre, back - 1.5):
 			continue                                    # another bit of road comes past here
+		if not st.villages.is_empty() and _in_clearing(centre):
+			continue                                    # (a house, or another crowd, is there)
 		var people: Array = []
 		var rows := 1 + mini(n / 6, 2)
 		var per_row := ceili(float(n) / rows)
@@ -356,6 +364,7 @@ func _in_clearing(p: Vector3) -> bool:
 func _ground() -> void:
 	var mb := MeshBuf.new()
 	var n: int = st.pts.size()
+	var prof: Array = MOUNTAIN_X if st.mountain else GROUND_X     # (on a mountain: the mountainside's, _mountain_h)
 	var stride := 2                                     # every 4 m is plenty off the road
 	var rows: Array = []                             # every 4 m, every 2 m round a bridge (its gully)
 	for i in n:
@@ -376,7 +385,7 @@ func _ground() -> void:
 					reach = minf(reach, 0.85 / absf(k))
 			# ... and never out over another stretch of the same road (after a bend the road
 			# comes back past this spot): stop where some other road is closer than ours
-			for g in GROUND_X:
+			for g in prof:
 				var gd: float = g[0] + extra
 				var probe: Vector3 = c + r * (gd * side)
 				if g[0] > 4.0 and _nearest_road(probe) < gd - 2.5:
@@ -385,26 +394,61 @@ func _ground() -> void:
 			var row: Array = []
 			var cols: Array = []
 			var berm := _berm(i)
-			for gi in GROUND_X.size():
-				var g: Array = GROUND_X[gi]
+			for gi in prof.size():
+				var g: Array = prof[gi]
 				var d: float = minf(g[0] + extra, maxf(reach, 3.4 + extra))
 				var p: Vector3 = c + r * (d * side)
-				var h: float = g[1] + g[2] * _noise.get_noise_2d(p.x, p.z) - st.gully_depth(s, d * side)
-				if berm.x == side and gi < 2:
-					h += berm.y * (0.5 if gi == 0 else 0.2)       # the berm tapers off into the grass
-				row.append(p + Vector3.UP * h)
 				var col: Color = GRASS.lerp(GRASS_FAR, clampf(d / 60.0, 0.0, 1.0))
 				col = col * (0.92 + 0.12 * _noise.get_noise_2d(p.z * 3.0, p.x * 3.0))
-				var dug: float = st.gully_depth(s, d * side)
-				if dug > 0.0:                                     # a gully's banks: earth showing, mud at the bottom
-					col = col.lerp(MUD, clampf(dug / 2.5, 0.0, 0.85))
+				if st.mountain:
+					p.y = _mountain_h(c.y, d - extra, p)
+					col = _mountain_col(col, p, p.y - c.y, d - extra)
+				else:
+					var h: float = g[1] + g[2] * _noise.get_noise_2d(p.x, p.z) - st.gully_depth(s, d * side)
+					if berm.x == side and gi < 2:
+						h += berm.y * (0.5 if gi == 0 else 0.2)       # the berm tapers off into the grass
+					p.y += h
+					var dug: float = st.gully_depth(s, d * side)
+					if dug > 0.0:                                     # a gully's banks: earth showing, mud at the bottom
+						col = col.lerp(MUD, clampf(dug / 2.5, 0.0, 0.85))
+				_lowest = minf(_lowest, p.y)
+				row.append(p)
 				col.a = 1.0
-				cols.append(col if d > 4.0 + extra or st.gully_depth(s, d * side) > 0.0 else GRASS * 0.85)
+				var verge := GRASS * 0.85
+				if st.mountain and st.opts.get("ice", false):
+					verge = _mountain_col(verge, p, 0.0, d - extra)          # (snow on the verge too)
+				verge.a = 1.0
+				cols.append(col if d > 4.0 + extra or st.gully_depth(s, d * side) > 0.0 else verge)
 			if not prev.is_empty():
-				for k in GROUND_X.size() - 1:
+				for k in prof.size() - 1:
 					mb.quad(prev[k], prev[k + 1], row[k + 1], row[k], cols[k], true)
 			prev = row
 	_add(mb, "grass", "Ground")
+
+
+## The ground on a mountain stage, d m out from the road's edge (at the normal
+## width: as GROUND_X) at p: flush with the road and flat for the first couple of
+## metres (room to save a slide), then into the mountainside (StageGen.terrain_at):
+## above the road a bank, steeper where it's cut in deep, below it a drop; lumpy
+## further out.
+func _mountain_h(road_y: float, d: float, p: Vector3) -> float:
+	var t: float = st.terrain_at(p.x, p.z)
+	var near := road_y - 0.03 - 0.02 * smoothstep(2.9, 5.0, d)
+	var w := smoothstep(4.4, 13.0, d)
+	var cut := maxf(t - road_y, 0.0) * 0.5 * smoothstep(4.4, 7.5, d) * (1.0 - smoothstep(9.0, 18.0, d))
+	var lump: float = minf(0.5 + 0.03 * d, 3.0) * _noise.get_noise_2d(p.x, p.z) * smoothstep(9.0, 30.0, d) * (1.0 - smoothstep(110.0, 150.0, d))
+	return lerpf(near, t, w) + cut + lump
+
+
+## The colour of the mountainside: rock where a bank is cut in above the road,
+## snow lying about on a winter stage.
+func _mountain_col(col: Color, p: Vector3, rise: float, d: float) -> Color:
+	if rise > 0.7 and d < 26.0:
+		var rock := ROCK * (0.9 + 0.15 * _noise.get_noise_2d(p.x * 4.0, p.z * 4.0))
+		col = col.lerp(rock, clampf((rise - 0.7) / 1.6, 0.0, 0.9) * (1.0 - smoothstep(16.0, 26.0, d)))
+	if st.opts.get("ice", false) and _noise.get_noise_2d(p.x * 0.7 + 50.0, p.z * 0.7) > -0.2:
+		col = col.lerp(SNOW * 0.97, 0.85)
+	return col
 
 
 ## A big flat field under everything: whatever the ribbons miss is still green.
@@ -416,6 +460,9 @@ func _base() -> void:
 		lo = minf(lo, p.y)
 		mn = Vector3(minf(mn.x, p.x), 0, minf(mn.z, p.z))
 		mx = Vector3(maxf(mx.x, p.x), 0, maxf(mx.z, p.z))
+	if st.mountain:
+		_far_terrain(mn - Vector3(FAR_OUT, 0, FAR_OUT), mx + Vector3(FAR_OUT, 0, FAR_OUT))
+		return
 	var deepest := 0.0
 	for b in st.bridges:
 		deepest = maxf(deepest, b.depth)
@@ -435,6 +482,81 @@ func _base() -> void:
 	sb.add_child(cs)
 	add_child(sb)
 	body.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+
+
+## On a mountain stage the mountainside carries on past the ground along the
+## road: a coarse grid of it (FAR_CELL m) out to FAR_OUT m round the stage, so the
+## valley below and the slope above go on into the haze. Near the road it's kept
+## well under the ground (which is already there) and the road itself: how near
+## the road each grid point is, and the lowest road near it, spread out a ring of
+## cells at a time from the cells the road passes through.
+const FAR_CELL := 20.0
+const FAR_OUT := 420.0
+const FAR_NEAR := 9                 # cells: within this many of the road it's tucked under
+
+
+func _far_terrain(mn: Vector3, mx: Vector3) -> void:
+	var nx := int((mx.x - mn.x) / FAR_CELL) + 2
+	var nz := int((mx.z - mn.z) / FAR_CELL) + 2
+	var dist := PackedInt32Array()
+	dist.resize(nx * nz)
+	dist.fill(99)
+	var low := PackedFloat32Array()
+	low.resize(nx * nz)
+	low.fill(INF)
+	var frontier: Array = []
+	for p in st.pts:
+		var ix := clampi(int(round((p.x - mn.x) / FAR_CELL)), 0, nx - 1)
+		var iz := clampi(int(round((p.z - mn.z) / FAR_CELL)), 0, nz - 1)
+		var k := iz * nx + ix
+		if dist[k] != 0:
+			dist[k] = 0
+			frontier.append(k)
+		low[k] = minf(low[k], p.y)
+	for ring in FAR_NEAR + 1:
+		var next: Array = []
+		for k in frontier:
+			var ix: int = k % nx
+			var iz: int = k / nx
+			for dz in [-1, 0, 1]:
+				for dx in [-1, 0, 1]:
+					var x2: int = ix + dx
+					var z2: int = iz + dz
+					if x2 < 0 or z2 < 0 or x2 >= nx or z2 >= nz:
+						continue
+					var k2 := z2 * nx + x2
+					if dist[k2] > ring + 1:
+						if dist[k2] == 99:
+							next.append(k2)
+						dist[k2] = ring + 1
+					if dist[k2] == ring + 1:
+						low[k2] = minf(low[k2], low[k])
+		frontier = next
+	var ice: bool = st.opts.get("ice", false)
+	var verts: Array = []
+	verts.resize(nx * nz)
+	for iz in nz:
+		for ix in nx:
+			var k := iz * nx + ix
+			var x: float = mn.x + ix * FAR_CELL
+			var z: float = mn.z + iz * FAR_CELL
+			var t: float = st.terrain_at(x, z)
+			var y := t - 1.0
+			if dist[k] <= FAR_NEAR:
+				y = lerpf(minf(t, low[k]) - 4.5, t - 1.0, smoothstep(FAR_NEAR - 2.5, FAR_NEAR, float(dist[k])))
+			verts[k] = Vector3(x, y, z)
+	var mb := MeshBuf.new()
+	for iz in nz - 1:
+		for ix in nx - 1:
+			var k := iz * nx + ix
+			var a: Vector3 = verts[k]
+			var col: Color = GRASS_FAR * (0.88 + 0.12 * _noise.get_noise_2d(a.x * 0.5, a.z * 0.5))
+			if ice and _noise.get_noise_2d(a.x * 0.7 + 50.0, a.z * 0.7) > -0.2:
+				col = col.lerp(SNOW * 0.95, 0.85)
+			col.a = 1.0
+			mb.quad(a, verts[k + 1], verts[k + nx + 1], verts[k + nx], col, true)
+	var mi := _add(mb, "grass", "Mountainside")
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 
 
 ## Mesh + (if `surface` isn't "") a static body with its triangles.
@@ -484,8 +606,10 @@ func _forest() -> void:
 			if inside:
 				slots.append([TREE_LINE, TREE_LINE + 3.0, 0.8, 1])          # thicker on the inside of bends
 			for sl in slots:
+				# (a mountainside: trees here and there, open slopes between)
+				var sparse: float = (0.5 if sl[0] < 18.0 or inside else 0.2) if st.mountain else 1.0
 				for t in sl[3]:
-					if _rng.randf() > sl[2]:
+					if _rng.randf() > sl[2] * sparse:
 						continue
 					var d: float = _rng.randf_range(sl[0], sl[1]) + extra
 					var along: Vector3 = st.forward_at(s) * _rng.randf_range(-2.0, 2.0)
@@ -566,6 +690,8 @@ func _forest() -> void:
 
 
 func _ground_height(road_y: float, d: float, p: Vector3) -> float:
+	if st.mountain:
+		return _mountain_h(road_y, d, p)
 	var h := 0.0
 	for g in range(GROUND_X.size() - 1):
 		var a: Array = GROUND_X[g]
@@ -673,6 +799,222 @@ func _blob(mb, c: Vector3, sz: Vector3, col: Color) -> void:
 		mb.tri_raw(ring_lo[k], ring_hi[k1], ring_hi[k], col * shade)
 		mb.tri_raw(ring_lo[k], ring_lo[k1], ring_hi[k1], col * (shade - 0.06))
 		mb.tri_raw(ring_lo[k1], ring_lo[k], bot, col * 0.7)
+
+
+# ── mountain roads: armco, stone walls, villages ──────────────────────────
+
+const ARMCO := Color(0.74, 0.76, 0.78)
+const POST := Color(0.38, 0.39, 0.41)
+const STONE := Color(0.63, 0.59, 0.52)
+const HOUSE_WALLS := [Color(0.93, 0.88, 0.76), Color(0.9, 0.78, 0.6), Color(0.94, 0.84, 0.8), Color(0.87, 0.87, 0.83),
+	Color(0.95, 0.92, 0.84), Color(0.84, 0.72, 0.58)]
+const ROOFS := [Color(0.66, 0.32, 0.22), Color(0.6, 0.3, 0.2), Color(0.72, 0.38, 0.26), Color(0.36, 0.37, 0.41)]
+const SHUTTERS := [Color(0.25, 0.45, 0.32), Color(0.3, 0.45, 0.62), Color(0.47, 0.31, 0.2), Color(0.6, 0.22, 0.18)]
+const GLASS_DARK := Color(0.13, 0.15, 0.19)
+
+
+## Where the road drops away on a mountain stage (the ground 9 m out more than a
+## metre below the road), a barrier along that edge, 0.6 m past it: armco (a steel
+## W-beam on posts), or a low stone wall (through a village always). Hit it and it
+## stops you, and keeps you on the mountain.
+func _barriers() -> void:
+	if not st.mountain:
+		return
+	var n: int = st.pts.size()
+	var body := StaticBody3D.new()
+	body.name = "Barriers"
+	body.set_meta("surface", "gravel")
+	add_child(body)
+	var steel := MeshBuf.new()
+	var stone := MeshBuf.new()
+	for side in [-1.0, 1.0]:
+		var need := PackedByteArray()
+		need.resize(n)
+		for i in n:
+			var s: float = i * st.STEP
+			var c: Vector3 = st.pts[i]
+			var extra: float = st.widths[i] * 0.5 - 2.8
+			var p9: Vector3 = c + st.right_at(s) * ((9.0 + extra) * side)
+			need[i] = 1 if c.y - _mountain_h(c.y, 9.0, p9) > 1.0 and s > st.START_S - 30.0 and s < st.length - 6.0 else 0
+		# runs of it, grown 6 m each way; a short one isn't worth it
+		var i := 0
+		while i < n:
+			if need[i] == 0:
+				i += 1
+				continue
+			var j := i
+			while j < n and need[j] == 1:
+				j += 1
+			var a := maxi(i - 3, 0)
+			var b := mini(j + 3, n - 1)
+			if (b - a) * st.STEP >= 14.0:
+				var walled: bool = not st.village_at(a * st.STEP, 30.0).is_empty() or _rng.randf() < 0.3
+				for k in range(a, b):
+					_barrier_bit(k * st.STEP, (k + 1) * st.STEP, side, walled, stone if walled else steel, body)
+			i = j + 1
+	_add(steel, "", "Armco")
+	_add(stone, "", "StoneWalls")
+
+
+## One 2 m piece of barrier, from s0 to s1 on `side`: armco or a stone wall, and its collision.
+func _barrier_bit(s0: float, s1: float, side: float, walled: bool, mb, body: StaticBody3D) -> void:
+	var d0: float = side * (st.width_at(s0) * 0.5 + 0.6)
+	var d1: float = side * (st.width_at(s1) * 0.5 + 0.6)
+	var e0: Vector3 = st.world_at(s0, d0) - Vector3.UP * 0.05
+	var e1: Vector3 = st.world_at(s1, d1) - Vector3.UP * 0.05
+	var r: Vector3 = st.right_at(s0) * side
+	if walled:
+		var shade := 0.9 + 0.2 * _rng.randf()
+		_box(mb, e0 + Vector3.UP * 0.32, e1 + Vector3.UP * 0.32, r, 0.45, 0.8, _shade(STONE, shade))
+		_box(mb, e0 + Vector3.UP * 0.76, e1 + Vector3.UP * 0.76, r, 0.5, 0.1, _shade(STONE, shade * 1.08))    # the coping
+		_wall(body, (e0 + e1) * 0.5 + Vector3.UP * 0.4, e1 - e0, r, 0.45, 0.85)
+	else:
+		_box(mb, e0 - Vector3.UP * 0.3, e0 + Vector3.UP * 0.72, st.forward_at(s0), 0.1, 0.12, POST)
+		var beam := -r * 0.09                                  # the beam's on the road side of the posts
+		_box(mb, e0 + beam + Vector3.UP * 0.58, e1 + beam + Vector3.UP * 0.58, r, 0.06, 0.32, ARMCO)
+		_wall(body, (e0 + e1) * 0.5 + Vector3.UP * 0.45, e1 - e0, r, 0.25, 0.9)
+
+
+## The villages (StageGen.villages): houses close to the road on both sides, two
+## storeys with shutters and tiled roofs, built into the hillside on a stone
+## plinth; a church tower in the middle; a sign with the name on the way in.
+## Every house is solid.
+func _villages() -> void:
+	if st.villages.is_empty():
+		return
+	var mb := MeshBuf.new()
+	var body := StaticBody3D.new()
+	body.name = "Village"
+	body.set_meta("surface", "gravel")
+	add_child(body)
+	for v in st.villages:
+		var mid: float = (v.s0 + v.s1) * 0.5
+		var church_side := -1.0 if _rng.randf() < 0.5 else 1.0
+		var at: float = v.s0 - 22.0
+		_sign(at, st.width_at(at) * 0.5 + 1.4, v.name, Color(0.96, 0.96, 0.94))
+		var s: float = v.s0
+		while s < v.s1:
+			for side in [-1.0, 1.0]:
+				if side == church_side and absf(s - mid) < 14.0:
+					continue
+				if _rng.randf() < 0.82:
+					_house(s, side, mb, body)
+			s += _rng.randf_range(12.0, 16.0)
+		_church(mid, church_side, mb, body)
+	var mi := _add(mb, "", "Houses")
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+
+
+## A house at s on `side`: its front along the road, 2.6-4.5 m back from the edge.
+func _house(s: float, side: float, mb, body: StaticBody3D) -> void:
+	var along := _rng.randf_range(7.0, 10.0)
+	var deep := _rng.randf_range(6.0, 8.0)
+	var tall := _rng.randf_range(5.6, 7.6)
+	var half_w: float = st.width_at(s) * 0.5
+	var back := half_w + _rng.randf_range(2.6, 4.5)
+	var wall: Color = HOUSE_WALLS[_rng.randi() % HOUSE_WALLS.size()]
+	var roof: Color = ROOFS[_rng.randi() % ROOFS.size()]
+	var shutter: Color = SHUTTERS[_rng.randi() % SHUTTERS.size()]
+	_building(s, side, back, along, deep, tall, wall, roof, shutter, 2 if tall > 6.4 else 1, mb, body)
+
+
+## The church: a square tower (bell openings, a pyramid roof) at the front, the
+## nave behind it.
+func _church(s: float, side: float, mb, body: StaticBody3D) -> void:
+	var half_w: float = st.width_at(s) * 0.5
+	var stone := Color(0.8, 0.75, 0.66)
+	var c: Vector3 = _building(s, side, half_w + 12.0, 9.0, 13.0, 8.0, stone, ROOFS[0], Color(0, 0, 0, 0), 0, mb, body)
+	# the tower, on the road side of the nave
+	var f: Vector3 = st.forward_at(s)
+	var r: Vector3 = st.right_at(s) * side
+	var foot: Vector3 = st.world_at(s, side * (half_w + 8.0))
+	if c == Vector3.INF or _near_road(foot, half_w + 6.0):
+		return
+	var road_y: float = st.point_at(s).y
+	var low := minf(road_y, _ground_height(road_y, half_w + 8.0 - (half_w - 2.8), foot)) - 0.8
+	var top := road_y + 15.0
+	_box(mb, Vector3(foot.x, low, foot.z), Vector3(foot.x, top, foot.z), f, 4.2, 4.2, stone)
+	for k in 4:                                          # the bell openings, one each side
+		var out: Vector3 = [f, -f, r, -r][k]
+		var w: Vector3 = out.cross(Vector3.UP).normalized() * 0.55
+		var o: Vector3 = Vector3(foot.x, top - 2.2, foot.z) + out * 2.12
+		_face(mb, o - w - Vector3.UP * 0.9, o + w - Vector3.UP * 0.9, o + w + Vector3.UP * 0.9, o - w + Vector3.UP * 0.9, out, GLASS_DARK)
+	var apex := Vector3(foot.x, top + 4.5, foot.z)
+	var h := 2.4
+	var cs := [Vector3(foot.x, top, foot.z) + (f + r) * h, Vector3(foot.x, top, foot.z) + (f - r) * h,
+		Vector3(foot.x, top, foot.z) + (-f - r) * h, Vector3(foot.x, top, foot.z) + (-f + r) * h]
+	for k in 4:
+		mb.tri_raw(cs[k], cs[(k + 1) % 4], apex, _shade(ROOFS[3], 0.9 + 0.1 * (k % 2)))
+		mb.tri_raw(apex, cs[(k + 1) % 4], cs[k], _shade(ROOFS[3], 0.9 + 0.1 * (k % 2)))
+	_wall(body, Vector3(foot.x, (low + top) * 0.5, foot.z), f * 4.2, r, 4.2, top - low)
+	_clearings.append([Vector2(foot.x, foot.z), 5.0])
+
+
+## A building at s on `side`, its front `back` m from the centre line, `along` x
+## `deep` x `tall` m, a gabled roof (ridge along the road), on a stone plinth down
+## to the ground under its lowest corner; windows with shutters on the front (rows:
+## 0 = none), a door. Its centre, or Vector3.INF if another bit of road is there.
+func _building(s: float, side: float, back: float, along: float, deep: float, tall: float, wall: Color, roof: Color,
+		shutter: Color, rows: int, mb, body: StaticBody3D) -> Vector3:
+	var f: Vector3 = st.forward_at(s)
+	var r: Vector3 = st.right_at(s) * side                 # away from the road
+	var c: Vector3 = st.world_at(s, side * (back + deep * 0.5))
+	if _near_road(c, back + deep * 0.5 - 1.0):
+		return Vector3.INF
+	var road_y: float = st.point_at(s).y
+	var extra: float = st.width_at(s) * 0.5 - 2.8
+	var floor_y := road_y + 0.15
+	var lowest := floor_y
+	for a in [-0.5, 0.5]:
+		for b in [-0.5, 0.5]:
+			var q: Vector3 = c + f * (a * along) + r * (b * deep)
+			lowest = minf(lowest, _ground_height(road_y, back + deep * (0.5 + b) - extra, q))
+	var bottom := lowest - 0.6
+	var eave := floor_y + tall
+	_box(mb, Vector3(c.x, bottom, c.z), Vector3(c.x, floor_y + 0.25, c.z), f, along + 0.1, deep + 0.1, _shade(STONE, 0.95))
+	_box(mb, Vector3(c.x, floor_y + 0.25, c.z), Vector3(c.x, eave, c.z), f, along, deep, wall)
+	# the roof: two slopes and the gable ends, overhanging a little
+	var o := 0.45
+	var rise := deep * 0.3
+	var e := Vector3(c.x, eave, c.z)
+	var ridge0 := e - f * (along * 0.5 + o) + Vector3.UP * rise
+	var ridge1 := e + f * (along * 0.5 + o) + Vector3.UP * rise
+	for side_k in [-1.0, 1.0]:
+		var lip: Vector3 = r * side_k * (deep * 0.5 + o) - Vector3.UP * 0.15
+		var a0: Vector3 = e - f * (along * 0.5 + o) + lip
+		var a1: Vector3 = e + f * (along * 0.5 + o) + lip
+		_face(mb, a0, a1, ridge1, ridge0, (r * side_k + Vector3.UP).normalized(), _shade(roof, 1.0 if side_k < 0 else 0.86))
+		_face(mb, a0, ridge0, ridge1, a1, -(r * side_k + Vector3.UP).normalized(), _shade(roof, 0.6))
+	for end_k in [-1.0, 1.0]:
+		var g0: Vector3 = e + f * (end_k * along * 0.5) - r * (deep * 0.5)
+		var g1: Vector3 = e + f * (end_k * along * 0.5) + r * (deep * 0.5)
+		var gt: Vector3 = e + f * (end_k * along * 0.5) + Vector3.UP * rise
+		var out: Vector3 = f * end_k
+		if (g1 - g0).cross(gt - g0).dot(out) < 0.0:
+			mb.tri_raw(g0, gt, g1, wall)
+		else:
+			mb.tri_raw(g0, g1, gt, wall)
+	# the front: windows with shutters, a door
+	var front := c - r * (deep * 0.5 + 0.03)
+	var cols := maxi(int(along / 2.4), 2)
+	for row in rows:
+		var y := floor_y + 1.4 + row * 2.7
+		for k in cols:
+			var x := (k - (cols - 1) * 0.5) * (along / cols)
+			if row == 0 and k == cols / 2:
+				var dc := Vector3(front.x, floor_y + 0.25, front.z) + f * x
+				_face(mb, dc - f * 0.55, dc + f * 0.55, dc + f * 0.55 + Vector3.UP * 2.1, dc - f * 0.55 + Vector3.UP * 2.1, -r, _shade(SHUTTERS[2], 0.8))
+				continue
+			var wc := Vector3(front.x, y, front.z) + f * x
+			_face(mb, wc - f * 0.45 - Vector3.UP * 0.6, wc + f * 0.45 - Vector3.UP * 0.6, wc + f * 0.45 + Vector3.UP * 0.6,
+				wc - f * 0.45 + Vector3.UP * 0.6, -r, GLASS_DARK)
+			for sk in [-1.0, 1.0]:
+				var sc: Vector3 = wc + f * (sk * 0.7) - r * 0.02
+				_face(mb, sc - f * 0.24 - Vector3.UP * 0.62, sc + f * 0.24 - Vector3.UP * 0.62, sc + f * 0.24 + Vector3.UP * 0.62,
+					sc - f * 0.24 + Vector3.UP * 0.62, -r, shutter)
+	_wall(body, Vector3(c.x, (bottom + eave) * 0.5, c.z), f * along, r, deep, eave - bottom)
+	_clearings.append([Vector2(c.x, c.z), maxf(along, deep) * 0.75])
+	return c
 
 
 # ── puddles, arches ───────────────────────────────────────────────────────

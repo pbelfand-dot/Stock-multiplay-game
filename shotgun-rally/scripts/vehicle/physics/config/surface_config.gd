@@ -24,3 +24,7 @@ extends Resource
 @export_range(0.3, 1.5, 0.01) var slide_grip := 1.0
 ## Rolling resistance, x the tyre's own (on gravel).
 @export_range(0.0, 10.0, 0.05) var rolling_scale := 1.0
+## A sealed surface (asphalt, wet asphalt, a bridge's planks), not a loose one: a
+## tyre made for it grips more there (TireConfig.sealed_grip) and a gravel tyre's
+## blocks squirm; on loose stuff it's the other way round (loose_grip).
+@export var sealed := false

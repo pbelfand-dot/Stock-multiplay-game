@@ -54,14 +54,30 @@ static func on_surface(cfg: Resource, surface: Resource) -> Resource:
 	if _on.has(key):
 		return _on[key]
 	var t: Resource = cfg.duplicate()
-	t.lateral_mu = cfg.lateral_mu * surface.grip
-	t.longitudinal_mu = cfg.longitudinal_mu * surface.grip
+	var made: float = cfg.sealed_grip if surface.sealed else cfg.loose_grip    # (a tyre for this kind of surface, or not)
+	t.lateral_mu = cfg.lateral_mu * surface.grip * made
+	t.longitudinal_mu = cfg.longitudinal_mu * surface.grip * made
 	t.lateral_peak_deg = clampf(cfg.lateral_peak_deg * surface.peak_scale, 0.5, 25.0)
 	t.longitudinal_peak = clampf(cfg.longitudinal_peak * surface.peak_scale, 0.02, 0.5)
 	t.lateral_shape = shape_keeping(kept(cfg.lateral_shape) * surface.slide_grip)
 	t.longitudinal_shape = shape_keeping(kept(cfg.longitudinal_shape) * surface.slide_grip)
 	t.rolling_resistance = cfg.rolling_resistance * surface.rolling_scale
 	_on[key] = t
+	return t
+
+
+## A tarmac tyre made from a gravel one: a stiffer, slick-ish tread that bites
+## sooner (its grip peaks at less slip) and grips ~12 % more on asphalt, but on
+## gravel the smooth tread can't dig in: ~25 % less (gravel tyres on tarmac lose
+## grip to their squirming blocks; tarmac tyres on gravel lose far more).
+static func tarmac_tyre(gravel: Resource) -> Resource:
+	var t: Resource = gravel.duplicate()
+	t.lateral_peak_deg = gravel.lateral_peak_deg * 0.8
+	t.longitudinal_peak = gravel.longitudinal_peak * 0.8
+	t.rolling_resistance = gravel.rolling_resistance * 0.8
+	t.relaxation_length = gravel.relaxation_length * 0.85
+	t.sealed_grip = 1.12
+	t.loose_grip = 0.75
 	return t
 
 

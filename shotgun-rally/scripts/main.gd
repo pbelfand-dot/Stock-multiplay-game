@@ -15,7 +15,7 @@ extends Node
 ##                         --shot_cam=x,y,z,tx,ty,tz (a free close-up camera, car-local: at xyz, looking at t; the car holds still, or drives with --autostart --autopilot)
 ##                         --shot_jump (at 120 km/h onto the stage's first (big) jump: the picture is taken mid-air)
 ##                         --shot_shift (with --autostart --autopilot: the picture is taken mid gear change)]
-##   --menu_shot=out.png [--menu_panel=maps|cars|online --shot_wait=6]   a picture of the home screen
+##   --menu_shot=out.png [--menu_panel=maps|cars|online|settings --garage_tab=setup --shot_wait=6]   a picture of the home screen
 ##   --story=RALLY[,STAGE]                   (with --solo / --screenshot) a story stage
 ##   --surface=gravel|tarmac|mixed|any [--ice]   a quick stage's surface (else Settings')
 ##   --profile=PATH                          another save file (credits, garage, story)

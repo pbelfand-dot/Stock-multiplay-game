@@ -8,7 +8,8 @@ extends SceneTree
 ##   * wooden bridges: about one a stage, the same for the same seed, on straight
 ##     level road (not on a corner, a crest or a jump), no puddle on one, the
 ##     ground dug into a gully under it, a note ("caution") for each
-##   * tarmac and mixed stages (_surfaces), every word said has a voice clip
+##   * tarmac and mixed stages (_surfaces), the tarmac ones on a mountainside
+##     (_mountains), every word said has a voice clip
 
 const StageGen = preload("res://scripts/stage/stage_gen.gd")
 const Notes = preload("res://scripts/stage/pacenotes.gd")
@@ -176,11 +177,70 @@ func _surfaces(words: Dictionary) -> int:
 			for c in Notes.calls(notes):
 				for w in c.words:
 					words[w] = true
+	fails += _mountains()
 	print("[stage] tarmac / mixed: %d joins, %d dirty corners (don't cut), %d ice patches, %d snowy edges in 20 stages" % [
 		counts.join, counts.cut, counts.ice, counts.snow])
 	for k in counts:
 		if counts[k] < 3:
 			fails += _fail("only %d %s patches" % [counts[k], k])
+	return fails
+
+
+## Mountain (tarmac) stages, 10 seeds: a mountain at all (the road climbs and
+## drops 30 m or more), the mountainside meets the road (never more than 3.5 m
+## off it, so no canyons or dykes), more hairpins than a forest stage, villages
+## on the asphalt clear of the start, the finish and the joins; and a gravel or
+## mixed stage is no mountain (its ground is flat as before).
+func _mountains() -> int:
+	var fails := 0
+	var hairpins := {"tarmac": 0, "gravel": 0}
+	var villages := 0
+	for seed_value in range(1, 11):
+		var st = StageGen.new()
+		st.opts = {"surface": "tarmac"}
+		st.generate(seed_value)
+		var flat = StageGen.new()
+		flat.opts = {"surface": "mixed"}
+		flat.generate(seed_value)
+		if not st.mountain or flat.mountain or flat.terrain_at(100.0, 100.0) != 0.0:
+			fails += _fail("seed %d: only the tarmac stage is a mountain" % seed_value)
+		var lo := INF
+		var hi := -INF
+		var off := 0.0
+		for i in st.pts.size():
+			var p: Vector3 = st.pts[i]
+			lo = minf(lo, p.y)
+			hi = maxf(hi, p.y)
+			if i * st.STEP > st.START_S and i * st.STEP < st.finish_s + 60.0:     # (from the start line to where you stop)
+				off = maxf(off, absf(p.y - st.terrain_at(p.x, p.z)))
+		if hi - lo < 30.0:
+			fails += _fail("seed %d: a mountain stage only climbs %.0f m" % [seed_value, hi - lo])
+		if off > 3.5:
+			fails += _fail("seed %d: the road is %.1f m off the mountainside" % [seed_value, off])
+		for c in st.corners:
+			if c.shape == "hairpin":
+				hairpins.tarmac += 1
+		var plain = StageGen.new()
+		plain.generate(seed_value)
+		for c in plain.corners:
+			if c.shape == "hairpin":
+				hairpins.gravel += 1
+		for v in st.villages + flat.villages:
+			villages += 1
+			var host = st if st.villages.has(v) else flat
+			if host.surface_at(v.s0 - 20.0) != "asphalt" or host.surface_at(v.s1 + 20.0) != "asphalt":
+				fails += _fail("seed %d: a village off the asphalt at %.0f m" % [seed_value, v.s0])
+			if v.s0 < host.START_S + 200.0 or v.s1 > host.finish_s - 200.0:
+				fails += _fail("seed %d: a village by the start or finish at %.0f m" % [seed_value, v.s0])
+			for j in host.joins:
+				if j.s > v.s0 - 60.0 and j.s < v.s1 + 60.0:
+					fails += _fail("seed %d: a village on a join at %.0f m" % [seed_value, v.s0])
+	print("[stage] mountains: %d hairpins in 10 tarmac stages (%d on the same seeds in gravel), %d villages" % [
+		hairpins.tarmac, hairpins.gravel, villages])
+	if hairpins.tarmac < hairpins.gravel * 1.3 or hairpins.tarmac < 35:
+		fails += _fail("not enough hairpins on the mountain stages")
+	if villages < 8:
+		fails += _fail("only %d villages" % villages)
 	return fails
 
 

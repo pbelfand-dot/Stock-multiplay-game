@@ -16,6 +16,8 @@ No friend online? The **AI co-driver** takes the seat.
 | ![The home screen: your car flat out on a stage behind the menu](docs/screens/home.jpg) | ![The garage: buy, paint, upgrade](docs/screens/garage.jpg) |
 | ![Story mode: the Shotgun Series](docs/screens/maps.jpg) | ![Mountains on the horizon, the Mud & Mist rally's fog](docs/screens/mud_mist.jpg) |
 | ![Driver](docs/screens/driver.jpg) | ![Co-driver looking at the map](docs/screens/codriver.jpg) |
+| ![Mountain tarmac: switchbacks up a hillside, a village, snow and armco on a winter stage](docs/screens/mountain.jpg) | ![Into a village: houses with shutters, a church tower, a stone wall](docs/screens/village.jpg) |
+| ![Tarmac and mixed: gravel dragged onto the asphalt after a join, ice on one lane, snow along an edge, back onto gravel](docs/screens/tarmac.jpg) | ![The FPV drone chasing the car behind the menu](docs/screens/fpv.jpg) |
 | ![Mud on the windshield](docs/screens/mud.jpg) | ![The start: five lights and a clock each side of the road](docs/screens/start.jpg) |
 | ![Your co-driver, seen from the driver's seat](docs/screens/crew.jpg) | ![The chase camera (C): the wheels steer and bounce, the mud flaps swing](docs/screens/chase.jpg) |
 | ![Handbrake: the right hand leaves the wheel and yanks the lever](docs/screens/handbrake.jpg) | ![The loading screen](docs/screens/loading.jpg) |
@@ -77,10 +79,11 @@ light, filmed like rally TV: an FPV drone chasing it (low behind, alongside, ove
 front, banking into the turns), trackside cameras it flashes past, a chase camera, a helicopter shot.
 
 - **PLAY NOW**: a random stage, straight in, the AI co-driver on the notes.
-- **MAPS**: story mode, **the Shotgun Series**: six rallies of three stages each, every one with its
+- **MAPS**: story mode, **the Shotgun Series**: nine rallies of three stages each, every one with its
   own character: Pine Valley (short, gentle), Lakeland (fast, big jumps), Golden Hour (low sun),
-  Mud & Mist (fog, puddles everywhere), Highland (narrow and twisty), the Grand Final (long
-  stages). You're timed against five rival crews; finish a rally to open the next, and where you
+  Mud & Mist (fog, puddles everywhere), Highland (narrow and twisty), Costa Mixta (gravel and
+  tarmac in the same stage), Isola Rossa (dry mountain tarmac, hairpins and villages), Riviera Alps
+  (snow and ice), the Grand Final (long stages). You're timed against five rival crews; finish a rally to open the next, and where you
   finish pays prize money. Drive it alone or host it for a friend.
 - **CARS**: the garage. Four look-alike rally cars with their own names and liveries (no real
   brands): the **Kestrel R4** you start with, the blue-and-gold **Blue Comet WRC** (gold wheels),
@@ -88,8 +91,8 @@ front, banking into the turns), trackside cameras it flashes past, a chase camer
   sky blue and red stripes (nearly all its power at the back: it slides). Each drives differently
   (power, grip, brakes, drive split). Paint any car you own (main, accent and stripe colours,
   free), buy liveries (11, from twin stripes to tricolore and goldline) and wheels once and use
-  them on any car, pick your race number, and buy three steps each of engine, tyre and brake
-  upgrades. For now the cars share one body; new bodies come with the next round of art.
+  them on any car, pick your race number, buy three steps each of engine, tyre and brake
+  upgrades, and pick gravel or tarmac tyres and setup (SETUP; AUTO matches the stage). For now the cars share one body; new bodies come with the next round of art.
 - **Credits** come from finishing stages: a base, more for a longer stage, a bonus for beating the
   pace and for a clean run, x1.5 in story mode, plus the rally prizes. Both players in a crew
   earn. There's no real money anywhere.
@@ -139,7 +142,16 @@ front, banking into the turns), trackside cameras it flashes past, a chase camer
      road. Each is its own surface to the tyres (asphalt 1.18 g in a corner, gravel 0.93, snow 0.42,
      ice 0.13), so it drives differently: on tarmac the car grips harder and lets go sooner, and
      a sliding tyre squeals. The co-driver's map shows the asphalt in grey and the ice in blue.
-     PLAY NOW picks the surface (SETTINGS: STAGE SURFACE: any, gravel, tarmac, mixed).
+     PLAY NOW picks the surface (SETTINGS > STAGES > SURFACE: any, gravel, tarmac, mixed).
+   - **Tarmac stages are mountain roads** (Monte Carlo, Corsica): the road climbs across a hillside,
+     level along it and up or down as it turns across it, so pairs of hairpins make switchbacks
+     (twice as many hairpins as a forest stage); a rock bank cut in above, a drop below with **armco
+     or a stone wall**; sparse trees and open slopes; **villages** with houses close to the road,
+     shutters, tiled roofs and a church tower; on a winter stage, snow lying about.
+   - **Tyres and setup** (CARS > SETUP, free): tyres and setup each AUTO (matches the stage),
+     GRAVEL or TARMAC. Tarmac tyres corner ~10 % harder on asphalt but ~25 % worse on gravel (on a
+     mixed stage, a gamble); the tarmac setup (stiffer springs, dampers and anti-roll bars, a
+     quicker rack) rolls about a third less.
 3. **The map board** (our own design, not the reference's tablet) shows **only the map and where you
    are**: the road ahead as a line, heading-up like a GPS, ~300 m of it, with the stopwatch clipped on
    top. No grades, no warnings: reading the road and calling it is the co-driver's job.
@@ -342,7 +354,14 @@ real voice.
 2. Tests (headless, ~6 minutes): `GODOT=/path/to/godot shotgun-rally/tests/run_all.sh`
    - compiles every script; checks 20 generated stages (deterministic, never crossing themselves,
      every corner gets a note, no hill steeper than 17 %)
-   - the autopilot drives whole stages: 0–100 km/h on gravel, braking, the handbrake flick
+   - the autopilot drives whole stages: 0–100 km/h on gravel, braking, the handbrake flick; and a
+     mountain tarmac stage with snow and ice and a mixed one, the tyres feeling each surface, the
+     barriers and villages there
+   - stages: tarmac and mixed rules (no jumps, bridges or mud on asphalt, joins on straights and
+     called, ice never in a slow corner), mountains (the hillside meets the road, more hairpins,
+     villages on the asphalt), every word the co-driver says has a voice clip
+   - tyres and setup: tarmac tyres corner harder on asphalt and far worse on gravel, the tarmac setup
+     rolls less at the same ride height, AUTO picks for the stage
    - handling: full steering is the most grip at 50 / 80 / 110 km/h; lift-off and handbrake turns rotate the car;
      a launch spins the wheels a little; full brake while steering locks a front, half brake still steers
    - ride: how much the car shakes at the driver's eye on two stages, and the hardest landing
@@ -358,7 +377,8 @@ real voice.
    - the cockpit: the driver's sleeves are skinned on the CPU with the hands on the wheel (straight, turned both
      ways) and on the handbrake, and every sleeve end has to be inside its glove's gauntlet; numbered dials; shift lights
    - the AI co-driver says every call in time (90–240 m before the corner)
-   - **2 players, both ways round:** one machine drives, the other rides along; both see the finish
+   - **2 players, both ways round:** one machine drives, the other rides along; both see the finish,
+     and on a mixed stage both built the same surfaces
    - **the updater, start to finish:** a "build 5" copy finds "build 6" on a local web server,
      downloads it, checks its SHA-256, restarts as build 6; a bad download is thrown away, an update
      that never reached the menu is dropped

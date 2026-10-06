@@ -21,7 +21,7 @@ func _ready() -> void:
 	add_theme_stylebox_override("panel", UI.box())
 	custom_minimum_size = Vector2(780, 0)
 	_body = VBoxContainer.new()
-	_body.add_theme_constant_override("separation", 10)
+	_body.add_theme_constant_override("separation", 8)
 	add_child(_body)
 	# start on the first rally not yet finished
 	for i in Championship.count():
@@ -36,11 +36,11 @@ func _rebuild() -> void:
 		_body.remove_child(c)
 		c.queue_free()
 	_body.add_child(UI.label("THE SHOTGUN SERIES", 40, UI.CREAM, true))
-	_body.add_child(UI.label("Six rallies, three stages each, five rival crews. Finish a rally to open the next.", 18, UI.DIM))
+	_body.add_child(UI.label("%d rallies, three stages each, five rival crews. Finish a rally to open the next." % Championship.count(), 18, UI.DIM))
 	var grid := GridContainer.new()
 	grid.columns = 3
 	grid.add_theme_constant_override("h_separation", 10)
-	grid.add_theme_constant_override("v_separation", 10)
+	grid.add_theme_constant_override("v_separation", 6)
 	for i in Championship.count():
 		grid.add_child(_card(i))
 	_body.add_child(grid)
@@ -60,7 +60,7 @@ func _card(i: int) -> Button:
 	elif open:
 		state = "NEW"
 	var b := UI.button("%d  %s\n%s" % [i + 1, r.name, state], func(): _sel = i; _rebuild(), 17, 248)
-	b.custom_minimum_size = Vector2(248, 74)
+	b.custom_minimum_size = Vector2(248, 60)
 	b.alignment = HORIZONTAL_ALIGNMENT_LEFT
 	b.disabled = not open
 	if i == _sel:
@@ -90,6 +90,12 @@ func _detail(i: int) -> Control:
 		extra.append("NARROW ROADS")
 	if r.gen.has("puddles"):
 		extra.append("PUDDLES EVERYWHERE")
+	match str(r.gen.get("surface", "gravel")):
+		"mixed": extra.append("GRAVEL + TARMAC")
+		"tarmac": extra.append("MOUNTAIN TARMAC")
+		_: extra.append("GRAVEL")
+	if r.gen.get("ice", false):
+		extra.append("SNOW AND ICE")
 	v.add_child(UI.label("   ·   ".join(extra), 17, UI.DIM))
 	v.add_child(UI.label("PRIZE  1st %s CR  ·  2nd %s  ·  3rd %s  ·  plus credits for every stage" % [
 		_money(Championship.reward(i, 1)), _money(Championship.reward(i, 2)), _money(Championship.reward(i, 3))], 17, UI.CREAM))

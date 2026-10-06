@@ -67,6 +67,21 @@ const UPGRADES := {
 }
 
 
+## The tyres and the setup, chosen per car in the garage's SETUP tab (free, as
+## often as you like). AUTO picks for the stage: tarmac where it's asphalt most
+## of the way, gravel otherwise (for_stage).
+const TUNING := {
+	"tyre": {"name": "TYRES", "choices": [
+		["auto", "AUTO", "Tarmac tyres when the stage is mostly asphalt, gravel tyres otherwise."],
+		["gravel", "GRAVEL", "Chunky blocks that dig in: the grip on gravel, snow and mud. On asphalt they squirm a little."],
+		["tarmac", "TARMAC", "Smooth and stiff: 12 % more grip on asphalt and it bites sooner, a quarter less on gravel. On a mixed stage, a gamble."]]},
+	"preset": {"name": "SETUP", "choices": [
+		["auto", "AUTO", "The tarmac setup when the stage is mostly asphalt, the gravel one otherwise."],
+		["gravel", "GRAVEL", "Soft and long-legged: soaks up the ruts and the jumps, rolls into corners, slides easily."],
+		["tarmac", "TARMAC", "Springs, dampers and anti-roll bars stiffer, quicker steering: sharp and flat on smooth asphalt, skittish on bumps."]]},
+}
+
+
 static func car(id: String) -> Dictionary:
 	for c in CARS:
 		if c.id == id:
@@ -90,17 +105,34 @@ static func wheels(id: String) -> Dictionary:
 
 ## Everything the game needs to build and paint a car: what the driver's machine
 ## drives and both machines draw. paint: {colours, livery, wheels, number}
-## (missing keys: the car's own); levels: {engine, tyres, brakes} steps bought.
-static func setup(car_id: String, paint := {}, levels := {}) -> Dictionary:
+## (missing keys: the car's own); levels: {engine, tyres, brakes} steps bought;
+## tuning: {tyre, preset} ("auto" until the stage settles it: for_stage).
+static func setup(car_id: String, paint := {}, levels := {}, tuning := {}) -> Dictionary:
 	var c := car(car_id)
 	var s := {"car": c.id, "name": c.name, "livery": paint.get("livery", c.livery),
 		"colours": paint.get("colours", c.colours).duplicate(), "wheels": paint.get("wheels", c.wheels),
-		"number": int(paint.get("number", c.number)), "drive_front": c.drive_front}
+		"number": int(paint.get("number", c.number)), "drive_front": c.drive_front,
+		"tyre": str(tuning.get("tyre", "auto")), "preset": str(tuning.get("preset", "auto"))}
 	s.wheel_colour = wheels(s.wheels).colour
 	for k in UPGRADES:
 		var u: Dictionary = UPGRADES[k]
 		var lvl := clampi(int(levels.get(k, 0)), 0, 3)
 		s[u.stat] = c[u.stat] * (1.0 + (u.add[lvl - 1] if lvl > 0 else 0.0))
+	return s
+
+
+## A setup for this stage: "auto" tyres / setup become tarmac where the stage is
+## asphalt most of the way, gravel otherwise.
+static func for_stage(setup: Dictionary, st) -> Dictionary:
+	var s := setup.duplicate()
+	var asphalt := 0.0
+	for sec in st.sections:
+		if sec.surface == "asphalt":
+			asphalt += sec.s1 - sec.s0
+	var pick := "tarmac" if asphalt > st.length * 0.5 else "gravel"
+	for k in ["tyre", "preset"]:
+		if str(s.get(k, "auto")) == "auto":
+			s[k] = pick
 	return s
 
 
