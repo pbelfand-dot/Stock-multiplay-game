@@ -63,7 +63,7 @@ func steering(car, dt: float, input: float) -> Vector2:
 		# allows at this speed, plus their peak slip angle (less is left alone)
 		var t: Resource = car.wheels[0].surface_tire
 		var base: float = car.config.rear_axle - car.config.front_axle
-		var useful: float = atan(base * t.lateral_mu * 9.8 / (v * v)) + deg_to_rad(t.lateral_peak_deg)
+		var useful: float = atan(base * t.lateral_mu * 9.8 / (v * v)) + deg_to_rad(t.lateral_peak_deg) * cfg.speed_sensitive_slip
 		target = clampf(target, -useful, useful)
 	var rate := 1.0
 	if cfg.steering_damping:
@@ -71,7 +71,8 @@ func steering(car, dt: float, input: float) -> Vector2:
 	countersteer = 0.0
 	if cfg.countersteer_help and v > 3.0:
 		var rear := (absf(car.wheels[2].slip_angle_deg()) + absf(car.wheels[3].slip_angle_deg())) * 0.5
-		var k: float = clampf((rear - 4.0) / 8.0, 0.0, 1.0) * cfg.countersteer_strength
+		var k: float = clampf((rear - cfg.countersteer_from_deg) / maxf(cfg.countersteer_full_deg - cfg.countersteer_from_deg, 0.5),
+			0.0, 1.0) * cfg.countersteer_strength
 		if k > 0.0:
 			# the front axle's direction of travel, relative to the car (+ = to its right)
 			var xf: Transform3D = car.global_transform

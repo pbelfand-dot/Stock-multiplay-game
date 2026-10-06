@@ -249,7 +249,13 @@ aids, F2 record, F3 telemetry, F4 force arrows).
 dust, sound, the co-driver's stream, the garage's power / grip / brakes / drive split), 120
 physics ticks a second. Out of the box three aids are on: steering smoothing and speed-sensitive
 steering (a key can't hold part of the lock) and countersteer help (without it, holding the speed
-at the limit at 110 km/h spins it); switch any of them in SETTINGS. The autopilot (the tests'
+at the limit at 110 km/h spins it); switch any of them in SETTINGS. Countersteer help was retuned
+after "I'm going into drift for no reason": at 100 km/h off the throttle, a keyboard lane change
+(right half a second, left half a second) or full lock held a second and let go spun the car
+(~80 deg sideways); now it slides 10-12 deg and straightens (the help points the front wheels
+fully where the car's going once the tail's 10 deg out, instead of 70 % of the way, which left
+them still pushing it round), and speed-sensitive steering gives a key press only what the tyres
+can use. The autopilot (the tests'
 driver, the menu's car) steers like a driver: the curve it wants, the slip angle the tyres need
 for it, countersteer when the tail steps out. Found on the way, all fixed: a bottomed-out wheel
 read as "no compression" (big landings slammed the body down), a car put down somewhere new kicked

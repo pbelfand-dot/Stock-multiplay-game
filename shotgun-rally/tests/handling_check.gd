@@ -9,6 +9,8 @@ extends SceneTree
 ##   * it brakes straight and stays straight flat out
 ##   * the wheels: a launch spins them up and pulls away; full brake while
 ##     steering locks the fronts (no ABS), half brake turns the car more
+##   * keyboard steering at 100 km/h off the throttle (a lane change, full lock
+##     held and let go) doesn't spin it with the out-of-the-box aids
 ## Run: godot --headless --fixed-fps 120 --path . -s tests/handling_check.gd [-- --report]
 ## Prints one [handling] line per check; exits 1 on any FAIL.
 
@@ -47,6 +49,8 @@ func _initialize() -> void:
 	_steps.append({"kind": "launch"})
 	_steps.append({"kind": "lock", "brake": 1.0})
 	_steps.append({"kind": "lock", "brake": 0.5})
+	_steps.append({"kind": "keys", "case": "lane change"})
+	_steps.append({"kind": "keys", "case": "hold and let go"})
 	_next()
 
 
@@ -141,6 +145,25 @@ func _physics_process(dt: float) -> bool:
 				var course := absf(wrapf(atan2(v.x, -v.z), -PI, PI))
 				s["result"] = {"deg": rad_to_deg(course), "locked": _acc.af / maxf(_acc.n, 1.0), "kmh": car.kmh()}
 				_next()
+		"keys":
+			# what a keyboard does at 100 km/h, off the throttle: a lane change (right
+			# half a second, left half a second), or full steering held a second and let
+			# go. With the out-of-the-box aids it mustn't end in a spin
+			if _t < 0.1:
+				car.set_speed(100.0 / 3.6)
+			var st := 0.0
+			if s.case == "lane change":
+				st = 1.0 if _t > 0.5 and _t < 1.0 else (-1.0 if _t >= 1.0 and _t < 1.5 else 0.0)
+			else:
+				st = 1.0 if _t > 0.5 and _t < 1.5 else 0.0
+			car.inp = {"steer": st, "throttle": 0.0, "brake": 0.0, "handbrake": false}
+			var v: Vector3 = car.linear_velocity
+			var fwd: Vector3 = -car.global_transform.basis.z
+			if v.dot(fwd) > 3.0:
+				_acc.beta = maxf(_acc.beta, absf(rad_to_deg(atan2(v.dot(car.global_transform.basis.x), v.dot(fwd)))))
+			if _t > 4.0:
+				s["result"] = {"beta": _acc.beta}
+				_next()
 	return false
 
 
@@ -210,6 +233,9 @@ func _finish() -> bool:
 	if not full.is_empty() and not half.is_empty():
 		fails += _check(full.locked > 0.5, "full brake at 100 km/h, steering: a front wheel locks up and slides (%.0f %% of the time)" % (full.locked * 100.0))
 		fails += _check(half.deg > full.deg * 1.6, "half brake still steers: its path turned %.0f deg vs %.0f locked (the fronts locked %.0f %% of the time)" % [half.deg, full.deg, half.locked * 100.0])
+	for s in _steps:
+		if s.kind == "keys":
+			fails += _check(s.result.beta < 20.0, "keys at 100 km/h, off the throttle, a %s: the most it slides is %.0f deg (no spin)" % [s.case, s.result.beta])
 	print("[handling] %s" % ("HANDLING OK" if fails == 0 else "HANDLING FAIL"))
 	quit(1 if fails > 0 else 0)
 	return true

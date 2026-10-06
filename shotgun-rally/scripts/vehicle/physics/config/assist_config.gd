@@ -48,4 +48,15 @@ extends Resource
 ## Damping: above this speed the wheels turn more slowly (in proportion).
 @export_range(1.0, 60.0, 0.5, "suffix:m/s") var damping_speed := 12.0
 ## Countersteer help's strength (1 = the wheels pointed fully where it's going).
-@export_range(0.0, 1.0, 0.01) var countersteer_strength := 0.7
+## At 0.7 the fronts were left pointing a little into the slide, still pushing it
+## round: a keyboard lane change at 100 km/h off the throttle spun the car
+## (tests/handling_check.gd "keys"); 0.9 catches it.
+@export_range(0.0, 1.0, 0.01) var countersteer_strength := 0.9
+## Countersteer help starts when the rear tyres slide past this slip angle, and is
+## at full strength by the second.
+@export_range(0.0, 30.0, 0.5, "suffix:deg") var countersteer_from_deg := 4.0
+@export_range(1.0, 40.0, 0.5, "suffix:deg") var countersteer_full_deg := 10.0
+## Speed-sensitive steering's limit: the turn the front tyres' grip allows at that
+## speed, plus this share of their peak slip angle (all of it asked a key press for
+## more than the tyres hold: full steering left the fronts past their peak).
+@export_range(0.0, 1.5, 0.05) var speed_sensitive_slip := 0.7
