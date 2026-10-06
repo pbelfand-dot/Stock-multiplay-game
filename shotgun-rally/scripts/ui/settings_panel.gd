@@ -8,6 +8,8 @@ signal back
 const UI = preload("res://scripts/ui/ui_kit.gd")
 ## What PLAY NOW and online stages are (Config.quick_surface, Main.quick_opts).
 const SURFACES := [["any", "ANY: GRAVEL, TARMAC OR MIXED"], ["gravel", "GRAVEL"], ["tarmac", "TARMAC"], ["mixed", "MIXED: GRAVEL + TARMAC"]]
+## Extra tyre grip (Config.grip_assist, TireModel.grippy).
+const GRIPS := [["1.0", "GRIPPY (OUT OF THE BOX)"], ["1.5", "MORE GRIP"], ["0.0", "REAL (SLIPPERY GRAVEL)"]]
 const AIDS := [
 	["anti_lock", "ABS", "A locking wheel gets its brake eased off: brake hard and still steer."],
 	["traction_control", "TRACTION CONTROL", "Spinning wheels get the throttle cut: flat out off the line, no smoke."],
@@ -23,9 +25,9 @@ func _ready() -> void:
 	add_theme_stylebox_override("panel", UI.box())
 	custom_minimum_size = Vector2(1040, 0)
 	var v := VBoxContainer.new()
-	v.add_theme_constant_override("separation", 10)
+	v.add_theme_constant_override("separation", 6)
 	add_child(v)
-	v.add_child(UI.label("SETTINGS", 44, UI.CREAM, true))
+	v.add_child(UI.label("SETTINGS", 38, UI.CREAM, true))
 	var cols := HBoxContainer.new()
 	cols.add_theme_constant_override("separation", 30)
 	v.add_child(cols)
@@ -56,14 +58,13 @@ func _ready() -> void:
 	left.add_child(UI.label("CO-DRIVER", 20, UI.YELLOW, true))
 	left.add_child(_slider("CALLS  LATE  ·  EARLY", -1.0, 1.0, config.call_early, func(x): config.call_early = x))
 	right.add_child(UI.label("DRIVING AIDS", 20, UI.YELLOW, true))
-	right.add_child(_note("Each its own switch: all off is the car as it is.", 600))
 	for a in AIDS:
 		right.add_child(_toggle(a[1], a[2], bool(config.aids.get(a[0], false)), func(on): config.aids[a[0]] = on))
+	right.add_child(_cycle("TYRE GRIP", GRIPS, "%.1f" % config.grip_assist, func(k): config.grip_assist = float(k)))
 	right.add_child(UI.label("STAGES", 20, UI.YELLOW, true))
 	right.add_child(_cycle("SURFACE  (PLAY NOW, ONLINE)", SURFACES, config.quick_surface, func(k): config.quick_surface = k))
 	var back_btn := UI.button("BACK", func(): back.emit(), 20, 140)
 	back_btn.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
-	v.add_child(UI.gap(4))
 	v.add_child(back_btn)
 	back_btn.grab_focus.call_deferred()
 

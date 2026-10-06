@@ -25,6 +25,9 @@ const AIDS_DEFAULT := {"anti_lock": false, "traction_control": false, "stability
 	"steering_smoothing": true, "steering_damping": false, "countersteer_help": true, "speed_sensitive_steering": true}
 const AIDS_VERSION := 2         # settings saved before this (the old car) take the new defaults once
 var aids := AIDS_DEFAULT.duplicate()
+## Extra tyre grip on top of the real tyres (TireModel.grippy): 0 = REAL, 1 = GRIPPY
+## (out of the box: real gravel feels like ice to most players), 1.5 = MORE.
+var grip_assist := 1.0
 var args := {}                 # --key=value / --flag from the command line
 
 
@@ -41,6 +44,7 @@ func _ready() -> void:
 		sfx_volume = cf.get_value("audio", "effects", sfx_volume)
 		voice_volume = cf.get_value("audio", "voice", voice_volume)
 		quick_surface = cf.get_value("stage", "surface", quick_surface)
+		grip_assist = float(cf.get_value("aids", "grip", grip_assist))
 		if int(cf.get_value("aids", "version", 1)) >= AIDS_VERSION:
 			for key in aids:
 				aids[key] = cf.get_value("aids", key, aids[key])
@@ -98,6 +102,7 @@ func save() -> void:
 	for key in aids:
 		cf.set_value("aids", key, aids[key])
 	cf.set_value("aids", "version", AIDS_VERSION)
+	cf.set_value("aids", "grip", grip_assist)
 	cf.save(PATH)
 
 

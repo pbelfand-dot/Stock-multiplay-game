@@ -255,7 +255,12 @@ after "I'm going into drift for no reason": at 100 km/h off the throttle, a keyb
 (~80 deg sideways); now it slides 10-12 deg and straightens (the help points the front wheels
 fully where the car's going once the tail's 10 deg out, instead of 70 % of the way, which left
 them still pushing it round), and speed-sensitive steering gives a key press only what the tyres
-can use. The autopilot (the tests'
+can use. Then "it's just super slippery": real gravel tyres (0.9 g in a corner, 85 % of the grip
+kept in a slide) feel like ice to most players, so **SETTINGS > TYRE GRIP** adds grip on top of
+the real tyres, GRIPPY out of the box: on gravel 1.20 g in a corner instead of 0.93, 100-0 km/h in
+34 m instead of 47, a slide keeps more of its grip, the loose gravel at the edges costs less;
+asphalt 1.30 g instead of 1.15 (still grippier than gravel). MORE GRIP: 1.33 g on gravel. REAL:
+the tyres as they are (the physics tests run on those). The autopilot (the tests'
 driver, the menu's car) steers like a driver: the curve it wants, the slip angle the tyres need
 for it, countersteer when the tail steps out. Found on the way, all fixed: a bottomed-out wheel
 read as "no compression" (big landings slammed the body down), a car put down somewhere new kicked

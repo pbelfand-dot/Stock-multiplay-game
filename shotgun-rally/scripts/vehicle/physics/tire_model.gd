@@ -81,6 +81,24 @@ static func tarmac_tyre(gravel: Resource) -> Resource:
 	return t
 
 
+## The same tyre with the game's EXTRA GRIP (Settings > TYRE GRIP; `a` 0 = the
+## real tyre, 1 = GRIPPY, 1.5 = MORE): on loose surfaces (gravel, dirt, snow,
+## mud) up to 30 % more grip (x a), on sealed ones up to 12 %; a sliding or
+## spinning tyre keeps more of it, and it bites a little sooner. Real gravel
+## (0.9 g in a corner, 85 % kept in a slide) feels like ice to most players.
+static func grippy(cfg: Resource, a: float) -> Resource:
+	if a <= 0.0:
+		return cfg
+	var t: Resource = cfg.duplicate()
+	var k := clampf(a, 0.0, 1.0)
+	t.loose_grip = cfg.loose_grip * (1.0 + 0.3 * a)
+	t.sealed_grip = cfg.sealed_grip * (1.0 + 0.12 * a)
+	t.lateral_shape = shape_keeping(lerpf(kept(cfg.lateral_shape), 0.97, 0.6 * k))
+	t.longitudinal_shape = shape_keeping(lerpf(kept(cfg.longitudinal_shape), 0.93, 0.6 * k))
+	t.lateral_peak_deg = cfg.lateral_peak_deg * (1.0 - 0.15 * k)
+	return t
+
+
 ## The share of its peak grip a Magic Formula curve of shape C keeps far past the peak.
 static func kept(shape: float) -> float:
 	return sin(shape * PI / 2.0)

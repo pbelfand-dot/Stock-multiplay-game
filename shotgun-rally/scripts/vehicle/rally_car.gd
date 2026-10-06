@@ -109,6 +109,8 @@ var _own_config := false           # config is this car's own copy (the garage c
 var _base := {}                    # the config's numbers before the garage's multipliers
 var tyre_kind := ""                # the tyres on it, "gravel" or "tarmac", and its setup (apply_setup: _tune)
 var setup_kind := ""
+var grip_assist := -1.0            # extra tyre grip (0 real .. 1.5: TireModel.grippy); below 0: the game's Settings
+var _tuned_grip := -1.0
 var _base_parts := {}              # its own suspension, tyres and rack, before a setup changed them
 var _mud: Resource
 var _model_wheels: Array = []      # [pivot, spinner, rest position] per corner (model units)
@@ -130,6 +132,9 @@ func _ready() -> void:
 			for key in settings.aids:
 				if key in assists:
 					assists.set(key, bool(settings.aids[key]))
+	if grip_assist < 0.0:
+		var settings := get_node_or_null("/root/Config")
+		grip_assist = float(settings.grip_assist) if settings and "grip_assist" in settings else 0.0
 	assist = DriverAssist.new()
 	assist.setup(assists)
 	_mud = Surfaces.named("mud")
@@ -282,7 +287,8 @@ func apply_setup(s: Dictionary) -> void:
 
 
 ## The tyres and the setup (the garage's SETUP tab; "auto" is settled by the game
-## for the stage before it gets here). Tarmac tyres: TireModel.tarmac_tyre.
+## for the stage before it gets here). Tarmac tyres: TireModel.tarmac_tyre; both
+## kinds get the game's extra grip (grip_assist, from Settings: TireModel.grippy).
 ## A tarmac setup: springs x1.5, dampers x1.3, anti-roll bars x1.5 (it rolls and
 ## pitches less, turns in sharper), a rack a quarter quicker; the travel is
 ## shortened by what the stiffer springs no longer squash, so it stands at the
@@ -290,8 +296,9 @@ func apply_setup(s: Dictionary) -> void:
 func _tune(tyre: String, kind: String) -> void:
 	tyre = "tarmac" if tyre == "tarmac" else "gravel"
 	kind = "tarmac" if kind == "tarmac" else "gravel"
-	if tyre == tyre_kind and kind == setup_kind:
+	if tyre == tyre_kind and kind == setup_kind and grip_assist == _tuned_grip:
 		return
+	_tuned_grip = grip_assist
 	if _base_parts.is_empty():
 		_base_parts = {"front": config.front_suspension, "rear": config.rear_suspension, "ft": config.front_tire,
 			"rt": config.rear_tire, "rack": config.steering.rack_speed_deg if config.steering else 0.0,
@@ -316,8 +323,9 @@ func _tune(tyre: String, kind: String) -> void:
 		sus.append(t)
 	config.front_suspension = sus[0]
 	config.rear_suspension = sus[1]
-	config.front_tire = _base_parts.ft_tarmac if tyre == "tarmac" else _base_parts.ft
-	config.rear_tire = _base_parts.rt_tarmac if tyre == "tarmac" else _base_parts.rt
+	var TM = RallyWheel.TireModel
+	config.front_tire = TM.grippy(_base_parts.ft_tarmac if tyre == "tarmac" else _base_parts.ft, grip_assist)
+	config.rear_tire = TM.grippy(_base_parts.rt_tarmac if tyre == "tarmac" else _base_parts.rt, grip_assist)
 	if config.steering:
 		config.steering.rack_speed_deg = _base_parts.rack * (1.25 if kind == "tarmac" else 1.0)
 	for k in 4:
@@ -390,6 +398,7 @@ func set_lanes(stage, s: float, d: float) -> void:
 	for k in 4:
 		var off: Vector3 = wheels[k].global_position - global_position
 		lane_mu[k] = stage.lane_mu(s + off.dot(fwd), d + off.dot(right))
+		lane_mu[k] = 1.0 - (1.0 - lane_mu[k]) * (1.0 - 0.4 * clampf(_tuned_grip, 0.0, 1.0))   # (extra grip: the loose stuff costs less)
 		wheels[k].surface_mu = lane_mu[k] * grip_mult
 
 

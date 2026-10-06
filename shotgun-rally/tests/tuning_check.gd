@@ -5,6 +5,8 @@ extends SceneTree
 ##     worse on gravel; gravel tyres are the better bet on gravel
 ##   * the tarmac setup rolls less in the same corner, and stands at the same height
 ##   * AUTO picks tarmac on a tarmac stage, gravel on a gravel one; a choice sticks
+##   * Settings > TYRE GRIP: GRIPPY (out of the box) corners 20 %+ harder on gravel
+##     than the real tyres, MORE harder still
 ## Run: godot --headless --fixed-fps 120 --path . -s tests/tuning_check.gd
 
 var RallyCar
@@ -26,8 +28,10 @@ func _initialize() -> void:
 	StageGen = load("res://scripts/stage/stage_gen.gd")
 	for surf in ["asphalt", "gravel"]:
 		for tyre in ["gravel", "tarmac"]:
-			_cases.append({"surface": surf, "tyre": tyre, "preset": "gravel"})
-	_cases.append({"surface": "asphalt", "tyre": "tarmac", "preset": "tarmac"})
+			_cases.append({"surface": surf, "tyre": tyre, "preset": "gravel", "grip": 0.0})
+	_cases.append({"surface": "asphalt", "tyre": "tarmac", "preset": "tarmac", "grip": 0.0})
+	for g in [1.0, 1.5]:                               # Settings > TYRE GRIP: GRIPPY (out of the box), MORE
+		_cases.append({"surface": "gravel", "tyre": "gravel", "preset": "gravel", "grip": g})
 	_next()
 
 
@@ -52,6 +56,7 @@ func _next() -> void:
 	root.add_child(pad)
 	car = RallyCar.new()
 	car.setup = {"tyre": c.tyre, "preset": c.preset}
+	car.grip_assist = c.grip
 	root.add_child(car)
 	car.place(Vector3.ZERO, 0.0)
 
@@ -79,9 +84,9 @@ func _physics_process(dt: float) -> bool:
 		c["lat"] = _acc.lat / maxf(_acc.n, 1)
 		c["roll"] = _acc.roll / maxf(_acc.n, 1)
 		c["kinds"] = "%s/%s" % [car.tyre_kind, car.setup_kind]
-		print("[tuning]   %-7s %s tyres, %s setup: %.2f g, %.1f deg of roll (car says %s), stands %.3f m" % [c.surface, c.tyre, c.preset,
-			c.lat, c.roll, c.kinds, c.ride])
-		_res["%s %s %s" % [c.surface, c.tyre, c.preset]] = c
+		print("[tuning]   %-7s %s tyres, %s setup, extra grip %.1f: %.2f g, %.1f deg of roll (car says %s), stands %.3f m" % [c.surface, c.tyre, c.preset,
+			c.grip, c.lat, c.roll, c.kinds, c.ride])
+		_res["%s %s %s%s" % [c.surface, c.tyre, c.preset, "" if c.grip == 0.0 else " grip %.1f" % c.grip]] = c
 		_next()
 	return false
 
@@ -97,6 +102,10 @@ func _finish() -> bool:
 	fails += _check(att.roll < at.roll * 0.85, "the tarmac setup rolls less: %.1f deg vs %.1f" % [att.roll, at.roll])
 	fails += _check(absf(att.ride - at.ride) < 0.005, "... and stands at the same height (%.3f m vs %.3f)" % [att.ride, at.ride])
 	fails += _check(att.kinds == "tarmac/tarmac" and ag.kinds == "gravel/gravel", "the car took the tyres and setup it was given")
+	var g1: Dictionary = _res["gravel gravel gravel grip 1.0"]
+	var g15: Dictionary = _res["gravel gravel gravel grip 1.5"]
+	fails += _check(g1.lat > gg.lat * 1.2 and g15.lat > g1.lat * 1.05,
+		"extra grip on gravel: GRIPPY %.2f g, MORE %.2f g (the real tyres: %.2f g)" % [g1.lat, g15.lat, gg.lat])
 	# AUTO, and a choice that sticks
 	var tarmac = StageGen.new()
 	tarmac.opts = {"surface": "tarmac"}
