@@ -31,8 +31,9 @@ extends RigidBody3D
 ## The game around it: crashes (`hit`) and landings (`landed`) for the sound and
 ## camera, `slip` (how hard the tyres slide) for the sound and dust, puddles
 ## (`mud_mu`), the car from the garage (apply_setup: power, grip, brakes, the
-## drive split, the paint), the Higgsfield body model (seen from outside:
-## set_outside) with its wheels and swinging mud flaps.
+## drive split, the paint, which body), the Higgsfield body model (seen from
+## outside: set_outside) with its wheels, swinging mud flaps (the hatchback) or
+## see-through glass and a kidney grille (the coupé).
 ## The machine of whoever is DRIVING simulates it (`simulate`) and streams its
 ## state ~30x a second; the co-driver's machine plays that stream back 100 ms
 ## behind, smoothly (snapshot interpolation), so the cabin never jitters.
@@ -56,13 +57,17 @@ const AssistConfig = preload("res://scripts/vehicle/physics/config/assist_config
 const Surfaces = preload("res://scripts/vehicle/physics/surfaces.gd")
 const Livery = preload("res://scripts/vehicle/livery.gd")
 const WheelMesh = preload("res://scripts/vehicle/wheel_mesh.gd")
+const KidneyGrille = preload("res://scripts/vehicle/kidney_grille.gd")
 const DEFAULT_CONFIG := "res://data/cars/awd_rally.tres"
 const TICKS := 120                 # physics ticks per second (see the plan: the wheels are stiff)
 const NAMES := ["FL", "FR", "RL", "RR"]
 const SUBSTEPS := 8                # tyre / wheel-spin / drivetrain steps per tick
-const PARTS := "res://assets/models/car_parts/"
+## The bodies (Catalog: a car's "body"): each a folder of parts cut from a
+## Higgsfield model (tools/split_car.gd for the hatchback, tools/split_body.gd for
+## the rest), with parts.json saying where its wheels are.
+const BODIES := {"hatch": "res://assets/models/car_parts/", "coupe": "res://assets/models/coupe/parts/"}
 const MODEL_SCALE := 1.95          # model units -> m
-const MODEL_GROUND := 0.56         # m below its origin the model's tyres touch, placed at y 0.205
+const MODEL_GROUND := 0.56         # m below its origin the hatchback's tyres touch, placed at y 0.205
 const NET_HZ := 30.0
 const NET_DELAY := 100.0           # ms behind the stream on the co-driver's machine
 
@@ -103,7 +108,10 @@ var setup := {}
 var power_mult := 1.0
 var grip_mult := 1.0
 var brake_mult := 1.0
-var body_model: Node3D             # the Higgsfield car (assets/models/car_parts/): seen from outside
+var body_model: Node3D             # the Higgsfield car (BODIES): seen from outside
+var body_id := ""                  # which body it is (BODIES)
+var own_paint := false             # the body wears its own paint (the garage's livery and colours don't apply)
+var see_through := false           # the body has clear glass: from outside you see the crew (Cockpit.show_crew_only)
 
 var _air := 0.0
 var _rack := 0.0                   # the steering rack: the "bicycle" front-wheel angle (rad, + = right)
@@ -192,7 +200,7 @@ func _ready() -> void:
 	var loads: Array = config.static_loads(_gravity())
 	_static_comp = [RallyWheel.Suspension.static_compression(config.front_suspension, loads[0]),
 		RallyWheel.Suspension.static_compression(config.rear_suspension, loads[1])]
-	_build_body_model()
+	_build_body_model(str(setup.get("body", "hatch")))
 	if not setup.is_empty():
 		apply_setup(setup)
 
@@ -207,27 +215,58 @@ func _box(n: String, size: Vector3, at: Vector3) -> void:
 	add_child(cs)
 
 
-## The outside of the car, from the Higgsfield model cut into parts by
-## tools/split_car.gd: the body, four wheels (turn, spin, ride the springs) and
-## four mud flaps (swing). Only drawn when a camera is outside the car (the
-## cockpit is the inside). Model units: x = back, y = up, z = left.
-func _build_body_model() -> void:
-	if not ResourceLoader.exists(PARTS + "body.res") or get_node_or_null("CarMesh"):
+## The outside of the car, from a Higgsfield model cut into parts (BODIES): the
+## body, four wheels (turn, spin, ride the springs) and, as the body has them,
+## four mud flaps (swing), see-through glass and a kidney grille. Only drawn
+## when a camera is outside the car (the cockpit is the inside). Built again
+## when the garage picks a car with another body. Model units: x = back, y = up,
+## z = left.
+func _build_body_model(id := "hatch") -> void:
+	var dir: String = BODIES.get(id, BODIES.hatch)
+	if not ResourceLoader.exists(dir + "body.res") or get_node_or_null("CarMesh"):
 		return
-	var info = JSON.parse_string(FileAccess.get_file_as_string(PARTS + "parts.json"))
+	var shown := body_model != null and body_model.visible
+	if body_model:
+		remove_child(body_model)
+		body_model.queue_free()
+	_model_wheels.clear()
+	_flaps.clear()
+	body_id = id
+	var info = JSON.parse_string(FileAccess.get_file_as_string(dir + "parts.json"))
 	body_model = Node3D.new()
 	body_model.name = "BodyModel"
 	body_model.rotation.y = -PI / 2.0                    # the model's nose points down -X
-	body_model.scale = Vector3.ONE * MODEL_SCALE          # its 1.9 units long -> 3.7 m
+	body_model.scale = Vector3.ONE * MODEL_SCALE          # model units -> m
 	# its tyres on the ground with the car standing still, centred between the axles
 	var ground: float = (config.front_suspension.travel + config.rear_suspension.travel) * 0.5 \
 		- (_static_comp[0] + _static_comp[1]) * 0.5 + config.tyre_radius - config.mount_height
-	body_model.position = Vector3(0.0, 0.205 + MODEL_GROUND - ground, (config.front_axle + config.rear_axle) * 0.5)
-	body_model.visible = false
+	var depth: float = info.get("tyre_depth", 0.205 + MODEL_GROUND)
+	body_model.position = Vector3(0.0, depth - ground, (config.front_axle + config.rear_axle) * 0.5)
+	body_model.visible = shown
 	add_child(body_model)
 	var body := MeshInstance3D.new()
-	body.mesh = load(PARTS + "body.res")
+	body.mesh = load(dir + "body.res")
 	body_model.add_child(body)
+	own_paint = info.get("own_paint", false)
+	if own_paint:
+		var src: Material = body.mesh.surface_get_material(0)
+		var tex: Texture2D = src.albedo_texture if src is BaseMaterial3D else null
+		if ResourceLoader.exists(dir + "paint.jpg"):              # the texture with stray marks painted out
+			tex = load(dir + "paint.jpg")
+		body.set_surface_override_material(0, _own_paint(tex))
+	see_through = info.get("glass", false)
+	if see_through:
+		var glass := MeshInstance3D.new()
+		glass.mesh = load(dir + "glass.res")
+		glass.material_override = _glass()
+		glass.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		body_model.add_child(glass)
+	if info.has("grille"):
+		var g: Array = info.grille                        # [front x, centre y, height]
+		var grille := MeshInstance3D.new()
+		grille.mesh = KidneyGrille.build(float(g[2]) * 1.1)
+		grille.position = Vector3(float(g[0]) - 0.003, float(g[1]), 0.0)
+		body_model.add_child(grille)
 	var names := ["fl", "fr", "rl", "rr"]                 # the same order as the wheels
 	for k in 4:
 		var c: Array = info.wheels[k]
@@ -239,17 +278,53 @@ func _build_body_model() -> void:
 		# the wheel: built in code (wheel_mesh.gd), the model's own size; its axle is the model's z
 		var wm := MeshInstance3D.new()
 		var r: float = info.radius[k] if info.has("radius") else 0.17
-		wm.mesh = WheelMesh.build(r, r * 0.66, "z")
+		var w: float = float(info.width[k]) * 0.9 if info.has("width") else r * 0.66
+		wm.mesh = WheelMesh.build(r, w, "z", int(info.get("spokes", WheelMesh.SPOKES)))
 		spinner.add_child(wm)
+		_model_wheels.append([pivot, spinner, pivot.position])
+		if k >= info.flaps.size():
+			continue
 		var h: Array = info.flaps[k]
 		var hinge := Node3D.new()
 		hinge.position = Vector3(h[0], h[1], h[2])
 		body_model.add_child(hinge)
 		var fm := MeshInstance3D.new()
-		fm.mesh = load(PARTS + "flap_%s.res" % names[k])
+		fm.mesh = load(dir + "flap_%s.res" % names[k])
 		hinge.add_child(fm)
-		_model_wheels.append([pivot, spinner, pivot.position])
 		_flaps.append([hinge, 0.0, 0.0])                 # node, angle, angular speed
+
+
+## A body in its own paint: its texture as it is, a touch deeper in the reds,
+## both sides drawn (through the glass you see into it), the inside dark.
+func _own_paint(tex: Texture2D) -> ShaderMaterial:
+	var m := ShaderMaterial.new()
+	var sh := Shader.new()
+	sh.code = """
+shader_type spatial;
+render_mode cull_disabled;
+uniform sampler2D tex : source_color, filter_linear_mipmap;
+void fragment() {
+	vec3 c = texture(tex, UV).rgb;
+	float red = smoothstep(0.2, 0.45, c.r - max(c.g, c.b)) * step(0.2, c.g);
+	c.g *= 1.0 - 0.35 * red;                  // the model's orange-ish red -> rally red
+	ALBEDO = FRONT_FACING ? c : vec3(0.06);
+	ROUGHNESS = FRONT_FACING ? 0.45 : 0.9;
+}
+"""
+	m.shader = sh
+	m.set_shader_parameter("tex", tex)
+	return m
+
+
+## Window glass: clear, a faint blue-grey tint, glossy.
+static func _glass() -> StandardMaterial3D:
+	var m := StandardMaterial3D.new()
+	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	m.albedo_color = Color(0.55, 0.66, 0.74, 0.22)
+	m.roughness = 0.04
+	m.metallic_specular = 0.9
+	m.cull_mode = BaseMaterial3D.CULL_DISABLED
+	return m
 
 
 ## The car from the garage (Catalog.setup): how it drives (x the base car's power,
@@ -279,8 +354,11 @@ func apply_setup(s: Dictionary) -> void:
 	_tune(str(s.get("tyre", "gravel")), str(s.get("preset", "gravel")))
 	for k in 4:
 		wheels[k].surface_mu = lane_mu[k] * grip_mult
+	if str(s.get("body", "hatch")) != body_id:
+		_build_body_model(str(s.get("body", "hatch")))
 	if body_model:
-		Livery.paint(body_model.get_child(0), [], s, self)
+		if not own_paint:
+			Livery.paint(body_model.get_child(0), [], s, self)
 		var rim := StandardMaterial3D.new()             # the rims take the wheel colour
 		rim.albedo_color = s.get("wheel_colour", Color(0.72, 0.73, 0.75))
 		rim.metallic = 0.5

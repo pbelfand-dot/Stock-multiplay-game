@@ -4,8 +4,10 @@ extends PanelContainer
 ## you own can be painted (main, accent and stripe colours: free), given a
 ## livery and wheels (bought once, then yours on any car), a race number,
 ## upgrades (engine, tyres, brakes: three steps each), and its tyres and setup
-## for gravel or tarmac (free; AUTO matches the stage). The car behind the menu
-## parks and shows every change as you make it. Everything is in Profile.
+## for gravel or tarmac (free; AUTO matches the stage). A car with its own body
+## (the GOLDLINE 30) wears that body's own paint: no paint, livery or number
+## tabs. The car behind the menu parks and shows every change as you make it.
+## Everything is in Profile.
 
 signal back
 signal changed                      # credits or the car changed: the menu redraws its chips
@@ -36,6 +38,11 @@ func _ready() -> void:
 
 func _car() -> Dictionary:
 	return Catalog.CARS[_i]
+
+
+## The car has its own body, in its own paint (Catalog: "body").
+func _own_paint() -> bool:
+	return _car().get("body", "hatch") != "hatch"
 
 
 func _rebuild() -> void:
@@ -94,7 +101,12 @@ func _rebuild() -> void:
 	if owned:
 		var tabs := HBoxContainer.new()
 		tabs.add_theme_constant_override("separation", 8)
-		for t in [["paint", "PAINT"], ["livery", "LIVERY"], ["wheels", "WHEELS"], ["number", "NUMBER"], ["upgrades", "UPGRADES"], ["setup", "SETUP"]]:
+		var tab_list := [["paint", "PAINT"], ["livery", "LIVERY"], ["wheels", "WHEELS"], ["number", "NUMBER"], ["upgrades", "UPGRADES"], ["setup", "SETUP"]]
+		if _own_paint():
+			tab_list = tab_list.filter(func(t): return t[0] not in ["paint", "livery", "number"])
+			if _tab in ["paint", "livery", "number"]:
+				_tab = "wheels"
+		for t in tab_list:
 			var tb := UI.button(t[1], func(): _tab = t[0]; _rebuild(), 18, 104)
 			if t[0] == _tab:
 				tb.add_theme_stylebox_override("normal", UI.box(UI.RED, 8, 10))
@@ -104,6 +116,8 @@ func _rebuild() -> void:
 		content.add_theme_constant_override("separation", 8)
 		content.custom_minimum_size = Vector2(0, 120)
 		_body.add_child(content)
+		if _own_paint():
+			content.add_child(UI.label("It comes in its own red, white and gold paint.", 17, UI.DIM))
 		match _tab:
 			"paint": _paint(content, setup)
 			"livery": _liveries(content, setup)

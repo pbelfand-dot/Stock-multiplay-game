@@ -435,7 +435,9 @@ func _process(dt: float) -> void:
 	if want != cam.view:
 		cam.view = want
 		car.set_outside(want != "seat")
-		cockpit.visible = want == "seat"
+		# outside: the cabin hides, but through a body's clear glass you see the crew
+		cockpit.visible = want == "seat" or car.see_through
+		cockpit.show_crew_only(want != "seat")
 	# the clocks
 	var clock := ""
 	var red := false
