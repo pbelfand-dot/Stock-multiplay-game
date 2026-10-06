@@ -9,7 +9,7 @@ const UI = preload("res://scripts/ui/ui_kit.gd")
 ## What PLAY NOW and online stages are (Config.quick_surface, Main.quick_opts).
 const SURFACES := [["any", "ANY: GRAVEL, TARMAC OR MIXED"], ["gravel", "GRAVEL"], ["tarmac", "TARMAC"], ["mixed", "MIXED: GRAVEL + TARMAC"]]
 ## Extra tyre grip (Config.grip_assist, TireModel.grippy).
-const GRIPS := [["1.0", "GRIPPY (OUT OF THE BOX)"], ["1.5", "MORE GRIP"], ["0.0", "REAL (SLIPPERY GRAVEL)"]]
+const GRIPS := [["2.0", "ARCADE (OUT OF THE BOX)"], ["1.5", "MORE GRIP"], ["1.0", "GRIPPY"], ["0.0", "REAL (SLIPPERY GRAVEL)"]]
 const AIDS := [
 	["anti_lock", "ABS", "A locking wheel gets its brake eased off: brake hard and still steer."],
 	["traction_control", "TRACTION CONTROL", "Spinning wheels get the throttle cut: flat out off the line, no smoke."],

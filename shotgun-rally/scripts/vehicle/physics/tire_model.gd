@@ -82,13 +82,16 @@ static func tarmac_tyre(gravel: Resource) -> Resource:
 
 
 ## The same tyre with the game's EXTRA GRIP (Settings > TYRE GRIP; `a` 0 = the
-## real tyre, 1 = GRIPPY, 1.5 = MORE): on loose surfaces (gravel, dirt, snow,
-## mud) up to 30 % more grip (x a), on sealed ones up to 12 %; a sliding or
-## spinning tyre keeps more of it, and it bites a little sooner. Real gravel
-## (0.9 g in a corner, 85 % kept in a slide) feels like ice to most players.
+## real tyre, 1 = GRIPPY, 1.5 = MORE, 2 = ARCADE: arcade()): on loose surfaces
+## (gravel, dirt, snow, mud) up to 30 % more grip (x a), on sealed ones up to
+## 12 %; a sliding or spinning tyre keeps more of it, and it bites a little
+## sooner. Real gravel (0.9 g in a corner, 85 % kept in a slide) feels like ice
+## to most players.
 static func grippy(cfg: Resource, a: float) -> Resource:
 	if a <= 0.0:
 		return cfg
+	if a >= ARCADE:
+		return arcade(cfg)
 	var t: Resource = cfg.duplicate()
 	var k := clampf(a, 0.0, 1.0)
 	t.loose_grip = cfg.loose_grip * (1.0 + 0.3 * a)
@@ -96,6 +99,26 @@ static func grippy(cfg: Resource, a: float) -> Resource:
 	t.lateral_shape = shape_keeping(lerpf(kept(cfg.lateral_shape), 0.97, 0.6 * k))
 	t.longitudinal_shape = shape_keeping(lerpf(kept(cfg.longitudinal_shape), 0.93, 0.6 * k))
 	t.lateral_peak_deg = cfg.lateral_peak_deg * (1.0 - 0.15 * k)
+	return t
+
+
+## ARCADE: the tyre driving like a GTA V / FiveM rally car (their handling.meta:
+## a sliding tyre keeps ~82-90 % of its grip, fTractionCurveMin / Max, and off
+## tarmac it loses only ~0.4 of what it would, fTractionLossMult 0.375-0.4 on the
+## rally-ish cars): loose surfaces x1.55 and sealed x1.3, so gravel grips nearly
+## as well as asphalt (and the loose lanes cost 0.4 of what they do:
+## RallyCar.set_lanes); a sliding tyre keeps 95 % sideways, a locked or spinning
+## one 93 % (on gravel; x the surface's own, so ~87 % on asphalt, GTA's figure),
+## so a slide builds slowly and holds. It keeps the tyre's own peak
+## slip (it doesn't bite sooner as GRIPPY does: the grip comes on progressively).
+## Snow, mud and ice are still slippery, just less (x1.55 too).
+const ARCADE := 2.0
+static func arcade(cfg: Resource) -> Resource:
+	var t: Resource = cfg.duplicate()
+	t.loose_grip = cfg.loose_grip * 1.55
+	t.sealed_grip = cfg.sealed_grip * 1.3
+	t.lateral_shape = shape_keeping(0.95)
+	t.longitudinal_shape = shape_keeping(0.93)
 	return t
 
 

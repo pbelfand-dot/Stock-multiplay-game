@@ -109,7 +109,7 @@ var _own_config := false           # config is this car's own copy (the garage c
 var _base := {}                    # the config's numbers before the garage's multipliers
 var tyre_kind := ""                # the tyres on it, "gravel" or "tarmac", and its setup (apply_setup: _tune)
 var setup_kind := ""
-var grip_assist := -1.0            # extra tyre grip (0 real .. 1.5: TireModel.grippy); below 0: the game's Settings
+var grip_assist := -1.0            # extra tyre grip (0 real .. 1.5, 2 arcade: TireModel.grippy); below 0: the game's Settings
 var _tuned_grip := -1.0
 var _base_parts := {}              # its own suspension, tyres and rack, before a setup changed them
 var _mud: Resource
@@ -398,7 +398,8 @@ func set_lanes(stage, s: float, d: float) -> void:
 	for k in 4:
 		var off: Vector3 = wheels[k].global_position - global_position
 		lane_mu[k] = stage.lane_mu(s + off.dot(fwd), d + off.dot(right))
-		lane_mu[k] = 1.0 - (1.0 - lane_mu[k]) * (1.0 - 0.4 * clampf(_tuned_grip, 0.0, 1.0))   # (extra grip: the loose stuff costs less)
+		var cut := 0.6 if _tuned_grip >= RallyWheel.TireModel.ARCADE else 0.4 * clampf(_tuned_grip, 0.0, 1.0)
+		lane_mu[k] = 1.0 - (1.0 - lane_mu[k]) * (1.0 - cut)   # (extra grip: the loose stuff costs less)
 		wheels[k].surface_mu = lane_mu[k] * grip_mult
 
 

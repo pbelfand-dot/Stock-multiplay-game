@@ -5,8 +5,9 @@ extends SceneTree
 ##     worse on gravel; gravel tyres are the better bet on gravel
 ##   * the tarmac setup rolls less in the same corner, and stands at the same height
 ##   * AUTO picks tarmac on a tarmac stage, gravel on a gravel one; a choice sticks
-##   * Settings > TYRE GRIP: GRIPPY (out of the box) corners 20 %+ harder on gravel
-##     than the real tyres, MORE harder still
+##   * Settings > TYRE GRIP: GRIPPY corners 20 %+ harder on gravel than the real
+##     tyres, MORE harder still, ARCADE (out of the box) harder again, and on it
+##     gravel grips nearly as well as asphalt (90 %+; the real tyres: ~80 %)
 ## Run: godot --headless --fixed-fps 120 --path . -s tests/tuning_check.gd
 
 var RallyCar
@@ -30,8 +31,9 @@ func _initialize() -> void:
 		for tyre in ["gravel", "tarmac"]:
 			_cases.append({"surface": surf, "tyre": tyre, "preset": "gravel", "grip": 0.0})
 	_cases.append({"surface": "asphalt", "tyre": "tarmac", "preset": "tarmac", "grip": 0.0})
-	for g in [1.0, 1.5]:                               # Settings > TYRE GRIP: GRIPPY (out of the box), MORE
+	for g in [1.0, 1.5, 2.0]:                          # Settings > TYRE GRIP: GRIPPY, MORE, ARCADE (out of the box)
 		_cases.append({"surface": "gravel", "tyre": "gravel", "preset": "gravel", "grip": g})
+	_cases.append({"surface": "asphalt", "tyre": "gravel", "preset": "gravel", "grip": 2.0})
 	_next()
 
 
@@ -106,6 +108,11 @@ func _finish() -> bool:
 	var g15: Dictionary = _res["gravel gravel gravel grip 1.5"]
 	fails += _check(g1.lat > gg.lat * 1.2 and g15.lat > g1.lat * 1.05,
 		"extra grip on gravel: GRIPPY %.2f g, MORE %.2f g (the real tyres: %.2f g)" % [g1.lat, g15.lat, gg.lat])
+	var g2: Dictionary = _res["gravel gravel gravel grip 2.0"]
+	var a2g: Dictionary = _res["asphalt gravel gravel grip 2.0"]
+	fails += _check(g2.lat > g15.lat * 1.04 and g2.lat > a2g.lat * 0.9,
+		"ARCADE: %.2f g on gravel, %.2f on asphalt (gravel %.0f %% of it; the real tyres %.0f %%)" % [g2.lat, a2g.lat,
+		100.0 * g2.lat / a2g.lat, 100.0 * gg.lat / ag.lat])
 	# AUTO, and a choice that sticks
 	var tarmac = StageGen.new()
 	tarmac.opts = {"surface": "tarmac"}
@@ -119,6 +126,21 @@ func _finish() -> bool:
 	fails += _check(auto.tyre == "auto" and a1.tyre == "tarmac" and a1.preset == "tarmac" and a2.tyre == "gravel" and a2.preset == "gravel",
 		"AUTO: tarmac tyres and setup on a tarmac stage, gravel on a gravel one")
 	fails += _check(fixed.tyre == "gravel" and fixed.preset == "tarmac", "a choice in the garage sticks whatever the stage")
+	# settings saved before ARCADE: the old out of the box (GRIPPY) moves to ARCADE once, a choice stays
+	var got := []
+	for saved in [[1.0, 0], [0.0, 0], [1.5, 0], [1.0, 2]]:
+		var cf := ConfigFile.new()
+		cf.set_value("aids", "grip", saved[0])
+		if saved[1] > 0:
+			cf.set_value("aids", "grip_version", saved[1])
+		cf.save("user://settings.cfg")
+		var c = load("res://scripts/net/config.gd").new()
+		c._ready()
+		got.append(c.grip_assist)
+		c.free()
+	DirAccess.remove_absolute("user://settings.cfg")
+	fails += _check(got == [2.0, 0.0, 1.5, 1.0],
+		"settings from before ARCADE: GRIPPY (the old out of the box) -> %.1f, REAL -> %.1f, MORE -> %.1f; GRIPPY picked since -> %.1f" % got)
 	print("[tuning] %s" % ("TUNING OK" if fails == 0 else "TUNING FAIL"))
 	quit(1 if fails > 0 else 0)
 	return true

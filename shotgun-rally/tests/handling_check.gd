@@ -10,7 +10,8 @@ extends SceneTree
 ##   * the wheels: a launch spins them up and pulls away; full brake while
 ##     steering locks the fronts (no ABS), half brake turns the car more
 ##   * keyboard steering at 100 km/h off the throttle (a lane change, full lock
-##     held and let go) doesn't spin it with the out-of-the-box aids
+##     held and let go) doesn't spin it with the out-of-the-box aids, on the real
+##     tyres and on the out-of-the-box ARCADE grip
 ## Run: godot --headless --fixed-fps 120 --path . -s tests/handling_check.gd [-- --report]
 ## Prints one [handling] line per check; exits 1 on any FAIL.
 
@@ -51,6 +52,9 @@ func _initialize() -> void:
 	_steps.append({"kind": "lock", "brake": 0.5})
 	_steps.append({"kind": "keys", "case": "lane change"})
 	_steps.append({"kind": "keys", "case": "hold and let go"})
+	# the same on the tyres out of the box (Settings > TYRE GRIP: ARCADE)
+	_steps.append({"kind": "keys", "case": "lane change", "grip": 2.0})
+	_steps.append({"kind": "keys", "case": "hold and let go", "grip": 2.0})
 	_next()
 
 
@@ -60,6 +64,9 @@ func _next() -> void:
 	_acc = {"n": 0, "lat": 0.0, "af": 0.0, "ar": 0.0, "beta": 0.0, "kmh": 0.0}
 	if _step >= _steps.size():
 		return
+	if _steps[_step].has("grip") and car._tuned_grip != _steps[_step].grip:
+		car.grip_assist = _steps[_step].grip
+		car.apply_setup({})
 	car.place(Vector3(0.0, 0.0, 0.0), 0.0)
 	car.inp = {"steer": 0.0, "throttle": 0.0, "brake": 0.0, "handbrake": false}
 
@@ -235,7 +242,8 @@ func _finish() -> bool:
 		fails += _check(half.deg > full.deg * 1.6, "half brake still steers: its path turned %.0f deg vs %.0f locked (the fronts locked %.0f %% of the time)" % [half.deg, full.deg, half.locked * 100.0])
 	for s in _steps:
 		if s.kind == "keys":
-			fails += _check(s.result.beta < 20.0, "keys at 100 km/h, off the throttle, a %s: the most it slides is %.0f deg (no spin)" % [s.case, s.result.beta])
+			fails += _check(s.result.beta < 20.0, "keys at 100 km/h, off the throttle, a %s%s: the most it slides is %.0f deg (no spin)" % [s.case,
+				" on ARCADE grip" if s.has("grip") else "", s.result.beta])
 	print("[handling] %s" % ("HANDLING OK" if fails == 0 else "HANDLING FAIL"))
 	quit(1 if fails > 0 else 0)
 	return true
