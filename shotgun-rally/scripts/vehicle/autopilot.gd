@@ -120,6 +120,6 @@ func drive(car, s: float, d: float) -> Dictionary:
 		# the fronts), and less while it's turning (a locked front doesn't steer)
 		brk = clampf((spd - want) / 5.0, 0.2, 0.85) * (1.0 - 0.45 * absf(steer_cmd))
 		brk *= clampf(1.0 - absf(tail) / 0.15, 0.3, 1.0)   # the tail's stepping out: ease off, like a driver
-	# (pressed so that it gets there through the steering smoothing aid, if that's on)
-	var press: float = car.assist.input_for(steer_cmd, 1.0 / Engine.physics_ticks_per_second)
-	return {"steer": press, "throttle": thr, "brake": brk, "handbrake": false}
+	# (pressed, as a stick, so that it gets there through the steering aids, if they're on)
+	var press: float = car.assist.input_for(car, steer_cmd, 1.0 / Engine.physics_ticks_per_second)
+	return {"steer": press, "throttle": thr, "brake": brk, "handbrake": false, "analog": true}

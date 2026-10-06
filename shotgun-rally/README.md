@@ -247,9 +247,9 @@ aids, F2 record, F3 telemetry, F4 force arrows).
 
 **In the game now.** It replaced the first car (October 2026): the same game around it (cockpit,
 dust, sound, the co-driver's stream, the garage's power / grip / brakes / drive split), 120
-physics ticks a second. Out of the box four aids are on: steering smoothing and speed-sensitive
-steering (a key can't hold part of the lock), countersteer help (without it, holding the speed
-at the limit at 110 km/h spins it) and drift assist (below); switch any of them in SETTINGS. Countersteer help was retuned
+physics ticks a second. Out of the box five aids are on: steering smoothing and speed-sensitive
+steering, countersteer help (without it, holding the speed at the limit at 110 km/h spins it),
+drift assist and high-speed stability (below); switch any of them in SETTINGS. Countersteer help was retuned
 after "I'm going into drift for no reason": at 100 km/h off the throttle, a keyboard lane change
 (right half a second, left half a second) or full lock held a second and let go spun the car
 (~80 deg sideways); now it slides 10-12 deg and straightens (the help points the front wheels
@@ -273,12 +273,48 @@ the body flatter; a car tips once its tyres grip harder than its track and centr
 (~1.6 g here), and ARCADE on tarmac tyres grips ~1.9 g, so full lock at 80-110 km/h, a flick, or
 a corner over bumps rolled it onto its roof (6 of 30 hard-turning cases). Now, on any extra grip,
 a **tip guard** pushes a side that lifts in a corner back down (0 of 90 cases tip; 8 deg of roll
-at most; in the air it leaves the car alone, so jumps land as before). And **DRIFT ASSIST** (a new
-aid, on out of the box) holds a drift at its angle: past 30 deg of body slip a turning force
-grows against the slide (all of it by 45 deg, 20 deg more with the handbrake pulled), so a
-rear-drive handbrake hairpin held on full lock and throttle drifts at 31 deg and leaves at 66 km/h
-where without it it swung round to 71 deg and stalled; a slow handbrake U-turn is untouched
-(tests/drift_check.gd). The autopilot (the tests'
+at most; in the air it leaves the car alone, so jumps land as before).
+
+**Handling for touge and cutting up (October 2026).** "It doesn't feel connected." Measured
+first (tests/feel_check.gd: scripted drives on keys and on a stick, the 4WD and the rear-drive
+car), the causes were: countersteer help took over 50-67 % of the front wheels in a drift
+(steering into it left them countersteering, and it straightened every drift); speed-sensitive
+steering *capped* the angle, so above ~100 km/h any key or a fifth of a stick already asked for all
+the grip and the rest did nothing (twitchy and numb at once); ARCADE's tarmac tyres gripped 1.9 g
+and a sliding rear kept 95 %, so it gripped straight back up (drifts died at 10-20 deg flat out)
+and a car tipped; and the squeal only came on at the limit. Now:
+- **Steering asks for a share of the grip**: half a stick, half of what the front tyres can give
+  at that speed (all of it: 98 %), through the tyre's own curve; keys ramp in (slower at speed:
+  a tap at 200 km/h is a small correction), a stick is left almost raw (0.04 s).
+- **DRIFT ASSIST v2**: in a drift your steering sets the angle: into the corner more (up to ~40
+  deg on the throttle), let go and it eases straight, countersteer and it straightens quicker;
+  it steers the fronts (a little inside the slide, so they carry their share) and turns the body
+  toward that angle, damped, and never lets it spin. With it on it does countersteer help's job.
+- **ARCADE on tarmac**: x1.1 instead of x1.3 (1.44-1.51 g on tarmac tyres), a sliding or
+  spinning rear keeps 85 % (the throttle holds a drift), the grip peaks later on asphalt
+  (progressive); gravel x1.65 (1.44 g).
+- **HIGH-SPEED STABILITY** (its own switch, on out of the box): from ~90 km/h, yaw the steering
+  didn't ask for (a wobble, a clipped tail) is damped; it stays out of a drift you're steering.
+- **The squeal warns**: it follows how much of each tyre's grip is in use: 0.3 at 80 % of the
+  limit, 0.6 at 90 %, full in a slide (it was 0.1 at 90 %, then full on).
+- REAL tyres with every aid off is the pure sim, unchanged (1.36 g, no aid holds anything).
+
+| (out of the box, keys / stick) | before | after |
+|---|---|---|
+| drift angle, steering into it (RWD) | 13 / 13 deg | 28 / 21 deg |
+| half a stick into it | 12 deg (same as full) | 11 deg (half of full) |
+| let go in a drift: straight in | 0.96 s | 0.42 s |
+| a long drift held (of 6.4 s) | 1.4 / 1.4 s | 3.9 / 6.1 s |
+| lane change at 200 km/h: corrections the driver needs | 41-43 | 1 |
+| a quick weave at 250 km/h: slip / settles in | 9.9 deg / 1.26 s | 1.2 deg / 0.12 s |
+| a 0.15 s tap at 200 km/h turns it | 21 deg | 1 deg |
+| clipped on the rear corner at 150: slip / straight in | 31 deg / 1.3 s | 14 deg / 0.36 s |
+| a fifth of the stick vs half at 200 km/h | 95-98 % | 48-58 % |
+| squeal at 80 / 90 % of the limit | 0.08 / 0.10 | 0.31 / 0.56 |
+| tarmac grip | 1.86-1.90 g | 1.44-1.51 g |
+
+Braking from 200 km/h stays straight (98-102 m). Every manoeuvre has a pass/fail limit in
+tests/feel_check.gd (run on both cars in the suite), plus tests/drift_check.gd. The autopilot (the tests'
 driver, the menu's car) steers like a driver: the curve it wants, the slip angle the tyres need
 for it, countersteer when the tail steps out. Found on the way, all fixed: a bottomed-out wheel
 read as "no compression" (big landings slammed the body down), a car put down somewhere new kicked

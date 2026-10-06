@@ -7,7 +7,8 @@ extends SceneTree
 ##   * AUTO picks tarmac on a tarmac stage, gravel on a gravel one; a choice sticks
 ##   * Settings > TYRE GRIP: GRIPPY corners 20 %+ harder on gravel than the real
 ##     tyres, MORE harder still, ARCADE (out of the box) harder again, and on it
-##     gravel grips nearly as well as asphalt (90 %+; the real tyres: ~80 %)
+##     gravel grips nearly as well as asphalt on tarmac tyres (85 %+; the real
+##     tyres: ~75 %), and asphalt stays under 1.75 g
 ## Run: godot --headless --fixed-fps 120 --path . -s tests/tuning_check.gd
 
 var RallyCar
@@ -33,7 +34,7 @@ func _initialize() -> void:
 	_cases.append({"surface": "asphalt", "tyre": "tarmac", "preset": "tarmac", "grip": 0.0})
 	for g in [1.0, 1.5, 2.0]:                          # Settings > TYRE GRIP: GRIPPY, MORE, ARCADE (out of the box)
 		_cases.append({"surface": "gravel", "tyre": "gravel", "preset": "gravel", "grip": g})
-	_cases.append({"surface": "asphalt", "tyre": "gravel", "preset": "gravel", "grip": 2.0})
+	_cases.append({"surface": "asphalt", "tyre": "tarmac", "preset": "tarmac", "grip": 2.0})
 	_next()
 
 
@@ -109,10 +110,10 @@ func _finish() -> bool:
 	fails += _check(g1.lat > gg.lat * 1.2 and g15.lat > g1.lat * 1.05,
 		"extra grip on gravel: GRIPPY %.2f g, MORE %.2f g (the real tyres: %.2f g)" % [g1.lat, g15.lat, gg.lat])
 	var g2: Dictionary = _res["gravel gravel gravel grip 2.0"]
-	var a2g: Dictionary = _res["asphalt gravel gravel grip 2.0"]
-	fails += _check(g2.lat > g15.lat * 1.04 and g2.lat > a2g.lat * 0.9,
-		"ARCADE: %.2f g on gravel, %.2f on asphalt (gravel %.0f %% of it; the real tyres %.0f %%)" % [g2.lat, a2g.lat,
-		100.0 * g2.lat / a2g.lat, 100.0 * gg.lat / ag.lat])
+	var a2g: Dictionary = _res["asphalt tarmac tarmac grip 2.0"]
+	fails += _check(g2.lat > g15.lat * 1.04 and g2.lat > a2g.lat * 0.85 and a2g.lat < 1.75,
+		"ARCADE: %.2f g on gravel, %.2f on asphalt on tarmac tyres (gravel %.0f %% of it; the real tyres %.0f %%; under 1.75 g on asphalt: more rolled it and killed drifts)" % [
+		g2.lat, a2g.lat, 100.0 * g2.lat / a2g.lat, 100.0 * gg.lat / at.lat])
 	# AUTO, and a choice that sticks
 	var tarmac = StageGen.new()
 	tarmac.opts = {"surface": "tarmac"}

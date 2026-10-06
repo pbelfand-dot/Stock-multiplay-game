@@ -84,6 +84,7 @@ var gear := 1                      # the gear (R = -1, N = 0)
 var rpm := 0.0                     # 0..1 from idle to the limiter (the sound and the rev counter)
 var steer := 0.0                   # front wheel angle (rad, + = right)
 var slip := 0.0                    # 0..1, how hard the tyres are sliding (the sound, the dust)
+var grip_use := 0.0                # how near the tyres are to their limit, 0..1: rises from ~a third of the peak slip (the squeal)
 var grounded := 0                  # tyres touching
 var comp := [0.0, 0.0, 0.0, 0.0]   # spring compression per corner (m)
 var wheel_angles := [0.0, 0.0]     # front left / right road-wheel angles (rad, + = right)
@@ -329,7 +330,7 @@ func _tune(tyre: String, kind: String) -> void:
 	config.rear_suspension = sus[1]
 	var TM = RallyWheel.TireModel
 	config.front_tire = TM.grippy(_base_parts.ft_tarmac if tyre == "tarmac" else _base_parts.ft, grip_assist)
-	config.rear_tire = TM.grippy(_base_parts.rt_tarmac if tyre == "tarmac" else _base_parts.rt, grip_assist)
+	config.rear_tire = TM.grippy(_base_parts.rt_tarmac if tyre == "tarmac" else _base_parts.rt, grip_assist, true)
 	if config.steering:
 		config.steering.rack_speed_deg = _base_parts.rack * (1.25 if kind == "tarmac" else 1.0)
 	for k in 4:
@@ -430,7 +431,7 @@ func _physics_process(dt: float) -> void:
 			_net_acc = 0.0
 			net_state.rpc(Time.get_ticks_msec(), global_position, global_transform.basis.get_rotation_quaternion(),
 				linear_velocity, steer, rpm, gear, PackedFloat32Array(comp), slip, on_surface, bool(inp.handbrake),
-				clampf(float(inp.throttle), 0.0, 1.0))
+				clampf(float(inp.throttle), 0.0, 1.0), grip_use)
 	else:
 		_play_stream(dt)
 	_flaps_swing(dt)
@@ -493,10 +494,11 @@ func _simulate(dt: float) -> void:
 		var w = wheels[k]
 		react += w.global_transform.basis.x * (w.inertia * (w.omega - spin_before[k]) / dt)
 	apply_torque(react)
-	apply_torque(global_transform.basis.y * assist.drift_torque(self))   # (drift assist: a slide held at its angle)
+	apply_torque(global_transform.basis.y * (assist.drift_torque(self) + assist.stability_torque(self)))   # (drift assist, high-speed stability)
 	_tip_guard()
 	_aero()
 	slip = _slip()
+	grip_use = _grip_use()
 	if drivetrain:
 		gear = drivetrain.gear
 		var e: Resource = config.engine
@@ -528,6 +530,30 @@ func _slip() -> float:
 		acc += clampf((sqrt(sx * sx + sy * sy) - 0.8) / 1.2, 0.0, 1.0)
 		acc += clampf(absf(w.v_lat) / 7.0, 0.0, 1.0) * 0.5
 	return clampf(acc / 2.0, 0.0, 1.0)
+
+
+## How near the tyres are to their limit, 0..1 (the squeal: it should warn
+## before the limit, not switch on at it): the most-worked tyre's share of its
+## grip in use (its slip both ways against its peak, through its own curve: a
+## grippy tyre has 90 % of its force at a third of its peak slip), past the peak
+## counted on up (sliding); eased from GRIP_USE_FROM to GRIP_USE_FULL.
+const GRIP_USE_FROM := 0.6
+const GRIP_USE_FULL := 1.15
+
+func _grip_use() -> float:
+	var most := 0.0
+	for w in wheels:
+		if not w.grounded:
+			continue
+		var t: Resource = w.surface_tire
+		var sx: float = absf(w.slip_long) / t.longitudinal_peak
+		var sy: float = absf(w.slip_angle_deg()) / t.lateral_peak_deg
+		var x := sqrt(sx * sx + sy * sy)
+		var c: float = t.lateral_shape
+		var used := sin(c * atan(tan(PI / (2.0 * c)) * x)) if x < 1.0 else x   # (1 at the peak, then on up)
+		most = maxf(most, used)
+	var u := clampf((most - GRIP_USE_FROM) / (GRIP_USE_FULL - GRIP_USE_FROM), 0.0, 1.0)
+	return u * u * (3.0 - 2.0 * u)
 
 
 ## The pedals as (throttle, brake). Stopped and holding the brake (off the
@@ -670,14 +696,14 @@ func _wheel_angles() -> void:
 
 @rpc("any_peer", "unreliable_ordered")
 func net_state(t: int, pos: Vector3, rot: Quaternion, vel: Vector3, st: float, r: float, g: int,
-		c: PackedFloat32Array, sl: float, surf: String, hb: bool, thr: float) -> void:
+		c: PackedFloat32Array, sl: float, surf: String, hb: bool, thr: float, gu := 0.0) -> void:
 	if simulate:
 		return
 	states_received += 1
 	var now := Time.get_ticks_msec()
 	_offset = minf(_offset + 0.5, float(now - t))      # creep up slowly, snap down to the fastest packet
 	_buf.append({"t": float(t), "pos": pos, "rot": rot, "vel": vel, "steer": st, "rpm": r, "gear": g,
-		"comp": c, "slip": sl, "surf": surf, "hb": hb, "thr": thr})
+		"comp": c, "slip": sl, "surf": surf, "hb": hb, "thr": thr, "gu": gu})
 	while _buf.size() > 40:
 		_buf.pop_front()
 
@@ -710,6 +736,7 @@ func _play_stream(dt: float) -> void:
 	rpm = a.rpm
 	gear = a.gear
 	slip = a.slip
+	grip_use = a.get("gu", 0.0)
 	on_surface = a.surf
 	_net_handbrake = a.hb
 	net_throttle = a.thr

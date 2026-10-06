@@ -5,9 +5,9 @@ extends SceneTree
 ##     stays on its wheels (the extra grip used to roll it: the tip guard) and
 ##     drives on; nor does full lock held at 110 km/h or a flick left-right-left
 ##     tip it over (both did)
-##   * the rear-drive car, a handbrake hairpin held with full lock and throttle:
-##     it holds a drift (body slip under 50 deg) and keeps its speed, where with
-##     drift assist off it swings round and stalls
+##   * the rear-drive car, a handbrake hairpin held into it with full lock and
+##     throttle: drift assist holds a drift (20-50 deg of body slip) and it keeps
+##     its speed (on the old tyres, without the assist, it swung round and stalled)
 ##   * the rear-drive car through linked S-bends on the handbrake: no spin
 ##   * slowly, a handbrake U-turn swings it round just as it does without the assist
 ## Run: godot --headless --fixed-fps 120 --path . -s tests/drift_check.gd
@@ -110,8 +110,8 @@ func _finish() -> bool:
 	fails += _check(o.lock110.roll < 15.0 and o.flick.roll < 15.0,
 		"turning hard on the extra grip doesn't tip it over: full lock held at 110 km/h, most roll %.0f deg; a flick left-right-left at 90 on the throttle, %.0f deg (both rolled it before the tip guard)" % [
 			o.lock110.roll, o.flick.roll])
-	fails += _check(o.hairpin.beta < 50.0 and o.hairpin.kmh > 30.0 and (o.hairpin_off.beta > 60.0 or o.hairpin_off.kmh < 20.0),
-		"rear drive, a handbrake hairpin held with full lock and throttle: drifts at up to %.0f deg and leaves at %.0f km/h (drift assist off: %.0f deg, %.0f km/h)" % [
+	fails += _check(o.hairpin.beta >= 20.0 and o.hairpin.beta < 50.0 and o.hairpin.kmh > 30.0,
+		"rear drive, a handbrake hairpin held into it on full lock and throttle: drift assist holds a drift of up to %.0f deg (20-50) and it leaves at %.0f km/h (drift assist off: %.0f deg, %.0f km/h)" % [
 			o.hairpin.beta, o.hairpin.kmh, o.hairpin_off.beta, o.hairpin_off.kmh])
 	fails += _check(o.linked.beta < 50.0 and o.linked.kmh > 30.0,
 		"rear drive, linked S-bends on the handbrake: no spin (%.0f deg at most, %.0f km/h)" % [o.linked.beta, o.linked.kmh])

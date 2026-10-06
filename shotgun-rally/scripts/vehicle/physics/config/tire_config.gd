@@ -50,3 +50,5 @@ extends Resource
 ## gravel (TireModel.tarmac_tyre).
 @export_range(0.3, 1.6, 0.01) var sealed_grip := 1.0
 @export_range(0.3, 1.6, 0.01) var loose_grip := 1.0
+## Where its sideways grip peaks on a sealed surface, x the surface's own (ARCADE: later, gentler).
+@export_range(0.5, 3.0, 0.01) var sealed_peak := 1.0

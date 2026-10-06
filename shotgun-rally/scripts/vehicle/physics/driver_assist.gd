@@ -8,15 +8,23 @@ extends RefCounted
 ##   * stability control: compares the car's yaw rate with what the steering
 ##     asks for (as far as the grip allows) and brakes one wheel to turn it back:
 ##     sliding round too far, the outside front; not turning enough, the inside rear
-##   * steering smoothing (the input eased), damping (slower at speed),
-##     speed-sensitive steering (never more angle than the front tyres can use
-##     at this speed; not while the handbrake's pulled: a hairpin flick wants
-##     all the lock) and countersteer help (sliding, the front wheels pointed
-##     where the car is going)
-##   * drift assist (an arcade aid: the one that pushes on the body itself): a
-##     slide that swings the tail round past a drift angle (30-45 deg of body
-##     slip) gets a turning force against it, growing past the angle, so a
-##     drift holds instead of spinning (drift_torque)
+##   * steering smoothing (keys: the steering ramps in, slower the faster it's
+##     going, and back out quicker; a stick: only a touch of filtering, it's
+##     analog already), damping (slower at speed), speed-sensitive steering
+##     (full input = the most angle the front tyres can use at this speed, the
+##     rest in proportion, so all of a stick's travel means something at 200
+##     km/h; not while the handbrake's pulled: a hairpin flick wants all the
+##     lock) and countersteer help (sliding, the front wheels pointed where the
+##     car is going)
+##   * drift assist (an arcade aid: the one that also pushes on the body): in a
+##     drift your steering sets the angle: into the corner more (up to ~40 deg,
+##     with the throttle), let go and it straightens, countersteer and it
+##     straightens quicker; it steers the front wheels for it and turns the body
+##     toward that angle, damped, and never lets it swing round into a spin
+##     (_drift_state, drift_torque). With it on it does countersteer help's job
+##   * high-speed stability (an arcade aid too): from ~90 km/h it damps yaw the
+##     steering didn't ask for: lane changes settle at once, a clip is caught
+##     (stability_torque)
 ## With them all on, a car driven inside its grip does exactly what it does
 ## with them off.
 
@@ -27,6 +35,13 @@ var esc_wheel := -1                # the wheel stability control is braking (-1:
 var esc_torque := 0.0              # ... with this much (N m)
 var countersteer := 0.0            # rad the countersteer help turned the wheels (+ = right)
 var drift_hold := 0.0              # N m the drift assist is turning the body with (+ = to the left)
+var stability_hold := 0.0          # N m high-speed stability is turning the body with (+ = to the left)
+var drifting := false              # drift assist sees a drift
+var _beta := 0.0                   # the body's slip angle last tick (rad)
+var _beta_rate := 0.0              # how fast it's changing (rad/s, smoothed)
+var _drift_want := 0.0             # the angle the driver's asking for (rad, signed like the slip)
+var _drift_err := 0.0              # the slip past it (rad, signed)
+var _drift_boost := 1.0            # countersteering: straighten up quicker
 
 var _smooth := 0.0
 
@@ -43,102 +58,234 @@ func reset() -> void:
 	esc_torque = 0.0
 	countersteer = 0.0
 	drift_hold = 0.0
+	stability_hold = 0.0
+	drifting = false
+	_beta = 0.0
+	_beta_rate = 0.0
+	_drift_want = 0.0
+	_drift_err = 0.0
 	_smooth = 0.0
 
 
 ## Any aid on?
 func any() -> bool:
 	return cfg.anti_lock or cfg.traction_control or cfg.stability_control or cfg.steering_smoothing \
-		or cfg.steering_damping or cfg.countersteer_help or cfg.speed_sensitive_steering or cfg.drift_assist
+		or cfg.steering_damping or cfg.countersteer_help or cfg.speed_sensitive_steering or cfg.drift_assist \
+		or cfg.high_speed_stability
 
 
 ## Where the steering asks the front wheels to point (the rack, rad, + = right)
 ## and how fast they may turn there (a share of the rack's speed).
 func steering(car, dt: float, input: float) -> Vector2:
-	var s := input
-	if cfg.steering_smoothing:
-		_smooth += (input - _smooth) * (1.0 - exp(-dt / cfg.smoothing_time))
-		s = _smooth
-	else:
-		_smooth = input
 	var v := absf(float(car.speed))
+	var s := _ease(input, v, bool(car.inp.get("analog", false)), dt)
 	var lock := deg_to_rad(car.config.steering.max_angle_deg)
-	var target := s * lock
-	if cfg.speed_sensitive_steering and v > 1.0 and float(car.inp.handbrake) < 0.05:
-		# no more than helps: the geometry of the tightest turn the fronts' grip
-		# allows at this speed, plus their peak slip angle (less is left alone)
-		var t: Resource = car.wheels[0].surface_tire
-		var base: float = car.config.rear_axle - car.config.front_axle
-		var useful: float = atan(base * t.lateral_mu * 9.8 / (v * v)) + deg_to_rad(t.lateral_peak_deg) * cfg.speed_sensitive_slip
-		target = clampf(target, -useful, useful)
+	var target := angle_for(car, s)
 	var rate := 1.0
 	if cfg.steering_damping:
 		rate = clampf(cfg.damping_speed / maxf(v, 0.1), 0.35, 1.0)
 	countersteer = 0.0
-	if cfg.countersteer_help and v > 3.0:
+	var align := _front_travel(car, lock)
+	_drift_state(car, dt, s, v)
+	if drifting:
+		# drift assist steers: the fronts a little inside where the front axle's going
+		# (a held drift needs the front tyres working too, or the rear's grip swings
+		# it straight), plus more countersteer while the slide's past the angle you're
+		# asking for (less while it's short of it); countersteering straightens it quicker
+		var bite: float = deg_to_rad(car.wheels[0].surface_tire.lateral_peak_deg) * cfg.drift_front_bite * -signf(_beta)
+		if absf(_drift_want) < 1e-3:
+			bite = 0.0
+		var steer_to: float = clampf(align + bite + cfg.drift_steer_gain * _drift_err * _drift_boost, -lock, lock)
+		countersteer = steer_to - target
+		target = steer_to
+	elif cfg.countersteer_help and v > 3.0 and not cfg.drift_assist:
 		var rear := (absf(car.wheels[2].slip_angle_deg()) + absf(car.wheels[3].slip_angle_deg())) * 0.5
 		var k: float = clampf((rear - cfg.countersteer_from_deg) / maxf(cfg.countersteer_full_deg - cfg.countersteer_from_deg, 0.5),
 			0.0, 1.0) * cfg.countersteer_strength
 		if k > 0.0:
-			# the front axle's direction of travel, relative to the car (+ = to its right)
-			var xf: Transform3D = car.global_transform
-			var p: Vector3 = xf * Vector3(0.0, 0.0, car.config.front_axle)
-			var vf: Vector3 = car.linear_velocity + car.angular_velocity.cross(p - xf * car.center_of_mass)
-			var local := xf.basis.transposed() * vf
-			var align := clampf(atan2(local.x, -local.z), -lock, lock)
 			var blended := lerpf(target, align, k)
 			countersteer = blended - target
 			target = blended
 	return Vector2(target, rate)
 
 
-## Drift assist: the turning force (N m, round the car's up axis, + = to the
-## left) that holds a slide at the drift angle. Past drift_from_deg of body slip
-## it grows to its full strength by drift_max_deg (and on past it), and while
-## the tail is still swinging further round it also brakes the swing (so the
-## slide doesn't overshoot the angle). Only on the ground, going forward
-## (sliding backwards past 100 deg, or reversing, it leaves alone), and it fades
-## out at walking pace.
-func drift_torque(car) -> float:
-	drift_hold = 0.0
-	if not cfg.drift_assist or int(car.grounded) < 2:
-		return 0.0
+## The front axle's direction of travel, relative to the car (rad, + = to its right).
+func _front_travel(car, lock: float) -> float:
+	var xf: Transform3D = car.global_transform
+	var p: Vector3 = xf * Vector3(0.0, 0.0, car.config.front_axle)
+	var vf: Vector3 = car.linear_velocity + car.angular_velocity.cross(p - xf * car.center_of_mass)
+	var local := xf.basis.transposed() * vf
+	return clampf(atan2(local.x, -local.z), -lock, lock)
+
+
+## The body's slip angle: between where it points and where it's going (rad,
+## + = going to the right of where it points: the nose swung left), 0 crawling.
+static func body_slip(car) -> float:
 	var b: Basis = car.global_transform.basis
 	var v: Vector3 = car.linear_velocity
 	var fwd := v.dot(-b.z)
 	var side := v.dot(b.x)
-	var spd := sqrt(fwd * fwd + side * side)
-	if spd < cfg.drift_min_speed * 0.5:
+	if fwd * fwd + side * side < 4.0:
 		return 0.0
-	var beta := atan2(side, fwd)                     # + = going to the right of where it points (the nose swung left)
-	if absf(beta) > deg_to_rad(100.0):
-		return 0.0
-	var from := deg_to_rad(cfg.drift_from_deg)
-	var most := deg_to_rad(cfg.drift_max_deg)
+	return atan2(side, fwd)
+
+
+## Drift assist's reading of the slide, each tick (with the steering): drifting
+## once the body's past drift_enter_deg (out again under drift_exit_deg, or slow),
+## the angle the driver asks for, and how far off it the slide is.
+##   * steering into the corner asks for up to drift_angle_deg (more throttle,
+##     more of it: off the throttle it settles at drift_lift_share of that); the
+##     angle on offer shrinks at speed (drift_fast_deg at drift_fast_speed): at
+##     200 km/h a drift is a twitch, not a slide
+##   * letting go asks for none: it straightens up; countersteering too, quicker
+##   * with the handbrake pulled it doesn't straighten (the flick's the point),
+##     it only stops it swinging past the angle
+func _drift_state(car, dt: float, s: float, v: float) -> void:
+	var beta := body_slip(car)
+	var was := drifting
+	if not cfg.drift_assist or int(car.grounded) < 2 or absf(beta) > deg_to_rad(100.0) or v < cfg.drift_min_speed * 0.5:
+		drifting = false
+	elif drifting:
+		drifting = absf(beta) > deg_to_rad(cfg.drift_exit_deg)
+	else:
+		drifting = absf(beta) > deg_to_rad(cfg.drift_enter_deg)
+	_beta_rate = 0.0 if not was else lerpf(_beta_rate, (beta - _beta) / dt, clampf(dt * 30.0, 0.0, 1.0))
+	_beta = beta
+	if not drifting:
+		_drift_err = 0.0
+		_drift_want = 0.0
+		return
+	var side := signf(beta)
+	var into := clampf(-s * side, -1.0, 1.0)              # + = steering into the corner (the way it's turning)
+	var fast: float = clampf((v - cfg.drift_full_speed) / maxf(cfg.drift_fast_speed - cfg.drift_full_speed, 1.0), 0.0, 1.0)
+	var most: float = deg_to_rad(lerpf(cfg.drift_angle_deg, cfg.drift_fast_deg, fast))
+	var thr := clampf(float(car.inp.throttle), 0.0, 1.0)
+	var want: float = maxf(into, 0.0) * most * lerpf(cfg.drift_lift_share, 1.0, thr)
 	if float(car.inp.handbrake) > 0.05:
-		from += deg_to_rad(cfg.drift_handbrake_deg)
-		most += deg_to_rad(cfg.drift_handbrake_deg)
+		want = maxf(want, minf(absf(beta), most + deg_to_rad(cfg.drift_handbrake_deg)))
+	# the angle it holds moves toward what's asked for at drift_angle_rate (from the
+	# slip it had when the drift began): letting go eases it straight rather than
+	# snapping it, so keys can hold an angle between on and off
+	_drift_boost = 1.0 + maxf(-into, 0.0) * cfg.drift_counter_boost
+	var held := absf(beta) if not was or signf(_drift_want) != side else absf(_drift_want)
+	held = move_toward(held, want, deg_to_rad(cfg.drift_angle_rate) * _drift_boost * dt)
+	_drift_want = side * held
+	_drift_err = beta - _drift_want
+
+
+## Drift assist: the turning force (N m, round the car's up axis, + = to the
+## left) that brings the slide to the angle asked for: in proportion to how far
+## off it is (gently while it's short of it: the throttle and the fronts do
+## that, firmly while it's past it), damped by how fast the angle's changing (no
+## overshoot, no tank-slapper straightening up), and well past the angle a hard
+## stop (no spin). Fades out at walking pace.
+func drift_torque(car) -> float:
+	drift_hold = 0.0
+	if not drifting:
+		return 0.0
 	var full: float = cfg.drift_strength * float(car.mass) * 9.8 * (car.config.rear_axle - car.config.front_axle)
-	var past := (absf(beta) - from) / maxf(most - from, 0.01)
-	var swing: float = car.angular_velocity.dot(b.y) * signf(beta)   # rad/s the tail is swinging further round
-	var t := 0.0
-	if past > 0.0:
-		t += full * minf(past, 1.5)
-	if swing > 0.0 and past > -0.5:
-		t += full * swing / 1.5 * clampf(past + 0.5, 0.0, 1.0)
-	t = minf(t, full * 2.0) * clampf((spd - cfg.drift_min_speed * 0.5) / (cfg.drift_min_speed * 0.5), 0.0, 1.0)
-	drift_hold = -signf(beta) * t
+	var side := signf(_beta)
+	var past := _drift_err * side                         # + = more angle than asked for
+	var t: float = -side * full * (past * (1.0 if past > 0.0 else float(cfg.drift_grow_share))) * _drift_boost
+	t -= full * cfg.drift_damping * _beta_rate
+	var over := absf(_beta) - absf(_drift_want) - deg_to_rad(cfg.drift_stop_deg)
+	if over > 0.0:
+		t -= side * full * over * 4.0
+	var spd: float = car.linear_velocity.length()
+	t = clampf(t, -full * 1.5, full * 1.5) * clampf((spd - cfg.drift_min_speed * 0.5) / (cfg.drift_min_speed * 0.5), 0.0, 1.0)
+	drift_hold = t
 	return drift_hold
 
 
-## The steering input that gets the wheels' target (-1..1) this tick through the
-## smoothing: what a driver who knows the car presses (the autopilot drives with
-## it, so the aid's easing doesn't make it weave). Without smoothing: the target.
-func input_for(target: float, dt: float) -> float:
+## High-speed stability (an arcade aid, its own switch): from hs_from_speed,
+## at full strength by hs_full_speed, a turning force against any yaw beyond what
+## the steering asks for (the turn the front wheels' angle makes at this speed,
+## as far as the grip allows): a wobble after a lane change, a tail kicked out by
+## a clip, a twitch, damped at once. It never adds turn the car isn't making, and
+## stays out of a drift you're steering into or a handbrake turn.
+func stability_torque(car) -> float:
+	stability_hold = 0.0
+	if not cfg.high_speed_stability or int(car.grounded) < 2 or float(car.inp.handbrake) > 0.05:
+		return 0.0
+	var v: float = car.linear_velocity.length()
+	var k: float = clampf((v - cfg.hs_from_speed) / maxf(cfg.hs_full_speed - cfg.hs_from_speed, 1.0), 0.0, 1.0)
+	if k <= 0.0 or (drifting and absf(_drift_want) > deg_to_rad(cfg.drift_enter_deg)):
+		return 0.0
+	var base: float = car.config.rear_axle - car.config.front_axle
+	var mu: float = 0.5 * (car.wheels[0].surface_tire.lateral_mu + car.wheels[2].surface_tire.lateral_mu)
+	var r_max := mu * 9.8 / maxf(v, 1.0)
+	var want := clampf(-v * tan(float(car.steer)) / base, -r_max, r_max)   # rad/s it asks for (+ = left)
+	var r: float = car.angular_velocity.dot(car.global_transform.basis.y)
+	var extra := r - want
+	if signf(r) == signf(want) and absf(r) < absf(want):
+		extra = 0.0                                   # turning less than asked: not its business
+	var full: float = float(car.mass) * 9.8 * base
+	var t: float = -full * (float(cfg.hs_yaw_damping) * extra + float(cfg.hs_slip_damping) * body_slip(car)) * k
+	stability_hold = clampf(t, -full * 0.6, full * 0.6)
+	return stability_hold
+
+
+## The front wheels' angle for this much steering input (rad, + = right): the
+## input x the lock, or with speed-sensitive steering (and the handbrake off) a
+## share of the front tyres' grip: half a stick asks for half of what they can
+## give at this speed, all of it for speed_sensitive_grip of it: the geometry of
+## that turn plus the slip angle the tyre's curve needs for that much force. So
+## all of a stick's travel means something at 200 km/h (a fifth of it, a fifth
+## of the grip), and full input never ploughs on past the tyres' peak.
+func angle_for(car, s: float) -> float:
+	var lock := deg_to_rad(car.config.steering.max_angle_deg)
+	var v := absf(float(car.speed))
+	if not cfg.speed_sensitive_steering or v <= 1.0 or float(car.inp.handbrake) >= 0.05:
+		return s * lock
+	var t: Resource = car.wheels[0].surface_tire
+	var base: float = car.config.rear_axle - car.config.front_axle
+	var f: float = clampf(absf(s), 0.0, 1.0) * cfg.speed_sensitive_grip
+	var geometry: float = atan(base * t.lateral_mu * 9.8 * f / (v * v))
+	var c: float = t.lateral_shape
+	var x: float = tan(asin(f) / c) / (tan(PI / (2.0 * c)) / tan(deg_to_rad(t.lateral_peak_deg)))
+	return signf(s) * minf(geometry + atan(x), lock)
+
+
+## Steering smoothing: the input eased (-1..1). A stick (analog) only filtered
+## a touch; keys ramp in at key_rate_slow per second up to key_rate_from m/s,
+## easing to key_rate_fast by key_rate_to (a tap is a small, quick correction at
+## 200 km/h, all of it at a hairpin), and back out key_return times quicker.
+func _ease(input: float, v: float, analog: bool, dt: float) -> float:
 	if not cfg.steering_smoothing:
-		return target
+		_smooth = input
+	elif analog:
+		_smooth += (input - _smooth) * (1.0 - exp(-dt / cfg.smoothing_time))
+	else:
+		var up: float = lerpf(cfg.key_rate_slow, cfg.key_rate_fast,
+			clampf((v - cfg.key_rate_from) / maxf(cfg.key_rate_to - cfg.key_rate_from, 1.0), 0.0, 1.0))
+		var outward := absf(input) > absf(_smooth) and (signf(input) == signf(_smooth) or absf(_smooth) < 1e-4)
+		_smooth = move_toward(_smooth, input, (up if outward else up * cfg.key_return) * dt)
+	return _smooth
+
+
+## The steering input that gets the wheels to `target` (a share of the lock,
+## -1..1) this tick through the smoothing and speed-sensitive steering: what a
+## driver who knows the car presses (the autopilot drives with it, as a stick,
+## so the aids' easing doesn't make it weave).
+func input_for(car, target: float, dt: float) -> float:
+	var lock := deg_to_rad(car.config.steering.max_angle_deg)
+	var goal := absf(target) * lock
+	var lo := 0.0
+	var hi := 1.0
+	if angle_for(car, 1.0) <= goal:
+		lo = 1.0
+	else:
+		for i in 14:                                   # (angle_for rises with the input: halve the gap)
+			var mid := 0.5 * (lo + hi)
+			if angle_for(car, mid) < goal:
+				lo = mid
+			else:
+				hi = mid
+	var want := signf(target) * lo
+	if not cfg.steering_smoothing:
+		return want
 	var a := 1.0 - exp(-dt / cfg.smoothing_time)
-	return clampf(_smooth + (target - _smooth) / a, -1.0, 1.0)
+	return clampf(_smooth + (want - _smooth) / a, -1.0, 1.0)
 
 
 ## The throttle after traction control.

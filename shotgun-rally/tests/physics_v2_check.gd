@@ -83,7 +83,7 @@ extends SceneTree
 ##   * stability control: a snow flick, the tail swings out less
 ##   * speed-sensitive steering: full lock at 90 km/h, the fronts work near their
 ##     peak instead of ploughing at 20+ degrees, and it corners at least as hard
-##   * smoothing eases a key press in; damping slows the wheel at speed
+##   * smoothing eases a key press in (without lag); damping slows the wheel at speed
 ##   * countersteer help: a slide let go of (hands off), it catches the car
 ##   * the Settings panel has a switch for each aid; switched on there, a new car
 ##     comes with it on (through Config)
@@ -110,7 +110,7 @@ const Surfaces = preload("res://scripts/vehicle/physics/surfaces.gd")
 const Aero = preload("res://scripts/vehicle/physics/aero.gd")
 const AssistConfig = preload("res://scripts/vehicle/physics/config/assist_config.gd")
 const AIDS := ["anti_lock", "traction_control", "stability_control", "steering_smoothing", "steering_damping",
-	"countersteer_help", "speed_sensitive_steering", "drift_assist"]
+	"countersteer_help", "speed_sensitive_steering", "drift_assist", "high_speed_stability"]
 
 var car: RigidBody3D
 var fails := 0
@@ -380,6 +380,7 @@ func _inputs(name: String) -> void:
 	car.inp.brake = {"brake gently": 0.3, "brake locked": 1.0, "slope braked": 1.0, "turn in braking": 0.25, "reverse": 1.0,
 		"split braking": 1.0}.get(name, 0.0)
 	car.inp.throttle = 1.0 if name in ["launch", "ice open diffs", "ice locked diffs"] else 0.0
+	car.inp.analog = name == "all aids corner"            # (a stick there; keys everywhere else)
 	if name.begins_with("brake on"):
 		car.inp.brake = 1.0
 	elif name.begins_with("pull away"):
@@ -398,6 +399,10 @@ func _inputs(name: String) -> void:
 		_manoeuvre(name)
 	elif name == "all aids braking":
 		car.inp.brake = 0.3
+	elif name == "all aids corner":
+		# the same 4 deg of wheel angle as without them (speed-sensitive steering turns
+		# a stick into a share of the grip, so the input that asks for 4 deg differs)
+		car.inp.steer = car.assist.input_for(car, 4.0 / car.config.steering.max_angle_deg, 1.0 / 120.0)
 	elif name == "abs stop":
 		car.inp.brake = 1.0
 	elif name.begins_with("brake and steer"):
@@ -1475,7 +1480,7 @@ func _judge_all_aids_corner() -> void:
 	var b := _balance()
 	var base: Dictionary = _skid[4]
 	fails += _check(absf(b.a / base.a - 1.0) < 0.015 and absf(b.front - base.front) < 0.05 and absf(b.rear - base.rear) < 0.05,
-		"all eight aids on, a steady corner inside the grip: %.2f m/s², slip front %.2f / rear %.2f deg (all off: %.2f, %.2f / %.2f): the same car" % [
+		"all nine aids on, a steady corner inside the grip: %.2f m/s², slip front %.2f / rear %.2f deg (all off: %.2f, %.2f / %.2f): the same car" % [
 			b.a, b.front, b.rear, base.a, base.front, base.rear])
 
 
@@ -1483,7 +1488,7 @@ func _judge_all_aids_braking() -> void:
 	var got := _accel(0.3, 2.0)
 	var base: float = _p8["brake gently"]
 	fails += _check(absf(got / base - 1.0) < 0.01,
-		"all eight aids on, braking at 30 %%: %.3f m/s² (all off: %.3f): the same car" % [got, base])
+		"all nine aids on, braking at 30 %%: %.3f m/s² (all off: %.3f): the same car" % [got, base])
 
 
 func _judge_abs_stop() -> void:
@@ -1560,8 +1565,8 @@ func _judge_steering_step_smoothing() -> void:
 	var t := _time_to_angle(25.0)
 	var end := absf(_log[_log.size() - 1][18])
 	var base: Dictionary = _p8.step
-	fails += _check(t > 1.8 * base.t and absf(end - base.end) < 0.01,
-		"steering smoothing: a key press turns the wheels to 25 deg in %.2f s (without: %.2f), to the same lock (%.1f deg)" % [t, base.t, rad_to_deg(end)])
+	fails += _check(t > 1.15 * base.t and t < 0.3 and absf(end - base.end) < 0.01,
+		"steering smoothing: a key press is eased in, the wheels at 25 deg in %.2f s (without: %.2f; under 0.3 s: no lag), to the same lock (%.1f deg)" % [t, base.t, rad_to_deg(end)])
 
 
 func _judge_steering_at_108() -> void:

@@ -14,11 +14,12 @@ const AIDS := [
 	["anti_lock", "ABS", "A locking wheel gets its brake eased off: brake hard and still steer."],
 	["traction_control", "TRACTION CONTROL", "Spinning wheels get the throttle cut: flat out off the line, no smoke."],
 	["stability_control", "STABILITY CONTROL", "Brakes one wheel to stop a slide getting away, or to tuck the nose in."],
-	["steering_smoothing", "STEERING SMOOTHING", "Eases the wheels in and out: kinder to keys."],
+	["steering_smoothing", "STEERING SMOOTHING", "Keys ramp the steering in (gentler at speed); a stick is left almost raw."],
 	["steering_damping", "STEERING DAMPING", "The wheels turn more slowly at speed: calmer when it's quick."],
-	["countersteer_help", "COUNTERSTEER HELP", "When the tail slides, the front wheels are pointed where you're going."],
-	["speed_sensitive_steering", "SPEED-SENSITIVE STEERING", "Never more lock than the tyres can use at that speed."],
-	["drift_assist", "DRIFT ASSIST", "A drift holds at its angle instead of swinging round into a spin."],
+	["countersteer_help", "COUNTERSTEER HELP", "When the tail slides, the front wheels point where you're going (drift assist does it when on)."],
+	["speed_sensitive_steering", "SPEED-SENSITIVE STEERING", "Steering asks for a share of the tyres' grip: precise at any speed, never past it."],
+	["drift_assist", "DRIFT ASSIST", "In a drift your steering sets the angle; let go and it straightens. No spins."],
+	["high_speed_stability", "HIGH-SPEED STABILITY", "At speed, wobbles and a clipped tail are damped at once."],
 ]
 
 
@@ -28,7 +29,7 @@ func _ready() -> void:
 	var v := VBoxContainer.new()
 	v.add_theme_constant_override("separation", 4)
 	add_child(v)
-	v.add_child(UI.label("SETTINGS", 34, UI.CREAM, true))
+	v.add_child(UI.label("SETTINGS", 28, UI.CREAM, true))
 	var cols := HBoxContainer.new()
 	cols.add_theme_constant_override("separation", 30)
 	v.add_child(cols)
@@ -77,11 +78,11 @@ func _toggle(title: String, what: String, on: bool, apply: Callable) -> Control:
 	var text := VBoxContainer.new()
 	text.add_theme_constant_override("separation", 0)
 	text.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	text.add_child(UI.label(title, 17, UI.CREAM))
+	text.add_child(UI.label(title, 16, UI.CREAM))
 	if what != "":
-		text.add_child(_note(what, 500, 13))
+		text.add_child(_note(what, 500, 12))
 	row.add_child(text)
-	var b := UI.button("ON" if on else "OFF", func(): pass, 17, 78)
+	var b := UI.button("ON" if on else "OFF", func(): pass, 15, 78)
 	b.toggle_mode = true
 	b.button_pressed = on
 	b.size_flags_vertical = Control.SIZE_SHRINK_CENTER

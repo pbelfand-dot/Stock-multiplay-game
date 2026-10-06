@@ -20,12 +20,13 @@ var quick_surface := "any"     # PLAY NOW / online stages: "gravel", "tarmac", "
 ## of the lock, so at speed it asks for all of it (smoothing eases it in, speed-
 ## sensitive steering keeps it to what the tyres can use), and countersteer help
 ## catches the tail (without it, holding the speed at the limit at 110 km/h spins
-## it: tests/handling_check.gd), and drift assist holds a drift at its angle
-## instead of letting it swing round into a spin (tests/drift_check.gd). The rest
-## are off (a rally car has no ABS).
+## it: tests/handling_check.gd), drift assist lets the steering set a drift's
+## angle and never spin (tests/drift_check.gd), and high-speed stability damps
+## wobbles and clips in traffic (tests/feel_check.gd). The rest are off (a rally
+## car has no ABS).
 const AIDS_DEFAULT := {"anti_lock": false, "traction_control": false, "stability_control": false,
 	"steering_smoothing": true, "steering_damping": false, "countersteer_help": true, "speed_sensitive_steering": true,
-	"drift_assist": true}
+	"drift_assist": true, "high_speed_stability": true}
 const AIDS_VERSION := 2         # settings saved before this (the old car) take the new defaults once
 var aids := AIDS_DEFAULT.duplicate()
 ## Extra tyre grip on top of the real tyres (TireModel.grippy): 0 = REAL, 1 = GRIPPY,

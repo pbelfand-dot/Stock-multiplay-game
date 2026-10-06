@@ -331,7 +331,8 @@ func _drive_inputs() -> void:
 		var dt := get_physics_process_delta_time()
 		_brake_eased = move_toward(_brake_eased, brake_in, dt * (4.0 if brake_in > _brake_eased else 10.0))
 	var inp := {"steer": steer, "throttle": Input.get_action_strength("throttle"),
-		"brake": _brake_eased, "handbrake": Input.is_action_pressed("handbrake")}
+		"brake": _brake_eased, "handbrake": Input.is_action_pressed("handbrake"),
+		"analog": absf(Input.get_joy_axis(0, JOY_AXIS_LEFT_X)) > 0.2}   # (a stick: the steering aids treat it as analog)
 	if state == "grid":
 		inp.handbrake = true                         # parked at the line until the countdown
 		inp.brake = maxf(inp.brake, 0.6)
@@ -524,8 +525,9 @@ func _engine_audio() -> void:
 	var gravel: float = {"wood": 0.25, "asphalt": 0.12, "ice": 0.12, "snow": 0.5}.get(car.on_surface, 1.0)
 	_gravel.volume_db = linear_to_db(maxf(loud * on_ground * gravel, 0.001)) - 14.0   # (well under the voice)
 	_gravel.pitch_scale = 0.8 + clampf(spd / 40.0, 0.0, 0.5)
-	# on the asphalt a sliding tyre squeals
-	var sq: float = car.slip * on_ground * clampf(spd / 8.0, 0.0, 1.0) if car.on_surface == "asphalt" else 0.0
+	# on the asphalt the tyres squeal as they near their limit: quietly from ~70 %
+	# of their grip, building to a howl in a slide (the warning before it goes)
+	var sq: float = car.grip_use * on_ground * clampf(spd / 8.0, 0.0, 1.0) if car.on_surface == "asphalt" else 0.0
 	_squeal_amt = move_toward(_squeal_amt, sq, get_process_delta_time() * 6.0)
 	_squeal.volume_db = linear_to_db(maxf(_squeal_amt, 0.001)) - 13.0
 	_squeal.pitch_scale = 0.92 + _squeal_amt * 0.16

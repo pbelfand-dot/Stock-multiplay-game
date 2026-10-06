@@ -35,6 +35,11 @@ echo "== handling: full steering = the most grip at 50 / 80 / 110 km/h, lift-off
 run_g 300 --headless --fixed-fps 120 --path . -s tests/handling_check.gd 2>&1 | grep -E "\[handling\]" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
 echo "== drifting on tarmac, out of the box: no rolling over on the extra grip, drift assist holds a rear-drive drift, a slow handbrake U-turn untouched"
 run_g 180 --headless --fixed-fps 120 --path . -s tests/drift_check.gd 2>&1 | grep -E "\[drift\] (ok|FAIL|DRIFT)" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
+echo "== feel: test drives on keys and a stick (drift angle control, long drifts, hairpins, linked S, lane changes 150-250, flicks, braking, a clip, stick response, the squeal), both cars; the pure sim unchanged"
+for car in kestrel martello; do
+  run_g 900 --headless --fixed-fps 120 --path . -s tests/feel_check.gd -- --cfg=oob --car=$car 2>&1 | grep -E "\[feel\] (ok|FAIL|FEEL)" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
+done
+run_g 300 --headless --fixed-fps 120 --path . -s tests/feel_check.gd -- --cfg=sim --car=kestrel --only=limit 2>&1 | grep -E "\[feel\] (ok|FAIL|FEEL)" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
 echo "== tyres and setup: tarmac tyres grip more on asphalt and far less on gravel, the tarmac setup rolls less, AUTO picks for the stage"
 run_g 180 --headless --fixed-fps 120 --path . -s tests/tuning_check.gd 2>&1 | grep -E "\[tuning\] (ok|FAIL|TUNING)" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
 echo "== jumps: air time by speed, clean four-wheel landings, no second bounce, braking in the air dips the nose"

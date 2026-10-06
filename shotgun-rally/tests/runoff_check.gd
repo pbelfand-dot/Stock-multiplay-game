@@ -196,7 +196,11 @@ func _save_it(at: Dictionary) -> Dictionary:
 	var fwd: Vector3 = -_car.global_transform.basis.z
 	var to: Vector3 = target - _car.global_position
 	var err := Vector2(fwd.x, fwd.z).angle_to(Vector2(to.x, to.z))     # + = the target is to the right
-	return {"steer": clampf(err * 1.2, -0.7, 0.7), "throttle": 0.35, "brake": 0.0, "handbrake": false}
+	# the wheel angle a person would put on (as a share of the lock), on a stick: what
+	# input gets that through the steering aids (on grass speed-sensitive steering
+	# makes a part-way stick ask for a part of grass's little grip: a person steers more)
+	var press: float = _car.assist.input_for(_car, clampf(err * 1.2, -0.7, 0.7), 1.0 / 120.0)
+	return {"steer": press, "throttle": 0.35, "brake": 0.0, "handbrake": false, "analog": true}
 
 
 func _check(ok: bool, msg: String) -> int:

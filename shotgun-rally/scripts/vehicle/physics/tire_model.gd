@@ -57,7 +57,7 @@ static func on_surface(cfg: Resource, surface: Resource) -> Resource:
 	var made: float = cfg.sealed_grip if surface.sealed else cfg.loose_grip    # (a tyre for this kind of surface, or not)
 	t.lateral_mu = cfg.lateral_mu * surface.grip * made
 	t.longitudinal_mu = cfg.longitudinal_mu * surface.grip * made
-	t.lateral_peak_deg = clampf(cfg.lateral_peak_deg * surface.peak_scale, 0.5, 25.0)
+	t.lateral_peak_deg = clampf(cfg.lateral_peak_deg * surface.peak_scale * (cfg.sealed_peak if surface.sealed else 1.0), 0.5, 25.0)
 	t.longitudinal_peak = clampf(cfg.longitudinal_peak * surface.peak_scale, 0.02, 0.5)
 	t.lateral_shape = shape_keeping(kept(cfg.lateral_shape) * surface.slide_grip)
 	t.longitudinal_shape = shape_keeping(kept(cfg.longitudinal_shape) * surface.slide_grip)
@@ -87,11 +87,11 @@ static func tarmac_tyre(gravel: Resource) -> Resource:
 ## 12 %; a sliding or spinning tyre keeps more of it, and it bites a little
 ## sooner. Real gravel (0.9 g in a corner, 85 % kept in a slide) feels like ice
 ## to most players.
-static func grippy(cfg: Resource, a: float) -> Resource:
+static func grippy(cfg: Resource, a: float, rear := false) -> Resource:
 	if a <= 0.0:
 		return cfg
 	if a >= ARCADE:
-		return arcade(cfg)
+		return arcade(cfg, rear)
 	var t: Resource = cfg.duplicate()
 	var k := clampf(a, 0.0, 1.0)
 	t.loose_grip = cfg.loose_grip * (1.0 + 0.3 * a)
@@ -105,20 +105,31 @@ static func grippy(cfg: Resource, a: float) -> Resource:
 ## ARCADE: the tyre driving like a GTA V / FiveM rally car (their handling.meta:
 ## a sliding tyre keeps ~82-90 % of its grip, fTractionCurveMin / Max, and off
 ## tarmac it loses only ~0.4 of what it would, fTractionLossMult 0.375-0.4 on the
-## rally-ish cars): loose surfaces x1.55 and sealed x1.3, so gravel grips nearly
-## as well as asphalt (and the loose lanes cost 0.4 of what they do:
-## RallyCar.set_lanes); a sliding tyre keeps 95 % sideways, a locked or spinning
-## one 93 % (on gravel; x the surface's own, so ~87 % on asphalt, GTA's figure),
-## so a slide builds slowly and holds. It keeps the tyre's own peak
-## slip (it doesn't bite sooner as GRIPPY does: the grip comes on progressively).
-## Snow, mud and ice are still slippery, just less (x1.55 too).
+## rally-ish cars): loose surfaces x1.65, so gravel grips nearly as well as
+## asphalt (and the loose lanes cost 0.4 of what they do: RallyCar.set_lanes).
+## Sealed x1.1 only: at x1.3 tarmac tyres cornered at 1.9 g (more than the car
+## can take without tipping) and a sliding rear gripped straight back up, so a
+## drift died at 10-20 deg even flat out on a rear-drive car. A front tyre
+## sliding keeps 95 % sideways (the countersteer bites), a rear 85 %, and a
+## spinning rear 85 % along (the throttle holds a drift's angle); on sealed
+## surfaces the grip peaks 40 % later (ARC_SEALED_PEAK), so it comes on and
+## goes off progressively instead of on, off. Snow, mud and ice are still
+## slippery, just less (x1.65 too).
 const ARCADE := 2.0
-static func arcade(cfg: Resource) -> Resource:
+const ARC_LOOSE := 1.65
+const ARC_SEALED := 1.1
+const ARC_KEEP_FRONT := 0.95
+const ARC_KEEP_REAR := 0.85
+const ARC_SPIN_FRONT := 0.93
+const ARC_SPIN_REAR := 0.85
+const ARC_SEALED_PEAK := 1.4
+static func arcade(cfg: Resource, rear := false) -> Resource:
 	var t: Resource = cfg.duplicate()
-	t.loose_grip = cfg.loose_grip * 1.55
-	t.sealed_grip = cfg.sealed_grip * 1.3
-	t.lateral_shape = shape_keeping(0.95)
-	t.longitudinal_shape = shape_keeping(0.93)
+	t.loose_grip = cfg.loose_grip * ARC_LOOSE
+	t.sealed_grip = cfg.sealed_grip * ARC_SEALED
+	t.lateral_shape = shape_keeping(ARC_KEEP_REAR if rear else ARC_KEEP_FRONT)
+	t.longitudinal_shape = shape_keeping(ARC_SPIN_REAR if rear else ARC_SPIN_FRONT)
+	t.sealed_peak = cfg.sealed_peak * ARC_SEALED_PEAK
 	return t
 
 
