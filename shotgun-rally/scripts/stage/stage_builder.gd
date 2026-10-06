@@ -88,7 +88,7 @@ func build_async(stage, report: Callable) -> void:
 
 
 const STEPS := [["_environment", "Checking the weather"], ["_mountains", "Raising the mountains"], ["_road", "Laying the road"],
-	["_ground", "Shaping the hills"], ["_base", "Shaping the hills"], ["_villages", "Building the villages"],
+	["_ground", "Shaping the hills"], ["_base", "Shaping the hills"], ["_towns", "Closing the town's streets"], ["_villages", "Building the villages"],
 	["_barriers", "Bolting up the armco"], ["_spectators", "Letting the spectators in"], ["_forest", "Planting ten thousand trees"],
 	["_puddles", "Filling the puddles"], ["_bridges", "Building the bridges"],
 	["_arches", "Putting up the start and finish"]]
@@ -281,15 +281,16 @@ func _spectators() -> void:
 	var skins := [Color(0.96, 0.8, 0.66), Color(0.86, 0.66, 0.5), Color(0.62, 0.44, 0.3), Color(0.42, 0.29, 0.2)]
 	var hats := [Color(0.85, 0.15, 0.12), Color(0.12, 0.12, 0.14), Color(0.15, 0.35, 0.8), Color(0.95, 0.95, 0.95)]
 	var flags := [Color(0.1, 0.35, 0.9), Color(0.92, 0.12, 0.12), Color(1.0, 0.82, 0.1), Color(0.1, 0.7, 0.3), Color(0.98, 0.98, 1.0)]
-	for sp in spots:
+	for sp in spots + _town_spots:
 		var s: float = clampf(sp[0], 4.0, st.length - 4.0)
 		var side: float = sp[1]
 		var n: int = sp[2]
-		var back: float = st.width_at(s) * 0.5 + _rng.randf_range(7.0, 10.0)
+		var in_town: bool = sp.size() > 3                 # (on a pavement or a square, at its height)
+		var back: float = sp[3] if in_town else st.width_at(s) * 0.5 + _rng.randf_range(7.0, 10.0)
 		var centre: Vector3 = st.world_at(s, side * back)
 		if _near_road(centre, back - 1.5):
 			continue                                    # another bit of road comes past here
-		if not st.villages.is_empty() and _in_clearing(centre):
+		if not in_town and (not st.villages.is_empty() or not st.towns.is_empty()) and _in_clearing(centre):
 			continue                                    # (a house, or another crowd, is there)
 		var people: Array = []
 		var rows := 1 + mini(n / 6, 2)
@@ -303,6 +304,8 @@ func _spectators() -> void:
 			var extra: float = st.widths[i0] * 0.5 - 2.8
 			var p: Vector3 = st.world_at(at, side * (back + deep))
 			p.y = _ground_height(st.pts[i0].y, back + deep - extra, p) - 0.05
+			if in_town:
+				p.y = st.pts[i0].y + PAVE_H - 0.02
 			var look: Vector3 = st.world_at(at, 0.0) - p
 			look.y = 0.0
 			var basis := Basis.looking_at(look.normalized(), Vector3.UP) if look.length() > 0.1 else Basis()
@@ -315,7 +318,8 @@ func _spectators() -> void:
 		crowd.people = people
 		add_child(crowd)
 		crowd.build(jackets, skins, hats, flags, _rng)
-		_tape(s, side, back - 1.4, per_row * 0.85 + 2.5)
+		if not in_town:
+			_tape(s, side, back - 1.4, per_row * 0.85 + 2.5)
 		_clearings.append([Vector2(centre.x, centre.z), per_row * 0.45 + rows + 3.5])
 		crowd_count += 1
 		people_count += n
@@ -835,7 +839,8 @@ func _barriers() -> void:
 			var c: Vector3 = st.pts[i]
 			var extra: float = st.widths[i] * 0.5 - 2.8
 			var p9: Vector3 = c + st.right_at(s) * ((9.0 + extra) * side)
-			need[i] = 1 if c.y - _mountain_h(c.y, 9.0, p9) > 1.0 and s > st.START_S - 30.0 and s < st.length - 6.0 else 0
+			need[i] = 1 if c.y - _mountain_h(c.y, 9.0, p9) > 1.0 and s > st.START_S - 30.0 and s < st.length - 6.0 \
+				and st.town_at(s, 8.0).is_empty() else 0         # (a town has its own barriers)
 		# runs of it, grown 6 m each way; a short one isn't worth it
 		var i := 0
 		while i < n:
@@ -1015,6 +1020,158 @@ func _building(s: float, side: float, back: float, along: float, deep: float, ta
 	_wall(body, Vector3(c.x, (bottom + eave) * 0.5, c.z), f * along, r, deep, eave - bottom)
 	_clearings.append([Vector2(c.x, c.z), maxf(along, deep) * 0.75])
 	return c
+
+
+# ── towns ─────────────────────────────────────────────────────────────────
+
+const PAVEMENT := Color(0.62, 0.62, 0.6)
+const KERB := Color(0.8, 0.8, 0.77)
+const COBBLES := [Color(0.56, 0.51, 0.45), Color(0.62, 0.56, 0.48)]
+const FENCE := Color(0.72, 0.74, 0.76)
+const PAVE_W := 1.6                 # the pavement's width (m)
+const PAVE_H := 0.12                # the kerb's height
+var _town_spots: Array = []         # crowds in town: [s, side, how many, m out] (_spectators)
+
+
+## The towns (StageGen.towns): both sides of the road a raised pavement with a
+## kerb, crowd barriers along it (the whole way through: the side streets are
+## closed), buildings shoulder to shoulder behind it, 2-3 storeys, on stone plinths
+## down to the hillside; a side street or two between them (a stub of road) and the
+## square (cobbles, a fountain, a crowd); a name sign on the way in. All solid.
+func _towns() -> void:
+	if st.towns.is_empty():
+		return
+	var mb := MeshBuf.new()
+	var pave := MeshBuf.new()
+	var squares := MeshBuf.new()
+	var body := StaticBody3D.new()
+	body.name = "Town"
+	body.set_meta("surface", "gravel")
+	add_child(body)
+	for t in st.towns:
+		var at: float = t.s0 - 26.0
+		_sign(at, st.width_at(at) * 0.5 + 1.4, t.name, Color(0.96, 0.96, 0.94))
+		var gaps: Array = [[t.square_s - 12.0, t.square_s + 12.0, t.square_side]]
+		for sd in t.streets:
+			gaps.append([sd[0] - 4.5, sd[0] + 4.5, sd[1]])
+		for side in [-1.0, 1.0]:
+			var s: float = t.s0 - 8.0
+			while s < t.s1 + 8.0 - 0.01:
+				var s2: float = minf(s + st.STEP, t.s1 + 8.0)
+				_pavement_bit(s, s2, side, pave)
+				_fence_bit(s, s2, side, mb, body)
+				s = s2
+			# the buildings, shoulder to shoulder, the gaps left open
+			s = t.s0
+			while s < t.s1:
+				var w := _rng.randf_range(6.5, 10.0)
+				var clear := true
+				for g in gaps:
+					if g[2] == side and s + w > g[0] and s < g[1]:
+						clear = false
+				if clear:
+					var mid := s + w * 0.5
+					var tall := _rng.randf_range(6.6, 10.4)
+					_building(mid, side, st.width_at(mid) * 0.5 + PAVE_W + 0.2, w - 0.15, _rng.randf_range(8.0, 10.0), tall,
+						HOUSE_WALLS[_rng.randi() % HOUSE_WALLS.size()], ROOFS[_rng.randi() % ROOFS.size()],
+						SHUTTERS[_rng.randi() % SHUTTERS.size()], 3 if tall > 9.0 else 2, mb, body)
+				s += w
+			# a crowd on the pavement here and there, behind the barrier
+			for k in 2:
+				_town_spots.append([lerpf(t.s0, t.s1, _rng.randf_range(0.1, 0.9)), side, 6 + _rng.randi() % 5, st.width_at(t.s0) * 0.5 + 1.0])
+		_square(t.square_s, t.square_side, squares, mb, body)
+		for sd in t.streets:
+			_side_street(sd[0], sd[1], squares)
+		# no trees in town
+		var cs: float = t.s0 - 24.0
+		while cs < t.s1 + 24.0:
+			for side in [-1.0, 1.0]:
+				var p: Vector3 = st.world_at(cs, side * (st.width_at(cs) * 0.5 + 9.0))
+				_clearings.append([Vector2(p.x, p.z), 12.0])
+			cs += 8.0
+	_add(pave, "asphalt", "Pavements")
+	_add(squares, "asphalt", "TownSquares")
+	var mi := _add(mb, "", "TownBuildings")
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+
+
+## A town point: road coordinates (s, d), h m above the road's centre line.
+func _tp(s: float, d: float, h: float) -> Vector3:
+	return st.world_at(s, d) + Vector3.UP * h
+
+
+## 2 m of pavement on `side`: the kerb's face, the top, the back down to the ground.
+func _pavement_bit(s0: float, s1: float, side: float, mb) -> void:
+	var h0: float = st.width_at(s0) * 0.5
+	var h1: float = st.width_at(s1) * 0.5
+	var shade := 0.95 + 0.05 * sin(s0 * 1.7)
+	var a0 := _tp(s0, side * h0, PAVE_H)
+	var a1 := _tp(s1, side * h1, PAVE_H)
+	var b0 := _tp(s0, side * (h0 + PAVE_W), PAVE_H)
+	var b1 := _tp(s1, side * (h1 + PAVE_W), PAVE_H)
+	mb.quad(a0, b0, b1, a1, _shade(PAVEMENT, shade), true)
+	var out: Vector3 = -st.right_at(s0) * side
+	_face(mb, _tp(s0, side * h0, -0.02), _tp(s1, side * h1, -0.02), a1, a0, out, KERB)
+	_face(mb, b0, b1, _tp(s1, side * (h1 + PAVE_W), -0.8), _tp(s0, side * (h0 + PAVE_W), -0.8), -out, _shade(STONE, 0.9))
+	# the kerb's face is solid too (a wheel hits it)
+	mb.faces.append_array(PackedVector3Array([_tp(s0, side * h0, -0.02), _tp(s1, side * h1, -0.02), a1, _tp(s0, side * h0, -0.02), a1, a0]))
+
+
+## 2 m of crowd barrier on the pavement (steel rails and bars between posts), solid.
+func _fence_bit(s0: float, s1: float, side: float, mb, body: StaticBody3D) -> void:
+	var e0 := _tp(s0, side * (st.width_at(s0) * 0.5 + 0.35), PAVE_H)
+	var e1 := _tp(s1, side * (st.width_at(s1) * 0.5 + 0.35), PAVE_H)
+	var r: Vector3 = st.right_at(s0) * side
+	_box(mb, e0, e0 + Vector3.UP * 1.1, st.forward_at(s0), 0.05, 0.05, POST)
+	for y in [0.15, 1.05]:
+		_box(mb, e0 + Vector3.UP * y, e1 + Vector3.UP * y, r, 0.04, 0.05, FENCE)
+	for k in range(1, 4):                                # the bars between (you see through it)
+		var b: Vector3 = e0.lerp(e1, k / 4.0)
+		_box(mb, b + Vector3.UP * 0.15, b + Vector3.UP * 1.05, st.forward_at(s0), 0.025, 0.025, FENCE)
+	_wall(body, (e0 + e1) * 0.5 + Vector3.UP * 0.55, e1 - e0, r, 0.2, 1.1)
+
+
+## The town square at s on `side`: cobbles behind the pavement, 24 m along the
+## road and 16 m deep, a fountain in the middle, a crowd.
+func _square(s: float, side: float, mb, deco, body: StaticBody3D) -> void:
+	var half: float = st.width_at(s) * 0.5
+	var d0 := half + PAVE_W
+	for i in 12:
+		for j in 8:
+			var sa := s - 12.0 + i * 2.0
+			var da := d0 + j * 2.0
+			var col: Color = COBBLES[(i + j) % 2] * (0.95 + 0.08 * _rng.randf())
+			col.a = 1.0
+			mb.quad(_tp(sa, side * da, PAVE_H), _tp(sa, side * (da + 2.0), PAVE_H), _tp(sa + 2.0, side * (da + 2.0), PAVE_H),
+				_tp(sa + 2.0, side * da, PAVE_H), col, true)
+	# its edge: a plinth down to the hillside
+	for i in 12:
+		var sa := s - 12.0 + i * 2.0
+		_face(mb, _tp(sa, side * (d0 + 16.0), PAVE_H), _tp(sa + 2.0, side * (d0 + 16.0), PAVE_H), _tp(sa + 2.0, side * (d0 + 16.0), -3.0),
+			_tp(sa, side * (d0 + 16.0), -3.0), st.right_at(sa) * side, _shade(STONE, 0.85))
+	# the fountain: an eight-sided basin, a column, water
+	var c := _tp(s, side * (d0 + 8.0), PAVE_H)
+	for k in 8:
+		var a0 := TAU * k / 8.0
+		var a1 := TAU * (k + 1) / 8.0
+		var p0 := c + Vector3(cos(a0), 0.0, sin(a0)) * 2.2
+		var p1 := c + Vector3(cos(a1), 0.0, sin(a1)) * 2.2
+		_face(deco, p0, p1, p1 + Vector3.UP * 0.6, p0 + Vector3.UP * 0.6, (p0 + p1 - c * 2.0).normalized(), _shade(STONE, 1.05))
+		deco.tri(c + Vector3.UP * 0.45, p0 + Vector3.UP * 0.45, p1 + Vector3.UP * 0.45, Color(0.25, 0.4, 0.45))
+	_box(deco, c, c + Vector3.UP * 2.4, Vector3.RIGHT, 0.5, 0.5, _shade(STONE, 1.1))
+	_wall(body, c + Vector3.UP * 0.6, Vector3.FORWARD * 4.2, Vector3.RIGHT, 4.2, 1.2)
+	_town_spots.append([s + 6.0, side, 14, d0 + 4.5])
+	_town_spots.append([s - 6.0, side, 10, d0 + 3.5])
+
+
+## A side street at s on `side`: a 6 m stub of road between the buildings, behind the pavement.
+func _side_street(s: float, side: float, mb) -> void:
+	var half: float = st.width_at(s) * 0.5
+	var d0 := half + PAVE_W
+	var col := ASPHALT * 1.05
+	col.a = 1.0
+	mb.quad(_tp(s - 3.2, side * d0, PAVE_H - 0.01), _tp(s - 3.2, side * (d0 + 16.0), PAVE_H - 0.01),
+		_tp(s + 3.2, side * (d0 + 16.0), PAVE_H - 0.01), _tp(s + 3.2, side * d0, PAVE_H - 0.01), col, true)
 
 
 # ── puddles, arches ───────────────────────────────────────────────────────

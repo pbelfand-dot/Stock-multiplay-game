@@ -1,7 +1,7 @@
 # Street (tarmac) and mixed-surface maps: the plan
 
-**Status (built):** steps 1, 2, 3 and 5 of the order below are in the game; step 4 (town streets)
-isn't yet.
+**Status (built):** all five steps of the order below are in the game (town streets as a first
+version: a town section on most mountain stages, not whole town stages).
 - **Surface sections**: a stage is gravel, tarmac or mixed (`StageGen.sections`, its own random
   numbers, so an ordinary stage is exactly as before). The asphalt road (edge lines, a centre line
   where it's wide, gravel shoulders), each surface its own collision body, gravel dragged onto the
@@ -12,6 +12,10 @@ isn't yet.
   ridges, bent to meet the road), more hairpins (switchbacks), armco or stone walls where it drops
   away, rock cut banks above, sparse trees, villages with houses, shutters and a church tower,
   snow lying about on a winter stage.
+- **Towns** (most mountain stages): 260-360 m of streets, buildings shoulder to shoulder behind
+  raised pavements with kerbs, crowd barriers both sides, a side street or two, the square with a
+  fountain and a crowd. No 90-degree junction grid yet: the road through town is the stage's own
+  (corners up to a right angle, no hairpins).
 - **Tyres and setups**: CARS > SETUP: tyres AUTO / GRAVEL / TARMAC and setup AUTO / GRAVEL /
   TARMAC. Tarmac tyres corner ~10 % harder on asphalt and ~25 % worse on gravel; the tarmac setup
   rolls about a third less (tests/tuning_check.gd).

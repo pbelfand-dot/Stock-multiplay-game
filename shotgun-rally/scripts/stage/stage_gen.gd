@@ -82,6 +82,7 @@ func generate(seed_value: int, target := 2600.0) -> void:
 	_place_extras()
 	_place_bridges()
 	_make_patches()
+	_place_towns()
 	_place_villages()
 
 
@@ -737,7 +738,7 @@ func _place_villages() -> void:
 	while s < finish_s - 320.0:
 		var l := rng.randf_range(110.0, 160.0)
 		var ok := surface_at(s - 30.0) == "asphalt" and surface_at(s + l + 30.0) == "asphalt" and _gentle(s, s + l, 1.0 / 70.0) \
-			and s + l < finish_s - 220.0
+			and s + l < finish_s - 220.0 and town_at(s, l + 120.0).is_empty() and town_at(s + l, 120.0).is_empty()
 		for j in joins:
 			ok = ok and (j.s < s - 80.0 or j.s > s + l + 80.0)
 		if ok:
@@ -745,6 +746,53 @@ func _place_villages() -> void:
 			s += l + rng.randf_range(900.0, 1400.0)
 		else:
 			s += 40.0
+
+
+## TOWNS (on a mountain road, most stages one): a stretch of 260-360 m through the
+## streets: buildings shoulder to shoulder right behind the pavements, crowd
+## barriers along the kerbs, a side street or two and a square; corners up to a
+## right-angle (no hairpins). The builder makes them; villages keep away. Its own
+## random numbers.
+const TOWN_NAMES := ["SAINT-AUBAN", "PORTOVAL", "BOURG-LA-ROCHE", "VILLEFRANQUE", "SAN MARCO ALTO", "CASTELMONT"]
+var towns: Array = []           # [{s0, s1, name, square_s, square_side, streets: [[s, side]]}]
+
+
+func _place_towns() -> void:
+	towns.clear()
+	if not mountain:
+		return
+	var rng := RandomNumberGenerator.new()
+	rng.seed = hash([seed_used, "towns"])
+	if rng.randf() > 0.75:
+		return
+	var l := rng.randf_range(260.0, 360.0)
+	var tries: Array = []
+	var s := START_S + 240.0
+	while s + l < finish_s - 260.0:
+		tries.append(s)
+		s += 20.0
+	if tries.is_empty():
+		return
+	var start := rng.randi() % tries.size()
+	for k in tries.size():
+		var a: float = tries[(start + k) % tries.size()]
+		if surface_at(a - 30.0) == "asphalt" and surface_at(a + l + 30.0) == "asphalt" and _gentle(a - 10.0, a + l + 10.0, 1.0 / 18.0):
+			var t := {"s0": a, "s1": a + l, "name": TOWN_NAMES[absi(hash([seed_used, "town"])) % TOWN_NAMES.size()],
+				"square_s": a + l * rng.randf_range(0.4, 0.6), "square_side": -1.0 if rng.randf() < 0.5 else 1.0, "streets": []}
+			for q in 1 + rng.randi() % 2:                # side streets, away from the square
+				var at := snappedf(a + l * rng.randf_range(0.15, 0.85), STEP)
+				if absf(at - t.square_s) > 40.0:
+					t.streets.append([at, -1.0 if rng.randf() < 0.5 else 1.0])
+			towns.append(t)
+			return
+
+
+## The town at s (within `margin` m of it), or {}.
+func town_at(s: float, margin := 0.0) -> Dictionary:
+	for t in towns:
+		if s >= t.s0 - margin and s <= t.s1 + margin:
+			return t
+	return {}
 
 
 ## Does the road bend no tighter than max_k (1/m) from a to b?

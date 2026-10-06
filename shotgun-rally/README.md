@@ -18,6 +18,7 @@ No friend online? The **AI co-driver** takes the seat.
 | ![Driver](docs/screens/driver.jpg) | ![Co-driver looking at the map](docs/screens/codriver.jpg) |
 | ![Mountain tarmac: switchbacks up a hillside, a village, snow and armco on a winter stage](docs/screens/mountain.jpg) | ![Into a village: houses with shutters, a church tower, a stone wall](docs/screens/village.jpg) |
 | ![Tarmac and mixed: gravel dragged onto the asphalt after a join, ice on one lane, snow along an edge, back onto gravel](docs/screens/tarmac.jpg) | ![The FPV drone chasing the car behind the menu](docs/screens/fpv.jpg) |
+| ![Through a town: pavements, crowd barriers, the square, the street winding through](docs/screens/town.jpg) | ![The town from the driver's seat](docs/screens/town_seat.jpg) |
 | ![Mud on the windshield](docs/screens/mud.jpg) | ![The start: five lights and a clock each side of the road](docs/screens/start.jpg) |
 | ![Your co-driver, seen from the driver's seat](docs/screens/crew.jpg) | ![The chase camera (C): the wheels steer and bounce, the mud flaps swing](docs/screens/chase.jpg) |
 | ![Handbrake: the right hand leaves the wheel and yanks the lever](docs/screens/handbrake.jpg) | ![The loading screen](docs/screens/loading.jpg) |
@@ -147,7 +148,10 @@ front, banking into the turns), trackside cameras it flashes past, a chase camer
      level along it and up or down as it turns across it, so pairs of hairpins make switchbacks
      (twice as many hairpins as a forest stage); a rock bank cut in above, a drop below with **armco
      or a stone wall**; sparse trees and open slopes; **villages** with houses close to the road,
-     shutters, tiled roofs and a church tower; on a winter stage, snow lying about.
+     shutters, tiled roofs and a church tower; on a winter stage, snow lying about. Most have a
+     **town** too: 260-360 m through the streets, buildings shoulder to shoulder right behind raised
+     pavements (a kerb a wheel can hit), crowd barriers along both sides, side streets, and the
+     square with its fountain and a crowd.
    - **Tyres and setup** (CARS > SETUP, free): tyres and setup each AUTO (matches the stage),
      GRAVEL or TARMAC. Tarmac tyres corner ~10 % harder on asphalt but ~25 % worse on gravel (on a
      mixed stage, a gamble); the tarmac setup (stiffer springs, dampers and anti-roll bars, a

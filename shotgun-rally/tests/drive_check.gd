@@ -62,10 +62,13 @@ func _initialize() -> void:
 		# the mountain kit is there: barriers where it drops away, the villages' houses
 		var barrier: Node = b.get_node_or_null("Barriers")
 		var houses: Node = b.get_node_or_null("Village")
+		var town: Node = b.get_node_or_null("Town")
 		var n_barrier: int = barrier.get_child_count() if barrier else 0
 		var n_houses: int = houses.get_child_count() if houses else 0
-		fails += _check(n_barrier >= 40 and (st.villages.is_empty() or n_houses >= 6),
-			"a mountain road: %d m of barrier, %d villages with %d buildings" % [n_barrier * 2, st.villages.size(), n_houses])
+		var n_town: int = town.get_child_count() if town else 0
+		fails += _check(n_barrier >= 40 and (st.villages.is_empty() or n_houses >= 6) and (st.towns.is_empty() or n_town >= 300),
+			"a mountain road: %d m of barrier, %d villages with %d buildings, %d towns (%d solid pieces)" % [n_barrier * 2,
+			st.villages.size(), n_houses, st.towns.size(), n_town])
 	var secs: Array = st.sections.map(func(x): return "%s %.0f-%.0f" % [x.surface, x.s0, x.s1])
 	print("[drive] stage seed %d: %.0f m, %d trees, %s, %d patches" % [seed_value, st.length, b.tree_count, ", ".join(secs), st.patches.size()])
 

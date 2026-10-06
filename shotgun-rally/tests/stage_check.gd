@@ -189,12 +189,14 @@ func _surfaces(words: Dictionary) -> int:
 ## Mountain (tarmac) stages, 10 seeds: a mountain at all (the road climbs and
 ## drops 30 m or more), the mountainside meets the road (never more than 3.5 m
 ## off it, so no canyons or dykes), more hairpins than a forest stage, villages
-## on the asphalt clear of the start, the finish and the joins; and a gravel or
-## mixed stage is no mountain (its ground is flat as before).
+## on the asphalt clear of the start, the finish and the joins, towns (no hairpin
+## in one, no village in one); and a gravel or mixed stage is no mountain (its
+## ground is flat as before, no towns).
 func _mountains() -> int:
 	var fails := 0
 	var hairpins := {"tarmac": 0, "gravel": 0}
 	var villages := 0
+	var towns := 0
 	for seed_value in range(1, 11):
 		var st = StageGen.new()
 		st.opts = {"surface": "tarmac"}
@@ -225,6 +227,17 @@ func _mountains() -> int:
 		for c in plain.corners:
 			if c.shape == "hairpin":
 				hairpins.gravel += 1
+		if not flat.towns.is_empty():
+			fails += _fail("seed %d: a town on a stage that isn't a mountain one" % seed_value)
+		for t in st.towns:
+			towns += 1
+			if not st._gentle(t.s0, t.s1, 1.0 / 18.0):
+				fails += _fail("seed %d: a hairpin in the town at %.0f m" % [seed_value, t.s0])
+			if t.s0 < st.START_S + 200.0 or t.s1 > st.finish_s - 200.0:
+				fails += _fail("seed %d: a town by the start or finish at %.0f m" % [seed_value, t.s0])
+			for v in st.villages:
+				if v.s1 > t.s0 - 100.0 and v.s0 < t.s1 + 100.0:
+					fails += _fail("seed %d: a village in the town at %.0f m" % [seed_value, t.s0])
 		for v in st.villages + flat.villages:
 			villages += 1
 			var host = st if st.villages.has(v) else flat
@@ -235,8 +248,10 @@ func _mountains() -> int:
 			for j in host.joins:
 				if j.s > v.s0 - 60.0 and j.s < v.s1 + 60.0:
 					fails += _fail("seed %d: a village on a join at %.0f m" % [seed_value, v.s0])
-	print("[stage] mountains: %d hairpins in 10 tarmac stages (%d on the same seeds in gravel), %d villages" % [
-		hairpins.tarmac, hairpins.gravel, villages])
+	print("[stage] mountains: %d hairpins in 10 tarmac stages (%d on the same seeds in gravel), %d villages, %d towns" % [
+		hairpins.tarmac, hairpins.gravel, villages, towns])
+	if towns < 4:
+		fails += _fail("only %d towns" % towns)
 	if hairpins.tarmac < hairpins.gravel * 1.3 or hairpins.tarmac < 35:
 		fails += _fail("not enough hairpins on the mountain stages")
 	if villages < 8:
