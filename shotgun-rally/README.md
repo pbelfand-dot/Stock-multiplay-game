@@ -172,12 +172,12 @@ light, filmed like rally TV (trackside cameras it flashes past, a chase camera, 
   progress bar that follows the build ("Planting ten thousand trees..."). It stays up through the
   first frames of the stage, which stutter while the graphics warm up, then fades out.
 
-### Physics v2 (being built)
+### Physics v2 (built: switching the game over next)
 
 A new car physics is being built next to this one, closer to Dirt Rally / RBR
 ([docs/physics_rebuild.md](docs/physics_rebuild.md)): a RigidBody3D chassis on four ShapeCast tyres
 with real suspension, then tyres, drivetrain, surfaces, aero and driver aids (each its own switch),
-in nine tested phases, at 120 Hz. **Phases 1-8 are done:** the chassis on its springs, dampers
+in nine tested phases, at 120 Hz. **All nine are done:** the chassis on its springs, dampers
 and bump stops; the tyres' grip sideways (slip angle) and along (slip ratio), sharing one patch of
 rubber (brake in a corner and it runs wide; trail-brake into one and it rotates), a loaded tyre
 gripping less per newton; each wheel spinning on its own, brakes that lock a wheel only when they
@@ -192,10 +192,12 @@ two-stage dampers (firm for the body, soft for sharp hits); aero (drag, ~60 kg o
 km/h); seven driver aids, each its own switch in **SETTINGS** (ABS, traction control, stability
 control, steering smoothing, damping, countersteer help, speed-sensitive steering: all off is the
 car as it is, and with them on it's the same car until you reach the limit); telemetry you can
-record to a CSV (F2). Try it in
+record to a CSV (F2); and the rally tuning, tested as manoeuvres: lift-off oversteer, power
+oversteer, a four-wheel drift held, a countersteer catch, the Scandinavian flick, a pendulum slide
+to slide. Try it in
 the physics lab (`godot --path . scenes/physics_lab.tscn`: arrows steer / throttle / brake, space handbrake,
 E / Q gears, C tow, R reset, J drop, B / N bumps, P / O slope, 1-8 surface pads, 9 split pad, F5-F11
-aids, F2 record, F3 telemetry, F4 force arrows). The game still uses the car below until v2 drives better.
+aids, F2 record, F3 telemetry, F4 force arrows). The game still uses the car below until v2 takes over (next).
 
 ### How the car drives
 

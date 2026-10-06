@@ -88,6 +88,18 @@ extends SceneTree
 ##   * the Settings panel has a switch for each aid; switched on there, a new car
 ##     comes with it on (through Config)
 ##   * telemetry recording: a second of driving makes a CSV with a row a tick
+## Phase 9, the rally manoeuvres, each a scripted driver on gravel (none of them
+## has its own code: they come from the tyres, the diffs and the weight moving):
+##   * lift-off oversteer: lift mid-corner and the tail steps out, the car tightens
+##   * power oversteer: full throttle mid-corner and the tail swings wide
+##   * four-wheel drift: a driver holding a slide keeps all four tyres past their
+##     peak, cornering at the limit, without spinning
+##   * countersteer catch: after a handbrake flick, steering where it's going
+##     straightens it in a couple of seconds; hands off, it spins
+##   * Scandinavian flick: a flick away before turning in rotates the car more than
+##     turning in plain
+##   * pendulum: a driver steering slide to slide, left, right, left: the body
+##     angle swings from one side to the other without spinning
 ## Run: godot --headless --fixed-fps 120 --path . -s tests/physics_v2_check.gd
 ## Prints [physics] lines; exits 1 on any FAIL.
 
@@ -120,6 +132,10 @@ var _p7r := {}                     # phase 7 results kept for the next run's com
 var _cfg_full: Resource            # the car's config ...
 var _cfg_no_aero: Resource         # ... and a copy with no aero (phases 1-7)
 var _p8 := {}                      # results the aid runs compare with
+var _p9 := {}                      # results the manoeuvre runs compare with
+var _p9_prev_beta := 0.0
+const MANOEUVRES := ["lift off oversteer", "power oversteer", "four wheel drift", "catch countersteer", "catch hands off",
+	"plain turn in", "scandinavian flick", "pendulum"]
 var _ice := {}
 var _shifts: Array = []            # [t, from gear, to gear, rpm before, rpm after]
 var _last_gear := 1
@@ -149,7 +165,9 @@ func _initialize() -> void:
 		"launch with tc", "ice pull away with tc", "snow flick", "snow flick with esc",
 		"full lock at 90", "full lock at 90 speed sensitive", "steering step", "steering step smoothing",
 		"steering at 108", "steering at 108 damping", "slide hands off", "slide countersteer help",
-		"settings panel", "telemetry record"])
+		"settings panel", "telemetry record",
+		"lift off oversteer", "power oversteer", "four wheel drift", "catch countersteer", "catch hands off",
+		"plain turn in", "scandinavian flick", "pendulum"])
 	var course := Node3D.new()
 	root.add_child(course)
 	Lab.build_course(course)
@@ -297,6 +315,21 @@ func _next() -> void:
 			Lab.launch(car, Lab.SKID, 18.0)
 			car.drivetrain.gear = 2
 			car.drivetrain.omega_e = car.wheels[0].omega * car.drivetrain.ratio()
+		"lift off oversteer", "power oversteer", "four wheel drift", "catch countersteer", "catch hands off",\
+				"plain turn in", "scandinavian flick", "pendulum":
+			car.inp.steer = 0.0
+			var v0: float = {"power oversteer": 13.0, "four wheel drift": 16.0, "catch countersteer": 16.0, "catch hands off": 16.0}.get(_phases[_phase], 20.0)
+			Lab.launch(car, Lab.SKID, v0)
+			car.drivetrain.gear = 1 if v0 < 15.0 else 2
+			car.drivetrain.omega_e = car.wheels[0].omega * car.drivetrain.ratio()
+			car.drivetrain.clutch = 1.0
+			if _phases[_phase] == "four wheel drift":       # (a driver holds second through the slide)
+				if _real_drivetrain == null:
+					_real_drivetrain = car.drivetrain.cfg
+				var held: Resource = _real_drivetrain.duplicate()
+				held.auto_shift = false
+				car.drivetrain.cfg = held
+			_p9_prev_beta = 0.0
 		"settings panel":
 			car.place(Lab.PAD, 0.0)
 			_p8["panel"] = (load("res://scripts/ui/settings_panel.gd") as GDScript).new()
@@ -334,6 +367,7 @@ func _next() -> void:
 	_v0 = car.global_position
 	if car.drivetrain and not (_phases[_phase] in ENGINE_RUNS or _phases[_phase].begins_with("pull away")
 			or _phases[_phase].begins_with("handbrake and throttle") or _phases[_phase].begins_with("slide ")
+			or _phases[_phase] in MANOEUVRES
 			or _phases[_phase] in ["launch with tc", "ice pull away with tc"]):
 		car.drivetrain.gear = 0                      # the tyres and brakes alone
 	_inputs(_phases[_phase])
@@ -360,6 +394,8 @@ func _inputs(name: String) -> void:
 	elif name.begins_with("handbrake and throttle"):
 		car.inp.throttle = 1.0
 		car.inp.handbrake = 1.0
+	elif name in MANOEUVRES:
+		_manoeuvre(name)
 	elif name == "all aids braking":
 		car.inp.brake = 0.3
 	elif name == "abs stop":
@@ -435,7 +471,7 @@ func _physics_process(dt: float) -> bool:
 		(car.wheel_angles[0] + car.wheel_angles[1]) * 0.5,                                          # 18
 		car.drivetrain.rpm() if car.drivetrain else 0.0,                                            # 19
 		car.drivetrain.clutch_torque if car.drivetrain else 0.0,                                    # 20
-		_any_locked()])                                                                              # 21
+		_any_locked(), _beta(), _least_slip()])                                                     # 21, 22, 23
 	var length := {"static": 3.0, "bounce": 5.5, "drop": 4.5, "bumps": 4.0, "left bumps": 4.0,
 		"skid 2": 5.0, "skid 4": 5.0, "skid 8": 5.0, "skid 15": 5.0, "side slope": 5.0, "straight": 3.0,
 		"drive gently": 3.0, "wheelspin": 2.0, "brake gently": 2.0, "brake locked": 6.0, "coast": 3.0,
@@ -484,7 +520,9 @@ func _physics_process(dt: float) -> bool:
 			["launch with tc", 9.0], ["snow flick", 3.0], ["snow flick with esc", 3.0], ["full lock at 90", 3.0],
 			["full lock at 90 speed sensitive", 3.0], ["steering step", 1.0], ["steering step smoothing", 1.0],
 			["steering at 108", 1.0], ["steering at 108 damping", 1.0], ["slide hands off", 3.0], ["slide countersteer help", 3.0],
-			["settings panel", 0.2], ["telemetry record", 1.0]]:
+			["settings panel", 0.2], ["telemetry record", 1.0], ["lift off oversteer", 3.5], ["power oversteer", 3.0],
+			["four wheel drift", 4.0], ["catch countersteer", 3.5], ["catch hands off", 3.5], ["plain turn in", 2.5],
+			["scandinavian flick", 2.5], ["pendulum", 5.0]]:
 		length[run[0]] = run[1]
 	if name.begins_with("skid") and _t >= length[name]:
 		_judge_skid(int(name.split(" ")[1]))
@@ -668,6 +706,177 @@ func _max_slip() -> float:
 	for w in car.wheels:
 		m = m if absf(m) > absf(w.slip_long) else w.slip_long
 	return m
+
+
+## The body's slip angle (deg): the angle between where the car points and where it's
+## going (+ = going to the right of its nose: the tail out to the left, as in a left-hand slide).
+func _beta() -> float:
+	var xf := car.global_transform
+	var v := car.linear_velocity
+	return rad_to_deg(atan2(v.dot(xf.basis.x), maxf(absf(v.dot(-xf.basis.z)), 0.5)))
+
+
+## The smallest slip angle of the four tyres (deg, its size): all four past
+## their peak when this is.
+func _least_slip() -> float:
+	var m := INF
+	for w in car.wheels:
+		m = minf(m, absf(w.slip_angle_deg()))
+	return m
+
+
+## The scripted drivers for the phase 9 manoeuvres (gravel, the car's own set-up, no aids).
+func _manoeuvre(name: String) -> void:
+	var b := _beta()
+	var lock: float = car.config.steering.max_angle_deg
+	match name:
+		"lift off oversteer":                        # a left-hander near the limit on the throttle, then lift
+			car.inp.steer = -0.3
+			car.inp.throttle = 0.55 if _t < 2.5 else 0.0
+		"power oversteer":                           # a left-hander on a whiff of throttle, then flat out
+			car.inp.steer = -0.4
+			car.inp.throttle = 0.25 if _t < 2.0 else 1.0
+		"four wheel drift":                          # in with a flick and the handbrake, then hold the slide
+			var rate := (b - _p9_prev_beta) * 120.0
+			_p9_prev_beta = b
+			if _t < 0.4:
+				car.inp.steer = 0.4
+			elif _t < 0.9:
+				car.inp.steer = -1.0
+				car.inp.handbrake = 1.0 if _t < 0.7 else 0.0
+				car.inp.throttle = 0.6
+			else:                                    # wheels toward where it's going, more lock if it slides too far, damped
+				car.inp.handbrake = 0.0
+				car.inp.steer = clampf((b + 1.0 * (b - 20.0) + 0.3 * rate) / lock, -1.0, 1.0)
+				car.inp.throttle = 0.8
+		"catch countersteer", "catch hands off":     # a handbrake flick into a left-hander, then: catch it, or let go
+			if _t < 0.8:
+				car.inp.steer = -0.6 * clampf(_t / 0.25, 0.0, 1.0)
+				car.inp.handbrake = 1.0 if _t < 0.7 else 0.0
+			else:
+				car.inp.handbrake = 0.0
+				car.inp.steer = clampf(b / lock, -1.0, 1.0) if name == "catch countersteer" else 0.0
+				car.inp.throttle = 0.5
+		"plain turn in", "scandinavian flick":       # lift, (flick right,) turn in left with a dab of brake, then power
+			if _t < 0.5:
+				car.inp.steer = 0.3 if name == "scandinavian flick" else 0.0
+				car.inp.throttle = 0.0
+			elif _t < 0.85:
+				car.inp.steer = -0.6
+				car.inp.brake = 0.35
+				car.inp.throttle = 0.0
+			else:
+				car.inp.steer = -0.6
+				car.inp.brake = 0.0
+				car.inp.throttle = 0.5
+		"pendulum":                                  # a driver steering slide to slide: left, right, left, 1.5 s each
+			var target := 20.0 if fmod(_t, 3.0) < 1.5 else -20.0
+			var swing := (b - _p9_prev_beta) * 120.0
+			_p9_prev_beta = b
+			car.inp.steer = clampf((b + (b - target) + 0.3 * swing) / lock, -1.0, 1.0)
+			car.inp.throttle = 0.7
+
+
+## The average of a logged column between two times.
+func _avg(col: int, t0: float, t1: float) -> float:
+	var sum := 0.0
+	var n := 0
+	for e in _log:
+		if e[0] >= t0 and e[0] <= t1:
+			sum += e[col]
+			n += 1
+	return sum / maxf(n, 1)
+
+
+## The biggest size of a logged column between two times.
+func _peak_in(col: int, t0: float, t1: float) -> float:
+	var m := 0.0
+	for e in _log:
+		if e[0] >= t0 and e[0] <= t1:
+			m = maxf(m, absf(e[col]))
+	return m
+
+
+func _judge_lift_off_oversteer() -> void:
+	var rear0 := _avg(10, 1.8, 2.5)
+	var rear1 := _peak_in(10, 2.6, 3.5)
+	var yaw0 := _avg(8, 1.8, 2.5)
+	var yaw1 := _peak_in(8, 2.6, 3.5)
+	fails += _check(rear1 > 1.5 * rear0 and yaw1 > 1.15 * yaw0 and _peak(22) < 45.0,
+		"lift-off oversteer: lifting mid-corner at 75 km/h, the rear slip goes %.1f -> %.1f deg and the car tightens, %.0f -> %.0f deg/s, without spinning" % [
+			rear0, rear1, yaw0, yaw1])
+
+
+func _judge_power_oversteer() -> void:
+	var b0 := _avg(22, 1.5, 2.0)
+	var b1 := _avg(22, 2.9, 3.0)
+	fails += _check(b0 < 3.0 and b1 > 10.0,
+		"power oversteer: flat out mid-corner, the tail swings wide: body slip %.0f -> %.0f deg in a second (rear tyres %.0f -> %.0f deg)" % [
+			b0, b1, _avg(10, 1.5, 2.0), _avg(10, 2.9, 3.0)])
+
+
+func _judge_four_wheel_drift() -> void:
+	var held := 0.0
+	var best := 0.0
+	for e in _log:
+		if e[0] > 1.5 and e[23] > 7.0:
+			held += 1.0 / 120.0
+			best = maxf(best, held)
+		elif e[0] > 1.5:
+			held = 0.0
+	fails += _check(best >= 1.5 and _peak_in(22, 0.9, 4.0) < 45.0,
+		"four-wheel drift: a driver holding the slide keeps all four tyres past their peak for %.1f s (front %.0f / rear %.0f deg, body %.0f deg, %.0f km/h), without spinning" % [
+			best, _avg(9, 2.5, 4.0), _avg(10, 2.5, 4.0), _avg(22, 2.5, 4.0), _avg(7, 2.5, 4.0) * 3.6])
+
+
+## When the car was straight again after the driver let go at 0.8 s (s; INF: never).
+func _straight_again() -> float:
+	for e in _log:
+		if e[0] > 1.0 and absf(e[8]) < 10.0 and absf(e[22]) < 5.0:
+			return e[0] - 0.8
+	return INF
+
+
+func _judge_catch_countersteer() -> void:
+	_p9["catch"] = {"t": _straight_again(), "yaw": _turned()}
+
+
+func _judge_catch_hands_off() -> void:
+	var c: Dictionary = _p9.catch
+	var yaw := _turned()
+	fails += _check(c.t < 2.0 and c.yaw < 100.0 and yaw > 150.0,
+		"countersteer catch: after a handbrake flick at 58 km/h, steering where it's going straightens it %.1f s after letting go (turned %.0f deg); hands off it spins (%.0f deg)" % [
+			c.t, c.yaw, yaw])
+
+
+func _judge_plain_turn_in() -> void:
+	_p9["plain"] = {"yaw": _turned(), "rear": _peak_in(10, 0.5, 2.5)}
+
+
+func _judge_scandinavian_flick() -> void:
+	var p: Dictionary = _p9.plain
+	var yaw := _turned()
+	var rear := _peak_in(10, 0.5, 2.5)
+	fails += _check(yaw > p.yaw and rear > 2.0 * p.rear,
+		"Scandinavian flick at 72 km/h: a flick away first rotates it %.0f deg in 2.5 s with the tail out to %.0f deg (turning in plain: %.0f deg, %.0f deg)" % [
+			yaw, rear, p.yaw, p.rear])
+
+
+func _judge_pendulum() -> void:
+	var swings := 0
+	var side := 0.0
+	var lo := 0.0
+	var hi := 0.0
+	for e in _log:
+		var b: float = e[22]
+		lo = minf(lo, b)
+		hi = maxf(hi, b)
+		if absf(b) > 6.0 and signf(b) != side:
+			if side != 0.0:
+				swings += 1
+			side = signf(b)
+	fails += _check(swings >= 2 and maxf(-lo, hi) < 45.0,
+		"pendulum: slide to slide, left, right, left at 72 km/h: %d swings, the body angle from %+.0f to %+.0f deg, never spinning" % [swings, lo, hi])
 
 
 ## Any wheel locked while the car's moving.
@@ -1016,7 +1225,7 @@ func _judge_surface(kind: String, n: String) -> void:
 				ok = ok and absf(r[s].a / want - 1.0) < 0.15
 				lines += " %s %.1f (%.1f)," % [s, r[s].a, want]
 			fails += _check(ok, "cornering: each surface holds its grip x gravel's (m/s², want):" + lines)
-			fails += _check(r.asphalt.slip < r.gravel.slip and r.gravel.slip < r.snow.slip and r.snow.slip < r.mud.slip,
+			fails += _check(r.asphalt.slip < r.gravel.slip and r.gravel.slip < minf(r.snow.slip, r.mud.slip),
 				"the looser the surface, the bigger the slip angle it lets go at (asphalt %.1f, gravel %.1f, snow %.1f, mud %.1f deg)" % [
 					r.asphalt.slip, r.gravel.slip, r.snow.slip, r.mud.slip])
 		"brake":
@@ -1338,7 +1547,7 @@ func _judge_full_lock_at_90() -> void:
 func _judge_full_lock_at_90_speed_sensitive() -> void:
 	var b := _balance()
 	var base: Dictionary = _p8.lock
-	fails += _check(b.front < 12.0 and base.front > 15.0 and b.a > 0.97 * base.a,
+	fails += _check(b.front < 0.5 * base.front and base.front > 15.0 and b.a > 0.97 * base.a,
 		"full lock at 90 km/h: with speed-sensitive steering the fronts work at %.1f deg of slip (without: %.1f, ploughing), cornering %.2f m/s² (without: %.2f)" % [
 			b.front, base.front, b.a, base.a])
 

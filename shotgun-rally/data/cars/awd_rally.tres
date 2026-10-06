@@ -17,7 +17,7 @@ rebound_damping = 3400.0
 damper_knee = 0.25
 high_speed_bump = 1100.0
 high_speed_rebound = 2500.0
-anti_roll_rate = 14000.0
+anti_roll_rate = 7000.0
 bump_stop_start = 0.22
 bump_stop_rate = 4000000.0
 bump_stop_damping = 9000.0
@@ -32,7 +32,7 @@ rebound_damping = 2900.0
 damper_knee = 0.25
 high_speed_bump = 950.0
 high_speed_rebound = 2100.0
-anti_roll_rate = 9000.0
+anti_roll_rate = 16000.0
 bump_stop_start = 0.22
 bump_stop_rate = 4000000.0
 bump_stop_damping = 9000.0
@@ -101,16 +101,16 @@ preload_torque = 60.0
 [sub_resource type="Resource" id="Resource_front_diff"]
 script = ExtResource("7_diff")
 kind = 2
-power_lock = 0.4
-coast_lock = 0.2
-preload_torque = 50.0
+power_lock = 0.25
+coast_lock = 0.1
+preload_torque = 25.0
 
 [sub_resource type="Resource" id="Resource_rear_diff"]
 script = ExtResource("7_diff")
 kind = 2
-power_lock = 0.6
-coast_lock = 0.35
-preload_torque = 70.0
+power_lock = 0.45
+coast_lock = 0.12
+preload_torque = 30.0
 
 [sub_resource type="Resource" id="Resource_drivetrain"]
 script = ExtResource("6_drive")

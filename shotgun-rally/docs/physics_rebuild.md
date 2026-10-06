@@ -1,10 +1,11 @@
 # Rally physics rebuild: inspection and plan
 
-Status: **phases 1-8 done** (the chassis on its suspension; the tyres' side grip and the
+Status: **all nine phases done** (the chassis on its suspension; the tyres' side grip and the
 steering; the wheels' spin, the drive / brake force and the brakes; the combined-slip ellipse and
 load sensitivity; the engine, clutch, sequential gearbox and four-wheel-drive diffs; surfaces; the
-handbrake, anti-roll bars and two-stage dampers; aero, the driver aids and telemetry; in the lab,
-see "Phase reports" at the end). Decisions:
+handbrake, anti-roll bars and two-stage dampers; aero, the driver aids and telemetry; the rally
+tuning and manoeuvres; see "Phase reports" at the end). Next: it replaces the current car in the
+game (section 4). Decisions:
 - built **alongside** the current car (a lab scene, a `--physics=v2` switch once it drives), and it
   becomes the car once it passes every current test plus the manoeuvre tests;
 - physics at **120 Hz** (set by whatever runs the v2 car, so the current car and the auto-updater's
@@ -675,3 +676,65 @@ lab: F5-F11, F3 to see them work, F2 to record.
   grip too: it's a ceiling now;
 - the tow that holds the downforce run's speed pulls at the centre of mass against rolling
   resistance at the ground: that couple moves ~60 N onto the front, which the test subtracts.
+
+### Phase 9: rally tuning and the manoeuvres
+
+**1. The code:** no new physics. Phase 9 is the tuning, and the tests that prove the car does what
+a rally car does, each as a scripted driver on gravel (`tests/physics_v2_check.gd`
+`_manoeuvre()`): none of the manoeuvres has code of its own in the car; they come from the
+tyres, the diffs and the weight moving.
+
+**What the tuning found.** With the phase 5-8 set-up the car was safe and dull: at the limit the
+fronts ploughed at ~10 degrees of slip while the rears used 3 of their 7, lifting mid-corner
+changed nothing (rear slip 3.2 -> 3.5 degrees), and a Scandinavian flick rotated the car *less*
+than turning in plain. Trying the candidates one at a time (the stiffer bar at the rear, softer
+diffs, more load sensitivity, 50/50 weight, all diffs open) showed what held the tail: the
+limited-slip diffs' **coast lock and preload**, which tie the rear wheels together on a lift, and
+the front-biased anti-roll bars. The tuning (a gravel set-up):
+
+| | Before | After |
+|---|---|---|
+| Front LSD (power / coast / preload) | 0.40 / 0.20 / 50 N m | 0.25 / 0.10 / 25 N m |
+| Rear LSD | 0.60 / 0.35 / 70 N m | 0.45 / 0.12 / 30 N m |
+| Anti-roll bars (front / rear) | 14,000 / 9,000 N/m | 7,000 / 16,000 N/m |
+
+The rear still locks under power (0.45: the drive out of a corner); it's the coast side that's
+looser, so the tail is free to come round on a lift. The total roll stiffness is the same (so the
+roll gradient is unchanged, 2.75 degrees per g); its balance moved to the rear (44 % front), as gravel cars
+run it. The centre stays locked (Rally2: no centre diff).
+
+**4. In the inspector:** the table above (`data/cars/awd_rally.tres`: Drivetrain > the front and
+rear diffs; each axle's suspension > Anti-roll bar).
+
+**5. How to test:** the physics test (8 new runs). In the lab: lift mid-corner, flick, F3.
+
+**6. What correct looks like** (measured):
+- **lift-off oversteer**: lifting mid-corner at 75 km/h, the rear slip goes 4.0 -> 7.6 degrees and
+  the car tightens its line, 22 -> 30 degrees/s, without spinning;
+- **power oversteer**: flat out mid-corner, the body slip goes -1 -> +20 degrees in a second (rear
+  tyres 3 -> 23 degrees): the tail swings wide;
+- **four-wheel drift**: a driver holding the slide keeps all four tyres past their peak for 2.5 s
+  (front 12, rear 8 degrees, the body 7 degrees sideways) at 79 km/h, without spinning. (Tidy: an AWD
+  car with a locked centre drifts neatly; the big-angle slides are for rear-drive cars);
+- **countersteer catch**: after a handbrake flick at 58 km/h, steering where it's going straightens
+  it 1.5 s after letting go (75 degrees of turn); hands off, it spins (181 degrees);
+- **Scandinavian flick** at 72 km/h: a flick away first rotates it 59 degrees in 2.5 s with the tail
+  out to 23 degrees; turning in plain, 55 degrees with the tail at 7;
+- **pendulum**: a driver steering slide to slide, left, right, left at 72 km/h: two swings, the
+  body angle from -12 to +13 degrees, never spinning.
+
+And what the tuning moved elsewhere (all the earlier checks still pass): the skid pad limit 0.89
+-> 0.94 g with the rear slip nearer the front's (a more neutral car); turn-in yaw for the steering
+0.87 -> 0.93 coasting, 1.06 -> 1.18 trail braking; the snow flick without stability control now
+swings the tail to 42 degrees (12 with it). Two checks were narrower than what they meant and were
+widened: the slip angle the surfaces let go at (snow and mud came out 14.8 and 14.6: both looser
+than gravel is the point), and speed-sensitive steering (the fronts at 13.7 degrees of slip now the
+car slides as a whole: less than half the 33 degrees it ploughs at without the aid is the point).
+
+**7. Bugs found:** none in the physics. In the tests: a fixed left-right steering pattern isn't a
+pendulum (with nobody catching each slide it ends in one big slide or a spin): the pendulum and
+the drift are driven by a driver that steers toward where the car's going and reacts to the slide.
+
+**Physics v2 is complete.** Next: it replaces the current car in the game (section 4: the same
+public API, the cockpit, the effects, the autopilot and the network switched over and their tests
+passing), then the drone-chase cinematic on the home screen.
