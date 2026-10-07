@@ -7,6 +7,7 @@ off (a .blend can carry Python):
 
 The spec (tools/cars/<id>.json) says what's what in the model:
   * "pre_scale": the model's units to m before anything else (an FBX in cm: 100)
+  * "turn": degrees about the up axis to turn a model saved at an angle (applied first)
   * "front": which way its nose points after loading ("+X", "-X", "+Y", "-Y";
     Blender's axes, Z up)
   * "wheelbase": the real car's (m): the model is scaled to it
@@ -556,6 +557,13 @@ def centre(objs):
     pts = np.vstack([verts(o) for o in objs])
     return Vector(((pts.min(0) + pts.max(0)) * 0.5).tolist()), pts
 
+
+# a model saved turned on the ground ("turn": degrees about the up axis that bring its nose
+# round to "front"; the P1 GTR's file has it at 45 degrees)
+if spec.get("turn"):
+    R = Matrix.Rotation(math.radians(float(spec["turn"])), 4, 'Z')
+    for o in meshes:
+        xform(o, R)
 
 # ── the corners ──────────────────────────────────────────────────────────
 fwd = {"+X": Vector((1, 0, 0)), "-X": Vector((-1, 0, 0)), "+Y": Vector((0, 1, 0)), "-Y": Vector((0, -1, 0))}[spec["front"]]
