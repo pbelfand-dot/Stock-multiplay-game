@@ -90,8 +90,7 @@ func _populate(player_s: float) -> void:
 		# packs ahead, open road between (the first a little way up the road)
 		var s := player_s + 140.0
 		while s < player_s + AHEAD:
-			_spawn_pack(s)
-			s += _rng.randf_range(float(diff.pack_gap[0]), float(diff.pack_gap[1]))
+			s = _spawn_pack(s) + _rng.randf_range(float(diff.pack_gap[0]), float(diff.pack_gap[1]))   # (the gap from its back)
 	else:
 		# the first lot: ahead of the start, spread out (none right beside the grid)
 		for k in _target:
@@ -115,7 +114,7 @@ func _ld(lane: int) -> float:
 
 ## A pack at s: rows of cars across the lanes, close behind each other, at nearly one
 ## speed (the slowest lane's, give or take): a block to thread.
-func _spawn_pack(s: float) -> void:
+func _spawn_pack(s: float) -> float:
 	var n := _rng.randi_range(int(diff.pack[0]), int(diff.pack[1]))
 	var pack_v := lerpf(float(diff.speed[0]), float(diff.speed[1]), _rng.randf_range(0.15, 0.6)) / 3.6
 	var row_s := s
@@ -131,6 +130,7 @@ func _spawn_pack(s: float) -> void:
 				c.v = c.v0 * 0.98
 			placed += 1
 		row_s += _rng.randf_range(11.0, 22.0)
+	return row_s                                       # (where its back row is)
 
 
 ## Cars a km on this highway now (the tests check the density).

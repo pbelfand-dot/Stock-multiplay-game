@@ -11,14 +11,15 @@ extends RefCounted
 ##     (END RUN in the pause menu). Four difficulties.
 
 const DIFFICULTIES := {
-	# cars a km (all lanes), their speeds (km/h), how close a near miss is (m), how often they change lanes
+	# cars a km (all lanes), their speeds (km/h), how close a near miss is (m), how often they change lanes.
+	# HARD and INSANE: as busy as Assetto Corsa's No Hesi servers in the owner's clips (counted:
+	# ~35 cars a km by day, ~45 at night, across the lanes)
 	"easy": {"name": "EASY", "density": 7.0, "speed": [70.0, 110.0], "near": 1.6, "lane_changes": 0.4},
-	"normal": {"name": "NORMAL", "density": 12.0, "speed": [80.0, 120.0], "near": 1.2, "lane_changes": 0.7},
-	"hard": {"name": "HARD", "density": 18.0, "speed": [90.0, 130.0], "near": 0.9, "lane_changes": 1.0,
-		"pack": [5, 9], "pack_gap": [160.0, 300.0]},
-	# insane: the traffic in packs of 8-16 cars across all four lanes, open road between (on the loop)
-	"insane": {"name": "INSANE", "density": 30.0, "speed": [90.0, 140.0], "near": 0.7, "lane_changes": 1.4,
-		"pack": [8, 16], "pack_gap": [170.0, 300.0]},
+	"normal": {"name": "NORMAL", "density": 15.0, "speed": [80.0, 120.0], "near": 1.2, "lane_changes": 0.7},
+	"hard": {"name": "HARD", "density": 30.0, "speed": [85.0, 130.0], "near": 0.9, "lane_changes": 1.0},
+	# insane: that much traffic again, in packs of 6-12 across all four lanes, 80-160 m of open road between
+	"insane": {"name": "INSANE", "density": 45.0, "speed": [90.0, 140.0], "near": 0.7, "lane_changes": 1.4,
+		"pack": [6, 12], "pack_gap": [80.0, 160.0]},
 }
 const TOUGE_LENGTH := 5000.0
 const HIGHWAY_LENGTH := 8000.0

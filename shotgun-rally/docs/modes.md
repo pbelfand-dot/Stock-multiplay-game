@@ -73,9 +73,9 @@ Only the stretch round the player is populated (160 m back to 650 m ahead); cars
 drop out come back in a gap. They're kinematic (solid to your car, not simulated) and
 drive with **IDM** (Treiber et al. 2000: their own desired speeds, a 1.3 s gap, smooth
 braking) and **MOBIL** (Kesting et al. 2007: they change lane when it pays, politely, never
-making the car behind brake harder than 3.5 m/s²). On HARD and INSANE they come in
-**packs**: 5-9 (hard) or 8-16 (insane) cars across all four lanes, close together, with
-160-300 m of open road between packs: thread the pack, breathe, the next one. Cars **join
+making the car behind brake harder than 3.5 m/s²). On INSANE they come in
+**packs**: 6-12 cars across all four lanes, close together, with
+80-160 m of open road between packs: thread the pack, breathe, the next one. Cars **join
 from the on-ramps** (merging into a gap in lane 0) and **leave by the off-ramps**. The
 **oncoming carriageway** has its own traffic (for the view; the median barrier keeps it
 from you).
@@ -90,9 +90,12 @@ throws the unbanked pot away and costs 500. Bests are kept per difficulty.
 | Difficulty | Cars per km | Their speeds | Near miss within | Lane changes | Packs |
 |---|---|---|---|---|---|
 | EASY | 7 | 70-110 km/h | 1.6 m | rarely | no |
-| NORMAL | 12 | 80-120 km/h | 1.2 m | sometimes | no |
-| HARD | 18 | 90-130 km/h | 0.9 m | often | 5-9 cars |
-| INSANE | 30 | 90-140 km/h | 0.7 m | a lot | 8-16 cars |
+| NORMAL | 15 | 80-120 km/h | 1.2 m | sometimes | no |
+| HARD | 30 | 85-130 km/h | 0.9 m | often | no: busy all the way |
+| INSANE | 45 | 90-140 km/h | 0.7 m | a lot | 6-12 cars across the lanes, 80-160 m between |
+
+HARD and INSANE are as busy as Assetto Corsa's No Hesi servers in the owner's clips (counted
+from the frames: ~35 cars a km by day, ~45 at night, across the lanes).
 
 **HIGHWAY BATTLES** (`scripts/game/rivals.gd`, like Tokyo Xtreme Racer's): now and then a
 RIVAL shows up in the traffic, a garage car with a nickname ("BLUE THUNDER", "TOFU
