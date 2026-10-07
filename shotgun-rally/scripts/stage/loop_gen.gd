@@ -1,0 +1,285 @@
+extends "res://scripts/stage/stage_gen.gd"
+## The LAKESHORE LOOP: cut up's one map, the same every time (tools/loop_map.py
+## designs it into data/maps/lakeshore_loop.json). A ~28 km loop of divided
+## highway: a city expressway on a viaduct, the lakeshore and three suspension
+## bridges, hills and tunnels, and back to the city. It never ends: s wraps round.
+##
+## The same road API as StageGen (the car, the traffic, the score and the
+## builder all read it), with s taken round the loop: any s works (the game
+## keeps the player's s growing lap after lap; the traffic's too), world_at(s, d)
+## is on the road's banked surface, locate() finds a point's s within the loop.
+## Our carriageway: d from -7.2 to +7.2 (four lanes, d = 0 between the second and
+## third), the right shoulder out to SHOULDER_R, the median barrier at d =
+## MEDIAN_D, the other carriageway beyond it (ONCOMING_D: its centre).
+
+const DATA := "res://data/maps/lakeshore_loop.json"
+const CARRIAGEWAY := 14.4            # four lanes (m)
+const SHOULDER_R := 3.0              # the right shoulder (AASHTO: 10 ft)
+const SHOULDER_L := 1.0              # the left one, against the median
+const MEDIAN := 2.0                  # median, kerb to kerb, the barrier in the middle
+const BARRIER_H := 1.07              # the median's concrete barrier (42 in single slope)
+const EDGE := CARRIAGEWAY * 0.5      # our lanes' edge lines are at d = +-EDGE
+const MEDIAN_D := -(EDGE + SHOULDER_L + MEDIAN * 0.5)          # the median barrier's middle
+const ONCOMING_D := MEDIAN_D - MEDIAN * 0.5 - SHOULDER_L - EDGE  # the other carriageway's middle
+const OUTER_R := EDGE + SHOULDER_R + 0.4                        # our outer barrier
+const OUTER_L := ONCOMING_D - EDGE - SHOULDER_R - 0.4           # theirs
+
+var data := {}
+var bank := PackedFloat32Array()     # cross-fall every STEP m (+: the right side down)
+var spans: Array = []                # the suspension bridges [{s0, s1, towers, deck, sag, tower_h, main, name}]
+var tunnels: Array = []              # [{s0, s1, name}]
+var zones: Array = []                # [{s0, s1, kind}] "city", "lake", "hills"
+var support: Array = []              # [{s0, s1, kind}] "ground", "viaduct", "bridge", "tunnel"
+var ramps: Array = []                # [{s, side, kind, len}]
+var overpasses: Array = []
+var gantries: Array = []
+var lakes: Array = []
+var land_hills: Array = []
+var city: Array = []
+var city_ground := 4.0
+var _n := 0                          # samples round the loop (pts has one more: the start again)
+var _bumps := FastNoiseLite.new()
+var _hill_grid := {}                 # 500 m cells -> the hills that reach into them (land_at)
+const HILL_CELL := 500.0
+
+
+func generate(seed_value: int, _target := 2600.0) -> void:
+	seed_used = seed_value
+	kind = "loop"
+	opts = opts.duplicate()
+	opts["surface"] = "tarmac"
+	opts["kind"] = "loop"
+	data = JSON.parse_string(FileAccess.get_file_as_string(DATA))
+	pieces = data.pieces
+	_sample()
+	_n = pts.size() - 1
+	length = _n * STEP
+	finish_s = INF                   # (no finish: you drive until you stop)
+	var ys: Array = data.y
+	var bs: Array = data.bank
+	bank.resize(_n + 1)
+	for i in _n + 1:
+		pts[i].y = float(ys[i % _n])
+		bank[i] = float(bs[i % _n])
+	pts[_n] = Vector3(pts[0].x, pts[0].y, pts[0].z)    # (it closes: the last sample is the first)
+	widths.resize(pts.size())
+	widths.fill(CARRIAGEWAY + SHOULDER_R + SHOULDER_L)
+	sections = [{"s0": 0.0, "s1": length, "surface": "asphalt"}]
+	joins = []
+	patches = []
+	puddles = []
+	bridges = []                     # (the rally stages' wooden bridges: none)
+	crests = []
+	corners = []
+	spans = data.bridges
+	tunnels = data.tunnels
+	zones = data.zones
+	support = data.support
+	ramps = data.ramps
+	overpasses = data.overpasses
+	gantries = data.gantries
+	lakes = data.lakes
+	land_hills = data.hills
+	city = data.city
+	city_ground = float(data.get("city_ground", 4.0))
+	_hill_grid.clear()
+	for k in land_hills.size():
+		var hl = land_hills[k]
+		var reach: float = float(hl.r) * 2.0
+		for cx in range(floori((hl.x - reach) / HILL_CELL), floori((hl.x + reach) / HILL_CELL) + 1):
+			for cz in range(floori((hl.z - reach) / HILL_CELL), floori((hl.z + reach) / HILL_CELL) + 1):
+				var key := Vector2i(cx, cz)
+				if not _hill_grid.has(key):
+					_hill_grid[key] = []
+				_hill_grid[key].append(hl)
+	_bumps.seed = 7
+	_bumps.frequency = 1.0 / 260.0
+	_bumps.fractal_octaves = 3
+
+
+func touge_name() -> String:
+	return str(data.get("name", "LAKESHORE LOOP"))
+
+
+func describe() -> String:
+	return "HIGHWAY · %.0f KM LOOP" % (length / 1000.0)
+
+
+func max_grade() -> float:
+	return 0.04
+
+
+# ── round the loop ────────────────────────────────────────────────────────
+
+## s brought into [0, length).
+func wrap_s(s: float) -> float:
+	return fposmod(s, length)
+
+
+## The s round the loop nearest `near` (which can be any number of laps on) for a
+## point at `s_in_loop` (0 .. length): a car's s keeps growing as it goes round.
+func unwrap(s_in_loop: float, near: float) -> float:
+	var base := near - wrap_s(near)
+	var best := base + s_in_loop
+	for k in [-1.0, 1.0]:
+		var c: float = base + s_in_loop + k * length
+		if absf(c - near) < absf(best - near):
+			best = c
+	return best
+
+
+## The sample index for s (wrapped), and how far on to the next.
+func _at(s: float) -> Vector2:
+	var f := wrap_s(s) / STEP
+	var i := mini(int(f), _n - 1)
+	return Vector2(i, f - i)
+
+
+func point_at(s: float) -> Vector3:
+	var a := _at(s)
+	return pts[int(a.x)].lerp(pts[int(a.x) + 1], a.y)
+
+
+func heading_at(s: float) -> float:
+	var a := _at(s)
+	return lerpf(heading[int(a.x)], heading[int(a.x) + 1], a.y)
+
+
+func bank_at(s: float) -> float:
+	var a := _at(s)
+	return lerpf(bank[int(a.x)], bank[int(a.x) + 1], a.y)
+
+
+func curv_at(s: float) -> float:
+	return curv[int(_at(s).x)]
+
+
+func width_at(_s: float) -> float:
+	return CARRIAGEWAY + SHOULDER_R + SHOULDER_L
+
+
+func height_at(s: float) -> float:
+	return point_at(s).y
+
+
+## World position of (s, d), on the road's banked surface.
+func world_at(s: float, d: float) -> Vector3:
+	return point_at(s) + right_at(s) * d + Vector3.UP * (-d * bank_at(s))
+
+
+## The road's up at s (tilted by its banking).
+func up_at(s: float) -> Vector3:
+	var b := bank_at(s)
+	return (Vector3.UP + right_at(s) * b).normalized()
+
+
+func surface_at(_s: float) -> String:
+	return "asphalt"
+
+
+func surface_at_d(_s: float, _d: float) -> String:
+	return "asphalt"
+
+
+func lane_mu(_s: float, _d: float) -> float:
+	return 1.0
+
+
+func grip_at(_s: float, _d := 0.0) -> float:
+	return SURFACE_GRIP.get("asphalt", 1.3)
+
+
+## Road coordinates of a world position: {s (0 .. length), d, i}. `hint`: a sample
+## near the answer (the last one), so tracking a car is cheap; -1 searches the loop.
+func locate(p: Vector3, hint := -1) -> Dictionary:
+	var best := -1
+	var best_d2 := INF
+	var lo := 0
+	var count := _n
+	if hint >= 0:
+		lo = hint - 40
+		count = 81
+	for k in count:
+		var i := posmod(lo + k, _n)
+		var dx := p.x - pts[i].x
+		var dz := p.z - pts[i].z
+		var d2 := dx * dx + dz * dz
+		if d2 < best_d2:
+			best_d2 = d2
+			best = i
+	var a := pts[best]
+	var b := pts[best + 1]
+	var ab := Vector2(b.x - a.x, b.z - a.z)
+	var t := Vector2(p.x - a.x, p.z - a.z).dot(ab) / maxf(ab.length_squared(), 1e-6)
+	if t < 0.0:
+		best = posmod(best - 1, _n)
+		a = pts[best]
+		b = pts[best + 1]
+		ab = Vector2(b.x - a.x, b.z - a.z)
+		t = Vector2(p.x - a.x, p.z - a.z).dot(ab) / maxf(ab.length_squared(), 1e-6)
+	t = clampf(t, 0.0, 1.0)
+	var s := (best + t) * STEP
+	var side := right_at(s)
+	var on := a.lerp(b, t)
+	var d := Vector2(p.x - on.x, p.z - on.z).dot(Vector2(side.x, side.z))
+	return {"s": s, "d": d, "i": best}
+
+
+# ── what's along it ───────────────────────────────────────────────────────
+
+func _in(list: Array, s: float, margin := 0.0) -> Dictionary:
+	var w := wrap_s(s)
+	for r in list:
+		if w >= float(r.s0) - margin and w <= float(r.s1) + margin:
+			return r
+	return {}
+
+
+func zone_at(s: float) -> String:
+	var z := _in(zones, s)
+	return str(z.kind) if not z.is_empty() else "city"
+
+
+func support_at(s: float) -> String:
+	var z := _in(support, s)
+	return str(z.kind) if not z.is_empty() else "ground"
+
+
+func span_at(s: float, margin := 0.0) -> Dictionary:
+	return _in(spans, s, margin)
+
+
+func tunnel_at(s: float, margin := 0.0) -> Dictionary:
+	return _in(tunnels, s, margin)
+
+
+## The land's height at x, z (the water is at 0): the highest hill there, the lakes
+## carved out, small bumps on top (the same as tools/loop_map.py's, plus the bumps).
+func land_at(x: float, z: float) -> float:
+	var h := 4.0
+	for hl in _hill_grid.get(Vector2i(floori(x / HILL_CELL), floori(z / HILL_CELL)), []):
+		var d2: float = ((x - hl.x) * (x - hl.x) + (z - hl.z) * (z - hl.z)) / (hl.r * hl.r)
+		if d2 < 4.0:
+			var t := 1.0 - d2 / 4.0
+			h = maxf(h, 4.0 + (float(hl.h) - 4.0) * t * t * (3.0 - 2.0 * t))
+	h += _bumps.get_noise_2d(x, z) * 3.0 * clampf((h - 3.0) / 6.0, 0.0, 1.0)
+	for lk in lakes:
+		var c := cos(-float(lk.rot))
+		var sn := sin(-float(lk.rot))
+		var dx: float = x - lk.x
+		var dz: float = z - lk.z
+		var u: float = (dx * c - dz * sn) / lk.a
+		var v: float = (dx * sn + dz * c) / lk.b
+		var e := u * u + v * v
+		if e < 1.6:
+			var sh := clampf((1.3 - e) / 0.3, 0.0, 1.0)
+			h = lerpf(h, -float(lk.depth), sh)
+	return h
+
+
+## Is (x, z) in the city (where the towers stand)?
+func in_city(x: float, z: float) -> bool:
+	for c in city:
+		if (x - c.x) * (x - c.x) + (z - c.z) * (z - c.z) < c.r * c.r:
+			return true
+	return false
