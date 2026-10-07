@@ -24,7 +24,8 @@ The spec (tools/cars/<id>.json) says what's what in the model:
     name patterns whose faces go (logos and nameplates: the cars have no real brands);
     "drop_boxes": [{"box": [x0, x1, y0, y1, z0, z1], "mats": [patterns]}]: faces in a
     box in the car's frame (m: x right, y forward, z up from the ground), lettering
-    and badges modelled into the body; "retexture": [[file name pattern, file]]: a
+    and badges modelled into the body ("whole": true: only the loose pieces wholly
+    inside, so what they sit on stays); "retexture": [[file name pattern, file]]: a
     texture swapped for a cleaned copy (a logo painted out)
   * "paint": material name patterns of the body paint: all become one material,
     "paint" (the game paints it from the garage); "paint_normal": paint parts
@@ -602,27 +603,6 @@ for k in CORNERS:
     corner[k]["c"] = M @ corner[k]["c"]
 print("scaled x%.4f (model wheelbase %.3f -> %.3f m)" % (s, base, spec["wheelbase"]))
 
-# badges and lettering modelled into the body: the faces inside a box (the car's frame,
-# m: x right, y forward, z up) of the given materials go
-for b in spec.get("drop_boxes", []):
-    x0, x1, y0, y1, z0, z1 = b["box"]
-    gone = 0
-    for o in [o for o in meshes if all(o not in corner[k]["spin"] + corner[k]["cal"] for k in CORNERS)]:
-        idx = {i for i, sl in enumerate(o.material_slots) if sl.material and matches(sl.material.name, b.get("mats", [".*"]))}
-        bm = bmesh.new()
-        bm.from_mesh(o.data)
-        dead = [f for f in bm.faces if f.material_index in idx and x0 <= f.calc_center_median().x <= x1
-            and y0 <= f.calc_center_median().y <= y1 and z0 <= f.calc_center_median().z <= z1]
-        gone += len(dead)
-        bmesh.ops.delete(bm, geom=dead, context='FACES')
-        strip_loose(bm)
-        bm.to_mesh(o.data)
-        bm.free()
-    print("dropped %d faces in %s" % (gone, b["box"]))
-
-# ── the cockpit: the steering wheel, the gear lever and the handbrake cut out as
-# parts of their own (the game turns, moves and pulls them), and where the
-# driver's eyes are ────────────────────────────────────────────────────────
 def loose_in(o, box, cut=False):
     """The faces of o's loose pieces that lie wholly inside box ([x0, x1, y0, y1,
     z0, z1], the car's frame): a lever and its knob, not the console it stands
@@ -658,6 +638,33 @@ def loose_in(o, box, cut=False):
     bm.free()
     return sel
 
+
+# badges and lettering modelled into the body: the faces inside a box (the car's frame,
+# m: x right, y forward, z up) of the given materials go
+for b in spec.get("drop_boxes", []):
+    x0, x1, y0, y1, z0, z1 = b["box"]
+    gone = 0
+    for o in [o for o in meshes if all(o not in corner[k]["spin"] + corner[k]["cal"] for k in CORNERS)]:
+        idx = {i for i, sl in enumerate(o.material_slots) if sl.material and matches(sl.material.name, b.get("mats", [".*"]))}
+        bm = bmesh.new()
+        bm.from_mesh(o.data)
+        if b.get("whole"):          # only loose pieces wholly inside (a badge, not the grille around it)
+            whole = loose_in(o, b["box"])
+            bm.faces.ensure_lookup_table()
+            dead = [bm.faces[i] for i in whole if bm.faces[i].material_index in idx]
+        else:
+            dead = [f for f in bm.faces if f.material_index in idx and x0 <= f.calc_center_median().x <= x1
+                and y0 <= f.calc_center_median().y <= y1 and z0 <= f.calc_center_median().z <= z1]
+        gone += len(dead)
+        bmesh.ops.delete(bm, geom=dead, context='FACES')
+        strip_loose(bm)
+        bm.to_mesh(o.data)
+        bm.free()
+    print("dropped %d faces in %s" % (gone, b["box"]))
+
+# ── the cockpit: the steering wheel, the gear lever and the handbrake cut out as
+# parts of their own (the game turns, moves and pulls them), and where the
+# driver's eyes are ────────────────────────────────────────────────────────
 
 def split_out(name, what):
     """The parts named by what ({"parts": [name patterns], "box": [...], "cut":

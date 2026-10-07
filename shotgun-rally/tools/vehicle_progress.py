@@ -59,6 +59,8 @@ STATUS = {
     5: "**in game**: LANCER IX (lancer). Its gear lever works; badges dropped, dash matted; tested (models 4.8 s; interior). One texture missing from the package",
     6: "**in game**: KITSUNE 13 (kitsune). Body thinned 1.06M -> 437k triangles (interior kept whole); colours from its plain materials; its gear lever works; tested (models 7.9 s; interior). Rocket Bunny kit: sits 6 cm off the ground",
     11: "**in game**: AKATSUKI V (akatsuki). The .mtl's absolute texture paths fixed by the converter; screens wired; automatic; tested (models 5.1 s; interior)",
+    13: "**in game**: KOMBI V8 (kombi). Wheels by material; the rings dropped as whole pieces (converter: drop_boxes \"whole\"); the inner glass layer dropped; the flat-bottomed wheel cut out by box; tiptronic; premium traffic too; tested (models 0-100 3.1 s; interior)",
+    15: "**in game**: KAISER T (kaiser_t). Wheels and calipers by material; badges and the inner glass dropped; its M wheel cut out by box; automatic; premium traffic too; tested (models 3.2 s; interior)",
     39: "**in game**: HELLHOUND WB (hellhound). Low-poly exterior + high-poly interior; tested (models: on its wheels, 0-100 5.3 s on gravel; interior: eyes, gloves on its rim, automatic)",
 }
 DECISIONS = [

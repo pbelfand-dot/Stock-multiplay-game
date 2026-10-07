@@ -1,0 +1,91 @@
+{
+	"id": "kaiser_t",
+	"name": "KAISER T",
+	"order": 220,
+	"model": "m3_touring",
+	"category": "euro",
+	"role": "player_road",
+	"real": {
+		"manufacturer": "BMW",
+		"model": "M3 Competition Touring M xDrive (G81)",
+		"year": 2023,
+		"trim": "510 PS, 8-speed M Steptronic (pre-LCI)"
+	},
+	"specs": {
+		"power_hp": 503,
+		"weight_kg": 1865,
+		"drivetrain": "AWD",
+		"transmission": "8-speed M Steptronic (torque converter)",
+		"wheelbase_mm": 2857,
+		"top_speed_kmh": 250,
+		"front_weight": 0.53,
+		"notes": "BMW's 2022 launch release gives 510 PS (375 kW) at 6,250 rpm, 650 Nm from 2,750 to 5,500 rpm, 0-100 km/h in 3.6 s and 250 km/h limited (280 with the M Driver's Package). The weight is DIN unladen (1,865 kg; EU 1,940 kg). M xDrive is rear-biased and fully variable, with no fixed split published; the game uses 30 % front. The gear ratios, 3.154 final drive and 2,857 mm wheelbase come from BMW's M3 Competition xDrive saloon sheet (same S58 and gearbox), assumed the same for the Touring. No weight distribution or drag figure was published: 53 % front and Cd 0.33 on 2.25 m^2 are estimates."
+	},
+	"garage": {
+		"price": 33000,
+		"engine_sound": "i6_turbo",
+		"livery": "plain",
+		"number": 3,
+		"colours": [[0.3, 0.55, 0.25], [0.12, 0.25, 0.55], [0.05, 0.05, 0.06], [0.85, 0.85, 0.87]],
+		"wheels": "black",
+		"power": 1.0,
+		"grip": 1.0,
+		"brakes": 1.0,
+		"drive_front": 0.3,
+		"blurb": "The first M3 estate: the twin-turbo straight six, an all-wheel drive that can be switched to rear only, and a boot. Quicker than it has any right to be."
+	},
+	"traffic": {
+		"weight": 0.15,
+		"paints": [[0.3, 0.55, 0.25], [0.05, 0.05, 0.06], [0.85, 0.85, 0.87], [0.12, 0.25, 0.55]]
+	},
+	"physics": {
+		"chassis": "sport",
+		"mass": 1865.0,
+		"front": 0.53,
+		"torque": 650.0,
+		"curve": [[1000, 0.38], [1612, 0.721], [2225, 0.926], [2750, 1.0], [5500, 1.0], [6250, 0.882], [7200, 0.697]],
+		"idle": 850.0,
+		"limiter": 7200.0,
+		"turbo": 0.4,
+		"spool": [1800.0, 3200.0],
+		"spool_time": 0.35,
+		"anti_lag": false,
+		"gears": [5.0, 3.2, 2.143, 1.72, 1.313, 1.0, 0.823, 0.64],
+		"final": 3.154,
+		"drive": "awd",
+		"front_share": 0.3,
+		"centre": ["lsd", 0.25, 0.2, 30.0],
+		"front_diff": ["lsd", 0.2, 0.1, 20.0],
+		"rear": ["lsd", 0.35, 0.15, 30.0],
+		"cd": 0.33,
+		"area": 2.25,
+		"down": 0.1,
+		"brake": 1.0
+	},
+	"checks": {
+		"zero_100_max": 8.0
+	},
+	"interior": {
+		"own": true,
+		"camera": true,
+		"notes": "The model's: dash, carbon bucket seats, the M wheel with paddles (cut out of the dash by box); left-hand drive. An automatic: the hands stay on the wheel."
+	},
+	"source": {
+		"package": "2023-bmw-m3-touring.zip",
+		"author": "ddiaz-design (display name: Ddiaz Design)",
+		"license": "CC Attribution-NonCommercial-ShareAlike",
+		"url": "https://sketchfab.com/3d-models/2023-bmw-m3-touring-f540fdbc0d93435d96ef354f01720dc0",
+		"attribution": "2023 BMW M3 Touring by ddiaz-design (display name: Ddiaz Design) (CC Attribution-NonCommercial-ShareAlike)",
+		"candidate": 15
+	},
+	"research": [
+		"https://press.bmwgroup.com/ireland/article/detail/T0401213EN_GB/the-new-bmw-m3-competition-touring-with-m-xdrive-%E2%80%93-the-first-ever-bmw-m3-touring",
+		"https://autotijd.be/en/weight/bmw/m3-touring/375-kw-competition-m-xdrive-awd-5394",
+		"https://www.press.bmwgroup.com/france/article/attachment/T0442584FR/616603",
+		"https://www.press.bmwgroup.com/usa/article/attachment/T0330025EN_US/476597"
+	],
+	"limitations": [
+		"Weight distribution (53 % front), drag (Cd 0.33, 2.25 m^2) and M xDrive's split (30 % front) are estimates.",
+		"Provenance: Forza Horizon asset naming; the Sketchfab description says it is based on a CSR2 model (VEHICLE_PROGRESS.md)."
+	]
+}

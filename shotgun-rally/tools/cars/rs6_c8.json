@@ -1,0 +1,10 @@
+{"id": "rs6_c8", "front": "-Y", "wheelbase": 2.929,
+ "wheel_mats": ["Wheel1A"], "caliper_mats": ["Calliper"],
+ "drop": ["WindowInside"],
+ "drop_mats": ["BadgeA_", "ManufacturerPlate", "CalliperBadge"],
+ "drop_boxes": [{"box": [-0.12, 0.12, -2.50, -2.43, 0.91, 1.0], "mats": ["Coloured"], "whole": true},
+                {"box": [-0.16, 0.16, 2.30, 2.42, 0.545, 0.67], "mats": ["Coloured"], "whole": true}],
+ "paint": ["Paint_Material1"], "glass": ["Window_Material1"],
+ "materials": [["Window_Material1", "glass"]],
+ "wheel_faces": 10000, "body_faces": 200000, "tex_max": 1024,
+ "cockpit": {"gearbox": "auto", "wheel": {"box": [-0.60, -0.16, 0.28, 0.55, 0.70, 1.05]}}}

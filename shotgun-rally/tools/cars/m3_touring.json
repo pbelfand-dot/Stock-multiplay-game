@@ -1,0 +1,8 @@
+{"id": "m3_touring", "front": "-Y", "wheelbase": 2.857,
+ "wheel_mats": ["Wheel1A"], "caliper_mats": ["CalliperB_Zone"],
+ "drop": ["WindowInside"],
+ "drop_mats": ["BadgeA_Material", "ManufacturerPlate", "CalliperBadge"],
+ "paint": ["Paint_Material"], "glass": ["Window_Material"],
+ "materials": [["Window_Material", "glass"]],
+ "wheel_faces": 10000, "body_faces": 200000, "tex_max": 1024,
+ "cockpit": {"gearbox": "auto", "wheel": {"box": [-0.60, -0.15, 0.12, 0.39, 0.70, 1.10]}}}

@@ -54,6 +54,8 @@ const ENGINES := {
 	# straight sixes, on the Procar's six: a racing-bred twin-cam, a modern road turbo
 	"i6_race": {"set": "six", "turbo": 0.0, "sc": 0.0, "anti_lag": false, "pops": 0.3, "bov": false, "whine": 0.3, "bang": false, "tone": "race"},
 	"i6_turbo": {"set": "six", "turbo": 0.45, "sc": 0.0, "anti_lag": false, "pops": 0.15, "bov": true, "whine": 0.15, "bang": false, "tone": "road"},
+	# a European twin-turbo V8 (RS 6, M5/M8, AMG): the V8 loops, a turbo's hush, a fuller road tone
+	"v8_turbo": {"set": "v8", "turbo": 0.35, "sc": 0.0, "anti_lag": false, "pops": 0.3, "bov": false, "whine": 0.15, "bang": false, "tone": "v8_road"},
 }
 ## Each tone's EQ (AudioEffectEQ6 bands 32, 100, 320, 1000, 3200, 10000 Hz, dB).
 const TONES := {
@@ -63,6 +65,7 @@ const TONES := {
 	"five": [0.0, 2.0, 2.0, 0.0, 0.0, 0.0],
 	"rotary": [0.0, -2.0, 0.0, 2.0, 2.0, 0.0],
 	"muscle": [3.0, 4.0, 1.5, -1.0, -2.5, -4.0],
+	"v8_road": [1.5, 3.0, 1.0, 0.0, -1.5, -3.0],
 }
 const LIMIT_HZ := 11.0          # the limiter's bounce: cut, fire, cut ...
 

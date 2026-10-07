@@ -1,0 +1,93 @@
+{
+	"id": "kombi",
+	"name": "KOMBI V8",
+	"order": 210,
+	"model": "rs6_c8",
+	"category": "euro",
+	"role": "player_road",
+	"real": {
+		"manufacturer": "Audi",
+		"model": "RS 6 Avant (C8)",
+		"year": 2020,
+		"trim": "RS 6 Avant 4.0 TFSI quattro tiptronic (600 PS)"
+	},
+	"specs": {
+		"power_hp": 592,
+		"weight_kg": 2075,
+		"drivetrain": "AWD",
+		"transmission": "8-speed tiptronic (torque converter)",
+		"wheelbase_mm": 2929,
+		"top_speed_kmh": 250,
+		"front_weight": 0.57,
+		"notes": "Audi's press kit gives 600 PS (441 kW) at 6,000-6,250 rpm, 800 Nm from 2,050 to 4,500 rpm and 2,075 kg unladen without a driver. Quattro has a mechanical self-locking centre differential, nominally 40:60 front to rear (up to 70 % front or 85 % rear). Top speed is 250 km/h limited (280 with the Dynamic package, 305 with Dynamic plus). The gear ratios, 3.204 final drive and 2,929 mm wheelbase are from Audi's German technical data sheet (13.06.2024) for the same 441 kW engine and gearbox. No official static weight distribution was found (the sheet's permitted axle loads are 1,390/1,400 kg), so 57 % front is an estimate for a front-mounted V8 with all-wheel drive. No C8 drag figure was found either: the C7 RS 6 Avant's official Cd 0.352 on 2.4 m^2 is used."
+	},
+	"garage": {
+		"price": 36000,
+		"engine_sound": "v8_turbo",
+		"livery": "plain",
+		"number": 6,
+		"colours": [[0.42, 0.45, 0.47], [0.05, 0.05, 0.06], [0.08, 0.18, 0.42], [0.85, 0.85, 0.87]],
+		"wheels": "black",
+		"power": 1.0,
+		"grip": 1.0,
+		"brakes": 1.0,
+		"drive_front": 0.4,
+		"blurb": "A family estate with a twin-turbo V8: 800 N m from just over idle, four-wheel drive and room for the dog. Two tonnes that get to 100 faster than most sports cars."
+	},
+	"traffic": {
+		"weight": 0.15,
+		"paints": [[0.42, 0.45, 0.47], [0.05, 0.05, 0.06], [0.85, 0.85, 0.87], [0.08, 0.18, 0.42]]
+	},
+	"physics": {
+		"chassis": "sport",
+		"mass": 2075.0,
+		"front": 0.57,
+		"torque": 800.0,
+		"curve": [[1000, 0.38], [1368, 0.721], [1735, 0.926], [2050, 1.0], [4500, 1.0], [6000, 0.878], [6800, 0.701]],
+		"idle": 850.0,
+		"limiter": 6800.0,
+		"turbo": 0.4,
+		"spool": [1800.0, 3200.0],
+		"spool_time": 0.35,
+		"anti_lag": false,
+		"gears": [4.714, 3.143, 2.106, 1.667, 1.285, 1.0, 0.839, 0.667],
+		"final": 3.204,
+		"drive": "awd",
+		"front_share": 0.4,
+		"centre": ["lsd", 0.25, 0.2, 30.0],
+		"front_diff": ["lsd", 0.2, 0.1, 20.0],
+		"rear": ["lsd", 0.35, 0.15, 30.0],
+		"cd": 0.352,
+		"area": 2.4,
+		"down": 0.1,
+		"brake": 1.0
+	},
+	"checks": {
+		"zero_100_max": 8.0
+	},
+	"interior": {
+		"own": true,
+		"camera": true,
+		"notes": "The model's: dash with the virtual cockpit, sports seats, the flat-bottomed RS wheel with paddles (cut out of the dash by box); left-hand drive. A tiptronic: the hands stay on the wheel."
+	},
+	"source": {
+		"package": "2020-audi-rs6-avant (1).zip",
+		"author": "ddiaz-design (display name: Ddiaz Design)",
+		"license": "CC Attribution-NonCommercial-ShareAlike",
+		"url": "https://sketchfab.com/3d-models/2020-audi-rs6-avant-980dbda2cbbb4bae8decaed2fa80aa0c",
+		"attribution": "2020 Audi RS6 Avant by ddiaz-design (display name: Ddiaz Design) (CC Attribution-NonCommercial-ShareAlike)",
+		"candidate": 13
+	},
+	"research": [
+		"https://audi-mediacenter.com/en/press-releases/the-fourth-generation-of-the-rs-icon-the-new-audi-rs-6-avant-12019",
+		"https://www.audi.com/en/the-audi-rs-6-avant-and-the-new-audi-rs-6-avant-performance-12345/engine-12348",
+		"https://www.audi.com/en/the-audi-rs-6-avant-and-the-new-audi-rs-6-avant-performance-12345/transmission-12349",
+		"https://uploads.audi-mediacenter.com/system/production/car_motorizations/1184/file_de/6124caef9007249169df603b05d8cb70b2982f3f/TD-Audi-RS6-Avant-TFSI-441kW_240613.pdf",
+		"https://www.auto-motor-und-sport.de/oberklasse/audi-rs6-2020/technische-daten/",
+		"https://australiancar.reviews/_pdfs/Audi_RS6Avant_C7-II_TechnicalData_201505.pdf"
+	],
+	"limitations": [
+		"Weight distribution (57 % front) and drag (the C7's Cd 0.352, 2.4 m^2) are estimates: no published C8 figures.",
+		"Provenance: Forza Horizon asset naming; the Sketchfab description says it is based on a CSR2 model (VEHICLE_PROGRESS.md)."
+	]
+}
