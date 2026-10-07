@@ -46,11 +46,12 @@ const ROAD_PULL := 0.42         # rad a road car's handbrake comes up
 const RIM_R := 0.0155           # thickness of the rim / lever handle the fingers wrap (a ~30 mm grip)
 const GRIP_ROLL := 0.55         # rad: the hand rolled round the rim toward the driver (you see the backs of your hands)
 const WRIST := Vector3(0.0, 0.01, 0.085)    # glove space (before the roll): where the forearm meets the hand
-## The gauntlet's outline, from inside the glove out over the sleeve (which ends
-## 3.5 cm up the forearm, radius ~4.5 cm: crew_model.gd), then a lip turning in to
-## the sleeve so you can't see into it: [m along the forearm from the wrist, radius]
-const CUFF := [[-0.03, 0.028], [0.0, 0.037], [0.02, 0.0455], [0.04, 0.05], [0.062, 0.0515], [0.072, 0.0515],
-	[0.076, 0.05], [0.077, 0.043]]
+## The gauntlet's outline, from inside the glove out over the sleeve (the crew's suit
+## sleeve ends ~8 cm up the forearm, where its own glove's cuff was: crew_model.gd
+## cuts that out), long like a racing glove's, then a lip turning in to the
+## sleeve so you can't see into it: [m along the forearm from the wrist, radius]
+const CUFF := [[-0.03, 0.028], [0.0, 0.037], [0.02, 0.0455], [0.04, 0.05], [0.062, 0.0515], [0.093, 0.0525],
+	[0.103, 0.0525], [0.107, 0.051], [0.108, 0.044]]
 
 var suit_colour := Color(0.75, 0.13, 0.12)   # the panel on the back, the strap (set before setup)
 
@@ -466,8 +467,8 @@ func _gauntlet(mats: Dictionary) -> ArrayMesh:
 	_add(parts, "panel", _ball(), Transform3D(Basis(Vector3.RIGHT * 0.012, Vector3.UP * 0.013, Vector3.BACK * 0.006),
 		Vector3(0.0, 0.037, -(_cuff_r(0.037) + 0.003))))   # the velcro tab, on the back of the wrist
 	var edge := []
-	for u in [0.062, 0.064, 0.072, 0.074]:
-		edge.append([u, _cuff_r(u) + (0.0018 if u > 0.063 and u < 0.073 else 0.0)])
+	for u in [0.093, 0.095, 0.103, 0.105]:
+		edge.append([u, _cuff_r(u) + (0.0018 if u > 0.094 and u < 0.104 else 0.0)])
 	_add(parts, "trim", _lathe(edge, 16), Transform3D.IDENTITY)
 	return _bake(parts, mats)
 

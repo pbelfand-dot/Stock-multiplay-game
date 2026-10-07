@@ -2,23 +2,23 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://du2k17rat6imm"
-path="res://.godot/imported/driver_Image_0.jpg-0ed724744ab7b4b0dc08af8f880bfecd.ctex"
+uid="uid://o2yj72ulprxs"
+path="res://.godot/imported/driver_F1_Driver_Emissive.jpg-3a0f134c7cc25805d2e0915a1cee598d.ctex"
 metadata={
 "vram_texture": false
 }
 generator_parameters={
-"md5": "41e2c1090d39ce007a945d63b286be36"
+"md5": "d1dd210d6b1312cb342b56d02bd5e651"
 }
 
 [deps]
 
-source_file="res://assets/models/driver_Image_0.jpg"
-dest_files=["res://.godot/imported/driver_Image_0.jpg-0ed724744ab7b4b0dc08af8f880bfecd.ctex"]
+source_file="res://assets/models/driver_F1_Driver_Emissive.jpg"
+dest_files=["res://.godot/imported/driver_F1_Driver_Emissive.jpg-3a0f134c7cc25805d2e0915a1cee598d.ctex"]
 
 [params]
 
-compress/mode=1
+compress/mode=0
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
@@ -39,5 +39,5 @@ process/premult_alpha=false
 process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
-process/size_limit=1024
+process/size_limit=0
 detect_3d/compress_to=1

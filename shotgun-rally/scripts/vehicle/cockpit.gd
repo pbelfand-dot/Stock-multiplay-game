@@ -12,8 +12,8 @@ extends Node3D
 ## A child of the car, so it moves with it. Car-local units: the car faces -Z,
 ## origin = chassis middle at wheel-mount height (the ground is ~0.56 below).
 ##
-## The crew are the Higgsfield models (assets/models/driver.glb, codriver.glb,
-## posed by crew_model.gd). The driver sees their own arms on the wheel (their
+## The crew are the owner's racer (assets/models/driver.glb, codriver.glb:
+## tools/import_crew.py; posed by crew_model.gd). The driver sees their own arms on the wheel (their
 ## model just has no head: the camera is in it); the co-driver doesn't see their
 ## own body at all (render layer 3), so nothing gets between them and the map.
 ## If a model is missing, the old box crew is built instead: each of their heads

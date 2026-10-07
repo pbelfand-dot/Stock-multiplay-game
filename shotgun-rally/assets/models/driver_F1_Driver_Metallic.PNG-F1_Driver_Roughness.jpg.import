@@ -2,23 +2,23 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://cga46q4e40ths"
-path="res://.godot/imported/codriver_Image_0.jpg-e39d2fd6cef3685bb4509e505730a5c7.ctex"
+uid="uid://r7c6qgsc7cxf"
+path="res://.godot/imported/driver_F1_Driver_Metallic.PNG-F1_Driver_Roughness.jpg-b9cbb0309aac3bf851857ec7550256ba.ctex"
 metadata={
 "vram_texture": false
 }
 generator_parameters={
-"md5": "2f2cf6695f6aaef59b6650f32651cf43"
+"md5": "932dcd34677fbbcd16074cb91fd380eb"
 }
 
 [deps]
 
-source_file="res://assets/models/codriver_Image_0.jpg"
-dest_files=["res://.godot/imported/codriver_Image_0.jpg-e39d2fd6cef3685bb4509e505730a5c7.ctex"]
+source_file="res://assets/models/driver_F1_Driver_Metallic.PNG-F1_Driver_Roughness.jpg"
+dest_files=["res://.godot/imported/driver_F1_Driver_Metallic.PNG-F1_Driver_Roughness.jpg-b9cbb0309aac3bf851857ec7550256ba.ctex"]
 
 [params]
 
-compress/mode=1
+compress/mode=0
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
@@ -39,5 +39,5 @@ process/premult_alpha=false
 process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
-process/size_limit=1024
+process/size_limit=0
 detect_3d/compress_to=1
