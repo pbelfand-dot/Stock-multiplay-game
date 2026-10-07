@@ -35,6 +35,7 @@ const Modes = preload("res://scripts/game/modes.gd")
 const Profile = preload("res://scripts/game/profile.gd")
 const Traffic = preload("res://scripts/stage/traffic.gd")
 const CutupScore = preload("res://scripts/game/cutup_score.gd")
+const Rivals = preload("res://scripts/game/rivals.gd")
 const TougeRules = preload("res://scripts/game/touge_rules.gd")
 const FitDebug = preload("res://scripts/vehicle/fit_debug.gd")
 
@@ -107,6 +108,7 @@ var mode := ""
 var looped := false                  # the map's a loop (cut up's LAKESHORE LOOP): no finish
 var traffic                          # Traffic (cut up)
 var cutup                            # CutupScore
+var rivals                           # Rivals (cut up on the loop: the highway battles)
 var touge                            # TougeRules
 var mode_result := {}                # the run's score / time / best, for the results
 var _mode_label: Label               # top right: the score, the combo, the drift chain
@@ -617,6 +619,11 @@ func _setup_mode(o: Dictionary) -> void:
 			traffic.setup(st, diff, seed_value, st.START_S)
 			cutup = CutupScore.new()
 			cutup.near = float(diff.near)
+			if looped:
+				rivals = Rivals.new()
+				rivals.name = "Rivals"
+				add_child(rivals)
+				rivals.setup(traffic, st, seed_value)
 		"touge":
 			touge = TougeRules.new()
 			var best := Profile.mode_best(Modes.best_key(o, seed_value))
@@ -633,6 +640,13 @@ func _mode_tick(dt: float) -> void:
 		if cutup:
 			for nm in cutup.update(dt, {"s": car_s, "d": car_d, "v": v_along}, traffic.snapshot()):
 				_flash("NEAR MISS  +%d%s" % [nm.points, "   x%d" % cutup.combo if cutup.combo > 1 else ""], Color(1.0, 0.85, 0.2))
+		if rivals:
+			rivals.tick(dt, {"s": car_s, "d": car_d, "v": v_along}, car.simulate and Input.is_action_just_pressed("flash"))
+			for ev in rivals.events:
+				_flash(ev[0], ev[1])
+				if int(ev[2]) > 0:
+					cutup.bonus(int(ev[2]))
+			rivals.events.clear()
 		if touge:
 			if touge.split_check(car_s, st.START_S, stage_time):
 				var dl: float = touge.last_split_delta
@@ -653,6 +667,10 @@ func _mode_tick(dt: float) -> void:
 func _mode_text() -> String:
 	if cutup:
 		var t := "SCORE  %d" % cutup.total()
+		if rivals:
+			var b: String = rivals.hud_text({"s": car_s, "d": car_d, "v": car.linear_velocity.dot(st.forward_at(car_s))})
+			if b != "":
+				t = b + "\n" + t
 		if cutup.combo > 0:
 			t += "\nCOMBO  x%d   %.0f s" % [cutup.combo, maxf(CutupScore.COMBO_TIME - cutup.since_near, 0.0)]
 		return t + "\n%.0f km/h" % car.kmh()
@@ -687,6 +705,8 @@ func _finish_mode() -> void:
 		var best := sc > 0 and Profile.record_mode(key, float(sc), false)
 		lines = ["SCORE  %d%s" % [sc, "   NEW BEST" if best else ""],
 			"%d near misses · best combo x%d · %d crash%s" % [cutup.near_misses, cutup.best_combo, cutup.crashes, "" if cutup.crashes == 1 else "es"]]
+		if rivals and rivals.beaten + rivals.lost > 0:
+			lines.append("rivals beaten %d · lost %d" % [rivals.beaten, rivals.lost])
 		mode_result = {"score": sc, "best": best}
 	elif touge and opts.get("rules", "time") == "drift":
 		var sc2: int = touge.finish()

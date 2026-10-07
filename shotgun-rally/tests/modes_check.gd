@@ -19,6 +19,10 @@ extends SceneTree
 ##     in every lane, the city's towers, the hills' trees; traffic on it: packs on
 ##     insane (blocks of cars with open road between), the other carriageway's
 ##     traffic going the other way, cars joining from an on-ramp; s round the loop
+##   * the highway battles (Rivals): a rival shows up in the traffic, flashing it from
+##     close behind starts the race (3, 2, 1, GO, a gate 3 km on); it races through
+##     the traffic (past cars, never through one); a fast player wins it, a slow one
+##     loses it; a win pays into the score
 ##   * the game itself in each mode: loads, runs, ends with the mode's results
 ## Prints one [modes] line per check; exits 1 on any FAIL.
 
@@ -43,6 +47,7 @@ func _initialize() -> void:
 	_touge()
 	_highway()
 	await _loop()
+	await _battles()
 	await _traffic()
 	_score()
 	_touge_rules()
@@ -370,6 +375,80 @@ func _loop() -> void:
 	check(tr.count() > 10, "loop traffic: still %d cars round the player after %.1f km (packs refilled)" % [tr.count(), (ps - start) / 1000.0])
 	tr.queue_free()
 	b.queue_free()
+	await process_frame
+
+
+## The highway battles: a rival, a challenge, two races (one won, one lost).
+func _battles() -> void:
+	var LoopGen = load("res://scripts/stage/loop_gen.gd")
+	var Rivals = load("res://scripts/game/rivals.gd")
+	var st = LoopGen.new()
+	st.generate(3)
+	var tr = Traffic.new()
+	root.add_child(tr)
+	var start: float = st.spans[0].s0 - 6000.0         # (the hills: no ramps to muddle it)
+	tr.setup(st, Modes.DIFFICULTIES.hard, 4, start)
+	tr.running = true
+	var rv = Rivals.new()
+	root.add_child(rv)
+	rv.setup(tr, st, 4)
+	var results := []
+	for race in 2:
+		var ps: float = start + race * 8000.0
+		var v := 26.0
+		tr.player = {"s": ps, "d": 1.8, "v": v}
+		rv._next = 0.0
+		rv.state = "none"
+		rv.tick(0.01, tr.player, false)
+		var spawned: bool = rv.state == "cruise" and not rv.rival.is_empty()
+		# catch it up (straight down its lane), flash it from close behind
+		var t := 0.0
+		while rv.state == "cruise" and t < 60.0:
+			var gap: float = float(rv.rival.s) - ps
+			v = 45.0 if gap > 30.0 else float(rv.rival.v)
+			ps += v / 120.0
+			tr.player = {"s": ps, "d": float(rv.rival.d), "v": v}
+			await physics_frame
+			rv.tick(1.0 / 120.0, tr.player, rv.can_challenge(tr.player))
+			t += 1.0 / 120.0
+		var flashed: bool = rv.state == "intro"
+		# the race: the player at 300 km/h the first time, 110 the second (in a lane of its own:
+		# the test's player is a point that goes through cars; the rival has to go round them)
+		var pv := 300.0 / 3.6 if race == 0 else 110.0 / 3.6
+		var overlaps := 0
+		var passed := {}
+		var gate := false
+		t = 0.0
+		while rv.state in ["intro", "race"] and t < 200.0:
+			ps += (pv if rv.state == "race" else float(rv.rival.v)) / 120.0
+			tr.player = {"s": ps, "d": -5.4, "v": pv}
+			await physics_frame
+			rv.tick(1.0 / 120.0, tr.player, false)
+			t += 1.0 / 120.0
+			gate = gate or rv._gate != null
+			if rv.state == "race":
+				var me: Dictionary = rv.rival
+				for c in tr.cars:
+					if c == me:
+						continue
+					var ds: float = absf(float(c.s) - float(me.s))
+					if ds < float(c.half_len) + float(me.half_len) - 0.3 and absf(float(c.d) - float(me.d)) < float(c.half_w) + float(me.half_w) - 0.2:
+						overlaps += 1
+					if float(me.s) > float(c.s) + 10.0:
+						passed[c.id] = true
+		var ev: Array = rv.events.map(func(e): return e[0])
+		results.append({"spawned": spawned, "flashed": flashed, "gate": gate, "overlaps": overlaps, "passed": passed.size(), "events": ev,
+			"beaten": rv.beaten, "lost": rv.lost})
+		rv.events.clear()
+		rv._drop()
+	var r0: Dictionary = results[0]
+	var r1: Dictionary = results[1]
+	check(r0.spawned and r0.flashed and r0.gate, "battles: a rival shows up in the traffic, flashing it from close behind starts the race (a gate 3 km on)")
+	check(r0.beaten == 1 and r1.lost == 1, "battles: at 300 km/h the player wins it, at 110 the rival does (%s / %s)" % [
+		" · ".join(r0.events.slice(-1)), " · ".join(r1.events.slice(-1))])
+	check(r0.overlaps == 0 and r1.overlaps == 0 and r1.passed >= 5, "battles: the rival races through the traffic (past %d cars), never through one" % r1.passed)
+	rv.queue_free()
+	tr.queue_free()
 	await process_frame
 
 

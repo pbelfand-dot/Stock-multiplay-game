@@ -101,3 +101,10 @@ func _bank() -> void:
 
 func total() -> int:
 	return score + int(round(pot))
+
+
+## Points from outside the near misses (a rival beaten): straight into the score.
+func bonus(points: int) -> void:
+	score += points
+	last_event = "bonus"
+	last_points = points

@@ -158,6 +158,8 @@ func _physics_process(dt: float) -> void:
 	# out of the stretch round the player: back in somewhere else
 	for c in cars.duplicate():
 		var rel: float = float(c.s) - float(player.s)
+		if c.has("rival"):
+			continue                                          # (the rivals come and go as Rivals says)
 		if rel < -BEHIND - 40.0 or rel > AHEAD + 120.0 or (not looped and float(c.s) > st.length - 40.0):
 			if _packs():
 				_remove(c)
@@ -226,6 +228,9 @@ static func idm(v: float, v0: float, gap: float, v_lead: float) -> float:
 
 
 func _drive(c: Dictionary, dt: float) -> void:
+	if c.has("rival") and c.rival.racing and not c.crashed:
+		_drive_racer(c, dt)
+		return
 	if c.crashed:
 		c.v = maxf(float(c.v) - 7.0 * dt, 0.0)              # hit: it stops where it is (hazards on)
 		c.s = float(c.s) + float(c.v) * dt
@@ -243,7 +248,7 @@ func _drive(c: Dictionary, dt: float) -> void:
 		c.v = maxf(float(c.v) - 6.0 * dt, 0.0)
 	# lane changes: finishing one, or thinking about one now and then
 	if int(c.to) != int(c.lane):
-		c.t = float(c.t) + dt / LANE_CHANGE_T
+		c.t = float(c.t) + dt / float(c.get("lc_time", LANE_CHANGE_T))
 		if float(c.t) >= 1.0:
 			c.lane = c.to
 			c.t = 0.0
@@ -598,3 +603,104 @@ func _oncoming_traffic(dt: float) -> void:
 		var spin := float(o.v) * dt / 0.33
 		for w in o.wheels:
 			(w as Node3D).rotate_object_local(Vector3.RIGHT, -spin)
+
+
+# ── rivals (Rivals: the highway battles) ──────────────────────────────────
+
+## A rival in the traffic at s in a lane: a garage car (entry: its registry entry),
+## cruising with the traffic until a race; level 1..5 (how fast, how bold).
+## Returns its car (with .rival), or {} if there's no room there.
+func add_rival(s: float, lane: int, entry: Dictionary, level: int, nick: String) -> Dictionary:
+	var path := "res://assets/models/cars/%s/%s.glb" % [entry.model, entry.model]
+	if not ResourceLoader.exists(path):
+		return {}
+	var scene: PackedScene = load(path)
+	var probe: Node3D = scene.instantiate()
+	var box := _bounds(probe)
+	probe.free()
+	var cols: Array = entry.get("garage", {}).get("colours", [[0.8, 0.1, 0.1]])
+	var m := {"id": entry.id, "scene": scene, "weight": 0.0, "paints": [cols[0]],
+		"half_len": box.size.z * 0.5, "half_w": box.size.x * 0.5, "height": box.size.y}
+	var c := _spawn_at(s, lane, m)
+	if c.is_empty():
+		return {}
+	var specs: Dictionary = entry.get("specs", {})
+	var hp := float(specs.get("power_hp", 400.0))
+	var kg := float(specs.get("weight_kg", entry.get("physics", {}).get("mass", 1500.0)))
+	var top := minf(float(specs.get("top_speed_kmh", 280.0)), 330.0) * (0.84 + 0.04 * level) / 3.6
+	var pw := hp * 745.7 / maxf(kg, 600.0)                 # W/kg
+	c.rival = {"name": entry.name, "nick": nick, "level": level, "racing": false, "pw": pw, "top_v": top,
+		"drag": pw / pow(top, 3.0), "think": 0.0}           # (top speed where power meets drag)
+	c.v0 = _rng.randf_range(112.0, 128.0) / 3.6              # cruising: a little under the player's pace
+	c.v = c.v0
+	c.lc_time = 1.0
+	var tag := Label3D.new()
+	tag.name = "RivalTag"
+	tag.text = "%s\n%s" % [nick, entry.name]
+	tag.font_size = 64
+	tag.pixel_size = 0.01
+	tag.outline_size = 12
+	tag.modulate = Color(1.0, 0.82, 0.2)
+	tag.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	tag.no_depth_test = true
+	tag.position = Vector3(0, float(m.height) + 1.4, 0)
+	tag.visibility_range_end = 420.0
+	(c.body as Node3D).add_child(tag)
+	return c
+
+
+func remove_rival(c: Dictionary) -> void:
+	if cars.has(c):
+		_remove(c)
+
+
+## A rival racing: flat out up to what its car can do (power against drag), close
+## behind whatever's ahead (a short time gap), and through the traffic: when it's held
+## up it looks at the lanes either side and takes the one with the most open road, if
+## there's room beside it, fast (a second to cross).
+func _drive_racer(c: Dictionary, dt: float) -> void:
+	var r: Dictionary = c.rival
+	var v: float = c.v
+	var a_max: float = minf(6.0, float(r.pw) / maxf(v, 6.0)) - float(r.drag) * v * v
+	var lead := _leader(int(c.to), float(c.s), float(c.half_len), c)
+	if int(c.to) != int(c.lane):
+		var other := _leader(int(c.lane), float(c.s), float(c.half_len), c)
+		if float(other.gap) < float(lead.gap):
+			lead = other
+	var a := a_max
+	if float(lead.gap) < INF:
+		var s_star := 2.5 + maxf(0.0, v * 0.45 + v * (v - float(lead.v)) / (2.0 * sqrt(5.0 * 8.0)))
+		a = minf(a, 5.0 * (1.0 - pow(s_star / maxf(float(lead.gap), 0.1), 2.0)))
+	c.v = clampf(v + clampf(a, -10.0, 6.0) * dt, 0.0, float(r.top_v))
+	c.s = float(c.s) + float(c.v) * dt
+	if int(c.to) != int(c.lane):
+		c.t = float(c.t) + dt / float(c.get("lc_time", 1.0))
+		if float(c.t) >= 1.0:
+			c.lane = c.to
+			c.t = 0.0
+		return
+	r.think = float(r.think) - dt
+	if r.think > 0.0 or float(lead.gap) > 140.0 or float(lead.v) > float(c.v) - 1.0:
+		return
+	r.think = maxf(0.12, 0.45 - 0.06 * int(r.level))       # (the better ones see a gap sooner)
+	var here: float = lead.gap
+	var best := -1
+	var best_free := here + 12.0
+	for to in [int(c.lane) - 1, int(c.lane) + 1]:
+		if to < 0 or to >= lanes:
+			continue
+		var ahead := _leader(to, float(c.s), float(c.half_len), c)
+		var back := _follower(to, float(c.s), float(c.half_len), c)
+		if float(back.gap) < 3.0 or float(ahead.gap) < 6.0:
+			continue
+		if back.car != null and float(back.v) - float(c.v) > 6.0 and float(back.gap) < 25.0:
+			continue
+		if _player_in(to) and absf(float(player.s) - float(c.s)) < PLAYER_HALF_LEN + float(c.half_len) + 2.0:
+			continue                                         # (the player's alongside there)
+		var free: float = ahead.gap
+		if free > best_free:
+			best_free = free
+			best = to
+	if best >= 0:
+		c.to = best
+		c.t = 0.0

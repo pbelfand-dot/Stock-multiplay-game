@@ -14,6 +14,8 @@ extends Node
 ##   BOTH
 ##   look around   mouse                  right stick
 ##   camera        C (driver: chase cam)  right stick click
+##   flash lights  H (cut up: challenge   left shoulder
+##                 the rival ahead)
 ##   reset car     R (+5 s)               Y
 ##   ready / next  enter                  start
 ##   pause         esc                    back
@@ -33,6 +35,7 @@ func _ready() -> void:
 	_action("ready", [KEY_ENTER, KEY_KP_ENTER], [JOY_BUTTON_START], [])
 	_action("pause", [KEY_ESCAPE], [JOY_BUTTON_BACK], [])
 	_action("camera", [KEY_C], [JOY_BUTTON_RIGHT_STICK], [])
+	_action("flash", [KEY_H], [JOY_BUTTON_LEFT_SHOULDER], [])
 
 
 func _action(name: String, keys: Array, buttons: Array, axes: Array, mouse := []) -> void:
