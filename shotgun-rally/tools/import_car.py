@@ -18,6 +18,10 @@ The spec (tools/cars/<id>.json) says what's what in the model:
     patterns of its wheels' (calipers') faces, made parts of their own;
     "split_mats": {"name": [patterns]}: more parts of their own ("<part>_name":
     an interior, to thin harder with "decimate_parts")
+  * "turn_wheels": [corners]: wheels modelled facing the wrong way (one wheel copied to all
+    four, the outer face inward on one side): turned half round on the spot
+  * "unmix": true: a game-mod model whose colours are images times vertex colours (a Mix
+    node the glTF export drops): the images wired straight to the colour
   * "wheel_trim": true: a wheel material the body uses too (a splitter, a vent): faces far
     from the rest of their corner's wheel stay with the body
   * "mirror": name patterns of parts the model only has on one side (a missing
@@ -334,6 +338,45 @@ if drop_mats:
             meshes.remove(o)
             bpy.data.objects.remove(o, do_unlink=True)
 
+# ("unmix": a game-mod material whose colour is its image times the mesh's vertex colours,
+# through a Mix node the glTF export can't carry: the image wired straight to the colour (and
+# its alpha to the alpha), else the material exports with no texture at all)
+if spec.get("unmix"):
+    n_unmixed = 0
+    for mat in bpy.data.materials:
+        if not mat.use_nodes:
+            continue
+        nt = mat.node_tree
+        b = next((n for n in nt.nodes if n.type == 'BSDF_PRINCIPLED'), None)
+        if b is None or not b.inputs["Base Color"].links:
+            continue
+        mix = b.inputs["Base Color"].links[0].from_node
+        if mix.type not in ('MIX', 'MIX_RGB'):
+            continue
+        img = None
+        for inp in mix.inputs:
+            for l in inp.links:
+                if l.from_node.type == 'TEX_IMAGE' and l.from_node.image:
+                    img = l.from_node
+        if img is None:
+            continue
+        nt.links.new(img.outputs["Color"], b.inputs["Base Color"])
+        # its alpha: opaque unless the image really has see-through pixels (then cut out, not
+        # blended: a blended body panel sorts wrong against the rest and comes out patchy)
+        im = img.image
+        px = np.empty(im.size[0] * im.size[1] * im.channels, dtype=np.float32)
+        im.pixels.foreach_get(px)
+        see_through = im.channels == 4 and float(px.reshape(-1, 4)[:, 3].min()) < 0.5
+        for l in list(b.inputs["Alpha"].links):
+            nt.links.remove(l)
+        if see_through:
+            nt.links.new(img.outputs["Alpha"], b.inputs["Alpha"])
+            mat.blend_method = 'CLIP'
+        else:
+            mat.blend_method = 'OPAQUE'
+        n_unmixed += 1
+    print("unmix: %d materials' images wired straight to their colour" % n_unmixed)
+
 # images the model was saved with under another name (Sketchfab renames them): found by name
 def _key(n):
     n = os.path.splitext(os.path.basename(n))[0].lower()
@@ -640,6 +683,15 @@ for k in CORNERS:
                     xform(o, m)
                 print("straightened %s by %.1f deg" % (k, math.degrees(ang)))
     corner[k]["c"] = centre(corner[k]["spin"])[0]
+
+# ("turn_wheels": [corners]: a model that copied one wheel to all four corners, its outer face
+# the same way on both sides: those corners' wheels turned half round on the spot)
+for k in spec.get("turn_wheels", []):
+    c = corner[k]["c"]
+    m = Matrix.Translation(c) @ Matrix.Rotation(math.pi, 4, 'Z') @ Matrix.Translation(-c)
+    for o in corner[k]["spin"] + corner[k]["cal"]:
+        xform(o, m)
+    print("turned the %s wheel half round" % k)
 
 # tyre sidewalls modelled in the rim's material: past "from" x the tyre's radius, rubber
 sw = spec.get("sidewall")

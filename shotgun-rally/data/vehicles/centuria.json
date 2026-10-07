@@ -1,0 +1,87 @@
+{
+	"id": "centuria",
+	"name": "CENTURIA 16",
+	"order": 410,
+	"model": "chiron_mansory",
+	"category": "hyper",
+	"role": "hypercar",
+	"real": {
+		"manufacturer": "Bugatti (Mansory body kit)",
+		"model": "Chiron 'Centuria' by Mansory",
+		"year": 2018,
+		"trim": "8.0 W16 quad-turbo, 7-speed DSG"
+	},
+	"specs": {
+		"power_hp": 1479,
+		"weight_kg": 1995,
+		"drivetrain": "AWD",
+		"transmission": "7-speed dual-clutch",
+		"wheelbase_mm": 2711,
+		"top_speed_kmh": 420,
+		"front_weight": 0.43,
+		"notes": "Mansory's Centuria kit is carbon bodywork and aero only: the Chiron underneath is stock. The 8.0 W16 with four turbochargers: 1,500 PS (1,103 kW) at 6,700 rpm and 1,600 Nm from 2,000 to 6,000 rpm; 7-speed dual-clutch, all-wheel drive; 2,711 mm wheelbase; 420 km/h (limited); 0-100 km/h 2.4-2.5 s (Bugatti; auto motor und sport's data). Weight: 1,995 kg dry of a driver (2,070 kg EU kerb with one); the carbon kit's saving isn't published. The gear ratios aren't published: spread for the top speed. 43 % front, the drag and downforce are estimates."
+	},
+	"garage": {
+		"price": 150000,
+		"engine_sound": "v8_turbo",
+		"livery": "plain",
+		"number": 16,
+		"colours": [[0.0, 0.55, 0.55], [0.05, 0.05, 0.055], [0.85, 0.85, 0.87], [0.55, 0.03, 0.02]],
+		"wheels": "black",
+		"power": 1.0,
+		"grip": 1.0,
+		"brakes": 1.0,
+		"drive_front": 0.4,
+		"blurb": "Sixteen cylinders, four turbos, 1,500 horsepower and a tuner's forged-carbon armour. Nothing in the garage pulls harder from 200."
+	},
+	"physics": {
+		"chassis": "sport",
+		"mass": 1995.0,
+		"front": 0.43,
+		"torque": 1600.0,
+		"curve": [[1000, 0.38], [1350, 0.721], [1700, 0.926], [2000, 1.0], [3645, 1.0], [6700, 0.982], [6900, 0.83]],
+		"idle": 850.0,
+		"limiter": 6900.0,
+		"turbo": 0.4,
+		"spool": [1800.0, 3200.0],
+		"spool_time": 0.35,
+		"anti_lag": false,
+		"gears": [4.48, 3.362, 2.523, 1.893, 1.421, 1.066, 0.8],
+		"final": 2.43,
+		"drive": "awd",
+		"front_share": 0.4,
+		"centre": ["lsd", 0.25, 0.2, 30.0],
+		"front_diff": ["lsd", 0.2, 0.1, 20.0],
+		"rear": ["lsd", 0.35, 0.15, 30.0],
+		"cd": 0.36,
+		"area": 2.07,
+		"down": 0.6,
+		"brake": 1.0
+	},
+	"checks": {
+		"zero_100_max": 6.0
+	},
+	"interior": {
+		"own": true,
+		"camera": true,
+		"notes": "The model's: carbon and turquoise trim, its wheel (cut out by part); a dual-clutch: the hands stay on the wheel."
+	},
+	"source": {
+		"package": "bugatti-chiron-mansory.zip",
+		"author": "VTX_car (display name: VTX)",
+		"license": "CC Attribution-NonCommercial-ShareAlike (no upstream source credited or found)",
+		"url": "https://sketchfab.com/3d-models/bugatti-chiron-mansory",
+		"attribution": "Bugatti Chiron Mansory by VTX_car (CC BY-NC-SA)",
+		"candidate": 28
+	},
+	"research": [
+		"https://www.auto-motor-und-sport.de/fahrbericht/bugatti-chiron-2017-fahrbericht/technische-daten/",
+		"https://www.adac.de/rund-ums-fahrzeug/autokatalog/marken-modelle/bugatti/chiron/1generation/260893",
+		"https://www.autobild.de/artikel/bugatti-chiron-mansory-centuria-14675659.html",
+		"https://de.motor1.com/news/314096/mansory-centuria-bugatti-chiron-tuning/"
+	],
+	"limitations": [
+		"The gear ratios, weight distribution, drag and downforce are estimates.",
+		"Provenance: a game-mod port (GTA-style part and material names, Forza-style wheel names); fine among friends, replace before any public release."
+	]
+}
