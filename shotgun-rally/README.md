@@ -514,6 +514,8 @@ real voice.
 
 ## Credits & notes
 
+- The cars' sources, authors and licences (and what to settle before any public release):
+  [`docs/CREDITS.md`](docs/CREDITS.md), generated from the vehicle registry.
 - Car and seats: made with Higgsfield (GPT Image concept art -> Meshy
   image-to-3D), from your account; the loading screen art too. The concept art is in
   `docs/reference/models/`.

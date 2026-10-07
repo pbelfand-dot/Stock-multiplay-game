@@ -211,7 +211,10 @@ upgrades) and weight.
      go and where the windshield is. `--parts` lists every part, where it is and how big;
      `--snapshot file.blend` saves the car as the tool sees it, to look at. Leave the key out and
      the game builds its own rally cockpit instead (an interior too rough to sit in).
-4. Add the car's numbers to `SPECS` in `scripts/vehicle/car_specs.gd`, and a garage entry with `"model": "<id>"` in `scripts/game/catalog.gd`.
+4. Add its registry entry, `data/vehicles/<id>.json` (`docs/vehicles.md`): the researched numbers in `specs`,
+   its `physics` from `tools/vehicle_physics.py` (power, weight, drive, engine kind, chassis), a `garage` and/or
+   `traffic` block, its `source` and `limitations`; `python3 tools/vehicle_registry.py check`, and
+   `python3 tools/vehicle_credits.py > docs/CREDITS.md`.
 5. `tests/car_models_check.gd` checks it:
    - it builds;
    - it sits on its wheels;
