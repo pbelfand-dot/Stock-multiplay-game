@@ -165,7 +165,9 @@ upgrades) and weight.
 
    `--survey` lists every material, where it is on the car and how big, to help write it.
    Paint parts shaped by a normal map (a door handle plate, a fuel cap) go in `"paint_normal"`:
-   they're painted and keep their shape.
+   they're painted and keep their shape. If a model's materials come in too shiny (the Quattro's
+   FBX dash and seats were half metal and mirror-smooth, so they read as chrome from the seat),
+   `"finish"` sets the metal and roughness of the materials it names, where no texture drives them.
 3. `blender -b -Y --python tools/import_car.py -- tools/cars/<id>.json <model> [texture dir]`
    writes `assets/models/cars/<id>/<id>.glb` and `parts.json`. `-Y` keeps any scripts in a .blend switched off.
    - The paint and the glass are never simplified, because simplifying them dents the panels.
