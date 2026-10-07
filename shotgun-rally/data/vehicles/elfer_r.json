@@ -1,0 +1,135 @@
+{
+ "id": "elfer_r",
+ "name": "ELFER R",
+ "order": 480,
+ "model": "gt3r_992",
+ "category": "race",
+ "role": "track",
+ "real": {
+  "manufacturer": "Porsche",
+  "model": "911 GT3 R (992)",
+  "year": 2023,
+  "trim": "4.2 flat-six, 6-speed sequential (paddles)"
+ },
+ "specs": {
+  "power_hp": 557,
+  "weight_kg": 1250,
+  "drivetrain": "RWD",
+  "transmission": "6-speed sequential (paddle shift)",
+  "wheelbase_mm": 2507,
+  "top_speed_kmh": 290,
+  "front_weight": 0.4,
+  "notes": "Porsche Motorsport's GT3 customer car: the rear-mounted 4,194 cc flat-six, 416 kW (565 PS) as Porsche rates it, subject to BoP (about 620 bhp at 9,400 rpm unrestricted, per Fast Car); about 1,250 kg; a six-speed sequential with paddles and a mechanical limited-slip differential; 2,507 mm wheelbase, 4,619 mm long (without aero), 2,039 / 2,050 mm wide at the axles (Porsche via stuttcars.com). Torque isn't published (from the power, a high-revving NA curve); the power peak's rpm (9,000), the limiter (9,500), ~290 km/h, the ratios, weight distribution and aero (the track chassis' downforce) are estimates."
+ },
+ "garage": {
+  "price": 110000,
+  "engine_sound": "i6_race",
+  "livery": "stripes",
+  "number": 911,
+  "colours": [
+   [
+    0.92,
+    0.92,
+    0.9
+   ],
+   [
+    0.05,
+    0.05,
+    0.06
+   ],
+   [
+    0.85,
+    0.12,
+    0.05
+   ],
+   [
+    0.1,
+    0.3,
+    0.7
+   ]
+  ],
+  "wheels": "black",
+  "power": 1.0,
+  "grip": 1.0,
+  "brakes": 1.0,
+  "drive_front": 0.0,
+  "blurb": "A GT3 race car with its flat-six hung out behind the rear axle: it screams to 9,500, stops like nothing on the road and wants a careful right foot out of slow corners."
+ },
+ "physics": {
+  "chassis": "track",
+  "mass": 1250.0,
+  "front": 0.4,
+  "torque": 489.7,
+  "curve": [
+   [
+    1000,
+    0.5
+   ],
+   [
+    3107,
+    0.775
+   ],
+   [
+    5214,
+    0.94
+   ],
+   [
+    7020,
+    1.0
+   ],
+   [
+    9000,
+    0.9
+   ],
+   [
+    9500,
+    0.784
+   ]
+  ],
+  "idle": 1000.0,
+  "limiter": 9500.0,
+  "turbo": 0.0,
+  "gears": [
+   2.392,
+   1.921,
+   1.543,
+   1.24,
+   0.996,
+   0.8
+  ],
+  "final": 4.85,
+  "drive": "rwd",
+  "rear": [
+   "lsd",
+   0.35,
+   0.15,
+   30.0
+  ],
+  "cd": 0.45,
+  "area": 1.95,
+  "down": 2.4,
+  "brake": 1.25
+ },
+ "checks": {
+  "zero_100_max": 7.0
+ },
+ "interior": {
+  "own": true,
+  "camera": true,
+  "notes": "The model's race cockpit: its racing wheel cut out by part, the seat found by the probe; paddles: the hands stay on the wheel."
+ },
+ "source": {
+  "package": "CGTrader_New_Cars/porsche_911_992_gt3_r (porsche_911_992_gt3_r.glb)",
+  "candidate": 32,
+  "license": "CGTrader purchase (no licence file in the package; CGTrader's Royalty Free licence assumed)"
+ },
+ "research": [
+  "https://www.stuttcars.com/porsche-911-gt3-r-992-1-2023-2025-specifications-performance/",
+  "https://www.fastcar.co.uk/motorsportnews/porsche-911-gt3-r-revealed/"
+ ],
+ "limitations": [
+  "Torque, the power peak's rpm, the limiter, top speed, the ratios, weight distribution and aero are estimates; the power is Porsche's BoP-dependent rating.",
+  "Provenance: parts named like a racing-sim mod (STEER_HR, a '963_CLEARLED' material, '296_ROTOR' discs); fine among friends, replace before any public release.",
+  "The game's livery replaces its race livery (its body is the game's paint); its sponsor decals stay."
+ ]
+}
