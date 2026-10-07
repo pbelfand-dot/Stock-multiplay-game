@@ -64,6 +64,18 @@ func _process(_dt: float) -> bool:
 	fails += _check(own >= 5, "%d cars keep their own interior, %d the cockpit's" % [own, ours])
 	for id in ["kestrel"] + Array(Catalog.CARS.filter(func(c): return str(c.get("model", "")) != "").map(func(c): return c.id)):
 		_reach(id)
+	# the driver-fit anchors (fit_debug.gd, the F9 overlay's) in every car: head under the roof, the
+	# wheel in front of the eyes, the hands in reach, the pedals ahead of and below the seat, the door outside
+	var FitDebug = load("res://scripts/vehicle/fit_debug.gd")
+	var why: Array = []
+	for c in Catalog.CARS:
+		var made: Array = _car(c.id)
+		var j: Array = FitDebug.judge(FitDebug.fit(made[0], made[1]), made[0])
+		if not j[0]:
+			why.append("%s: %s" % [c.id, j[1]])
+		made[0].queue_free()
+	fails += _check(why.is_empty(), "driver fit: head, seat, hands, pedals and door anchors sane in %d of %d cars%s" % [
+		Catalog.CARS.size() - why.size(), Catalog.CARS.size(), "" if why.is_empty() else " (" + " | ".join(why) + ")"])
 	print("[interior] %s" % ("INTERIOR OK" if fails == 0 else "INTERIOR FAIL"))
 	quit(1 if fails > 0 else 0)
 	return true
@@ -135,7 +147,7 @@ func _own(id: String, ck: Dictionary) -> void:
 	var kind: String = h.gear_kind
 	var lever = car.cockpit_nodes.get("shifter")
 	car.gear = 2
-	if kind == "h5" or kind == "h6":
+	if kind in ["h4", "h5", "h6"]:
 		var knob0: Vector3 = h._gear.transform * Vector3(0.0, h._gear_len, 0.0)
 		_run(cp, 0.2)
 		var on_knob: bool = (h._gloves[k] as Node3D).transform.origin.distance_to(h._gear_grip().origin) < 0.02
@@ -143,14 +155,14 @@ func _own(id: String, ck: Dictionary) -> void:
 		var knob1: Vector3 = h._gear.transform * Vector3(0.0, h._gear_len, 0.0)
 		var moved: Vector3 = knob1 - knob0               # 1st (forward, left) -> 2nd (back, left)
 		var l: float = h._gear_len                     # (how far the knob goes: as long as the lever is)
-		fails += _check(on_knob and h._hand[k].mode == "grip" and h._gate.is_equal_approx(Vector2(-1.0, 1.0))
+		fails += _check(on_knob and h._hand[k].mode == "grip" and h._gate.is_equal_approx(h._h_gate(2))
 			and moved.z > 0.25 * l and absf(moved.x) < 0.01 and lever != null and not lever.basis.is_equal_approx(Basis()),
 			"%s: changing up, the hand takes its own knob from 1st back to 2nd (%.0f cm) and goes back to the wheel" % [id, moved.z * 100.0])
 		car.gear = 3
 		_run(cp, 0.8)
 		var knob3: Vector3 = h._gear.transform * Vector3(0.0, h._gear_len, 0.0)
-		fails += _check(h._gate.is_equal_approx(Vector2(0.0, -1.0)) and knob3.z < knob1.z - 0.25 * l and knob3.x > knob1.x + 0.1 * l,
-			"%s: ... and through the gate to 3rd (forward, across to the middle)" % id)
+		fails += _check(h._gate.is_equal_approx(h._h_gate(3)) and knob3.z < knob1.z - 0.25 * l and knob3.x > knob1.x + 0.1 * l,
+			"%s: ... and through the gate to 3rd (forward, across to the %s)" % [id, "right" if kind == "h4" else "middle"])
 	elif kind == "seq_model":
 		_run(cp, 0.17)
 		var pulled: float = h._gear_kick

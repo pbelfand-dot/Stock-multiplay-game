@@ -70,7 +70,7 @@ var _gear: Node3D                # the gear lever (pivots at its foot; +Y along 
 var _gear_rest := Basis()
 var _gear_len := 0.0
 var shift_hand := RIGHT          # the hand that shifts and pulls the handbrake
-var gear_kind := "seq"           # "seq" (ours), "h5" / "h6" (an H-pattern), "seq_model", "auto" (no hand)
+var gear_kind := "seq"           # "seq" (ours), "h4" / "h5" / "h6" (an H-pattern), "seq_model", "auto" (no hand)
 var _gear_model: Node3D          # the car's own gear lever / handbrake (null: ours)
 var _brake_model: Node3D
 var _has_brake := true
@@ -122,7 +122,7 @@ func setup(wheel_centre: Vector3, wheel_tilt: float, rim_radius: float, axis := 
 
 
 ## The car's own levers instead of ours (positions in the cockpit's space):
-## {side: "left" / "right" (where the driver sits), gearbox: "h5", "h6", "seq",
+## {side: "left" / "right" (where the driver sits), gearbox: "h4", "h5", "h6", "seq",
 ## "auto", shifter: {pivot, knob, node}, handbrake: {pivot, grip, node}}. The
 ## nodes (the model's, each with its origin at its pivot) are turned to match.
 func use_model(cfg: Dictionary) -> void:
@@ -167,13 +167,14 @@ static func _along(d: Vector3) -> Basis:
 	return Basis(x, y, x.cross(y))
 
 
-## Where an H-pattern lever's knob sits in gear g (1st top left ... 5th / 6th right).
+## Where an H-pattern lever's knob sits in gear g (1st top left ... 5th / 6th right;
+## a four-speed: two gates, 1st-2nd left, 3rd-4th right).
 func _h_gate(g: int) -> Vector2:
 	if g < 1:
 		return Vector2.ZERO
-	var cols := 3
+	var cols := 2 if gear_kind == "h4" else 3
 	var col := clampi((g - 1) / 2, 0, cols - 1)
-	return Vector2(col - 1, -1.0 if g % 2 == 1 else 1.0)
+	return Vector2(col - (cols - 1) * 0.5, -1.0 if g % 2 == 1 else 1.0)
 
 
 ## Along the H from one gate to another (u 0..1): back to the middle row, across, into the gate.
@@ -212,7 +213,7 @@ func update(dt: float, wheel_turn: float, handbrake: bool, gear := 0) -> void:
 		rh.src = "lever"
 		rh.to = _home(shift_hand) + w
 	# the shifting hand and the gear lever (an automatic shifts itself)
-	var h_box := gear_kind == "h5" or gear_kind == "h6"
+	var h_box := gear_kind in ["h4", "h5", "h6"]
 	if gear > 0 and _last_gear > 0 and gear != _last_gear and not handbrake and gear_kind != "auto":
 		var dir := signf(gear - _last_gear)
 		if rh.mode == "shift":

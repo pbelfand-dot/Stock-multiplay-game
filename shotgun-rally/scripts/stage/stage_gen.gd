@@ -62,11 +62,34 @@ var _rng := RandomNumberGenerator.new()
 ## on the asphalt (_make_sections, _make_patches).
 var opts := {}
 var _hills: Array = []          # [[amp, wavelength, phase] x2]
+## The KIND of road (opts.kind): "rally" (the default: everything above), "touge" (a
+## Japanese mountain pass: two narrow lanes of asphalt, hairpins and S-bends climbing
+## (opts.dir "up") or falling ("down") across the mountainside, no jumps, no villages)
+## or "highway" (the cutting-up mode's: HIGHWAY_LANES lanes one way, long straights and
+## sweepers of 900-2,500 m, grades of a few per cent).
+var kind := "rally"
+const TOUGE_W := 6.4            # a touge's two lanes (m), give or take a little
+const TOUGE_RISE := 0.075       # how much a touge climbs a metre of road (on average, before smoothing)
+const HIGHWAY_LANES := 4
+const LANE_W := 3.6
+const HIGHWAY_SHOULDER := 1.5   # each side, outside the edge lines
+const HIGHWAY_W := HIGHWAY_LANES * LANE_W + 2.0 * HIGHWAY_SHOULDER
+const TOUGE_NAMES := ["KAZEMAKI", "AKAZAWA", "MIZUGAKI", "TSUKIKAGE", "KUROISHI", "HAYATE", "SHIRANAMI",
+	"YUKIZURI", "OBORO", "KIRIGAMINE", "SAKAGURA", "HOTARUBI"]
+
+
+## A touge's name (from its seed): "KAZEMAKI PASS".
+func touge_name() -> String:
+	return "%s PASS" % TOUGE_NAMES[absi(hash([seed_used, "touge"])) % TOUGE_NAMES.size()]
 
 
 ## Build the stage. `target` is roughly how long the road is (m).
 func generate(seed_value: int, target := 2600.0) -> void:
 	seed_used = seed_value
+	kind = str(opts.get("kind", "rally"))
+	if kind != "rally":
+		opts = opts.duplicate()
+		opts["surface"] = "tarmac"                   # (a touge and a highway are asphalt end to end)
 	for attempt in 60:
 		_rng.seed = hash([seed_value, attempt])
 		_make_pieces(target)
@@ -75,10 +98,13 @@ func generate(seed_value: int, target := 2600.0) -> void:
 			break
 	finish_s = length - FINISH_BACK
 	_make_sections()
-	mountain = opts.get("surface", "gravel") == "tarmac"
+	mountain = opts.get("surface", "gravel") == "tarmac" and kind != "highway"
 	_make_widths()
 	_make_elevation()
 	_find_corners()
+	if kind != "rally":
+		_make_patches()                              # (snow and ice if asked; no puddles, bridges or villages)
+		return
 	_place_extras()
 	_place_bridges()
 	_make_patches()
@@ -89,6 +115,9 @@ func generate(seed_value: int, target := 2600.0) -> void:
 # ── pieces ────────────────────────────────────────────────────────────────
 
 func _make_pieces(target: float) -> void:
+	if kind == "highway":
+		_highway_pieces(target)
+		return
 	pieces = [{"kind": "straight", "len": START_S + 40.0}]
 	var total := START_S + 40.0
 	var yaw := 0.0                  # where the road points, relative to the start (rad)
@@ -111,12 +140,33 @@ func _make_pieces(target: float) -> void:
 	pieces.append({"kind": "straight", "len": FINISH_BACK + 30.0})
 
 
+## A highway: long straights and sweepers (900-2,500 m radius, 8-35 degrees), never
+## two the same way running, so it heads on rather than curling round.
+func _highway_pieces(target: float) -> void:
+	pieces = [{"kind": "straight", "len": START_S + 160.0}]
+	var total := START_S + 160.0
+	var yaw := 0.0
+	while total < target - 400.0:
+		var sl := _rng.randf_range(250.0, 800.0)
+		pieces.append({"kind": "straight", "len": sl})
+		total += sl
+		var r := _rng.randf_range(900.0, 2500.0)
+		var ang := deg_to_rad(_rng.randf_range(8.0, 35.0))
+		var dir := 1 if _rng.randf() < clampf(0.5 - yaw / (PI * 0.5), 0.1, 0.9) else -1
+		pieces.append({"kind": "arc", "dir": dir, "r": r, "ang": ang, "r2": 0.0, "ang2": 0.0})
+		yaw += dir * ang
+		total += r * ang
+	pieces.append({"kind": "straight", "len": FINISH_BACK + 120.0})
+
+
 ## One corner. Its direction leans back toward the start heading so the stage
 ## meanders forward instead of curling into itself; `force_flip` makes the
 ## second half of an S-bend go the other way.
 func _corner(yaw: float, force_flip: int) -> Dictionary:
 	# radius classes, from hairpin to fast sweeper (a mountain road: more hairpins and slow corners)
 	var cls := _pick([4, 4, 4, 3, 2, 1] if opts.get("surface", "gravel") == "tarmac" else [2, 3, 4, 4, 3, 2])
+	if kind == "touge":
+		cls = _pick([6, 5, 4, 3, 1, 0])               # a pass: hairpins, tight S-bends, a few faster ones
 	var r: float = [12.0, 22.0, 38.0, 65.0, 110.0, 190.0][cls] * _rng.randf_range(0.85, 1.2)
 	var ang_deg: float
 	match cls:
@@ -224,11 +274,19 @@ func _make_elevation() -> void:
 		[_rng.randf_range(1.0, 2.2), _rng.randf_range(150, 240), _rng.randf() * TAU],
 	]
 	crests.clear()
+	if kind == "highway":
+		# long, low rises: a few metres over a kilometre or so (2-3 % at most)
+		_hills = [[_rng.randf_range(3.0, 6.0), _rng.randf_range(1400, 2200), _rng.randf() * TAU],
+			[_rng.randf_range(0.6, 1.2), _rng.randf_range(500, 800), _rng.randf() * TAU]]
+		for i in pts.size():
+			pts[i].y = height_at(i * STEP)
+		_limit_grade()
+		return
 	# JUMPS on the long straights (a run-up and room to land in a straight line),
 	# where the hillside isn't too steep (on a slope the jump just tilts with it,
 	# but a steep one would push the landing past MAX_GRADE)
 	var zones: Array = []                            # [from, to] each jump takes up
-	for run in _straight_runs(96.0):
+	for run in (_straight_runs(96.0) if kind == "rally" else []):
 		var at: float = run.x + _rng.randf_range(36.0, 46.0)
 		if at < START_S + 140.0 or at > finish_s - 240.0 or run.y - at < 58.0:
 			continue
@@ -253,7 +311,7 @@ func _make_elevation() -> void:
 				clear = false
 		if clear:
 			crests.append({"s": s, "h": _rng.randf_range(1.0, 1.8), "w": _rng.randf_range(16.0, 26.0), "jump": false})
-			s += _rng.randf_range(180.0, 380.0)
+			s += _rng.randf_range(180.0, 380.0) * (2.0 if kind == "touge" else 1.0)
 	crests.sort_custom(func(p, q): return p.s < q.s)
 	if mountain:
 		_make_terrain()
@@ -268,7 +326,7 @@ func _make_elevation() -> void:
 ## of a steep drop used to throw the car 7 m down onto the flat at 110 km/h), then
 ## round the corners that leaves so the brows and dips stay smooth.
 func _limit_grade() -> void:
-	var step_max := MAX_GRADE * STEP
+	var step_max := max_grade() * STEP
 	for i in range(1, pts.size()):
 		pts[i].y = clampf(pts[i].y, pts[i - 1].y - step_max, pts[i - 1].y + step_max)
 	for i in range(pts.size() - 2, -1, -1):
@@ -279,6 +337,12 @@ func _limit_grade() -> void:
 			ys.append(p.y)
 		for i in range(1, pts.size() - 1):
 			pts[i].y = (ys[i - 1] + ys[i] * 2.0 + ys[i + 1]) * 0.25
+
+
+## The steepest the road may get: a rally stage's MAX_GRADE, a touge a little less
+## (it climbs all the way, so it's steep for longer), a highway 4 %.
+func max_grade() -> float:
+	return {"highway": 0.04, "touge": 0.13}.get(kind, MAX_GRADE)
 
 
 ## Elevation of the road at s (m): two rolling hills (on a mountain stage, the
@@ -394,6 +458,14 @@ static func lane_grip(d: float, half := ROAD_W * 0.5) -> float:
 ## the start and finish areas are normal width. Its own random numbers, so it
 ## doesn't change the rest of the stage.
 func _make_widths() -> void:
+	if kind != "rally":
+		widths.resize(pts.size())
+		var wrng := RandomNumberGenerator.new()
+		wrng.seed = hash([seed_used, "width"])
+		var wobble := [wrng.randf() * TAU, wrng.randf_range(300.0, 600.0)]
+		for j in pts.size():
+			widths[j] = HIGHWAY_W if kind == "highway" else TOUGE_W + 0.3 * sin(j * STEP / wobble[1] * TAU + wobble[0])
+		return
 	var rng := RandomNumberGenerator.new()
 	rng.seed = hash([seed_used, "width"])
 	var raw := PackedFloat32Array()
@@ -629,6 +701,13 @@ func _make_terrain() -> void:
 	rng.seed = hash([seed_used, "mountain"])
 	var along := Vector2(pts[pts.size() - 1].x - pts[0].x, pts[pts.size() - 1].z - pts[0].z).normalized()
 	_tilt = Vector2(-along.y, along.x) * MOUNTAIN_SLOPE * (1.0 if rng.randf() < 0.5 else -1.0)
+	if kind == "touge":
+		# a pass climbs the mountain (or comes down it): the slope runs along the road,
+		# with a little across it so it hangs on a hillside
+		# (~5 % of its length in all, however far apart its ends wound up: TOUGE_RISE a metre of road)
+		var up := -1.0 if str(opts.get("dir", "up")) == "down" else 1.0
+		var apart := Vector2(pts[pts.size() - 1].x - pts[0].x, pts[pts.size() - 1].z - pts[0].z).length()
+		_tilt = along * minf(TOUGE_RISE * length * 0.66 / maxf(apart, 1.0), 0.3) * up + Vector2(-along.y, along.x) * MOUNTAIN_SLOPE * 0.35 * (1.0 if rng.randf() < 0.5 else -1.0)
 	_ridges.clear()
 	for k in 2:
 		var a := rng.randf() * TAU

@@ -20,6 +20,7 @@ static var levels := {}                     # car id -> {engine, tyres, brakes}:
 static var tuning := {}                     # car id -> {tyre, preset}: "auto", "gravel" or "tarmac"
 static var story := {}                      # rally id -> {done, best_pos, best_total}
 static var bests := {}                      # "seed/length" -> best total (s)
+static var mode_bests := {}                 # Modes.best_key -> {value, splits} (touge time, drift / cut-up score)
 static var _loaded := false
 
 
@@ -46,6 +47,7 @@ static func ensure_loaded() -> void:
 	tuning = cf.get_value("garage", "tuning", tuning)
 	story = cf.get_value("story", "rallies", story)
 	bests = cf.get_value("story", "bests", bests)
+	mode_bests = cf.get_value("modes", "bests", mode_bests)
 	for k in ["cars", "liveries", "wheels"]:              # an old or hand-edited file
 		if not owned.has(k):
 			owned[k] = []
@@ -65,6 +67,7 @@ static func save() -> void:
 	cf.set_value("garage", "tuning", tuning)
 	cf.set_value("story", "rallies", story)
 	cf.set_value("story", "bests", bests)
+	cf.set_value("modes", "bests", mode_bests)
 	cf.save(path())
 
 
@@ -226,6 +229,23 @@ static func record_stage(seed_value: int, length: float, total: float) -> bool:
 	return false
 
 
+## A mode's best ({} if none): {value, splits}.
+static func mode_best(key: String) -> Dictionary:
+	ensure_loaded()
+	return mode_bests.get(key, {})
+
+
+## Keep a mode's result if it's the best (a time: lower; a score: higher); true if it was.
+static func record_mode(key: String, value: float, lower_better: bool, splits := []) -> bool:
+	ensure_loaded()
+	var old: Dictionary = mode_bests.get(key, {})
+	if not old.is_empty() and (value >= float(old.value) if lower_better else value <= float(old.value)):
+		return false
+	mode_bests[key] = {"value": value, "splits": splits}
+	save()
+	return true
+
+
 ## Forget everything (tests).
 static func reset() -> void:
 	credits = 0
@@ -236,4 +256,5 @@ static func reset() -> void:
 	tuning = {}
 	story = {}
 	bests = {}
+	mode_bests = {}
 	_loaded = true

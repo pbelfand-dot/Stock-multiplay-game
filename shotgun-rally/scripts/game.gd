@@ -29,11 +29,18 @@ const Autopilot = preload("res://scripts/vehicle/autopilot.gd")
 const EngineSound = preload("res://scripts/vehicle/engine_sound.gd")
 const StartLights = preload("res://scripts/ui/start_lights.gd")
 const Catalog = preload("res://scripts/game/catalog.gd")
+const Modes = preload("res://scripts/game/modes.gd")
+const Profile = preload("res://scripts/game/profile.gd")
+const Traffic = preload("res://scripts/stage/traffic.gd")
+const CutupScore = preload("res://scripts/game/cutup_score.gd")
+const TougeRules = preload("res://scripts/game/touge_rules.gd")
+const FitDebug = preload("res://scripts/vehicle/fit_debug.gd")
 
 signal progress(fraction: float, what: String)
 signal stage_generated
 
 const COUNTDOWN := 5.0
+const CRASH_DV := 4.0                # m/s of speed lost at once: cut up counts it as a crash
 const RESET_PENALTY := 5.0
 const JUMP_START_PENALTY := 10.0
 
@@ -90,6 +97,16 @@ var _engine                        # EngineSound
 var _gravel: AudioStreamPlayer3D
 var _squeal: AudioStreamPlayer3D     # the tyres on the asphalt, sliding
 var _squeal_amt := 0.0
+# the modes beyond rally stages (Modes): "" (a stage), "touge", "cutup"
+var mode := ""
+var traffic                          # Traffic (cut up)
+var cutup                            # CutupScore
+var touge                            # TougeRules
+var mode_result := {}                # the run's score / time / best, for the results
+var _mode_label: Label               # top right: the score, the combo, the drift chain
+var _flash_label: Label              # mid-screen: NEAR MISS +300, a split, CRASH
+var _flash_t := 0.0
+var fit_debug                        # FitDebug: the driver-fit overlay (F9, --fit_debug)
 
 
 ## Build the stage, a step a frame (await it): progress(fraction, what) feeds the
@@ -105,6 +122,7 @@ func start(seed_in: int, stage_in: int, o := {}) -> void:
 	await get_tree().process_frame
 	if not is_inside_tree():
 		return
+	mode = str(o.get("mode", "")) if Modes.is_mode(o) else ""
 	st = StageGen.new()
 	st.opts = o.get("gen", {})
 	st.generate(seed_value, float(o.get("length", Config.arg("length", 2600))))
@@ -125,7 +143,8 @@ func start(seed_in: int, stage_in: int, o := {}) -> void:
 	car.name = "Car"
 	car.setup = Catalog.for_stage(Net.car_setup(), st)   # (built as the driver's car from the start: its own body and numbers)
 	add_child(car)
-	_start_pos = st.world_at(st.START_S - 3.0, 0.0)
+	# (cut up: start in a lane, the second from the right, not astride two)
+	_start_pos = st.world_at(st.START_S - 3.0, st.LANE_W * 0.5 if mode == "cutup" else 0.0)
 	car.place(_start_pos, st.heading_at(st.START_S))
 	car.hit.connect(_on_hit)
 	car.landed.connect(_on_landed)
@@ -140,11 +159,17 @@ func start(seed_in: int, stage_in: int, o := {}) -> void:
 	cockpit = Cockpit.new()
 	car.add_child(cockpit)
 	cockpit.build(car, st)
+	fit_debug = FitDebug.new()
+	fit_debug.name = "FitDebug"
+	car.add_child(fit_debug)
+	fit_debug.setup(car, cockpit)
+	fit_debug.visible = Config.flag("fit_debug")
 	progress.emit(0.96, "Warming up the engine")
 	cockpit.wiper_stroke.connect(func(): _play("wiper", -6.0))
 	ai = AICoDriver.new()
 	add_child(ai)
-	ai.setup(calls)
+	ai.setup(calls if mode == "" else [])           # (a touge and a highway: no co-driver calling)
+	_setup_mode(o)
 	autopilot = Autopilot.new(st)
 	cam = SeatCam.new()
 	add_child(cam)
@@ -173,7 +198,7 @@ func _apply_roster() -> void:
 	car.set_simulating(driver_here)
 	cam.attach(car, my_seat, cockpit.eye_for(my_seat))
 	cockpit.set_my_seat(my_seat)
-	ai.enabled = Net.peer_in("codriver") == 0
+	ai.enabled = Net.peer_in("codriver") == 0 and mode == ""
 	_update_hint()
 
 
@@ -221,6 +246,7 @@ func stage_finished(time: float, pens: float, n_resets: int, jumped: bool) -> vo
 	state = "finished"
 	result = {"time": time, "penalties": pens, "total": time + pens, "resets": n_resets, "jump_start": jumped,
 		"stage": stage_no, "seed": seed_value}
+	_finish_mode()
 	if ai.enabled:
 		ai.say(["stage-complete"])
 	_play("bell", -4.0)
@@ -285,6 +311,8 @@ func _physics_process(dt: float) -> void:
 					stage_finished.rpc(args[0], args[1], args[2], args[3])
 				else:
 					stage_finished(args[0], args[1], args[2], args[3])
+	if mode != "":
+		_mode_tick(dt)
 	if car.simulate:
 		_drive_inputs()
 		_puddles()
@@ -362,6 +390,8 @@ func reset_car() -> void:
 	penalties += RESET_PENALTY
 	_sync_penalties()
 	_play("thud", -6.0)
+	if touge:
+		touge.lose()
 
 
 func _sync_penalties() -> void:
@@ -403,6 +433,11 @@ func wipe() -> void:
 @rpc("any_peer", "unreliable_ordered")
 func send_look(seat: String, yaw: float, pitch: float) -> void:
 	cockpit.set_look(seat, yaw, pitch)
+
+
+func _input(e: InputEvent) -> void:
+	if built and e is InputEventKey and e.pressed and not e.echo and (e as InputEventKey).keycode == KEY_F9:
+		fit_debug.visible = not fit_debug.visible        # the driver-fit overlay
 
 
 func _process(dt: float) -> void:
@@ -540,11 +575,121 @@ func _engine_audio() -> void:
 func _on_hit(impact: float) -> void:
 	_play("crash", clampf(-20.0 + impact, -18.0, 0.0))
 	cam.bump(clampf(impact / 15.0, 0.2, 1.0))
+	if state != "running":
+		return
+	if cutup and impact > CRASH_DV:
+		cutup.crash()                                # (a traffic car, or the barrier: hard enough is a crash)
+		for c in traffic.cars:                       # the car that was hit stops where it is
+			if absf(float(c.s) - car_s) < float(c.half_len) + 3.0 and absf(float(c.d) - car_d) < float(c.half_w) + 1.6:
+				traffic.hit(c.body)
+		_flash("CRASH  -%d" % CutupScore.CRASH_PENALTY, Color(1.0, 0.3, 0.25))
+	if touge and touge.chain > 0.0:
+		touge.lose()
+		_flash("CHAIN LOST", Color(1.0, 0.3, 0.25))
 
 
 func _on_landed(impact: float) -> void:
 	_play("thud", clampf(-18.0 + impact * 2.0, -16.0, 0.0))
 	cam.bump(clampf(impact / 10.0, 0.1, 0.7))
+
+
+# ── the modes: cut up and touge ───────────────────────────────────────────
+
+func _setup_mode(o: Dictionary) -> void:
+	match mode:
+		"cutup":
+			traffic = Traffic.new()
+			traffic.name = "Traffic"
+			add_child(traffic)
+			var diff := Modes.difficulty(o)
+			traffic.setup(st, diff, seed_value, st.START_S)
+			cutup = CutupScore.new()
+			cutup.near = float(diff.near)
+		"touge":
+			touge = TougeRules.new()
+			var best := Profile.mode_best(Modes.best_key(o, seed_value))
+			touge.best_splits = best.get("splits", [])
+
+
+## Every physics tick in a mode: the traffic, the score, the splits, the drift.
+func _mode_tick(dt: float) -> void:
+	var v_along: float = car.linear_velocity.dot(st.forward_at(car_s))
+	if traffic:
+		traffic.player = {"s": car_s, "d": car_d, "v": v_along}
+		traffic.running = state != "grid"
+	if state == "running":
+		if cutup:
+			for nm in cutup.update(dt, {"s": car_s, "d": car_d, "v": v_along}, traffic.snapshot()):
+				_flash("NEAR MISS  +%d%s" % [nm.points, "   x%d" % cutup.combo if cutup.combo > 1 else ""], Color(1.0, 0.85, 0.2))
+		if touge:
+			if touge.split_check(car_s, st.START_S, stage_time):
+				var dl: float = touge.last_split_delta
+				_flash("%d km   %s%s" % [touge.splits.size(), fmt_time(stage_time),
+					"" if dl == INF else ("   %+.1f" % dl)], Color(0.4, 1.0, 0.45) if dl < 0.0 else (Color(1.0, 0.4, 0.3) if dl != INF else Color.WHITE))
+			if opts.get("rules", "time") == "drift":
+				var on_road: bool = absf(car_d) < st.width_at(car_s) * 0.5 + 0.6
+				var was: float = touge.chain
+				touge.drift_update(dt, car.linear_velocity, -car.global_transform.basis.z, on_road)
+				if was > 0.0 and touge.chain == 0.0 and not on_road:
+					_flash("OFF THE ROAD: CHAIN LOST", Color(1.0, 0.3, 0.25))
+	if _mode_label:
+		_mode_label.text = _mode_text()
+		_flash_t -= dt
+		_flash_label.modulate.a = clampf(_flash_t / 0.5, 0.0, 1.0)
+
+
+func _mode_text() -> String:
+	if cutup:
+		var t := "SCORE  %d" % cutup.total()
+		if cutup.combo > 0:
+			t += "\nCOMBO  x%d   %.0f s" % [cutup.combo, maxf(CutupScore.COMBO_TIME - cutup.since_near, 0.0)]
+		return t + "\n%.0f km/h" % car.kmh()
+	if touge:
+		if opts.get("rules", "time") == "drift":
+			var t2 := "DRIFT  %d" % touge.total()
+			if touge.chain > 0.0:
+				t2 += "\nCHAIN  +%d   x%.1f" % [int(touge.chain), touge.multiplier()]
+			return t2 + ("\n%.0f deg" % touge.angle if touge.drifting else "")
+		var best := Profile.mode_best(Modes.best_key(opts, seed_value))
+		return "BEST  %s" % (fmt_time(float(best.value)) if not best.is_empty() else "--")
+	return ""
+
+
+func _flash(text: String, col: Color) -> void:
+	if _flash_label == null:
+		return
+	_flash_label.text = text
+	_flash_label.add_theme_color_override("font_color", col)
+	_flash_t = 2.0
+
+
+## The run's over: the mode's own result and best (the results panel shows the lines).
+func _finish_mode() -> void:
+	mode_result = {}
+	if mode == "":
+		return
+	var key := Modes.best_key(opts, seed_value)
+	var lines: Array = []
+	if cutup:
+		var sc: int = cutup.finish()
+		var best := sc > 0 and Profile.record_mode(key, float(sc), false)
+		lines = ["SCORE  %d%s" % [sc, "   NEW BEST" if best else ""],
+			"%d near misses · best combo x%d · %d crash%s" % [cutup.near_misses, cutup.best_combo, cutup.crashes, "" if cutup.crashes == 1 else "es"]]
+		mode_result = {"score": sc, "best": best}
+	elif touge and opts.get("rules", "time") == "drift":
+		var sc2: int = touge.finish()
+		var best2 := sc2 > 0 and Profile.record_mode(key, float(sc2), false)
+		lines = ["DRIFT POINTS  %d%s" % [sc2, "   NEW BEST" if best2 else ""],
+			"%d chains · best %d · %d lost" % [touge.chains, touge.best_chain, touge.lost]]
+		mode_result = {"score": sc2, "best": best2}
+	elif touge:
+		var total: float = result.time + result.penalties
+		var old := Profile.mode_best(key)
+		var best3 := Profile.record_mode(key, total, true, touge.splits)
+		lines = ["PASS RECORD  %s%s" % [fmt_time(total) if best3 else fmt_time(float(old.value)),
+			"   NEW RECORD" if best3 else "   (%+.1f s)" % (total - float(old.value))]]
+		mode_result = {"time": total, "best": best3}
+	mode_result["lines"] = lines
 
 
 # ── HUD: hints, results, pause (no HUD while driving: the map board is the HUD) ─
@@ -603,6 +748,29 @@ func _build_hud() -> void:
 		btn.pressed.connect(b[1])
 		vb.add_child(btn)
 	_pause.visible = false
+	# the modes' numbers: top right, and a flash in the middle for the moments
+	_mode_label = Label.new()
+	_mode_label.add_theme_font_override("font", load("res://assets/fonts/Oswald-Bold.woff2"))
+	_mode_label.add_theme_font_size_override("font_size", 34)
+	_mode_label.add_theme_color_override("font_outline_color", Color.BLACK)
+	_mode_label.add_theme_constant_override("outline_size", 8)
+	_mode_label.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT)
+	_mode_label.offset_left = -520
+	_mode_label.offset_right = -30
+	_mode_label.offset_top = 24
+	_mode_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	_hud.add_child(_mode_label)
+	_flash_label = Label.new()
+	_flash_label.add_theme_font_override("font", load("res://assets/fonts/Oswald-Bold.woff2"))
+	_flash_label.add_theme_font_size_override("font_size", 52)
+	_flash_label.add_theme_color_override("font_outline_color", Color.BLACK)
+	_flash_label.add_theme_constant_override("outline_size", 10)
+	_flash_label.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
+	_flash_label.offset_top = 210
+	_flash_label.offset_left = -500
+	_flash_label.offset_right = 500
+	_flash_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_hud.add_child(_flash_label)
 
 
 func _panel() -> PanelContainer:
@@ -647,6 +815,8 @@ func _update_hint() -> void:
 			t = ""
 	_hint_label.text = t
 	var title: String = "%s\n%s" % [opts.title, opts.stage_name] if opts.get("mode") == "story" else "STAGE %d\n%s" % [stage_no, st.describe()]
+	if mode != "":
+		title = Modes.title(opts, st)
 	_big_label.text = title if state == "grid" else ""
 
 
@@ -679,7 +849,10 @@ func _show_results() -> void:
 	_results.visible = true
 	var r := result
 	var head: String = opts.stage_name + "  COMPLETE" if opts.get("mode") == "story" else "STAGE %d COMPLETE" % r.stage
+	if mode != "":
+		head = Modes.title(opts, st).replace("\n", "  ·  ") + "  COMPLETE"
 	var lines := [head, "", "Time  %s" % fmt_time(r.time)]
+	lines.append_array(mode_result.get("lines", []))
 	_results_label.add_theme_font_size_override("font_size", 22 if _result_extra.size() > 3 else 28)
 	if r.penalties > 0.0:
 		var why: Array = []

@@ -55,7 +55,7 @@ The spec (tools/cars/<id>.json) says what's what in the model:
     "height": m, "lean": degrees}}: a lever made for it (rod, knob, leather
     boot) standing on the tunnel there, its knob that high, leaning back that
     far (10), "handbrake": the same (+ "pivot": "rear", "front" or "bottom"),
-    "gearbox": "h5" / "h6" (an H-pattern), "seq", "auto", "eye": [x, y, z]
+    "gearbox": "h4" / "h5" / "h6" (an H-pattern), "seq", "auto", "eye": [x, y, z]
     (else from its seat: rays onto its cushion and its back), "mirror": {"mats",
     "box"}: the rear-view mirror's glass (the game shows the road behind in it)}. Each is cut out
     as SteeringWheel / Shifter / Handbrake, its origin at its pivot, and
@@ -63,6 +63,7 @@ The spec (tools/cars/<id>.json) says what's what in the model:
     driver and rim radius; the levers' pivots, knob and grip; the eyes; the
     windshield; "side": the driver's)
   * "wheel_faces" / "body_faces": the most triangles a wheel / the body keeps
+    ("caliper_faces": a caliper, for brakes modelled bolt by bolt)
     (decimated: the download stays small). The paint and the glass are never
     thinned (thinning them dents the panels): only the rest, down to 35 % at
     most ("body_least": a lower floor for a very dense model). Whatever is thinned gets its shading back from the part as it was
@@ -1227,8 +1228,9 @@ for k in CORNERS:
     parts["width"].append(float(pts[:, 0].max() - pts[:, 0].min()))
     parts["wheels"].append(game(c))
     if corner[k]["cal"]:
-        join(corner[k]["cal"], "Caliper_" + k, c)
+        cal = join(corner[k]["cal"], "Caliper_" + k, c)
         rest -= set(corner[k]["cal"])
+        decimate(cal, spec.get("caliper_faces"))
 body = join(list(rest), "Body", Vector((0, 0, 0)))
 decimate(body, spec.get("body_faces"), [paint] + glass + paint_n, spec.get("body_least", 0.35))   # ("body_least": how far the rest may be thinned)
 bb = verts(body)

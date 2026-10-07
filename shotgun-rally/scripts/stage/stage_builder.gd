@@ -26,6 +26,7 @@ const ASPHALT := Color(0.27, 0.27, 0.28)
 const PAINT := Color(0.9, 0.9, 0.86)
 const SHOULDER := Color(0.5, 0.46, 0.38)
 const SNOW := Color(0.93, 0.95, 0.98)
+const YELLOW := Color(0.95, 0.72, 0.1)
 const ICE := Color(0.5, 0.62, 0.74)
 const CENTRE_LINE_W := 5.4          # roads at least this wide get a centre line
 ## Road cross-section at the normal width (5.6 m): [d, height, colour of the strip
@@ -90,7 +91,7 @@ func build_async(stage, report: Callable) -> void:
 const STEPS := [["_environment", "Checking the weather"], ["_mountains", "Raising the mountains"], ["_road", "Laying the road"],
 	["_ground", "Shaping the hills"], ["_base", "Shaping the hills"], ["_towns", "Closing the town's streets"], ["_villages", "Building the villages"],
 	["_barriers", "Bolting up the armco"], ["_spectators", "Letting the spectators in"], ["_forest", "Planting ten thousand trees"],
-	["_puddles", "Filling the puddles"], ["_bridges", "Building the bridges"],
+	["_puddles", "Filling the puddles"], ["_bridges", "Building the bridges"], ["_roadside", "Putting up the signs"],
 	["_arches", "Putting up the start and finish"]]
 
 
@@ -128,7 +129,7 @@ func _road() -> void:
 		var row_g: Array = []
 		for x in _road_x(half):
 			row_g.append(c + r * x[0] + Vector3.UP * (x[1] + _berm_lift(berm, x[0], half)))
-		var xs_a := _asphalt_x(half)
+		var xs_a := _asphalt_pts(half)
 		var row_a: Array = []
 		for d in xs_a:
 			row_a.append(c + r * d + Vector3.UP * _road_height(d, half))
@@ -147,7 +148,8 @@ func _road() -> void:
 					var patch: Dictionary = st.patch_at(sm, dm)
 					var surf: String = patch.surface if not patch.is_empty() else "asphalt"
 					var shoulder: bool = k == 0 or k == xs_a.size() - 2
-					var col := _asphalt_col(k, xs_a.size() - 2, sm, wide, shade, patch)
+					var col := _highway_col(k, xs_a.size() - 2, sm, shade, patch) if st.kind == "highway" \
+						else _asphalt_col(k, xs_a.size() - 2, sm, wide, shade, patch)
 					if shoulder and surf == "asphalt":
 						surf = "gravel"                          # (the shoulder: loose stuff)
 					_buf(bufs, surf).quad(prev_a[k], prev_a[k + 1], row_a[k + 1], row_a[k], col, true)
@@ -160,8 +162,9 @@ func _road() -> void:
 	# the start line
 	var sl := MeshBuf.new()
 	var s0: float = st.START_S
-	var a: Vector3 = st.world_at(s0, -2.8) + Vector3.UP * 0.07
-	var b: Vector3 = st.world_at(s0, 2.8) + Vector3.UP * 0.07
+	var hw: float = maxf(st.width_at(s0) * 0.5, 2.8)
+	var a: Vector3 = st.world_at(s0, -hw) + Vector3.UP * 0.07
+	var b: Vector3 = st.world_at(s0, hw) + Vector3.UP * 0.07
 	var f: Vector3 = st.forward_at(s0) * 0.4
 	sl.quad(a - f, b - f, b + f, a + f, Color(0.95, 0.95, 0.92))
 	_add(sl, "", "StartLine")
@@ -181,16 +184,50 @@ static func _asphalt_x(half: float) -> Array:
 	return [-(half + 0.3), -half, -(half - 0.14), -1.25, -0.55, -0.07, 0.07, 0.55, 1.25, half - 0.14, half, half + 0.3]
 
 
+## The asphalt's cross-section: a highway's (its lanes StageGen.LANE_W apart, the
+## edge lines, asphalt shoulders, a verge) or the two-lane road's (_asphalt_x).
+func _asphalt_pts(half: float) -> Array:
+	if st.kind != "highway":
+		return _asphalt_x(half)
+	var edge: float = st.HIGHWAY_LANES * st.LANE_W * 0.5
+	var out: Array = [-(half + 0.3), -half, -edge - 0.15, -edge]
+	for k in range(1, st.HIGHWAY_LANES):
+		var d: float = -edge + k * st.LANE_W
+		out += [d - 0.08, d + 0.08]
+	out += [edge, edge + 0.15, half, half + 0.3]
+	return out
+
+
+## A highway's strip k (of _asphalt_pts): the verges, the solid edge lines, the
+## dashed lane lines (3 m painted, 9 m gap), the lanes and shoulders.
+func _highway_col(k: int, last: int, s: float, shade: float, patch: Dictionary) -> Color:
+	var col := ASPHALT * (0.97 + 0.03 * shade)
+	if k == 0 or k == last:
+		col = SHOULDER * shade
+	elif k == 2 or k == last - 2:
+		col = PAINT
+	elif k >= 4 and k <= last - 4 and k % 2 == 0 and fmod(s, 12.0) < 3.0:
+		col = PAINT
+	return _lying_on(col, s, shade, patch)
+
+
 ## The colour of asphalt strip k (of _asphalt_x; `last` is the far shoulder's) at
-## s, with whatever's lying on it (a patch: gravel, snow, ice).
+## s, with whatever's lying on it (a patch: gravel, snow, ice). A touge's centre
+## line is solid yellow (no overtaking), as on Japanese mountain roads.
 func _asphalt_col(k: int, last: int, s: float, wide: bool, shade: float, patch: Dictionary) -> Color:
 	var col := ASPHALT * (0.97 + 0.03 * shade)
 	if k == 0 or k == last:
 		col = SHOULDER * shade
 	elif k == 1 or k == last - 1:
 		col = PAINT
+	elif k == 5 and st.kind == "touge":
+		col = YELLOW
 	elif k == 5 and wide and fmod(s, 12.0) < 4.5:
 		col = PAINT                                      # the dashed centre line
+	return _lying_on(col, s, shade, patch)
+
+
+func _lying_on(col: Color, s: float, shade: float, patch: Dictionary) -> Color:
 	if not patch.is_empty():
 		match patch.surface:
 			"snow":
@@ -268,6 +305,8 @@ static func _road_height(d: float, half := 2.8) -> float:
 ## the finish, and the outside of some slow corners' exits. Well back from the
 ## road (7-10 m past the edge) on the bank, behind tape, in a clearing.
 func _spectators() -> void:
+	if st.kind != "rally":
+		return                                       # (a touge at dawn, a highway: nobody watching)
 	var spots: Array = [[st.START_S + 6.0, -1.0, 14], [st.START_S + 10.0, 1.0, 12],
 		[st.finish_s + 15.0, -1.0, 12], [st.finish_s + 22.0, 1.0, 10]]
 	for c in st.crests:
@@ -623,10 +662,12 @@ func _forest() -> void:
 						continue
 					p.y = _ground_height(c.y, d - extra, p) - 0.15
 					var kind: String = ["pine", "pine", "pine", "round", "birch", "bush"][_rng.randi() % 6]
+					if st.kind == "touge":
+						kind = ["cedar", "cedar", "cedar", "cedar", "round", "bush"][_rng.randi() % 6]   # sugi forest
 					if d - extra < 6.0 and kind == "bush":
 						kind = "round"
 					if sl[0] >= 76.0:
-						kind = (["pine", "pine", "round", "birch"][_rng.randi() % 4]) + "_far"   # no shadows, drawn nearer
+						kind = ((["cedar", "cedar", "round", "pine"] if st.kind == "touge" else ["pine", "pine", "round", "birch"])[_rng.randi() % 4]) + "_far"   # no shadows, drawn nearer
 					var sc := _rng.randf_range(0.85, 1.55)
 					var xf := Transform3D(Basis(Vector3.UP, _rng.randf() * TAU).scaled(Vector3.ONE * sc), p)
 					var ci := int(s / CHUNK)
@@ -667,7 +708,7 @@ func _forest() -> void:
 					chunks[ci]["fern"] = []
 				chunks[ci]["fern"].append(xf)
 	var meshes := {}
-	for kind in ["pine", "round", "birch", "bush", "fern"]:
+	for kind in ["pine", "round", "birch", "bush", "fern", "cedar"]:
 		meshes[kind] = _tree_mesh(kind)
 	var mat := MeshBuf.material()
 	for ci in chunks:
@@ -749,6 +790,12 @@ func _tree_mesh(kind: String) -> ArrayMesh:
 			_cyl(mb, Vector3.ZERO, 0.24, 2.2, 5, bark)
 			_blob(mb, Vector3(0, 3.6, 0), Vector3(2.0, 1.8, 2.0), Color(0.3, 0.55, 0.22))
 			_blob(mb, Vector3(0.6, 4.5, 0.3), Vector3(1.3, 1.2, 1.3), Color(0.35, 0.6, 0.25))
+		"cedar":
+			# a Japanese cedar (sugi): a tall straight trunk and a narrow dark spire
+			_cyl(mb, Vector3.ZERO, 0.2, 3.0, 5, Color(0.42, 0.28, 0.2))
+			var dark := [Color(0.1, 0.26, 0.16), Color(0.12, 0.3, 0.18), Color(0.14, 0.33, 0.2), Color(0.16, 0.36, 0.21)]
+			for t in 4:
+				_cone(mb, Vector3(0, 2.4 + t * 1.6, 0), 1.25 - t * 0.22, 2.4, 6, dark[t])
 		"birch":
 			_cyl(mb, Vector3.ZERO, 0.16, 3.4, 5, Color(0.9, 0.88, 0.82))
 			_blob(mb, Vector3(0, 4.3, 0), Vector3(1.3, 1.6, 1.3), Color(0.45, 0.66, 0.28))
@@ -809,6 +856,8 @@ func _blob(mb, c: Vector3, sz: Vector3, col: Color) -> void:
 # ── mountain roads: armco, stone walls, villages ──────────────────────────
 
 const ARMCO := Color(0.74, 0.76, 0.78)
+const RAIL_WHITE := Color(0.92, 0.93, 0.93)  # a Japanese guardrail: painted white
+const CONCRETE := Color(0.68, 0.68, 0.66)
 const POST := Color(0.38, 0.39, 0.41)
 const STONE := Color(0.63, 0.59, 0.52)
 const HOUSE_WALLS := [Color(0.93, 0.88, 0.76), Color(0.9, 0.78, 0.6), Color(0.94, 0.84, 0.8), Color(0.87, 0.87, 0.83),
@@ -823,8 +872,12 @@ const GLASS_DARK := Color(0.13, 0.15, 0.19)
 ## W-beam on posts), or a low stone wall (through a village always). Hit it and it
 ## stops you, and keeps you on the mountain.
 func _barriers() -> void:
+	if st.kind == "highway":
+		_highway_barriers()
+		return
 	if not st.mountain:
 		return
+	var touge: bool = st.kind == "touge"
 	var n: int = st.pts.size()
 	var body := StaticBody3D.new()
 	body.name = "Barriers"
@@ -842,6 +895,8 @@ func _barriers() -> void:
 			var p9: Vector3 = c + st.right_at(s) * ((9.0 + extra) * side)
 			need[i] = 1 if c.y - _mountain_h(c.y, 9.0, p9) > 1.0 and s > st.START_S - 30.0 and s < st.length - 6.0 \
 				and st.town_at(s, 8.0).is_empty() else 0         # (a town has its own barriers)
+			if touge and s > st.START_S - 30.0 and s < st.length - 6.0 and absf(st.curv[i]) > 1.0 / 45.0 and signf(st.curv[i]) == -side:
+				need[i] = 1                                  # (a pass has guardrail round the outside of every tight bend)
 		# runs of it, grown 6 m each way; a short one isn't worth it
 		var i := 0
 		while i < n:
@@ -854,7 +909,7 @@ func _barriers() -> void:
 			var a := maxi(i - 3, 0)
 			var b := mini(j + 3, n - 1)
 			if (b - a) * st.STEP >= 14.0:
-				var walled: bool = not st.village_at(a * st.STEP, 30.0).is_empty() or _rng.randf() < 0.3
+				var walled: bool = not st.village_at(a * st.STEP, 30.0).is_empty() or _rng.randf() < (0.15 if touge else 0.3)
 				for k in range(a, b):
 					_barrier_bit(k * st.STEP, (k + 1) * st.STEP, side, walled, stone if walled else steel, body)
 			i = j + 1
@@ -869,15 +924,17 @@ func _barrier_bit(s0: float, s1: float, side: float, walled: bool, mb, body: Sta
 	var e0: Vector3 = st.world_at(s0, d0) - Vector3.UP * 0.05
 	var e1: Vector3 = st.world_at(s1, d1) - Vector3.UP * 0.05
 	var r: Vector3 = st.right_at(s0) * side
+	var touge: bool = st.kind == "touge"
 	if walled:
 		var shade := 0.9 + 0.2 * _rng.randf()
-		_box(mb, e0 + Vector3.UP * 0.32, e1 + Vector3.UP * 0.32, r, 0.45, 0.8, _shade(STONE, shade))
-		_box(mb, e0 + Vector3.UP * 0.76, e1 + Vector3.UP * 0.76, r, 0.5, 0.1, _shade(STONE, shade * 1.08))    # the coping
+		var stone_col: Color = CONCRETE if touge else STONE     # (a touge's: a concrete parapet)
+		_box(mb, e0 + Vector3.UP * 0.32, e1 + Vector3.UP * 0.32, r, 0.45, 0.8, _shade(stone_col, shade))
+		_box(mb, e0 + Vector3.UP * 0.76, e1 + Vector3.UP * 0.76, r, 0.5, 0.1, _shade(stone_col, shade * 1.08))    # the coping
 		_wall(body, (e0 + e1) * 0.5 + Vector3.UP * 0.4, e1 - e0, r, 0.45, 0.85)
 	else:
-		_box(mb, e0 - Vector3.UP * 0.3, e0 + Vector3.UP * 0.72, st.forward_at(s0), 0.1, 0.12, POST)
+		_box(mb, e0 - Vector3.UP * 0.3, e0 + Vector3.UP * 0.72, st.forward_at(s0), 0.1, 0.12, RAIL_WHITE if touge else POST)
 		var beam := -r * 0.09                                  # the beam's on the road side of the posts
-		_box(mb, e0 + beam + Vector3.UP * 0.58, e1 + beam + Vector3.UP * 0.58, r, 0.06, 0.32, ARMCO)
+		_box(mb, e0 + beam + Vector3.UP * 0.58, e1 + beam + Vector3.UP * 0.58, r, 0.06, 0.32, RAIL_WHITE if touge else ARMCO)
 		_wall(body, (e0 + e1) * 0.5 + Vector3.UP * 0.45, e1 - e0, r, 0.25, 0.9)
 
 
@@ -1374,12 +1431,14 @@ func _puddles() -> void:
 
 func _arches() -> void:
 	_arch(st.START_S + 2.0, "START", Color(0.85, 0.15, 0.12))
-	_arch(st.finish_s, "FINISH", Color(0.1, 0.35, 0.8))
-	_sign(st.finish_s - 100.0, 3.8, "FLYING FINISH 100", Color(0.95, 0.8, 0.1))
-	_sign(st.finish_s + 70.0, 3.8, "STOP", Color(0.85, 0.12, 0.1))
+	_arch(st.finish_s, "GOAL" if st.kind == "touge" else "FINISH", Color(0.1, 0.35, 0.8))
+	var sd: float = maxf(st.width_at(st.finish_s) * 0.5 + 1.0, 3.8)
+	_sign(st.finish_s - 100.0, sd, "FLYING FINISH 100", Color(0.95, 0.8, 0.1))
+	_sign(st.finish_s + 70.0, sd, "STOP", Color(0.85, 0.12, 0.1))
 	# the start clocks: one each side of the line (in front of the arch posts, which
 	# used to hide them), turned toward the car so both crew can read the count
-	for d in [-3.3, 3.3]:
+	var cd: float = maxf(st.width_at(st.START_S) * 0.5 + 0.5, 3.3)
+	for d in [-cd, cd]:
 		start_clocks.append(_start_clock(st.world_at(st.START_S + 0.6, d)))
 
 
@@ -1437,11 +1496,11 @@ func _arch(s: float, text: String, col: Color) -> void:
 		var pm := BoxMesh.new()
 		pm.size = Vector3(0.25, 4.6, 0.25)
 		pole.mesh = pm
-		pole.position = st.world_at(s, side * 3.6) + Vector3.UP * 2.3
+		pole.position = st.world_at(s, side * maxf(st.width_at(s) * 0.5 + 0.8, 3.6)) + Vector3.UP * 2.3
 		add_child(pole)
 	var banner := MeshInstance3D.new()
 	var bm := BoxMesh.new()
-	bm.size = Vector3(7.6, 0.9, 0.15)
+	bm.size = Vector3(maxf(st.width_at(s) + 2.0, 7.6), 0.9, 0.15)
 	banner.mesh = bm
 	var mat := StandardMaterial3D.new()
 	mat.albedo_color = col
@@ -1488,6 +1547,156 @@ func _sign(s: float, d: float, text: String, col: Color) -> void:
 	lab.position = board.position - st.forward_at(s) * 0.04
 	lab.rotation.y = -st.heading_at(s)
 	add_child(lab)
+
+
+# ── highway and touge roadside ────────────────────────────────────────────
+
+## A highway's concrete barriers (New Jersey profile: a wide foot, a narrower
+## wall), both sides the whole way, just past the shoulders; solid in 8 m pieces.
+func _highway_barriers() -> void:
+	var body := StaticBody3D.new()
+	body.name = "Barriers"
+	body.set_meta("surface", "gravel")
+	add_child(body)
+	var mb := MeshBuf.new()
+	var n: int = st.pts.size()
+	for side in [-1.0, 1.0]:
+		var i := 0
+		while i < n - 1:
+			var j := mini(i + 4, n - 1)
+			var s0: float = i * st.STEP
+			var s1: float = j * st.STEP
+			var e0: Vector3 = st.world_at(s0, side * (st.width_at(s0) * 0.5 + 0.45))
+			var e1: Vector3 = st.world_at(s1, side * (st.width_at(s1) * 0.5 + 0.45))
+			var r: Vector3 = st.right_at(s0) * side
+			_box(mb, e0 + Vector3.UP * 0.14, e1 + Vector3.UP * 0.14, r, 0.62, 0.28, CONCRETE)
+			_box(mb, e0 + Vector3.UP * 0.56, e1 + Vector3.UP * 0.56, r, 0.26, 0.56, _shade(CONCRETE, 1.05))
+			_wall(body, (e0 + e1) * 0.5 + Vector3.UP * 0.45, e1 - e0, r, 0.5, 0.9)
+			i = j
+	_add(mb, "", "ConcreteBarriers")
+
+
+## What stands beside the road: a highway's lamp posts and distance gantries; a
+## touge's curve mirrors and chevrons at the hairpins, kilometre posts, the pass's
+## name board and a vending machine at the start.
+func _roadside() -> void:
+	if st.kind == "highway":
+		_highway_props()
+	elif st.kind == "touge":
+		_touge_props()
+
+
+const LAMP := Color(0.55, 0.57, 0.6)
+const GANTRY_GREEN := Color(0.05, 0.38, 0.2)
+
+
+func _highway_props() -> void:
+	var mb := MeshBuf.new()
+	var s: float = st.START_S + 30.0
+	while s < st.length - 20.0:
+		var half: float = st.width_at(s) * 0.5
+		var base: Vector3 = st.world_at(s, -(half + 1.3))
+		var r: Vector3 = st.right_at(s)
+		_box(mb, base, base + Vector3.UP * 9.0, st.forward_at(s), 0.18, 0.18, LAMP)
+		_box(mb, base + Vector3.UP * 9.0, base + Vector3.UP * 9.0 + r * 2.4, Vector3.UP, 0.12, 0.12, LAMP)
+		_box(mb, base + Vector3.UP * 8.9 + r * 2.2, base + Vector3.UP * 8.9 + r * 2.9, Vector3.UP, 0.35, 0.16, Color(0.9, 0.88, 0.75))
+		s += 70.0
+	_add(mb, "", "LampPosts")
+	# distance gantries: every 2 km, how far to the finish
+	var g := MeshBuf.new()
+	var gs: float = st.START_S + 600.0
+	while gs < st.finish_s - 300.0:
+		var half2: float = st.width_at(gs) * 0.5 + 1.6
+		var a: Vector3 = st.world_at(gs, -half2)
+		var b: Vector3 = st.world_at(gs, half2)
+		var f: Vector3 = st.forward_at(gs)
+		for p in [a, b]:
+			_box(g, p, p + Vector3.UP * 6.6, f, 0.35, 0.35, LAMP)
+		_box(g, a + Vector3.UP * 6.4, b + Vector3.UP * 6.4, Vector3.UP, 0.4, 0.3, LAMP)
+		var mid: Vector3 = st.world_at(gs, -st.LANE_W)
+		_box(g, mid + Vector3.UP * 5.4 - st.right_at(gs) * 3.2, mid + Vector3.UP * 5.4 + st.right_at(gs) * 3.2, -f, 0.08, 1.7, GANTRY_GREEN)
+		var lab := Label3D.new()
+		lab.text = "FINISH  %.0f km" % ((st.finish_s - gs) / 1000.0)
+		lab.font_size = 96
+		lab.pixel_size = 0.009
+		lab.modulate = Color(0.97, 0.97, 0.95)
+		lab.outline_size = 0
+		lab.position = mid + Vector3.UP * 5.4 - f * 0.06
+		lab.rotation.y = -st.heading_at(gs)
+		add_child(lab)
+		gs += 2000.0
+	_add(g, "", "Gantries")
+
+
+const MIRROR_ORANGE := Color(0.95, 0.42, 0.08)
+const CHEVRON_YELLOW := Color(0.98, 0.82, 0.1)
+
+
+func _touge_props() -> void:
+	var mb := MeshBuf.new()
+	var shiny := StandardMaterial3D.new()
+	shiny.albedo_color = Color(0.82, 0.86, 0.9)
+	shiny.metallic = 1.0
+	shiny.roughness = 0.08
+	for c in st.corners:
+		if c.r_min > 30.0:
+			continue
+		var mid: float = (c.s0 + c.s1) * 0.5
+		var out_side: float = -float(c.dir)                  # (a right-hander's outside is on the left)
+		var half: float = st.width_at(mid) * 0.5
+		# the curve mirror on the outside of the apex, turned to show what's coming round
+		var base: Vector3 = st.world_at(mid, out_side * (half + 1.5))
+		_box(mb, base, base + Vector3.UP * 3.0, st.forward_at(mid), 0.09, 0.09, MIRROR_ORANGE)
+		var mirror := MeshInstance3D.new()
+		var cm := CylinderMesh.new()
+		cm.top_radius = 0.42
+		cm.bottom_radius = 0.42
+		cm.height = 0.05
+		mirror.mesh = cm
+		mirror.material_override = shiny
+		mirror.position = base + Vector3.UP * 3.2
+		var face: Vector3 = (st.world_at(mid, 0.0) - base).normalized()
+		mirror.basis = Basis.looking_at(face, Vector3.UP) * Basis(Vector3.RIGHT, PI * 0.5)
+		add_child(mirror)
+		_box(mb, base + Vector3.UP * 3.2 - face * 0.03, base + Vector3.UP * 3.2 - face * 0.06, Vector3.UP, 0.95, 0.95, MIRROR_ORANGE)
+		# chevrons along the outside: yellow boards, the arrow pointing the way it turns
+		for k in range(-2, 3):
+			var cs: float = clampf(mid + k * 9.0, c.s0, c.s1)
+			var p: Vector3 = st.world_at(cs, out_side * (half + 1.0))
+			_box(mb, p, p + Vector3.UP * 1.1, st.forward_at(cs), 0.07, 0.07, RAIL_WHITE)
+			var board_c: Vector3 = p + Vector3.UP * 1.35
+			_box(mb, board_c - st.right_at(cs) * 0.02, board_c + st.right_at(cs) * 0.02, -st.forward_at(cs), 0.55, 0.45, CHEVRON_YELLOW)
+			var arrow := Label3D.new()
+			arrow.text = ">" if c.dir > 0 else "<"
+			arrow.font_size = 96
+			arrow.pixel_size = 0.006
+			arrow.modulate = Color(0.05, 0.05, 0.05)
+			arrow.outline_size = 0
+			arrow.position = board_c - st.forward_at(cs) * 0.04
+			arrow.rotation.y = -st.heading_at(cs)
+			add_child(arrow)
+	# kilometre posts: every 500 m on the left
+	var s: float = st.START_S + 500.0
+	while s < st.finish_s:
+		var p: Vector3 = st.world_at(s, -(st.width_at(s) * 0.5 + 0.9))
+		_box(mb, p, p + Vector3.UP * 0.9, st.forward_at(s), 0.14, 0.14, RAIL_WHITE)
+		var km := Label3D.new()
+		km.text = "%.1f" % ((s - st.START_S) / 1000.0)
+		km.font_size = 40
+		km.pixel_size = 0.005
+		km.modulate = Color(0.1, 0.25, 0.6)
+		km.outline_size = 0
+		km.position = p + Vector3.UP * 0.7 - st.forward_at(s) * 0.08
+		km.rotation.y = -st.heading_at(s)
+		add_child(km)
+		s += 500.0
+	# the pass's name board and a vending machine by the start
+	_sign(st.START_S - 18.0, -(st.width_at(st.START_S) * 0.5 + 1.6), st.touge_name(), Color(0.45, 0.28, 0.16))
+	var vm_at: Vector3 = st.world_at(st.START_S - 10.0, st.width_at(st.START_S) * 0.5 + 2.4)
+	var f2: Vector3 = st.forward_at(st.START_S - 10.0)
+	_box(mb, vm_at, vm_at + Vector3.UP * 1.8, f2, 0.9, 0.75, Color(0.92, 0.18, 0.15))
+	_box(mb, vm_at + Vector3.UP * 0.5 - st.right_at(st.START_S) * 0.39, vm_at + Vector3.UP * 1.6 - st.right_at(st.START_S) * 0.39, f2, 0.7, 0.04, Color(0.75, 0.9, 1.0))
+	_add(mb, "", "TougeProps")
 
 
 # ── sky ───────────────────────────────────────────────────────────────────

@@ -71,6 +71,10 @@ echo "== view: the driver's eye at 144 down to 12 fps and through hitches: no sh
 run_g 120 --headless --fixed-fps 120 --path . -s tests/view_check.gd 2>&1 | grep -E "\[view\]" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
 echo "== sound: the engine's four loops blended by the revs, shifts and anti-lag pops, the co-driver over the effects"
 run_g 120 --headless --fixed-fps 120 --path . -s tests/sound_check.gd 2>&1 | grep -E "\[sound\]" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
+echo "== modes: a touge (hairpins, the climb, guardrail) and a highway (lanes, barriers); traffic (IDM + MOBIL: no collisions, lanes, speeds); the cut-up score and touge rules; each mode's run in the game"
+run_g 300 --headless --fixed-fps 120 --path . -s tests/modes_check.gd 2>&1 | grep -E "\[modes\]" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
+echo "== a touge: the autopilot drives a pass in the GT-R"
+run_g 360 --headless --fixed-fps 120 --path . -s tests/drive_check.gd -- --seed=3 --kind=touge --length=2400 --car=raiden 2>&1 | grep -E "\[drive\] (FAIL|DRIVE|ok   finished|ok   a mountain)" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
 echo "== AI co-driver: every call said in time, from where the car is"
 run_g 480 --headless --fixed-fps 120 --path . -- --aicheck --autostart --autopilot --seed=8 --timeout=400 --profile=$T/ai.cfg 2>&1 | grep -E "\[ai\]" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
 for case in "driver codriver gravel" "codriver driver mixed"; do

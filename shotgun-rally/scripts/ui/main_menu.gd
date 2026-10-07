@@ -3,6 +3,7 @@ extends Control
 ## on a stage, filmed like rally TV). Over it: the title, your credits, and
 ## five ways in:
 ##   PLAY NOW   a random stage, straight in (the AI co-driver calls)
+##   MODES      a touge (mountain pass: time attack or drift) or CUT UP (highway traffic) (ModesPanel)
 ##   MAPS       story mode: the championship (MapsPanel)
 ##   CARS       the garage: buy, paint, upgrade (GaragePanel)
 ##   ONLINE     your name, host a crew (pick your seat) or join one by IP
@@ -14,12 +15,14 @@ signal solo
 signal host(seat: String)
 signal join(ip: String)
 signal story(rally: int, seat: String)
+signal mode(m: Dictionary)
 
 const UI = preload("res://scripts/ui/ui_kit.gd")
 const Backdrop = preload("res://scripts/ui/menu_backdrop.gd")
 const GaragePanel = preload("res://scripts/ui/garage_panel.gd")
 const MapsPanel = preload("res://scripts/ui/maps_panel.gd")
 const SettingsPanel = preload("res://scripts/ui/settings_panel.gd")
+const ModesPanel = preload("res://scripts/ui/modes_panel.gd")
 const Profile = preload("res://scripts/game/profile.gd")
 
 var start_panel := ""               # open on this panel ("maps" after a rally)
@@ -74,6 +77,7 @@ func _ready() -> void:
 	_home.add_theme_constant_override("separation", 14)
 	add_child(_home)
 	_home.add_child(UI.menu_item("PLAY NOW", "A random stage, straight in. The AI calls the notes.", func(): solo.emit(), true))
+	_home.add_child(UI.menu_item("MODES", "Touge: a Japanese mountain pass. Cut up: a highway full of traffic.", _show.bind("modes")))
 	_home.add_child(UI.menu_item("MAPS", "The Shotgun Series: six rallies, rival crews, prize money.", _show.bind("maps")))
 	_home.add_child(UI.menu_item("CARS", "The garage: buy cars, paint them, upgrade them.", _show.bind("cars")))
 	if OS.has_feature("web"):
@@ -191,6 +195,10 @@ func _show(which: String) -> void:
 			_open = _online_panel()
 		"settings":
 			_open = SettingsPanel.new()
+		"modes":
+			var mp := ModesPanel.new()
+			mp.start.connect(func(m: Dictionary): mode.emit(m))
+			_open = mp
 	_area.add_child(_open)
 	if _open.has_signal("back"):
 		_open.connect("back", _back)

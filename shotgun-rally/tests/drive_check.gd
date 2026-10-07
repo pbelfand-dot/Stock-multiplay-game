@@ -2,6 +2,7 @@ extends SceneTree
 ## The car and the stage, together: the autopilot drives a whole stage.
 ## Run: godot --headless --fixed-fps 120 --path . -s tests/drive_check.gd -- --seed=3
 ##   [--surface=tarmac | mixed] [--ice]   an asphalt or mixed stage (snow and ice on the asphalt)
+##   [--kind=touge [--dir=down] [--length=M]]   a touge (Japanese mountain pass) instead of a rally stage
 ##   [--car=ID [--max100=S]]              a car from the garage (Catalog) instead of the starter car
 ##                                        (0-100 km/h under S s: a slower road car's)
 ##   * it gets off the line (0-100 km/h in a sane time) and reaches the finish
@@ -45,6 +46,7 @@ func _initialize() -> void:
 	var seed_value := 3
 	var gen := {}
 	var car_id := ""
+	var length := 2600.0
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--seed="):
 			seed_value = int(a.split("=")[1])
@@ -52,13 +54,19 @@ func _initialize() -> void:
 			gen["surface"] = a.split("=")[1]
 		if a == "--ice":
 			gen["ice"] = true
+		if a.begins_with("--kind="):
+			gen["kind"] = a.split("=")[1]
+		if a.begins_with("--dir="):
+			gen["dir"] = a.split("=")[1]
+		if a.begins_with("--length="):
+			length = float(a.split("=")[1])
 		if a.begins_with("--car="):
 			car_id = a.split("=")[1]
 		if a.begins_with("--max100="):
 			max100 = float(a.split("=")[1])
 	st = StageGen.new()
 	st.opts = gen
-	st.generate(seed_value)
+	st.generate(seed_value, length)
 	var b = StageBuilder.new()
 	root.add_child(b)
 	b.build(st)

@@ -1,6 +1,6 @@
 {"id": "traffic_crossover", "front": "+X", "wheelbase": 2.69,
- "wheel": ["^Wheel_(FL|FR|RL|RR)$"], "caliper": ["^Brake_(FL|FR|RL|RR)$"],
- "drop": ["^Needle_"],
+ "wheel": ["^Wheel_(FL|FR|RL|RR)$"],
+ "drop": ["^Needle_", "^Brake_"],
  "shift": [["^(?!Body$)", [-2.274, 0.0, -0.68]]],
  "paint": ["^body$"], "glass": ["^glass$", "^window_glass$", "^window_darkglass$", "^glass_bumpy$"],
  "materials": [["^window_glass$", "glass"], ["^window_darkglass$", "glass"], ["^glass$", "clear_lens"], ["^red_glass$", "red_lens"]],

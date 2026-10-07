@@ -19,12 +19,16 @@ extends Node
 ##   --story=RALLY[,STAGE]                   (with --solo / --screenshot) a story stage
 ##   --surface=gravel|tarmac|mixed|any [--ice]   a quick stage's surface (else Settings')
 ##   --profile=PATH                          another save file (credits, garage, story)
+##   --fit_debug                             the driver-fit overlay on from the start (F9 toggles it in a stage)
+##   --mode=touge [--dir=up|down --rules=time|drift] | --mode=cutup [--difficulty=easy|normal|hard|insane]
+##                                           (with --solo / --screenshot) a touge or a cut-up run (Modes)
 
 const Game = preload("res://scripts/game.gd")
 const Menu = preload("res://scripts/ui/main_menu.gd")
 const LoadingScreen = preload("res://scripts/ui/loading_screen.gd")
 const Profile = preload("res://scripts/game/profile.gd")
 const Championship = preload("res://scripts/game/championship.gd")
+const Modes = preload("res://scripts/game/modes.gd")
 
 var game: Node
 var menu: Control
@@ -76,6 +80,8 @@ func show_menu(msg := "", panel := "") -> void:
 	menu.host.connect(host_game)
 	menu.join.connect(join_game)
 	menu.story.connect(start_story)
+	if menu.has_signal("mode"):
+		menu.mode.connect(start_mode)
 
 
 func start_solo(s: int) -> void:
@@ -86,7 +92,26 @@ func start_solo(s: int) -> void:
 		var rs := Config.arg("story").split(",")
 		load_stage(0, 1, Championship.stage_opts(int(rs[0]), int(rs[1]) if rs.size() > 1 else 0))
 		return
+	if Config.flag("mode"):                          # tests / pictures: --mode=touge|cutup
+		var m := {"mode": Config.arg("mode"), "dir": Config.arg("dir", "up"), "rules": Config.arg("rules", "time"),
+			"difficulty": Config.arg("difficulty", "normal")}
+		load_stage(s, 1, mode_opts(s, m))
+		return
 	load_stage(s, 1, quick_opts(s))
+
+
+## A touge or cut-up run's settings, like `like` (its mode, direction, rules, difficulty) on seed s.
+func mode_opts(s: int, like: Dictionary) -> Dictionary:
+	if like.get("mode") == "cutup":
+		return Modes.cutup_opts(s, str(like.get("difficulty", "normal")))
+	return Modes.touge_opts(s, str(like.get("dir", "up")), str(like.get("rules", "time")))
+
+
+## From the menu's MODES: a touge or a cut-up run, alone.
+func start_mode(m: Dictionary) -> void:
+	Net.solo()
+	var s := randi() % 100000 if int(m.get("seed", -1)) < 0 else int(m.seed)
+	load_stage(s, 1, mode_opts(s, m))
 
 
 ## A quick stage's settings (PLAY NOW, online): its surface from Settings (or
@@ -169,6 +194,9 @@ func next_stage(s: int, n: int, o: Dictionary) -> void:
 ## Host, at the results: ENTER. Quick play: a new stage. Story: the rally's next
 ## stage, or after the last one back to the championship.
 func continue_event() -> void:
+	if Modes.is_mode(opts):                          # another pass / another highway, the same kind
+		next_stage(seed_value + 1, stage_no + 1, mode_opts(seed_value + 1, opts))
+		return
 	if opts.get("mode") != "story":
 		next_stage(seed_value + 1, stage_no + 1, quick_opts(seed_value + 1))
 		return
