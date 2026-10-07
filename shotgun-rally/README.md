@@ -103,7 +103,9 @@ front, banking into the turns), trackside cameras it flashes past, a chase camer
       the Martello's stripes), the **Vierrad S1** (Sport quattro Group B: ~455 PS, turbo lag, a
       locked centre diff), and the **Ocelot R1** (Puma Rally1: ~385 PS, spool, wings).
   - The realistic cars sit in the cartoon world on purpose: clear-coated paint, glass you can see
-    through, chrome. The garage shows each car's real power, weight and drive layout.
+    through, chrome. The world around them is soft flat colour (a little less saturated, light that
+    wraps round, no shine, softer shadows), so the cars stand out. The garage shows each car's
+    real power, weight and drive layout.
   - Paint any car you own (main, accent and stripe colours, free). Liveries (11, from twin stripes
     to tricolore and goldline) and wheels are bought once and fit any car, the realistic ones too.
     Pick your race number, buy three steps each of engine, tyre and brake upgrades, and pick gravel

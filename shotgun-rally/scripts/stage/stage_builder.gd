@@ -211,6 +211,7 @@ func _asphalt_col(k: int, last: int, s: float, wide: bool, shade: float, patch: 
 static func _surface_material(surf: String) -> StandardMaterial3D:
 	var m := MeshBuf.material()
 	if surf == "ice":
+		m.specular_mode = BaseMaterial3D.SPECULAR_SCHLICK_GGX   # (ice shines)
 		m.roughness = 0.12
 		m.metallic_specular = 0.9
 	elif surf == "asphalt":
@@ -1607,9 +1608,9 @@ func _environment() -> void:
 	env.background_mode = Environment.BG_SKY
 	env.sky = sky
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
-	env.ambient_light_sky_contribution = 0.4     # the rest is a neutral grey: the cabin isn't blue
+	env.ambient_light_sky_contribution = 0.5     # the rest is a neutral grey: the cabin isn't blue
 	env.ambient_light_color = Color(0.62, 0.62, 0.6)
-	env.ambient_light_energy = 0.55
+	env.ambient_light_energy = 0.64              # soft: the shade side still shows its colour
 	env.tonemap_mode = Environment.TONE_MAPPER_FILMIC
 	env.tonemap_exposure = 0.95
 	env.fog_enabled = true
@@ -1639,5 +1640,6 @@ func _environment() -> void:
 			env.fog_light_color = Color(0.68, 0.71, 0.73)
 			env.fog_density = 0.016
 	sun.shadow_enabled = not OS.has_feature("web")     # (a browser on a Chromebook: lighter)
+	sun.shadow_opacity = 0.8                           # soft shadows (the cartoon look)
 	sun.directional_shadow_max_distance = 70.0
 	add_child(sun)

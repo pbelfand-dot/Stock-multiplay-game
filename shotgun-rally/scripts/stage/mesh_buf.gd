@@ -2,6 +2,9 @@ extends RefCounted
 ## A flat-shaded, vertex-coloured triangle soup (the low-poly look: every face
 ## its own normal), plus the triangles for a ConcavePolygonShape3D if asked.
 
+const SOFT_SATURATION := 0.88        # x the colours' saturation
+const SOFT_LIFT := 0.03               # their brightness, this much of the way to white
+
 var verts := PackedVector3Array()
 var norms := PackedVector3Array()
 var cols := PackedColorArray()
@@ -9,6 +12,7 @@ var faces := PackedVector3Array()     # collision triangles
 
 
 func tri(a: Vector3, b: Vector3, c: Vector3, col: Color, collide := false) -> void:
+	col = soft(col)
 	var n := (b - a).cross(c - a)
 	if n.length_squared() < 1e-12:
 		return
@@ -34,6 +38,7 @@ func quad(a: Vector3, b: Vector3, c: Vector3, d: Vector3, col: Color, collide :=
 
 ## A triangle that keeps the winding it's given (for upright things: trunks, banners).
 func tri_raw(a: Vector3, b: Vector3, c: Vector3, col: Color) -> void:
+	col = soft(col)
 	var n := (b - a).cross(c - a)
 	if n.length_squared() < 1e-12:
 		return
@@ -66,11 +71,20 @@ func shape() -> ConcavePolygonShape3D:
 	return s
 
 
-## A shared vertex-colour material: matte, lit, shadows.
+## The world's colours, softened: a little less saturated, a little lighter
+## (the flat-colour cartoon look; the cars stay realistic).
+static func soft(c: Color) -> Color:
+	var s := Color.from_hsv(c.h, c.s * SOFT_SATURATION, lerpf(c.v, 1.0, SOFT_LIFT), c.a)
+	return s
+
+
+## A shared vertex-colour material: matte, lit, shadows; soft light (the diffuse
+## wraps round, no highlights): the flat-colour cartoon look.
 static func material() -> StandardMaterial3D:
 	var m := StandardMaterial3D.new()
 	m.vertex_color_use_as_albedo = true
 	m.vertex_color_is_srgb = true        # the colours are written as sRGB, like albedo_color
 	m.roughness = 1.0
-	m.metallic_specular = 0.2
+	m.diffuse_mode = BaseMaterial3D.DIFFUSE_LAMBERT_WRAP
+	m.specular_mode = BaseMaterial3D.SPECULAR_DISABLED
 	return m
