@@ -67,19 +67,27 @@ func mesh(smooth := false) -> ArrayMesh:
 
 
 ## Each corner's normal: the faces meeting at that point (the very same Vector3: the
-## builders reuse a row's points), weighted by their area.
+## builders reuse a row's points) within ~50 degrees of this face, weighted by their area.
 func smooth_normals() -> PackedVector3Array:
-	var acc := {}
+	var acc := {}                                     # point -> [face index, ...]
+	var weight := PackedFloat32Array()
+	weight.resize(verts.size() / 3)
 	for i in range(0, verts.size(), 3):
-		var w: Vector3 = norms[i] * (verts[i + 1] - verts[i]).cross(verts[i + 2] - verts[i]).length()
+		weight[i / 3] = (verts[i + 1] - verts[i]).cross(verts[i + 2] - verts[i]).length()
 		for k in 3:
 			var v: Vector3 = verts[i + k]
-			acc[v] = acc.get(v, Vector3.ZERO) + w
+			if not acc.has(v):
+				acc[v] = []
+			acc[v].append(i)
 	var out := PackedVector3Array()
 	out.resize(verts.size())
 	for i in verts.size():
-		var s: Vector3 = (acc[verts[i]] as Vector3).normalized()
-		out[i] = s if s.dot(norms[i]) > 0.64 else norms[i]
+		var fn: Vector3 = norms[i]
+		var s := Vector3.ZERO
+		for f in acc[verts[i]]:
+			if norms[f].dot(fn) > 0.64:
+				s += norms[f] * weight[f / 3]
+		out[i] = s.normalized() if s.length_squared() > 1e-12 else fn
 	return out
 
 

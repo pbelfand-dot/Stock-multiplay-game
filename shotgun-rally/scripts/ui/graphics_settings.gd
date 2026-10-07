@@ -14,7 +14,7 @@ const RENDERERS := [["auto", "FORWARD+"], ["compatibility", "COMPATIBILITY"]]
 const WHAT := {
 	"low": "Flat colours, light shadows: weak laptops, Chromebooks.",
 	"medium": "Textured roads and ground, AO, glow, full shadows.",
-	"high": "Reflections (SSR, the car's own), SSIL, TAA, softer shadows.",
+	"high": "Real-looking trees near the road, reflections (SSR, the car's own), SSIL, TAA, soft shadows.",
 	"ultra": "Global illumination (SDFGI), sharpest shadows, the farthest view.",
 }
 

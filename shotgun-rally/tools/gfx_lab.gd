@@ -10,6 +10,7 @@ const Graphics = preload("res://scripts/render/graphics.gd")
 const MeshBuf = preload("res://scripts/stage/mesh_buf.gd")
 const StageBuilder = preload("res://scripts/stage/stage_builder.gd")
 const Catalog = preload("res://scripts/game/catalog.gd")
+const Foliage = preload("res://scripts/render/foliage.gd")
 
 ## camera [position, look at] (world: the road runs along -Z, the car at the origin)
 const VIEWS := [
@@ -146,6 +147,16 @@ func _props(parent: Node3D) -> void:
 		sb._box(armco, Vector3(-5.92, 0.58, z0), Vector3(-5.92, 0.58, z1), Vector3.RIGHT, 0.06, 0.32, Color(0.74, 0.76, 0.78))
 	_add(parent, barrier, "ConcreteBarriers", WorldMaterials.concrete({"vertex": "colour"}))
 	_add(parent, armco, "Armco", WorldMaterials.steel())
+	# street lamps over the asphalt (lit at night)
+	var posts := MeshBuf.new()
+	var lamps: Array = []
+	for k in 4:
+		var z := 10.0 - k * 35.0
+		sb._box(posts, Vector3(5.6, 0.0, z), Vector3(5.6, 9.0, z), Vector3.FORWARD, 0.18, 0.18, Color(0.55, 0.57, 0.6))
+		sb._box(posts, Vector3(5.6, 9.0, z), Vector3(3.2, 9.0, z), Vector3.UP, 0.12, 0.12, Color(0.55, 0.57, 0.6))
+		lamps.append({"head": Vector3(3.3, 8.85, z), "ground": Vector3(1.5, 0.0, z), "radius": 11.0})
+	_add(parent, posts, "LampPosts", WorldMaterials.steel())
+	WorldMaterials.street_lights(parent, lamps)
 	# a puddle on the gravel, water in a ditch
 	var pud := MeshBuf.new()
 	var c := Vector3(-9.5, 0.05, -12.0)
@@ -163,7 +174,7 @@ func _props(parent: Node3D) -> void:
 	for kind in ["pine", "round", "birch"]:
 		var mm := MultiMesh.new()
 		mm.transform_format = MultiMesh.TRANSFORM_3D
-		mm.mesh = sb._tree_mesh(kind)
+		mm.mesh = Foliage.tree_mesh(kind) if Foliage.enabled() else sb._tree_mesh(kind)
 		mm.instance_count = 30
 		for i in 30:
 			var side := -1.0 if i % 2 == 0 else 1.0
@@ -172,7 +183,7 @@ func _props(parent: Node3D) -> void:
 			mm.set_instance_transform(i, Transform3D(Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3.ONE * rng.randf_range(0.9, 1.5)), p))
 		var mmi := MultiMeshInstance3D.new()
 		mmi.multimesh = mm
-		mmi.material_override = WorldMaterials.foliage()
+		mmi.material_override = Foliage.material() if Foliage.enabled() else WorldMaterials.foliage()
 		parent.add_child(mmi)
 	sb.free()
 

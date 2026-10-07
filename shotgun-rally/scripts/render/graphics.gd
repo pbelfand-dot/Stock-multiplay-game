@@ -257,7 +257,7 @@ static func apply_environment(env: Environment) -> void:
 		env.sdfgi_min_cell_size = 0.4
 		env.sdfgi_y_scale = Environment.SDFGI_Y_SCALE_75_PERCENT
 		env.sdfgi_energy = 0.9
-	env.glow_enabled = bool(get_value("glow"))
+	env.glow_enabled = bool(get_value("glow")) and f            # (Compatibility's glow blooms the road lines)
 	env.glow_intensity = 0.55
 	env.glow_strength = 1.0
 	env.glow_bloom = 0.03
@@ -271,8 +271,6 @@ static func apply_environment(env: Environment) -> void:
 		RenderingServer.environment_set_ssil_quality(RenderingServer.ENV_SSIL_QUALITY_MEDIUM if hq else RenderingServer.ENV_SSIL_QUALITY_LOW,
 			true, 0.5, 4, 50.0, 300.0)
 		RenderingServer.environment_set_ssr_half_size(not hq)
-		RenderingServer.environment_set_ssr_roughness_quality(RenderingServer.ENV_SSR_ROUGHNESS_QUALITY_MEDIUM if hq
-			else RenderingServer.ENV_SSR_ROUGHNESS_QUALITY_LOW)
 		RenderingServer.environment_set_sdfgi_ray_count(RenderingServer.ENV_SDFGI_RAY_COUNT_32 if hq else RenderingServer.ENV_SDFGI_RAY_COUNT_16)
 		RenderingServer.environment_set_sdfgi_frames_to_converge(RenderingServer.ENV_SDFGI_CONVERGE_IN_10_FRAMES)
 

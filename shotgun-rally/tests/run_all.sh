@@ -25,6 +25,8 @@ echo "== compile check"
 run_g 180 --headless --path . -s tests/check_scripts.gd 2>&1 | grep -E "checked|COMPILE FAIL" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
 echo "== stages: 20 seeds, deterministic, no crossings, every corner has a note, wooden bridges; tarmac and mixed stages"
 run_g 240 --headless --path . -s tests/stage_check.gd 2>&1 | grep -E "\[stage\] (FAIL|STAGES|words|[0-9]+ wooden)" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
+echo "== the look: graphics levels, the material library, skies and moods, the lamp finder, card trees, smooth normals"
+run_g 180 --headless --path . -s tests/render_check.gd 2>&1 | grep -E "\[render\] (FAIL|RENDER)" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
 echo "== car + stage: the autopilot drives whole stages, 0-100, braking, handbrake flick"
 for seed in 3 7 15; do
   run_g 360 --headless --fixed-fps 120 --path . -s tests/drive_check.gd -- --seed=$seed 2>&1 | grep -E "\[drive\] (FAIL|DRIVE|ok   finished)" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1

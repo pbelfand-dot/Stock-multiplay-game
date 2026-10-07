@@ -14,6 +14,7 @@ const MeshBuf = preload("res://scripts/stage/mesh_buf.gd")
 const Crowd = preload("res://scripts/stage/crowd.gd")
 const WorldMaterials = preload("res://scripts/render/world_materials.gd")   # the materials, sky and sun
 const Graphics = preload("res://scripts/render/graphics.gd")
+const Foliage = preload("res://scripts/render/foliage.gd")              # card trees (HIGH / ULTRA)
 
 const GRAVEL := Color(0.71, 0.6, 0.44)
 const TRACK := Color(0.6, 0.5, 0.36)
@@ -708,6 +709,7 @@ func _forest() -> void:
 		meshes[kind] = _tree_mesh(kind)
 	var mat := WorldMaterials.foliage()
 	var view := Graphics.view_distance()                 # (the graphics quality: how far they're drawn)
+	var cards := Foliage.enabled()
 	for ci in chunks:
 		for kind in chunks[ci]:
 			var list: Array = chunks[ci][kind]
@@ -730,6 +732,30 @@ func _forest() -> void:
 			if kind == "bush" or kind == "fern" or kind.ends_with("_far"):
 				mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 			add_child(mmi)
+			if cards and kind in ["pine", "round", "birch", "cedar"]:
+				_card_trees(mmi, list, kind, view)
+
+
+## HIGH / ULTRA: the near trees as trees of cards (Foliage), the low-poly ones only beyond them.
+func _card_trees(cones: MultiMeshInstance3D, list: Array, kind: String, view: float) -> void:
+	var mm := MultiMesh.new()
+	mm.transform_format = MultiMesh.TRANSFORM_3D
+	mm.mesh = Foliage.tree_mesh(kind)
+	mm.instance_count = list.size()
+	for j in list.size():
+		mm.set_instance_transform(j, list[j])
+	var mmi := MultiMeshInstance3D.new()
+	mmi.name = String(cones.name) + "_cards"
+	mmi.multimesh = mm
+	mmi.material_override = Foliage.material()
+	mmi.layers = Foliage.LAYER
+	var d := Foliage.CARD_DRAW * view
+	mmi.visibility_range_end = d
+	mmi.visibility_range_end_margin = 10.0
+	mmi.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_DISABLED
+	cones.visibility_range_begin = d
+	cones.visibility_range_begin_margin = 10.0
+	add_child(mmi)
 
 
 func _ground_height(road_y: float, d: float, p: Vector3) -> float:
@@ -1580,6 +1606,7 @@ const GANTRY_GREEN := Color(0.05, 0.38, 0.2)
 func _highway_props() -> void:
 	var mb := MeshBuf.new()
 	var s: float = st.START_S + 30.0
+	var lamps: Array = []                                  # (lit at night: WorldMaterials.street_lights)
 	while s < st.length - 20.0:
 		var half: float = st.width_at(s) * 0.5
 		var base: Vector3 = st.world_at(s, -(half + 1.3))
@@ -1587,8 +1614,10 @@ func _highway_props() -> void:
 		_box(mb, base, base + Vector3.UP * 9.0, st.forward_at(s), 0.18, 0.18, LAMP)
 		_box(mb, base + Vector3.UP * 9.0, base + Vector3.UP * 9.0 + r * 2.4, Vector3.UP, 0.12, 0.12, LAMP)
 		_box(mb, base + Vector3.UP * 8.9 + r * 2.2, base + Vector3.UP * 8.9 + r * 2.9, Vector3.UP, 0.35, 0.16, Color(0.9, 0.88, 0.75))
+		lamps.append({"head": base + Vector3.UP * 8.8 + r * 2.55, "ground": st.world_at(s, -(half + 1.3) + 4.5), "radius": 11.0})
 		s += 70.0
 	_add(mb, "", "LampPosts")
+	WorldMaterials.street_lights(self, lamps)
 	# distance gantries: every 2 km, how far to the finish
 	var g := MeshBuf.new()
 	var gs: float = st.START_S + 600.0

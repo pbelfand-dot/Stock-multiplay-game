@@ -267,6 +267,7 @@ func _spawn(s: float) -> void:
 	body.add_child(cs)
 	add_child(body)
 	_paint(model, m.paints[_rng.randi() % m.paints.size()])
+	load("res://scripts/render/car_look.gd").glow_model(model)    # (its lamps: running lights by day, full at night)
 	var wheels: Array = []
 	for n in model.find_children("Wheel_*", "Node3D", true, false):
 		wheels.append(n)

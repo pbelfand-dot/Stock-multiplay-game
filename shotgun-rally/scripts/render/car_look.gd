@@ -43,6 +43,8 @@ var _probe: ReflectionProbe
 var _brake := 0.0
 var _night := false
 var _real := false
+var _mirror_done := false
+var _mirror_tries := 0
 
 
 static func dress(owner_car: Node3D, owner_model: Node3D, info: Dictionary) -> Node3D:
@@ -152,16 +154,21 @@ static func _lamp_candidate(n: String, m: BaseMaterial3D) -> bool:
 
 
 ## "head", "tail", "both" (one material at both ends) or "" (somewhere else: not a lamp).
-func _lamp_kind(at: AABB, m: BaseMaterial3D) -> String:
-	var length := _box.size.z
+func _lamp_kind(at: AABB, _m: BaseMaterial3D) -> String:
+	return _kind_in(_box, at)
+
+
+## "head", "tail", "both" or "" for a surface's box `at` on a body `box` (model space, -z forward).
+static func _kind_in(box: AABB, at: AABB) -> String:
+	var length := box.size.z
 	if length <= 0.0 or at.size == Vector3.ZERO:
 		return ""
-	var front := _box.position.z
+	var front := box.position.z
 	if at.size.z > length * 0.6:
 		return "both"
 	var c := at.get_center()
 	var zf := (c.z - front) / length                  # 0 the nose, 1 the tail (the model looks down -z)
-	if c.y < _box.position.y + 0.12 or c.y > _box.end.y - 0.05:
+	if c.y < box.position.y + 0.12 or c.y > box.end.y - 0.05:
 		return ""                                      # (under the car, on the roof)
 	if zf < 0.24:
 		return "head"
@@ -170,7 +177,8 @@ func _lamp_kind(at: AABB, m: BaseMaterial3D) -> String:
 	return ""
 
 
-func _lamp_material(src: BaseMaterial3D, kind: String, at: AABB) -> BaseMaterial3D:
+## A lamp's material: a copy of its own, glowing (masked by its texture), white or red.
+static func _emissive(src: BaseMaterial3D, kind: String) -> BaseMaterial3D:
 	var m := src.duplicate() as BaseMaterial3D
 	m.emission_enabled = true
 	var col := Color(1.0, 0.95, 0.86)
@@ -183,6 +191,61 @@ func _lamp_material(src: BaseMaterial3D, kind: String, at: AABB) -> BaseMaterial
 	elif m.emission_texture == null:
 		m.emission_operator = BaseMaterial3D.EMISSION_OP_ADD
 	m.emission = col
+	return m
+
+
+## Traffic and other plain car models (not a RallyCar): their lamps glow, running lights by
+## day, full at night (no brake lights, no real lights). The lamps are found once per mesh
+## and the glowing copies shared by every car of that model. Call it after painting.
+static var _model_lamps := {}
+
+
+static func glow_model(root: Node3D) -> void:
+	if Graphics.headless() or root == null:
+		return
+	var box := AABB()
+	var meshes: Array = []
+	for mi in root.find_children("*", "MeshInstance3D", true, false):
+		var m3 := mi as MeshInstance3D
+		if m3.mesh == null or String(m3.name).begins_with("Wheel") or String(m3.get_parent().name).begins_with("Wheel"):
+			continue
+		var xf := _xf_in(m3, root)
+		var b := xf * m3.mesh.get_aabb()
+		box = b if box.size == Vector3.ZERO else box.merge(b)
+		meshes.append([m3, xf])
+	var night := WorldMaterials.night
+	var energy := {"head": 7.0 if night else 1.8, "tail": 3.0 if night else 0.8, "both": 4.0 if night else 1.1}
+	for e in meshes:
+		var m3: MeshInstance3D = e[0]
+		var key := "%d|%s" % [m3.mesh.get_instance_id(), night]
+		if not _model_lamps.has(key):
+			var found := {}
+			for i in m3.mesh.get_surface_count():
+				var src := m3.mesh.surface_get_material(i)
+				if not (src is BaseMaterial3D) or not _lamp_candidate(String(src.resource_name).to_lower(), src):
+					continue
+				var kind := _kind_in(box, (e[1] as Transform3D) * _surface_box(m3.mesh, i))
+				if kind != "":
+					var lm := _emissive(src, kind)
+					lm.emission_energy_multiplier = energy[kind]
+					found[i] = lm
+			_model_lamps[key] = found
+		for i in _model_lamps[key]:
+			m3.set_surface_override_material(i, _model_lamps[key][i])
+
+
+static func _xf_in(n: Node3D, root: Node3D) -> Transform3D:
+	var xf := n.transform
+	var p := n.get_parent()
+	while p and p != root:
+		if p is Node3D:
+			xf = (p as Node3D).transform * xf
+		p = p.get_parent()
+	return xf
+
+
+func _lamp_material(src: BaseMaterial3D, kind: String, at: AABB) -> BaseMaterial3D:
+	var m := _emissive(src, kind)
 	match kind:
 		"head":
 			_head.append(m)
@@ -218,6 +281,29 @@ func _process(dt: float) -> void:
 	if WorldMaterials.night != _night:
 		_graphics_changed()
 	_glow(_brake)
+	if not _mirror_done and Engine.get_process_frames() % 15 == 0:
+		_mirror_tries += 1
+		_mirror_done = _mirror_tries > 20                 # (no cockpit mirror: the menu's car)
+		_light_mirror()
+
+
+## The rear-view mirror's little camera (the cockpit's, made after the car): the world's
+## light without the costly screen-space effects and GI (a second SDFGI for a 400 px mirror).
+func _light_mirror() -> void:
+	var vp := car.find_child("MirrorView", true, false) as SubViewport
+	var world := car.get_world_3d()
+	if vp == null or world == null or world.environment == null:
+		return
+	_mirror_done = true
+	var env := world.environment.duplicate() as Environment
+	env.ssao_enabled = false
+	env.ssil_enabled = false
+	env.ssr_enabled = false
+	env.sdfgi_enabled = false
+	env.glow_enabled = false
+	for c in vp.get_children():
+		if c is Camera3D:
+			(c as Camera3D).environment = env
 
 
 ## The lamps' glow: running lights by day, full at night; the tail lamps brighter as the brake goes on.
@@ -233,7 +319,7 @@ func _glow(brake: float) -> void:
 	if _real:
 		for l in _lights:
 			if l is OmniLight3D:
-				(l as OmniLight3D).light_energy = 0.6 + brake * 1.6
+				(l as OmniLight3D).light_energy = 0.25 + brake * 0.9
 
 
 func _set_real_lights(on: bool) -> void:
@@ -268,10 +354,10 @@ func _set_real_lights(on: bool) -> void:
 	for side in [-1.0, 1.0]:
 		var o := OmniLight3D.new()
 		o.position = off + Vector3(side * _box.size.x * 0.36, rear_y, rear_z + 0.25)
-		o.omni_range = 3.2
+		o.omni_range = 2.2
 		o.omni_attenuation = 1.5
 		o.light_color = Color(1.0, 0.08, 0.04)
-		o.light_energy = 0.6
+		o.light_energy = 0.25
 		o.light_specular = 0.2
 		add_child(o)
 		_lights.append(o)
@@ -296,6 +382,6 @@ func _add_probe() -> void:
 	_probe.max_distance = 60.0
 	_probe.intensity = 1.0
 	_probe.blend_distance = 0.4
-	_probe.cull_mask = 0xFFFFF & ~CAR_LAYER & ~(1 << 1) & ~(1 << 2)    # not the car itself, not the crew's helmets
+	_probe.cull_mask = 0xFFFFF & ~CAR_LAYER & ~(1 << 1) & ~(1 << 2) & ~(1 << 12)    # not the car itself, the crew's helmets, the card trees (cost)
 	_probe.mesh_lod_threshold = 4.0
 	add_child(_probe)
