@@ -59,6 +59,8 @@ echo "== physics v2 (phases 1-9): suspension, bumps; skid pad, slope; drive, whe
 run_g 180 --headless --fixed-fps 120 --path . -s tests/physics_v2_check.gd 2>&1 | grep -E "\[physics\]" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
 echo "== cockpit: the gloves cover the sleeve ends wherever the hands are, both crew belted in, the hand on the gear lever, numbered dials, shift lights"
 run_g 180 --headless --path . -s tests/cockpit_check.gd 2>&1 | grep -E "\[cockpit\] (FAIL|COCKPIT|ok   straight)" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
+echo "== interiors: the cars with one of their own keep it; the crew sit in its seats (right-hand drive on the right), the gloves turn its wheel, the hand works its gear lever (H-pattern gates, sequential, automatic: none) and handbrake"
+run_g 240 --headless --path . -s tests/interior_check.gd 2>&1 | grep -E "\[interior\] (FAIL|INTERIOR|ok   [0-9])" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
 echo "== ride: how much the car bounces on two stages (shaking at the eye, the hardest landing)"
 for seed in 3 15; do
   run_g 360 --headless --fixed-fps 120 --path . -s tests/ride_check.gd -- --seed=$seed 2>&1 | grep -E "\[ride\]" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1

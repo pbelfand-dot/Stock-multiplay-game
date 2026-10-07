@@ -1,7 +1,7 @@
 extends Node3D
-## A crew member from a rigged model (assets/models/driver.glb / codriver.glb,
-## made with Higgsfield: image -> Meshy image-to-3D, auto-rigged, standing in
-## an A-pose) sat in a seat. Every frame the skeleton is posed from scratch:
+## A crew member from a rigged model (assets/models/driver.glb / codriver.glb:
+## the owner's racer, a Mixamo rig, made game-ready by tools/import_crew.py)
+## sat in a seat. Every frame the skeleton is posed from scratch:
 ##   * sitting: thighs forward, shins down to the pedals / the footwell
 ##   * hands on targets (the steering wheel rim, the map board) with two-bone IK
 ##   * the head turned where that player is looking
@@ -9,6 +9,8 @@ extends Node3D
 ## direction (bone -> child), so it doesn't care how the rig's axes point.
 
 const SCALE := 1.2              # the cartoon crew is small for the cabin
+var scale_k := SCALE            # (a car's own interior is real size: 1, set before load_model)
+var thigh_y := -0.2             # the thighs' slope seated (up +): a car's own seat tilts them level
 const FOREARM_SLIM := 0.6       # the driver's forearms, thinned to fit the gloves' gauntlets
 const HAND_CUT := 0.035         # m up the forearm from the wrist: where the driver's sleeves end (under the gauntlets)
 
@@ -18,6 +20,8 @@ var skel: Skeleton3D
 var look := Vector2.ZERO        # yaw (+ = left), pitch (+ = up), rad
 var _b := {}                    # bone name -> index
 var _posed: Array = []          # bones we pose (reset to rest every frame)
+var _fore_base := Vector3.ONE   # the forearms' scale (slimmed for the gloves: hide_hands); along them it stretches to reach
+var stretch := [1.0, 1.0]       # how much each forearm is stretched this frame (left, right: 1 = not)
 var _to_skel := Transform3D()   # cockpit space -> skeleton space
 var _head_hidden := false
 var _head_mesh: MeshInstance3D   # the helmet, cut out of the body (see _split_head)
@@ -34,7 +38,7 @@ func load_model(path: String) -> bool:
 		return false
 	var scene: Node3D = load(path).instantiate()
 	scene.rotation.y = PI                           # the model faces +Z, the car -Z
-	scene.scale = Vector3.ONE * SCALE
+	scene.scale = Vector3.ONE * scale_k
 	add_child(scene)
 	for ap in scene.find_children("*", "AnimationPlayer", true, false):
 		ap.queue_free()                              # its idle clip would fight the pose
@@ -104,7 +108,7 @@ func _split_head(sk: Skeleton3D) -> void:
 				continue
 			var copy := arr.duplicate()
 			copy[Mesh.ARRAY_INDEX] = pair[1]
-			pair[0].add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, copy)
+			pair[0].add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, copy, [], {}, _flags(src, surf))
 			pair[0].surface_set_material(pair[0].get_surface_count() - 1, mat)
 	body.mesh = keep
 	_body = body
@@ -121,9 +125,10 @@ func _split_head(sk: Skeleton3D) -> void:
 	sk.add_child(att)
 	_cap = MeshInstance3D.new()
 	var cm := CylinderMesh.new()
-	cm.top_radius = 6.5                              # skeleton units are cm (the armature is x0.01)
-	cm.bottom_radius = 7.5
-	cm.height = 3.0
+	var u := _unit(sk)                               # m -> skeleton units (a rig in cm has its armature at x0.01)
+	cm.top_radius = 0.065 * u
+	cm.bottom_radius = 0.075 * u
+	cm.height = 0.03 * u
 	cm.radial_segments = 10
 	_cap.mesh = cm
 	var cmat := StandardMaterial3D.new()
@@ -132,6 +137,26 @@ func _split_head(sk: Skeleton3D) -> void:
 	_cap.material_override = cmat
 	_cap.visible = false
 	att.add_child(_cap)
+
+
+## A surface's format flags to rebuild it with (8 bone weights, custom channels).
+static func _flags(m: Mesh, surf: int) -> int:
+	var f: int = m.surface_get_format(surf)
+	var keep: int = Mesh.ARRAY_FLAG_USE_8_BONE_WEIGHTS
+	for c in 4:
+		keep |= Mesh.ARRAY_FORMAT_CUSTOM_MASK << (Mesh.ARRAY_FORMAT_CUSTOM_BASE + c * Mesh.ARRAY_FORMAT_CUSTOM_BITS)
+	return f & keep
+
+
+## Skeleton units per metre of the rig as it was made (100 for a rig in cm).
+func _unit(sk: Skeleton3D) -> float:
+	var s := 1.0                                      # the skeleton's scale under this node (the model's, its armature's)
+	var n: Node = sk
+	while n and n != self:
+		if n is Node3D:
+			s *= (n as Node3D).scale.x
+		n = n.get_parent()
+	return scale_k / s if s > 0.0 else 1.0
 
 
 ## Draw the body on this render layer only (a seat camera can then leave it out).
@@ -178,8 +203,9 @@ func hide_hands(on: bool) -> void:
 		_hand_mesh = _cut_hands(_body)
 	if _hand_mesh:
 		_hand_mesh.visible = not on
+	_fore_base = Vector3(FOREARM_SLIM, 1.0, FOREARM_SLIM) if on else Vector3.ONE
 	for arm in ["LeftForeArm", "RightForeArm"]:
-		skel.set_bone_pose_scale(_b[arm], Vector3(FOREARM_SLIM, 1.0, FOREARM_SLIM) if on else Vector3.ONE)
+		skel.set_bone_pose_scale(_b[arm], _fore_base)
 
 
 ## Where the elbows are this frame (cockpit space): [left, right].
@@ -215,8 +241,8 @@ func body_points(cell := 0.012, region := AABB()) -> PackedVector3Array:
 		var bone := skin.get_bind_bone(b)
 		if bone < 0:
 			bone = skel.find_bone(skin.get_bind_name(b))
-		xf.append(skel.get_bone_global_pose(bone) * skin.get_bind_pose(b))
-		skipped.append(1 if bone in skip else 0)
+		xf.append(skel.get_bone_global_pose(bone) * skin.get_bind_pose(b) if bone >= 0 else Transform3D())
+		skipped.append(1 if bone in skip or bone < 0 else 0)
 	var seen := {}
 	for surf in _body.mesh.get_surface_count():
 		var arr: Array = _body.mesh.surface_get_arrays(surf)
@@ -291,7 +317,14 @@ func _cut_hands(src: MeshInstance3D) -> MeshInstance3D:
 		var fore: int = _b[side + "ForeArm"]
 		if not (joint.has(hand) and joint.has(fore)):
 			return null
-		arms.append([hand, fore, joint[hand], (joint[hand] - joint[fore]).normalized()])
+		var under := [hand, fore]                     # the hand, the forearm, and every finger bone under the hand
+		for bi in skel.get_bone_count():
+			var p := skel.get_bone_parent(bi)
+			while p >= 0 and p != hand:
+				p = skel.get_bone_parent(p)
+			if p == hand:
+				under.append(bi)
+		arms.append([hand, fore, joint[hand], (joint[hand] - joint[fore]).normalized(), under])
 		var rest := skel.get_bone_global_rest(hand).origin - skel.get_bone_global_rest(fore).origin
 		to_m = (_to_skel.affine_inverse().basis * rest).length() / joint[hand].distance_to(joint[fore])
 	var keep := ArrayMesh.new()
@@ -310,11 +343,14 @@ func _cut_hands(src: MeshInstance3D) -> MeshInstance3D:
 		for v in verts.size():
 			for arm in arms:
 				var w := 0.0
+				var fingers := 0.0
 				for j in per:
 					var bone := bind_bone[bw[v * per + j]] if bw[v * per + j] < bind_bone.size() else -1
-					if bone == arm[0] or bone == arm[1]:
+					if bone in arm[4]:
 						w += weights[v * per + j]
-				if w > 0.3 and (verts[v] - arm[2]).dot(arm[3]) * to_m > -HAND_CUT:
+						if bone != arm[0] and bone != arm[1]:
+							fingers += weights[v * per + j]
+				if (w > 0.3 and (verts[v] - arm[2]).dot(arm[3]) * to_m > -HAND_CUT) or fingers > 0.3:
 					past[v] = 1
 		var a := PackedInt32Array()
 		var b := PackedInt32Array()
@@ -329,7 +365,7 @@ func _cut_hands(src: MeshInstance3D) -> MeshInstance3D:
 				continue
 			var copy := arr.duplicate()
 			copy[Mesh.ARRAY_INDEX] = pair[1]
-			pair[0].add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, copy)
+			pair[0].add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, copy, [], {}, _flags(src.mesh, surf))
 			pair[0].surface_set_material(pair[0].get_surface_count() - 1, mat)
 	src.mesh = keep
 	var mi := MeshInstance3D.new()
@@ -350,12 +386,14 @@ func pose(hands: Array, elbow_out: Vector3, legs_fwd := 1.0) -> void:
 		return
 	for i in _posed:
 		skel.set_bone_pose_rotation(i, skel.get_bone_rest(i).basis.get_rotation_quaternion())
+	for arm in ["LeftForeArm", "RightForeArm"]:
+		skel.set_bone_pose_scale(_b[arm], _fore_base)
 	# lean the back a little forward toward the wheel
 	_aim("Spine02", "Spine01", Vector3(0.0, 1.0, -0.12))
 	# sitting
 	for side in ["Left", "Right"]:
 		var out := -1.0 if side == "Left" else 1.0
-		_aim(side + "UpLeg", side + "Leg", Vector3(out * 0.1, -0.2, -1.0))
+		_aim(side + "UpLeg", side + "Leg", Vector3(out * 0.1, thigh_y, -1.0))
 		_aim(side + "Leg", side + "Foot", Vector3(out * 0.02, -0.75, -0.55 * legs_fwd))
 		_aim(side + "Foot", side + "ToeBase", Vector3(0.0, -0.25, -1.0))
 	# hands
@@ -423,3 +461,11 @@ func _ik(upper: String, lower: String, end: String, target_c: Vector3, pole_c: V
 	var elbow := a + dir * x + side * h
 	_aim_skel(upper, lower, elbow - a)
 	_aim_skel(lower, end, (a + dir * d) - _pos(lower))
+	# out of reach: the forearm stretches the rest of the way along itself, so the sleeve
+	# always ends in the glove's gauntlet (the glove stays where it holds on)
+	var want := a.distance_to(t)
+	var k := 0 if lower.begins_with("Left") else 1
+	stretch[k] = 1.0
+	if want > (l1 + l2) * 0.999:
+		stretch[k] = minf((want - l1) / l2, 2.5)
+		skel.set_bone_pose_scale(_b[lower], Vector3(_fore_base.x, _fore_base.y * stretch[k], _fore_base.z))

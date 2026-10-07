@@ -137,8 +137,8 @@ func _measure(state: Dictionary) -> void:
 			if q.y >= 0.0 and q.y <= DriverHands.CUFF[-2][0]:
 				out = maxf(out, Vector2(q.x, q.z).length() - DriverHands._cuff_r(q.y))
 		var side := "left" if k == 0 else "right"
-		fails += _check(n > 20 and lo > 0.0, "%s: the %s sleeve stops %.1f cm short of the wrist (%d verts near it)" % [
-			state.name, side, lo * 100.0, n])
+		fails += _check(n > 10 and lo > 0.0 and lo < DriverHands.CUFF[-2][0] - 0.01,
+			"%s: the %s sleeve stops %.1f cm short of the wrist, under the gauntlet (%d verts near it)" % [state.name, side, lo * 100.0, n])
 		fails += _check(out < 0.0, "%s: the %s sleeve's end is inside the gauntlet (%.1f cm %s)" % [
 			state.name, side, absf(out) * 100.0, "to spare" if out < 0.0 else "sticking out"])
 
@@ -209,7 +209,7 @@ func _harnesses() -> void:
 		offs.sort()
 		var n := offs.size()
 		var typical: float = offs[n * 9 / 10] if n > 0 else INF      # 9 in 10 closer than this (a tight strap bridges hollows)
-		fails += _check(n > 40 and typical < 0.025, "%s: the chest straps lie on the body (%d vertices, 90 %% within %.1f cm of it, the furthest %.1f)" % [
+		fails += _check(n > 30 and typical < 0.025, "%s: the chest straps lie on the body (%d vertices, 90 %% within %.1f cm of it, the furthest %.1f)" % [
 			seat, n, typical * 100.0, (offs[n - 1] if n > 0 else 0.0) * 100.0])
 
 

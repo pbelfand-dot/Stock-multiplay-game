@@ -2,19 +2,19 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://cg3x6y73j34oh"
-path="res://.godot/imported/ae86_Interior_Bake1_pbr_diffuse.jpg-df43fa18f17a937a870534afd906d3c5.ctex"
+uid="uid://cj4wdrxjml4l5"
+path="res://.godot/imported/codriver_F1_Driver_Metallic.PNG-F1_Driver_Roughness.jpg-a35d286fcf445055909a3e2bd701e782.ctex"
 metadata={
 "vram_texture": false
 }
 generator_parameters={
-"md5": "bf925d055744a0e52637d099d8af4a3f"
+"md5": "932dcd34677fbbcd16074cb91fd380eb"
 }
 
 [deps]
 
-source_file="res://assets/models/cars/ae86/ae86_Interior_Bake1_pbr_diffuse.jpg"
-dest_files=["res://.godot/imported/ae86_Interior_Bake1_pbr_diffuse.jpg-df43fa18f17a937a870534afd906d3c5.ctex"]
+source_file="res://assets/models/codriver_F1_Driver_Metallic.PNG-F1_Driver_Roughness.jpg"
+dest_files=["res://.godot/imported/codriver_F1_Driver_Metallic.PNG-F1_Driver_Roughness.jpg-a35d286fcf445055909a3e2bd701e782.ctex"]
 
 [params]
 

@@ -211,6 +211,15 @@ front, banking into the turns), trackside cameras it flashes past, a chase camer
   works** (a camera behind the glass looks back down the car: the cage, the rear window, the road
   behind) and a sun strip; the co-driver's trip meter, map lamp and
   ribbed aluminium footrest; a fire extinguisher, padding and a spare wheel strapped down in the back.
+- **Each car's own interior.** The cars with realistic bodies keep the interior their model came
+  with (dash, seats, door cards, its own steering wheel, gear lever and handbrake), and the crew fit
+  into it: they sit in its seats at real size, on the right in a right-hand-drive car (the HACHI,
+  NIMBUS and SYLPH) with the co-driver and the map board on the left. The gloves grip and turn its own
+  wheel; the hand nearer the middle works its own gear lever: an H-pattern through the gates, a
+  sequential pulled and pushed, an automatic left alone (the hand stays on the wheel); its own
+  handbrake comes up. Its own rear-view mirror shows the road behind, and the mud and the wipers
+  go on its windshield. Cars whose interior is too rough to sit in (both ROTORAs) and the four on
+  the shared body get the rally cockpit above. See [docs/cars.md](docs/cars.md).
 - **The car outside** has its own wheels now: they steer, spin and move up and down with the
   suspension, and the mud flaps swing behind them.
 - **Drift dirt** (modelled on WRC Sardinia and Finland footage): slide, flick the handbrake or
@@ -445,7 +454,7 @@ real voice.
 | 0 | Reference breakdown, name, plan, co-driver research, voice pack | ✅ done |
 | 1 | **Playable grey box:** generated forest gravel stages, raycast rally car, first-person driver + co-driver seats, the co-driver's map board, mud + wipers, start countdown, jump starts, resets, results, 2 players online, builds | ✅ done |
 | 2 | **AI co-driver** | ✅ basic version done (calls by time, countdown, finish). Next: quick-call wheel for the human co-driver, call-timing setting in the menu, more lines |
-| 3 | **Art:** the car and both crew are Higgsfield models (concept art -> 3D, the crew rigged and posed in their seats: hands on the wheel / the map board, heads turning where the player looks), the car's wheels and mud flaps move, racing gloves + hand-over-hand steering, a stripped rally interior (numbered dials, shift lights, switch panel, sequential lever, a deep-dish wheel, a working mirror), six-point harnesses fitted to the crew, the hand reaching for the lever at each gear change, the loading screen; next: better trees | car + crew + cockpit ✅ |
+| 3 | **Art:** the car is a Higgsfield model (concept art -> 3D); the crew are your racer (rigged, posed in their seats: hands on the wheel / the map board, heads turning where the player looks), the car's wheels and mud flaps move, racing gloves + hand-over-hand steering, a stripped rally interior (numbered dials, shift lights, switch panel, sequential lever, a deep-dish wheel, a working mirror), six-point harnesses fitted to the crew, the hand reaching for the lever at each gear change, the loading screen; next: better trees | car + crew + cockpit ✅ |
 | 4 | **Jobs + content:** OK board, warning triangle, pushing the car, punctures, time cards, road book, recce mode, more biomes, wooden bridges, street (tarmac) and mixed-surface stages ([the plan](docs/street_and_mixed_maps.md)) | bridges ✅, tarmac + mixed stages ✅ |
 | 5 | Polish, crews racing each other | |
 
@@ -478,6 +487,9 @@ real voice.
      trees stand back, and running wide at 70 km/h you can get back on the road
    - the cockpit: the driver's sleeves are skinned on the CPU with the hands on the wheel (straight, turned both
      ways) and on the handbrake, and every sleeve end has to be inside its glove's gauntlet; numbered dials; shift lights
+   - interiors: each car with one of its own keeps it; the driver's eyes are in it on its wheel's side, the gloves
+     on its rim, the steering turns its wheel, the hand takes its lever through the gates (or pulls a sequential,
+     or stays put in an automatic) and pulls its handbrake
    - the AI co-driver says every call in time (90–240 m before the corner)
    - **2 players, both ways round:** one machine drives, the other rides along; both see the finish,
      and on a mixed stage both built the same surfaces
@@ -502,9 +514,12 @@ real voice.
 
 ## Credits & notes
 
-- Car, crew and seats: made with Higgsfield (GPT Image concept art -> Meshy
-  image-to-3D, the crew auto-rigged), from your account; the loading screen art too. The concept
-  art is in `docs/reference/models/`.
+- Car and seats: made with Higgsfield (GPT Image concept art -> Meshy
+  image-to-3D), from your account; the loading screen art too. The concept art is in
+  `docs/reference/models/`.
+- The crew: your racer (the Claude Racer character: a Mixamo-rigged F1-style driver with 2K PBR
+  textures), made game-ready by `tools/import_crew.py` (bones named for the game, one mesh, the
+  textures wired up; the co-driver's suit dyed blue). The original files aren't in the repo.
 - Co-driver voice: Higgsfield Seed Audio 1.0, preset voice "Fraser", made for the Rally Co-Driver
   GPS app ([driver-test-app](https://github.com/pbelfand-dot/driver-test-app)).
 - Sound effects are synthesized (`tools/make_sfx.py`, plus BAGHOLDERS' engine / crash / bell sounds,

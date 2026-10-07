@@ -65,5 +65,6 @@
     "MAT_Details_MAT"
    ]
   }
- ]
-}
+ ],
+ "finish": [["^Audi:MAT_Details_(INT|MAT|EXT|Chassis)", {"metal": 0.0, "rough": 0.6}], ["^Audi:MAT_Tire_(Disk|Hub|Brake)", {"metal": 0.7, "rough": 0.4}], ["^Audi:MAT_Lights", {"metal": 0.0, "rough": 0.15}]],
+ "cockpit": {"gearbox": "h5", "wheel": {"parts": ["ANC_SteeringWheel_(0[0-5]|0[89]|1[0-2])"]}, "shifter": {"box": [-0.08, 0.08, 0.1, 0.26, 0.44, 0.72]}, "handbrake": {"box": [-0.08, 0.08, -0.32, 0.1, 0.38, 0.56], "pivot": "rear"}}}

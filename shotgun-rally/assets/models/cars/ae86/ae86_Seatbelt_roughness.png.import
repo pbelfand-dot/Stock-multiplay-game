@@ -2,23 +2,23 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://du2k17rat6imm"
-path="res://.godot/imported/driver_Image_0.jpg-0ed724744ab7b4b0dc08af8f880bfecd.ctex"
+uid="uid://chobecito4ggh"
+path="res://.godot/imported/ae86_Seatbelt_roughness.png-57aaabaeb1ab98665980b26a6adae86a.ctex"
 metadata={
 "vram_texture": false
 }
 generator_parameters={
-"md5": "41e2c1090d39ce007a945d63b286be36"
+"md5": "b8fa11819a8b1fea6e72a8495de4edd4"
 }
 
 [deps]
 
-source_file="res://assets/models/driver_Image_0.jpg"
-dest_files=["res://.godot/imported/driver_Image_0.jpg-0ed724744ab7b4b0dc08af8f880bfecd.ctex"]
+source_file="res://assets/models/cars/ae86/ae86_Seatbelt_roughness.png"
+dest_files=["res://.godot/imported/ae86_Seatbelt_roughness.png-57aaabaeb1ab98665980b26a6adae86a.ctex"]
 
 [params]
 
-compress/mode=1
+compress/mode=0
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
@@ -39,5 +39,5 @@ process/premult_alpha=false
 process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
-process/size_limit=1024
+process/size_limit=0
 detect_3d/compress_to=1

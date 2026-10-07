@@ -8,6 +8,7 @@
  ],
  "drop_mats": [
   "Honda_Logo",
+  "^Material\\.009$",
   "Honda_Rim_Logo",
   "Nameplate",
   "VTEC",
@@ -197,5 +198,6 @@
  "paint_normal": [
   "^DR-HND$",
   "^Tank-Cap$"
- ]
-}
+ ],
+ "decimate_parts": [["^Plane\\.012$", 1.0]],
+ "cockpit": {"gearbox": "h5", "wheel": {"box": [0.13, 0.53, 0.2, 0.45, 0.55, 1.0]}, "shifter": {"box": [-0.06, 0.1, 0.25, 0.45, 0.33, 0.58]}, "handbrake": {"box": [-0.04, 0.08, -0.15, 0.25, 0.27, 0.48], "pivot": "rear"}, "mirror": {"mats": ["^RVW-Mirror$"]}}}

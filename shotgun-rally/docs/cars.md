@@ -31,6 +31,33 @@ The four rally cars on the shared body weigh what their real class weighed:
 Their springs, dampers, anti-roll bars and brakes scale with the weight (`CarSpecs.rally`),
 the same way the cars with their own bodies do.
 
+## Their interiors
+
+Each car keeps the interior its model came with, and the crew fit into it rather than the other way
+round:
+
+| Garage name | Interior | Driver sits | Gears (the hand) | Handbrake |
+|---|---|---|---|---|
+| HACHI 86 | the model's, full | right (right-hand drive) | 5-speed H-pattern, left hand | its lever between the seats |
+| NIMBUS EG | the model's | right | 5-speed H-pattern, left hand | its lever |
+| SYLPH S15 | the model's, full (bucket seat, harness) | right | 6-speed H-pattern, left hand | its lever beside the console |
+| KAISER 30 | the model's, basic | left | no lever modelled: the hand stays on the wheel | none modelled |
+| MARTELLO SEDICI | the model's, basic | left | no lever modelled: the hand stays on the wheel | none modelled |
+| VIERRAD S1 | the model's | left | 5-speed H-pattern, right hand | its lever between the seats |
+| OCELOT R1 | the model's, full rally (cage, buckets) | left | its sequential lever, right hand | its tall hydraulic lever |
+| ROTORA FC, ROTORA FD | too rough to sit in (blocks; a broken wheel ring): the game's rally cockpit | left | | |
+
+- The crew sit in its seats: the driver behind its steering wheel (on the right in a right-hand-drive
+  car, with the co-driver and the map board on the left), at near real size (the interior is). Their
+  eyes are found from the seat: rays down onto its cushion and back onto its back, clear of the roof.
+- The gloves grip its own wheel's rim and turn it about its own column.
+- The hand nearer the middle works its own gear lever. An H-pattern lever goes out of gear, across
+  the gate and into the next, and stays there. A sequential is pulled back or pushed forward and
+  springs back. An automatic shifts itself and the hand stays on the wheel. (The game shifts for
+  you in every car; the lever shows it.)
+- Its own handbrake comes up from its pivot.
+- The mud splats on the outside of its windshield, and wipers sweep it.
+
 ## Where the numbers come from
 
 All the numbers are in `scripts/vehicle/car_specs.gd` (SPECS). Weights, outputs,
@@ -138,7 +165,9 @@ upgrades) and weight.
 
    `--survey` lists every material, where it is on the car and how big, to help write it.
    Paint parts shaped by a normal map (a door handle plate, a fuel cap) go in `"paint_normal"`:
-   they're painted and keep their shape.
+   they're painted and keep their shape. If a model's materials come in too shiny (the Quattro's
+   FBX dash and seats were half metal and mirror-smooth, so they read as chrome from the seat),
+   `"finish"` sets the metal and roughness of the materials it names, where no texture drives them.
 3. `blender -b -Y --python tools/import_car.py -- tools/cars/<id>.json <model> [texture dir]`
    writes `assets/models/cars/<id>/<id>.glb` and `parts.json`. `-Y` keeps any scripts in a .blend switched off.
    - The paint and the glass are never simplified, because simplifying them dents the panels.
@@ -146,9 +175,20 @@ upgrades) and weight.
    - Every part's normals are saved when the model loads and put back just before export. Cutting
      and joining parts otherwise spoils Blender's stored normals, and so does the glTF exporter's
      own clean-up of invalid geometry. Either way the panels came out blotchy, or looked caved in.
+   - An interior worth keeping gets a `"cockpit"` key: where its steering wheel, gear lever and
+     handbrake are (name patterns, a box round the loose pieces, or materials in a box) and what
+     the gearbox is (`"h5"`, `"h6"`, `"seq"`, `"auto"`). They're cut out as parts of their own,
+     each turning about its pivot, and `parts.json` says where they are, where the driver's eyes
+     go and where the windshield is. `--parts` lists every part, where it is and how big;
+     `--snapshot file.blend` saves the car as the tool sees it, to look at. Leave the key out and
+     the game builds its own rally cockpit instead (an interior too rough to sit in).
 4. Add the car's numbers to `SPECS` in `scripts/vehicle/car_specs.gd`, and a garage entry with `"model": "<id>"` in `scripts/game/catalog.gd`.
 5. `tests/car_models_check.gd` checks it:
    - it builds;
    - it sits on its wheels;
    - its body clears the ground;
    - it does 0-100 in a sane time, with the right wheels driven.
+
+   `tests/interior_check.gd` checks its interior: the driver's eyes are in the car on its wheel's
+   side, the gloves are on its rim, the steering turns its wheel, the hand works its lever through
+   the gates (or stays put in an automatic) and pulls its handbrake.

@@ -12,13 +12,21 @@ extends Node3D
 ## A child of the car, so it moves with it. Car-local units: the car faces -Z,
 ## origin = chassis middle at wheel-mount height (the ground is ~0.56 below).
 ##
-## The crew are the Higgsfield models (assets/models/driver.glb, codriver.glb,
-## posed by crew_model.gd). The driver sees their own arms on the wheel (their
+## The crew are the owner's racer (assets/models/driver.glb, codriver.glb:
+## tools/import_crew.py; posed by crew_model.gd). The driver sees their own arms on the wheel (their
 ## model just has no head: the camera is in it); the co-driver doesn't see their
 ## own body at all (render layer 3), so nothing gets between them and the map.
 ## If a model is missing, the old box crew is built instead: each of their heads
 ## is on its own render layer (2 = driver, 3 = co-driver) so your own camera
 ## doesn't see the inside of your helmet.
+##
+## A car with an interior of its own (its model's: parts.json "cockpit",
+## tools/import_car.py) keeps it: none of the above is built but the crew, the
+## mud and the wipers. The crew sit where its seats are (the driver behind its
+## steering wheel: on the right in a right-hand-drive car, the co-driver and the
+## map board on the other side), the gloves grip and turn its own wheel, and the
+## hand nearer the middle works its own gear lever and handbrake (driver_hands.gd
+## use_model: an automatic shifts itself). The mud goes on its windshield.
 
 const MapBoard = preload("res://scripts/vehicle/map_board.gd")
 const CrewModel = preload("res://scripts/vehicle/crew_model.gd")
@@ -81,45 +89,167 @@ var _dial_font: Font
 var _mirror_vp: SubViewport
 var _mirror_cam: Camera3D
 var _mirror_t := 0.0
+var _mirror_at := Vector3(0.0, 0.84, -0.25)    # where its camera looks back from (just in front of the glass)
 var _shift_leds: Array = []                    # their materials, left to right
 var _trip_label: Label3D
 var _mats := {}
+var own := {}                                  # the car's own interior (parts.json "cockpit"); {}: ours
+var eye_driver := EYE_DRIVER                   # where the crew's eyes are, and the rest of the layout
+var eye_codriver := EYE_CODRIVER
+var wheel_c := WHEEL_C
+var wheel_tilt := WHEEL_TILT
+var wheel_r := WHEEL_R
+var ws_bottom := WS_BOTTOM
+var ws_top := WS_TOP
+var ws_w := WS_W
+var wiper_x: Array = WIPER_X
+var _wheel_axis := Vector3(0.0, -sin(WHEEL_TILT), cos(WHEEL_TILT))   # toward the driver
+const HIPS := Vector3(0.0, -0.72, 0.02)        # a crew member's hips from their eyes (the cartoon crew, x1.2)
+const BOARD := Vector3(-0.01, -0.35, -0.26)    # the map board from the co-driver's eyes (on the right: x mirrors)
+const SEAT_SLIDE := 0.22                       # m the driver may slide their seat forward to reach its wheel
+const WHEEL_CLEAR := 0.46                      # m the wheel's centre stays from their eyes, at the closest
+const OWN_SCALE := 1.0                         # in a car's own interior the crew are real size (it is): their
+                                               # eyes 0.6 m over their hips, 0.69 over their thighs' joints, which
+                                               # tools/import_car.py puts 8 cm over the cushion
 
 signal wiper_stroke
 
 
 func build(the_car, stage) -> void:
 	car = the_car
-	_shell()
-	_dash()
-	_seats()
-	_wheel()
-	_details()
+	own = car.cockpit_info() if car.has_method("cockpit_info") else {}
+	if own.is_empty():
+		_shell()
+		_dash()
+		_seats()
+		_wheel()
+		_details()
+	else:
+		_own_layout()
+		_own_mirror()
 	_windshield()
 	_crew()
+	if not own.is_empty():
+		_reach_wheel()
 	hands = DriverHands.new()
 	hands.suit_colour = SUIT_D
 	add_child(hands)
-	hands.setup(WHEEL_C, WHEEL_TILT, WHEEL_R)
+	hands.setup(wheel_c, wheel_tilt, wheel_r, Vector3.ZERO if own.is_empty() else _wheel_axis)
+	if not own.is_empty():
+		hands.use_model(_own_levers())
 	if _models.has("driver"):
 		_models.driver.hide_hands(true)
 	map_board = MapBoard.new()
 	add_child(map_board)
 	map_board.setup(stage, the_car)
-	map_board.position = Vector3(0.36, 0.25, 0.0)
-	map_board.rotation = Vector3(deg_to_rad(-52.0), deg_to_rad(4.0), 0.0)
+	var sx := signf(eye_codriver.x)
+	map_board.position = eye_codriver + Vector3(BOARD.x * sx, BOARD.y, BOARD.z) * _crew_k()
+	map_board.rotation = Vector3(deg_to_rad(-52.0), deg_to_rad(4.0) * sx, 0.0)
 	_bake_static()
 	_harnesses()
+
+
+## The crew's size against ours (x1.2 cartoon): 1 in our cockpit.
+func _crew_k() -> float:
+	return 1.0 if own.is_empty() else OWN_SCALE / CrewModel.SCALE
+
+
+## Whether it's the car's own interior (the crew are seen from outside too: it has windows).
+func own_interior() -> bool:
+	return not own.is_empty()
+
+
+## Your eyes in your seat.
+func eye_for(seat: String) -> Vector3:
+	return eye_driver if seat == "driver" else eye_codriver
+
+
+## The car's own interior: the layout from its parts.json, in the car's space.
+func _own_layout() -> void:
+	var off: Vector3 = car.model_offset()
+	var w: Dictionary = own.wheel
+	wheel_c = _v3(w.centre) + off
+	_wheel_axis = _v3(w.axis).normalized()
+	wheel_tilt = atan2(-_wheel_axis.y, _wheel_axis.z)
+	wheel_r = float(w.radius)
+	eye_driver = _v3(own.eye) + off
+	eye_codriver = Vector3(-eye_driver.x, eye_driver.y, eye_driver.z)
+	if own.has("windshield"):
+		ws_bottom = _v3(own.windshield.bottom) + off
+		ws_top = _v3(own.windshield.top) + off
+		ws_w = float(own.windshield.width)
+	var k := ws_w / WS_W
+	wiper_x = [WIPER_X[0] * k, WIPER_X[1] * k]
+
+
+## Its own rear-view mirror shows the road behind (our mirror's camera, on its glass).
+func _own_mirror() -> void:
+	if not own.has("mirror"):
+		return
+	var m: Dictionary = own.mirror
+	var n := _v3(m.normal).normalized()              # toward the driver
+	var y := (Vector3.UP - n * n.dot(Vector3.UP)).normalized()
+	var mirror := Node3D.new()
+	mirror.transform = Transform3D(Basis(y.cross(n), y, n), _v3(m.centre) + car.model_offset())
+	add_child(mirror)
+	_mirror_glass(mirror, Vector2(float(m.size[0]), float(m.size[1])) * 0.96, 0.002)
+	_mirror_at = mirror.position + n * 0.03
+
+
+## The driver slides their seat forward until their hands reach the wheel at a
+## quarter to three with their arms nearly straight (a rally driver sits close; the
+## crew's arms are short for their size), up to SEAT_SLIDE, but not so close the
+## wheel is in their face. What's still out of reach the forearms stretch to
+## (crew_model.gd): the gloves never come off the sleeves.
+func _reach_wheel() -> void:
+	var m = _models.get("driver")
+	if m == null:
+		return
+	var z := _wheel_axis
+	var y := (Vector3.UP - z * z.dot(Vector3.UP)).normalized()
+	var x := y.cross(z)
+	var need := 0.0
+	for side in ["Left", "Right"]:
+		var sh: Vector3 = m.bone(side + "Arm")
+		var reach: float = sh.distance_to(m.bone(side + "ForeArm")) + m.bone(side + "ForeArm").distance_to(m.bone(side + "Hand"))
+		var grip: Vector3 = wheel_c + x * wheel_r * (-1.0 if side == "Left" else 1.0)
+		var v := grip - sh
+		var r2 := pow(reach * 0.95, 2.0) - v.x * v.x - v.y * v.y
+		if r2 > 0.0:
+			need = maxf(need, -v.z - sqrt(r2))
+		else:
+			need = SEAT_SLIDE
+	var room := Vector2(eye_driver.y - wheel_c.y, eye_driver.z - wheel_c.z).length() - WHEEL_CLEAR
+	var f := clampf(need, 0.0, minf(SEAT_SLIDE, maxf(room, 0.0)))
+	eye_driver.z -= f
+	m.position.z -= f
+
+
+## Its own gear lever and handbrake for the hands (driver_hands.gd use_model).
+func _own_levers() -> Dictionary:
+	var off: Vector3 = car.model_offset()
+	var cfg := {"side": str(own.get("side", "left")), "gearbox": str(own.get("gearbox", "h5"))}
+	if own.has("shifter") and car.cockpit_nodes.has("shifter"):
+		cfg.shifter = {"pivot": _v3(own.shifter.pivot) + off, "knob": _v3(own.shifter.knob) + off,
+			"node": car.cockpit_nodes.shifter}
+	if own.has("handbrake") and car.cockpit_nodes.has("handbrake"):
+		cfg.handbrake = {"pivot": _v3(own.handbrake.pivot) + off, "grip": _v3(own.handbrake.grip) + off,
+			"node": car.cockpit_nodes.handbrake}
+	return cfg
+
+
+static func _v3(a) -> Vector3:
+	return Vector3(float(a[0]), float(a[1]), float(a[2]))
 
 
 ## The mirror works: a little camera just in front of it looks back down the car
 ## (the crew's helmets, the cage, the rear window, the road behind) into a
 ## low-resolution texture on the glass, flipped like a mirror. It renders about
 ## 30 times a second, and not at all when nobody's in the cockpit view (the chase cam).
-func _mirror_glass(mirror: Node3D) -> void:
+func _mirror_glass(mirror: Node3D, size := Vector2(0.266, 0.052), lift := 0.0095) -> void:
 	_mirror_vp = SubViewport.new()
 	_mirror_vp.name = "MirrorView"
-	_mirror_vp.size = Vector2i(400, 78)
+	_mirror_vp.size = Vector2i(400, maxi(32, roundi(400.0 * size.y / size.x)))
 	_mirror_vp.render_target_update_mode = SubViewport.UPDATE_ONCE
 	add_child(_mirror_vp)
 	_mirror_cam = Camera3D.new()
@@ -131,7 +261,7 @@ func _mirror_glass(mirror: Node3D) -> void:
 	_mirror_vp.add_child(_mirror_cam)
 	var glass := MeshInstance3D.new()
 	var q := QuadMesh.new()
-	q.size = Vector2(0.266, 0.052)
+	q.size = size
 	glass.mesh = q
 	var m := StandardMaterial3D.new()
 	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
@@ -140,7 +270,7 @@ func _mirror_glass(mirror: Node3D) -> void:
 	m.uv1_scale = Vector3(-1.0, 1.0, 1.0)              # left and right swapped: a mirror
 	m.uv1_offset = Vector3(1.0, 0.0, 0.0)
 	glass.material_override = m
-	glass.position = Vector3(0, 0, 0.0095)
+	glass.position = Vector3(0, 0, lift)
 	glass.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	mirror.add_child(glass)
 
@@ -157,7 +287,7 @@ func _mirror(dt: float) -> void:
 	_mirror_t = 0.0
 	# just in front of the glass (so it doesn't see its own back), looking back and a touch down
 	_mirror_cam.global_transform = global_transform * Transform3D(
-		Basis(Vector3.UP, PI) * Basis(Vector3.RIGHT, deg_to_rad(-4.0)), Vector3(0.0, 0.84, -0.25))
+		Basis(Vector3.UP, PI) * Basis(Vector3.RIGHT, deg_to_rad(-4.0)), _mirror_at)
 	_mirror_vp.render_target_update_mode = SubViewport.UPDATE_ONCE
 
 
@@ -776,36 +906,39 @@ static func _arc_tube(R: float, r: float, a0: float, a1: float, seg: int) -> Arr
 
 
 func _windshield() -> void:
-	var up := (WS_TOP - WS_BOTTOM)
+	var up := (ws_top - ws_bottom)
 	var h := up.length()
 	var y := up / h
 	var n := Vector3.RIGHT.cross(y).normalized()               # points into the cabin
 	var basis := Basis(Vector3.RIGHT, y, n)
+	var side := 1.0 if own.is_empty() else -1.0               # a car's own glass: the mud and the wipers go outside it
 	# the mud: one quad over the glass; the shader covers it and cuts out the wiped arcs
 	var q := MeshInstance3D.new()
 	var qm := QuadMesh.new()
-	qm.size = Vector2(WS_W, h)
+	qm.size = Vector2(ws_w, h)
 	q.mesh = qm
-	q.transform = Transform3D(basis, (WS_BOTTOM + WS_TOP) * 0.5 + n * 0.01)
+	q.transform = Transform3D(basis, (ws_bottom + ws_top) * 0.5 + n * (0.01 if own.is_empty() else -0.012))
 	_mud_mat = ShaderMaterial.new()
 	_mud_mat.shader = _mud_shader()
 	q.material_override = _mud_mat
 	q.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(q)
-	_mud_mat.set_shader_parameter("size_m", Vector2(WS_W, h))
-	_mud_mat.set_shader_parameter("pivots", PackedVector2Array([Vector2(WIPER_X[0], 0.04), Vector2(WIPER_X[1], 0.04)]))
-	_mud_mat.set_shader_parameter("reach", WIPER_REACH)
+	_mud_mat.set_shader_parameter("size_m", Vector2(ws_w, h))
+	_mud_mat.set_shader_parameter("pivots", PackedVector2Array([Vector2(wiper_x[0], 0.04), Vector2(wiper_x[1], 0.04)]))
+	_mud_mat.set_shader_parameter("reach", WIPER_REACH * ws_w / WS_W)
 	_mud_mat.set_shader_parameter("park", deg_to_rad(WIPER_PARK))
 	# two wipers, pivoting at the bottom of the glass, parked flat
-	for px in WIPER_X:
+	for px in wiper_x:
 		var pivot := Node3D.new()
-		pivot.transform = Transform3D(basis, WS_BOTTOM + Vector3(px, 0, 0) + y * 0.04 + n * 0.02)
+		pivot.transform = Transform3D(basis, ws_bottom + Vector3(px, 0, 0) + y * 0.04 + n * 0.02 * side * (1.0 if side > 0.0 else 1.5))
 		add_child(pivot)
 		var arm := Node3D.new()
 		pivot.add_child(arm)
-		_box(Vector3(0.6, 0.012, 0.012), Vector3(0.3, 0.0, 0.0), DARK, Vector3.ZERO, arm)
-		_box(Vector3(0.62, 0.02, 0.02), Vector3(0.33, 0.02, 0.0), Color(0.05, 0.05, 0.05), Vector3.ZERO, arm)
+		var k := WIPER_REACH / 0.64 * ws_w / WS_W
+		_box(Vector3(0.6 * k, 0.012, 0.012), Vector3(0.3 * k, 0.0, 0.0), DARK, Vector3.ZERO, arm)
+		_box(Vector3(0.62 * k, 0.02, 0.02), Vector3(0.33 * k, 0.02, 0.0), Color(0.05, 0.05, 0.05), Vector3.ZERO, arm)
 		arm.rotation.z = deg_to_rad(WIPER_PARK)
+		arm.visible = own.is_empty()                       # its own wipers are parked there: ours only show wiping
 		_wiper_pivots.append(arm)
 
 
@@ -897,12 +1030,14 @@ func _crew() -> void:
 	var ok := true
 	for seat in ["driver", "codriver"]:
 		var m := CrewModel.new()
+		m.scale_k = CrewModel.SCALE * _crew_k()
+		if not own.is_empty():
+			m.thigh_y = 0.04                         # (on its seat's cushion, not through it)
 		m.own_layer = 2 if seat == "driver" else 3
 		m.suit_colour = SUIT_D if seat == "driver" else SUIT_C
 		add_child(m)
 		if m.load_model("res://assets/models/%s.glb" % seat):
-			var x: float = EYE_DRIVER.x if seat == "driver" else EYE_CODRIVER.x
-			m.seat_at(Vector3(x, -0.12, 0.28))
+			m.seat_at(eye_for(seat) + HIPS * _crew_k())
 			# the co-driver never sees their own body: it would sit between their eyes and
 			# the map board in their lap (the co-driver's camera leaves layer 3 out)
 			if seat == "codriver":
@@ -929,6 +1064,8 @@ func _harnesses() -> void:
 	if _models.has("codriver") and map_board:
 		var board: Array = [map_board.transform * Vector3(-0.15, -0.05, 0.02), map_board.transform * Vector3(0.15, -0.05, 0.02)]
 		_models.codriver.pose(board, Vector3(0.3, -0.6, 0.25), 0.9)
+	if not own.is_empty():
+		return                                       # a road car's interior: no harness bar to belt them to
 	for seat in _models:
 		var h := Harness.build(_models[seat], HARNESS_BAR.x, HARNESS_BAR.y, _models[seat].layer_mask())
 		if h:
@@ -944,12 +1081,12 @@ func set_my_seat(seat: String) -> void:
 
 func _box_crew() -> void:
 	for seat in ["driver", "codriver"]:
-		var x: float = EYE_DRIVER.x if seat == "driver" else EYE_CODRIVER.x
+		var e := eye_for(seat)
 		var suit: Color = SUIT_D if seat == "driver" else SUIT_C
-		_box(Vector3(0.4, 0.5, 0.24), Vector3(x, 0.1, 0.4), suit, Vector3(deg_to_rad(-10.0), 0, 0))     # torso
-		_box(Vector3(0.36, 0.14, 0.42), Vector3(x, -0.12, 0.12), suit * 0.8)                        # lap
+		_box(Vector3(0.4, 0.5, 0.24), e + Vector3(0.0, -0.5, 0.14), suit, Vector3(deg_to_rad(-10.0), 0, 0))     # torso
+		_box(Vector3(0.36, 0.14, 0.42), e + Vector3(0.0, -0.72, -0.14), suit * 0.8)                        # lap
 		var head := Node3D.new()
-		head.position = (EYE_DRIVER if seat == "driver" else EYE_CODRIVER) + Vector3(0, 0.02, 0.06)
+		head.position = e + Vector3(0, 0.02, 0.06)
 		add_child(head)
 		var helm := MeshInstance3D.new()
 		var sm := SphereMesh.new()
@@ -1007,8 +1144,11 @@ func _process(dt: float) -> void:
 	# than hands can turn it (~690 deg/s)
 	_wheel_turn = move_toward(_wheel_turn, clampf(car.steer * 13.0, -4.5, 4.5), 12.0 * dt)
 	var wheel_turn: float = _wheel_turn
-	_steer_node.rotation = Vector3(WHEEL_TILT, 0.0, 0.0)
-	_steer_node.rotate_object_local(Vector3.BACK, -wheel_turn)
+	if _steer_node:
+		_steer_node.rotation = Vector3(WHEEL_TILT, 0.0, 0.0)
+		_steer_node.rotate_object_local(Vector3.BACK, -wheel_turn)
+	elif car.cockpit_nodes.has("wheel"):
+		(car.cockpit_nodes.wheel as Node3D).basis = Basis(_wheel_axis, -wheel_turn)
 	# driver's hands: gloves round the rim, hand over hand when it turns a lot, the
 	# right one on the handbrake when it's pulled (driver_hands.gd)
 	hands.update(dt, wheel_turn, car.handbrake_on(), car.gear)
@@ -1016,7 +1156,7 @@ func _process(dt: float) -> void:
 	if _models.is_empty():
 		for k in 2:
 			var side := "l" if k == 0 else "r"
-			var sh := Vector3(EYE_DRIVER.x + (-0.19 if side == "l" else 0.19), 0.28, 0.38)
+			var sh := eye_driver + Vector3(-0.19 if side == "l" else 0.19, -0.32, 0.12)
 			_arm("driver" + side, sh, wheel_hands[k], sh + Vector3(-0.3 if side == "l" else 0.3, -0.5, 0.0))
 	# co-driver holds the map board by its sides
 	var board_hands: Array = []
@@ -1025,7 +1165,7 @@ func _process(dt: float) -> void:
 			var hand: Vector3 = map_board.transform * Vector3(-0.15 if side == "l" else 0.15, -0.05, 0.02)
 			board_hands.append(hand)
 			if _models.is_empty():
-				var sh := Vector3(EYE_CODRIVER.x + (-0.19 if side == "l" else 0.19), 0.28, 0.38)
+				var sh := eye_codriver + Vector3(-0.19 if side == "l" else 0.19, -0.32, 0.12)
 				_arm("codriver" + side, sh, hand, sh + Vector3(-0.3 if side == "l" else 0.3, -0.5, 0.1))
 	if _models.has("driver"):
 		_models.driver.pose(wheel_hands, Vector3(0.35, -0.6, 0.15))
@@ -1070,14 +1210,14 @@ func splat(amount: float, seed_value: int) -> void:
 	_mud_age = 0.0
 	var rng := RandomNumberGenerator.new()
 	rng.seed = seed_value
-	var h := (WS_TOP - WS_BOTTOM).length()
+	var h := (ws_top - ws_bottom).length()
 	_splats = PackedVector4Array()
 	# the one that matters: where the driver looks at the road
-	_splats.append(Vector4(EYE_DRIVER.x + rng.randf_range(-0.1, 0.1), h * rng.randf_range(0.36, 0.5),
+	_splats.append(Vector4(eye_driver.x + rng.randf_range(-0.1, 0.1), h * rng.randf_range(0.36, 0.5),
 		rng.randf_range(0.27, 0.34), rng.randf() * 100.0))
 	var n := 3 + int(clampf(amount, 0.0, 1.0) * 4.0)
 	for k in n:
-		_splats.append(Vector4(rng.randf_range(-WS_W * 0.45, WS_W * 0.45), h * rng.randf_range(0.15, 0.85),
+		_splats.append(Vector4(rng.randf_range(-ws_w * 0.45, ws_w * 0.45), h * rng.randf_range(0.15, 0.85),
 			rng.randf_range(0.09, 0.22), rng.randf() * 100.0))
 	_mud_mat.set_shader_parameter("splats", _splats)
 	_mud_mat.set_shader_parameter("count", _splats.size())
@@ -1102,6 +1242,8 @@ func _wipers(dt: float) -> void:
 	var period := 0.85
 	var prev := _wiper_t
 	_wiper_t += dt
+	for arm in _wiper_pivots:
+		arm.visible = true
 	var phase := fmod(_wiper_t, period) / period          # 0 -> 1: up and back
 	var up := sin(phase * PI)                               # 0 parked .. 1 fully across
 	var ang := WIPER_PARK + WIPER_SWEEP * up
@@ -1119,3 +1261,4 @@ func _wipers(dt: float) -> void:
 			_wiper_t = 0.0
 			for arm in _wiper_pivots:
 				arm.rotation.z = deg_to_rad(WIPER_PARK)
+				arm.visible = own.is_empty()
