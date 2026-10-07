@@ -206,7 +206,8 @@ upgrades) and weight.
    - An interior worth keeping gets a `"cockpit"` key: where its steering wheel, gear lever and
      handbrake are (name patterns, a box round the loose pieces, or materials in a box) and what
      the gearbox is (`"h4"`, `"h5"`, `"h6"`, `"seq"`, `"auto"`). They're cut out as parts of their own,
-     each turning about its pivot, and `parts.json` says where they are, where the driver's eyes
+     each turning about its pivot (the wheel's column found from its shape, or given as `"axis"`
+     where the shape misleads: a squat race wheel on a deep hub), and `parts.json` says where they are, where the driver's eyes
      go and where the windshield is. `--parts` lists every part, where it is and how big;
      `--snapshot file.blend` saves the car as the tool sees it, to look at. Leave the key out and
      the game builds its own rally cockpit instead (an interior too rough to sit in).

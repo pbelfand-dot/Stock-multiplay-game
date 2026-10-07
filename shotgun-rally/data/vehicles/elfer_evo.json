@@ -1,0 +1,134 @@
+{
+ "id": "elfer_evo",
+ "name": "ELFER R EVO",
+ "order": 485,
+ "model": "gt3r_evo26",
+ "category": "race",
+ "role": "track",
+ "real": {
+  "manufacturer": "Porsche",
+  "model": "911 GT3 R (992.2)",
+  "year": 2026,
+  "trim": "4.2 flat-six, 6-speed sequential (paddles)"
+ },
+ "specs": {
+  "power_hp": 557,
+  "weight_kg": 1265,
+  "drivetrain": "RWD",
+  "transmission": "6-speed sequential dog box (paddle shift)",
+  "wheelbase_mm": 2507,
+  "top_speed_kmh": 290,
+  "front_weight": 0.4,
+  "notes": "The 2026 update of the GT3 R: the rear-mounted 4,194 cc flat-six, about 416 kW (565 PS) to 9,250 rpm, subject to BoP; about 1,265 kg; a six-speed sequential dog box with paddles, a three-disc carbon clutch and a mechanical limited-slip differential; 2,507 mm wheelbase, 4,619 mm long, 2,039 / 2,050 mm wide (Porsche via stuttcars.com). Torque isn't published (a high-revving NA curve from the power); the power peak's rpm (9,000), ~290 km/h, weight distribution, ratios and aero are estimates."
+ },
+ "garage": {
+  "price": 115000,
+  "engine_sound": "i6_race",
+  "livery": "stripes",
+  "number": 92,
+  "colours": [
+   [
+    0.92,
+    0.92,
+    0.9
+   ],
+   [
+    0.85,
+    0.12,
+    0.05
+   ],
+   [
+    0.05,
+    0.05,
+    0.06
+   ],
+   [
+    0.95,
+    0.75,
+    0.1
+   ]
+  ],
+  "wheels": "black",
+  "power": 1.0,
+  "grip": 1.0,
+  "brakes": 1.0,
+  "drive_front": 0.0,
+  "blurb": "The 2026 evolution of the GT3 R: the same screaming flat-six behind the rear axle, a little heavier and a little calmer on the brakes."
+ },
+ "physics": {
+  "chassis": "track",
+  "mass": 1265.0,
+  "front": 0.4,
+  "torque": 489.7,
+  "curve": [
+   [
+    1000,
+    0.5
+   ],
+   [
+    3107,
+    0.775
+   ],
+   [
+    5214,
+    0.94
+   ],
+   [
+    7020,
+    1.0
+   ],
+   [
+    9000,
+    0.9
+   ],
+   [
+    9250,
+    0.797
+   ]
+  ],
+  "idle": 1000.0,
+  "limiter": 9250.0,
+  "turbo": 0.0,
+  "gears": [
+   2.392,
+   1.921,
+   1.543,
+   1.24,
+   0.996,
+   0.8
+  ],
+  "final": 4.72,
+  "drive": "rwd",
+  "rear": [
+   "lsd",
+   0.35,
+   0.15,
+   30.0
+  ],
+  "cd": 0.45,
+  "area": 1.95,
+  "down": 2.4,
+  "brake": 1.25
+ },
+ "checks": {
+  "zero_100_max": 7.0
+ },
+ "interior": {
+  "own": true,
+  "camera": true,
+  "notes": "The model's race cockpit: its rectangular wheel cut out by part (its column given: the shape misleads), the seat found by the probe; paddles: the hands stay on the wheel."
+ },
+ "source": {
+  "package": "CGTrader_New_Cars/porsche_911_gt3_r_evo_2026 (porsche_911_gt3_r_evo_2026.fbx + textures)",
+  "candidate": 33,
+  "license": "CGTrader purchase (no licence file in the package). Handled as no-AI: converted and checked by local scripts only, its renders never viewed"
+ },
+ "research": [
+  "https://www.stuttcars.com/porsche-911-gt3-r-992-1-2023-2025-specifications-performance-2/"
+ ],
+ "limitations": [
+  "Not looked at: handled as no-AI, so its looks (materials, the cockpit) are checked by the tests only, never by eye.",
+  "Torque, the power peak's rpm, top speed, weight distribution, ratios and aero are estimates; the power is Porsche's BoP-dependent rating.",
+  "The game's livery replaces its race livery (its livery texture is the game's paint)."
+ ]
+}

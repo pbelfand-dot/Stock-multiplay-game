@@ -59,6 +59,7 @@ The spec (tools/cars/<id>.json) says what's what in the model:
     {"wheel": {"parts": [name patterns]} or {"box": [x0, x1, y0, y1, z0, z1]}
     (the loose pieces wholly inside it; "cut": true, every face whose middle
     is) or {"mats": [material patterns], "box": ...} (those faces, in the box),
+    + "axis": [x, y, z] its column, toward the driver, where its shape misleads,
     "shifter": the same (+ "below": m its pivot is below its foot,
     0.08), or, for an interior modelled without one, {"add": {"at": [x, y],
     "height": m, "lean": degrees}}: a lever made for it (rod, knob, leather
@@ -1021,6 +1022,12 @@ if cockpit:
     c0, ax = pca(v)
     n = ax[0] if ax[0].y < 0 else -ax[0]              # toward the driver: back (and up)
     u, t = ax[1], ax[2]
+    if "axis" in cockpit["wheel"]:
+        # (given: a wheel whose shape misleads, its thinnest way not its column: a squat
+        # rectangular race wheel on a deep hub)
+        n = Vector(cockpit["wheel"]["axis"]).normalized()
+        u = n.cross(Vector((1.0, 0.0, 0.0))).normalized()
+        t = n.cross(u).normalized()
     d = v - np.array(c0)
     along = d @ np.array(n)
     flat = d - np.outer(along, np.array(n))

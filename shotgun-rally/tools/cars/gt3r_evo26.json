@@ -1,0 +1,6 @@
+{"id": "gt3r_evo26", "front": "-Y", "wheelbase": 2.507,
+ "wheel": ["^por\\.Wheel\\.(Ft|Bk)\\."], "caliper": ["^por\\.WheelBrake\\."],
+ "paint": ["^Material$"], "glass": ["^Glass$"],
+ "materials": [["^Glass$", "glass"], ["^Mirror$", "chrome"]],
+ "wheel_faces": 12000, "body_faces": 160000, "body_least": 0.25, "tex_max": 1024, "tex_format": "webp",
+ "cockpit": {"gearbox": "auto", "wheel": {"parts": ["^Mesh_83\\.00[12]$"], "axis": [0.0, -0.94, 0.34]}}}
