@@ -158,7 +158,7 @@ func _drive(kind: String, rpm: float, thr: float, speed: float, frames: int, lif
 	var s = EngineSound.new()
 	s.car = fc
 	fc.add_child(s)
-	var out := {"cut_on": 0, "cut_off": 0, "whine": -80.0, "whistle": -80.0, "limiter": 0.0, "set": s.loops.dir}
+	var out := {"cut_on": 0, "cut_off": 0, "whine": -80.0, "whistle": -80.0, "limiter": 0.0, "set": s.loops.dir, "motor": -80.0}
 	for f in frames:
 		var th := 0.0 if lift_after >= 0 and f >= lift_after else thr
 		fc.net_throttle = th
@@ -172,6 +172,8 @@ func _drive(kind: String, rpm: float, thr: float, speed: float, frames: int, lif
 			out.whine = maxf(out.whine, s.whine_db)
 			out.whistle = maxf(out.whistle, s.whistle_db)
 			out.limiter = maxf(out.limiter, s.limiter_share)
+			out.motor = maxf(out.motor, s.motor_db)
+	out.motor_pitch = s._motor.pitch_scale if s._motor else 0.0
 	out.pops = s.pops_fired + s._pop_queue.size()
 	out.bov = s.bov_fired
 	out.overrun = s._players.has("overrun")
@@ -203,6 +205,13 @@ func _types() -> void:
 	var quiet := _drive("na4", 0.9, 1.0, 25.0, 140, 90)
 	fails += _check(bov.bov == 1 and als.pops >= 1 and quiet.pops == 0 and quiet.bov == 0 and not quiet.overrun,
 		"a lift at high revs: the S15's blow-off hisses (%d), an anti-lag car pops (%d), the road four does neither (%d pops) and has no crackle" % [bov.bov, als.pops, quiet.pops])
+	var ev_lo := _drive("ev", 0.2, 1.0, 8.0, 60)
+	var ev_hi := _drive("ev", 1.0, 1.0, 40.0, 120)
+	var ev_coast := _drive("ev", 0.6, 0.0, 25.0, 60)
+	fails += _check(ev_hi.set == "ev" and ev_hi.cut_on == 0 and ev_hi.limiter == 0.0 and ev_hi.pops == 0
+		and ev_hi.motor_pitch > ev_lo.motor_pitch * 2.0 and ev_hi.motor > -30.0 and ev_coast.motor < ev_hi.motor - 6.0,
+		"an electric car: no engine, no limiter (%.2f), no pops; its motor whines up with its revs (pitch x%.2f to x%.2f, %.0f dB), quieter coasting (%.0f dB)" % [
+		ev_hi.limiter, ev_lo.motor_pitch, ev_hi.motor_pitch, ev_hi.motor, ev_coast.motor])
 
 
 func _check(ok: bool, msg: String) -> int:

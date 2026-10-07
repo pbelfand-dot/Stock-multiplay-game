@@ -188,6 +188,12 @@ upgrades) and weight.
    writes `assets/models/cars/<id>/<id>.glb` and `parts.json`. `-Y` keeps any scripts in a .blend switched off.
    - The paint and the glass are never simplified, because simplifying them dents the panels.
      Only the hidden parts (the interior, the underside) are, and those keep their original shading.
+   - A texture the model asks for that isn't where it says is found by name in the texture
+     folders: also under a longer name (`x_(Personalizado).png` for `x.png`) or a cut-short one
+     (`x_B.png` for `x_BaseColor.png`). One found nowhere is taken off its material (which keeps
+     its colour); left on, it exported as a texture with no image and Godot refused the file.
+     With `"tex_format": "webp"`, grayscale, 16-bit and float images are made 8-bit RGBA first
+     (Blender can't write those as WebP).
    - Materials the model marks as blended but that aren't see-through come out opaque, or cut out
      where their texture has hard-edged holes (`tools/glb_alpha.py`, run on every car it writes).
      Game rips often mark every material blended, and Godot draws those in its transparent pass:

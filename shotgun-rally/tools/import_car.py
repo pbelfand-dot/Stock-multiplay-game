@@ -385,6 +385,7 @@ def _key(n):
     return re.sub(r"[^a-z0-9]", "", n)
 
 found = {}
+missing_images = []
 for d in tex_dirs:
     for root, _, files in os.walk(d):
         for f in files:
@@ -397,14 +398,34 @@ for img in list(bpy.data.images):
     p = bpy.path.abspath(img.filepath)
     if img.source == 'GENERATED' or not os.path.exists(p):
         for k in (_key(img.filepath), _key(img.name)):
-            if k in found:
-                fresh = bpy.data.images.load(found[k], check_existing=True)     # (a reloaded placeholder stays empty)
+            # (or the file whose name starts with it: a texture saved as "x_(Personalizado).png" for
+            # a model that asks for "x.png"; or whose name it starts with: one saved cut short,
+            # "x_B.png" for "x_BaseColor.png")
+            hit = k if k in found else None
+            if hit is None and len(k) >= 6:
+                longer = [f for f in found if f.startswith(k)]
+                hit = min(longer, key=len) if longer else None
+            if hit is None:
+                shorter = [f for f in found if len(f) >= 12 and k.startswith(f)]
+                hit = max(shorter, key=len) if shorter else None
+            if hit:
+                fresh = bpy.data.images.load(found[hit], check_existing=True)     # (a reloaded placeholder stays empty)
                 fresh.colorspace_settings.name = img.colorspace_settings.name
                 if fresh != img:
                     img.user_remap(fresh)
                 break
         else:
             print("missing image:", img.name, img.filepath)
+            missing_images.append(img)
+
+# an image found nowhere is taken off its materials (they keep their colour): left on, it would
+# export as a texture with no image, and Godot refuses the whole file
+for img in missing_images:
+    for mat in bpy.data.materials:
+        if mat.use_nodes:
+            for nd in [n for n in mat.node_tree.nodes if n.type == 'TEX_IMAGE' and n.image == img]:
+                mat.node_tree.nodes.remove(nd)
+
 
 
 # an OBJ whose .mtl points its textures somewhere else (an absolute path on its maker's machine,
@@ -1434,6 +1455,23 @@ for img in bpy.data.images:
     if img.size[0] > most or img.size[1] > most:
         f = float(most) / max(img.size[0], img.size[1])
         img.scale(max(1, int(img.size[0] * f)), max(1, int(img.size[1] * f)))
+# WebP holds 8-bit RGB(A) only: a grayscale or a 16-bit / float image (Blender fails to save
+# one, and the texture exports with no image) made 8-bit RGBA first
+if spec.get("tex_format", "").lower() == "webp":
+    for img in list(bpy.data.images):
+        if img.users and img.depth not in (24, 32) and img.size[0] > 0 and img.size[1] > 0:
+            rgba = bpy.data.images.new(img.name + "_rgba", img.size[0], img.size[1], alpha=True)
+            px = np.empty(img.size[0] * img.size[1] * 4, dtype=np.float32)
+            img.pixels.foreach_get(px)
+            if img.is_float and img.colorspace_settings.name == 'sRGB':
+                # (a float image's pixels are linear; an 8-bit sRGB one's are encoded)
+                c = px.reshape(-1, 4)
+                c[:, :3] = np.where(c[:, :3] <= 0.0031308, c[:, :3] * 12.92,
+                    1.055 * np.power(np.clip(c[:, :3], 0.0031308, None), 1.0 / 2.4) - 0.055)
+            rgba.pixels.foreach_set(np.clip(px, 0.0, 1.0))
+            rgba.colorspace_settings.name = img.colorspace_settings.name
+            img.user_remap(rgba)
+            print("%s: %d-bit image made 8-bit RGBA for WebP" % (img.name, img.depth))
 
 # a conversion gone wrong says so (it would still export): wheels that don't match side to side or
 # corner to corner, the body through the ground, the driver's eyes outside the car

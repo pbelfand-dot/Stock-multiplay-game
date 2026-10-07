@@ -16,7 +16,8 @@ extends Node3D
 ##   * "v8": a Ferrari 458's (the RX-7s' rotaries: a high-revving scream)
 ## On top, from the Fiesta WRC recordings (tools/engine_sound/): an anti-lag
 ## engine's overrun crackle and pops, a sequential's shift bang; made in code: a
-## turbo's whistle, a supercharger's whine, a road turbo's blow-off. Each car's
+## turbo's whistle, a supercharger's whine, a road turbo's blow-off; and for an
+## electric car none of the sets but its motor's whine and inverter's tone. Each car's
 ## engine type (Catalog "engine": ENGINES) also sets its tone (an EQ on a bus of
 ## its own). Lives under the car; reads its rpm (0..1 idle..limiter), throttle,
 ## gear and boost (on the co-driver's machine, the stream's).
@@ -59,6 +60,10 @@ const ENGINES := {
 	# an F1-derived turbo-hybrid V6 (AMG ONE): the 458's high-revving loops, a turbo's whistle,
 	# a racing gearbox's whine and the race tone
 	"f1_hybrid": {"set": "v8", "turbo": 0.6, "sc": 0.0, "anti_lag": false, "pops": 0.2, "bov": false, "whine": 0.6, "bang": true, "tone": "race"},
+	# an electric car (Honda e): no engine at all. Its motor's whine (made here: a few
+	# harmonics, rising with its revs, louder pulling than coasting on the regen), the
+	# inverter's faint high tone and the single-speed reduction gear's hum (the whine)
+	"ev": {"set": "", "electric": true, "turbo": 0.0, "sc": 0.0, "anti_lag": false, "pops": 0.0, "bov": false, "whine": 0.35, "bang": false, "tone": "road"},
 }
 ## Each tone's EQ (AudioEffectEQ6 bands 32, 100, 320, 1000, 3200, 10000 Hz, dB).
 const TONES := {
@@ -85,11 +90,14 @@ var shifts_fired := 0
 var bov_fired := 0
 var whine_db := -80.0           # the gearbox's whine now (tests)
 var whistle_db := -80.0         # the turbo's / supercharger's now (tests)
+var motor_db := -80.0           # an electric car's motor whine now (tests)
 var _players := {}              # loop name -> AudioStreamPlayer3D ("on_low", "off_high", "overrun")
 var _limiter: AudioStreamPlayer3D
 var _gear_on: AudioStreamPlayer3D
 var _gear_off: AudioStreamPlayer3D
 var _whistle: AudioStreamPlayer3D
+var _motor: AudioStreamPlayer3D        # (an electric car's: its motor and its inverter)
+var _inverter: AudioStreamPlayer3D
 var _pops: Array = []
 var _shift: AudioStream
 var _gear := 1
@@ -107,15 +115,19 @@ func _ready() -> void:
 	if car and car.get("setup") is Dictionary:
 		kind = str(car.setup.get("engine", "wrc"))
 	eng = ENGINES.get(kind, ENGINES.wrc)
-	loops = SETS[eng.set]
+	loops = SETS.get(eng.set, {"dir": "ev"})
 	var bus := tone_bus(eng.tone)
+	_gear_on = _loop(looped(DIR + "gearbox/on.wav"), bus)
+	_gear_off = _loop(looped(DIR + "gearbox/off.wav"), bus)
+	if eng.get("electric", false):
+		_motor = _loop(tone([300.0, 600.0, 900.0, 1500.0], [1.0, 0.55, 0.3, 0.15]), bus)
+		_inverter = _loop(tone([4800.0], [1.0]), bus)
+		return
 	for n in ["on_low", "on_high", "off_low", "off_high"]:
 		_players[n] = _loop(looped(DIR + "%s/%s.wav" % [loops.dir, n]), bus)
 	if eng.anti_lag:
 		_players["overrun"] = _loop(looped(DIR + "overrun.wav"), bus)
 	_limiter = _loop(looped(DIR + "%s/limiter.wav" % loops.limiter), bus)
-	_gear_on = _loop(looped(DIR + "gearbox/on.wav"), bus)
-	_gear_off = _loop(looped(DIR + "gearbox/off.wav"), bus)
 	if eng.turbo > 0.0 or eng.sc > 0.0:
 		_whistle = _loop(tone([3000.0, 6000.0], [1.0, 0.3]), bus)
 	for i in POPS:
@@ -250,6 +262,9 @@ func _process(dt: float) -> void:
 	var rpm := revs()
 	var want: float = float(car.inp.throttle) if car.simulate else float(car.net_throttle)
 	throttle = move_toward(throttle, want, dt * 8.0)
+	if _motor:
+		_electric(dt, rpm)
+		return
 	# the limiter: flat out against it the engine cuts and fires, LIMIT_HZ a second,
 	# and its loop comes in over the last 8 % of the revs
 	_phase = fmod(_phase + dt * LIMIT_HZ, 1.0)
@@ -284,6 +299,20 @@ func _process(dt: float) -> void:
 			_pop_queue.remove_at(i)
 			pops_fired += 1
 			_one_shot(_pops[_rng.randi() % _pops.size()], -6.0 + _rng.randf_range(-3.0, 1.0), _rng.randf_range(0.9, 1.1))
+
+
+## An electric car: the motor's whine up with its revs (silent standing still, a
+## quarter as loud coasting as pulling), the inverter's tone faintly over it, and
+## the reduction gear's whine. No limiter, no shifts, no pops.
+func _electric(dt: float, rpm: float) -> void:
+	var x := clampf(float(car.rpm), 0.0, 1.0)
+	var m := (0.25 + 0.75 * throttle) * smoothstep(0.0, 0.08, x)
+	_motor.pitch_scale = 0.25 + 2.0 * x
+	motor_db = (-20.0 + linear_to_db(m)) if m > 0.002 else -80.0
+	_motor.volume_db = motor_db
+	_inverter.pitch_scale = 0.9 + 0.2 * x
+	_inverter.volume_db = (-40.0 + 6.0 * throttle) if m > 0.002 else -80.0
+	_drivetrain_sounds(dt, rpm)
 
 
 ## The gearbox's whine (markeasting's: its pitch up with the revs and the gear's

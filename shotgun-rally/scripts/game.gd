@@ -385,7 +385,8 @@ func reset_car() -> void:
 	var s := clampf(car_s, st.START_S, st.finish_s)
 	if Config.flag("smoke") or Config.flag("aicheck"):
 		print("[stage] reset at s=%.0f d=%.1f, %.0f km/h" % [car_s, car_d, car.kmh()])
-	car.place(st.world_at(s, 0.0), st.heading_at(s))
+	var d: float = traffic.clear_lane_d(s) if traffic else 0.0
+	car.place(st.world_at(s, d), st.heading_at(s))
 	resets += 1
 	penalties += RESET_PENALTY
 	_sync_penalties()

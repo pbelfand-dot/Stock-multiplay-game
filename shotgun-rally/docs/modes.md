@@ -43,7 +43,7 @@ distance gantries every 2 km, dashed lane lines.
 
 **The traffic** (`scripts/stage/traffic.gd`): the registry's traffic cars
 (`VehicleRegistry.traffic_pool()`: the generic saloon, crossover and people mover often;
-the GLS 63, RS 6, M3 Touring, M8 and a standard-body Hellcat now and then), painted from their registry palettes,
+the GLS 63, RS 6, M3 Touring, M8, a standard-body Hellcat and the Honda e now and then), painted from their registry palettes,
 their wheels turning. Only the stretch round the player is populated (160 m back to 650 m
 ahead); a car that drops out of it comes back elsewhere in a gap. They're kinematic
 (AnimatableBody3D: solid to the player's car, not simulated) and drive with:
@@ -55,7 +55,8 @@ ahead); a car that drops out of it comes back elsewhere in a gap. They're kinema
   up, and a keep-right bias), never if the car behind there would have to brake harder
   than 3.5 m/s²; it eases across in 3 s.
 
-A hit car stops where it is.
+A hit car stops where it is. R (+5 s) puts you back in the middle of the lane with the most
+room there, not on the road's centre line (between two lanes, often through a stopped car).
 
 **The score** (`scripts/game/cutup_score.gd`): a NEAR MISS is passing a car with less than
 the difficulty's gap between the bodies (1.6 m easy down to 0.7 m insane), at 80 km/h or
@@ -77,6 +78,6 @@ throws the unbanked pot away and costs 500. Bests are kept per difficulty.
 grade limit and determinism, its guardrail and props; the highway's lanes, sweepers,
 grades and barriers; a minute of traffic with the player weaving through (no
 collisions, lanes kept, speeds held, MOBIL lane changes, the population steady); the
-score's near misses, combo, banking and crash; the touge's splits and drift chains; every traffic car loading car-sized on four wheels;
+score's near misses, combo, banking and crash; the touge's splits and drift chains; every traffic car loading car-sized on four wheels; a reset landing in the clearest lane;
 and a run of each mode in the game. `tests/drive_check.gd --kind=touge` has the
 autopilot drive a pass.

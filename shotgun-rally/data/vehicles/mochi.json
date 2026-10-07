@@ -1,0 +1,164 @@
+{
+ "id": "mochi",
+ "name": "MOCHI e",
+ "order": 160,
+ "model": "honda_e",
+ "category": "jdm",
+ "role": "player_road",
+ "real": {
+  "manufacturer": "Honda",
+  "model": "e Advance",
+  "year": 2021,
+  "trim": "113 kW rear motor, 35.5 kWh, single-speed"
+ },
+ "specs": {
+  "power_hp": 152,
+  "weight_kg": 1527,
+  "drivetrain": "RWD",
+  "transmission": "single-speed reduction gear (electric)",
+  "wheelbase_mm": 2530,
+  "top_speed_kmh": 145,
+  "front_weight": 0.5,
+  "notes": "Honda's retro city EV: a 113 kW (154 PS), 315 N m motor driving the rear wheels through one gear, a 35.5 kWh battery under the floor, about 50:50 weight; 1,527 kg; 0-100 km/h in 8.3 s, 145 km/h limited; 2,530 mm wheelbase, 3,894 x 1,752 x 1,512 mm (evspecifications.com, cars-data.com). The motor's top speed and the reduction ratio are estimates (the gearing is set from the 145 km/h limit)."
+ },
+ "garage": {
+  "price": 22000,
+  "engine_sound": "ev",
+  "livery": "plain",
+  "number": 1,
+  "colours": [
+   [
+    0.92,
+    0.92,
+    0.9
+   ],
+   [
+    0.95,
+    0.78,
+    0.12
+   ],
+   [
+    0.55,
+    0.57,
+    0.6
+   ],
+   [
+    0.1,
+    0.22,
+    0.5
+   ]
+  ],
+  "wheels": "black",
+  "power": 1.0,
+  "grip": 1.0,
+  "brakes": 1.0,
+  "drive_front": 0.0,
+  "blurb": "A tiny electric hatch with cameras for mirrors and screens across the dash: silent, instant torque to the rear wheels, and done at 145 km/h. Hilarious on a touge."
+ },
+ "traffic": {
+  "weight": 0.1,
+  "paints": [
+   [
+    0.92,
+    0.92,
+    0.9
+   ],
+   [
+    0.95,
+    0.78,
+    0.12
+   ],
+   [
+    0.55,
+    0.57,
+    0.6
+   ],
+   [
+    0.05,
+    0.05,
+    0.06
+   ],
+   [
+    0.1,
+    0.22,
+    0.5
+   ]
+  ]
+ },
+ "physics": {
+  "chassis": "road",
+  "mass": 1527.0,
+  "front": 0.5,
+  "torque": 315.0,
+  "curve": [
+   [
+    500,
+    1.0
+   ],
+   [
+    1718,
+    1.0
+   ],
+   [
+    3436,
+    1.0
+   ],
+   [
+    5154,
+    0.667
+   ],
+   [
+    6872,
+    0.5
+   ],
+   [
+    8934,
+    0.385
+   ],
+   [
+    10000,
+    0.344
+   ]
+  ],
+  "idle": 500.0,
+  "limiter": 10000.0,
+  "turbo": 0.0,
+  "gears": [
+   1.0
+  ],
+  "final": 8.17,
+  "drive": "rwd",
+  "rear": [
+   "lsd",
+   0.35,
+   0.15,
+   30.0
+  ],
+  "cd": 0.32,
+  "area": 2.2,
+  "down": 0.0,
+  "brake": 0.85
+ },
+ "checks": {
+  "zero_100_max": 12.0
+ },
+ "interior": {
+  "own": true,
+  "camera": true,
+  "notes": "The model's detailed cabin: the wheel cut out by part (its rim, centre, buttons and paddles; the stalks and column stay), the seat found by the probe; left-hand drive. Single-speed: the hands stay on the wheel."
+ },
+ "source": {
+  "package": "free-honda-e-detailed-interior-2021.zip (Honda E Export.fbx + textures)",
+  "candidate": 43,
+  "license": "Sketchfab free download (no licence file in the zip; Sketchfab's free models are Creative Commons, most often CC Attribution: credit the author, who signs a texture 'Xlay3d')"
+ },
+ "research": [
+  "https://www.evspecifications.com/en/model/d5f0f7",
+  "https://cars-data.com/en/honda/e/2020/advance--99028/specs"
+ ],
+ "limitations": [
+  "The motor's top speed and the reduction ratio are estimates.",
+  "Its seat stitching (100k triangles), the rear defroster lines, a ground shadow plane and the author's name plate dropped; the wheel-centre badges dropped (they'd not have turned with the wheels).",
+  "Honda badges stay on the body (texture-free logo meshes)."
+ ]
+}

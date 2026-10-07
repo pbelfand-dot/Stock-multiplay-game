@@ -156,6 +156,15 @@ func _traffic() -> void:
 			bad.append("%s: no model" % e.id)
 	check(bad.is_empty() and tr._pool.size() == VehicleRegistry.traffic_pool().size(),
 		"traffic: all %d traffic cars load, car-sized, on four wheels%s" % [tr._pool.size(), (" (" + "; ".join(bad) + ")") if not bad.is_empty() else ""])
+	# a reset (R) puts the player in the lane with the most room, not on the centre line between
+	# two lanes: with a car stopped across lanes 1 and 2 right there, lane 0 or 3
+	var rs: float = st.START_S + 300.0
+	var saved: Array = tr.cars
+	tr.cars = [{"s": rs + 2.0, "d": float(tr.lane_d[1]), "half_len": 2.3}, {"s": rs - 3.0, "d": float(tr.lane_d[2]), "half_len": 2.3},
+		{"s": rs + 30.0, "d": float(tr.lane_d[0]), "half_len": 2.3}]
+	var rd: float = tr.clear_lane_d(rs)
+	tr.cars = saved
+	check(is_equal_approx(rd, float(tr.lane_d[3])), "traffic: a reset lands in the clearest lane (d %.1f; the lanes %s)" % [rd, tr.lane_d])
 	# a minute: the player weaves up the highway at 150 km/h, changing lanes every few seconds
 	tr.running = true
 	var ps: float = st.START_S

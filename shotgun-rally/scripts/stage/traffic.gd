@@ -76,6 +76,23 @@ func count() -> int:
 	return cars.size()
 
 
+## Where a reset puts the player at s: the middle of the lane with the most room there
+## (its nearest car, ahead or behind, furthest away), not the road's centre line, which
+## on a highway runs between two lanes, often through a car (a crashed one stays put).
+func clear_lane_d(s: float) -> float:
+	var best := 0.0
+	var room := -1.0
+	for k in lanes:
+		var near := 1e9
+		for c in cars:
+			if absf(float(c.d) - float(lane_d[k])) < st.LANE_W * 0.75:
+				near = minf(near, absf(float(c.s) - s) - float(c.half_len))
+		if near > room:
+			room = near
+			best = float(lane_d[k])
+	return best
+
+
 func _physics_process(dt: float) -> void:
 	if not running or st == null:
 		return
