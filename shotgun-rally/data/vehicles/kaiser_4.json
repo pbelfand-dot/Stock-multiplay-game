@@ -1,0 +1,79 @@
+{
+	"id": "kaiser_4",
+	"name": "KAISER 4 WB",
+	"order": 240,
+	"model": "m4_widebody",
+	"category": "euro",
+	"role": "drift",
+	"real": {
+		"manufacturer": "BMW",
+		"model": "M4 Competition Coupe (G82)",
+		"year": 2021,
+		"trim": "510 PS RWD, 8-speed M Steptronic; fan-made widebody build (cosmetic)"
+	},
+	"specs": {
+		"power_hp": 503,
+		"weight_kg": 1725,
+		"drivetrain": "RWD",
+		"transmission": "8-speed M Steptronic (torque converter)",
+		"wheelbase_mm": 2857,
+		"top_speed_kmh": 250,
+		"front_weight": 0.52,
+		"notes": "The widebody is a fan-made concept with no data, so the stock G82 M4 Competition from BMW's spec sheet (03/2021) is used: 510 PS (375 kW) at 6,250 rpm, 650 Nm from 2,750 to 5,500 rpm, 1,725 kg DIN unladen (EU 1,800 kg), rear-wheel drive, the 8-speed's ratios with a 3.154 final drive, 2,857 mm wheelbase, 250 km/h limited (290 with the M Driver's Package). No weight distribution or drag figure was published: 52 % front and Cd 0.36 on 2.2 m^2 (the wider body) are estimates."
+	},
+	"garage": {
+		"price": 32000,
+		"engine_sound": "i6_turbo",
+		"livery": "plain",
+		"number": 4,
+		"colours": [[0.0, 0.32, 0.32], [0.85, 0.85, 0.87], [0.05, 0.05, 0.06], [0.75, 0.08, 0.08]],
+		"wheels": "black",
+		"power": 1.0,
+		"grip": 1.0,
+		"brakes": 1.0,
+		"drive_front": 0.0,
+		"blurb": "The big-grilled M4 on a fan-made widebody: the twin-turbo six, all of it to the rear wheels, and arches wide enough to hide a drift angle."
+	},
+	"physics": {
+		"chassis": "sport",
+		"mass": 1725.0,
+		"front": 0.52,
+		"torque": 650.0,
+		"curve": [[1000, 0.38], [1612, 0.721], [2225, 0.926], [2750, 1.0], [5500, 1.0], [6250, 0.882], [7200, 0.697]],
+		"idle": 850.0,
+		"limiter": 7200.0,
+		"turbo": 0.4,
+		"spool": [1800.0, 3200.0],
+		"spool_time": 0.35,
+		"anti_lag": false,
+		"gears": [5.0, 3.2, 2.143, 1.72, 1.313, 1.0, 0.823, 0.64],
+		"final": 3.154,
+		"drive": "rwd",
+		"rear": ["lsd", 0.35, 0.15, 30.0],
+		"cd": 0.36,
+		"area": 2.2,
+		"down": 0.1,
+		"brake": 1.0
+	},
+	"checks": {
+		"zero_100_max": 9.0
+	},
+	"interior": {
+		"own": true,
+		"camera": true,
+		"notes": "The model's (the G82's): dash, carbon buckets, the M wheel with paddles (cut out of the dash by box); left-hand drive. An automatic: the hands stay on the wheel."
+	},
+	"source": {
+		"package": "bmw-m4-modified-widebody.zip (bmw-m4-widebody-wwwvecarzcom.zip is the same file)",
+		"author": "VTX_car (display name: VTX); upstream original by knitro_vedant",
+		"license": "CC Attribution-NonCommercial-ShareAlike (this upload); the upstream original is CC Attribution",
+		"url": "https://sketchfab.com/3d-models/bmw-m4-modified-widebody-61b1259b14ae4840ba1b0e9d819e60c1",
+		"attribution": "BMW M4 Modified Widebody by knitro_vedant (@knitro_builds, CC Attribution), re-uploaded by VTX_car (CC Attribution-NonCommercial-ShareAlike)",
+		"candidate": 18
+	},
+	"research": ["https://press.bmwgroup.com/global/article/attachment/T0316649EN/476824"],
+	"limitations": [
+		"The widebody build has no numbers: the stock M4 Competition's (approximation). Weight distribution and drag are estimates.",
+		"Provenance: the body's materials carry Forza Horizon asset naming (VEHICLE_PROGRESS.md)."
+	]
+}

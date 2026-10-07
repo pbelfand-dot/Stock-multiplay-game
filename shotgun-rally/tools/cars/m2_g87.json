@@ -1,0 +1,9 @@
+{"id": "m2_g87", "front": "-Y", "wheelbase": 2.747,
+ "wheel_mats": ["TireBlur", "BrakeDisc", "RIM_Col", "P_RimB"], "caliper_mats": ["CalliperGloss"],
+ "drop": ["WindowInside"],
+ "drop_mats": ["BadgeD_", "ManufacturerPlate", "CalliperBadge"],
+ "paint": ["PaintTNR"], "glass": ["Glass_slight", "Window_Material1"],
+ "materials": [["Glass_slight", "glass"], ["Window_Material1", "glass"]],
+ "finish": [["InteriorA", {"metal": 0.0, "rough": 0.7}]],
+ "wheel_faces": 10000, "body_faces": 200000, "tex_max": 1024,
+ "cockpit": {"gearbox": "auto", "wheel": {"box": [-0.60, -0.15, 0.08, 0.34, 0.66, 1.08]}}}

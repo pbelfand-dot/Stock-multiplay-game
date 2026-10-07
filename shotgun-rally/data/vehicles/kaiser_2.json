@@ -1,0 +1,84 @@
+{
+	"id": "kaiser_2",
+	"name": "KAISER 2 WB",
+	"order": 230,
+	"model": "m2_g87",
+	"category": "euro",
+	"role": "touge_grip",
+	"real": {
+		"manufacturer": "BMW",
+		"model": "M2 Coupe (G87)",
+		"year": 2026,
+		"trim": "480 PS, 8-speed M Steptronic; Zacoe 'Meister' carbon widebody kit (cosmetic)"
+	},
+	"specs": {
+		"power_hp": 473,
+		"weight_kg": 1730,
+		"drivetrain": "RWD",
+		"transmission": "8-speed M Steptronic (torque converter)",
+		"wheelbase_mm": 2747,
+		"top_speed_kmh": 250,
+		"front_weight": 0.52,
+		"notes": "Stock M2 figures from BMW's spec sheet for the August 2024 update (assumed unchanged for 2026): 480 PS (353 kW) at 6,250 rpm, 600 Nm from 2,650 to 6,130 rpm with the 8-speed (550 Nm with the 6-speed manual), 1,730 kg DIN unladen (EU 1,805 kg), the 8-speed's ratios with a 3.154 final drive, 2,747 mm wheelbase, 250 km/h limited (285 with the M Driver's Package). The Zacoe 'Meister' widebody (front lip, vented carbon bonnet, wide arches, twin rear wings, diffuser) has no published performance or weight data, so it is treated as looks only. BMW's 600 Nm to 6,130 rpm would be more than the rated power, so the game's plateau ends at 5,600 rpm, where 600 Nm makes 353 kW. No weight distribution or drag figure was published: 52 % front and Cd 0.36 on 2.15 m^2 (the wings) are estimates."
+	},
+	"garage": {
+		"price": 31000,
+		"engine_sound": "i6_turbo",
+		"livery": "plain",
+		"number": 2,
+		"colours": [[0.1, 0.35, 0.75], [0.92, 0.55, 0.1], [0.05, 0.05, 0.06], [0.88, 0.88, 0.9]],
+		"wheels": "black",
+		"power": 1.0,
+		"grip": 1.0,
+		"brakes": 1.0,
+		"drive_front": 0.0,
+		"blurb": "The smallest M with the big M's straight six, on a carbon widebody kit with a wing on top of a wing. Short, rear-driven and always ready to go sideways."
+	},
+	"physics": {
+		"chassis": "sport",
+		"mass": 1730.0,
+		"front": 0.52,
+		"torque": 600.0,
+		"curve": [[1000, 0.38], [1578, 0.721], [2155, 0.926], [2650, 1.0], [5600, 1.0], [6250, 0.898], [7200, 0.71]],
+		"idle": 850.0,
+		"limiter": 7200.0,
+		"turbo": 0.4,
+		"spool": [1800.0, 3200.0],
+		"spool_time": 0.35,
+		"anti_lag": false,
+		"gears": [5.0, 3.2, 2.143, 1.72, 1.313, 1.0, 0.823, 0.64],
+		"final": 3.154,
+		"drive": "rwd",
+		"rear": ["lsd", 0.35, 0.15, 30.0],
+		"cd": 0.36,
+		"area": 2.15,
+		"down": 0.1,
+		"brake": 1.0
+	},
+	"checks": {
+		"zero_100_max": 9.0
+	},
+	"interior": {
+		"own": true,
+		"camera": true,
+		"notes": "The model's: dash with the curved screen, M seats, the M wheel with paddles (cut out of the dash by box); left-hand drive. An automatic: the hands stay on the wheel."
+	},
+	"source": {
+		"package": "2026-zacoe-bmw-g87-m2-widebody-carbon-fiber-kit.zip",
+		"author": "ddiaz-design (display name: Ddiaz Design)",
+		"license": "CC Attribution-NonCommercial-ShareAlike",
+		"url": "https://sketchfab.com/3d-models/2026-zacoe-bmw-g87-m2-widebody-carbon-fiber-kit-d15e7b05cd7543b19b36bdcbc5f27b59",
+		"attribution": "2026 ZACOE BMW G87 M2 Widebody Carbon Fiber Kit by ddiaz-design (display name: Ddiaz Design) (CC Attribution-NonCommercial-ShareAlike)",
+		"candidate": 16
+	},
+	"research": [
+		"https://www.press.bmwgroup.com/global/article/detail/T0442878EN/",
+		"https://www.press.bmwgroup.com/global/article/attachment/T0442878EN/617892",
+		"https://press.bmwgroup.com/belux/article/attachment/T0404619FR/568052",
+		"https://www.topgear.com/car-news/modified/carbon-fibre-bmw-m2-widebody-kit-inspired-classic-e30-dtm-racer"
+	],
+	"limitations": [
+		"The Zacoe kit has no published numbers: the stock M2's (approximation). Weight distribution and drag are estimates.",
+		"Provenance: Forza Horizon asset naming; the Sketchfab description says it is based on a CSR2 model (VEHICLE_PROGRESS.md)."
+	]
+}

@@ -61,6 +61,9 @@ STATUS = {
     11: "**in game**: AKATSUKI V (akatsuki). The .mtl's absolute texture paths fixed by the converter; screens wired; automatic; tested (models 5.1 s; interior)",
     13: "**in game**: KOMBI V8 (kombi). Wheels by material; the rings dropped as whole pieces (converter: drop_boxes \"whole\"); the inner glass layer dropped; the flat-bottomed wheel cut out by box; tiptronic; premium traffic too; tested (models 0-100 3.1 s; interior)",
     15: "**in game**: KAISER T (kaiser_t). Wheels and calipers by material; badges and the inner glass dropped; its M wheel cut out by box; automatic; premium traffic too; tested (models 3.2 s; interior)",
+    16: "**in game**: KAISER 2 WB (kaiser_2). Its Fifteen52 wheels, Toyo tyres and discs by material; badges and inner glass dropped; interior matted; the M wheel cut out by box; stock M2 numbers (the kit has none; BMW's torque plateau trimmed to the rated power); tested (models 4.7 s; interior)",
+    18: "**in game**: KAISER 4 WB (kaiser_4). The build's own wheels by material (its red calipers held still; a body-wide \"dark\" material kept out of the wheels); interior matted; the M wheel cut out by box; stock M4 Competition numbers; tested (models 4.5 s; interior)",
+    19: "duplicate of #18 (one car: KAISER 4 WB)",
     39: "**in game**: HELLHOUND WB (hellhound). Low-poly exterior + high-poly interior; tested (models: on its wheels, 0-100 5.3 s on gravel; interior: eyes, gloves on its rim, automatic)",
 }
 DECISIONS = [
