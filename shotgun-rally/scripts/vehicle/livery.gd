@@ -229,6 +229,8 @@ void fragment() {
 	ALBEDO = albedo;
 	ROUGHNESS = mix(0.85, 0.42, m);                          // paint shines a little, the rest doesn't
 	SPECULAR = 0.5;
+	CLEARCOAT = m * 0.8;                                     // ... under a lacquer that shows the sky
+	CLEARCOAT_ROUGHNESS = 0.08;
 }
 """
 	return _body_shader
@@ -273,10 +275,10 @@ void fragment() {
 		NORMAL_MAP_DEPTH = normal_amt;
 	}
 	METALLIC = metal;
-	ROUGHNESS = 0.32;
+	ROUGHNESS = 0.3;
 	SPECULAR = 0.5;
 	CLEARCOAT = 1.0;
-	CLEARCOAT_ROUGHNESS = 0.05;
+	CLEARCOAT_ROUGHNESS = 0.03;                              // a mirror-smooth lacquer
 }
 """
 	return _model_shader

@@ -57,6 +57,7 @@ const DriverAssist = preload("res://scripts/vehicle/physics/driver_assist.gd")
 const AssistConfig = preload("res://scripts/vehicle/physics/config/assist_config.gd")
 const Surfaces = preload("res://scripts/vehicle/physics/surfaces.gd")
 const Livery = preload("res://scripts/vehicle/livery.gd")
+const CarLook = preload("res://scripts/render/car_look.gd")    # its lamps, glass, chrome, reflections
 const WheelMesh = preload("res://scripts/vehicle/wheel_mesh.gd")
 const CarSpecs = preload("res://scripts/vehicle/car_specs.gd")
 const DEFAULT_CONFIG := "res://data/cars/awd_rally.tres"
@@ -340,6 +341,7 @@ func _build_own_model() -> bool:
 			body_model.add_child(n)
 			cockpit_nodes[k[0]] = n
 	src.free()
+	CarLook.dress(self, body_model, _model_info)
 	return true
 
 
