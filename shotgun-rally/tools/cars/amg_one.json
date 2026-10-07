@@ -1,4 +1,9 @@
 {"id": "amg_one", "front": "+Y", "wheelbase": 2.72,
  "wheel": ["^Object_6[5-9]$", "^Object_57$"],
  "caliper": ["^Object_5[689]$"], "wheel_trim": true,
- "wheel_faces": 20000, "body_faces": 250000, "tex_max": 1024}
+ "drop": ["^Object_(10|4|6|7|9|27)$"],
+ "paint": ["^Doorrfok0011Mtl$"], "glass": ["^Doorrfok0101Mtl$", "^Doorlfok0071Mtl$"],
+ "materials": [["^Doorrfok0101Mtl$", "glass"], ["^Doorlfok0071Mtl$", "glass"]],
+ "wheel_faces": 20000, "body_faces": 220000, "tex_max": 1024,
+ "cockpit": {"gearbox": "auto", "eye": [-0.332, -0.22, 0.96],
+             "wheel": {"mats": ["^Fsteer0011Mtl$"], "box": [-0.52, -0.14, 0.30, 0.50, 0.52, 0.80]}}}

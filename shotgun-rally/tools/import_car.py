@@ -599,8 +599,8 @@ if spec.get("wheel_trim"):
             c = np.array([p.center[:] for p in o.data.polygons])
             far = np.linalg.norm(side(c) - med, axis=1) > reach
             # (in from the wheel by any corner of the face: a long strip's middle can sit in the wheel)
-            vl = np.array([v.co[:] for v in o.data.vertices]) @ np.array(right[:]) - lat
-            far |= np.array([float(np.abs(vl[list(p.vertices)]).max()) > 0.6 * reach for p in o.data.polygons])
+            vlat = np.array([v.co[:] for v in o.data.vertices]) @ np.array(right[:]) - lat
+            far |= np.array([float(np.abs(vlat[list(p.vertices)]).max()) > 0.6 * reach for p in o.data.polygons])
             if not far.any():
                 continue
             rest = o.copy()

@@ -1,0 +1,6 @@
+{"id": "chiron_mansory", "front": "-Y", "wheelbase": 2.711,
+ "wheel": ["^Object_3[345](\\.\\d+)?$"],
+ "drop": ["\\.col$"],
+ "drop_mats": ["^badge", "material_logo", "^mns_logaw", "^mansory_centuria", "^decal_", "symbols_embossed"],
+ "paint": ["\\[PRIMARY\\]$"],
+ "wheel_faces": 20000, "body_faces": 240000, "tex_max": 1024}

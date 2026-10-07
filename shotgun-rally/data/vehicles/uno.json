@@ -1,0 +1,85 @@
+{
+	"id": "uno",
+	"name": "UNO HYBRID",
+	"order": 400,
+	"model": "amg_one",
+	"category": "hyper",
+	"role": "hypercar",
+	"real": {
+		"manufacturer": "Mercedes-AMG",
+		"model": "ONE",
+		"year": 2022,
+		"trim": "1.6 V6 turbo hybrid, 7-speed automated manual"
+	},
+	"specs": {
+		"power_hp": 1048,
+		"weight_kg": 1695,
+		"drivetrain": "AWD",
+		"transmission": "7-speed automated manual (AMG SPEEDSHIFT)",
+		"wheelbase_mm": 2720,
+		"top_speed_kmh": 352,
+		"front_weight": 0.42,
+		"notes": "The Formula 1 power unit on the road: a 1.6 V6 turbo (574 PS / 422 kW at 9,000 rpm, 11,000 rpm limit) with an MGU-K on the crank, an MGU-H on the turbo and two electric motors on the front axle: 1,063 PS (782 kW) together. 1,695 kg kerb weight, 2,720 mm wheelbase, 0-100 km/h 2.9 s, 352 km/h (auto motor und sport's data). AMG Performance 4MATIC+: the rear by the hybrid V6, the front electric. System torque and the 7-speed's ratios weren't published: the torque comes from the power (a hybrid's curve), the ratios are spread for the top speed. Weight distribution (42 % front), drag and downforce are estimates."
+	},
+	"garage": {
+		"price": 120000,
+		"engine_sound": "f1_hybrid",
+		"livery": "plain",
+		"number": 1,
+		"colours": [[0.55, 0.57, 0.6], [0.05, 0.05, 0.055], [0.85, 0.85, 0.87], [0.6, 0.03, 0.02]],
+		"wheels": "black",
+		"power": 1.0,
+		"grip": 1.0,
+		"brakes": 1.0,
+		"drive_front": 0.35,
+		"blurb": "A Formula 1 power unit with number plates: a turbo V6 that revs to 11,000, four electric motors, all-wheel drive and wings that move. The fastest thing in the garage."
+	},
+	"physics": {
+		"chassis": "track",
+		"mass": 1695.0,
+		"front": 0.42,
+		"torque": 1036.5,
+		"curve": [[1000, 0.75], [2382, 0.887], [3765, 0.97], [4950, 1.0], [6570, 1.0], [9000, 0.8], [11000, 0.638]],
+		"idle": 1000.0,
+		"limiter": 11000.0,
+		"turbo": 0.25,
+		"spool": [1500.0, 2600.0],
+		"spool_time": 0.35,
+		"anti_lag": false,
+		"gears": [2.912, 2.348, 1.893, 1.526, 1.231, 0.992, 0.8],
+		"final": 4.63,
+		"drive": "awd",
+		"front_share": 0.35,
+		"centre": ["lsd", 0.25, 0.2, 30.0],
+		"front_diff": ["lsd", 0.2, 0.1, 20.0],
+		"rear": ["lsd", 0.35, 0.15, 30.0],
+		"cd": 0.4,
+		"area": 1.9,
+		"down": 1.5,
+		"brake": 1.25
+	},
+	"checks": {
+		"zero_100_max": 6.0
+	},
+	"interior": {
+		"own": true,
+		"camera": true,
+		"notes": "The model's: its F1-style yoke and carbon cockpit (cut out by box); a paddle-shift automatic: the hands stay on the wheel."
+	},
+	"source": {
+		"package": "mercedes-amg-one.zip",
+		"author": "VTX_car (display name: VTX); credits Car2022 / 'Mona x Supercars'",
+		"license": "CC Attribution-NonCommercial-ShareAlike (the credited original: CC BY)",
+		"url": "https://sketchfab.com/3d-models/mercedes-amg-one",
+		"attribution": "Mercedes-AMG ONE by VTX_car (CC BY-NC-SA), from Car2022 / 'Mona x Supercars' (CC BY)",
+		"candidate": 24
+	},
+	"research": [
+		"https://www.auto-motor-und-sport.de/fahrbericht/mercedes-amg-one-1-063-ps-treffen-auf-1-695-kg/technische-daten/",
+		"https://autotijd.be/en/specs/mercedes/amg-one/v6-1063-hp-awd-3534"
+	],
+	"limitations": [
+		"System torque, the gear ratios, weight distribution, drag and downforce are estimates.",
+		"Provenance: the model's materials follow a game-mod naming (GTA-style 'Doorrfok', 'Hubrb'); its wheel materials are shared with body parts (converter: wheel_trim)."
+	]
+}
