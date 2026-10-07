@@ -25,6 +25,7 @@ const Notes = preload("res://scripts/stage/pacenotes.gd")
 const RallyCar = preload("res://scripts/vehicle/rally_car.gd")
 const Cockpit = preload("res://scripts/vehicle/cockpit.gd")
 const DriftFx = preload("res://scripts/vehicle/drift_fx.gd")
+const SkidMarks = preload("res://scripts/vehicle/skid_marks.gd")
 const SeatCam = preload("res://scripts/vehicle/seat_cam.gd")
 const AICoDriver = preload("res://scripts/vehicle/ai_codriver.gd")
 const Autopilot = preload("res://scripts/vehicle/autopilot.gd")
@@ -164,6 +165,11 @@ func start(seed_in: int, stage_in: int, o := {}) -> void:
 	fx.name = "DriftFx"
 	fx.car = car
 	car.add_child(fx)
+	var marks := SkidMarks.new()                  # black rubber on the asphalt where the tyres slid
+	marks.name = "SkidMarks"
+	marks.car = car
+	marks.fx = fx
+	add_child(marks)
 	progress.emit(0.84, "Strapping in the crew")
 	await get_tree().process_frame
 	if not is_inside_tree():
@@ -184,6 +190,7 @@ func start(seed_in: int, stage_in: int, o := {}) -> void:
 	_setup_mode(o)
 	autopilot = Autopilot.new(st)
 	cam = SeatCam.new()
+	cam.chase_style = "street" if mode != "" else "rally"   # (cut up, the touge: low and close)
 	add_child(cam)
 	_audio()
 	_build_hud()
