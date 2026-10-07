@@ -42,6 +42,7 @@ func build(jackets: Array, skins: Array, hats: Array, flags: Array, rng: RandomN
 		mi.multimesh = mm
 		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF if part in ["hat", "pole", "flag"] else GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 		mi.visibility_range_end = 400.0
+		mi.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF   # (posed every frame, not every tick)
 		add_child(mi)
 		_mm[part] = mm
 	# colours, once

@@ -188,6 +188,12 @@ upgrades) and weight.
    writes `assets/models/cars/<id>/<id>.glb` and `parts.json`. `-Y` keeps any scripts in a .blend switched off.
    - The paint and the glass are never simplified, because simplifying them dents the panels.
      Only the hidden parts (the interior, the underside) are, and those keep their original shading.
+   - Materials the model marks as blended but that aren't see-through come out opaque, or cut out
+     where their texture has hard-edged holes (`tools/glb_alpha.py`, run on every car it writes).
+     Game rips often mark every material blended, and Godot draws those in its transparent pass:
+     a second pass each, and the car's own glass sorts wrong against them. Only real soft alpha
+     (glass, soft decals) stays blended. The tool also runs on its own on a GLB already written:
+     `blender -b -Y --python tools/glb_alpha.py -- <car>.glb`.
    - Every part's normals are saved when the model loads and put back just before export. Cutting
      and joining parts otherwise spoils Blender's stored normals, and so does the glTF exporter's
      own clean-up of invalid geometry. Either way the panels came out blotchy, or looked caved in.

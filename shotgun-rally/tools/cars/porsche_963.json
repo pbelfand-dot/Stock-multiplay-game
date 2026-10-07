@@ -1,0 +1,10 @@
+{"id": "porsche_963", "front": "+X", "wheelbase": 3.148,
+ "wheel_mats": ["^RIM$", "^963_hub$", "^EXT_Tyre$", "^EXT_Brake_Disc$"], "caliper_mats": ["^EXT_Suspension_Calipers$"],
+ "drop": ["__lr$"],
+ "paint": ["^car_chassis$"], "glass": ["^WINDOWS$"],
+ "materials": [["^WINDOWS$", "glass"], ["^MIRROR$", "chrome"], ["^cockpit_fabric_soft$", {"color": [0.035, 0.035, 0.04], "rough": 0.95}]],
+ "finish": [["^(carbon_door|cockpit_black_s2|963_sw_carbon)$", {"metal": 0.0, "rough": 0.45}]],
+ "wheel_faces": 12000, "body_faces": 160000, "body_least": 0.25, "tex_max": 1024, "tex_format": "webp",
+ "tex_sizes": [["^EXT_Tyre$", 512], ["^cockpit_fabric_soft$", 512], ["^gp21_", 512], ["^cockpit_soft$", 512]],
+ "decimate_parts": [["^MAIN_BODY[2-5]$", 0.3], ["^cockpit_plastic_black(2|_SUB0)$", 0.25], ["^cockpit_(seat_)?carbon$", 0.4], ["^SteeringWheel$", 0.3]],
+ "cockpit": {"gearbox": "auto", "wheel": {"parts": ["^STEER_HR_SUB\\d$", "^sw_metal$", "^LED_", "^TAG_\\d$"]}}}

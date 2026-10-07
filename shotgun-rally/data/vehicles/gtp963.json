@@ -1,0 +1,146 @@
+{
+ "id": "gtp963",
+ "name": "963 GTP",
+ "order": 510,
+ "model": "porsche_963",
+ "category": "race",
+ "role": "race_prototype",
+ "real": {
+  "manufacturer": "Porsche",
+  "model": "963 (LMDh / GTP)",
+  "year": 2023,
+  "trim": "9RD 4.6 twin-turbo V8 + Bosch hybrid, Xtrac 7-speed sequential"
+ },
+ "specs": {
+  "power_hp": 671,
+  "weight_kg": 1030,
+  "drivetrain": "RWD",
+  "transmission": "7-speed sequential (Xtrac P1359, paddles)",
+  "wheelbase_mm": 3148,
+  "top_speed_kmh": 340,
+  "front_weight": 0.46,
+  "notes": "Porsche's LMDh prototype on a Multimatic LMP2 tub: the 9RD 4,593 cc twin-turbo V8 (from the 918 Spyder's engine; over 515 kW and 8,000 rpm on its own, BoP-dependent) with the series' 50 kW Bosch motor at the rear, the pair held to 500 kW (680 PS) by the rules; 1,030 kg minimum; Xtrac P1359 7-speed sequential; 3,148 mm wheelbase, 5,100 x 2,000 x 1,060 mm (Wikipedia, Porsche Newsroom). Torque isn't published (from the power, a turbo curve); the power peak's rpm (7,800), the limiter (8,500), ~340 km/h (Le Mans trim), the ratios, weight distribution and aero (the prototype chassis' downforce) are estimates."
+ },
+ "garage": {
+  "price": 145000,
+  "engine_sound": "f1_hybrid",
+  "livery": "stripes",
+  "number": 6,
+  "colours": [
+   [
+    0.92,
+    0.92,
+    0.92
+   ],
+   [
+    0.05,
+    0.05,
+    0.06
+   ],
+   [
+    0.75,
+    0.05,
+    0.05
+   ],
+   [
+    0.95,
+    0.75,
+    0.1
+   ]
+  ],
+  "wheels": "black",
+  "power": 1.0,
+  "grip": 1.0,
+  "brakes": 1.0,
+  "drive_front": 0.0,
+  "blurb": "A Le Mans prototype with a twin-turbo V8 from a hypercar and a hybrid at the back: barely a tonne, and it pulls hard from low down where the Cadillac has to rev."
+ },
+ "physics": {
+  "chassis": "prototype",
+  "mass": 1030.0,
+  "front": 0.46,
+  "torque": 765.7,
+  "curve": [
+   [
+    1000,
+    0.38
+   ],
+   [
+    1878,
+    0.721
+   ],
+   [
+    2757,
+    0.926
+   ],
+   [
+    3510,
+    1.0
+   ],
+   [
+    5012,
+    1.0
+   ],
+   [
+    7800,
+    0.8
+   ],
+   [
+    8500,
+    0.653
+   ]
+  ],
+  "idle": 850.0,
+  "limiter": 8500.0,
+  "turbo": 0.4,
+  "spool": [
+   2600.0,
+   4200.0
+  ],
+  "spool_time": 0.35,
+  "anti_lag": false,
+  "gears": [
+   2.912,
+   2.348,
+   1.893,
+   1.526,
+   1.231,
+   0.992,
+   0.8
+  ],
+  "final": 3.7,
+  "drive": "rwd",
+  "rear": [
+   "lsd",
+   0.35,
+   0.15,
+   30.0
+  ],
+  "cd": 0.5,
+  "area": 1.75,
+  "down": 3.8,
+  "brake": 1.4
+ },
+ "checks": {
+  "zero_100_max": 7.0
+ },
+ "interior": {
+  "own": true,
+  "camera": true,
+  "notes": "The model's carbon tub: its rectangular racing wheel (with its screen and shift lights) cut out by part, the seat found by the probe; paddles: the hands stay on the wheel."
+ },
+ "source": {
+  "package": "CGTrader_New_Cars/porsche_963 (porsche_963.glb)",
+  "candidate": 34,
+  "license": "CGTrader purchase (no licence file in the package; CGTrader's Royalty Free licence assumed)"
+ },
+ "research": [
+  "https://en.wikipedia.org/wiki/Porsche_963",
+  "https://newsroom.porsche.com/en/2023/motorsports/porsche-hypercar-gtp-prototype-963-technology-31043.html"
+ ],
+ "limitations": [
+  "Torque, the power peak's rpm, the limiter, top speed, the ratios, weight distribution and aero are estimates; the hybrid is folded into the engine's power (500 kW together, as raced).",
+  "Provenance: parts named like a racing-sim mod (STEER_HR, low-detail '__lr' copies, dropped); fine among friends, replace before any public release.",
+  "The game's livery replaces its race livery (its body is the game's paint)."
+ ]
+}

@@ -84,7 +84,8 @@ to the wheelbase, its tyres on the ground (z 0) and the middle between the axles
 at the origin. Each corner becomes Wheel_FL / FR / RL / RR (and Caliper_..),
 its origin at the wheel's centre; the rest is one Body. Images are shrunk to
 512 px ("tex_max"; "tex_sizes": [[material pattern, px]] for parts barely seen;
-"tex_format": "webp" to store them smaller). "--survey" after the paths prints every material (where, how big,
+"tex_format": "webp" to store them smaller). Materials marked blended that aren't
+see-through come out opaque, or cut out (tools/glb_alpha.py). "--survey" after the paths prints every material (where, how big,
 its colour) in the car's own frame instead of exporting; "--out DIR" writes
 somewhere else than assets/models/cars/<id> (to try a spec out). A conversion that
 looks wrong (wheels that don't match side to side, the body through the ground,
@@ -1458,5 +1459,12 @@ os.makedirs(out_dir, exist_ok=True)
 glb = os.path.join(out_dir, spec["id"] + ".glb")
 bpy.ops.export_scene.gltf(filepath=glb, export_format='GLB', export_yup=True, export_apply=True,
     export_materials='EXPORT', export_image_format=spec.get("tex_format", "AUTO").upper())   # ("webp": far smaller, alpha kept)
+# blended materials that aren't see-through made opaque or cut out (tools/glb_alpha.py: many
+# models mark everything blended, and Godot draws those in its transparent pass)
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from glb_alpha import fix_alpha
+ga = fix_alpha(glb)
+print("alpha: %d blended materials -> %d opaque, %d cut out, %d left blended (%s)" % (
+    sum(len(v) for v in ga.values()), len(ga["OPAQUE"]), len(ga["MASK"]), len(ga["BLEND"]), ", ".join(ga["BLEND"][:8])))
 json.dump(parts, open(os.path.join(out_dir, "parts.json"), "w"), indent=2)
 print("wrote %s (%d KB), body %d triangles" % (glb, os.path.getsize(glb) // 1024, tris(body)))
