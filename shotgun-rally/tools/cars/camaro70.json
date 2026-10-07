@@ -1,0 +1,5 @@
+{"id": "camaro70", "front": "-Y", "wheelbase": 2.743,
+ "wheel": ["^EagleSuperCar", "^Plane\\.0(27|57|58|62)$", "^Rim25HIghPoly"],
+ "caliper": ["^main\\.0(05|07|10|13)$"],
+ "paint": ["^CarPaint$"], "glass": ["^Glass(\\.001)?$"],
+ "wheel_faces": 30000, "body_faces": 300000, "tex_max": 1024}
