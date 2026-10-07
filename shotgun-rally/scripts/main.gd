@@ -43,6 +43,7 @@ var _test_t := 0.0
 var _smoke_done := false
 var _loading := false
 var _air_t := 0.0
+var _shot_jumped := false                  # (--shot_s --autostart: jumped up the road at GO)
 var _shift_gear := 0
 var _shift_t := -1.0
 
@@ -337,6 +338,17 @@ func _process(dt: float) -> void:
 	if game == null:
 		return
 	_test_t += dt
+	# (--shot_s with --autostart: the countdown puts the car back on the grid, so the jump
+	# up the road comes at GO, rolling at 100 km/h, the traffic brought along)
+	if Config.flag("screenshot") and Config.flag("autostart") and float(Config.arg("shot_s", 0)) > 0.0 and not _shot_jumped \
+			and game.built and game.state == "running":
+		_shot_jumped = true
+		var s := float(Config.arg("shot_s", 0))
+		game.car.place(game.st.world_at(s, game.st.LANE_W * 0.5 if game.traffic else 0.0), game.st.heading_at(s))
+		game.car.set_speed(100.0 / 3.6)
+		game.car_s = s
+		if game.traffic:
+			game.traffic.restart_at(s)
 	var shot_now: bool = _test_t > float(Config.arg("shot_wait", 2.0))
 	if Config.flag("shot_jump") and game.built:      # mid-air (or give up after 8 s)
 		var flying := true
