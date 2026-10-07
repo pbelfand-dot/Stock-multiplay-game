@@ -224,31 +224,30 @@ front, banking into the turns), trackside cameras it flashes past, a chase camer
   progress bar that follows the build ("Planting ten thousand trees..."). It stays up through the
   first frames of the stage, which stutter while the graphics warm up, then fades out.
 
-### The engine sound (a real Fiesta WRC, each car its own engine type)
+### The engine sound (markeasting/engine-audio's, each car its own engine type)
 
-The engine is loops cut from recordings of a Ford Fiesta WRC: its anti-lag idle, pulling through
-a gear at ~5,900 and ~7,350 rpm, and the launch-control crackle. They're blended the way
-[markeasting/engine-audio](https://github.com/markeasting/engine-audio) does it (its MIT code's
-method, not its recordings): on-throttle and off-throttle loops, equal-power crossfades by the revs
-and the throttle, each pitched exactly to the revs, and the limiter bouncing when you hold it flat out.
-Off the throttle you hear the same loops muffled (engine braking), and on an anti-lag car the
-crackle up the revs. A straight-cut rally gearbox whines with the road speed, louder off the throttle.
+The engines are [markeasting/engine-audio](https://github.com/markeasting/engine-audio)'s sounds,
+played its way. Each set is four loops: on the throttle and off it, low and high in the revs. Its
+equal-power crossfades blend low into high between 3,000 and 6,500 rpm and on into off with the
+throttle, and each loop is pitched up and down with the revs. A limiter loop comes in at the top of
+the revs (the engine cuts and fires against it), and its gearbox whine rises with the revs and the
+gear, loud on a straight-cut rally box.
 
 Each car has an engine type (`EngineSound.ENGINES`):
-- **WRC** (Kestrel, Comet, Vortex, Ocelot): anti-lag crackle and pops, the turbo's whistle, a bang on
-  every shift.
-- **Group A** (Sedici): a turbo, pops on a lift, no anti-lag.
-- **Five-cylinder** (Vierrad): it fires 1.25 x a four's pitch, a big turbo, bangs.
-- **Supercharged** (Martello 037): the supercharger whines with the revs.
-- **Race four** (Kaiser): no turbo, a raspier tone, a few pops.
-- **Road four** (Nimbus, Hachi): no pops, a quiet helical gearbox, a warmer tone.
-- **Road turbo** (Sylph): the blow-off valve hisses when you lift.
-- **Rotary** (both Rotoras): a buzzier tone, the turbo and the blow-off.
+- **Four-cylinders** play a BAC Mono's racing four:
+  - **WRC** (Kestrel, Comet, Vortex, Ocelot): with anti-lag crackle and pops (from the Fiesta WRC
+    recordings), a turbo whistle and a bang on every shift.
+  - **Group A** (Sedici): a turbo, pops on a lift.
+  - **Martello 037**: the supercharger's whine.
+  - **Race four** (Kaiser), **road four** (Nimbus, Hachi: no pops, a quiet gearbox) and **road turbo**
+    (Sylph: the blow-off valve hisses when you lift).
+- **Vierrad** (the five-cylinder quattro) plays a BMW M1 Procar's straight six, the nearest.
+- **Both Rotoras** play a Ferrari 458's V8, for the rotary's high-revving scream, with a turbo and a
+  blow-off.
 
 The co-driver's machine hears the same. Every effect dips ~10 dB whenever the co-driver talks
-(SETTINGS: EFFECTS and CO-DRIVER VOICE). How the loops were made, and a licence note (they're YouTube
-recordings: fine among friends, to be replaced before a public release):
-[tools/engine_sound/README.md](tools/engine_sound/README.md).
+(SETTINGS: EFFECTS and CO-DRIVER VOICE). Where the sounds come from, and a licence note (not cleared
+for a public release): [tools/engine_sound/README.md](tools/engine_sound/README.md).
 
 ### The car's physics (v2: in the game)
 

@@ -1,19 +1,21 @@
 extends SceneTree
-## The sound: the engine (engine_sound.gd: real recordings blended the way
-## markeasting/engine-audio does it, each car's engine type its own character)
-## and the mix (Config's buses).
+## The sound: the engine (engine_sound.gd: markeasting/engine-audio's sounds,
+## played its way, each car's engine type its own set and character) and the
+## mix (Config's buses).
 ##   * the loops (the engine's, the gravel, the asphalt squeal) play their whole
 ##     length, end to end
-##   * the blend: at each loop's own revs it's all that loop; off the throttle the
-##     same loops muffled (engine braking), an anti-lag car's crackle up the revs;
-##     equal power all the way (the shares' squares add up to 1)
+##   * the blend: low loops below 3,000 rpm, high ones above 6,500, on-load on
+##     the throttle and off-load off it, an anti-lag car's crackle up the revs off
+##     it; equal power all the way (the shares' squares add up to 1); a loop's
+##     pitch 0.2 cents per rpm from the revs it was recorded at
 ##   * driving (the KESTREL, a WRC-type engine): flat out on a pad it changes up (a
 ##     shift sound each time), lifting at high revs pops, every loop's pitch stays
 ##     in range
-##   * each engine type, on a stand-in car: the limiter bounces; a rally box whines
-##     and a road car's barely; a turbo whistles with the boost and a supercharger
-##     with the revs; a road turbo hisses (blow-off) on a lift and an anti-lag car
-##     pops while a road four doesn't; a five-cylinder fires 1.25 x a four's pitch
+##   * each engine type, on a stand-in car: its own set (the fours a racing four,
+##     the quattro a straight six, the rotaries the V8); the limiter bounces and its
+##     loop comes in; a rally box whines and a road car's barely; a turbo whistles
+##     with the boost and a supercharger with the revs; a road turbo hisses
+##     (blow-off) on a lift and an anti-lag car pops while a road four doesn't
 ##   * the mix: an SFX and a Voice bus, and the SFX dips when the co-driver talks
 ##     (a compressor keyed by Voice); the engine plays into SFX (its tone's bus),
 ##     the co-driver on Voice
@@ -46,16 +48,17 @@ var max_over := 0.0
 func _initialize() -> void:
 	RallyCar = load("res://scripts/vehicle/rally_car.gd")
 	EngineSound = load("res://scripts/vehicle/engine_sound.gd")
-	var m: Dictionary = EngineSound.mix(2915.0, 1.0)
-	fails += _check(m.on_idle > 0.99 and m.on_mid < 0.01, "at 2,915 rpm on the throttle it's all the idle loop (%.2f)" % m.on_idle)
-	m = EngineSound.mix(5900.0, 1.0)
-	fails += _check(m.on_mid > 0.99 and m.on_idle < 0.01 and m.on_high < 0.01, "at 5,900 rpm, all the mid loop (%.2f)" % m.on_mid)
-	m = EngineSound.mix(7350.0, 1.0)
-	fails += _check(m.on_high > 0.99, "at 7,350 rpm, all the high loop (%.2f)" % m.on_high)
+	var m: Dictionary = EngineSound.mix(2500.0, 1.0)
+	fails += _check(m.on_low > 0.99 and m.on_high < 0.01, "at 2,500 rpm on the throttle it's all the low on-load loop (%.2f)" % m.on_low)
+	m = EngineSound.mix(7000.0, 1.0)
+	fails += _check(m.on_high > 0.99 and m.on_low < 0.01, "at 7,000 rpm, all the high on-load loop (%.2f)" % m.on_high)
 	m = EngineSound.mix(6500.0, 0.0)
 	fails += _check(m.overrun > 0.95 and m.on_high < 0.05, "off the throttle at 6,500 rpm, the anti-lag crackle (%.2f, on-load %.2f)" % [m.overrun, m.on_high])
-	m = EngineSound.mix(6500.0, 0.0, false)
-	fails += _check(m.overrun == 0.0 and m.off_mid + m.off_high > 0.95, "... without anti-lag, plain engine braking: the loops muffled (%.2f + %.2f)" % [m.off_mid, m.off_high])
+	m = EngineSound.mix(7000.0, 0.0, false)
+	fails += _check(m.overrun == 0.0 and m.off_high > 0.99, "... without anti-lag, the high off-load loop (%.2f)" % m.off_high)
+	var p1: float = EngineSound.pitch_at(1000.0, 1000.0)
+	var p2: float = EngineSound.pitch_at(7000.0, 1000.0)
+	fails += _check(absf(p1 - 1.0) < 0.001 and absf(p2 - 2.0) < 0.001, "a loop's pitch: as recorded at its own revs (%.2f), an octave up 6,000 rpm above (%.2f)" % [p1, p2])
 	var worst := 0.0
 	for r in [1500.0, 3500.0, 5000.0, 6500.0, 8000.0]:
 		for th in [0.0, 0.3, 0.7, 1.0]:
@@ -69,13 +72,13 @@ func _initialize() -> void:
 	# every loop plays its whole length (a compressed import once looped just its first fifth)
 	var whole := true
 	var info := []
-	for n in ["engine/idle", "engine/mid", "engine/high", "engine/overrun", "gravel", "squeal"]:
+	for n in ["engine/bac/on_low", "engine/bac/on_high", "engine/bac/off_low", "engine/bac/off_high", "engine/procar/on_high",
+			"engine/v8/on_high", "engine/gearbox/on", "engine/overrun", "gravel", "squeal"]:
 		var w: AudioStreamWAV = EngineSound.looped("res://assets/sfx/%s.wav" % n)
 		var samples := int(round(w.get_length() * w.mix_rate))
-		whole = whole and w.loop_mode == AudioStreamWAV.LOOP_FORWARD and w.loop_begin == 0 and w.loop_end == samples \
-			and w.format == AudioStreamWAV.FORMAT_16_BITS
-		info.append("%s %.2f s" % [n.get_file(), float(w.loop_end) / w.mix_rate])
-	fails += _check(whole, "every loop plays end to end, uncompressed (%s)" % ", ".join(info))
+		whole = whole and w.loop_mode == AudioStreamWAV.LOOP_FORWARD and w.loop_begin == 0 and w.loop_end == samples and samples > 1000
+		info.append("%s %.2f s" % [n.trim_prefix("engine/"), float(w.loop_end) / w.mix_rate])
+	fails += _check(whole, "every loop plays end to end (%s)" % ", ".join(info))
 	var pad := StaticBody3D.new()
 	pad.set_meta("surface", "gravel")
 	var cs := CollisionShape3D.new()
@@ -107,7 +110,7 @@ func _physics_process(dt: float) -> bool:
 		fails += _check(snd.shifts_fired >= 2, "flat out from a standstill for 6.5 s: %d upshifts sounded (gear %d)" % [snd.shifts_fired, car.gear])
 		fails += _check(snd.pops_fired >= 1, "lifting at high revs: %d anti-lag pops" % snd.pops_fired)
 		fails += _check(max_over > 0.5, "off the throttle at high revs the crackle comes in (%.2f of the sound)" % max_over)
-		fails += _check(low_pitch >= 0.5 and peak_pitch <= 2.0, "every loop's pitch stayed in range (%.2f .. %.2f)" % [low_pitch, peak_pitch])
+		fails += _check(low_pitch >= 0.5 and peak_pitch <= 2.5, "every loop's pitch stayed in range (%.2f .. %.2f)" % [low_pitch, peak_pitch])
 		var sfx := AudioServer.get_bus_index("SFX")
 		var voice := AudioServer.get_bus_index("Voice")
 		var duck: AudioEffect = AudioServer.get_bus_effect(sfx, 0) if sfx >= 0 and AudioServer.get_bus_effect_count(sfx) > 0 else null
@@ -155,7 +158,7 @@ func _drive(kind: String, rpm: float, thr: float, speed: float, frames: int, lif
 	var s = EngineSound.new()
 	s.car = fc
 	fc.add_child(s)
-	var out := {"cut_on": 0, "cut_off": 0, "whine": -80.0, "whistle": -80.0, "pitch": 0.0}
+	var out := {"cut_on": 0, "cut_off": 0, "whine": -80.0, "whistle": -80.0, "limiter": 0.0, "set": s.loops.dir}
 	for f in frames:
 		var th := 0.0 if lift_after >= 0 and f >= lift_after else thr
 		fc.net_throttle = th
@@ -168,7 +171,7 @@ func _drive(kind: String, rpm: float, thr: float, speed: float, frames: int, lif
 				out.cut_off += 1
 			out.whine = maxf(out.whine, s.whine_db)
 			out.whistle = maxf(out.whistle, s.whistle_db)
-			out.pitch = s._players.on_high.pitch_scale
+			out.limiter = maxf(out.limiter, s.limiter_share)
 	out.pops = s.pops_fired + s._pop_queue.size()
 	out.bov = s.bov_fired
 	out.overrun = s._players.has("overrun")
@@ -177,8 +180,16 @@ func _drive(kind: String, rpm: float, thr: float, speed: float, frames: int, lif
 
 
 func _types() -> void:
+	var sets := []
+	var right := true
+	for k in [["wrc", "bac"], ["na4", "bac"], ["five", "procar"], ["rotary", "v8"]]:
+		var d := _drive(k[0], 0.5, 0.5, 10.0, 2)
+		sets.append("%s %s" % [k[0], d.set])
+		right = right and d.set == k[1]
+	fails += _check(right, "each engine type its own set: %s" % ", ".join(sets))
 	var lim := _drive("wrc", 1.0, 1.0, 30.0, 120)
-	fails += _check(lim.cut_on > 10 and lim.cut_off > 10, "flat out on the limiter it bounces: cut %d ticks, firing %d (of 89)" % [lim.cut_on, lim.cut_off])
+	fails += _check(lim.cut_on > 10 and lim.cut_off > 10 and lim.limiter > 0.9,
+		"flat out on the limiter it bounces (cut %d ticks, firing %d of 89) and the limiter loop is in (%.2f)" % [lim.cut_on, lim.cut_off, lim.limiter])
 	var road := _drive("na4", 0.6, 1.0, 30.0, 60)
 	fails += _check(lim.whine > -30.0 and road.whine < lim.whine - 12.0,
 		"at 108 km/h a rally box whines (%.0f dB) and a road car's helical box barely (%.0f dB)" % [lim.whine, road.whine])
@@ -187,8 +198,6 @@ func _types() -> void:
 	var na := _drive("na4", 0.8, 1.0, 20.0, 60)
 	fails += _check(turbo.whistle > -45.0 and sc.whistle > -45.0 and na.whistle <= -80.0,
 		"the turbo whistles on boost (%.0f dB), the 037's supercharger with the revs (%.0f dB), a road four neither" % [turbo.whistle, sc.whistle])
-	var five := _drive("five", 0.8, 1.0, 20.0, 40)
-	fails += _check(absf(five.pitch / turbo.pitch - 1.25) < 0.02, "a five-cylinder fires 1.25 x a four's pitch at the same revs (%.2f)" % (five.pitch / turbo.pitch))
 	var bov := _drive("turbo4", 0.9, 1.0, 25.0, 140, 90)
 	var als := _drive("wrc", 0.9, 1.0, 25.0, 140, 90)
 	var quiet := _drive("na4", 0.9, 1.0, 25.0, 140, 90)

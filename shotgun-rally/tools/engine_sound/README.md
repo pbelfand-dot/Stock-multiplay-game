@@ -27,23 +27,30 @@ Re-make: put the videos' audio (mono 44.1 kHz) here as `a.wav` (the sound effect
 (the launch control), then `python3 build.py` (writes `out/`; copy to `assets/sfx/engine/`).
 The game blends them in `scripts/vehicle/engine_sound.gd`; `tests/sound_check.gd` checks it.
 
-## How the game plays them (engine_sound.gd)
-The method is [markeasting/engine-audio](https://github.com/markeasting/engine-audio)'s
-(MIT, (c) 2025 Mark Oosting). We use its approach only, not its WAV files: their names look like
-exports from a racing sim's sound banks, and its licence covers the code, not those recordings.
-- The loops play on the throttle (on-load) and off it (off-load), with equal-power crossfades
-  between neighbouring loops by the revs and between on- and off-load by the throttle.
-- Off-load is the same loops through a low-pass, quieter, except for the overrun crackle on an
-  anti-lag engine.
-- Against the limiter the throttle cuts and fires 11 times a second.
-- A gearbox whine and a turbo or supercharger whistle are tones made in code, pitched by the road
-  speed, the boost or the revs. So is a road turbo's blow-off hiss.
+## The engines now: markeasting/engine-audio's sounds (engine_sound.gd)
+The engine loops come from [markeasting/engine-audio](https://github.com/markeasting/engine-audio)
+(its code MIT, (c) 2025 Mark Oosting), and the game plays them its way.
+- **The sets**, converted to mono 16-bit 44.1 kHz WAVs at matched loudness:
+  - `assets/sfx/engine/bac/`: a BAC Mono's four-cylinder.
+  - `procar/`: a BMW M1 Procar's straight six.
+  - `v8/`: a Ferrari 458's V8.
+  - `gearbox/`: its gearbox-whine samples, the on-load one cut to a 6 s crossfaded loop.
+- **The playing** follows its configurations:
+  - The revs each loop was recorded at.
+  - Equal-power crossfades: low into high between 3,000 and 6,500 rpm, on into off with the throttle.
+  - Each loop pitched 0.2 cents per rpm from the revs it was recorded at.
+  - The limiter loop over the last 8 % of the revs.
+  - The gearbox detune: on-load `rpm x ratio x 0.05 - 100` cents, off-load `x 0.035 - 800`.
+- **The Fiesta WRC recordings** still give an anti-lag car its overrun crackle and pops, and a
+  sequential its shift bang (the pull loops `idle`/`mid`/`high` are no longer used).
 
-Each car's engine type (Catalog `"engine"`, `EngineSound.ENGINES`) sets its character: how fast it
-fires for its revs (a five-cylinder 1.25 x a four's), turbo, supercharger, anti-lag, pops, blow-off,
-how loud the gearbox whines, the shift's bang, and the tone (an EQ, plus an overdrive for the rotary,
-on a bus of its own that sends into SFX).
+**Licence: the owner chose to use these sounds.** engine-audio's licence covers its code, not its
+recordings. Their names (`on_high {5a92afe9-...}.wav`) look like exports from a racing sim's sound
+banks, and BAC Mono, Ferrari 458 and M1 Procar are Assetto Corsa cars. As with the YouTube
+recordings above: fine among friends; replace them with licensed recordings before the game is sold
+or put up publicly. The loops drop in as `on_low`/`on_high`/`off_low`/`off_high`/`limiter` with
+their recorded revs in `EngineSound.SETS`.
 
-These are still one recorded engine with different characters. A real rotary, five-cylinder or road
-four needs recordings of that engine: steady pulls through the revs, and lifts. Give them to
-`build.py` the same way and add the loops to that engine type.
+Each car's engine type (Catalog `"engine"`, `EngineSound.ENGINES`) picks its set and its character:
+turbo whistle, supercharger, anti-lag crackle, pops, blow-off hiss, how loud the gearbox whines, the
+shift's bang, and the tone (an EQ on a bus of its own into SFX).
