@@ -10,6 +10,7 @@
 #     "trying" flag at the menu
 #   * a pack that never made it to the menu last time is dropped
 #   * a download whose SHA-256 doesn't match is thrown away
+#   * a download that stalls (the server goes quiet mid-pack) is given up on
 # Usage: GODOT=/path/to/godot tests/update_check.sh     (prints [update] lines, exits 1 on a FAIL)
 set -u
 G="${GODOT:-godot}"
@@ -24,7 +25,8 @@ bad() { echo "[update] FAIL $1"; fail=1; }
 
 copy() {   # copy <dir> <build>
   mkdir -p "$1"
-  tar --exclude=./docs --exclude=./build -cf - . | tar -xf - -C "$1"
+  tar --exclude=./docs --exclude=./build --exclude=./assets/car_packages --exclude=./assets/cars_restored \
+    --exclude=./assets/cars_work -cf - . | tar -xf - -C "$1"   # (the car sources: not part of the game)
   sed -i '/^\[application\]/a config/version="'"$2"'"\nconfig/update_base="test-base"\nconfig/use_custom_user_dir=true\nconfig/custom_user_dir_name="ShotgunRallyUpdateTest"' "$1/project.godot"
 }
 copy "$T/installed" 5
@@ -39,9 +41,19 @@ SIZE=$(stat -c %s "$T/www/ShotgunRally.pck")
 echo "{\"build\": 6, \"base\": \"test-base\", \"sha256\": \"$SHA\", \"size\": $SIZE}" > "$T/www/version.json"
 ok "update pack exported ($((SIZE / 1024)) KB)"
 cat > "$T/serve.py" <<'PY'
-import http.server, sys
+import http.server, sys, time
 class H(http.server.SimpleHTTPRequestHandler):
     def do_GET(self):
+        if self.path.startswith("/files/stall/") and self.path.endswith(".pck"):   # a server that goes quiet mid-pack
+            self.send_response(200)
+            self.send_header("Content-Length", str(64 << 20))
+            self.end_headers()
+            self.wfile.write(b"\0" * (1 << 20))
+            self.wfile.flush()
+            time.sleep(60)
+            return
+        if self.path.startswith("/files/stall/"):
+            self.path = "/files/" + self.path[len("/files/stall/"):]
         if not self.path.startswith("/files/"):          # like github.com/.../releases/download/...
             self.send_response(302)
             self.send_header("Location", "/files" + self.path)
@@ -56,12 +68,13 @@ WWW=$!
 trap 'kill $WWW 2>/dev/null; rm -rf "$T"' EXIT
 sleep 1
 
-# run the installed copy until its updater says one of `$2` (or 60 s), log in $1
+# run the installed copy until its updater says one of `$2` (or 60 s), log in $1 (more args: to the game)
 run_until() {
-  "$G" --headless --path "$T/installed" -- --update_url="http://127.0.0.1:$PORT/" > "$1" 2>&1 &
+  local log=$1 want=$2; shift 2
+  "$G" --headless --path "$T/installed" -- --update_url="http://127.0.0.1:$PORT/" "$@" > "$log" 2>&1 &
   local pid=$! i
   for i in $(seq 1 120); do
-    grep -qE "$2" "$1" && break
+    grep -qE "$want" "$log" && break
     sleep 0.5
   done
   kill $pid 2>/dev/null; wait $pid 2>/dev/null
@@ -91,6 +104,12 @@ echo "{\"build\": 6, \"base\": \"test-base\", \"sha256\": \"$(printf '0%.0s' $(s
 run_until "$T/run4.log" "Update ready|failed|Can't check|Up to date"
 grep -q "Update download failed" "$T/run4.log" && [ ! -f "$USERDIR/update/ShotgunRally.pck" ] && ok "a download with the wrong SHA-256 is thrown away" \
   || { bad "a bad download wasn't refused"; grep "\[update\]" "$T/run4.log"; }
+
+echo "{\"build\": 6, \"base\": \"test-base\", \"sha256\": \"$SHA\", \"size\": $((64 << 20))}" > "$T/www/version.json"
+rm -rf "$USERDIR"
+run_until "$T/run6.log" "Update ready|failed|Can't check|Up to date" --update_url="http://127.0.0.1:$PORT/stall/" --update_stall=3
+grep -q "Update download failed" "$T/run6.log" && [ ! -f "$USERDIR/update/ShotgunRally.pck.part" ] && ok "a download that stalls is given up on (and its part file removed)" \
+  || { bad "a stalled download wasn't given up on"; grep "\[update\]" "$T/run6.log"; }
 
 echo "{\"build\": 9, \"base\": \"another-base\"}" > "$T/www/version.json"
 run_until "$T/run5.log" "needs a fresh download|Update ready|failed|Can't check|Up to date"

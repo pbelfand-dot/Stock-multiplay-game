@@ -24,6 +24,7 @@ signal status_changed(text: String, action: String)   # action: "" | "restart" |
 const URL := "https://github.com/pbelfand-dot/Stock-multiplay-game/releases/download/shotgun-latest/"
 const PAGE := "https://github.com/pbelfand-dot/Stock-multiplay-game/releases/tag/shotgun-latest"
 const DIR := "user://update/"
+const STALL_S := 30.0           # a pack download that gets nothing for this long has failed
 
 var base_build := 0             # the build this copy was exported as (0 = not an export: editor, tests)
 var current_build := 0          # ... or the update pack applied over it
@@ -34,6 +35,8 @@ var _http: HTTPRequest
 var _remote := {}
 var _checked := false
 var _downloading := false
+var _got := 0                   # bytes so far, and how long since that last grew
+var _quiet := 0.0
 
 
 func _init() -> void:
@@ -94,7 +97,7 @@ func check() -> void:
 	_post("Checking for updates...", "")
 	_http = HTTPRequest.new()
 	_http.timeout = 15.0
-	add_child(_http)
+	add_child(_http)                # (no use_threads: its blocking reads would hang cancel_request() on a stalled server)
 	_http.request_completed.connect(_on_version, CONNECT_ONE_SHOT)
 	if _http.request(_url() + "version.json") != OK:
 		_cant_check()
@@ -123,6 +126,10 @@ func _on_version(result: int, code: int, _headers: PackedStringArray, body: Pack
 func _download(b: int) -> void:
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(DIR))
 	_http.download_file = DIR + "ShotgunRally.pck.part"
+	_http.timeout = 0.0                     # the whole pack (150 MB+) takes as long as it takes: a stall is caught in _process
+	_http.download_chunk_size = 1 << 20     # up to 1 MiB a frame (the 64 KiB default capped it at ~4 MB/s)
+	_got = 0
+	_quiet = 0.0
 	_http.request_completed.connect(_on_pack, CONNECT_ONE_SHOT)
 	if _http.request(_url() + "ShotgunRally.pck") != OK:
 		_cant_check()
@@ -131,8 +138,20 @@ func _download(b: int) -> void:
 	_post("Downloading update (build %d)..." % b, "")
 
 
-func _process(_dt: float) -> void:
+func _process(dt: float) -> void:
 	if _downloading and _http:
+		var got := _http.get_downloaded_bytes()
+		if got != _got:
+			_got = got
+			_quiet = 0.0
+		else:
+			_quiet += dt
+			if _quiet > float(Config.arg("update_stall", STALL_S)):   # nothing for half a minute: give up (tries again next launch)
+				_http.cancel_request()
+				if _http.request_completed.is_connected(_on_pack):
+					_http.request_completed.disconnect(_on_pack)
+				_on_pack(HTTPRequest.RESULT_TIMEOUT, 0, PackedStringArray(), PackedByteArray())
+				return
 		var total := _http.get_body_size()
 		if total > 0:
 			_post("Downloading update (build %d)... %d%%" % [int(_remote.build), 100 * _http.get_downloaded_bytes() / total], "")
