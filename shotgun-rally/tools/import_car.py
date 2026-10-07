@@ -48,7 +48,10 @@ The spec (tools/cars/<id>.json) says what's what in the model:
     (the loose pieces wholly inside it; "cut": true, every face whose middle
     is) or {"mats": [material patterns], "box": ...} (those faces, in the box),
     "shifter": the same (+ "below": m its pivot is below its foot,
-    0.08), "handbrake": the same (+ "pivot": "rear", "front" or "bottom"),
+    0.08), or, for an interior modelled without one, {"add": {"at": [x, y],
+    "height": m, "lean": degrees}}: a lever made for it (rod, knob, leather
+    boot) standing on the tunnel there, its knob that high, leaning back that
+    far (10), "handbrake": the same (+ "pivot": "rear", "front" or "bottom"),
     "gearbox": "h5" / "h6" (an H-pattern), "seq", "auto", "eye": [x, y, z]
     (else from its seat: rays onto its cushion and its back), "mirror": {"mats",
     "box"}: the rear-view mirror's glass (the game shows the road behind in it)}. Each is cut out
@@ -576,6 +579,88 @@ def split_out(name, what):
     return j
 
 
+def add_shifter(what, top):
+    """A gear lever for an interior modelled without one ({"at": [x, y], "height": m,
+    "lean": degrees}): a rod and a knob (the Shifter part) standing on what's under
+    "at" (the tunnel, found by a ray down from `top`, below the dash), leaning back
+    toward the driver, the knob "height" above the tunnel; in a leather boot (left in
+    the body: it doesn't move, it's wide enough for the rod to swing in). Returns the
+    part, its pivot (below the boot, as a modelled lever's) and its knob."""
+    trees = [BVHTree.FromPolygons([v.co for v in o.data.vertices], [p.vertices for p in o.data.polygons])
+        for o in meshes if len(o.data.polygons)]
+    def floor(px, py):
+        hits = [h[0].z for h in (t.ray_cast(Vector((px, py, top)), Vector((0, 0, -1))) for t in trees) if h[0] is not None]
+        return max(hits) if hits else None
+    x, y = what["at"]
+    z = floor(x, y)
+    if z is None:
+        raise SystemExit("cockpit: no tunnel under the gear lever at %s" % what["at"])
+    foot = Vector((x, y, z))
+    lean = math.radians(what.get("lean", 10.0))
+    up = Vector((0.0, -math.sin(lean), math.cos(lean)))
+    knob = foot + up * (what.get("height", 0.18) / math.cos(lean))
+    rot = Vector((0, 0, 1)).rotation_difference(up).to_matrix().to_4x4()
+    mats = {}
+    for name, p in (("shift_rod", {"color": [0.03, 0.03, 0.03], "metal": 0.6, "rough": 0.35}),
+            ("shift_knob", {"color": [0.022, 0.022, 0.022], "rough": 0.5}),
+            ("shift_boot", {"color": [0.028, 0.026, 0.025], "rough": 0.85})):
+        mats[name] = bpy.data.materials.new(name)
+        spec.setdefault("materials", []).insert(0, ["^%s$" % name, p])
+    def mesh_obj(name, bm, mat_names):
+        me = bpy.data.meshes.new(name)
+        bm.to_mesh(me)
+        bm.free()
+        for f in me.polygons:
+            f.use_smooth = True
+        o = bpy.data.objects.new(name, me)
+        bpy.context.collection.objects.link(o)
+        for mn in mat_names:
+            o.data.materials.append(mats[mn])
+        meshes.append(o)
+        return o
+    # the rod (from just under the tunnel's top) and the knob, a ball a little taller than wide
+    bm = bmesh.new()
+    a = foot - up * 0.01
+    ln = (knob - a).length
+    bmesh.ops.create_cone(bm, cap_ends=True, segments=12, radius1=0.0065, radius2=0.0065, depth=ln,
+        matrix=Matrix.Translation((a + knob) * 0.5) @ rot)
+    n_rod = len(bm.faces)
+    bmesh.ops.create_uvsphere(bm, u_segments=20, v_segments=12, radius=0.021,
+        matrix=Matrix.Translation(knob + up * 0.008) @ rot @ Matrix.Diagonal((1.0, 1.0, 1.2, 1.0)))
+    bm.faces.ensure_lookup_table()
+    for f in bm.faces[n_rod:]:
+        f.material_index = 1
+    g = mesh_obj("Shifter", bm, ["shift_rod", "shift_knob"])
+    # the boot: three rings round the rod's foot (the lowest on the tunnel, each point
+    # dropped onto it), its wall doubled inside (the open top shows no hole through it)
+    bm = bmesh.new()
+    seg = 16
+    rings = []
+    for k, (r, dz) in enumerate(((0.068, -0.004), (0.052, 0.024), (0.03, 0.046))):
+        ring = []
+        for i in range(seg):
+            t = 2.0 * math.pi * i / seg
+            px, py = x + r * math.cos(t), y + r * math.sin(t)
+            pz = (floor(px, py) or z) + dz if k == 0 else z + dz
+            ring.append(bm.verts.new((px, py, pz)))
+        rings.append(ring)
+    inner = [[bm.verts.new(foot + (v.co - foot) * Vector((0.9, 0.9, 1.0))) for v in ring] for ring in rings]
+    for k in range(len(rings) - 1):
+        for i in range(seg):
+            j = (i + 1) % seg
+            bm.faces.new((rings[k][i], rings[k][j], rings[k + 1][j], rings[k + 1][i]))
+            bm.faces.new((inner[k][j], inner[k][i], inner[k + 1][i], inner[k + 1][j]))
+    for i in range(seg):
+        j = (i + 1) % seg
+        bm.faces.new((rings[-1][i], rings[-1][j], inner[-1][j], inner[-1][i]))
+    boot = mesh_obj("ShifterBoot", bm, ["shift_boot"])
+    s = boot.data.attributes.new("solo", 'INT', 'FACE')    # (the body's budget leaves it whole)
+    s.data.foreach_set("value", [1] * len(boot.data.polygons))
+    print("cockpit: a gear lever added on the tunnel at %s, its knob at %s" % (
+        tuple(round(c, 3) for c in foot), tuple(round(c, 3) for c in knob)))
+    return g, foot - up * 0.08, knob
+
+
 def pca(v):
     c = v.mean(axis=0)
     w, e = np.linalg.eigh(np.cov((v - c).T))
@@ -614,7 +699,11 @@ if cockpit:
     cock["wheel"] = {"centre": game(centre), "axis": gdir(n), "radius": float(rr.mean())}
     cock_parts["SteeringWheel"] = (w, centre)
     # the gear lever: it pivots below its boot, on the line from the knob down through its foot
-    if "shifter" in cockpit:
+    if "shifter" in cockpit and "add" in cockpit["shifter"]:
+        g, pivot, knob = add_shifter(cockpit["shifter"]["add"], centre.z)
+        cock["shifter"] = {"pivot": game(pivot), "knob": game(knob)}
+        cock_parts["Shifter"] = (g, pivot)
+    elif "shifter" in cockpit:
         g = split_out("Shifter", cockpit["shifter"])
         v = verts(g)
         z = v[:, 2]

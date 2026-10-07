@@ -41,8 +41,8 @@ round:
 | HACHI 86 | the model's, full | right (right-hand drive) | 5-speed H-pattern, left hand | its lever between the seats |
 | NIMBUS EG | the model's | right | 5-speed H-pattern, left hand | its lever |
 | SYLPH S15 | the model's, full (bucket seat, harness) | right | 6-speed H-pattern, left hand | its lever beside the console |
-| KAISER 30 | the model's, basic | left | no lever modelled: the hand stays on the wheel | none modelled |
-| MARTELLO SEDICI | the model's, basic | left | no lever modelled: the hand stays on the wheel | none modelled |
+| KAISER 30 | the model's, basic | left | 5-speed H-pattern, right hand: a lever added (none modelled) | none modelled |
+| MARTELLO SEDICI | the model's, basic | left | 5-speed H-pattern, right hand: a lever added (none modelled) | none modelled |
 | VIERRAD S1 | the model's | left | 5-speed H-pattern, right hand | its lever between the seats |
 | OCELOT R1 | the model's, full rally (cage, buckets) | left | its sequential lever, right hand | its tall hydraulic lever |
 | ROTORA FC, ROTORA FD | too rough to sit in (blocks; a broken wheel ring): the game's rally cockpit | left | | |
@@ -56,6 +56,9 @@ round:
   springs back. An automatic shifts itself and the hand stays on the wheel. (The game shifts for
   you in every car; the lever shows it.)
 - Its own handbrake comes up from its pivot.
+- An interior modelled without a gear lever (KAISER 30, MARTELLO SEDICI) gets one made for it by the
+  converter (`"shifter": {"add": ...}`): a rod and knob standing on its tunnel where the real car's is,
+  in a leather boot, so the hand has something to shift. The rest of the interior is the model's.
 - The mud splats on the outside of its windshield, and wipers sweep it.
 
 ## Where the numbers come from

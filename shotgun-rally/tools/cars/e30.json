@@ -121,4 +121,4 @@
  "wheel_faces": 3500,
  "body_faces": 45000,
  "decimate_parts": [["^interior_", 1.0]],
- "cockpit": {"gearbox": "h5", "wheel": {"box": [-0.56, -0.14, 0.13, 0.38, 0.55, 1.05]}, "mirror": {"mats": ["^interior$"], "box": [-0.1, 0.1, 0.15, 0.24, 1.18, 1.26]}}}
+ "cockpit": {"gearbox": "h5", "shifter": {"add": {"at": [0.0, 0.24], "height": 0.2}}, "wheel": {"box": [-0.56, -0.14, 0.13, 0.38, 0.55, 1.05]}, "mirror": {"mats": ["^interior$"], "box": [-0.1, 0.1, 0.15, 0.24, 1.18, 1.26]}}}

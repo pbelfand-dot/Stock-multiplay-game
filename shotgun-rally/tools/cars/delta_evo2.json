@@ -5,4 +5,4 @@
  "paint": ["^Paint$"], "glass": ["^glass$"], "rims": ["^Rim$"],
  "materials": [["^glass$", "glass"], ["^Rim$", "rim"], ["^Number$", "white"]],
  "wheel_faces": 3500, "body_faces": 45000,
- "cockpit": {"gearbox": "h5", "wheel": {"box": [-0.53, -0.11, 0.4, 0.68, 0.55, 1.05]}}}
+ "cockpit": {"gearbox": "h5", "shifter": {"add": {"at": [0.0, 0.42], "height": 0.17}}, "wheel": {"box": [-0.53, -0.11, 0.4, 0.68, 0.55, 1.05]}}}
