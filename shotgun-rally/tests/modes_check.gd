@@ -22,6 +22,7 @@ var Traffic
 var CutupScore
 var TougeRules
 var Modes
+var VehicleRegistry
 var fails := 0
 
 
@@ -32,6 +33,7 @@ func _initialize() -> void:
 	CutupScore = load("res://scripts/game/cutup_score.gd")
 	TougeRules = load("res://scripts/game/touge_rules.gd")
 	Modes = load("res://scripts/game/modes.gd")
+	VehicleRegistry = load("res://scripts/game/vehicle_registry.gd")
 	_touge()
 	_highway()
 	await _traffic()
@@ -134,6 +136,26 @@ func _traffic() -> void:
 		models[c.model] = true
 	var want: float = float(diff.density) * (tr.AHEAD + tr.BEHIND) / 1000.0
 	check(tr.count() >= int(want * 0.7), "traffic: %d cars round the player (normal asks %.0f), models %s" % [tr.count(), want, ", ".join(models.keys())])
+	# every traffic car in the registry: its model there, car-sized, on four wheels of its own
+	var bad: Array = []
+	var pool_ids := {}
+	for m in tr._pool:
+		pool_ids[m.id] = true
+		var len_m: float = m.half_len * 2.0
+		var w_m: float = m.half_w * 2.0
+		var probe: Node3D = m.scene.instantiate()
+		var wheels := 0
+		for k in ["Wheel_FL", "Wheel_FR", "Wheel_RL", "Wheel_RR"]:
+			if probe.find_child(k, true, false) != null:
+				wheels += 1
+		probe.free()
+		if len_m < 3.2 or len_m > 6.0 or w_m < 1.5 or w_m > 2.5 or m.height < 1.0 or m.height > 2.3 or wheels != 4:
+			bad.append("%s %.1f x %.1f x %.1f m, %d wheels" % [m.id, len_m, w_m, m.height, wheels])
+	for e in VehicleRegistry.traffic_pool():
+		if not pool_ids.has(e.id):
+			bad.append("%s: no model" % e.id)
+	check(bad.is_empty() and tr._pool.size() == VehicleRegistry.traffic_pool().size(),
+		"traffic: all %d traffic cars load, car-sized, on four wheels%s" % [tr._pool.size(), (" (" + "; ".join(bad) + ")") if not bad.is_empty() else ""])
 	# a minute: the player weaves up the highway at 150 km/h, changing lanes every few seconds
 	tr.running = true
 	var ps: float = st.START_S

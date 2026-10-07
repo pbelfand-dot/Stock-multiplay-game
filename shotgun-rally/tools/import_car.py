@@ -30,7 +30,10 @@ The spec (tools/cars/<id>.json) says what's what in the model:
     box in the car's frame (m: x right, y forward, z up from the ground), lettering
     and badges modelled into the body ("whole": true: only the loose pieces wholly
     inside, so what they sit on stays); "retexture": [[file name pattern, file]]: a
-    texture swapped for a cleaned copy (a logo painted out)
+    texture swapped for a cleaned copy (a logo painted out); "remat_boxes": [{"box",
+    "mats", "to": material, "facing": [x, y, z]}]: those faces given another of the
+    model's materials (chrome trim round the inside of a windshield, body paint on a
+    dash top), only the ones facing the point (the driver's eyes) if it's given
   * "paint": material name patterns of the body paint: all become one material,
     "paint" (the game paints it from the garage); "paint_normal": paint parts
     shaped by a normal map (a door handle, a fuel cap): painted too, each its
@@ -740,6 +743,35 @@ for b in spec.get("drop_boxes", []):
         bm.to_mesh(o.data)
         bm.free()
     print("dropped %d faces in %s" % (gone, b["box"]))
+
+# a material used where the real car has another (chrome trim round the inside of the
+# windshield, the body paint on the dash top): the faces inside a box (the car's frame) of
+# the given materials ("facing": [x, y, z]: only those facing that point, the driver's eyes)
+# given the material "to"
+for b in spec.get("remat_boxes", []):
+    x0, x1, y0, y1, z0, z1 = b["box"]
+    to = bpy.data.materials.get(b["to"])
+    if to is None:
+        raise SystemExit("remat_boxes: no material %s" % b["to"])
+    eye = Vector(b["facing"]) if b.get("facing") else None
+    moved = 0
+    for o in [o for o in meshes if all(o not in corner[k]["spin"] + corner[k]["cal"] for k in CORNERS)]:
+        idx = {i for i, sl in enumerate(o.material_slots) if sl.material and matches(sl.material.name, b.get("mats", [".*"]))}
+        if not idx:
+            continue
+        hit = [p for p in o.data.polygons if p.material_index in idx and x0 <= p.center.x <= x1
+            and y0 <= p.center.y <= y1 and z0 <= p.center.z <= z1 and (eye is None or (eye - p.center).dot(p.normal) > 0.0)]
+        if not hit:
+            continue
+        names = [sl.material.name if sl.material else "" for sl in o.material_slots]
+        if to.name not in names:
+            o.data.materials.append(to)
+            names.append(to.name)
+        ti = names.index(to.name)
+        for p in hit:
+            p.material_index = ti
+        moved += len(hit)
+    print("remat: %d faces in %s -> %s" % (moved, b["box"], b["to"]))
 
 # ── the cockpit: the steering wheel, the gear lever and the handbrake cut out as
 # parts of their own (the game turns, moves and pulls them), and where the

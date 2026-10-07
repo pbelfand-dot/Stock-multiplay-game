@@ -1,0 +1,70 @@
+{
+	"id": "hellhound_s",
+	"name": "HELLHOUND",
+	"order": 340,
+	"model": "hellcat",
+	"category": "traffic",
+	"role": "premium_traffic",
+	"real": {
+		"manufacturer": "Dodge",
+		"model": "Challenger SRT Hellcat (2015-18 body)",
+		"year": 2016,
+		"trim": "6.2 supercharged, 6-speed manual"
+	},
+	"specs": {
+		"power_hp": 707,
+		"weight_kg": 2027,
+		"drivetrain": "RWD",
+		"transmission": "6-speed manual (Tremec TR-6060)",
+		"wheelbase_mm": 2951,
+		"top_speed_kmh": 320,
+		"front_weight": 0.57,
+		"notes": "FCA's 2016 Challenger SRT spec sheet (the same powertrain 2015-18): the 6.2 supercharged Hemi, 707 hp (527 kW) at 6,000 rpm and 650 lb-ft (881 Nm) at 4,000, 6,200 rpm limit; curb weight 4,469.6 lb (2,027 kg) with the manual; TR-6060 2.26/1.58/1.19/1.00/0.77/0.63, final 3.70; wheelbase 116.2 in; 57/43; Cd 0.380. 199 mph (320 km/h) per Dodge. Frontal area 2.3 m^2 is an estimate."
+	},
+	"traffic": {
+		"weight": 0.08,
+		"paints": [[0.6, 0.03, 0.02], [0.05, 0.05, 0.055], [0.85, 0.85, 0.87], [0.05, 0.18, 0.5], [0.3, 0.75, 0.1]]
+	},
+	"physics": {
+		"chassis": "road",
+		"mass": 2027.0,
+		"front": 0.57,
+		"torque": 881.0,
+		"curve": [[1000, 0.55], [2050, 0.798], [3100, 0.946], [4000, 1.0], [4500, 1.0], [6000, 0.952], [6200, 0.803]],
+		"idle": 750.0,
+		"limiter": 6200.0,
+		"turbo": 0.0,
+		"gears": [2.26, 1.58, 1.19, 1.0, 0.77, 0.63],
+		"final": 3.7,
+		"drive": "rwd",
+		"rear": ["lsd", 0.35, 0.15, 30.0],
+		"cd": 0.38,
+		"area": 2.3,
+		"down": 0.0,
+		"brake": 0.85
+	},
+	"checks": {
+		"zero_100_max": 10.0
+	},
+	"interior": {
+		"own": false,
+		"camera": false,
+		"notes": "Traffic only: the model has no interior (an exterior shell; the windows are tinted)."
+	},
+	"source": {
+		"package": "CGTrader_New_Cars/dodge_challenger_hellcat (dodge_challenger_hellcat.fbx, no textures)",
+		"candidate": 38,
+		"license": "CGTrader purchase: the listing couldn't be matched for sure (one candidate is marked 'no AI'), so it's handled as no-AI: converted and checked by scripts only",
+		"url": null
+	},
+	"research": [
+		"https://s3.amazonaws.com/chryslermedia.iconicweb.com/mediasite/specs/2016_DG_Challenger_ChallengerSRT_SPi1l4mdkrqvi4f3khi7cv9he2mp.pdf",
+		"https://media.stellantisnorthamerica.com/newsrelease.do?id=16693",
+		"https://en.wikipedia.org/wiki/Dodge_Challenger_(2008)"
+	],
+	"limitations": [
+		"No interior: traffic only.",
+		"No calipers (the file's are broken duplicates, dropped); plain materials (no textures came with it).",
+		"Licence listing unconfirmed: handled as no-AI (nobody looked at its renders)."
+	]
+}
