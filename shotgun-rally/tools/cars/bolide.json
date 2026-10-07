@@ -1,0 +1,8 @@
+{"id": "bolide", "front": "+X", "wheelbase": 2.75,
+ "wheel": ["^Wheel_01_"], "caliper": ["^Caliper"],
+ "drop": ["^Badge$", "^Plate_LODA$"], "drop_mats": ["CalliperBadge"],
+ "paint": ["^CSR2_Coloured$"], "glass": ["^GlassClear$", "^glass_tint$"],
+ "materials": [["^GlassClear$", "glass"], ["^glass_tint$", "glass"]],
+ "wheel_faces": 16000, "body_faces": 200000, "tex_max": 1024,
+ "cockpit": {"gearbox": "auto", "eye": [-0.40, -0.25, 0.84],
+             "wheel": {"mats": ["^CSR2_Interior$"], "box": [-0.57, -0.23, 0.28, 0.42, 0.46, 0.72]}}}

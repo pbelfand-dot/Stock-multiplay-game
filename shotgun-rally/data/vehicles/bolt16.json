@@ -1,0 +1,85 @@
+{
+	"id": "bolt16",
+	"name": "BOLT W16",
+	"order": 430,
+	"model": "bolide",
+	"category": "hyper",
+	"role": "track",
+	"real": {
+		"manufacturer": "Bugatti",
+		"model": "Bolide",
+		"year": 2024,
+		"trim": "production (40 built), 8.0 W16 quad-turbo"
+	},
+	"specs": {
+		"power_hp": 1578,
+		"weight_kg": 1450,
+		"drivetrain": "AWD",
+		"transmission": "7-speed dual-clutch",
+		"wheelbase_mm": 2750,
+		"top_speed_kmh": null,
+		"front_weight": 0.42,
+		"notes": "The track-only Bolide as built (2024-25, 40 cars): the 8.0 W16 quad-turbo tuned for 98-octane pump fuel, 1,600 PS (1,578 hp) and 1,600 Nm from 2,250 rpm, 1,450 kg dry (Bugatti; Wikipedia; motor1). The 2020 concept made 1,850 PS on 110-octane race fuel at 1,240 kg and claimed over 500 km/h (simulated). No top speed is published for the production car: the 7-speed is spread as the Chiron's (420 km/h). The power peak's rpm (7,000, the concept's), weight distribution, drag and downforce are estimates (the track chassis' aero)."
+	},
+	"garage": {
+		"price": 160000,
+		"engine_sound": "v8_turbo",
+		"livery": "plain",
+		"number": 16,
+		"colours": [[0.55, 0.57, 0.6], [0.02, 0.25, 0.55], [0.05, 0.05, 0.055], [0.85, 0.85, 0.87]],
+		"wheels": "black",
+		"power": 1.0,
+		"grip": 1.0,
+		"brakes": 1.0,
+		"drive_front": 0.35,
+		"blurb": "Bugatti's W16 in a track-only carbon shell: 1,600 horsepower for 1,450 kg, racing wings and X-shaped lights. Not road legal anywhere, which is why it's here."
+	},
+	"physics": {
+		"chassis": "track",
+		"mass": 1450.0,
+		"front": 0.42,
+		"torque": 1600.0,
+		"curve": [[1000, 0.38], [1438, 0.721], [1875, 0.926], [2250, 1.0], [3912, 1.0], [7000, 1.0], [7100, 0.853]],
+		"idle": 850.0,
+		"limiter": 7100.0,
+		"turbo": 0.4,
+		"spool": [1800.0, 3200.0],
+		"spool_time": 0.35,
+		"anti_lag": false,
+		"gears": [2.912, 2.348, 1.893, 1.526, 1.231, 0.992, 0.8],
+		"final": 2.5,
+		"drive": "awd",
+		"front_share": 0.35,
+		"centre": ["lsd", 0.25, 0.2, 30.0],
+		"front_diff": ["lsd", 0.2, 0.1, 20.0],
+		"rear": ["lsd", 0.35, 0.15, 30.0],
+		"cd": 0.45,
+		"area": 1.95,
+		"down": 2.4,
+		"brake": 1.25
+	},
+	"checks": {
+		"zero_100_max": 6.0
+	},
+	"interior": {
+		"own": true,
+		"camera": true,
+		"notes": "The model's race cockpit: its rectangular wheel with a screen (cut out by material in a box, its column left in), the eye set by hand; paddles: the hands stay on the wheel."
+	},
+	"source": {
+		"package": "CGTrader_New_Cars/bugatti_bolide (bugatti_bolide.glb)",
+		"candidate": 27,
+		"license": "CGTrader Royalty Free License (seller CGI-FORGE, best match)",
+		"url": "https://www.cgtrader.com/"
+	},
+	"research": [
+		"https://en.wikipedia.org/wiki/Bugatti_Bolide",
+		"https://fr.motor1.com/news/526160/bugatti-bolide-version-serie-2024/",
+		"https://autotijd.be/en/specs/bugatti/bolide-concept-2020-2020"
+	],
+	"limitations": [
+		"Top speed, the gear ratios, the power peak's rpm, weight distribution and aero are estimates.",
+		"Provenance: the model's materials are CSR Racing 2 assets ('CSR2_'): a game rip sold on CGTrader; fine among friends, replace before any public release.",
+		"Branding in its textures (W16.4 lettering, the EB logo, Michelin tyres) is left in."
+	]
+}
