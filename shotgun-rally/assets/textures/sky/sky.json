@@ -1,0 +1,95 @@
+{
+ "day": {
+  "sun_u": 0.595,
+  "sun_elevation": 47.9,
+  "sun_peak": 147172.9,
+  "scale": 2.0283,
+  "horizon_linear": [
+   0.8928,
+   0.9596,
+   1.1645
+  ],
+  "zenith_linear": [
+   1.0315,
+   1.1161,
+   1.4147
+  ],
+  "irradiance_linear": [
+   0.8661,
+   0.9963,
+   1.4309
+  ],
+  "below_deg": 10.0,
+  "lo": 0.04,
+  "hi": 48.0,
+  "source": "Poly Haven: Kloofendal 48d Partly Cloudy (Pure Sky) (kloofendal_48d_partly_cloudy_puresky)",
+  "url": "https://polyhaven.com/a/kloofendal_48d_partly_cloudy_puresky",
+  "authors": {
+   "Greg Zaal": "Original",
+   "Jarod Guest": "Sky edits"
+  },
+  "licence": "CC0"
+ },
+ "golden": {
+  "sun_u": 0.613,
+  "sun_elevation": 4.66,
+  "sun_peak": 40.7,
+  "scale": 1.233,
+  "horizon_linear": [
+   1.32,
+   1.0807,
+   0.9363
+  ],
+  "zenith_linear": [
+   0.2691,
+   0.4248,
+   0.7246
+  ],
+  "irradiance_linear": [
+   0.811,
+   1.0196,
+   1.3627
+  ],
+  "below_deg": 10.0,
+  "lo": 0.04,
+  "hi": 48.0,
+  "source": "Poly Haven: Kloppenheim 06 (Pure Sky) (kloppenheim_06_puresky)",
+  "url": "https://polyhaven.com/a/kloppenheim_06_puresky",
+  "authors": {
+   "Greg Zaal": "Original",
+   "Jarod Guest": "Sky edits"
+  },
+  "licence": "CC0"
+ },
+ "overcast": {
+  "sun_u": 0.467,
+  "sun_elevation": 34.72,
+  "sun_peak": 3.5,
+  "scale": 0.6729,
+  "horizon_linear": [
+   0.5419,
+   0.5017,
+   0.4619
+  ],
+  "zenith_linear": [
+   1.271,
+   1.2641,
+   1.2753
+  ],
+  "irradiance_linear": [
+   1.0067,
+   0.9978,
+   1.0023
+  ],
+  "below_deg": 10.0,
+  "lo": 0.04,
+  "hi": 48.0,
+  "source": "Poly Haven: Overcast Soil (Pure Sky) (overcast_soil_puresky)",
+  "url": "https://polyhaven.com/a/overcast_soil_puresky",
+  "authors": {
+   "Jarod Guest": "Sky Edits",
+   "Sergej Majboroda": "Original"
+  },
+  "licence": "CC0"
+ }
+}

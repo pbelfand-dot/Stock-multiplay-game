@@ -1,0 +1,109 @@
+{
+ "asphalt": {
+  "size_m": 2.08,
+  "mean_linear": [
+   0.1009,
+   0.0806,
+   0.0625
+  ],
+  "roughness": 0.77,
+  "source": "Poly Haven: Asphalt 01 (asphalt_01)",
+  "url": "https://polyhaven.com/a/asphalt_01",
+  "authors": {
+   "Dario Barresi": "Processing ",
+   "Charlotte Baglioni": "Photography"
+  },
+  "licence": "CC0"
+ },
+ "gravel": {
+  "size_m": 3.0,
+  "mean_linear": [
+   0.2981,
+   0.2363,
+   0.1511
+  ],
+  "roughness": 0.869,
+  "source": "Poly Haven: Gravel Ground 01 (gravel_ground_01)",
+  "url": "https://polyhaven.com/a/gravel_ground_01",
+  "authors": {
+   "Rob Tuytel": "All"
+  },
+  "licence": "CC0"
+ },
+ "grass": {
+  "size_m": 2.0,
+  "mean_linear": [
+   0.3199,
+   0.236,
+   0.1062
+  ],
+  "roughness": 0.685,
+  "source": "Poly Haven: Leafy Grass (leafy_grass)",
+  "url": "https://polyhaven.com/a/leafy_grass",
+  "authors": {
+   "Charlotte Baglioni": "All"
+  },
+  "licence": "CC0"
+ },
+ "dirt": {
+  "size_m": 1.3,
+  "mean_linear": [
+   0.0791,
+   0.0623,
+   0.0414
+  ],
+  "roughness": 0.952,
+  "source": "Poly Haven: Brown Mud 02 (brown_mud_02)",
+  "url": "https://polyhaven.com/a/brown_mud_02",
+  "authors": {
+   "Rob Tuytel": "All"
+  },
+  "licence": "CC0"
+ },
+ "rock": {
+  "size_m": 2.7,
+  "mean_linear": [
+   0.2326,
+   0.1455,
+   0.0839
+  ],
+  "roughness": 0.818,
+  "source": "Poly Haven: Rock Face 03 (rock_face_03)",
+  "url": "https://polyhaven.com/a/rock_face_03",
+  "authors": {
+   "Dario Barresi": "Photography",
+   "Rico Cilliers": "Processing"
+  },
+  "licence": "CC0"
+ },
+ "concrete": {
+  "size_m": 2.0,
+  "mean_linear": [
+   0.201,
+   0.1693,
+   0.1151
+  ],
+  "roughness": 0.517,
+  "source": "Poly Haven: Concrete Floor 02 (concrete_floor_02)",
+  "url": "https://polyhaven.com/a/concrete_floor_02",
+  "authors": {
+   "Rob Tuytel": "All"
+  },
+  "licence": "CC0"
+ },
+ "snow": {
+  "size_m": 2.0,
+  "mean_linear": [
+   0.3789,
+   0.3784,
+   0.3885
+  ],
+  "roughness": 0.801,
+  "source": "Poly Haven: Snow 02 (snow_02)",
+  "url": "https://polyhaven.com/a/snow_02",
+  "authors": {
+   "Rob Tuytel": "All"
+  },
+  "licence": "CC0"
+ }
+}
