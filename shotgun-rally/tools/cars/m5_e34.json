@@ -1,0 +1,10 @@
+{"id": "m5_e34", "front": "-Y", "wheelbase": 2.761,
+ "wheel_mats": ["^RIM_CHROME$", "^ext_rim_metal$", "^TIRE$", "^ext_rim_logo$", "^CAR_DiscoFreni$"], "caliper_mats": ["^CAR_PinzaFreni$"],
+ "drop_mats": ["^E34_M5_EMBLEM$", "^emblem$", "^badge$", "^ext_rim_logo$", "^emblem22$"],
+ "paint": ["^E34_CAR_PAINT$"], "glass": ["^E34_M5_GLASS_OFF$", "^WCWINDOW$", "^INTE_GLASS$"],
+ "materials": [["^E34_M5_GLASS_OFF$", "glass"], ["^WCWINDOW$", "glass"], ["^INTE_GLASS$", "glass"]],
+ "finish": [["^INT_(headliner|DASH2?|DOORPANELS)$", {"metal": 0.0, "rough": 0.7}]],
+ "wheel_faces": 10000, "body_faces": 200000, "tex_max": 1024,
+ "cockpit": {"gearbox": "h6",
+             "wheel": {"mats": ["^Material_0\\.001$", "^intplastic\\.001$"], "box": [-0.62, -0.08, 0.12, 0.42, 0.60, 1.03]},
+             "shifter": {"mats": ["^INT_DASH$"], "box": [-0.07, 0.04, 0.18, 0.29, 0.50, 0.65]}}}

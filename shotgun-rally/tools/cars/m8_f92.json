@@ -1,0 +1,12 @@
+{"id": "m8_f92", "front": "-Y", "wheelbase": 2.827, "pbr_sets": true,
+ "drop": ["^keyvany_", "^manhart_", "^wb_logo", "_dark(\\.\\d+)?$", "^m8f92_fender_[LR](\\.\\d+)?$", "^m8f92_fender_[LR]_cs",
+          "^m8f92_(body|door|mirror)trim_[LR]?_?(alu|cf|gold|p)(\\.\\d+)?$", "^m8f92_body_trim_(alu|cf|gold|p)$",
+          "^m8f92_mirror_[LR](2|_blk|_cf)(\\.\\d+)?$", "^m8f92_bodyroof_black", "^m8f92_headlight_[LR][23](\\.\\d+)?$",
+          "^m8f92_bumper_F_lip_cf", "^m8f92_spoiler_cf", "^m8f92_tubs_wide", "badge", "lettering", "^m8f92_logo_", "^m5f90_gauges",
+          "^m8f92_caliper_[FR](_sport)?$"],
+ "wheel": ["^m8f92_Wheel_", "^m8f92_brakedisc_"], "caliper": ["^m8f92_Caliper[LR][FR]_"],
+ "paint": ["^m8f92_CarPaint$"], "glass": ["^m8f92_glass$", "^Window$"],
+ "drop_mats": ["^m8f92_Badge"],
+ "materials": [["^m8f92_glass$", "glass"], ["^Window$", "glass"], ["^m8f92_Tire1A$", "rubber"]],
+ "wheel_faces": 10000, "body_faces": 200000, "tex_max": 1024,
+ "cockpit": {"gearbox": "auto", "wheel": {"parts": ["^m8f92_steer(\\.\\d+)?$"]}}}

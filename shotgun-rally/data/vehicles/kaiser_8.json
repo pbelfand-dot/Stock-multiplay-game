@@ -1,0 +1,86 @@
+{
+	"id": "kaiser_8",
+	"name": "KAISER 8 GC",
+	"order": 260,
+	"model": "m8_f92",
+	"category": "euro",
+	"role": "player_road",
+	"real": {
+		"manufacturer": "BMW",
+		"model": "M8 Competition Coupe (F92)",
+		"year": 2020,
+		"trim": "625 PS, M xDrive, 8-speed M Steptronic"
+	},
+	"specs": {
+		"power_hp": 616,
+		"weight_kg": 1900,
+		"drivetrain": "AWD",
+		"transmission": "8-speed M Steptronic (torque converter)",
+		"wheelbase_mm": 2827,
+		"top_speed_kmh": 250,
+		"front_weight": 0.53,
+		"notes": "All from BMW's M8 Competition Coupe spec sheet (03/2021): 625 PS (460 kW) at 6,000 rpm, 750 Nm from 1,800 to 5,860 rpm, 1,900 kg DIN unladen (EU 1,975 kg), the 8-speed's ratios with a 3.154 final drive, 2,827 mm wheelbase, 250 km/h limited (305 with the M Driver's Package). M xDrive is rear-biased and fully variable, with no fixed split published; the game uses 30 % front. No weight distribution or drag figure was published: 53 % front and Cd 0.33 on 2.25 m^2 are estimates."
+	},
+	"garage": {
+		"price": 37000,
+		"engine_sound": "v8_turbo",
+		"livery": "plain",
+		"number": 8,
+		"colours": [[0.12, 0.14, 0.18], [0.85, 0.85, 0.87], [0.35, 0.05, 0.08], [0.05, 0.05, 0.06]],
+		"wheels": "black",
+		"power": 1.0,
+		"grip": 1.0,
+		"brakes": 1.0,
+		"drive_front": 0.3,
+		"blurb": "BMW's big grand tourer in Competition trim: a 625 PS twin-turbo V8, four-wheel drive that can go rear-only, and a carbon roof. Long legs, short fuse."
+	},
+	"traffic": {
+		"weight": 0.08,
+		"paints": [[0.12, 0.14, 0.18], [0.05, 0.05, 0.06], [0.85, 0.85, 0.87]]
+	},
+	"physics": {
+		"chassis": "sport",
+		"mass": 1900.0,
+		"front": 0.53,
+		"torque": 750.0,
+		"curve": [[1000, 0.38], [1280, 0.721], [1560, 0.926], [1800, 1.0], [5860, 1.0], [6000, 0.975], [7200, 0.751]],
+		"idle": 850.0,
+		"limiter": 7200.0,
+		"turbo": 0.4,
+		"spool": [1800.0, 3200.0],
+		"spool_time": 0.35,
+		"anti_lag": false,
+		"gears": [5.0, 3.2, 2.143, 1.72, 1.313, 1.0, 0.823, 0.64],
+		"final": 3.154,
+		"drive": "awd",
+		"front_share": 0.3,
+		"centre": ["lsd", 0.25, 0.2, 30.0],
+		"front_diff": ["lsd", 0.2, 0.1, 20.0],
+		"rear": ["lsd", 0.35, 0.15, 30.0],
+		"cd": 0.33,
+		"area": 2.25,
+		"down": 0.1,
+		"brake": 1.0
+	},
+	"checks": {
+		"zero_100_max": 8.0
+	},
+	"interior": {
+		"own": true,
+		"camera": true,
+		"notes": "The model's: dash, seats, the M wheel (its own parts); left-hand drive. An automatic: the hands stay on the wheel."
+	},
+	"source": {
+		"package": "bmw-m8-f92-coupe-competition (1).zip",
+		"author": "sohyalebret (display name: kevin)",
+		"license": "CC Attribution",
+		"url": "https://sketchfab.com/3d-models/bmw-m8-f92-coupe-competition-25d5b4f6d13e4217afa09bbf89f8d993",
+		"attribution": "BMW M8 F92 Coupe Competition by kevin (sohyalebret) (CC Attribution)",
+		"candidate": 21
+	},
+	"research": ["https://www.press.bmwgroup.com/global/article/attachment/T0330570EN/477179"],
+	"limitations": [
+		"Weight distribution, drag and M xDrive's split are estimates.",
+		"The source is a game mod holding several body kits at once (stock, Competition, CS, Keyvany, Manhart) and trim colours: the stock Competition set is kept, the rest dropped."
+	]
+}

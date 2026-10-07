@@ -1,0 +1,81 @@
+{
+	"id": "kaiser_5",
+	"name": "KAISER 5 E",
+	"order": 250,
+	"model": "m5_e34",
+	"category": "euro",
+	"role": "player_road",
+	"real": {
+		"manufacturer": "BMW",
+		"model": "M5 (E34) saloon",
+		"year": 1994,
+		"trim": "3.8, 6-speed manual (1994-95)"
+	},
+	"specs": {
+		"power_hp": 335,
+		"weight_kg": 1725,
+		"drivetrain": "RWD",
+		"transmission": "6-speed manual (Getrag)",
+		"wheelbase_mm": 2761,
+		"top_speed_kmh": 250,
+		"front_weight": 0.52,
+		"notes": "The 3.8 S38B38 straight six (individual throttle bodies): 340 PS (250 kW) at 6,900 rpm and 400 Nm at 4,750 rpm. The six-speed's ratios (fitted from spring 1994), the 3.23 final drive and the 25 % limited-slip differential are from auto motor und sport's technical data. Weights differ by source: 1,650 kg German empty weight, 1,711-1,725 kg UK figures (5- and 6-speed); the game uses 1,725 kg, the UK figure for the 6-speed. 250 km/h limited (Autozeitung measured 256). No official weight distribution or drag figure was found: 52 % front and Cd 0.32 on 2.05 m^2 are estimates."
+	},
+	"garage": {
+		"price": 22000,
+		"engine_sound": "i6_race",
+		"livery": "plain",
+		"number": 5,
+		"colours": [[0.05, 0.12, 0.3], [0.05, 0.05, 0.06], [0.55, 0.57, 0.6], [0.3, 0.05, 0.08]],
+		"wheels": "silver",
+		"power": 1.0,
+		"grip": 1.0,
+		"brakes": 1.0,
+		"drive_front": 0.0,
+		"blurb": "The last hand-built M5: a four-door saloon with a racing straight six, individual throttles and a six-speed manual. A gentleman's express that howls to 7,000."
+	},
+	"physics": {
+		"chassis": "road",
+		"mass": 1725.0,
+		"front": 0.52,
+		"torque": 400.0,
+		"curve": [[1000, 0.5], [2312, 0.775], [3625, 0.94], [4750, 1.0], [6900, 0.864], [7200, 0.758]],
+		"idle": 1000.0,
+		"limiter": 7200.0,
+		"turbo": 0.0,
+		"gears": [4.23, 2.51, 1.67, 1.23, 1.0, 0.83],
+		"final": 3.23,
+		"drive": "rwd",
+		"rear": ["lsd", 0.25, 0.25, 20.0],
+		"cd": 0.32,
+		"area": 2.05,
+		"down": 0.0,
+		"brake": 0.85
+	},
+	"checks": {
+		"zero_100_max": 12.0
+	},
+	"interior": {
+		"own": true,
+		"camera": true,
+		"notes": "The model's: dash, leather seats, its wheel (cut out by material) and gear lever (the knob on its boot, cut out by box); left-hand drive; a six-speed H gate."
+	},
+	"source": {
+		"package": "bmw-m5-e34.zip",
+		"author": "VTX_car (display name: VTX); credited original by temich_",
+		"license": "CC Attribution-NonCommercial-ShareAlike (the original: CC BY-NC, 'NOT FOR COMMERCIAL USE')",
+		"url": "https://sketchfab.com/3d-models/bmw-m5-e34-49b9f3805ab44ccd8971adfca351b403",
+		"attribution": "BMW M5 E34 by VTX_car (CC Attribution-NonCommercial-ShareAlike), based on 'BMW M5 (E34)' by temich_ (CC BY-NC)",
+		"candidate": 20
+	},
+	"research": [
+		"https://www.auto-motor-und-sport.de/oldtimer/bmw-m5-e34-lancia-thema-832-mercedes-500e/technische-daten/",
+		"https://www.autozeitung.de/bmw-m5-e34-classic-cars-208303.html",
+		"https://classicandsportscar.com/features/buyers-guide-bmw-m5-e34",
+		"https://www.auto-motor-und-sport.de/oldtimer/bmw-m5-e34-der-letzte-m5-mit-reihensechszylinder/technische-daten/"
+	],
+	"limitations": [
+		"Weight distribution and drag are estimates.",
+		"Provenance: the original's page says its body is based on an Assetto Corsa model (VEHICLE_PROGRESS.md)."
+	]
+}

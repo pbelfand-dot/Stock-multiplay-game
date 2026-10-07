@@ -267,6 +267,20 @@ for o in list(bpy.data.objects):
     if matches(o.name, spec.get("drop", [])) or len(o.data.polygons) == 0:
         bpy.data.objects.remove(o, do_unlink=True)
 meshes = list(bpy.data.objects)
+# a model whose parts each carry their own uniquely named UV maps (a game mod's: 131 names
+# here) would come out of the join with all of them on every vertex: each part keeps just the
+# map it renders with, under one shared name
+uv_names = {uv.name for o in meshes for uv in o.data.uv_layers}
+if len(uv_names) > 8:
+    for o in meshes:
+        uvs = o.data.uv_layers
+        if not len(uvs):
+            continue
+        keep = next((uv for uv in uvs if uv.active_render), uvs[0])
+        for uv in [uv for uv in uvs if uv != keep]:
+            uvs.remove(uv)
+        uvs[0].name = "UVMap"
+    print("UV maps: %d names across the parts, one kept on each" % len(uv_names))
 if spec.get("pre_scale", 1.0) != 1.0:
     for o in meshes:
         xform(o, Matrix.Scale(spec["pre_scale"], 4))
@@ -367,16 +381,18 @@ if src.lower().endswith(".obj"):
                 print("mtl texture: %s <- %s" % (mat.name, ", ".join(os.path.basename(p) for p in (kd, nm) if p)))
 
 # PBR texture sets beside the model, named after their materials ("pbr_sets": true; Sketchfab's
-# "<material>_albedo.jpg", "_normal", "_roughness", "_metallic", "_emissive", "_opacity"): each
+# "<material>_albedo.jpg", "_normal", "_roughness", "_metallic", "_emissive", "_opacity"; BeamNG's
+# "_diff", "_nrm", "_opac" too): each
 # material that has a set gets it (an opacity map that isn't all white becomes its alpha: glass
 # in an atlas; an all-black emissive map is left out)
 if spec.get("pbr_sets"):
     sets = {}
     for d in tex_dirs:
         for f in (os.listdir(d) if os.path.isdir(d) else []):
-            m = re.match(r"(.+?)_(albedo|basecolor|base_color|diffuse|normal|roughness|metallic|emissive|opacity)\.(png|jpe?g|tga)$", f, re.I)
+            m = re.match(r"(.+?)_(albedo|basecolor|base_color|diffuse|diff|normal|nrm|roughness|metallic|emissive|opacity|opac)\.(png|jpe?g|tga|dds)$", f, re.I)
             if m:
-                sets.setdefault(m.group(1).lower(), {})[m.group(2).lower()] = os.path.join(d, f)
+                key = {"diff": "diffuse", "nrm": "normal", "opac": "opacity"}.get(m.group(2).lower(), m.group(2).lower())
+                sets.setdefault(m.group(1).lower(), {})[key] = os.path.join(d, f)
     def _flat(path):
         """The image's lowest and highest brightness (sampled)."""
         im = bpy.data.images.load(path, check_existing=True)

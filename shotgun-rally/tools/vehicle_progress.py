@@ -64,6 +64,8 @@ STATUS = {
     16: "**in game**: KAISER 2 WB (kaiser_2). Its Fifteen52 wheels, Toyo tyres and discs by material; badges and inner glass dropped; interior matted; the M wheel cut out by box; stock M2 numbers (the kit has none; BMW's torque plateau trimmed to the rated power); tested (models 4.7 s; interior)",
     18: "**in game**: KAISER 4 WB (kaiser_4). The build's own wheels by material (its red calipers held still; a body-wide \"dark\" material kept out of the wheels); interior matted; the M wheel cut out by box; stock M4 Competition numbers; tested (models 4.5 s; interior)",
     19: "duplicate of #18 (one car: KAISER 4 WB)",
+    20: "**in game**: KAISER 5 E (kaiser_5). Wheels by material; emblems dropped (the wheel hub's too); headliner and dash matted; its wheel cut out by material, its gear knob by box: a working six-speed H; the 3.8's 340 PS, 25 % LSD; tested (models 5.4 s; interior, the lever through the gate)",
+    21: "**in game**: KAISER 8 GC (kaiser_8). A BeamNG-style mod holding five body kits and trim colours: the stock Competition set kept by part name; 146 per-part UV maps collapsed to one (converter: the GLB went 157 MB -> 7.6 MB); its \"_diff\" textures wired by name; tyres given rubber (no texture in the package); badges dropped; its wheel by its own parts; tested (models 3.0 s; interior)",
     39: "**in game**: HELLHOUND WB (hellhound). Low-poly exterior + high-poly interior; tested (models: on its wheels, 0-100 5.3 s on gravel; interior: eyes, gloves on its rim, automatic)",
 }
 DECISIONS = [
