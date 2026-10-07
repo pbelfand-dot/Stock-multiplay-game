@@ -57,7 +57,9 @@ func _initialize() -> void:
 	if only in ["", "battles"]: await _battles()
 	if only in ["", "traffic"]: await _traffic()
 	if only in ["", "score"]: _score()
-	if only in ["", "rules"]: _touge_rules()
+	if only in ["", "rules"]:
+		_touge_rules()
+		_time_of_day()
 	if only in ["", "ghost"]: _ghost()
 	if only in ["", "game"]:
 		await process_frame                        # (the autoloads in the tree first: Net, Config)
@@ -484,6 +486,18 @@ func _battles() -> void:
 
 
 ## The game in a mode: it loads, the run goes, and it ends with the mode's own results.
+## Settings' TIME OF DAY: AUTO leaves a run's light alone; an hour rides with the run
+## (to every machine) with the mood nearest it.
+func _time_of_day() -> void:
+	var o: Dictionary = Modes.touge_opts(5, "down")
+	var auto: Dictionary = Modes.with_time(o, -1.0)
+	var noon: Dictionary = Modes.with_time(o, 13.0)
+	var dusk: Dictionary = Modes.with_time(o, 18.5)
+	var late: Dictionary = Modes.with_time(Modes.cutup_opts(5), 1.5)
+	check(auto == o and float(noon.time) == 13.0 and noon.mood == "day" and dusk.mood == "golden" and late.mood == "night" and float(late.time) == 1.5,
+		"time of day: AUTO keeps the run's light (%s); 13:00 day, 18:30 golden, 01:30 night ride with the run" % o.mood)
+
+
 func _ghost() -> void:
 	var Ghost = load("res://scripts/game/ghost.gd")
 	var k := "test/ghost/%d" % Time.get_ticks_usec()

@@ -29,6 +29,7 @@ const GUARD_POST := 4.0              # m between a guardrail's posts
 const TUNNEL_LAYER := 2
 
 var mood := "day"
+var time_of_day := -1.0              # the hour (0-24) to light it for, or -1: by its mood (Modes.with_time)
 var st: LoopGen
 var _wm = null                       # WorldMaterials (if there is one)
 var _mats := {}

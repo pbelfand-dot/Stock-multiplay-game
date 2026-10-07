@@ -40,6 +40,28 @@ static func cutup_opts(seed_value: int, difficulty := "normal") -> Dictionary:
 		"gen": {"kind": "loop"}}
 
 
+## The light for an hour (0-24): the nearest of the world's moods ("night", "golden"
+## for dawn and evening, "day"), for the stage while it's lit by mood.
+static func mood_for_hour(h: float) -> String:
+	h = fposmod(h, 24.0)
+	if h < 5.5 or h >= 20.0:
+		return "night"
+	if h < 8.0 or h >= 17.0:
+		return "golden"
+	return "day"
+
+
+## A run's settings with Settings' TIME OF DAY on them (AUTO, below 0: as they are):
+## "time" (the hour) and the mood nearest it. They go to every machine with the stage.
+static func with_time(o: Dictionary, hour: float) -> Dictionary:
+	if hour < 0.0:
+		return o
+	var t := o.duplicate()
+	t["time"] = fposmod(hour, 24.0)
+	t["mood"] = mood_for_hour(hour)
+	return t
+
+
 static func difficulty(o: Dictionary) -> Dictionary:
 	return DIFFICULTIES.get(str(o.get("difficulty", "normal")), DIFFICULTIES.normal)
 

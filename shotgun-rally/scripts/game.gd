@@ -144,6 +144,8 @@ func start(seed_in: int, stage_in: int, o := {}) -> void:
 	stage_generated.emit()
 	builder = LoopBuilder.new() if looped else StageBuilder.new()
 	builder.mood = o.get("mood", "day")
+	if "time_of_day" in builder:
+		builder.time_of_day = float(o.get("time", -1.0))   # (the hour, -1: by the mood; the graphics work lights by it)
 	add_child(builder)
 	await builder.build_async(st, func(f: float, what: String): progress.emit(0.06 + f * 0.64, what))
 	if not is_inside_tree():

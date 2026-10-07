@@ -33,9 +33,15 @@ func _ready() -> void:
 	v.add_theme_constant_override("separation", 4)
 	add_child(v)
 	v.add_child(UI.label("SETTINGS", 28, UI.CREAM, true))
+	# (it scrolls when the screen's too short for it all: 720p; the focus scrolls it on a pad)
+	var scroll := ScrollContainer.new()
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	scroll.follow_focus = true
+	scroll.custom_minimum_size = Vector2(1000, 470)
+	v.add_child(scroll)
 	var cols := HBoxContainer.new()
 	cols.add_theme_constant_override("separation", 30)
-	v.add_child(cols)
+	scroll.add_child(cols)
 	var left := VBoxContainer.new()
 	left.custom_minimum_size = Vector2(310, 0)
 	left.add_theme_constant_override("separation", 8)
@@ -62,6 +68,9 @@ func _ready() -> void:
 	left.add_child(UI.gap(6))
 	left.add_child(UI.label("CO-DRIVER", 20, UI.YELLOW, true))
 	left.add_child(_slider("CALLS  LATE  ·  EARLY", -1.0, 1.0, config.call_early, func(x): config.call_early = x))
+	left.add_child(UI.gap(6))
+	left.add_child(UI.label("WORLD", 20, UI.YELLOW, true))
+	left.add_child(_time_slider(config))
 	right.add_child(UI.label("DRIVING AIDS", 20, UI.YELLOW, true))
 	for a in AIDS:
 		right.add_child(_toggle(a[1], a[2], bool(config.aids.get(a[0], false)), func(on): config.aids[a[0]] = on))
@@ -134,6 +143,40 @@ func _slider(title: String, lo: float, hi: float, value: float, apply: Callable)
 		get_node("/root/Config").save())
 	box.add_child(s)
 	return box
+
+
+## TIME OF DAY (Config.time_of_day): a slider through the day, half an hour a step;
+## right down at the left end it's AUTO (the stage's own light).
+func _time_slider(config) -> Control:
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 2)
+	var row := HBoxContainer.new()
+	var title := UI.label("TIME OF DAY", 18, UI.CREAM)
+	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(title)
+	var shown := UI.label(_hour_text(config.time_of_day), 18, UI.YELLOW)
+	row.add_child(shown)
+	box.add_child(row)
+	var s := HSlider.new()
+	s.min_value = -0.5                                 # (the first step: AUTO)
+	s.max_value = 23.5
+	s.step = 0.5
+	s.value = config.time_of_day if config.time_of_day >= 0.0 else -0.5
+	s.custom_minimum_size = Vector2(280, 24)
+	s.focus_mode = Control.FOCUS_ALL
+	s.value_changed.connect(func(x: float):
+		config.time_of_day = x if x >= 0.0 else -1.0
+		shown.text = _hour_text(config.time_of_day)
+		config.save())
+	box.add_child(s)
+	box.add_child(_note("PLAY NOW, the modes and online (the host's). Left end: AUTO, the stage's own light.", 290, 13))
+	return box
+
+
+static func _hour_text(h: float) -> String:
+	if h < 0.0:
+		return "AUTO"
+	return "%02d:%02d" % [int(h), int(round(fmod(h, 1.0) * 60.0)) % 60]
 
 
 func _note(text: String, width := 300.0, size := 14) -> Label:

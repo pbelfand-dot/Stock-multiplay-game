@@ -52,6 +52,7 @@ var _lowest := INF                  # the lowest the ground goes (the mountainsi
 const CHUNK := 160.0                # trees are grouped per this much road ...
 const TREE_DRAW := 520.0            # ... and a group further away than this isn't drawn
 var mood := "day"                  # the light (_environment): set before build
+var time_of_day := -1.0              # the hour (0-24) to light it for, or -1: by its mood (Modes.with_time)
 var _range: MeshInstance3D      # the ranges on the horizon (they keep their distance: _process)
 var _mountain_y := 0.0
 var _horizon := Color(0.72, 0.82, 0.9)   # the sky at the horizon (the mountains fade into it)

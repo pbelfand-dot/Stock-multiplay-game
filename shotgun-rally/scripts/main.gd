@@ -104,8 +104,8 @@ func start_solo(s: int) -> void:
 ## A touge or cut-up run's settings, like `like` (its mode, direction, rules, difficulty) on seed s.
 func mode_opts(s: int, like: Dictionary) -> Dictionary:
 	if like.get("mode") == "cutup":
-		return Modes.cutup_opts(s, str(like.get("difficulty", "normal")))
-	return Modes.touge_opts(s, str(like.get("dir", "up")), str(like.get("rules", "time")))
+		return Modes.with_time(Modes.cutup_opts(s, str(like.get("difficulty", "normal"))), Config.time_of_day)
+	return Modes.with_time(Modes.touge_opts(s, str(like.get("dir", "up")), str(like.get("rules", "time"))), Config.time_of_day)
 
 
 ## From the menu's MODES: a touge or a cut-up run, alone.
@@ -131,7 +131,7 @@ func quick_opts(s: int) -> Dictionary:
 		gen["surface"] = surf
 	if ice:
 		gen["ice"] = true
-	return {"mode": "quick", "gen": gen}
+	return Modes.with_time({"mode": "quick", "gen": gen}, Config.time_of_day)
 
 
 func host_game(seat: String) -> void:
