@@ -323,7 +323,14 @@ The links never change. Every update to `shotgun-rally/` on `main` replaces the 
 - **Mac:** [ShotgunRally.zip](https://github.com/pbelfand-dot/Stock-multiplay-game/releases/download/shotgun-latest/ShotgunRally.zip)
 - **Mac (older Intel, pre-2020):** [ShotgunRally-Intel.zip](https://github.com/pbelfand-dot/Stock-multiplay-game/releases/download/shotgun-latest/ShotgunRally-Intel.zip)
 - Windows: [ShotgunRally-Windows.zip](https://github.com/pbelfand-dot/Stock-multiplay-game/releases/download/shotgun-latest/ShotgunRally-Windows.zip) · Linux: [ShotgunRally-Linux.zip](https://github.com/pbelfand-dot/Stock-multiplay-game/releases/download/shotgun-latest/ShotgunRally-Linux.zip)
+- **Chromebook:** [ShotgunRally-Chromebook.deb](https://github.com/pbelfand-dot/Stock-multiplay-game/releases/download/shotgun-latest/ShotgunRally-Chromebook.deb)
+  · ARM Chromebook (MediaTek / Snapdragon; `chrome://version` says `aarch64`): [ShotgunRally-Chromebook-ARM.deb](https://github.com/pbelfand-dot/Stock-multiplay-game/releases/download/shotgun-latest/ShotgunRally-Chromebook-ARM.deb)
+  · Linux switched off (school Chromebooks): the browser version, [ShotgunRally-Web.zip](https://github.com/pbelfand-dot/Stock-multiplay-game/releases/download/shotgun-latest/ShotgunRally-Web.zip)
+  (solo only; it has to go on a web host such as itch.io first). How to install each:
+  [the game's page](shotgun-rally/README.md#-download-always-the-newest-build)
 - All of them on one page: [releases/shotgun-latest](https://github.com/pbelfand-dot/Stock-multiplay-game/releases/tag/shotgun-latest)
+
+> While this repo is **private**, the links only work for people signed in to GitHub with access to it.
 
 The first time you open it:
 - **Mac:** unzip it and double-click **SHOTGUN RALLY.app**. macOS says it "could not verify" the app:
