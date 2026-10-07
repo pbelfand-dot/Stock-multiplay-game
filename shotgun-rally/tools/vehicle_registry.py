@@ -14,7 +14,8 @@ An entry (only "id", "name" and "order" are required; see docs/vehicles.md):
   power, grip, brakes, drive_front, blurb, mass} (absent: not in the garage), traffic
   {weight, paints} (absent: never traffic), physics (CarSpecs: see car_specs.gd), interior
   {own, camera, notes}, driver_seat {overrides}, source {package, file, author, license,
-  url, attribution}, research [urls], limitations [text]
+  url, attribution}, research [urls], limitations [text], checks {zero_100_max: s, the
+  tests' limit on gravel}
 """
 import json, os, sys
 
@@ -24,7 +25,7 @@ ROLES = {"rally", "touge_grip", "drift", "player_road", "track", "hypercar", "ra
          "traffic", "premium_traffic", "special"}
 CATEGORIES = {"rally", "jdm", "euro", "american", "hyper", "race", "traffic"}
 ORDER = ["id", "name", "order", "model", "category", "role", "real", "specs", "garage", "traffic",
-         "physics", "interior", "driver_seat", "source", "research", "limitations"]
+         "physics", "checks", "interior", "driver_seat", "source", "research", "limitations"]
 
 
 def _scalar(v):

@@ -51,6 +51,10 @@ CARS = [
  (42, "Generic minivan", "traffic_minivan", "CGTrader traffic/generic_minivan (FBX + textures.rar)", "FBX", "25 PNG", "simple", "separate", "low-poly (104k)", "-", "CGTrader \"Royalty Free (no AI)\"", "the FBX", "traffic", "pending", "no-AI licence: as #40"),
  (43, "Honda e (2021)", "honda_e", "free-honda-e-detailed-interior-2021.zip", "FBX", "39 JPEG/PNG", "detailed (40+ interior parts)", "1 wheel-like name: to check", "very high (2.19M, 367 parts)", "-", "Sketchfab download", "the FBX", "traffic (EV) / player road", "pending", ""),
 ]
+# where each car has got to (overrides the table's import status)
+STATUS = {
+    39: "**in game**: HELLHOUND WB (hellhound). Low-poly exterior + high-poly interior; tested (models: on its wheels, 0-100 5.3 s on gravel; interior: eyes, gloves on its rim, automatic)",
+}
 DECISIONS = [
  ("#18 / #19 BMW M4 widebody", "The two zips hold the same GLB, byte for byte (SHA-256 751c816b...). One car: m4_widebody."),
  ("#21 / #22 BMW M8 Competition", "The same car. #21 (FBX: 430 parts, its interior and wheels separate) imports directly; #22 is a USDZ that this Blender can't read, and its part names (\"BMW_M8RewardRecycled_2020\") suggest it was extracted from Forza Horizon. #21 is the car; #22 isn't used."),
@@ -75,7 +79,10 @@ print("car is in each registry entry (`data/vehicles/<id>.json`).\n")
 print("| " + " | ".join(hdr) + " |")
 print("|" + "---|" * len(hdr))
 for c in CARS:
-    print("| " + " | ".join(str(x).replace("|", "/") for x in c) + " |")
+    row = list(c)
+    if c[0] in STATUS:
+        row[13] = STATUS[c[0]]
+    print("| " + " | ".join(str(x).replace("|", "/") for x in row) + " |")
 print("\n## Duplicate and alternate-source decisions\n")
 for k, v in DECISIONS:
     print("- **%s:** %s" % (k, v))

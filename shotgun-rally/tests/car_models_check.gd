@@ -6,7 +6,7 @@ extends SceneTree
 ##   * standing, it sits on its wheels: all four down, the model's tyres on the
 ##     ground (within 3 cm), the body clear of it
 ##   * flat out from a standstill: 0-100 km/h in a sane time for that car
-##     (CHECKS: the real car's, give or take the game's tyres), the right wheels
+##     (its registry entry's checks: the real car's, give or take the game's tyres), the right wheels
 ##     driven (rear-drive: the fronts roll free; front-drive: the rears)
 ##   * the garage swaps it: a car built as the KESTREL becomes it (apply_setup):
 ##     its weight, wheelbase and body change, and back; the cars on the shared
@@ -14,10 +14,10 @@ extends SceneTree
 ## Prints one [models] line per check; exits 1 on any FAIL.
 ## Run: godot --headless --fixed-fps 120 --path . -s tests/car_models_check.gd
 
-## 0-100 km/h (s) each must beat on gravel, flat out from a standstill (the real
-## car's on tarmac, give or take: these are on gravel, auto-shifting).
-const CHECKS := {"nimbus": 11.0, "rotora_fc": 9.5, "kaiser": 8.0, "rotora_fd": 8.0, "vierrad": 6.5, "ocelot": 6.0,
-	"hachi": 12.0, "sylph": 9.0, "sedici": 7.0}
+## 0-100 km/h (s) each must beat on gravel, flat out from a standstill: its registry
+## entry's checks.zero_100_max (the real car's on tarmac, give or take: these are on
+## gravel, auto-shifting); 12 s for a car without one.
+const VehicleRegistry = preload("res://scripts/game/vehicle_registry.gd")
 
 var RallyCar
 var Catalog
@@ -100,7 +100,8 @@ func _physics_process(dt: float) -> bool:
 		t100 = t
 	if t > 14.0 or t100 > 0.0:
 		var spec: Dictionary = car.CarSpecs.SPECS[car.model_id]
-		var lim: float = CHECKS[id]
+		var e = VehicleRegistry.entry(id)
+		var lim: float = float(e.get("checks", {}).get("zero_100_max", 12.0)) if e else 12.0
 		fails += _check(t100 > 0.0 and t100 < lim, "%s: 0-100 km/h in %s (under %.1f s; %d kg, %d N m)" % [id,
 			"%.1f s" % t100 if t100 > 0.0 else "never", lim, car.mass, spec.torque])
 		var drive: String = spec.drive

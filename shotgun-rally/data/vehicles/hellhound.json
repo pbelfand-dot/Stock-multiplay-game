@@ -1,0 +1,75 @@
+{
+	"id": "hellhound",
+	"name": "HELLHOUND WB",
+	"order": 140,
+	"model": "hellcat_wb",
+	"category": "american",
+	"role": "player_road",
+	"real": {
+		"manufacturer": "Dodge",
+		"model": "Challenger SRT Hellcat Widebody",
+		"year": 2022,
+		"trim": "8-speed automatic"
+	},
+	"specs": {
+		"power_hp": 717,
+		"weight_kg": 2029,
+		"drivetrain": "RWD",
+		"transmission": "8-speed automatic (TorqueFlite 8HP90)",
+		"wheelbase_mm": 2946,
+		"top_speed_kmh": 314,
+		"front_weight": 0.57,
+		"notes": "6.2 supercharged Hemi V8 (6,166 cc): 717 hp (535 kW) SAE net at 6,000 rpm, 889 N m at 4,800; curb weight 2,029 kg (automatic; 2,017 manual); TorqueFlite 8HP90 4.71/3.14/2.10/1.67/1.29/1.00/0.84/0.67, final 2.62 (the Tremec 6-speed manual: 2.26/1.58/1.19/1.00/0.77/0.63, final 3.70); 57/43; Cd 0.398, 305/35ZR20. Top speed 314 km/h is Dodge's figure for the 2018 707-hp Widebody (none published for 2022). Frontal area 2.35 m2 is an estimate."
+	},
+	"garage": {
+		"price": 38000,
+		"engine_sound": "v8_sc",
+		"livery": "stripes",
+		"number": 21,
+		"colours": [[0.6, 0.03, 0.02], [0.05, 0.05, 0.055], [0.05, 0.05, 0.055], [0.05, 0.05, 0.055]],
+		"wheels": "black",
+		"power": 1.0,
+		"grip": 1.0,
+		"brakes": 1.0,
+		"drive_front": 0.0,
+		"blurb": "The supercharged muscle hero: 717 hp of blown V8 through the rear tyres, widebody arches, two tonnes. A missile in a straight line, a handful in the bends: feed it the throttle gently."
+	},
+	"physics": {
+		"chassis": "sport",
+		"mass": 2029.0,
+		"front": 0.57,
+		"torque": 889.0,
+		"curve": [[1000, 0.45], [2000, 0.7], [3000, 0.86], [4000, 0.96], [4800, 1.0], [5400, 0.99], [6000, 0.957], [6300, 0.88]],
+		"idle": 750.0,
+		"limiter": 6300.0,
+		"turbo": 0.0,
+		"gears": [4.71, 3.14, 2.1, 1.67, 1.29, 1.0, 0.84, 0.67],
+		"final": 2.62,
+		"drive": "rwd",
+		"rear": ["lsd", 0.35, 0.15, 40.0],
+		"cd": 0.398,
+		"area": 2.35,
+		"down": 0.03,
+		"brake": 1.0
+	},
+	"checks": {
+		"zero_100_max": 8.0
+	},
+	"interior": {
+		"own": true,
+		"camera": true,
+		"notes": "Simple but complete: dash, steering wheel, seats (low-poly); the seller's high-poly interior grafted onto the low-poly exterior. An automatic: the hand stays on the wheel."
+	},
+	"source": {
+		"package": "CGTrader_New_Cars/dodge_challenger_srt_hellcat_widebody_2022 (gltf.zip: Lowpoly.glb + Highpoly.glb interior)",
+		"candidate": 39,
+		"license": "CGTrader Royalty Free License",
+		"url": "https://www.cgtrader.com/3d-models/car/sport-car/dodge-challenger-srt-hellcat-widebody-2022"
+	},
+	"research": [
+		"https://s3.amazonaws.com/chryslermedia.iconicweb.com/mediasite/specs/2022_DG_Challenger_ChallengerSRT_SP.pdf",
+		"https://media.stellantisnorthamerica.com/newsrelease.do?id=24154",
+		"https://blog.consumerguide.com/2018-dodge-challenger-srt-hellcat-widebody/"
+	],
+	"limitations": ["The interior is low-poly (the seats especially)."]
+}

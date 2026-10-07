@@ -1,0 +1,10 @@
+{"id": "hellcat_wb", "front": "-Y", "wheelbase": 2.946,
+ "wheel": ["^[FR] [LR] (Rim|Tire|Axel|Brake Disk)$"],
+ "caliper": ["^[FR] [LR] Brake Caliper$"],
+ "drop": ["^Floor$", "^Light Setup$", "Logo$", "^Rear License Plate$"],
+ "paint": ["^Car Paint$"], "glass": ["^Window Glass$"], "rims": ["^Rim Paint$"],
+ "materials": [["^Window Glass$", "glass"]],
+ "graft": {"file": "Dodge Challenger SRT Hellcat Widebody Highpoly.glb", "parts": ["^Interior$", "^Dashboard$"]},
+ "wheel_faces": 30000, "body_faces": 380000, "tex_max": 2048,
+ "decimate_parts": [["^(Interior|Dashboard)$", 1.0]],
+ "cockpit": {"gearbox": "auto", "wheel": {"box": [-0.65, -0.14, 0.27, 0.50, 0.70, 1.20]}}}

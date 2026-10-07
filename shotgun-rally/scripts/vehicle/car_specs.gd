@@ -34,6 +34,50 @@ const LSD := 2
 ## brakes per kg.
 static var SPECS: Dictionary = VehicleRegistry.physics()
 
+## What kind of car it is underneath ("chassis" in a spec; the rally car's own when
+## absent). travel: m; freq: the ride frequency, x the rally car's (springs x freq²);
+## damp: the dampers on top of that (x freq x damp); arb: the anti-roll bars; mu: the
+## tyres' grip, x the rally tyre's; peak: where their grip peaks (slip), x; loose: how
+## much of their grip they keep off tarmac (slicks on gravel: little); steer: degrees
+## of lock; com: the centre of mass, m below the rally car's. Road cars: soft and
+## long-legged but short of a rally car's travel; sports cars stiffer on stickier
+## tyres; GT3 / DTM cars stiff, low, on slicks; prototypes stiffer still.
+const CHASSIS := {
+	"rally": {},
+	"road": {"travel": 0.17, "freq": 1.0, "damp": 0.9, "arb": 1.3, "mu": 1.0, "peak": 0.95, "loose": 0.85, "steer": 34.0, "com": 0.03},
+	"suv": {"travel": 0.2, "freq": 0.95, "damp": 0.95, "arb": 1.7, "mu": 0.97, "peak": 1.0, "loose": 0.9, "steer": 36.0, "com": -0.08},
+	"sport": {"travel": 0.14, "freq": 1.3, "damp": 1.1, "arb": 1.8, "mu": 1.06, "peak": 0.9, "loose": 0.8, "steer": 33.0, "com": 0.06},
+	"track": {"travel": 0.09, "freq": 2.0, "damp": 1.5, "arb": 2.6, "mu": 1.3, "peak": 0.8, "loose": 0.55, "steer": 27.0, "com": 0.1},
+	"prototype": {"travel": 0.07, "freq": 2.6, "damp": 1.8, "arb": 3.0, "mu": 1.4, "peak": 0.75, "loose": 0.45, "steer": 24.0, "com": 0.13},
+}
+
+
+## A chassis class on a config made from the rally car (in place).
+static func _chassis(c: Resource, kind: String) -> void:
+	var k: Dictionary = CHASSIS.get(kind, {})
+	if k.is_empty():
+		return
+	var f: float = k.freq
+	for sus in [c.front_suspension, c.rear_suspension]:
+		var stop_at: float = sus.bump_stop_start / sus.travel
+		sus.travel = k.travel
+		sus.bump_stop_start = k.travel * stop_at
+		sus.spring_rate = sus.spring_rate * f * f
+		for n in ["bump_damping", "rebound_damping", "high_speed_bump", "high_speed_rebound"]:
+			sus.set(n, float(sus.get(n)) * f * k.damp)
+		sus.anti_roll_rate = sus.anti_roll_rate * k.arb
+		sus.max_force = maxf(sus.max_force, sus.spring_rate * k.travel * 3.0)
+	for t in [c.front_tire, c.rear_tire]:
+		t.lateral_mu = t.lateral_mu * k.mu
+		t.longitudinal_mu = t.longitudinal_mu * k.mu
+		t.lateral_peak_deg = t.lateral_peak_deg * k.peak
+		t.longitudinal_peak = t.longitudinal_peak * k.peak
+		t.loose_grip = t.loose_grip * k.loose
+	if c.steering:
+		c.steering.max_angle_deg = k.steer
+	c.center_of_mass.y -= float(k.get("com", 0.0))
+
+
 ## The rally car (the shared body) at a weight of its own (kg; 0: the rally car's
 ## 1,280): its inertia, springs, dampers, bars, tyre loads and brakes scaled with
 ## the weight, as for the cars above (the same ride frequencies).
@@ -153,6 +197,7 @@ static func config(model: String, mass := 0.0) -> Resource:
 	c.drag_coefficient = s.cd
 	c.frontal_area = s.area
 	c.downforce_area = s.down
+	_chassis(c, str(s.get("chassis", "rally")))      # (before the collision: the ride height depends on it)
 	# collision: the body up to the window line, the cabin above it (the car's frame:
 	# the ground ride_height below its origin)
 	var ground := -_ride_height(c)

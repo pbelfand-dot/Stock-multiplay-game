@@ -57,6 +57,9 @@
 		"down": 0.25,
 		"brake": 1.0
 	},
+	"checks": {
+		"zero_100_max": 6.5
+	},
 	"interior": {
 		"own": true,
 		"camera": true

@@ -47,6 +47,10 @@ const ENGINES := {
 	"na4": {"set": "four", "turbo": 0.0, "sc": 0.0, "anti_lag": false, "pops": 0.0, "bov": false, "whine": 0.15, "bang": false, "tone": "road"},
 	"turbo4": {"set": "four", "turbo": 0.6, "sc": 0.0, "anti_lag": false, "pops": 0.0, "bov": true, "whine": 0.15, "bang": false, "tone": "road"},
 	"rotary": {"set": "v8", "turbo": 0.5, "sc": 0.0, "anti_lag": false, "pops": 0.2, "bov": true, "whine": 0.15, "bang": false, "tone": "rotary"},
+	# American V8s: the V8 loops pitched down to their low revs, the muscle tone's bass;
+	# the supercharged one with its blower's whine on top
+	"v8_sc": {"set": "v8", "turbo": 0.0, "sc": 1.0, "anti_lag": false, "pops": 0.3, "bov": false, "whine": 0.15, "bang": false, "tone": "muscle"},
+	"v8": {"set": "v8", "turbo": 0.0, "sc": 0.0, "anti_lag": false, "pops": 0.25, "bov": false, "whine": 0.15, "bang": false, "tone": "muscle"},
 }
 ## Each tone's EQ (AudioEffectEQ6 bands 32, 100, 320, 1000, 3200, 10000 Hz, dB).
 const TONES := {
@@ -55,6 +59,7 @@ const TONES := {
 	"race": [0.0, -1.0, 1.0, 2.0, 2.0, 0.0],
 	"five": [0.0, 2.0, 2.0, 0.0, 0.0, 0.0],
 	"rotary": [0.0, -2.0, 0.0, 2.0, 2.0, 0.0],
+	"muscle": [3.0, 4.0, 1.5, -1.0, -2.5, -4.0],
 }
 const LIMIT_HZ := 11.0          # the limiter's bounce: cut, fire, cut ...
 

@@ -1,6 +1,7 @@
 extends PanelContainer
-## CARS, the garage. Flick through the cars (◀ ▶): what each costs, how it
-## drives (power, weight, grip, brakes, the drive split), and the one you drive. A car
+## CARS, the garage. Pick a kind of car (ALL, RALLY, JDM, EURO ... : the registry's
+## categories) and flick through them (◀ ▶): what each costs, the real car's numbers,
+## how it drives (power, weight, grip, brakes, the drive split), and the one you drive. A car
 ## you own can be painted (main, accent and stripe colours: free), given a
 ## livery and wheels (bought once, then yours on any car), a race number,
 ## upgrades (engine, tyres, brakes: three steps each), and its tyres and setup
@@ -14,9 +15,14 @@ const UI = preload("res://scripts/ui/ui_kit.gd")
 const Catalog = preload("res://scripts/game/catalog.gd")
 const Profile = preload("res://scripts/game/profile.gd")
 const CarSpecs = preload("res://scripts/vehicle/car_specs.gd")
+const VehicleRegistry = preload("res://scripts/game/vehicle_registry.gd")
+## The garage's tabs: the registry's categories, in this order (those with cars).
+const KINDS := [["", "ALL"], ["rally", "RALLY"], ["jdm", "JDM"], ["euro", "EURO"], ["american", "AMERICAN"],
+	["hyper", "HYPER"], ["race", "RACE"]]
 
 var backdrop
 var _i := 0
+var _kind := ""
 var _tab := "paint"
 var _body: VBoxContainer
 var _note: Label
@@ -37,6 +43,15 @@ func _ready() -> void:
 
 func _car() -> Dictionary:
 	return Catalog.CARS[_i]
+
+
+## The cars on the tab picked (their places in Catalog.CARS).
+func _shown() -> Array:
+	var out := []
+	for k in Catalog.CARS.size():
+		if _kind == "" or str(Catalog.CARS[k].get("category", "")) == _kind:
+			out.append(k)
+	return out
 
 
 func _rebuild() -> void:
@@ -62,6 +77,26 @@ func _rebuild() -> void:
 	head.add_child(name)
 	head.add_child(UI.button("▶", _flip.bind(1), 24, 52))
 	_body.add_child(head)
+	# the kinds of car: a tab each (those the garage has)
+	var kinds := HBoxContainer.new()
+	kinds.add_theme_constant_override("separation", 6)
+	for kd in KINDS:
+		if kd[0] != "" and not Catalog.CARS.any(func(c): return str(c.get("category", "")) == kd[0]):
+			continue
+		var kb := UI.button(kd[1], _pick_kind.bind(kd[0]), 15, 88)
+		if kd[0] == _kind:
+			kb.add_theme_stylebox_override("normal", UI.box(UI.RED, 8, 10))
+		kinds.add_child(kb)
+	_body.add_child(kinds)
+	# the real car's numbers (the registry's researched specs), no badges
+	var e = VehicleRegistry.entry(car.id)
+	var sp: Dictionary = e.get("specs", {}) if e else {}
+	if sp.has("power_hp"):
+		var bits := ["%d hp" % roundi(float(sp.power_hp)), "%s kg" % _money(int(sp.get("weight_kg", 0))), str(sp.get("drivetrain", ""))]
+		if sp.get("transmission"):
+			bits.append(str(sp.transmission).split(" (")[0])
+		var yr = e.get("real", {}).get("year") if e.get("real") else null
+		_body.add_child(UI.label(("%d  ·  " % int(yr) if yr else "") + "  ·  ".join(bits), 16, UI.CREAM))
 	var blurb := UI.label(car.blurb, 17, UI.DIM)
 	blurb.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	blurb.custom_minimum_size = Vector2(676, 0)
@@ -74,8 +109,8 @@ func _rebuild() -> void:
 	stats.columns = 2
 	stats.add_theme_constant_override("h_separation", 22)
 	stats.add_theme_constant_override("v_separation", 6)
-	stats.add_child(UI.stat_bar("POWER", ps / 520.0, "%d PS" % roundi(ps), 150.0))
-	stats.add_child(UI.stat_bar("WEIGHT", (1450.0 - cfg.mass) / 450.0, "%d kg" % roundi(cfg.mass), 150.0))
+	stats.add_child(UI.stat_bar("POWER", sqrt(ps / 1600.0), "%d PS" % roundi(ps), 150.0))
+	stats.add_child(UI.stat_bar("WEIGHT", (2600.0 - cfg.mass) / 1700.0, "%d kg" % roundi(cfg.mass), 150.0))
 	stats.add_child(UI.stat_bar("GRIP", (setup.grip - 0.94) / 0.18, "%+d %%" % roundi((setup.grip - 1.0) * 100.0), 150.0))
 	stats.add_child(UI.stat_bar("BRAKES", (setup.brakes - 0.95) / 0.3, "%+d %%" % roundi((setup.brakes - 1.0) * 100.0), 150.0))
 	var front := roundi(setup.drive_front * 100.0)
@@ -128,7 +163,17 @@ func _rebuild() -> void:
 
 
 func _flip(d: int) -> void:
-	_i = posmod(_i + d, Catalog.CARS.size())
+	var shown := _shown()
+	var at := shown.find(_i)
+	_i = shown[posmod(at + d, shown.size())] if at >= 0 else shown[0]
+	_rebuild()
+
+
+func _pick_kind(kind: String) -> void:
+	_kind = kind
+	var shown := _shown()
+	if not shown.has(_i):
+		_i = shown[0]
 	_rebuild()
 
 

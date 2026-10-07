@@ -194,6 +194,29 @@ else:
         bpy.ops.wm.usd_import(filepath=src)
     else:
         bpy.ops.wm.obj_import(filepath=src)
+# parts taken from another file of the same model ("graft": {"file", "parts"}: its high-detail
+# interior into a lighter exterior, say), in place of the same-named parts here
+if spec.get("graft"):
+    gr = spec["graft"]
+    gpath = gr["file"] if os.path.isabs(gr["file"]) else os.path.join(os.path.dirname(os.path.abspath(src)), gr["file"])
+    before = set(bpy.data.objects)
+    gext = os.path.splitext(gpath)[1].lower()
+    {".fbx": lambda: bpy.ops.import_scene.fbx(filepath=gpath), ".glb": lambda: bpy.ops.import_scene.gltf(filepath=gpath),
+     ".gltf": lambda: bpy.ops.import_scene.gltf(filepath=gpath), ".obj": lambda: bpy.ops.wm.obj_import(filepath=gpath)}[gext]()
+    base = lambda n: re.sub(r"\.\d{3}$", "", n)
+    for o in list(set(bpy.data.objects) - before):
+        if o.type == 'MESH' and matches(base(o.name), gr["parts"]):
+            continue
+        if o.type in ('MESH', 'EMPTY'):          # (an empty may parent the kept parts: kept until parents clear)
+            if o.type == 'MESH':
+                bpy.data.objects.remove(o, do_unlink=True)
+    for o in list(before):
+        if o.type == 'MESH' and matches(o.name, gr["parts"]):
+            bpy.data.objects.remove(o, do_unlink=True)
+    grafted = [o for o in set(bpy.data.objects) - before if o.type == 'MESH']
+    for o in grafted:
+        o.name = base(o.name)
+    print("graft: %s from %s" % (", ".join(sorted(o.name for o in grafted)), os.path.basename(gpath)))
 vl = bpy.context.view_layer
 for o in vl.objects:
     o.hide_set(False)
