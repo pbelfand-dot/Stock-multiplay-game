@@ -60,6 +60,7 @@ func _initialize() -> void:
 	if only in ["", "rules"]: _touge_rules()
 	if only in ["", "ghost"]: _ghost()
 	if only in ["", "game"]:
+		await process_frame                        # (the autoloads in the tree first: Net, Config)
 		await _game("touge")
 		await _ghost_game()
 		await _game("cutup")
@@ -559,13 +560,19 @@ func _game(m: String) -> void:
 	g.use_autopilot = true
 	var t := 0.0
 	var most := 0
+	var stuck := 0.0
 	while g.state != "finished" and t < (60.0 if g.looped else 160.0):
 		await physics_frame
 		t += 1.0 / 120.0
 		if g.traffic:
 			most = maxi(most, g.traffic.count())
+		# (the autopilot doesn't steer round traffic: stuck in a pack, it presses R as a player would)
+		stuck = stuck + 1.0 / 120.0 if g.state == "running" and g.car.kmh() < 5.0 else 0.0
+		if stuck > 3.0:
+			g.reset_car()
+			stuck = 0.0
 	if g.looped:
-		check(g.car_s > g.st.START_S + 300.0, "game: on the loop the run goes on (%.0f m in a minute; no finish)" % (g.car_s - g.st.START_S))
+		check(g.car_s > g.st.START_S + 300.0, "game: on the loop the run goes on (%.0f m in a minute, %d resets; no finish)" % [g.car_s - g.st.START_S, g.resets])
 		g._end_run()                                   # (no finish on a loop: the player ends the run)
 	if m == "cutup":
 		check(g.cutup != null and most > 0, "game: cut up's score and up to %d traffic cars running (score %d, %d near misses, %d crashes)" % [
