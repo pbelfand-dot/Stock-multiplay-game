@@ -1,0 +1,61 @@
+{
+	"id": "hachi",
+	"name": "HACHI 86",
+	"order": 70,
+	"model": "ae86",
+	"category": "jdm",
+	"role": "drift",
+	"real": {
+		"manufacturer": "Toyota",
+		"model": "Sprinter Trueno",
+		"year": 1983,
+		"trim": "AE86 GT-APEX (zenki)"
+	},
+	"specs": {
+		"power_hp": 118,
+		"weight_kg": 940,
+		"drivetrain": "RWD",
+		"transmission": "5-speed manual (T50)",
+		"wheelbase_mm": 2400,
+		"notes": "Sprinter Trueno GT-APEX (AE86, zenki, 1983-85 JDM): 940 kg; 4A-GEU, 130 PS at 6,600 and 149 N m at 5,200 in the catalogue (the old JIS gross way), 120 PS / 142 N m net, the way the others are rated: net here; 7,500 rpm; T50 3.587/2.022/1.384/1.000/0.861, final 4.300; open diff (an LSD was an option: a mild one here); the ~53/47 split is an estimate"
+	},
+	"garage": {
+		"price": 4000,
+		"engine_sound": "na4",
+		"livery": "plain",
+		"number": 86,
+		"colours": [[0.95, 0.95, 0.94], [0.07, 0.07, 0.08], [0.78, 0.1, 0.08], [0.95, 0.95, 0.94]],
+		"wheels": "silver",
+		"power": 1.0,
+		"grip": 1.0,
+		"brakes": 1.0,
+		"drive_front": 0.0,
+		"blurb": "The little 80s rear-drive coupe the mountain passes made famous: light, a twin-cam that loves the top end, white over black."
+	},
+	"physics": {
+		"mass": 940.0,
+		"front": 0.53,
+		"torque": 142.0,
+		"curve": [[1000, 0.6], [2000, 0.72], [3000, 0.82], [4000, 0.92], [5200, 1.0], [6000, 0.98], [6600, 0.9], [7200, 0.8], [7600, 0.72]],
+		"idle": 800.0,
+		"limiter": 7600.0,
+		"turbo": 0.0,
+		"gears": [3.587, 2.022, 1.384, 1.0, 0.861],
+		"final": 4.3,
+		"drive": "rwd",
+		"rear": ["lsd", 0.25, 0.1, 15.0],
+		"cd": 0.35,
+		"area": 1.75,
+		"down": 0.0,
+		"brake": 0.75
+	},
+	"interior": {
+		"own": true,
+		"camera": true
+	},
+	"source": {
+		"package": "toyota-ae86-sprinter-trueno-zenki.zip",
+		"candidate": 10
+	},
+	"research": ["toyota-global.com (75 years, vehicle lineage)", "kurumaerabi.com catalogue", "ateupwithmotor.com", "aeu86.org"]
+}

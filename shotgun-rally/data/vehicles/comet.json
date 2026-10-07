@@ -1,0 +1,37 @@
+{
+	"id": "comet",
+	"name": "BLUE COMET WRC",
+	"order": 20,
+	"model": "",
+	"category": "rally",
+	"role": "rally",
+	"specs": {
+		"power_hp": 300,
+		"weight_kg": 1230,
+		"drivetrain": "AWD",
+		"transmission": "6-speed sequential",
+		"notes": "Fictional 1997-2010 World Rally Car look-alike on the shared body."
+	},
+	"garage": {
+		"price": 12000,
+		"engine_sound": "wrc",
+		"livery": "comet",
+		"number": 5,
+		"colours": [[0.07, 0.2, 0.6], [1.0, 0.8, 0.1], [0.95, 0.95, 0.95], [1.0, 0.8, 0.1]],
+		"wheels": "gold",
+		"power": 1.08,
+		"grip": 1.05,
+		"brakes": 1.05,
+		"drive_front": 0.53,
+		"blurb": "Blue and gold, gold wheels, a boxer burble. Planted and precise: the 90s world champion's look.",
+		"mass": 1230.0
+	},
+	"interior": {
+		"own": false,
+		"camera": true
+	},
+	"source": {
+		"package": "Higgsfield generation (the game's own)",
+		"license": "the owner's"
+	}
+}

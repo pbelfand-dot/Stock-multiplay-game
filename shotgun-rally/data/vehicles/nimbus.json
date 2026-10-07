@@ -1,0 +1,61 @@
+{
+	"id": "nimbus",
+	"name": "NIMBUS EG",
+	"order": 50,
+	"model": "civic_eg",
+	"category": "jdm",
+	"role": "touge_grip",
+	"real": {
+		"manufacturer": "Honda",
+		"model": "Civic SiR-II",
+		"year": 1992,
+		"trim": "EG6 (JDM)"
+	},
+	"specs": {
+		"power_hp": 168,
+		"weight_kg": 1050,
+		"drivetrain": "FWD",
+		"transmission": "5-speed manual",
+		"wheelbase_mm": 2570,
+		"notes": "SiR II (EG6, 1992 JDM): 1,050 kg; B16A, 170 PS at 7,800, 157 N m at 7,300, 8,200 rpm (VTEC's cam change ~5,600); 3.230/2.105/1.458/1.107/0.848, final 4.400"
+	},
+	"garage": {
+		"price": 5000,
+		"engine_sound": "na4",
+		"livery": "plain",
+		"number": 16,
+		"colours": [[0.72, 0.08, 0.08], [0.95, 0.95, 0.94], [0.07, 0.07, 0.08], [0.95, 0.95, 0.94]],
+		"wheels": "silver",
+		"power": 1.0,
+		"grip": 1.0,
+		"brakes": 1.0,
+		"drive_front": 1.0,
+		"blurb": "A light early-90s hatch with a twin-cam that sings to 8,000 rpm. Front-drive, cheap, quick: it pulls you out of every hairpin."
+	},
+	"physics": {
+		"mass": 1050.0,
+		"front": 0.61,
+		"torque": 157.0,
+		"curve": [[1000, 0.6], [2000, 0.72], [3000, 0.8], [4000, 0.85], [5000, 0.87], [5600, 0.93], [6500, 0.98], [7300, 1.0], [8000, 0.95], [8200, 0.92]],
+		"idle": 750.0,
+		"limiter": 8200.0,
+		"turbo": 0.0,
+		"gears": [3.23, 2.105, 1.458, 1.107, 0.848],
+		"final": 4.4,
+		"drive": "fwd",
+		"front_diff": ["open", 0.0, 0.0, 0.0],
+		"cd": 0.32,
+		"area": 1.85,
+		"down": 0.0,
+		"brake": 0.8
+	},
+	"interior": {
+		"own": true,
+		"camera": true
+	},
+	"source": {
+		"package": "1992-honda-civic-sir-ii-eg.zip",
+		"candidate": 2
+	},
+	"research": ["honda.co.jp factbook (CIVIC 1991-09)", "221616.com catalogue", "carfromjapan.com specs"]
+}

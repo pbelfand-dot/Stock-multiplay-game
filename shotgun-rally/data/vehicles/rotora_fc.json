@@ -1,0 +1,64 @@
+{
+	"id": "rotora_fc",
+	"name": "ROTORA FC",
+	"order": 60,
+	"model": "rx7_fc",
+	"category": "jdm",
+	"role": "drift",
+	"real": {
+		"manufacturer": "Mazda",
+		"model": "RX-7",
+		"year": 1989,
+		"trim": "FC3S Turbo II GT-X (JDM)"
+	},
+	"specs": {
+		"power_hp": 202,
+		"weight_kg": 1250,
+		"drivetrain": "RWD",
+		"transmission": "5-speed manual",
+		"notes": "Turbo II (13B-T), the 1989-91 JDM GT-X: 1,250 kg; 205 PS at 6,500, 270 N m at 3,500; 3.483/2.015/1.391/1.000/0.762, final 4.100; an LSD"
+	},
+	"garage": {
+		"price": 8000,
+		"engine_sound": "rotary",
+		"livery": "plain",
+		"number": 13,
+		"colours": [[0.93, 0.93, 0.92], [0.07, 0.07, 0.08], [0.78, 0.1, 0.08], [0.93, 0.93, 0.92]],
+		"wheels": "silver",
+		"power": 1.0,
+		"grip": 1.0,
+		"brakes": 1.0,
+		"drive_front": 0.0,
+		"blurb": "The 80s rotary coupe: a turbo two-rotor, rear-drive, balanced near 50/50. The mountain-pass drifter's first love."
+	},
+	"physics": {
+		"mass": 1250.0,
+		"front": 0.505,
+		"torque": 270.0,
+		"curve": [[1000, 0.45], [2000, 0.7], [3000, 0.95], [3500, 1.0], [4500, 0.97], [5500, 0.9], [6500, 0.82], [7000, 0.72]],
+		"idle": 800.0,
+		"limiter": 7000.0,
+		"turbo": 0.4,
+		"spool": [2000.0, 3200.0],
+		"spool_time": 0.45,
+		"anti_lag": false,
+		"gears": [3.483, 2.015, 1.391, 1.0, 0.762],
+		"final": 4.1,
+		"drive": "rwd",
+		"rear": ["lsd", 0.35, 0.2, 30.0],
+		"cd": 0.31,
+		"area": 1.78,
+		"down": 0.0,
+		"brake": 0.85
+	},
+	"interior": {
+		"own": false,
+		"camera": true
+	},
+	"source": {
+		"package": "mazda-rx-7-fc.zip",
+		"candidate": 8
+	},
+	"research": ["carfromjapan.com (GT-X)", "jdmbuysell FC3S guide", "rx7.com drivetrain"],
+	"limitations": ["Its interior is too rough to sit in: the game's rally cockpit is used."]
+}

@@ -3,3 +3,7 @@
 /export/
 *.tmp
 __pycache__/
+
+# restored car sources (tools/restore_car_assets.py) and the converter scratch: never committed
+/assets/cars_restored/
+/assets/cars_work/

@@ -19,6 +19,8 @@ run_g() {
   [ $rc -eq 124 ] || [ $rc -eq 137 ] && echo "timed out after ${limit} s: godot $*" >> "$T/timeouts.log"
   return $rc
 }
+echo "== the vehicle registry: every entry well formed, its model there, no race car in traffic"
+python3 tools/vehicle_registry.py check || fail=1
 echo "== compile check"
 run_g 180 --headless --path . -s tests/check_scripts.gd 2>&1 | grep -E "checked|COMPILE FAIL" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
 echo "== stages: 20 seeds, deterministic, no crossings, every corner has a note, wooden bridges; tarmac and mixed stages"

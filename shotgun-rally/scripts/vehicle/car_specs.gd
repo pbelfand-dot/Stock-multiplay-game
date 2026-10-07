@@ -18,91 +18,21 @@ extends RefCounted
 const BASE := "res://data/cars/awd_rally.tres"
 const MODELS := "res://assets/models/cars/"
 const DifferentialConfig = preload("res://scripts/vehicle/physics/config/differential_config.gd")
+const VehicleRegistry = preload("res://scripts/game/vehicle_registry.gd")
 const OPEN := 0
 const LOCKED := 1
 const LSD := 2
 
-## Per model. mass: kg; front: the share of the weight on the front axle;
-## torque: N m at the peak of the curve (rpm, x the peak); limiter, idle: rpm;
-## turbo: the share of the torque that's boost (0: none), spooling from / to rpm;
-## gears, final: the ratios; drive: "awd" (front: the share forward), "rwd", "fwd";
-## centre / front / rear: diffs [kind, power lock, coast lock, preload N m];
-## cd, area (m²), down (m² of downforce, x the rally car's way of working it out);
-## brake: x the rally car's brakes per kg.
-const SPECS := {
-	# the Prodrive Group A rally car (1987): 1,050 kg; 280-300 hp at 8,400 rpm, 285 N m at 6,500;
-	# the Getrag five-speed (road ratios; the rally final drive isn't published: a short one)
-	"e30": {"mass": 1050.0, "front": 0.50, "torque": 285.0,
-		"curve": [[1000, 0.5], [2000, 0.6], [3000, 0.7], [4000, 0.8], [5000, 0.9], [6000, 0.98], [6500, 1.0], [7500, 0.95], [8400, 0.86], [8800, 0.78]],
-		"idle": 950.0, "limiter": 8800.0, "turbo": 0.0,
-		"gears": [3.72, 2.40, 1.77, 1.26, 1.0], "final": 4.10, "drive": "rwd",
-		"rear": [LSD, 0.45, 0.25, 40.0], "cd": 0.33, "area": 1.85, "down": 0.1, "brake": 1.0},
-	# the Group B rally car (1984-85): 1,100 kg, 52/48; 450 hp at 7,500, 460 N m at 5,500 (a big
-	# turbo: lag); five-speed 3.500/2.083/1.368/0.962/0.821; the centre diff locked, LSDs front and rear
-	"sport_quattro": {"mass": 1100.0, "front": 0.52, "torque": 460.0,
-		"curve": [[1000, 0.28], [2000, 0.36], [3000, 0.55], [4000, 0.8], [5000, 0.97], [5500, 1.0], [6500, 0.97], [7500, 0.93], [8000, 0.85]],
-		"idle": 1000.0, "limiter": 8000.0, "turbo": 0.55, "spool": [3200.0, 4800.0], "spool_time": 0.6, "anti_lag": false,
-		"gears": [3.5, 2.083, 1.368, 0.962, 0.821], "final": 4.857, "drive": "awd", "front_share": 0.5,
-		"centre": [LOCKED, 0.0, 0.0, 0.0], "front_diff": [LSD, 0.25, 0.1, 25.0], "rear": [LSD, 0.45, 0.15, 30.0],
-		"cd": 0.42, "area": 1.95, "down": 0.25, "brake": 1.0},
-	# Rally1 (2022-24): 1,260 kg; ~380 hp, 420 N m from the engine, 500+ with the hybrid's boosts
-	# (not modelled: a little more torque instead); a spool (fixed 50/50), LSDs front and rear;
-	# a five-speed sequential (ratios not published)
-	"puma_rally1": {"mass": 1260.0, "front": 0.55, "torque": 450.0,
-		"curve": [[1000, 0.35], [2000, 0.62], [3000, 0.9], [4000, 1.0], [5000, 1.0], [6000, 1.0], [7000, 0.85], [7600, 0.75]],
-		"idle": 1000.0, "limiter": 7600.0, "turbo": 0.35, "spool": [2200.0, 3600.0], "spool_time": 0.3, "anti_lag": true,
-		"gears": [2.85, 2.0, 1.56, 1.26, 1.04], "final": 4.4, "drive": "awd", "front_share": 0.5,
-		"centre": [LOCKED, 0.0, 0.0, 0.0], "front_diff": [LSD, 0.25, 0.1, 25.0], "rear": [LSD, 0.45, 0.12, 30.0],
-		"cd": 0.42, "area": 2.15, "down": 0.75, "brake": 1.05},
-	# Turbo II (13B-T), the 1989-91 JDM GT-X: 1,250 kg; 205 PS at 6,500, 270 N m at 3,500;
-	# 3.483/2.015/1.391/1.000/0.762, final 4.100; an LSD
-	"rx7_fc": {"mass": 1250.0, "front": 0.505, "torque": 270.0,
-		"curve": [[1000, 0.45], [2000, 0.7], [3000, 0.95], [3500, 1.0], [4500, 0.97], [5500, 0.9], [6500, 0.82], [7000, 0.72]],
-		"idle": 800.0, "limiter": 7000.0, "turbo": 0.4, "spool": [2000.0, 3200.0], "spool_time": 0.45, "anti_lag": false,
-		"gears": [3.483, 2.015, 1.391, 1.0, 0.762], "final": 4.10, "drive": "rwd",
-		"rear": [LSD, 0.35, 0.2, 30.0], "cd": 0.31, "area": 1.78, "down": 0.0, "brake": 0.85},
-	# Type R (1992-95 JDM): 1,260 kg, 50/50; 255 PS at 6,500, 294 N m at 5,000 (sequential twin
-	# turbos), 8,000 rpm; 3.483/2.015/1.391/1.000/0.719, final 4.100; a Torsen LSD
-	"rx7_fd": {"mass": 1260.0, "front": 0.50, "torque": 294.0,
-		"curve": [[1000, 0.45], [2000, 0.62], [3000, 0.83], [4000, 0.95], [5000, 1.0], [6000, 0.97], [6500, 0.94], [7200, 0.83], [8000, 0.7]],
-		"idle": 800.0, "limiter": 8000.0, "turbo": 0.4, "spool": [1800.0, 4500.0], "spool_time": 0.4, "anti_lag": false,
-		"gears": [3.483, 2.015, 1.391, 1.0, 0.719], "final": 4.10, "drive": "rwd",
-		"rear": [LSD, 0.4, 0.2, 30.0], "cd": 0.31, "area": 1.75, "down": 0.05, "brake": 0.9},
-	# SiR II (EG6, 1992 JDM): 1,050 kg; B16A, 170 PS at 7,800, 157 N m at 7,300, 8,200 rpm
-	# (VTEC's cam change ~5,600); 3.230/2.105/1.458/1.107/0.848, final 4.400
-	"civic_eg": {"mass": 1050.0, "front": 0.61, "torque": 157.0,
-		"curve": [[1000, 0.6], [2000, 0.72], [3000, 0.8], [4000, 0.85], [5000, 0.87], [5600, 0.93], [6500, 0.98], [7300, 1.0], [8000, 0.95], [8200, 0.92]],
-		"idle": 750.0, "limiter": 8200.0, "turbo": 0.0,
-		"gears": [3.230, 2.105, 1.458, 1.107, 0.848], "final": 4.40, "drive": "fwd",
-		"front_diff": [OPEN, 0.0, 0.0, 0.0], "cd": 0.32, "area": 1.85, "down": 0.0, "brake": 0.8},
-	# Sprinter Trueno GT-APEX (AE86, zenki, 1983-85 JDM): 940 kg; 4A-GEU, 130 PS at 6,600 and 149 N m
-	# at 5,200 in the catalogue (the old JIS gross way), 120 PS / 142 N m net, the way the others are
-	# rated: net here; 7,500 rpm; T50 3.587/2.022/1.384/1.000/0.861, final 4.300; open diff (an LSD
-	# was an option: a mild one here); the ~53/47 split is an estimate
-	"ae86": {"mass": 940.0, "front": 0.53, "torque": 142.0,
-		"curve": [[1000, 0.6], [2000, 0.72], [3000, 0.82], [4000, 0.92], [5200, 1.0], [6000, 0.98], [6600, 0.9], [7200, 0.8], [7600, 0.72]],
-		"idle": 800.0, "limiter": 7600.0, "turbo": 0.0,
-		"gears": [3.587, 2.022, 1.384, 1.0, 0.861], "final": 4.30, "drive": "rwd",
-		"rear": [LSD, 0.25, 0.1, 15.0], "cd": 0.35, "area": 1.75, "down": 0.0, "brake": 0.75},
-	# Silvia Spec-R (S15, 1999-2002 JDM): 1,240 kg; SR20DET, 250 PS at 6,400, 275 N m at 4,800,
-	# 7,500 rpm; Aisin AZ6 six-speed 3.626/2.200/1.541/1.213/1.000/0.767, final 3.692; a helical
-	# LSD as standard; the ~55/45 split is an estimate
-	"s15": {"mass": 1240.0, "front": 0.55, "torque": 275.0,
-		"curve": [[1000, 0.4], [2000, 0.6], [3000, 0.85], [4000, 0.97], [4800, 1.0], [5600, 1.0], [6400, 0.99], [7000, 0.88], [7500, 0.78]],
-		"idle": 800.0, "limiter": 7500.0, "turbo": 0.45, "spool": [2400.0, 3800.0], "spool_time": 0.4, "anti_lag": false,
-		"gears": [3.626, 2.2, 1.541, 1.213, 1.0, 0.767], "final": 3.692, "drive": "rwd",
-		"rear": [LSD, 0.35, 0.1, 10.0], "cd": 0.3, "area": 1.85, "down": 0.0, "brake": 0.9},
-	# the Group A works car (HF Integrale Evoluzione, 1992): 1,100 kg (the class minimum); a 38 mm
-	# restrictor: 300+ hp at 6,000, 420+ N m at 4,500; a six-speed (ratios not published: estimates);
-	# 45/55 front/rear through a viscous centre, LSDs front and rear; nose-heavy (the split is an
-	# estimate). Anti-lag isn't confirmed for it: none here
-	"delta_evo2": {"mass": 1100.0, "front": 0.57, "torque": 430.0,
-		"curve": [[1000, 0.3], [2000, 0.5], [3000, 0.78], [4000, 0.95], [4500, 1.0], [5000, 0.98], [5500, 0.93], [6000, 0.86], [6500, 0.76], [7000, 0.66]],
-		"idle": 1000.0, "limiter": 7000.0, "turbo": 0.45, "spool": [2600.0, 4000.0], "spool_time": 0.4, "anti_lag": false,
-		"gears": [3.0, 2.15, 1.7, 1.39, 1.16, 0.99], "final": 4.4, "drive": "awd", "front_share": 0.45,
-		"centre": [LSD, 0.3, 0.3, 30.0], "front_diff": [LSD, 0.2, 0.1, 20.0], "rear": [LSD, 0.5, 0.25, 40.0],
-		"cd": 0.39, "area": 2.0, "down": 0.2, "brake": 1.0},
-}
+## Per model, from the vehicle registry (data/vehicles/<id>.json "physics": the real
+## car's numbers and where they come from are in each entry's "specs"). mass: kg;
+## front: the share of the weight on the front axle; torque: N m at the peak of the
+## curve (rpm, x the peak); limiter, idle: rpm; turbo: the share of the torque
+## that's boost (0: none), spooling from / to rpm; gears, final: the ratios; drive:
+## "awd" (front_share: the share forward), "rwd", "fwd"; centre / front_diff / rear:
+## diffs [kind, power lock, coast lock, preload N m]; cd, area (m²), down (m² of
+## downforce, x the rally car's way of working it out); brake: x the rally car's
+## brakes per kg.
+static var SPECS: Dictionary = VehicleRegistry.physics()
 
 ## The rally car (the shared body) at a weight of its own (kg; 0: the rally car's
 ## 1,280): its inertia, springs, dampers, bars, tyre loads and brakes scaled with

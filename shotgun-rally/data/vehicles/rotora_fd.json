@@ -1,0 +1,66 @@
+{
+	"id": "rotora_fd",
+	"name": "ROTORA FD",
+	"order": 100,
+	"model": "rx7_fd",
+	"category": "jdm",
+	"role": "touge_grip",
+	"real": {
+		"manufacturer": "Mazda",
+		"model": "RX-7",
+		"year": 1992,
+		"trim": "FD3S Type R (JDM)"
+	},
+	"specs": {
+		"power_hp": 252,
+		"weight_kg": 1260,
+		"drivetrain": "RWD",
+		"transmission": "5-speed manual",
+		"wheelbase_mm": 2425,
+		"front_weight": 0.5,
+		"notes": "Type R (1992-95 JDM): 1,260 kg, 50/50; 255 PS at 6,500, 294 N m at 5,000 (sequential twin turbos), 8,000 rpm; 3.483/2.015/1.391/1.000/0.719, final 4.100; a Torsen LSD"
+	},
+	"garage": {
+		"price": 16000,
+		"engine_sound": "rotary",
+		"livery": "plain",
+		"number": 7,
+		"colours": [[1.0, 0.76, 0.06], [0.07, 0.07, 0.08], [0.95, 0.95, 0.94], [1.0, 0.76, 0.06]],
+		"wheels": "silver",
+		"power": 1.0,
+		"grip": 1.0,
+		"brakes": 1.0,
+		"drive_front": 0.0,
+		"blurb": "The 90s rotary legend: twin turbos, perfect balance, sharp as a knife. Rear-drive, and it revs to eight thousand."
+	},
+	"physics": {
+		"mass": 1260.0,
+		"front": 0.5,
+		"torque": 294.0,
+		"curve": [[1000, 0.45], [2000, 0.62], [3000, 0.83], [4000, 0.95], [5000, 1.0], [6000, 0.97], [6500, 0.94], [7200, 0.83], [8000, 0.7]],
+		"idle": 800.0,
+		"limiter": 8000.0,
+		"turbo": 0.4,
+		"spool": [1800.0, 4500.0],
+		"spool_time": 0.4,
+		"anti_lag": false,
+		"gears": [3.483, 2.015, 1.391, 1.0, 0.719],
+		"final": 4.1,
+		"drive": "rwd",
+		"rear": ["lsd", 0.4, 0.2, 30.0],
+		"cd": 0.31,
+		"area": 1.75,
+		"down": 0.05,
+		"brake": 0.9
+	},
+	"interior": {
+		"own": false,
+		"camera": true
+	},
+	"source": {
+		"package": "mazda-rx-7-fd.zip",
+		"candidate": 9
+	},
+	"research": ["automobile-catalog.com (Efini RX-7 Type R)", "carfromjapan.com", "encycarpedia"],
+	"limitations": ["Its interior is too rough to sit in: the game's rally cockpit is used."]
+}

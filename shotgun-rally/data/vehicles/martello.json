@@ -1,0 +1,37 @@
+{
+	"id": "martello",
+	"name": "MARTELLO 037",
+	"order": 40,
+	"model": "",
+	"category": "rally",
+	"role": "rally",
+	"specs": {
+		"power_hp": 325,
+		"weight_kg": 960,
+		"drivetrain": "RWD",
+		"transmission": "5-speed",
+		"notes": "Fictional Group B rear-drive look-alike on the shared body."
+	},
+	"garage": {
+		"price": 26000,
+		"engine_sound": "sc4",
+		"livery": "martello",
+		"number": 1,
+		"colours": [[0.96, 0.96, 0.94], [0.06, 0.13, 0.38], [0.3, 0.62, 0.9], [0.85, 0.1, 0.08]],
+		"wheels": "white",
+		"power": 1.2,
+		"grip": 0.97,
+		"brakes": 1.05,
+		"drive_front": 0.15,
+		"blurb": "The last great rear-drive rally car, in white with navy, sky blue and red stripes. Wild.",
+		"mass": 960.0
+	},
+	"interior": {
+		"own": false,
+		"camera": true
+	},
+	"source": {
+		"package": "Higgsfield generation (the game's own)",
+		"license": "the owner's"
+	}
+}

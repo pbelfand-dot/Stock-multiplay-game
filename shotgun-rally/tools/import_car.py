@@ -1,4 +1,4 @@
-"""Turns a car model (OBJ, FBX or .blend) into a game car: one GLB with a Body,
+"""Turns a car model (GLB/glTF, FBX, OBJ, Collada .dae, USD/USDZ or .blend) into a game car: one GLB with a Body,
 four wheels and their calipers, plus parts.json (where the wheels are, how big,
 where the paint and the windows are). Run with headless Blender, its scripts
 off (a .blend can carry Python):
@@ -183,8 +183,15 @@ if src.lower().endswith(".blend"):
     bpy.ops.wm.open_mainfile(filepath=src, load_ui=False)
 else:
     bpy.ops.wm.read_factory_settings(use_empty=True)
-    if src.lower().endswith(".fbx"):
+    ext = os.path.splitext(src)[1].lower()
+    if ext == ".fbx":
         bpy.ops.import_scene.fbx(filepath=src)
+    elif ext in (".glb", ".gltf"):
+        bpy.ops.import_scene.gltf(filepath=src)
+    elif ext == ".dae":
+        bpy.ops.wm.collada_import(filepath=src)
+    elif ext in (".usd", ".usdz", ".usda", ".usdc"):
+        bpy.ops.wm.usd_import(filepath=src)
     else:
         bpy.ops.wm.obj_import(filepath=src)
 vl = bpy.context.view_layer

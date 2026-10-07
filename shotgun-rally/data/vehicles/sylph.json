@@ -1,0 +1,64 @@
+{
+	"id": "sylph",
+	"name": "SYLPH S15",
+	"order": 80,
+	"model": "s15",
+	"category": "jdm",
+	"role": "drift",
+	"real": {
+		"manufacturer": "Nissan",
+		"model": "Silvia",
+		"year": 1999,
+		"trim": "S15 Spec-R (widebody kit)"
+	},
+	"specs": {
+		"power_hp": 247,
+		"weight_kg": 1240,
+		"drivetrain": "RWD",
+		"transmission": "6-speed manual (Aisin AZ6)",
+		"wheelbase_mm": 2525,
+		"notes": "Silvia Spec-R (S15, 1999-2002 JDM): 1,240 kg; SR20DET, 250 PS at 6,400, 275 N m at 4,800, 7,500 rpm; Aisin AZ6 six-speed 3.626/2.200/1.541/1.213/1.000/0.767, final 3.692; a helical LSD as standard; the ~55/45 split is an estimate"
+	},
+	"garage": {
+		"price": 11000,
+		"engine_sound": "turbo4",
+		"livery": "plain",
+		"number": 15,
+		"colours": [[0.12, 0.32, 0.72], [0.95, 0.95, 0.94], [0.07, 0.07, 0.08], [0.95, 0.95, 0.94]],
+		"wheels": "silver",
+		"power": 1.0,
+		"grip": 1.0,
+		"brakes": 1.0,
+		"drive_front": 0.0,
+		"blurb": "The last of the turbo drift coupes, here on a widebody kit: rear-drive, a six-speed, a turbo four that pulls from the middle."
+	},
+	"physics": {
+		"mass": 1240.0,
+		"front": 0.55,
+		"torque": 275.0,
+		"curve": [[1000, 0.4], [2000, 0.6], [3000, 0.85], [4000, 0.97], [4800, 1.0], [5600, 1.0], [6400, 0.99], [7000, 0.88], [7500, 0.78]],
+		"idle": 800.0,
+		"limiter": 7500.0,
+		"turbo": 0.45,
+		"spool": [2400.0, 3800.0],
+		"spool_time": 0.4,
+		"anti_lag": false,
+		"gears": [3.626, 2.2, 1.541, 1.213, 1.0, 0.767],
+		"final": 3.692,
+		"drive": "rwd",
+		"rear": ["lsd", 0.35, 0.1, 10.0],
+		"cd": 0.3,
+		"area": 1.85,
+		"down": 0.0,
+		"brake": 0.9
+	},
+	"interior": {
+		"own": true,
+		"camera": true
+	},
+	"source": {
+		"package": "nissan-silvia-s15-india-spec-200sx.zip",
+		"candidate": 7
+	},
+	"research": ["goo-net.com catalogue", "221616.com catalogue", "supercars.net", "jdmbuysell.com"]
+}

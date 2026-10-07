@@ -1,0 +1,69 @@
+{
+	"id": "ocelot",
+	"name": "OCELOT R1",
+	"order": 130,
+	"model": "puma_rally1",
+	"category": "rally",
+	"role": "rally",
+	"real": {
+		"manufacturer": "Ford",
+		"model": "Puma Rally1",
+		"year": 2022,
+		"trim": "M-Sport Rally1 hybrid",
+		"race_class": "WRC Rally1"
+	},
+	"specs": {
+		"power_hp": 375,
+		"weight_kg": 1260,
+		"drivetrain": "AWD",
+		"transmission": "5-speed sequential",
+		"wheelbase_mm": 2600,
+		"notes": "Rally1 (2022-24): 1,260 kg; ~380 hp, 420 N m from the engine, 500+ with the hybrid's boosts (not modelled: a little more torque instead); a spool (fixed 50/50), LSDs front and rear; a five-speed sequential (ratios not published)"
+	},
+	"garage": {
+		"price": 40000,
+		"engine_sound": "wrc",
+		"livery": "two_tone",
+		"number": 8,
+		"colours": [[0.05, 0.16, 0.45], [0.95, 0.95, 0.94], [0.95, 0.42, 0.06], [0.95, 0.95, 0.94]],
+		"wheels": "white",
+		"power": 1.0,
+		"grip": 1.0,
+		"brakes": 1.0,
+		"drive_front": 0.5,
+		"blurb": "Today's top-class rally car: a turbo, a huge wing, long travel and real downforce. The fastest thing in the garage."
+	},
+	"physics": {
+		"mass": 1260.0,
+		"front": 0.55,
+		"torque": 450.0,
+		"curve": [[1000, 0.35], [2000, 0.62], [3000, 0.9], [4000, 1.0], [5000, 1.0], [6000, 1.0], [7000, 0.85], [7600, 0.75]],
+		"idle": 1000.0,
+		"limiter": 7600.0,
+		"turbo": 0.35,
+		"spool": [2200.0, 3600.0],
+		"spool_time": 0.3,
+		"anti_lag": true,
+		"gears": [2.85, 2.0, 1.56, 1.26, 1.04],
+		"final": 4.4,
+		"drive": "awd",
+		"front_share": 0.5,
+		"centre": ["locked", 0.0, 0.0, 0.0],
+		"front_diff": ["lsd", 0.25, 0.1, 25.0],
+		"rear": ["lsd", 0.45, 0.12, 30.0],
+		"cd": 0.42,
+		"area": 2.15,
+		"down": 0.75,
+		"brake": 1.05
+	},
+	"interior": {
+		"own": true,
+		"camera": true
+	},
+	"source": {
+		"package": "2021-ford-puma-rally1.zip",
+		"candidate": 14
+	},
+	"research": ["media.ford.com (2022 Rally1 launch)", "fia.com", "juwra.com"],
+	"limitations": ["The hybrid boost isn't modelled: a little more torque stands in for it."]
+}
