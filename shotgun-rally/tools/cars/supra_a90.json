@@ -1,0 +1,8 @@
+{"id": "supra_a90", "front": "-Y", "wheelbase": 2.47,
+ "wheel": ["^Wheel\\.(Ft|Bk)\\.[LR]$"], "caliper": ["^WheelBrake\\."],
+ "drop": ["^Badge$"], "drop_mats": ["^Badges$"],
+ "paint": ["^Supra_body_paint$"], "glass": ["^Window$"],
+ "materials": [["^Window$", "glass"], ["^Monitor$", {"texture": "monitor.png", "rough": 0.3, "emit": [0.05, 0.05, 0.06]}], ["^Screen$", {"texture": "screen.png", "rough": 0.3}]],
+ "wheel_faces": 12000, "body_faces": 230000, "tex_max": 1024, "tex_format": "webp",
+ "decimate_parts": [["^(Dash|Seat\\.[LR])$", 0.6]],
+ "cockpit": {"gearbox": "auto", "wheel": {"parts": ["^Steer$"]}}}

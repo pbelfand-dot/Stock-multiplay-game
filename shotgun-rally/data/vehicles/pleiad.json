@@ -1,0 +1,87 @@
+{
+	"id": "pleiad",
+	"name": "PLEIAD 22",
+	"order": 150,
+	"model": "impreza_22b",
+	"category": "jdm",
+	"role": "touge_grip",
+	"real": {
+		"manufacturer": "Subaru (STI)",
+		"model": "Impreza 22B-STi Version (E-GC8 kai)",
+		"year": 1998,
+		"trim": "22B STi Version, 2-door coupe, 5MT, limited to 400 units (JDM)"
+	},
+	"specs": {
+		"power_hp": 276,
+		"weight_kg": 1270,
+		"drivetrain": "AWD",
+		"transmission": "manual, close-ratio",
+		"wheelbase_mm": 2520,
+		"notes": "EJ22G: 280 PS (276 hp) at 6,000 rpm, 363 N m at 3,200; 1,270 kg; centre diff ~36:64 (driver-adjustable DCCD); 5-speed 3.083/2.062/1.545/1.151/0.825, final 4.444 (the Japanese catalogue: 3.416 is reverse). Power, torque, weight, wheelbase and the DCCD come from STI's official page. Gear ratios, reverse and final drive come from the goo-net catalogue spec sheet. Several English sites (supercars.net, monkeymotor) list the final drive as 3.416, but 3.416 is the reverse ratio; the catalogue final drive is"
+	},
+	"garage": {
+		"price": 24000,
+		"engine_sound": "turbo4",
+		"livery": "plain",
+		"number": 22,
+		"colours": [[0.07, 0.2, 0.6], [0.95, 0.95, 0.94], [0.07, 0.07, 0.08], [0.95, 0.72, 0.18]],
+		"wheels": "gold",
+		"power": 1.0,
+		"grip": 1.0,
+		"brakes": 1.0,
+		"drive_front": 0.36,
+		"blurb": "The widebody homologation special: a 2.2 turbo flat-four, wide arches, gold wheels and four-wheel drive that drags you out of every hairpin. Only 400 were made."
+	},
+	"physics": {
+		"chassis": "sport",
+		"mass": 1270.0,
+		"front": 0.58,
+		"torque": 363.0,
+		"curve": [[1000, 0.38], [1770, 0.721], [2540, 0.926], [3200, 1.0], [4180, 1.0], [6000, 0.903], [7000, 0.708]],
+		"idle": 850.0,
+		"limiter": 7000.0,
+		"turbo": 0.4,
+		"spool": [2200.0, 3400.0],
+		"spool_time": 0.35,
+		"anti_lag": false,
+		"gears": [3.083, 2.062, 1.545, 1.151, 0.825],
+		"final": 4.444,
+		"drive": "awd",
+		"front_share": 0.36,
+		"centre": ["lsd", 0.25, 0.2, 30.0],
+		"front_diff": ["lsd", 0.2, 0.1, 20.0],
+		"rear": ["lsd", 0.35, 0.15, 30.0],
+		"cd": 0.35,
+		"area": 1.95,
+		"down": 0.15,
+		"brake": 1.0
+	},
+	"checks": {
+		"zero_100_max": 8.0
+	},
+	"interior": {
+		"own": true,
+		"camera": true,
+		"notes": "Complete, textured: seats, dash, steering wheel, gear lever and handbrake (both work). Right-hand drive."
+	},
+	"source": {
+		"package": "1998-subaru-impreza-22b-sti.zip",
+		"author": "VTX_car (display name: VTX)",
+		"license": "CC Attribution-NonCommercial-ShareAlike",
+		"url": "https://sketchfab.com/3d-models/1998-subaru-impreza-22b-sti-c61e9130c0124374a53d2eb37ca5dcc9",
+		"attribution": "1998 Subaru Impreza 22B STi by VTX_car (display name: VTX) (CC Attribution-NonCommercial-ShareAlike)",
+		"candidate": 3
+	},
+	"research": [
+		"https://www.sti.jp/en/roadcars/1998/impreza-22b.html",
+		"https://www.goo-net.com/catalog/SUBARU/IMPREZA/4501993/",
+		"https://221616.com/catalog/subaru/impreza/199211_200706/4501993/",
+		"https://www.theautopian.com/three-decades-ago-subaru-gave-drivers-the-power-to-control-awd-slip-and-changed-the-performance-landscape/",
+		"https://rallycars.com/cars/subaru-impreza-sti-22b-version-japan-1997/myspecs/",
+		"https://www.supercars.net/blog/1998-subaru-impreza-wrx-sti-22b"
+	],
+	"limitations": [
+		"Its provenance: the upload chain traces back to a Real Racing 3 model (see VEHICLE_PROGRESS.md, Provenance).",
+		"The 58/42 weight split is an estimate."
+	]
+}

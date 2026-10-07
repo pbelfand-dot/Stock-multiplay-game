@@ -1,0 +1,8 @@
+{"id": "skyline_c10", "front": "-Y", "wheelbase": 2.57,
+ "wheel": ["^Wheels$"],
+ "paint": ["^Body$"], "pbr_sets": true,
+ "decimate_parts": [["^(Coilover|Floor_Fire|NOS|Rear_Seat)$", 0.3]],
+ "tex_sizes": [["^(Coilover|Floor_Fire|Nos|Rear_Seat|Roll_Cage)$", 512]],
+ "wheel_faces": 12000, "body_faces": 220000, "tex_max": 1024, "tex_format": "webp",
+ "cockpit": {"gearbox": "h5", "wheel": {"parts": ["^Sterring_Wheel$"]},
+   "shifter": {"box": [-0.03, 0.05, 0.08, 0.18, 0.33, 0.53]}}}

@@ -1,0 +1,82 @@
+{
+	"id": "hako",
+	"name": "HAKO 2000",
+	"order": 160,
+	"model": "skyline_c10",
+	"category": "jdm",
+	"role": "touge_grip",
+	"real": {
+		"manufacturer": "Nissan",
+		"model": "Skyline Hardtop 2000GT-R (KPGC10)",
+		"year": 1970,
+		"trim": "2000GT-R 2-door hardtop (KPGC10, introduced Oct 1970)"
+	},
+	"specs": {
+		"power_hp": 158,
+		"weight_kg": 1100,
+		"drivetrain": "RWD",
+		"transmission": "manual",
+		"wheelbase_mm": 2570,
+		"notes": "Engine, power, torque, weight and wheelbase come from Nissan's Heritage Collection (which lists torque as 176 Nm for KPGC10 and 177 Nm for PGC10, both 18.0 kgf.m). 160 PS is a period JIS gross rating. The 5-speed manual and LSD are per supercarnostalgia (not a Nissan document). No credible source for gear ratios or final drive was found, so they are null. Top speed is null because the sources disagree and none is official: jbskyline.net gives 125 mph (~201 km/h) and supercarnostalgia 133 mph (~214 km/h) for the KPGC10, and supercarnostalgia gives 124 mph for the PGC10. Weight distribution was not found."
+	},
+	"garage": {
+		"price": 18000,
+		"engine_sound": "i6_race",
+		"livery": "plain",
+		"number": 10,
+		"colours": [[0.66, 0.67, 0.7], [0.07, 0.07, 0.08], [0.78, 0.1, 0.08], [0.85, 0.85, 0.86]],
+		"wheels": "silver",
+		"power": 1.0,
+		"grip": 1.0,
+		"brakes": 1.0,
+		"drive_front": 0.0,
+		"blurb": "The boxy 1970 four-door-turned-coupe that won everything in Japan: a racing-bred twin-cam six that howls to 7,000, rear-drive, a box with a roll cage and a nitrous bottle. Light and alive."
+	},
+	"physics": {
+		"chassis": "road",
+		"mass": 1100.0,
+		"front": 0.54,
+		"torque": 176.0,
+		"curve": [[1000, 0.5], [2610, 0.775], [4220, 0.94], [5600, 1.0], [7000, 0.912], [7600, 0.781]],
+		"idle": 1000.0,
+		"limiter": 7600.0,
+		"turbo": 0.0,
+		"gears": [4.0, 2.828, 2.0, 1.414, 1.0],
+		"final": 4.5,
+		"drive": "rwd",
+		"rear": ["lsd", 0.35, 0.15, 30.0],
+		"cd": 0.42,
+		"area": 1.8,
+		"down": 0.0,
+		"brake": 0.85
+	},
+	"checks": {
+		"zero_100_max": 13.0
+	},
+	"interior": {
+		"own": true,
+		"camera": true,
+		"notes": "Full, high-poly: dash, seats, rear seat, roll cage, gear lever (works); right-hand drive. No floor handbrake lever (the C10's is under the dash)."
+	},
+	"source": {
+		"package": "1970-nissan-skyline-high-poly-interior.zip (Collada, converted with assimp)",
+		"author": "marc.edouard.lepine17 (display name: Marc Ed)",
+		"license": "CC Attribution",
+		"url": "https://sketchfab.com/3d-models/1970-nissan-skyline-high-poly-interior-b00cbb09d26449d3ae89f0ec3f534bfe",
+		"attribution": "1970 Nissan Skyline - High Poly Interior by marc.edouard.lepine17 (display name: Marc Ed) (CC Attribution)",
+		"candidate": 1
+	},
+	"research": [
+		"https://www.nissan-global.com/EN/HERITAGE/skyline_hardtop_2000gt-r.html",
+		"https://www.nissan-global.com/EN/HERITAGE/skyline_2000gt_r.html",
+		"https://www.nissan-global.com/EN/HERITAGE_COLLECTION/508_nissan_skyline_2000gt.html",
+		"https://supercarnostalgia.com/blog/nissan-kpgc-10-skyline-2000-gt-r",
+		"https://supercarnostalgia.com/blog/nissan-pgc-10-skyline-2000-gt-r",
+		"https://www.jbskyline.net/c10/gtr/specs/"
+	],
+	"limitations": [
+		"The model is a tuned car (NOS, coilovers, a cage); the numbers are the stock KPGC10 2000GT-R's (approximation).",
+		"Gear ratios aren't published: estimates (a close-ratio five-speed).",
+		"The 54/46 weight split is an estimate."
+	]
+}

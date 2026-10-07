@@ -1,0 +1,10 @@
+{"id": "impreza_22b", "front": "-Y", "wheelbase": 2.52,
+ "wheel_mats": ["^wheel$", "^tire$", "^rotor$"],
+ "drop_mats": ["^badges$"],
+ "paint": ["^material$"], "glass": ["^windiws$"], "rims": ["^wheel$"],
+ "materials": [["^windiws$", "glass"]],
+ "wheel_faces": 6000, "body_faces": 120000, "tex_max": 1024,
+ "cockpit": {"gearbox": "h5",
+   "wheel": {"box": [0.12, 0.6, 0.26, 0.5, 0.66, 1.02]},
+   "shifter": {"box": [-0.08, 0.09, 0.26, 0.43, 0.40, 0.64]},
+   "handbrake": {"box": [0.0, 0.08, -0.03, 0.26, 0.42, 0.58]}}}

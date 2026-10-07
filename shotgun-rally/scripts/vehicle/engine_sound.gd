@@ -51,6 +51,9 @@ const ENGINES := {
 	# the supercharged one with its blower's whine on top
 	"v8_sc": {"set": "v8", "turbo": 0.0, "sc": 1.0, "anti_lag": false, "pops": 0.3, "bov": false, "whine": 0.15, "bang": false, "tone": "muscle"},
 	"v8": {"set": "v8", "turbo": 0.0, "sc": 0.0, "anti_lag": false, "pops": 0.25, "bov": false, "whine": 0.15, "bang": false, "tone": "muscle"},
+	# straight sixes, on the Procar's six: a racing-bred twin-cam, a modern road turbo
+	"i6_race": {"set": "six", "turbo": 0.0, "sc": 0.0, "anti_lag": false, "pops": 0.3, "bov": false, "whine": 0.3, "bang": false, "tone": "race"},
+	"i6_turbo": {"set": "six", "turbo": 0.45, "sc": 0.0, "anti_lag": false, "pops": 0.15, "bov": true, "whine": 0.15, "bang": false, "tone": "road"},
 }
 ## Each tone's EQ (AudioEffectEQ6 bands 32, 100, 320, 1000, 3200, 10000 Hz, dB).
 const TONES := {

@@ -1,0 +1,83 @@
+{
+	"id": "lancer",
+	"name": "LANCER IX",
+	"order": 170,
+	"model": "evo9",
+	"category": "jdm",
+	"role": "touge_grip",
+	"real": {
+		"manufacturer": "Mitsubishi",
+		"model": "Lancer Evolution IX (GH-CT9A)",
+		"year": 2005,
+		"trim": "GSR, 6-speed manual (JDM, released March 2005)"
+	},
+	"specs": {
+		"power_hp": 276,
+		"weight_kg": 1410,
+		"drivetrain": "AWD",
+		"transmission": "manual, close-ratio",
+		"wheelbase_mm": 2625,
+		"notes": "Specs are from the JDM catalogue (goo-net). Other versions: the JDM RS (stripped) is 1,320 kg with 407 Nm (41.5 kgf.m) @ 3000 rpm and a 5-speed (2.785/1.950/1.444/1.096/0.761); its final drive was not reliably extracted. US-market Evolution IX: 286 hp @ 6500 and 289 lb-ft (~392 Nm) @ 3500 rpm; the US base car has a 5-speed and the US MR a 6-speed (newatlas). The Australian car is 206 kW / 355 Nm. The manufacturer did not publish a top speed (JDM cars were limited), so it is null. Weight distribution was not found."
+	},
+	"garage": {
+		"price": 21000,
+		"engine_sound": "turbo4",
+		"livery": "plain",
+		"number": 9,
+		"colours": [[0.06, 0.06, 0.07], [0.78, 0.1, 0.08], [0.95, 0.95, 0.94], [0.72, 0.73, 0.75]],
+		"wheels": "silver",
+		"power": 1.0,
+		"grip": 1.0,
+		"brakes": 1.0,
+		"drive_front": 0.5,
+		"blurb": "The last of the turbo four-door brawlers: 280 PS from a 2.0 turbo, an active centre diff that pulls the nose into the apex, a six-speed. Brutally quick through the twisties."
+	},
+	"physics": {
+		"chassis": "sport",
+		"mass": 1410.0,
+		"front": 0.6,
+		"torque": 400.0,
+		"curve": [[1000, 0.38], [1700, 0.721], [2400, 0.926], [3000, 1.0], [4225, 1.0], [6500, 0.756], [7500, 0.597]],
+		"idle": 850.0,
+		"limiter": 7500.0,
+		"turbo": 0.4,
+		"spool": [2400.0, 3500.0],
+		"spool_time": 0.35,
+		"anti_lag": false,
+		"gears": [2.909, 1.944, 1.434, 1.1, 0.868, 0.693],
+		"final": 4.583,
+		"drive": "awd",
+		"front_share": 0.5,
+		"centre": ["lsd", 0.25, 0.2, 30.0],
+		"front_diff": ["lsd", 0.2, 0.1, 20.0],
+		"rear": ["lsd", 0.35, 0.15, 30.0],
+		"cd": 0.35,
+		"area": 2.0,
+		"down": 0.15,
+		"brake": 1.0
+	},
+	"checks": {
+		"zero_100_max": 8.5
+	},
+	"interior": {
+		"own": true,
+		"camera": true,
+		"notes": "The model's: seats, dash, steering wheel, gear lever (works). Left-hand drive (the model's)."
+	},
+	"source": {
+		"package": "CGTrader_New_Cars/mitsubishi_lancer_evo_2005",
+		"license": "CGTrader purchase (the listing matched was removed: licence unconfirmed)",
+		"candidate": 5
+	},
+	"research": [
+		"https://www.goo-net.com/catalog/MITSUBISHI/LANCER/10026561/",
+		"https://www.goo-net.com/catalog/MITSUBISHI/LANCER/10026565/",
+		"https://www.australiancar.reviews/?p=54045",
+		"https://newatlas.com/new-mitsubishi-lancer-evolution-ix/3880/"
+	],
+	"limitations": [
+		"The model is left-hand drive; the numbers are the JDM GSR's (right-hand drive in Japan).",
+		"One texture (33690_63.jpg) isn't in the package.",
+		"The 60/40 weight split is an estimate."
+	]
+}

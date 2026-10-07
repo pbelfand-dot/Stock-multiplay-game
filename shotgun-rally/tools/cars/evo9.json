@@ -1,0 +1,8 @@
+{"id": "evo9", "front": "-Y", "wheelbase": 2.625,
+ "wheel": ["^Rims", "^Tires", "^Brake\\.00[2-5]$"], "caliper": ["^MainMain\\.00[1-4]$"],
+ "drop": ["^Brake\\.001$", "^MainMain$", "^Plane$", "^Plane\\.001$"],
+ "paint": ["^Car Paint$"], "glass": ["^Glass$"], "rims": ["^Rim$"],
+ "materials": [["^Glass$", "glass"]],
+ "finish": [["^(Black |Plastic with scratches|Carbon Fiber|Buttons|Seats|Steering wheel)$", {"metal": 0.0, "rough": 0.65}]],
+ "wheel_faces": 8000, "body_faces": 150000, "tex_max": 1024, "tex_format": "webp",
+ "cockpit": {"gearbox": "h6", "wheel": {"parts": ["^Cylinder\\.010$"]}, "shifter": {"parts": ["^Gear Lever$"]}}}

@@ -1,0 +1,82 @@
+{
+	"id": "akatsuki",
+	"name": "AKATSUKI V",
+	"order": 180,
+	"model": "supra_a90",
+	"category": "jdm",
+	"role": "touge_grip",
+	"real": {
+		"manufacturer": "Toyota",
+		"model": "GR Supra (A90/J29)",
+		"year": 2021,
+		"trim": "3.0 / 3.0 Premium, 8-speed automatic (US-market rating, 2021+)"
+	},
+	"specs": {
+		"power_hp": 382,
+		"weight_kg": 1542,
+		"drivetrain": "RWD",
+		"transmission": "8-speed torque-converter automatic (ZF 8HP51)",
+		"wheelbase_mm": 2470,
+		"top_speed_kmh": 250,
+		"front_weight": 0.5,
+		"notes": "Output depends on market and year. US 2020: 335 hp and 365 lb-ft. US 2021 on: 382 hp @ 5800-6500 and 368 lb-ft @ 1800-5000 (used here). EU/UK and launch JDM: 340 PS (335 bhp, 250 kW) @ 5000-6500 and 500 Nm @ 1600-4500. Gear ratios, final drives, wheelbase and UK weights are from Toyota UK's official tech-spec PDF (Apr 2024); the US AT final drive of 3.15 matches. The 50:50 weight distribution and 2,470 mm wheelbase are from Toyota's global newsroom (2019 launch). If you use the EU power figure, pair it with the UK weight (1,495 kg DIN-style) for consistency."
+	},
+	"garage": {
+		"price": 27000,
+		"engine_sound": "i6_turbo",
+		"livery": "plain",
+		"number": 5,
+		"colours": [[0.82, 0.08, 0.06], [0.07, 0.07, 0.08], [0.95, 0.95, 0.94], [0.08, 0.08, 0.09]],
+		"wheels": "black",
+		"power": 1.0,
+		"grip": 1.0,
+		"brakes": 1.0,
+		"drive_front": 0.0,
+		"blurb": "The modern turbo-six coupe: 382 hp from a 3.0 straight six, rear-drive, a short wheelbase and a perfect 50/50 balance. Quick to rotate, quick everywhere."
+	},
+	"physics": {
+		"chassis": "sport",
+		"mass": 1542.0,
+		"front": 0.5,
+		"torque": 499.0,
+		"curve": [[1000, 0.38], [1280, 0.721], [1560, 0.926], [1800, 1.0], [3270, 1.0], [6000, 0.909], [6800, 0.725]],
+		"idle": 850.0,
+		"limiter": 6800.0,
+		"turbo": 0.4,
+		"spool": [1500.0, 2200.0],
+		"spool_time": 0.35,
+		"anti_lag": false,
+		"gears": [5.25, 3.36, 2.172, 1.72, 1.316, 1.0, 0.822, 0.64],
+		"final": 3.15,
+		"drive": "rwd",
+		"rear": ["lsd", 0.35, 0.15, 30.0],
+		"cd": 0.32,
+		"area": 1.95,
+		"down": 0.1,
+		"brake": 1.0
+	},
+	"checks": {
+		"zero_100_max": 7.5
+	},
+	"interior": {
+		"own": true,
+		"camera": true,
+		"notes": "Detailed: dash with screens, leather/Alcantara seats, steering wheel. Right-hand drive (the model's). An automatic (the 8-speed): the hand stays on the wheel."
+	},
+	"source": {
+		"package": "toyota-supra-mk5-a90.zip",
+		"author": "lbrtwlk (display name: lbrtwlk)",
+		"license": "CC Attribution",
+		"url": "https://sketchfab.com/3d-models/toyota-supra-mk5-a90-30528ef37af844919074498f979b9515",
+		"attribution": "Toyota Supra MK5 A90 by lbrtwlk (display name: lbrtwlk) (CC Attribution)",
+		"candidate": 11
+	},
+	"research": [
+		"https://pressroom.toyota.com/2021-toyota-gr-supra-hits-the-streets-with-more-power-a91-edition-and-first-ever-four-cylinder-turbo-model/",
+		"https://media.toyota.co.uk/wp-content/uploads/sites/5/pdf/240429-GR-Supra-Tech-Specs.pdf",
+		"https://global.toyota/en/newsroom/toyota/26144480.html",
+		"https://www.cars.com/research/toyota-gr_supra-2021/specs/415275/",
+		"https://pressroom.toyota.com/getting-to-know-the-all-new-2020-toyota-gr-supra/"
+	],
+	"limitations": ["The model is right-hand drive; the numbers are the US 2021+ 3.0's (382 hp)."]
+}

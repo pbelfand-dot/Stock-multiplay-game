@@ -106,7 +106,7 @@ var wiper_x: Array = WIPER_X
 var _wheel_axis := Vector3(0.0, -sin(WHEEL_TILT), cos(WHEEL_TILT))   # toward the driver
 const HIPS := Vector3(0.0, -0.72, 0.02)        # a crew member's hips from their eyes (the cartoon crew, x1.2)
 const BOARD := Vector3(-0.01, -0.35, -0.26)    # the map board from the co-driver's eyes (on the right: x mirrors)
-const SEAT_SLIDE := 0.22                       # m the driver may slide their seat forward to reach its wheel
+const SEAT_SLIDE := 0.32                       # m the driver may slide their seat forward to reach its wheel (the seat probe can land on a thin seat's back: some room past a real seat track)
 const WHEEL_CLEAR := 0.46                      # m the wheel's centre stays from their eyes, at the closest
 const OWN_SCALE := 1.0                         # in a car's own interior the crew are real size (it is): their
                                                # eyes 0.6 m over their hips, 0.69 over their thighs' joints, which

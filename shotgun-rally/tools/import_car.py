@@ -70,7 +70,8 @@ way), the car is turned nose to +Y (in the GLB: -Z, the game's forward), scaled
 to the wheelbase, its tyres on the ground (z 0) and the middle between the axles
 at the origin. Each corner becomes Wheel_FL / FR / RL / RR (and Caliper_..),
 its origin at the wheel's centre; the rest is one Body. Images are shrunk to
-512 px ("tex_max"). "--survey" after the paths prints every material (where, how big,
+512 px ("tex_max"; "tex_sizes": [[material pattern, px]] for parts barely seen;
+"tex_format": "webp" to store them smaller). "--survey" after the paths prints every material (where, how big,
 its colour) in the car's own frame instead of exporting; "--out DIR" writes
 somewhere else than assets/models/cars/<id> (to try a spec out). A conversion that
 looks wrong (wheels that don't match side to side, the body through the ground,
@@ -298,19 +299,121 @@ for d in tex_dirs:
         for f in files:
             if f.lower().endswith((".png", ".jpg", ".jpeg", ".tga", ".bmp", ".tif", ".tiff")):
                 found.setdefault(_key(f), os.path.join(root, f))
-for img in bpy.data.images:
-    if img.packed_file or img.source != 'FILE':
+for img in list(bpy.data.images):
+    # (an image the importer couldn't load is left a placeholder, "generated", but keeps its path)
+    if img.packed_file or img.source not in ('FILE', 'GENERATED') or (img.source == 'GENERATED' and not img.filepath):
         continue
     p = bpy.path.abspath(img.filepath)
-    if not os.path.exists(p):
+    if img.source == 'GENERATED' or not os.path.exists(p):
         for k in (_key(img.filepath), _key(img.name)):
             if k in found:
-                img.filepath = found[k]
-                img.reload()
+                fresh = bpy.data.images.load(found[k], check_existing=True)     # (a reloaded placeholder stays empty)
+                fresh.colorspace_settings.name = img.colorspace_settings.name
+                if fresh != img:
+                    img.user_remap(fresh)
                 break
         else:
             print("missing image:", img.name, img.filepath)
 
+
+# an OBJ whose .mtl points its textures somewhere else (an absolute path on its maker's machine,
+# "C:/Dif.png"): the importer leaves those out; each is found by its file name in the texture
+# folders and wired to its material (map_Kd colour, map_d alpha, map_Bump / norm normal)
+if src.lower().endswith(".obj"):
+    mtl_path = os.path.splitext(src)[0] + ".mtl"
+    if os.path.exists(mtl_path):
+        mtls, cur = {}, None
+        for line in open(mtl_path, encoding="utf-8", errors="replace"):
+            t = line.strip().split(None, 1)
+            if len(t) < 2:
+                continue
+            if t[0] == "newmtl":
+                cur = mtls.setdefault(t[1].strip(), {})
+            elif cur is not None and t[0] in ("map_Kd", "map_d", "map_Bump", "map_bump", "bump", "norm"):
+                cur[t[0].lower().replace("map_", "")] = os.path.basename(t[1].strip().split()[-1].replace("\\", "/"))
+        def find_tex(name):
+            for d in tex_dirs:
+                for root, _, files in os.walk(d):
+                    for f in files:
+                        if f.lower() == name.lower():
+                            return os.path.join(root, f)
+            return None
+        for mat in bpy.data.materials:
+            st = mtls.get(mat.name)
+            if not st or not mat.use_nodes:
+                continue
+            nt = mat.node_tree
+            bsdf = next((n for n in nt.nodes if n.type == 'BSDF_PRINCIPLED'), None)
+            if bsdf is None or any(n.type == 'TEX_IMAGE' and n.image for n in nt.nodes):
+                continue
+            kd = find_tex(st["kd"]) if st.get("kd") else None
+            if kd:
+                n = nt.nodes.new("ShaderNodeTexImage")
+                n.image = bpy.data.images.load(kd, check_existing=True)
+                nt.links.new(n.outputs["Color"], bsdf.inputs["Base Color"])
+                if st.get("d") == st.get("kd"):
+                    nt.links.new(n.outputs["Alpha"], bsdf.inputs["Alpha"])
+                    mat.blend_method = 'BLEND'
+            nm = next((find_tex(st[k]) for k in ("bump", "norm") if st.get(k)), None)
+            if nm:
+                n = nt.nodes.new("ShaderNodeTexImage")
+                n.image = bpy.data.images.load(nm, check_existing=True)
+                n.image.colorspace_settings.name = 'Non-Color'
+                m = nt.nodes.new("ShaderNodeNormalMap")
+                nt.links.new(n.outputs["Color"], m.inputs["Color"])
+                nt.links.new(m.outputs["Normal"], bsdf.inputs["Normal"])
+            if kd or nm:
+                print("mtl texture: %s <- %s" % (mat.name, ", ".join(os.path.basename(p) for p in (kd, nm) if p)))
+
+# PBR texture sets beside the model, named after their materials ("pbr_sets": true; Sketchfab's
+# "<material>_albedo.jpg", "_normal", "_roughness", "_metallic", "_emissive", "_opacity"): each
+# material that has a set gets it (an opacity map that isn't all white becomes its alpha: glass
+# in an atlas; an all-black emissive map is left out)
+if spec.get("pbr_sets"):
+    sets = {}
+    for d in tex_dirs:
+        for f in (os.listdir(d) if os.path.isdir(d) else []):
+            m = re.match(r"(.+?)_(albedo|basecolor|base_color|diffuse|normal|roughness|metallic|emissive|opacity)\.(png|jpe?g|tga)$", f, re.I)
+            if m:
+                sets.setdefault(m.group(1).lower(), {})[m.group(2).lower()] = os.path.join(d, f)
+    def _flat(path):
+        """The image's lowest and highest brightness (sampled)."""
+        im = bpy.data.images.load(path, check_existing=True)
+        px = np.array(im.pixels[:], dtype=np.float32).reshape(-1, 4)[::97, :3]
+        return float(px.min()), float(px.max()), im
+    for mat in list(bpy.data.materials):
+        st = sets.get(mat.name.lower())
+        if not st:
+            continue
+        mat.use_nodes = True
+        nt = mat.node_tree
+        for n in list(nt.nodes):
+            nt.nodes.remove(n)
+        out_n = nt.nodes.new("ShaderNodeOutputMaterial")
+        bsdf = nt.nodes.new("ShaderNodeBsdfPrincipled")
+        nt.links.new(bsdf.outputs["BSDF"], out_n.inputs["Surface"])
+        def tex_node(path, colour):
+            n = nt.nodes.new("ShaderNodeTexImage")
+            n.image = bpy.data.images.load(path, check_existing=True)
+            n.image.colorspace_settings.name = 'sRGB' if colour else 'Non-Color'
+            return n
+        base = st.get("albedo") or st.get("basecolor") or st.get("base_color") or st.get("diffuse")
+        if base:
+            nt.links.new(tex_node(base, True).outputs["Color"], bsdf.inputs["Base Color"])
+        if st.get("normal"):
+            nm = nt.nodes.new("ShaderNodeNormalMap")
+            nt.links.new(tex_node(st["normal"], False).outputs["Color"], nm.inputs["Color"])
+            nt.links.new(nm.outputs["Normal"], bsdf.inputs["Normal"])
+        for key, inp in (("roughness", "Roughness"), ("metallic", "Metallic")):
+            if st.get(key):
+                nt.links.new(tex_node(st[key], False).outputs["Color"], bsdf.inputs[inp])
+        if st.get("emissive") and _flat(st["emissive"])[1] > 0.02:
+            nt.links.new(tex_node(st["emissive"], True).outputs["Color"], bsdf.inputs["Emission Color"])
+            bsdf.inputs["Emission Strength"].default_value = 1.0
+        if st.get("opacity") and _flat(st["opacity"])[0] < 0.98:
+            nt.links.new(tex_node(st["opacity"], False).outputs["Color"], bsdf.inputs["Alpha"])
+            mat.blend_method = 'BLEND'
+        print("pbr set: %s (%s)" % (mat.name, ", ".join(sorted(st))))
 
 # textures swapped for cleaned copies (a logo painted out): by the image's file name
 for pat, f in spec.get("retexture", []):
@@ -897,8 +1000,9 @@ def look(mat, p):
     if p.get("texture"):
         path = p["texture"]
         for d in tex_dirs:
-            if os.path.exists(os.path.join(d, path)):
-                path = os.path.join(d, path)
+            hit = next((os.path.join(r, f) for r, _, fs in os.walk(d) for f in fs if f.lower() == os.path.basename(path).lower()), None)
+            if os.path.exists(os.path.join(d, path)) or hit:
+                path = os.path.join(d, path) if os.path.exists(os.path.join(d, path)) else hit
                 break
         tex = nt.nodes.new("ShaderNodeTexImage")
         tex.image = bpy.data.images.load(path)
@@ -1125,7 +1229,16 @@ for o in bpy.data.objects:
         o.data.validate()          # (the glTF export validates too: then its normals would scramble)
         restore_normals(o)
 most = spec.get("tex_max", 512)
+# smaller for the parts barely seen ("tex_sizes": [[material pattern, px]]: the images those use)
+cap = {}
+for pat, px in spec.get("tex_sizes", []):
+    for mat in bpy.data.materials:
+        if re.search(pat, mat.name, re.I) and mat.use_nodes:
+            for nd in mat.node_tree.nodes:
+                if nd.type == 'TEX_IMAGE' and nd.image:
+                    cap[nd.image.name] = min(cap.get(nd.image.name, most), px)
 for img in bpy.data.images:
+    most = cap.get(img.name, spec.get("tex_max", 512))
     if img.size[0] > most or img.size[1] > most:
         f = float(most) / max(img.size[0], img.size[1])
         img.scale(max(1, int(img.size[0] * f)), max(1, int(img.size[1] * f)))
@@ -1153,6 +1266,6 @@ for m in warn:
 os.makedirs(out_dir, exist_ok=True)
 glb = os.path.join(out_dir, spec["id"] + ".glb")
 bpy.ops.export_scene.gltf(filepath=glb, export_format='GLB', export_yup=True, export_apply=True,
-    export_materials='EXPORT', export_image_format='AUTO')
+    export_materials='EXPORT', export_image_format=spec.get("tex_format", "AUTO").upper())   # ("webp": far smaller, alpha kept)
 json.dump(parts, open(os.path.join(out_dir, "parts.json"), "w"), indent=2)
 print("wrote %s (%d KB), body %d triangles" % (glb, os.path.getsize(glb) // 1024, tris(body)))

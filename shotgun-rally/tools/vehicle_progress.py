@@ -53,6 +53,10 @@ CARS = [
 ]
 # where each car has got to (overrides the table's import status)
 STATUS = {
+    1: "**in game**: HAKO 2000 (hako). Collada converted with assimp; its PBR sets wired by name; gear lever works; tested (models 0-100 8.1 s gravel; interior)",
+    3: "**in game**: PLEIAD 22 (pleiad). Wheels by material; gear lever + handbrake work (RHD); tested (models 4.4 s; interior)",
+    5: "**in game**: LANCER IX (lancer). Its gear lever works; badges dropped, dash matted; tested (models 4.8 s; interior). One texture missing from the package",
+    11: "**in game**: AKATSUKI V (akatsuki). The .mtl's absolute texture paths fixed by the converter; screens wired; automatic; tested (models 5.1 s; interior)",
     39: "**in game**: HELLHOUND WB (hellhound). Low-poly exterior + high-poly interior; tested (models: on its wheels, 0-100 5.3 s on gravel; interior: eyes, gloves on its rim, automatic)",
 }
 DECISIONS = [
