@@ -789,7 +789,8 @@ func _setup_mode(o: Dictionary) -> void:
 	match mode:
 		"cutup":
 			traffic = Traffic.new()
-			traffic.name = "Traffic"
+			traffic.name = "Traffic"                # (the same path everywhere: the host's traffic finds it)
+			traffic.mirror = street_online and not multiplayer.is_server()   # (online: the host's traffic, played back)
 			add_child(traffic)
 			var diff := Modes.difficulty(o)
 			traffic.setup(st, diff, seed_value, st.START_S)
@@ -809,6 +810,27 @@ func _setup_mode(o: Dictionary) -> void:
 				ghost.name = "Ghost"
 				add_child(ghost)
 				ghost.setup(Modes.best_key(o, seed_value))
+
+
+## (host, online cut up) The other players for the traffic: where each one's car is on
+## the road (from its stream), so the traffic fills in round them and minds them, and
+## which machines get which cars.
+func _traffic_for_everyone() -> void:
+	var ps: Array = []
+	var peers := {}
+	for id in others:
+		var c = others[id]
+		if not is_instance_valid(c):
+			continue
+		var at: Dictionary = st.locate(c.global_position, int(_hints.get(id, -1)))
+		_hints[id] = at.i
+		var s: float = car_s + (wrapf(float(at.s) - car_s, -st.length * 0.5, st.length * 0.5) if looped else float(at.s) - car_s)
+		var p := {"s": s, "d": float(at.d), "v": c.linear_velocity.dot(st.forward_at(s))}
+		ps.append(p)
+		if id in _ready_peers or _loaded_peers.has(id):
+			peers[id] = p
+	traffic.others_p = ps
+	traffic.net_peers = peers
 
 
 ## (a street session, the touge) Where you are in the race: 1 + those already over the
@@ -832,6 +854,8 @@ func _mode_tick(dt: float) -> void:
 	if traffic:
 		traffic.player = {"s": car_s, "d": car_d, "v": v_along}
 		traffic.running = state != "grid"
+		if street_online and multiplayer.is_server():
+			_traffic_for_everyone()
 	if state == "running":
 		if cutup:
 			for nm in cutup.update(dt, {"s": car_s, "d": car_d, "v": v_along}, traffic.snapshot()):

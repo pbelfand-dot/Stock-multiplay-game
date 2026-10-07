@@ -115,6 +115,20 @@ orders=$(grep -ho "race order .*" $T/sh.log $T/s1.log $T/s2.log | sort -u | wc -
 if grep -hE -A2 "^(SCRIPT ERROR|ERROR: Node not found|ERROR: Invalid packet)" $T/sh.log $T/s1.log $T/s2.log; then echo "!! engine errors above"; fail=1; fi
 [ $c1 -eq 0 ] && [ $c2 -eq 0 ] && [ $h -eq 0 ] || fail=1
 P=$((P + 1))
+echo "== online cut up: three players on the loop (insane): the host's traffic round everyone, mirrored on each guest's machine, hits reported back"
+run_g 400 --headless --path . -- --host --street --ghosts --mode=cutup --difficulty=insane --min_racers=3 --autostart --autopilot --smoke=host --smoke_after=32 --port=$P --seed=5 --timeout=320 --name=Ann --profile=$T/ch.cfg > $T/ch.log 2>&1 &
+hp=$!
+sleep 6
+run_g 400 --headless --path . -- --join=127.0.0.1 --port=$P --name=Bob --autopilot --smoke=guest1 --smoke_after=36 --timeout=320 --profile=$T/c1.cfg > $T/cg1.log 2>&1 &
+g1=$!
+sleep 1
+run_g 400 --headless --path . -- --join=127.0.0.1 --port=$P --name=Cid --autopilot --smoke=guest2 --smoke_after=36 --timeout=320 --profile=$T/c2.cfg > $T/cg2.log 2>&1; c2=$?
+wait $g1; c1=$?
+wait $hp; h=$?
+grep -h "\[smoke\]" $T/ch.log $T/cg1.log $T/cg2.log
+if grep -hE -A2 "^(SCRIPT ERROR|ERROR: Node not found|ERROR: Invalid packet)" $T/ch.log $T/cg1.log $T/cg2.log; then echo "!! engine errors above"; fail=1; fi
+[ $c1 -eq 0 ] && [ $c2 -eq 0 ] && [ $h -eq 0 ] || fail=1
+P=$((P + 1))
 echo "== auto-update: a build-5 copy finds, downloads, checks and runs build 6 from a local server"
 GODOT="$G" timeout -k 10 600 tests/update_check.sh 2>&1 | grep -E "\[update\] (ok|FAIL|UPDATER)" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
 [ -s "$T/timeouts.log" ] && { cat "$T/timeouts.log"; fail=1; }

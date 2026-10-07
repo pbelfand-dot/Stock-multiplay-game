@@ -23,6 +23,17 @@ extends Node3D
 ## not hit: the median barrier's between); cars JOIN from the on-ramps (down the
 ## ramp, along the acceleration lane, merging when there's a gap: lane -1 is that
 ## extra lane) and some LEAVE by the off-ramps.
+##
+## ONLINE (a street session's cut up): the host's traffic is everyone's, as Assetto
+## Corsa's traffic servers run it. The host populates the road round every player
+## (others_p), its cars mind every player's car, and it sends each machine the cars
+## round that machine's player NET_HZ times a second (net_peers); with a lot of cars
+## (several players' stretches) each car thinks every 4th tick. Everyone else's
+## Traffic is a MIRROR: it drives nothing, it plays the host's cars back (eased to
+## their latest positions, dead-reckoned in between) and tells the host which one
+## its player hit (it stops for everyone). The other carriageway's traffic is each
+## machine's own (it's only seen). Positions along a loop are compared round it
+## (_ds), so players on different laps share the traffic.
 
 const VehicleRegistry = preload("res://scripts/game/vehicle_registry.gd")
 
@@ -53,6 +64,18 @@ var looped := false             # a LoopGen: no end to the road, oncoming traffi
 var oncoming: Array = []        # {body, wheels, s, d, v} on the other carriageway (going -s)
 var ramp_cars: Array = []       # {body, wheels, path, k, v, mode ("join" / "exit"), r, m}
 var _joined := {}               # on-ramp -> the player's lap it last fed (one car per pass)
+# online (a street session's cut up)
+const NET_HZ := 10.0            # the host's traffic sent to each machine, a second
+const NET_FIELDS := 7           # floats a car: id, model (pool index), paint, s (round the loop), d, v, crashed
+const STAGGER_OVER := 60        # more cars than this (several players' stretches): each thinks every 4th tick
+var others_p: Array = []        # (host) the other players: [{s, d, v}]: the traffic fills in round them and minds them
+var net_peers := {}             # (host) peer id -> {s, d, v}: their player; they're sent the cars round them
+var mirror := false             # (not the host) play the host's traffic back, drive none here
+var hits_sent := 0              # (mirror) hits reported to the host (tests)
+var _net_acc := 0.0
+var _mirror := {}               # (mirror) host car id -> its car here
+var _tick := 0
+var _by_lane := {}              # lane -> the cars in it (or changing into it), each tick: who's ahead of whom
 
 
 func setup(stage, difficulty: Dictionary, seed_value: int, player_s: float) -> void:
@@ -74,7 +97,7 @@ func setup(stage, difficulty: Dictionary, seed_value: int, player_s: float) -> v
 		var box := _bounds(probe)
 		probe.free()
 		_pool.append({"id": e.id, "scene": scene, "weight": float(e.weight), "paints": e.paints,
-			"half_len": box.size.z * 0.5, "half_w": box.size.x * 0.5, "height": box.size.y})
+			"half_len": box.size.z * 0.5, "half_w": box.size.x * 0.5, "height": box.size.y, "i": _pool.size()})
 	_target = int(round(float(diff.get("density", 12.0)) * (AHEAD + BEHIND) / 1000.0))
 	looped = stage.has_method("wrap_s")
 	if _pool.is_empty():
@@ -86,7 +109,9 @@ func setup(stage, difficulty: Dictionary, seed_value: int, player_s: float) -> v
 ## carriageway's. Again (restart_at) after a jump up the road (a screenshot's).
 func _populate(player_s: float) -> void:
 	player.s = player_s
-	if _packs():
+	if mirror:
+		pass                                             # (the highway's cars are the host's: only the other carriageway here)
+	elif _packs():
 		# packs ahead, open road between (the first a little way up the road)
 		var s := player_s + 140.0
 		while s < player_s + AHEAD:
@@ -156,62 +181,119 @@ func clear_lane_d(s: float) -> float:
 
 
 func _physics_process(dt: float) -> void:
-	if not running or st == null:
+	if st == null:
 		return
+	if mirror:
+		_mirror_tick(dt)
+		if looped:
+			_oncoming_traffic(dt)
+		return
+	if not running:
+		return
+	_tick += 1
+	_index_lanes()
+	var stagger := cars.size() > STAGGER_OVER
 	for c in cars:
-		_drive(c, dt)
+		if not stagger or (_tick + int(c.id)) % 4 == 0:
+			_think(c, dt * (4.0 if stagger else 1.0))
+	for c in cars:
+		_move(c, dt)
 	for c in cars:
 		_place(c, dt)
-	# out of the stretch round the player: back in somewhere else
+	# out of every player's stretch: back in somewhere else
 	for c in cars.duplicate():
-		var rel: float = float(c.s) - float(player.s)
 		if c.has("rival"):
 			continue                                          # (the rivals come and go as Rivals says)
-		if rel < -BEHIND - 40.0 or rel > AHEAD + 120.0 or (not looped and float(c.s) > st.length - 40.0):
+		if not _wanted(float(c.s)) or (not looped and float(c.s) > st.length - 40.0):
 			if _packs():
 				_remove(c)
 			else:
 				_respawn(c)
 	if _packs():
-		_refill_packs()
+		for p in _everyone():
+			_refill_packs(p)
+	elif not others_p.is_empty():
+		_top_up()
 	if looped:
 		_ramp_traffic(dt)
 		_oncoming_traffic(dt)
+	if not net_peers.is_empty():
+		_send(dt)
+
+
+## How far a is along the road past b (round the loop: the short way).
+func _ds(a: float, b: float) -> float:
+	var x := a - b
+	return wrapf(x, -st.length * 0.5, st.length * 0.5) if looped else x
+
+
+## Every player the traffic is for: this machine's, then the others' (the host's, online).
+func _everyone() -> Array:
+	return [player] + others_p
+
+
+## Is a car at s in somebody's stretch (BEHIND back to AHEAD on, give or take)?
+func _wanted(s: float) -> bool:
+	for p in _everyone():
+		var rel := _ds(s, float(p.s))
+		if rel > -BEHIND - 40.0 and rel < AHEAD + 120.0:
+			return true
+	return false
+
+
+## The cars in each lane (or changing into it), for who's ahead of whom this tick.
+func _index_lanes() -> void:
+	_by_lane.clear()
+	for c in cars:
+		var a: int = int(c.lane)
+		var b: int = int(c.to)
+		if not _by_lane.has(a):
+			_by_lane[a] = []
+		_by_lane[a].append(c)
+		if b != a:
+			if not _by_lane.has(b):
+				_by_lane[b] = []
+			_by_lane[b].append(c)
 
 
 ## The car ahead in a lane (and its gap, bumper to bumper), the player included.
 func _leader(lane: int, s: float, half_len: float, me = null) -> Dictionary:
 	var best := {"gap": INF, "v": 0.0}
-	for o in cars:
+	for o in _by_lane.get(lane, cars):
 		if o == me:
 			continue
 		if int(o.lane) != lane and int(o.to) != lane:
 			continue
-		var gap: float = float(o.s) - s - float(o.half_len) - half_len
-		if float(o.s) > s and gap < float(best.gap):
+		var ahead := _ds(float(o.s), s)
+		var gap: float = ahead - float(o.half_len) - half_len
+		if ahead > 0.0 and gap < float(best.gap):
 			best = {"gap": gap, "v": float(o.v)}
-	if _player_in(lane):
-		var pg: float = float(player.s) - s - PLAYER_HALF_LEN - half_len
-		if float(player.s) > s and pg < float(best.gap):
-			best = {"gap": pg, "v": float(player.v)}
+	for p in _everyone():
+		if _player_in(lane, p):
+			var ahead := _ds(float(p.s), s)
+			var pg: float = ahead - PLAYER_HALF_LEN - half_len
+			if ahead > 0.0 and pg < float(best.gap):
+				best = {"gap": pg, "v": float(p.v)}
 	return best
 
 
 ## The car behind in a lane (for MOBIL): {gap, v, car}.
 func _follower(lane: int, s: float, half_len: float, me) -> Dictionary:
 	var best := {"gap": INF, "v": 0.0, "car": null}
-	for o in cars:
+	for o in _by_lane.get(lane, cars):
 		if o == me or (int(o.lane) != lane and int(o.to) != lane):
 			continue
-		var gap: float = s - float(o.s) - float(o.half_len) - half_len
-		if float(o.s) < s and gap < float(best.gap):
+		var behind := _ds(s, float(o.s))
+		var gap: float = behind - float(o.half_len) - half_len
+		if behind > 0.0 and gap < float(best.gap):
 			best = {"gap": gap, "v": float(o.v), "car": o}
 	return best
 
 
-## Whether the player's car overlaps a lane (straddling the line: both).
-func _player_in(lane: int) -> bool:
-	return absf(float(player.d) - _ld(lane)) < st.LANE_W * 0.5 + 0.95
+## Whether a player's car (this machine's if none said) overlaps a lane (straddling the line: both).
+func _player_in(lane: int, p = null) -> bool:
+	var q: Dictionary = p if p != null else player
+	return absf(float(q.d) - _ld(lane)) < st.LANE_W * 0.5 + 0.95
 
 
 func _lane_of(d: float, slack := 0.0) -> int:
@@ -234,13 +316,10 @@ static func idm(v: float, v0: float, gap: float, v_lead: float) -> float:
 	return IDM_A * (free - pow(s_star / maxf(gap, 0.1), 2.0))
 
 
-func _drive(c: Dictionary, dt: float) -> void:
-	if c.has("rival") and c.rival.racing and not c.crashed:
-		_drive_racer(c, dt)
-		return
-	if c.crashed:
-		c.v = maxf(float(c.v) - 7.0 * dt, 0.0)              # hit: it stops where it is (hazards on)
-		c.s = float(c.s) + float(c.v) * dt
+## A car's driving for h s: its speed (IDM, behind whoever's ahead), and what it
+## does next (merge, take its exit, change lanes: MOBIL). Moving it: _move.
+func _think(c: Dictionary, h: float) -> void:
+	if (c.has("rival") and c.rival.racing and not c.crashed) or c.crashed:
 		return
 	var lead := _leader(int(c.to), float(c.s), float(c.half_len), c)
 	if int(c.to) != int(c.lane):                             # mid-change: mind both lanes
@@ -248,26 +327,38 @@ func _drive(c: Dictionary, dt: float) -> void:
 		if float(other.gap) < float(lead.gap):
 			lead = other
 	var a := idm(float(c.v), float(c.v0), float(lead.gap), float(lead.v))
-	c.v = maxf(float(c.v) + maxf(a, -9.0) * dt, 0.0)
-	c.s = float(c.s) + float(c.v) * dt
+	c.v = maxf(float(c.v) + maxf(a, -9.0) * h, 0.0)
 	# the acceleration lane runs out: stop at its end rather than go through the barrier
 	if int(c.lane) == -1 and int(c.to) == -1 and looped and st.extra_lane(float(c.s) + 25.0) < 1.5:
-		c.v = maxf(float(c.v) - 6.0 * dt, 0.0)
-	# lane changes: finishing one, or thinking about one now and then
+		c.v = maxf(float(c.v) - 6.0 * h, 0.0)
 	if int(c.to) != int(c.lane):
-		c.t = float(c.t) + dt / float(c.get("lc_time", LANE_CHANGE_T))
-		if float(c.t) >= 1.0:
-			c.lane = c.to
-			c.t = 0.0
+		pass                                                 # (crossing: _move carries it over)
 	elif int(c.lane) == -1 and not c.has("exit"):
 		_merge(c)                                            # joining from a ramp: into lane 0 at the first gap
 	elif c.has("exit"):
 		_exit_lane(c)
 	else:
-		c.think = float(c.think) - dt * float(diff.get("lane_changes", 0.7))
+		c.think = float(c.think) - h * float(diff.get("lane_changes", 0.7))
 		if float(c.think) <= 0.0:
 			c.think = _rng.randf_range(1.0, 3.0)
 			_mobil(c, a)
+
+
+## A car on along the road for dt at its speed, across the lanes if it's changing.
+func _move(c: Dictionary, dt: float) -> void:
+	if c.has("rival") and c.rival.racing and not c.crashed:
+		_drive_racer(c, dt)
+		return
+	if c.crashed:
+		c.v = maxf(float(c.v) - 7.0 * dt, 0.0)              # hit: it stops where it is (hazards on)
+		c.s = float(c.s) + float(c.v) * dt
+		return
+	c.s = float(c.s) + float(c.v) * dt
+	if int(c.to) != int(c.lane):
+		c.t = float(c.t) + dt / float(c.get("lc_time", LANE_CHANGE_T))
+		if float(c.t) >= 1.0:
+			c.lane = c.to
+			c.t = 0.0
 
 
 func _mobil(c: Dictionary, a_here: float) -> void:
@@ -301,6 +392,12 @@ func _mobil(c: Dictionary, a_here: float) -> void:
 func _place(c: Dictionary, dt: float) -> void:
 	var u: float = smoothstep(0.0, 1.0, float(c.t))
 	c.d = lerpf(_ld(int(c.lane)), _ld(int(c.to)), u)
+	_pose(c, dt, u)
+
+
+## A car's body where it is (c.s, c.d), turned along the road (and toward the lane
+## it's crossing to, u of the way), its wheels rolling.
+func _pose(c: Dictionary, dt: float, u := 0.0) -> void:
 	var s: float = float(c.s) if looped else clampf(float(c.s), 1.0, st.length - 1.0)
 	var p: Vector3 = st.world_at(s, float(c.d))
 	var ahead: Vector3 = st.world_at(s + 2.0 if looped else minf(s + 2.0, st.length - 0.5), float(c.d))
@@ -343,14 +440,15 @@ func _spawn_at(s: float, lane: int, m := {}) -> Dictionary:
 	if m.is_empty():
 		m = _pick_model()
 	for o in cars:
-		if (int(o.lane) == lane or int(o.to) == lane) and absf(float(o.s) - s) < float(o.half_len) + float(m.half_len) + 6.0:
+		if (int(o.lane) == lane or int(o.to) == lane) and absf(_ds(float(o.s), s)) < float(o.half_len) + float(m.half_len) + 6.0:
 			return {}
 	var body := _body_for(m)
 	var wheels: Array = body.get_meta("wheels")
 	var v0: float = _lane_speed(maxi(lane, 0))
 	var c := {"id": _next_id, "model": m.id, "body": body, "wheels": wheels, "s": s, "lane": lane, "to": lane, "t": 0.0,
 		"d": _ld(lane), "v": v0 * _rng.randf_range(0.9, 1.0), "v0": v0, "half_len": float(m.half_len),
-		"half_w": float(m.half_w), "crashed": false, "think": _rng.randf_range(0.5, 3.0), "m": m}
+		"half_w": float(m.half_w), "crashed": false, "think": _rng.randf_range(0.5, 3.0), "m": m,
+		"paint": int(body.get_meta("paint", 0))}
 	_next_id += 1
 	cars.append(c)
 	_place(c, 0.0)
@@ -358,7 +456,7 @@ func _spawn_at(s: float, lane: int, m := {}) -> Dictionary:
 
 
 ## A traffic car's body: the model, painted, in a kinematic box the player hits.
-func _body_for(m: Dictionary, solid := true) -> Node3D:
+func _body_for(m: Dictionary, solid := true, paint := -1) -> Node3D:
 	var body: Node3D = AnimatableBody3D.new() if solid else Node3D.new()
 	body.name = "Traffic%d" % _next_id
 	if solid:
@@ -375,7 +473,9 @@ func _body_for(m: Dictionary, solid := true) -> Node3D:
 		cs.position = Vector3(0, float(m.height) * 0.5, 0)
 		body.add_child(cs)
 	add_child(body)
-	_paint(model, m.paints[_rng.randi() % m.paints.size()])
+	var pi: int = paint if paint >= 0 else _rng.randi() % m.paints.size()
+	_paint(model, m.paints[pi % m.paints.size()])
+	body.set_meta("paint", pi)
 	var wheels: Array = []
 	for n in model.find_children("Wheel_*", "Node3D", true, false):
 		wheels.append(n)
@@ -405,9 +505,14 @@ func _remove(c: Dictionary) -> void:
 
 func _respawn(c: Dictionary) -> void:
 	_remove(c)
+	# round whichever player it was nearest (online: anyone's stretch)
+	var p: Dictionary = player
+	for q in others_p:
+		if absf(_ds(float(c.s), float(q.s))) < absf(_ds(float(c.s), float(p.s))):
+			p = q
 	# faster than the traffic: new cars appear ahead; slower: they come up from behind
-	var ahead: bool = float(player.v) > float(diff.speed[0]) / 3.6 * 0.8
-	var s: float = float(player.s) + (_rng.randf_range(AHEAD * 0.75, AHEAD) if ahead else -_rng.randf_range(BEHIND * 0.7, BEHIND))
+	var ahead: bool = float(p.v) > float(diff.speed[0]) / 3.6 * 0.8
+	var s: float = float(p.s) + (_rng.randf_range(AHEAD * 0.75, AHEAD) if ahead else -_rng.randf_range(BEHIND * 0.7, BEHIND))
 	if looped or (s > st.START_S + 20.0 and s < st.length - 80.0):
 		_spawn(s)
 
@@ -418,11 +523,12 @@ func _free_lane(s: float, half_len: float) -> int:
 	for lane in order:
 		var ok := true
 		for o in cars:
-			if (int(o.lane) == lane or int(o.to) == lane) and absf(float(o.s) - s) < float(o.half_len) + half_len + 12.0:
+			if (int(o.lane) == lane or int(o.to) == lane) and absf(_ds(float(o.s), s)) < float(o.half_len) + half_len + 12.0:
 				ok = false
 				break
-		if ok and absf(float(player.s) - s) < 30.0 and _player_in(lane):
-			ok = false
+		for p in _everyone():
+			if ok and absf(_ds(float(p.s), s)) < 30.0 and _player_in(lane, p):
+				ok = false
 		if ok:
 			return lane
 	return -1
@@ -438,8 +544,90 @@ func hit(body: Node) -> Dictionary:
 	for c in cars:
 		if c.body == body:
 			c.crashed = true
+			if mirror and multiplayer.has_multiplayer_peer():
+				net_hit.rpc_id(1, int(c.id))             # (the host's car: it stops for everyone)
+				hits_sent += 1
 			return c
 	return {}
+
+
+# ── online: the host's traffic for everyone ───────────────────────────────
+
+## (host) Each machine its player's stretch of the traffic, NET_HZ times a second:
+## [id, model, paint, s round the loop, d, v, crashed] a car.
+func _send(dt: float) -> void:
+	_net_acc += dt
+	if _net_acc < 1.0 / NET_HZ:
+		return
+	_net_acc = 0.0
+	for peer in net_peers:
+		var p: Dictionary = net_peers[peer]
+		var data := PackedFloat32Array()
+		for c in cars:
+			if c.has("rival"):
+				continue
+			var rel := _ds(float(c.s), float(p.s))
+			if rel < -BEHIND - 80.0 or rel > AHEAD + 160.0:
+				continue
+			data.append_array([float(c.id), float(c.m.get("i", 0)), float(c.get("paint", 0)),
+				fposmod(float(c.s), st.length) if looped else float(c.s), float(c.d), float(c.v), 1.0 if c.crashed else 0.0])
+		net_traffic.rpc_id(int(peer), data)
+
+
+## (mirror) The host's cars round our player: new ones built, known ones eased
+## toward where they are, the ones that left our stretch gone.
+@rpc("authority", "unreliable_ordered")
+func net_traffic(data: PackedFloat32Array) -> void:
+	if not mirror or _pool.is_empty():
+		return
+	var seen := {}
+	for i in range(0, data.size() - NET_FIELDS + 1, NET_FIELDS):
+		var id := int(data[i])
+		seen[id] = true
+		var s: float = float(player.s) + _ds(data[i + 3], float(player.s))    # (into our own count of laps)
+		var c: Dictionary = _mirror.get(id, {})
+		if c.is_empty():
+			var m: Dictionary = _pool[clampi(int(data[i + 1]), 0, _pool.size() - 1)]
+			var body := _body_for(m, true, int(data[i + 2]))
+			c = {"id": id, "model": m.id, "body": body, "wheels": body.get_meta("wheels"), "s": s, "d": data[i + 4],
+				"v": data[i + 5], "lane": 0, "to": 0, "t": 0.0, "half_len": float(m.half_len), "half_w": float(m.half_w),
+				"crashed": false, "m": m, "ts": s, "td": data[i + 4]}
+			_mirror[id] = c
+			cars.append(c)
+		c.ts = s
+		c.td = data[i + 4]
+		c.v = data[i + 5]
+		if data[i + 6] > 0.5:
+			c.crashed = true
+	for id in _mirror.keys():
+		if not seen.has(id):
+			var gone: Dictionary = _mirror[id]
+			_mirror.erase(id)
+			_remove(gone)
+
+
+## (mirror) Between the host's packets: each car on at its speed, eased onto where the
+## host last had it (also carried on at its speed), then posed on the road.
+func _mirror_tick(dt: float) -> void:
+	var k := 1.0 - exp(-dt * 6.0)
+	for c in cars:
+		if not c.has("ts"):
+			continue
+		c.ts = float(c.ts) + float(c.v) * dt
+		c.s = lerpf(float(c.s) + float(c.v) * dt, float(c.ts), k)
+		c.d = lerpf(float(c.d), float(c.td), k)
+		_pose(c, dt)
+
+
+## (host) A machine's player hit one of our cars: it stops, for everyone.
+@rpc("any_peer", "reliable")
+func net_hit(id: int) -> void:
+	if mirror:
+		return
+	for c in cars:
+		if int(c.id) == id:
+			c.crashed = true
+			return
 
 
 ## What the score needs: [{id, s, d, v, half_len, half_w}].
@@ -489,19 +677,39 @@ static func _bounds(n: Node) -> AABB:
 
 ## Packs: a new one up the road once the last one's well inside the stretch (or
 ## behind, for a player slower than the traffic), while there's room for one.
-func _refill_packs() -> void:
-	if cars.size() + int(diff.pack[0]) > int(_target * 1.3):
-		return
+func _refill_packs(p: Dictionary) -> void:
 	var far := -INF
 	var near := INF
+	var n := 0
 	for c in cars:
-		far = maxf(far, float(c.s) - float(player.s))
-		near = minf(near, float(c.s) - float(player.s))
+		var rel := _ds(float(c.s), float(p.s))
+		if rel < -BEHIND - 40.0 or rel > AHEAD + 120.0:
+			continue                                         # (someone else's stretch)
+		n += 1
+		far = maxf(far, rel)
+		near = minf(near, rel)
+	if n + int(diff.pack[0]) > int(_target * 1.3):
+		return
 	var gap := _rng.randf_range(float(diff.pack_gap[0]), float(diff.pack_gap[1]))
+	if n == 0:
+		far = 140.0 - gap                                    # (a stretch with nobody's traffic yet: a pack a little way on)
 	if far < AHEAD - gap:
-		_spawn_pack(float(player.s) + maxf(far + gap, AHEAD * 0.7))
-	elif float(player.v) < float(diff.speed[0]) / 3.6 * 0.8 and near > -BEHIND + gap:
-		_spawn_pack(float(player.s) - BEHIND)
+		_spawn_pack(float(p.s) + maxf(far + gap, AHEAD * 0.7 if n > 0 else 140.0))
+	elif float(p.v) < float(diff.speed[0]) / 3.6 * 0.8 and near > -BEHIND + gap:
+		_spawn_pack(float(p.s) - BEHIND)
+
+
+## (online, not in packs) Each other player's stretch filled to the difficulty's count:
+## one car a tick into a gap up the road.
+func _top_up() -> void:
+	for p in others_p:
+		var n := 0
+		for c in cars:
+			var rel := _ds(float(c.s), float(p.s))
+			if rel > -BEHIND and rel < AHEAD:
+				n += 1
+		if n < _target:
+			_spawn(float(p.s) + _rng.randf_range(80.0, AHEAD))
 
 
 ## Joining from a ramp's acceleration lane: into lane 0 when there's a gap (a smaller

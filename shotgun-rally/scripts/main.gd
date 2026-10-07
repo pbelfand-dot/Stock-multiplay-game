@@ -45,6 +45,7 @@ var rally_lengths: Array = []
 var _test_t := 0.0
 var _smoke_done := false
 var _smoke_ok := false
+var _run_t := 0.0
 var _loading := false
 var _air_t := 0.0
 var _shot_jumped := false                  # (--shot_s --autostart: jumped up the road at GO)
@@ -366,6 +367,12 @@ func _process(dt: float) -> void:
 	if game == null:
 		return
 	_test_t += dt
+	# an online cut-up test (no finish on the loop): check after --smoke_after s of driving
+	if Config.flag("smoke") and not _smoke_done and game.built and game.street_online and game.looped and game.state == "running":
+		_run_t += dt
+		if _run_t > float(Config.arg("smoke_after", 40.0)):
+			_smoke_done = true
+			_street_cutup_smoke(Config.arg("smoke"))
 	# (--shot_s with --autostart: the countdown puts the car back on the grid, so the jump
 	# up the road comes at GO, rolling at 100 km/h, the traffic brought along)
 	if Config.flag("screenshot") and Config.flag("autostart") and float(Config.arg("shot_s", 0)) > 0.0 and not _shot_jumped \
@@ -455,6 +462,30 @@ func _street_smoke(role: String) -> void:
 	_smoke_ok = ok
 	# (the host goes last: a guest still checking would take the host leaving for a failure)
 	await get_tree().create_timer(4.0 if multiplayer.is_server() else 0.5).timeout
+	get_tree().quit(0 if ok else 1)
+
+
+## An online cut-up test: the host's traffic round every player, mirrored on each
+## guest's machine; every other car seen.
+func _street_cutup_smoke(role: String) -> void:
+	var tr = game.traffic
+	var least := 1 << 30
+	for id in game.others:
+		least = mini(least, int(game.others[id].states_received))
+	var ok: bool = game.others.size() == Net.racers().size() - 1 and least > 100
+	if multiplayer.is_server():
+		print("[smoke] %s: the traffic: %d cars round %d players (the others' %d), sending to %d machines" % [
+			role, tr.cars.size(), tr.others_p.size() + 1, tr.others_p.size(), tr.net_peers.size()])
+		ok = ok and not tr.mirror and tr.others_p.size() == Net.racers().size() - 1 and tr.net_peers.size() == tr.others_p.size() \
+			and tr.cars.size() > 20
+	else:
+		print("[smoke] %s: the host's traffic mirrored here: %d of its cars round me, %d hits reported" % [
+			role, tr._mirror.size(), tr.hits_sent])
+		ok = ok and tr.mirror and tr._mirror.size() >= 8
+	print("[smoke] %s: %d other cars, fewest updates from one %d, %.0f km driven" % [role, game.others.size(), least, (game.car_s - game.st.START_S) / 1000.0])
+	print("[smoke] %s: %s" % [role, "OK" if ok else "FAIL"])
+	_smoke_ok = ok
+	await get_tree().create_timer(6.0 if multiplayer.is_server() else 0.5).timeout
 	get_tree().quit(0 if ok else 1)
 
 
