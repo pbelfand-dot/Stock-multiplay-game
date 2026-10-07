@@ -8,8 +8,9 @@ config_version=5
 config/name="SHOTGUN RALLY"
 config/description="Co-op rally: one drives, one rides shotgun with the notes."
 run/main_scene="res://scenes/main.tscn"
-config/features=PackedStringArray("4.7", "GL Compatibility")
+config/features=PackedStringArray("4.7", "Forward Plus")
 config/icon="res://icon.png"
+config/project_settings_override="user://renderer.cfg"
 
 [autoload]
 
@@ -33,7 +34,8 @@ common/physics_interpolation=true
 
 [rendering]
 
-renderer/rendering_method="gl_compatibility"
+renderer/rendering_method="forward_plus"
 renderer/rendering_method.mobile="gl_compatibility"
+renderer/rendering_method.web="gl_compatibility"
 anti_aliasing/quality/msaa_3d=1
 textures/vram_compression/import_etc2_astc=true

@@ -2,6 +2,8 @@
 # A Chromebook (or any Debian / Ubuntu) package of the Linux build: double-click it
 # in the Chromebook's Files app ("Install with Linux") and SHOTGUN RALLY appears in
 # the launcher. Usage: tools/make_deb.sh <game binary> <amd64|arm64> <version> <out.deb>
+# A Chromebook runs the light Compatibility renderer (OpenGL): the desktop builds use
+# Forward+ (Vulkan), which Chromebooks' Linux mostly can't do, or only in software.
 set -euo pipefail
 BIN="$1"; ARCH="$2"; VER="$3"; OUT="$4"
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
@@ -9,7 +11,11 @@ D="$(mktemp -d)"
 chmod 755 "$D"
 mkdir -p "$D/DEBIAN" "$D/opt/shotgun-rally" "$D/usr/share/applications" "$D/usr/share/icons/hicolor/256x256/apps" "$D/usr/bin"
 install -m 755 "$BIN" "$D/opt/shotgun-rally/ShotgunRally"
-ln -s /opt/shotgun-rally/ShotgunRally "$D/usr/bin/shotgun-rally"
+cat > "$D/usr/bin/shotgun-rally" <<'RUN'
+#!/bin/sh
+exec /opt/shotgun-rally/ShotgunRally --rendering-method gl_compatibility "$@"
+RUN
+chmod 755 "$D/usr/bin/shotgun-rally"
 if command -v convert > /dev/null; then
   convert "$HERE/icon.png" -resize 256x256 "$D/usr/share/icons/hicolor/256x256/apps/shotgun-rally.png"
 else
@@ -20,7 +26,7 @@ cat > "$D/usr/share/applications/shotgun-rally.desktop" <<DESK
 Type=Application
 Name=SHOTGUN RALLY
 Comment=Co-op rally: one drives, one rides shotgun with the notes
-Exec=/opt/shotgun-rally/ShotgunRally
+Exec=/opt/shotgun-rally/ShotgunRally --rendering-method gl_compatibility
 Icon=shotgun-rally
 Terminal=false
 Categories=Game;
