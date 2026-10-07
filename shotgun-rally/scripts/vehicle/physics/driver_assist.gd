@@ -21,7 +21,8 @@ extends RefCounted
 ##     with the throttle), let go and it straightens, countersteer and it
 ##     straightens quicker; it steers the front wheels for it and turns the body
 ##     toward that angle, damped, and never lets it swing round into a spin
-##     (_drift_state, drift_torque). With it on it does countersteer help's job
+##     (_drift_state, drift_torque); below ~25 km/h it steps aside (a U-turn, a
+##     tight hairpin are the driver's). With it on it does countersteer help's job
 ##   * high-speed stability (an arcade aid too): from ~90 km/h it damps yaw the
 ##     steering didn't ask for: lane changes settle at once, a clip is caught
 ##     (stability_torque)
@@ -42,6 +43,7 @@ var _beta_rate := 0.0              # how fast it's changing (rad/s, smoothed)
 var _drift_want := 0.0             # the angle the driver's asking for (rad, signed like the slip)
 var _drift_err := 0.0              # the slip past it (rad, signed)
 var _drift_boost := 1.0            # countersteering: straighten up quicker
+var _drift_slow := 1.0             # 0: a slow handbrake turn, left alone .. 1: the assist's own
 
 var _smooth := 0.0
 
@@ -64,6 +66,7 @@ func reset() -> void:
 	_beta_rate = 0.0
 	_drift_want = 0.0
 	_drift_err = 0.0
+	_drift_slow = 1.0
 	_smooth = 0.0
 
 
@@ -96,6 +99,7 @@ func steering(car, dt: float, input: float) -> Vector2:
 		if absf(_drift_want) < 1e-3:
 			bite = 0.0
 		var steer_to: float = clampf(align + bite + cfg.drift_steer_gain * _drift_err * _drift_boost, -lock, lock)
+		steer_to = lerpf(target, steer_to, _drift_slow)         # (slow: the driver's own steering)
 		countersteer = steer_to - target
 		target = steer_to
 	elif cfg.countersteer_help and v > 3.0 and not cfg.drift_assist:
@@ -161,8 +165,10 @@ func _drift_state(car, dt: float, s: float, v: float) -> void:
 	var most: float = deg_to_rad(lerpf(cfg.drift_angle_deg, cfg.drift_fast_deg, fast))
 	var thr := clampf(float(car.inp.throttle), 0.0, 1.0)
 	var want: float = maxf(into, 0.0) * most * lerpf(cfg.drift_lift_share, 1.0, thr)
+	_drift_slow = clampf((v - cfg.drift_uturn_speed) / maxf(cfg.drift_uturn_speed * 0.5, 0.1), 0.0, 1.0)
 	if float(car.inp.handbrake) > 0.05:
-		want = maxf(want, minf(absf(beta), most + deg_to_rad(cfg.drift_handbrake_deg)))
+		var room: float = lerpf(PI, most + deg_to_rad(cfg.drift_handbrake_deg), _drift_slow)
+		want = maxf(want, minf(absf(beta), room))
 	# the angle it holds moves toward what's asked for at drift_angle_rate (from the
 	# slip it had when the drift began): letting go eases it straight rather than
 	# snapping it, so keys can hold an angle between on and off
@@ -192,7 +198,7 @@ func drift_torque(car) -> float:
 	if over > 0.0:
 		t -= side * full * over * 4.0
 	var spd: float = car.linear_velocity.length()
-	t = clampf(t, -full * 1.5, full * 1.5) * clampf((spd - cfg.drift_min_speed * 0.5) / (cfg.drift_min_speed * 0.5), 0.0, 1.0)
+	t = clampf(t, -full * 1.5, full * 1.5) * clampf((spd - cfg.drift_min_speed * 0.5) / (cfg.drift_min_speed * 0.5), 0.0, 1.0) * _drift_slow
 	drift_hold = t
 	return drift_hold
 

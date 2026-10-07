@@ -93,6 +93,10 @@ extends Resource
 @export_range(0.0, 60.0, 0.5, "suffix:deg") var drift_fast_deg := 12.0
 ## With the handbrake pulled it lets the tail round this much further (a hairpin).
 @export_range(0.0, 60.0, 0.5, "suffix:deg") var drift_handbrake_deg := 20.0
+## Slower than this (a U-turn, a tight hairpin) it steps aside: the driver's own
+## steering, no push, and with the handbrake the tail goes round as far as it will
+## (by 1.5 x this it's all back): a slow turn is the driver's, assist or not.
+@export_range(0.0, 30.0, 0.5, "suffix:m/s") var drift_uturn_speed := 6.0
 ## How fast the angle it holds follows the steering (deg/s): letting go of the
 ## keys eases the drift straight instead of snapping it, and taps hold it between.
 @export_range(5.0, 400.0, 1.0, "suffix:deg/s") var drift_angle_rate := 45.0

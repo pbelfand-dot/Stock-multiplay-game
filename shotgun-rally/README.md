@@ -304,6 +304,8 @@ and a car tipped; and the squeal only came on at the limit. Now:
   deg on the throttle), let go and it eases straight, countersteer and it straightens quicker;
   it steers the fronts (a little inside the slide, so they carry their share) and turns the body
   toward that angle, damped, and never lets it spin. With it on it does countersteer help's job.
+  Below ~25 km/h it steps aside: a slow handbrake U-turn or a tight hairpin goes round just as it
+  would with it off.
 - **ARCADE on tarmac**: x1.1 instead of x1.3 (1.44-1.51 g on tarmac tyres), a sliding or
   spinning rear keeps 85 % (the throttle holds a drift), the grip peaks later on asphalt
   (progressive); gravel x1.65 (1.44 g).
