@@ -32,7 +32,9 @@ extends RigidBody3D
 ## camera, `slip` (how hard the tyres slide) for the sound and dust, puddles
 ## (`mud_mu`), the car from the garage (apply_setup: power, grip, brakes, the
 ## drive split, the paint), the Higgsfield body model (seen from outside:
-## set_outside) with its wheels and swinging mud flaps.
+## set_outside) with its wheels and swinging mud flaps. A car whose model has an
+## interior of its own (parts.json "cockpit") is drawn from inside too: the
+## cockpit (cockpit.gd) puts the crew in its seats.
 ## The machine of whoever is DRIVING simulates it (`simulate`) and streams its
 ## state ~30x a second; the co-driver's machine plays that stream back 100 ms
 ## behind, smoothly (snapshot interpolation), so the cabin never jitters.
@@ -123,6 +125,8 @@ var _mud: Resource
 var _model_wheels: Array = []      # [pivot, spinner, rest position] per corner (model units)
 var _model_scale := MODEL_SCALE    # m per model unit (a car's own model: 1)
 var _model_info := {}              # its parts.json
+var cockpit_nodes := {}            # its own model's interior that moves: "wheel" (the steering wheel), "shifter",
+                                   # "handbrake" (children of body_model, each with its origin at its pivot)
 var _fixed_config := false         # given a config (the physics lab, a test): the garage doesn't swap it
 var _config_from_setup := false    # the config came from the setup's car (_load_config)
 var _made_boxes := false           # the collision boxes are this script's (not the scene's)
@@ -241,6 +245,7 @@ func _build_body_model() -> void:
 		body_model = null
 	_model_wheels.clear()
 	_flaps.clear()
+	cockpit_nodes.clear()
 	if get_node_or_null("CarMesh"):
 		return
 	if model_id != "" and _build_own_model():
@@ -324,8 +329,42 @@ func _build_own_model() -> bool:
 			cal.transform = Transform3D.IDENTITY
 			pivot.add_child(cal)
 		_model_wheels.append([pivot, spinner, pivot.position])
+	cockpit_nodes.clear()
+	for k in [["wheel", "SteeringWheel"], ["shifter", "Shifter"], ["handbrake", "Handbrake"]]:
+		var n := src.find_child(k[1], true, false) as Node3D
+		if n:
+			var at := n.global_transform if n.is_inside_tree() else _scene_xf(n, src)
+			n.get_parent().remove_child(n)
+			n.transform = Transform3D(Basis(), at.origin)
+			n.name = k[1]
+			body_model.add_child(n)
+			cockpit_nodes[k[0]] = n
 	src.free()
 	return true
+
+
+## n's transform in its scene (src isn't in the tree).
+static func _scene_xf(n: Node3D, scene: Node) -> Transform3D:
+	var xf := n.transform
+	var p := n.get_parent()
+	while p and p != scene:
+		if p is Node3D:
+			xf = (p as Node3D).transform * xf
+		p = p.get_parent()
+	return xf
+
+
+## The car's own interior (parts.json "cockpit": tools/import_car.py), in the model's
+## units (m, its origin on the ground): {} when it has none (the cockpit's own is built).
+func cockpit_info() -> Dictionary:
+	if body_model == null or not cockpit_nodes.has("wheel"):
+		return {}
+	return _model_info.get("cockpit", {})
+
+
+## Where the car's own model sits in the car (its origin is on the ground).
+func model_offset() -> Vector3:
+	return body_model.position if body_model else Vector3.ZERO
 
 
 func _unown(n: Node, scene: Node) -> void:
@@ -499,9 +538,11 @@ func set_outside(on: bool) -> void:
 	_outside = on
 	if body_model == null:
 		return
-	body_model.visible = on
+	# a car with its own interior is the same car from inside: the cockpit is its model
+	var inside_too := not cockpit_info().is_empty()
+	body_model.visible = on or inside_too
 	for w in wheels:
-		w.mesh.visible = not on
+		w.mesh.visible = not (on or inside_too)
 
 
 func set_simulating(on: bool) -> void:

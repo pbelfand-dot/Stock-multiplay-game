@@ -65,5 +65,5 @@
     "MAT_Details_MAT"
    ]
   }
- ]
-}
+ ],
+ "cockpit": {"gearbox": "h5", "wheel": {"parts": ["ANC_SteeringWheel_(0[0-5]|0[89]|1[0-2])"]}, "shifter": {"box": [-0.08, 0.08, 0.1, 0.26, 0.44, 0.72]}, "handbrake": {"box": [-0.08, 0.08, -0.32, 0.1, 0.38, 0.56], "pivot": "rear"}}}

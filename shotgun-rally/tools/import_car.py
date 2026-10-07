@@ -39,8 +39,21 @@ The spec (tools/cars/<id>.json) says what's what in the model:
   * "sidewall": {"mats": [patterns], "from": 0.7}: a wheel modelled with its
     tyre's sidewalls in the rim's material: those faces past "from" x the tyre's
     radius become rubber
-  * "decimate_parts": [[name pattern, ratio]]: parts thinned harder first (an
-    interior seen through the windows)
+  * "decimate_parts": [[name pattern, ratio]]: parts thinned to their own ratio
+    (1: left whole), and then left alone by the body's budget: an interior
+  * "cockpit": the car's interior, kept (the game seats the crew in it):
+    {"wheel": {"parts": [name patterns]} or {"box": [x0, x1, y0, y1, z0, z1]}
+    (the loose pieces wholly inside it; "cut": true, every face whose middle
+    is) or {"mats": [material patterns], "box": ...} (those faces, in the box),
+    "shifter": the same (+ "below": m its pivot is below its foot,
+    0.08), "handbrake": the same (+ "pivot": "rear", "front" or "bottom"),
+    "gearbox": "h5" / "h6" (an H-pattern), "seq", "auto", "eye": [x, y, z]
+    (else from its seat: rays onto its cushion and its back), "mirror": {"mats",
+    "box"}: the rear-view mirror's glass (the game shows the road behind in it)}. Each is cut out
+    as SteeringWheel / Shifter / Handbrake, its origin at its pivot, and
+    parts.json "cockpit" says where (the wheel's centre, axis toward the
+    driver and rim radius; the levers' pivots, knob and grip; the eyes; the
+    windshield; "side": the driver's)
   * "wheel_faces" / "body_faces": the most triangles a wheel / the body keeps
     (decimated: the download stays small). The paint and the glass are never
     thinned (thinning them dents the panels): only the rest, down to 35 % at
@@ -63,7 +76,13 @@ from mathutils.bvhtree import BVHTree
 
 argv = sys.argv[sys.argv.index("--") + 1:]
 survey = "--survey" in argv
-argv = [a for a in argv if a != "--survey"]
+survey_parts = "--parts" in argv
+argv = [a for a in argv if a not in ("--survey", "--parts")]
+snapshot = None
+if "--snapshot" in argv:
+    k = argv.index("--snapshot")
+    snapshot = os.path.abspath(argv[k + 1])
+    argv = argv[:k] + argv[k + 2:]
 out_arg = None
 if "--out" in argv:
     k = argv.index("--out")
@@ -262,7 +281,9 @@ for pat, f in spec.get("retexture", []):
     new = None
     for img in list(bpy.data.images):
         if re.search(pat, os.path.basename(bpy.path.abspath(img.filepath)) or img.name, re.I):
-            new = new or bpy.data.images.load(path)
+            if new is None:
+                new = bpy.data.images.load(path)
+                new.colorspace_settings.name = img.colorspace_settings.name    # (a normal map stays non-colour)
             for m in bpy.data.materials:
                 if m.use_nodes:
                     for n in m.node_tree.nodes:
@@ -459,6 +480,249 @@ for b in spec.get("drop_boxes", []):
         bm.free()
     print("dropped %d faces in %s" % (gone, b["box"]))
 
+# ── the cockpit: the steering wheel, the gear lever and the handbrake cut out as
+# parts of their own (the game turns, moves and pulls them), and where the
+# driver's eyes are ────────────────────────────────────────────────────────
+def loose_in(o, box, cut=False):
+    """The faces of o's loose pieces that lie wholly inside box ([x0, x1, y0, y1,
+    z0, z1], the car's frame): a lever and its knob, not the console it stands
+    in. cut: every face whose middle is inside (a lever modelled joined on)."""
+    x0, x1, y0, y1, z0, z1 = box
+    bm = bmesh.new()
+    bm.from_mesh(o.data)
+    bm.faces.ensure_lookup_table()
+    inb = lambda c: x0 <= c.x <= x1 and y0 <= c.y <= y1 and z0 <= c.z <= z1
+    if cut:
+        sel = {f.index for f in bm.faces if inb(f.calc_center_median())}
+        bm.free()
+        return sel
+    cand = {f.index for f in bm.faces if all(inb(v.co) for v in f.verts)}
+    sel, seen = set(), set()
+    for i in cand:
+        if i in seen:
+            continue
+        seen.add(i)
+        stack, piece, attached = [bm.faces[i]], [], False
+        while stack:
+            f = stack.pop()
+            piece.append(f.index)
+            for v in f.verts:
+                for g in v.link_faces:
+                    if g.index not in cand:
+                        attached = True
+                    elif g.index not in seen:
+                        seen.add(g.index)
+                        stack.append(g)
+        if not attached:
+            sel.update(piece)
+    bm.free()
+    return sel
+
+
+def split_out(name, what):
+    """The parts named by what ({"parts": [name patterns], "box": [...], "cut":
+    bool}) made one object, `name`; out of the parts they were in."""
+    pieces = []
+    for o in [o for o in meshes if all(o not in corner[k]["spin"] + corner[k]["cal"] for k in CORNERS)]:
+        if matches(o.name, what.get("parts", [])):
+            pieces.append(o)
+            continue
+        if "mats" in what:
+            # faces of these materials (in the box, if it's given)
+            mi = {i for i, sl in enumerate(o.material_slots) if sl.material and matches(sl.material.name, what["mats"])}
+            x0, x1, y0, y1, z0, z1 = what.get("box", [-9, 9, -9, 9, -9, 9])
+            idx = {p.index for p in o.data.polygons if p.material_index in mi
+                and x0 <= p.center.x <= x1 and y0 <= p.center.y <= y1 and z0 <= p.center.z <= z1}
+        elif "box" in what:
+            idx = loose_in(o, what["box"], what.get("cut", False))
+        else:
+            continue
+        if not idx:
+            continue
+        d = o.copy()
+        d.data = o.data.copy()
+        bpy.context.collection.objects.link(d)
+        for ob, keep in ((d, True), (o, False)):
+            bm = bmesh.new()
+            bm.from_mesh(ob.data)
+            bmesh.ops.delete(bm, geom=[f for f in bm.faces if (f.index in idx) != keep], context='FACES')
+            strip_loose(bm)
+            bm.to_mesh(ob.data)
+            bm.free()
+        meshes.append(d)
+        pieces.append(d)
+    for o in list(meshes):
+        if len(o.data.polygons) == 0:
+            meshes.remove(o)
+            bpy.data.objects.remove(o, do_unlink=True)
+    pieces = [o for o in pieces if o in meshes]
+    if not pieces:
+        raise SystemExit("cockpit: nothing found for %s (%s)" % (name, what))
+    bpy.ops.object.select_all(action='DESELECT')
+    for o in pieces:
+        o.select_set(True)
+    vl.objects.active = pieces[0]
+    for o in pieces[1:]:
+        meshes.remove(o)
+    if len(pieces) > 1:
+        bpy.ops.object.join()
+    j = vl.objects.active
+    j.name = name
+    j.data.name = name
+    return j
+
+
+def pca(v):
+    c = v.mean(axis=0)
+    w, e = np.linalg.eigh(np.cov((v - c).T))
+    return c, [Vector(e[:, k]) for k in range(3)]     # smallest spread first
+
+
+def game(v):
+    return [float(v[0]), float(v[2]), float(-v[1])]      # the game's axes: y up, -z forward
+
+
+def gdir(d):
+    return [float(d[0]), float(d[2]), float(-d[1])]
+
+
+cockpit = spec.get("cockpit")
+cock_parts = {}                    # name -> (object, pivot in the car's frame)
+if cockpit:
+    cock = {"gearbox": cockpit.get("gearbox", "h5")}
+    # the steering wheel: its axis is the way it's thinnest (toward the driver); the rim
+    # is its outer ring: the plane and the radius the gloves grip
+    w = split_out("SteeringWheel", cockpit["wheel"])
+    v = verts(w)
+    c0, ax = pca(v)
+    n = ax[0] if ax[0].y < 0 else -ax[0]              # toward the driver: back (and up)
+    u, t = ax[1], ax[2]
+    d = v - np.array(c0)
+    along = d @ np.array(n)
+    flat = d - np.outer(along, np.array(n))
+    r = np.linalg.norm(flat, axis=1)
+    rmax = np.percentile(r, 98)                       # (a stray bit further out doesn't make the rim)
+    rim = (r > rmax * 0.8) & (r < rmax * 1.1)
+    pu, pt = flat[rim] @ np.array(u), flat[rim] @ np.array(t)
+    centre = Vector(c0) + u * float((pu.max() + pu.min()) * 0.5) + t * float((pt.max() + pt.min()) * 0.5) \
+        + n * float(along[rim].mean())
+    rr = np.linalg.norm((v[rim] - np.array(centre)) - np.outer((v[rim] - np.array(centre)) @ np.array(n), np.array(n)), axis=1)
+    cock["wheel"] = {"centre": game(centre), "axis": gdir(n), "radius": float(rr.mean())}
+    cock_parts["SteeringWheel"] = (w, centre)
+    # the gear lever: it pivots below its boot, on the line from the knob down through its foot
+    if "shifter" in cockpit:
+        g = split_out("Shifter", cockpit["shifter"])
+        v = verts(g)
+        z = v[:, 2]
+        foot = Vector(v[z < z.min() + 0.012].mean(axis=0))
+        knob = Vector(v[z > z.max() - 0.03].mean(axis=0))
+        pivot = foot + (foot - knob).normalized() * cockpit["shifter"].get("below", 0.08)
+        cock["shifter"] = {"pivot": game(pivot), "knob": game(knob)}
+        cock_parts["Shifter"] = (g, pivot)
+    # the handbrake: a lever along its length, pivoting at one end ("pivot": "rear", the
+    # usual one between the seats; "bottom", a rally car's tall hydraulic one)
+    if "handbrake" in cockpit:
+        h = split_out("Handbrake", cockpit["handbrake"])
+        v = verts(h)
+        c, ax = pca(v)
+        a = ax[2]
+        proj = (v - np.array(c)) @ np.array(a)
+        e1, e2 = Vector(c) + a * float(proj.min()), Vector(c) + a * float(proj.max())
+        how = cockpit["handbrake"].get("pivot", "rear")
+        if (how == "rear" and e2.y < e1.y) or (how == "bottom" and e2.z < e1.z) or (how == "front" and e2.y > e1.y):
+            e1, e2 = e2, e1
+        cock["handbrake"] = {"pivot": game(e1), "grip": game(e1.lerp(e2, 0.82))}
+        cock_parts["Handbrake"] = (h, e1)
+    # the driver's eyes, unless the spec says: from the seat behind the wheel (rays: down
+    # onto its cushion, back onto its back), the hips on it, the eyes above them (the crew
+    # are near real size in here: cockpit.gd OWN_SCALE) and their helmet clear of the roof
+    if "eye" in cockpit:
+        eye = Vector(cockpit["eye"])
+    else:
+        trees = [BVHTree.FromPolygons([v.co for v in o.data.vertices], [p.vertices for p in o.data.polygons])
+            for o in meshes if o is not w and len(o.data.polygons)]
+        def hit(p, d):
+            hits = [h for h in (t.ray_cast(Vector(p), Vector(d)) for t in trees) if h[0] is not None]
+            return min(hits, key=lambda h: h[3]) if hits else None
+        def cast(p, d):
+            h = hit(p, d)
+            return h[0] if h else None
+        sx = centre.x
+        # the cushion: rays down behind the wheel; of what they land on that's flat (not the
+        # back, the bolsters), the highest (not the floor in front of the seat, beside it)
+        flat = [h[0].z for h in (hit((sx + dx, centre.y - dy, centre.z + 0.3), (0, 0, -1))
+            for dx in (-0.06, 0.0, 0.06) for dy in (0.3, 0.38, 0.46, 0.54, 0.62))
+            if h and h[0].z < centre.z - 0.12 and abs(h[1].z) > 0.75]
+        top = max(flat) if flat else None
+        seat_z = float(np.median([z for z in flat if z > top - 0.04])) if flat else centre.z - 0.3
+        eye = Vector((sx, 0.0, seat_z + 0.08 + 0.69))     # their thighs' joints 8 cm up, their eyes 0.69 above
+        # the back at waist, chest and shoulder height (a headrest on posts lets rays through
+        # higher up), followed on up to the eyes (it leans back), the head in front of it
+        pts = [(seat_z + dz, h.y) for dz in (0.25, 0.35, 0.45) for dx in (-0.05, 0.0, 0.05)
+            for h in [cast((sx + dx, centre.y, seat_z + dz), (0, -1, 0))] if h and centre.y - 1.2 < h.y < centre.y - 0.3]
+        if len(pts) >= 2 and len({round(p[0], 3) for p in pts}) >= 2:
+            a = np.polyfit([p[0] for p in pts], [p[1] for p in pts], 1)
+            back_y = float(np.clip(np.polyval(a, eye.z), np.median([p[1] for p in pts]) - 0.2, np.median([p[1] for p in pts])))
+        else:
+            back_y = float(np.median([p[1] for p in pts])) if pts else centre.y - 0.75
+        eye.y = float(np.clip(back_y + 0.16, centre.y - 0.75, centre.y - 0.48))
+        # the roof over the head (the highest of a few rays: not a cage tube)
+        ups = [h.z for h in (cast(eye + Vector((dx, dy, 0.0)), (0, 0, 1)) for dx in (-0.08, 0.08) for dy in (-0.08, 0.08)) if h]
+        roof = Vector((eye.x, eye.y, max(ups))) if ups else None
+        if roof and roof.z - eye.z < 0.13:
+            eye.z = roof.z - 0.13
+        print("cockpit: seat at %.3f, its back at %.3f, the roof %s" % (seat_z, back_y, roof and round(roof.z, 3)))
+    cock["eye"] = game(eye)
+    cock["side"] = "right" if centre.x > 0 else "left"
+    # the windshield (the mud and the wipers go on it): the glass in front of the
+    # driver that faces forward, from its bottom edge to its top
+    gl = [m for m in bpy.data.materials if matches(m.name, spec.get("glass", []))]
+    pts = []
+    for o in meshes:
+        idx = {i for i, sl in enumerate(o.material_slots) if sl.material in gl}
+        for p in o.data.polygons:
+            if p.material_index in idx and p.normal.y > 0.35 and p.center.y > centre.y and p.center.z > centre.z:
+                pts.extend(o.data.vertices[k].co.copy() for k in p.vertices)
+    if pts:
+        pv = np.array([q[:] for q in pts])
+        lo, hi = pv[pv[:, 2] < pv[:, 2].min() + 0.03], pv[pv[:, 2] > pv[:, 2].max() - 0.03]
+        cock["windshield"] = {"bottom": game((0.0, float(lo[:, 1].mean()), float(pv[:, 2].min()))),
+            "top": game((0.0, float(hi[:, 1].mean()), float(pv[:, 2].max()))),
+            "width": float(pv[:, 0].max() - pv[:, 0].min())}
+    # the rear-view mirror's glass (the game shows the road behind in it): those faces turned to the driver
+    if "mirror" in cockpit:
+        what = cockpit["mirror"]
+        x0, x1, y0, y1, z0, z1 = what.get("box", [-9, 9, -9, 9, -9, 9])
+        mnrm, mpts = Vector((0.0, 0.0, 0.0)), []
+        for o in meshes:
+            mi = {i for i, sl in enumerate(o.material_slots) if sl.material and matches(sl.material.name, what.get("mats", [".*"]))}
+            for p in o.data.polygons:
+                c = p.center
+                if p.material_index in mi and x0 <= c.x <= x1 and y0 <= c.y <= y1 and z0 <= c.z <= z1 and p.normal.dot(eye - c) > 0.0:
+                    mnrm += p.normal * p.area
+                    mpts.extend(o.data.vertices[k].co.copy() for k in p.vertices)
+        if mpts and mnrm.length > 0.0:
+            mn = mnrm.normalized()
+            mc0 = sum(mpts, Vector((0.0, 0.0, 0.0))) / len(mpts)
+            mu = Vector((0.0, 0.0, 1.0)).cross(mn).normalized()       # across the glass
+            mv = mn.cross(mu)                                           # up it
+            pu, pv = [(q - mc0).dot(mu) for q in mpts], [(q - mc0).dot(mv) for q in mpts]
+            mc = mc0 + mu * ((max(pu) + min(pu)) * 0.5) + mv * ((max(pv) + min(pv)) * 0.5)
+            cock["mirror"] = {"centre": game(mc), "normal": gdir(mn), "size": [max(pu) - min(pu), max(pv) - min(pv)]}
+            print("cockpit: the mirror at %s, %.0f x %.0f mm" % (tuple(round(x, 3) for x in mc), (max(pu) - min(pu)) * 1000, (max(pv) - min(pv)) * 1000))
+    spec["_cock"] = cock
+    print("cockpit: wheel at %s r %.3f axis %s, %s-hand drive, eyes %s" % (tuple(round(x, 3) for x in centre), rr.mean(),
+        tuple(round(x, 2) for x in n), cock["side"], tuple(round(x, 3) for x in eye)))
+if snapshot:
+    bpy.ops.wm.save_as_mainfile(filepath=snapshot, compress=True)
+if survey_parts:
+    print("PARTS (x right, y forward, z up; m)")
+    for o in sorted(meshes, key=lambda o: o.name):
+        v = verts(o)
+        mats = sorted({sl.material.name for sl in o.material_slots if sl.material})
+        print("  %-30s %6d tris  x %5.2f..%5.2f y %5.2f..%5.2f z %5.2f..%5.2f  %s" % (o.name[:30], sum(len(p.vertices) - 2 for p in o.data.polygons),
+            v[:, 0].min(), v[:, 0].max(), v[:, 1].min(), v[:, 1].max(), v[:, 2].min(), v[:, 2].max(), ",".join(mats)[:70]))
+    raise SystemExit(0)
 if survey:
     rows = {}
     for o in meshes:
@@ -485,6 +749,7 @@ if survey:
         print("  %-26s %6d f %6.3f m2  x %5.2f..%5.2f y %5.2f..%5.2f z %5.2f..%5.2f  %s | %s" % (name[:26], r["n"], r["area"],
             r["lo"][0], r["hi"][0], r["lo"][1], r["hi"][1], r["lo"][2], r["hi"][2], col, ",".join(sorted(r["objs"]))[:60]))
     raise SystemExit(0)
+
 
 # ── materials ────────────────────────────────────────────────────────────
 def look(mat, p):
@@ -635,14 +900,17 @@ def decimate(o, most, keep=(), least=0.0):
         return
     idx = {i for i, sl in enumerate(o.material_slots) if sl.material in keep}
     kept = None
-    if idx:
+    solo = o.data.attributes.get("solo")
+    if idx or solo:
         kept = o.copy()
         kept.data = o.data.copy()
         bpy.context.collection.objects.link(kept)
         for ob, inside in ((o, False), (kept, True)):
             bm = bmesh.new()
             bm.from_mesh(ob.data)
-            bmesh.ops.delete(bm, geom=[f for f in bm.faces if (f.material_index in idx) != inside], context='FACES')
+            lay = bm.faces.layers.int.get("solo")
+            bmesh.ops.delete(bm, geom=[f for f in bm.faces if (f.material_index in idx or (lay is not None and f[lay] == 1)) != inside],
+                context='FACES')
             strip_loose(bm)
             bm.to_mesh(ob.data)
             bm.free()
@@ -660,23 +928,25 @@ def decimate(o, most, keep=(), least=0.0):
     print("%s: %d -> %d triangles (%d kept whole)" % (o.name, n, tris(o), k))
 
 
-def game(v):
-    return [float(v[0]), float(v[2]), float(-v[1])]      # the game's axes: y up, -z forward
-
-
 # parts that only show through the windows (an interior): thinned harder before the body's budget
 for pat, ratio in spec.get("decimate_parts", []):
     for o in meshes:
         if re.search(pat, o.name, re.I) and all(o not in corner[k]["spin"] + corner[k]["cal"] for k in CORNERS):
             n = tris(o)
-            thin(o, ratio)
+            if ratio < 1.0:
+                thin(o, ratio)
+            # thinned to its own ratio (1: kept as it is): the body's budget leaves it alone
+            a = o.data.attributes.get("solo") or o.data.attributes.new("solo", 'INT', 'FACE')
+            a.data.foreach_set("value", [1] * len(o.data.polygons))
             print("%s: %d -> %d triangles (its own ratio)" % (o.name, n, tris(o)))
 
 for o in meshes:
     if o.data.attributes.get("keep_n") is None:
         store_normals(o)
 parts = {"wheels": [], "radius": [], "width": []}
-rest = set(meshes)
+rest = set(meshes) - {o for o, _ in cock_parts.values()}
+for name, (o, at) in cock_parts.items():
+    join([o], name, at)
 for k in CORNERS:
     c = corner[k]["c"]
     w = join(corner[k]["spin"], "Wheel_" + k, c)
@@ -715,6 +985,8 @@ def lowest(mats, seen=False):
     return float(min(zs)) if zs else None
 parts["sill"] = lowest([paint]) if paint else float(bb[:, 2].min())
 parts["belt"] = lowest(glass, True)
+if cockpit:
+    parts["cockpit"] = spec["_cock"]
 for o in bpy.data.objects:
     if o.type == 'MESH':
         o.data.validate()          # (the glTF export validates too: then its normals would scramble)

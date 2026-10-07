@@ -9,6 +9,8 @@ extends Node3D
 ## direction (bone -> child), so it doesn't care how the rig's axes point.
 
 const SCALE := 1.2              # the cartoon crew is small for the cabin
+var scale_k := SCALE            # (a car's own interior is real size: 1, set before load_model)
+var thigh_y := -0.2             # the thighs' slope seated (up +): a car's own seat tilts them level
 const FOREARM_SLIM := 0.6       # the driver's forearms, thinned to fit the gloves' gauntlets
 const HAND_CUT := 0.035         # m up the forearm from the wrist: where the driver's sleeves end (under the gauntlets)
 
@@ -34,7 +36,7 @@ func load_model(path: String) -> bool:
 		return false
 	var scene: Node3D = load(path).instantiate()
 	scene.rotation.y = PI                           # the model faces +Z, the car -Z
-	scene.scale = Vector3.ONE * SCALE
+	scene.scale = Vector3.ONE * scale_k
 	add_child(scene)
 	for ap in scene.find_children("*", "AnimationPlayer", true, false):
 		ap.queue_free()                              # its idle clip would fight the pose
@@ -355,7 +357,7 @@ func pose(hands: Array, elbow_out: Vector3, legs_fwd := 1.0) -> void:
 	# sitting
 	for side in ["Left", "Right"]:
 		var out := -1.0 if side == "Left" else 1.0
-		_aim(side + "UpLeg", side + "Leg", Vector3(out * 0.1, -0.2, -1.0))
+		_aim(side + "UpLeg", side + "Leg", Vector3(out * 0.1, thigh_y, -1.0))
 		_aim(side + "Leg", side + "Foot", Vector3(out * 0.02, -0.75, -0.55 * legs_fwd))
 		_aim(side + "Foot", side + "ToeBase", Vector3(0.0, -0.25, -1.0))
 	# hands

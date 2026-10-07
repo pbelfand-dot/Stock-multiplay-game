@@ -18,6 +18,11 @@ extends Node3D
 ##     lever, pulls it back (up a gear) or pushes it forward (down), and comes
 ##     back (about a third of a second). Not with the wheel wound round past
 ##     SHIFT_MAX_TURN or the handbrake up: then both stay where they are
+##   * in a car with an interior of its own (use_model): its own levers. The
+##     hand nearer the middle shifts (the left one in a right-hand-drive car);
+##     an H-pattern lever goes through the gates (out of gear, across, into
+##     the next) and stays in gear; an automatic shifts itself, the hand stays
+##     on the wheel; the handbrake is pulled up from its pivot
 ## Works in the cockpit's space (the car faces -Z). The arms reach for
 ## `wrists` (the crew model's IK targets).
 
@@ -34,6 +39,10 @@ const GEAR_THROW := 0.16        # rad the lever moves at a change (back: up a ge
 const SHIFT_REACH := 0.13       # s from the wheel to the knob
 const SHIFT_FLICK := 0.08       # s with the lever over
 const SHIFT_MAX_TURN := 1.2     # rad of wheel past which the hand stays on it
+const H_TIME := 0.24            # s to take an H-pattern lever out of gear, across and into the next
+const H_ROW := 0.2              # rad: an H-pattern lever forward (1st, 3rd, 5th) or back (2nd, 4th, 6th)
+const H_COL := 0.14             # rad: ... and across, to the left gate (1st, 2nd) or the right (5th, 6th)
+const ROAD_PULL := 0.42         # rad a road car's handbrake comes up
 const RIM_R := 0.0155           # thickness of the rim / lever handle the fingers wrap (a ~30 mm grip)
 const GRIP_ROLL := 0.55         # rad: the hand rolled round the rim toward the driver (you see the backs of your hands)
 const WRIST := Vector3(0.0, 0.01, 0.085)    # glove space (before the roll): where the forearm meets the hand
@@ -50,10 +59,23 @@ var _plane: Node3D               # the wheel's plane (tilted, not turned)
 var _gloves: Array = []
 var _cuffs: Array = []
 var _elbows: Array = []          # where the forearms come from (cockpit space; empty: a guess)
-var _lever: Node3D
+var _lever: Node3D               # the handbrake (pivots at its foot; +Y along it)
+var _lever_base: Node3D
 var _lever_pull := 0.0
-var _gear: Node3D                # the sequential lever (pivots at GEAR_BASE)
+var _lever_len := LEVER_LEN
+var _lever_rest := Basis(Vector3.RIGHT, LEVER_TILT)
+var _lever_throw := LEVER_PULL
+var _gear: Node3D                # the gear lever (pivots at its foot; +Y along it)
 var _gear_rest := Basis()
+var _gear_len := 0.0
+var shift_hand := RIGHT          # the hand that shifts and pulls the handbrake
+var gear_kind := "seq"           # "seq" (ours), "h5" / "h6" (an H-pattern), "seq_model", "auto" (no hand)
+var _gear_model: Node3D          # the car's own gear lever / handbrake (null: ours)
+var _brake_model: Node3D
+var _has_brake := true
+var _gate := Vector2.ZERO        # an H-pattern lever: where the knob is (x: -1 left .. 1 right; y: -1 forward .. 1 back)
+var _gate_from := Vector2.ZERO
+var _gate_to := Vector2.ZERO
 var _gear_kick := 0.0            # -1 pushed .. 1 pulled
 var _last_gear := 0
 var _rim := 0.18
@@ -65,11 +87,17 @@ var _hand := [{"mode": "grip", "g": PI, "from": PI, "to": PI, "t": 0.0, "src": "
 var _last_w := 0.0
 
 
-func setup(wheel_centre: Vector3, wheel_tilt: float, rim_radius: float) -> void:
+## The wheel: its centre, its tilt back (rad) and its rim's radius; or, a car's own
+## wheel, the way its column points toward the driver (axis: its plane's +Z).
+func setup(wheel_centre: Vector3, wheel_tilt: float, rim_radius: float, axis := Vector3.ZERO) -> void:
 	_rim = rim_radius
 	_plane = Node3D.new()
 	_plane.position = wheel_centre
 	_plane.rotation.x = wheel_tilt
+	if axis != Vector3.ZERO:
+		var z := axis.normalized()
+		var y := (Vector3.UP - z * z.dot(Vector3.UP)).normalized()     # 12 o'clock
+		_plane.basis = Basis(y.cross(z), y, z)
 	add_child(_plane)
 	var mats := {
 		"glove": _mat(Color(0.075, 0.075, 0.08), 0.85),         # Nomex suede
@@ -92,36 +120,116 @@ func setup(wheel_centre: Vector3, wheel_tilt: float, rim_radius: float) -> void:
 	_build_gear()
 
 
+## The car's own levers instead of ours (positions in the cockpit's space):
+## {side: "left" / "right" (where the driver sits), gearbox: "h5", "h6", "seq",
+## "auto", shifter: {pivot, knob, node}, handbrake: {pivot, grip, node}}. The
+## nodes (the model's, each with its origin at its pivot) are turned to match.
+func use_model(cfg: Dictionary) -> void:
+	shift_hand = LEFT if str(cfg.get("side", "left")) == "right" else RIGHT
+	gear_kind = str(cfg.get("gearbox", "h5"))
+	if gear_kind == "seq":
+		gear_kind = "seq_model"
+	for n in [_lever, _gear, _lever_base]:
+		for c in n.get_children():
+			c.queue_free()
+	_lever_base.queue_free()
+	_lever_base = null
+	if n_is(cfg.get("shifter")):
+		var g: Dictionary = cfg.shifter
+		_gear.position = g.pivot
+		_gear_rest = _along(g.knob - g.pivot)
+		_gear.basis = _gear_rest
+		_gear_len = (g.knob - g.pivot).length()
+		_gear_model = g.get("node")
+	elif gear_kind != "auto":
+		gear_kind = "auto"                               # nothing to shift with
+	_gate = _h_gate(1)
+	if n_is(cfg.get("handbrake")):
+		var h: Dictionary = cfg.handbrake
+		_lever.position = h.pivot
+		_lever_rest = _along(h.grip - h.pivot)
+		_lever_len = (h.grip - h.pivot).length()
+		_lever_throw = ROAD_PULL
+		_brake_model = h.get("node")
+	else:
+		_has_brake = false
+
+
+static func n_is(v) -> bool:
+	return v is Dictionary and not (v as Dictionary).is_empty()
+
+
+## A basis whose +Y runs along d, its +X as near the car's right as it can be.
+static func _along(d: Vector3) -> Basis:
+	var y := d.normalized()
+	var x := (Vector3.RIGHT - y * y.dot(Vector3.RIGHT)).normalized()
+	return Basis(x, y, x.cross(y))
+
+
+## Where an H-pattern lever's knob sits in gear g (1st top left ... 5th / 6th right).
+func _h_gate(g: int) -> Vector2:
+	if g < 1:
+		return Vector2.ZERO
+	var cols := 3
+	var col := clampi((g - 1) / 2, 0, cols - 1)
+	return Vector2(col - 1, -1.0 if g % 2 == 1 else 1.0)
+
+
+## Along the H from one gate to another (u 0..1): back to the middle row, across, into the gate.
+static func _h_path(a: Vector2, b: Vector2, u: float) -> Vector2:
+	if is_equal_approx(a.x, b.x):
+		return a.lerp(b, u)
+	if u < 0.3:
+		return a.lerp(Vector2(a.x, 0.0), u / 0.3)
+	if u < 0.7:
+		return Vector2(lerpf(a.x, b.x, (u - 0.3) / 0.4), 0.0)
+	return Vector2(b.x, 0.0).lerp(b, (u - 0.7) / 0.3)
+
+
 ## Every frame: the wheel's turn (rad, + = clockwise as the driver sees it),
 ## whether the handbrake is on, and the gear (0: no gearbox to follow).
 func update(dt: float, wheel_turn: float, handbrake: bool, gear := 0) -> void:
 	var w := wheel_turn
 	var turning := signf(w - _last_w)
 	_last_w = w
+	if not _has_brake:
+		handbrake = false                                # no lever to pull: the hand stays on the wheel
 	_lever_pull = move_toward(_lever_pull, 1.0 if handbrake else 0.0, dt * (9.0 if handbrake else 6.0))
-	_lever.rotation.x = LEVER_TILT + LEVER_PULL * _ease(_lever_pull)
-	# the right hand and the handbrake
-	var rh: Dictionary = _hand[RIGHT]
+	var pulled := Basis(Vector3.RIGHT, _lever_throw * _ease(_lever_pull))
+	_lever.basis = pulled * _lever_rest
+	if _brake_model:
+		_brake_model.basis = pulled
+	# the shifting hand and the handbrake
+	var rh: Dictionary = _hand[shift_hand]
 	if handbrake and rh.mode != "brake":
 		rh.mode = "brake"
 		rh.t = 0.0
-		rh.from_xf = (_gloves[RIGHT] as Node3D).transform
+		rh.from_xf = (_gloves[shift_hand] as Node3D).transform
 	elif not handbrake and rh.mode == "brake":
 		rh.mode = "move"
 		rh.t = 0.0
 		rh.src = "lever"
-		rh.to = _home(RIGHT) + w
-	# the right hand and the gear lever
-	if gear > 0 and _last_gear > 0 and gear != _last_gear and not handbrake:
+		rh.to = _home(shift_hand) + w
+	# the shifting hand and the gear lever (an automatic shifts itself)
+	var h_box := gear_kind == "h5" or gear_kind == "h6"
+	if gear > 0 and _last_gear > 0 and gear != _last_gear and not handbrake and gear_kind != "auto":
 		var dir := signf(gear - _last_gear)
 		if rh.mode == "shift":
 			rh.dir = dir                                 # another change: flick it again once there
 			rh.t = minf(rh.t, SHIFT_REACH)
+			if h_box:
+				_gate_from = _gate
+				_gate_to = _h_gate(gear)
 		elif absf(w) < SHIFT_MAX_TURN and (rh.mode == "grip" or (rh.mode == "move" and rh.src != "")):
 			rh.mode = "shift"
 			rh.t = 0.0
 			rh.dir = dir
-			rh.from_xf = (_gloves[RIGHT] as Node3D).transform
+			rh.from_xf = (_gloves[shift_hand] as Node3D).transform
+			if h_box:
+				_gate_from = _gate
+				_gate_to = _h_gate(gear)
+		elif h_box:
+			_gate = _h_gate(gear)                        # the hand can't go: (it's in gear all the same)
 	if gear > 0:
 		_last_gear = gear
 	for k in 2:
@@ -151,17 +259,29 @@ func update(dt: float, wheel_turn: float, handbrake: bool, gear := 0) -> void:
 				h.t = minf(h.t + dt / MOVE_TIME, 1.0)
 			"shift":
 				h.t += dt
-				if h.t >= SHIFT_REACH + SHIFT_FLICK:
+				if h.t >= SHIFT_REACH + (H_TIME if h_box else SHIFT_FLICK):
 					h.mode = "move"
 					h.t = 0.0
 					h.src = "gear"
-					h.to = _home(RIGHT) + w
-	# the lever: over while the hand flicks it, then it springs back to the middle
-	var kick := 0.0
-	if rh.mode == "shift" and rh.t > SHIFT_REACH:
-		kick = rh.dir
-	_gear_kick = move_toward(_gear_kick, kick, dt / (0.04 if kick != 0.0 else 0.07))
-	_gear.basis = _gear_rest * Basis(Vector3.RIGHT, GEAR_THROW * _gear_kick)
+					h.to = _home(shift_hand) + w
+					if h_box:
+						_gate = _gate_to
+	var moved: Basis
+	if h_box:
+		# an H-pattern: through the gates while the hand has it, then it stays in gear
+		if rh.mode == "shift" and rh.t > SHIFT_REACH:
+			_gate = _h_path(_gate_from, _gate_to, clampf((rh.t - SHIFT_REACH) / H_TIME, 0.0, 1.0))
+		moved = Basis(Vector3.RIGHT, H_ROW * _gate.y) * Basis(Vector3.BACK, -H_COL * _gate.x)
+	else:
+		# a sequential: over while the hand flicks it, then it springs back to the middle
+		var kick := 0.0
+		if rh.mode == "shift" and rh.t > SHIFT_REACH:
+			kick = rh.dir
+		_gear_kick = move_toward(_gear_kick, kick, dt / (0.04 if kick != 0.0 else 0.07))
+		moved = Basis(Vector3.RIGHT, GEAR_THROW * _gear_kick)
+	_gear.basis = moved * _gear_rest
+	if _gear_model:
+		_gear_model.basis = moved
 	for k in 2:
 		_place(k, w)
 
@@ -242,20 +362,25 @@ func _rim_grip(a: float, lift: float) -> Transform3D:
 
 ## The grip on the handbrake handle: fingers round the far side, palm toward the driver.
 func _lever_grip() -> Transform3D:
-	var top: Vector3 = _lever.transform * Vector3(0.0, LEVER_LEN, 0.0)
+	var top: Vector3 = _lever.transform * Vector3(0.0, _lever_len, 0.0)
 	var up := (_lever.transform.basis * Vector3.UP).normalized()
-	var toward := Vector3(-0.85, 0.0, 0.5).normalized()        # back toward the driver's shoulder
+	var toward := Vector3(-0.85 * _side(), 0.0, 0.5).normalized()        # back toward the driver's shoulder
 	toward = (toward - up * toward.dot(up)).normalized()
 	var out := up.cross(toward).normalized()
-	return Transform3D(Basis(up, out, toward), top - up * 0.04)
+	return Transform3D(Basis(up, out, toward), top - up * (0.04 if _brake_model == null else 0.0))
+
+
+## +1 when the shifting hand is the right one (the levers are on the driver's right), -1 the left.
+func _side() -> float:
+	return 1.0 if shift_hand == RIGHT else -1.0
 
 
 ## The grip on the gear lever: fingers round the knob's front, palm to the driver.
 func _gear_grip() -> Transform3D:
-	var stem := GEAR_BASE.distance_to(GEAR_TOP)
+	var stem := _gear_len
 	var up := (_gear.transform.basis * Vector3.UP).normalized()
-	var top: Vector3 = _gear.transform * Vector3(0.0, stem - 0.02, 0.0)
-	var toward := Vector3(-0.7, 0.0, 0.72).normalized()          # back toward the driver's shoulder
+	var top: Vector3 = _gear.transform * Vector3(0.0, stem - (0.02 if _gear_model == null else 0.0), 0.0)
+	var toward := Vector3(-0.7 * _side(), 0.0, 0.72).normalized()          # back toward the driver's shoulder
 	toward = (toward - up * toward.dot(up)).normalized()
 	var out := up.cross(toward).normalized()
 	return Transform3D(Basis(up, out, toward), top)
@@ -451,9 +576,10 @@ func _build_lever() -> void:
 	base.material_override = _mat(Color(0.12, 0.12, 0.13), 0.5)
 	base.position = LEVER_BASE + Vector3(0.0, 0.0, 0.01)
 	add_child(base)
+	_lever_base = base
 	_lever = Node3D.new()
 	_lever.position = LEVER_BASE
-	_lever.rotation.x = LEVER_TILT
+	_lever.basis = _lever_rest
 	add_child(_lever)
 	var rod := MeshInstance3D.new()
 	var rm := CylinderMesh.new()
@@ -484,6 +610,7 @@ func _build_gear() -> void:
 	var up := (GEAR_TOP - GEAR_BASE).normalized()
 	var x := (Vector3.RIGHT - up * up.dot(Vector3.RIGHT)).normalized()
 	_gear_rest = Basis(x, up, x.cross(up))
+	_gear_len = stem
 	_gear = Node3D.new()
 	_gear.name = "GearLever"
 	_gear.position = GEAR_BASE

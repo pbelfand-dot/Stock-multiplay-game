@@ -171,7 +171,7 @@ func _apply_roster() -> void:
 		car.place(_start_pos, st.heading_at(st.START_S))
 	cockpit.set_paint(setup.colours[0])
 	car.set_simulating(driver_here)
-	cam.attach(car, my_seat, Cockpit.EYE_DRIVER if driver_here else Cockpit.EYE_CODRIVER)
+	cam.attach(car, my_seat, cockpit.eye_for(my_seat))
 	cockpit.set_my_seat(my_seat)
 	ai.enabled = Net.peer_in("codriver") == 0
 	_update_hint()
@@ -438,7 +438,9 @@ func _process(dt: float) -> void:
 	if want != cam.view:
 		cam.view = want
 		car.set_outside(want != "seat")
-		cockpit.visible = want == "seat"
+		# a car's own interior has windows: the crew are seen from outside too (your own head with them)
+		cockpit.visible = want == "seat" or cockpit.own_interior()
+		cockpit.set_my_seat(my_seat if want == "seat" else "")
 	# the clocks
 	var clock := ""
 	var red := false

@@ -81,6 +81,8 @@ func bump(amount: float) -> void:
 func _process(dt: float) -> void:
 	if car == null:
 		return
+	# your own helmet (and the co-driver's body) only hidden from your own eyes: outside, all of you shows
+	cull_mask = 0xFFFFF & ~(1 << (1 if seat == "driver" else 2)) if view == "seat" else 0xFFFFF
 	var stick: Vector2 = Controls.look_stick()
 	yaw = clampf(yaw - stick.x * 2.4 * dt, -YAW_MAX, YAW_MAX)
 	pitch = clampf(pitch - stick.y * 1.8 * dt, PITCH_MIN, PITCH_MAX)

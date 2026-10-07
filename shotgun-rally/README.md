@@ -211,6 +211,15 @@ front, banking into the turns), trackside cameras it flashes past, a chase camer
   works** (a camera behind the glass looks back down the car: the cage, the rear window, the road
   behind) and a sun strip; the co-driver's trip meter, map lamp and
   ribbed aluminium footrest; a fire extinguisher, padding and a spare wheel strapped down in the back.
+- **Each car's own interior.** The cars with realistic bodies keep the interior their model came
+  with (dash, seats, door cards, its own steering wheel, gear lever and handbrake), and the crew fit
+  into it: they sit in its seats at real size, on the right in a right-hand-drive car (the HACHI,
+  NIMBUS and SYLPH) with the co-driver and the map board on the left. The gloves grip and turn its own
+  wheel; the hand nearer the middle works its own gear lever: an H-pattern through the gates, a
+  sequential pulled and pushed, an automatic left alone (the hand stays on the wheel); its own
+  handbrake comes up. Its own rear-view mirror shows the road behind, and the mud and the wipers
+  go on its windshield. Cars whose interior is too rough to sit in (both ROTORAs) and the four on
+  the shared body get the rally cockpit above. See [docs/cars.md](docs/cars.md).
 - **The car outside** has its own wheels now: they steer, spin and move up and down with the
   suspension, and the mud flaps swing behind them.
 - **Drift dirt** (modelled on WRC Sardinia and Finland footage): slide, flick the handbrake or
@@ -478,6 +487,9 @@ real voice.
      trees stand back, and running wide at 70 km/h you can get back on the road
    - the cockpit: the driver's sleeves are skinned on the CPU with the hands on the wheel (straight, turned both
      ways) and on the handbrake, and every sleeve end has to be inside its glove's gauntlet; numbered dials; shift lights
+   - interiors: each car with one of its own keeps it; the driver's eyes are in it on its wheel's side, the gloves
+     on its rim, the steering turns its wheel, the hand takes its lever through the gates (or pulls a sequential,
+     or stays put in an automatic) and pulls its handbrake
    - the AI co-driver says every call in time (90–240 m before the corner)
    - **2 players, both ways round:** one machine drives, the other rides along; both see the finish,
      and on a mixed stage both built the same surfaces
