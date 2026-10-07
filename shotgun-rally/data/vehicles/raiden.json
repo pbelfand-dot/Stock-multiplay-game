@@ -1,0 +1,89 @@
+{
+	"id": "raiden",
+	"name": "RAIDEN GT",
+	"order": 190,
+	"model": "gtr_r35",
+	"category": "jdm",
+	"role": "touge_grip",
+	"real": {
+		"manufacturer": "Nissan",
+		"model": "GT-R (R35)",
+		"year": 2017,
+		"trim": "GT-R Premium (US); kit treated as cosmetic/aero only"
+	},
+	"specs": {
+		"power_hp": 565,
+		"weight_kg": 1782,
+		"drivetrain": "AWD",
+		"transmission": "6-speed dual-clutch, rear transaxle (GR6)",
+		"wheelbase_mm": 2780,
+		"top_speed_kmh": 315,
+		"front_weight": 0.546,
+		"notes": "No authoritative specs exist for the AimGain (AimGain x Stancenation) Type 2 kit, which is an aftermarket bumper/fender/spoiler body kit, so the car is based on the stock 2017 GT-R Premium. Expect a wider track and different mass and aero in reality. The US press kit gives 565 hp, 467 lb-ft, 3,929 lb, 54/46 distribution, wheelbase 109.4 in (Nissan Japan lists 2,780 mm) and GR6 ratios with final drives of 3.700 rear and 2.937 front. The reverse ratio 3.383 is from Nissan Japan's GT-R NISMO spec sheet (same GR6 gearbox). The 2017 Track Edition is 3,915 lb (front 2,145 / rear 1,770, 54/46) with the same 565 hp. JDM/EU rating is 570 PS / 637 Nm. The 315 km/h top speed is quoted from CarAdvice (Australia) via search results; that page now redirects to drive.com.au, which refused access. Nissan USA does not publish a top speed."
+	},
+	"garage": {
+		"price": 34000,
+		"engine_sound": "i6_turbo",
+		"livery": "plain",
+		"number": 35,
+		"colours": [[0.88, 0.88, 0.9], [0.07, 0.07, 0.08], [0.78, 0.1, 0.08], [0.08, 0.08, 0.09]],
+		"wheels": "black",
+		"power": 1.0,
+		"grip": 1.0,
+		"brakes": 1.0,
+		"drive_front": 0.3,
+		"blurb": "The four-wheel-drive Godzilla on a wide body kit: a twin-turbo V6, a dual-clutch box and a brain that hooks it out of every corner. Heavy, and devastatingly fast."
+	},
+	"physics": {
+		"chassis": "sport",
+		"mass": 1782.0,
+		"front": 0.546,
+		"torque": 633.0,
+		"curve": [[1000, 0.38], [1805, 0.721], [2610, 0.926], [3300, 1.0], [4525, 1.0], [6800, 0.935], [7100, 0.783]],
+		"idle": 850.0,
+		"limiter": 7100.0,
+		"turbo": 0.4,
+		"spool": [2000.0, 3300.0],
+		"spool_time": 0.35,
+		"anti_lag": false,
+		"gears": [4.056, 2.301, 1.595, 1.248, 1.001, 0.796],
+		"final": 3.7,
+		"drive": "awd",
+		"front_share": 0.3,
+		"centre": ["lsd", 0.25, 0.2, 30.0],
+		"front_diff": ["lsd", 0.2, 0.1, 20.0],
+		"rear": ["lsd", 0.35, 0.15, 30.0],
+		"cd": 0.26,
+		"area": 2.1,
+		"down": 0.2,
+		"brake": 1.0
+	},
+	"checks": {
+		"zero_100_max": 7.0
+	},
+	"interior": {
+		"own": true,
+		"camera": true,
+		"notes": "The model's: dash, seats, steering wheel with paddles; left-hand drive. A dual-clutch: the hands stay on the wheel."
+	},
+	"source": {
+		"package": "2017-nissan-aimgain-gt-r-r35-type-2.zip",
+		"author": "VTX_car (display name: VTX)",
+		"license": "CC Attribution-NonCommercial-ShareAlike",
+		"url": "https://sketchfab.com/3d-models/2017-nissan-aimgain-gt-r-r35-type-2-ad8c387d5edc44f8bdc3ce729bbd83f3",
+		"attribution": "2017 Nissan Aimgain GT-R R35 Type 2 by VTX_car (display name: VTX) (CC Attribution-NonCommercial-ShareAlike)",
+		"candidate": 4
+	},
+	"research": [
+		"https://usa.nissannews.com/en-US/releases/us-2017-nissan-gt-r-press-kit",
+		"https://uk.nissannews.com/en-GB/releases/2017-nissan-gt-r-press-pack",
+		"https://www3.nissan.co.jp/content/dam/Nissan/jp/vehicles/GT-R/pdf/gt-r_nismo_specification.pdf",
+		"https://usa.nissannews.com/en-US/releases/nissan-gt-r-track-edition-set-for-u-s-debut-at-2017-new-york-international-auto-show",
+		"https://www.caradvice.com.au/news/2017-nissan-gt-r-pricing-and-specs/",
+		"https://www.auto123.com/en/new-cars/technical-specs/nissan/gt-r/2017/base/premium/"
+	],
+	"limitations": [
+		"The AimGain Type 2 kit has no published numbers: the 2017 GT-R Premium's (approximation).",
+		"Provenance: Forza Horizon asset naming; the upload chain traces to a CSR2 model (VEHICLE_PROGRESS.md)."
+	]
+}

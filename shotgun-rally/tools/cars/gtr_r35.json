@@ -3,4 +3,5 @@
  "drop_mats": ["BadgeE_", "ManufacturerPlate", "CalliperBadge"],
  "paint": ["PaintTNR", "Coloured_Material1"], "glass": ["Window_Material1"],
  "materials": [["Window_Material1", "glass"]],
- "wheel_faces": 10000, "body_faces": 200000, "tex_max": 1024, "tex_format": "webp"}
+ "wheel_faces": 10000, "body_faces": 200000, "tex_max": 1024,
+ "cockpit": {"gearbox": "auto", "wheel": {"box": [-0.59, -0.15, 0.10, 0.32, 0.66, 1.0]}}}

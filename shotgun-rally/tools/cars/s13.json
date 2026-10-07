@@ -1,0 +1,9 @@
+{"id": "s13", "front": "-Y", "wheelbase": 2.474,
+ "wheel": ["^ForgeStarS18MK1DeepDishStyle", "^BremboBrakesMK1(\\.00[0-3])?$", "^Cylinder(\\.0[01][0-9])?$"],
+ "caliper": ["^BremboBrakesMK1\\.00[4-7]$"],
+ "drop": ["^Hensonplate$"],
+ "paint": ["^Painted Metal$"], "glass": ["^Glass$"], "rims": ["^WhitePaint$"],
+ "materials": [["^Glass$", "glass"]],
+ "decimate_parts": [["^(DualTipMuffler|Radio|Nut\\.|Hex Bolt|Screw/Rivet)", 0.15]],
+ "wheel_faces": 12000, "body_faces": 200000, "body_least": 0.15, "tex_max": 1024,
+ "cockpit": {"gearbox": "h5", "wheel": {"parts": ["^S13 240SX Stock Steering Wheel$"]}, "shifter": {"parts": ["^S13 240SX Interior\\.003$"]}}}

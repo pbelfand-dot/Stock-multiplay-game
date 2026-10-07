@@ -1,0 +1,79 @@
+{
+	"id": "kitsune",
+	"name": "KITSUNE 13",
+	"order": 200,
+	"model": "s13",
+	"category": "jdm",
+	"role": "drift",
+	"real": {
+		"manufacturer": "Nissan",
+		"model": "240SX (S13)",
+		"year": 1991,
+		"trim": "Fastback (hatchback coupe), KA24DE, 5-speed manual (US, 1991-1994)"
+	},
+	"specs": {
+		"power_hp": 155,
+		"weight_kg": 1205,
+		"drivetrain": "RWD",
+		"transmission": "manual",
+		"wheelbase_mm": 2474,
+		"notes": "1989-90 US cars used the SOHC KA24E (140 hp, 152 lb-ft). The KA24DE (155 hp @ 5600, 160 lb-ft @ 4400) arrived for 1991. Wheelbase is 97.4 in (Consumer Guide; 2,474-2,475 mm). Curb weight is only database-grade: auto-data 1,205 kg (2,657 lb) for the fastback, Wikipedia 1,224 kg (2,698 lb), other listings up to 2,756 lb for the SE. US gear ratios and final drive could not be confirmed from a credible source, so they are null. Enthusiast forums cite 3.321/1.902/1.308/1.000/0.759 with a 4.083 final drive, which matches the JDM SR20DET Silvia box below, but this is unverified for the US KA24DE car. JDM SR20DE (NA) Silvia: 140 PS, 0.838 5th gear, 4.111 final drive (goo-net 1502041). Top speed and weight distribution were not found."
+	},
+	"garage": {
+		"price": 9000,
+		"engine_sound": "na4",
+		"livery": "plain",
+		"number": 13,
+		"colours": [[0.75, 0.06, 0.05], [0.07, 0.07, 0.08], [0.95, 0.95, 0.94], [0.95, 0.95, 0.94]],
+		"wheels": "white",
+		"power": 1.0,
+		"grip": 1.0,
+		"brakes": 1.0,
+		"drive_front": 0.0,
+		"blurb": "The late-80s rear-drive coupe every drifter started in, here on a bolt-on widebody kit and deep-dish wheels: a 2.4 twin-cam, light, balanced, happy sideways."
+	},
+	"physics": {
+		"chassis": "sport",
+		"mass": 1205.0,
+		"front": 0.54,
+		"torque": 217.0,
+		"curve": [[1000, 0.62], [2190, 0.829], [3380, 0.954], [4400, 1.0], [5600, 0.908], [6800, 0.695]],
+		"idle": 850.0,
+		"limiter": 6800.0,
+		"turbo": 0.0,
+		"gears": [3.321, 1.902, 1.308, 1.0, 0.759],
+		"final": 4.083,
+		"drive": "rwd",
+		"rear": ["lsd", 0.35, 0.15, 30.0],
+		"cd": 0.34,
+		"area": 1.85,
+		"down": 0.05,
+		"brake": 1.0
+	},
+	"checks": {
+		"zero_100_max": 12.0
+	},
+	"interior": {
+		"own": true,
+		"camera": true,
+		"notes": "The model's: dash, stock seats, stock steering wheel, gear lever (works); left-hand drive. Checked by automated tests only (see licence)."
+	},
+	"source": {
+		"package": "CGTrader_New_Cars/nissan_240sx_s13 (FBX)",
+		"license": "CGTrader purchase; the closest listing found is \"Editorial License (no AI)\" (low-confidence match): treated as no-AI",
+		"candidate": 6
+	},
+	"research": [
+		"https://www.auto-data.net/en/nissan-240sx-fastback-s13-facelift-1991-2.4-155hp-42567",
+		"https://consumerguide.com/used/1990-94-nissan-240sx/",
+		"https://en.wikipedia.org/wiki/Nissan_240SX",
+		"https://www.nissan-global.com/EN/HERITAGE/silvia_ks.html",
+		"https://www.goo-net.com/catalog/NISSAN/SILVIA/1502073/",
+		"https://www.goo-net.com/catalog/NISSAN/SILVIA/1502041/"
+	],
+	"limitations": [
+		"Treated as no-AI: converted by local scripts only, no renders or textures looked at; checked by the automated tests.",
+		"The gear ratios are the forum-quoted ones (the JDM SR20DET box), unconfirmed for the US car; the 54/46 split is an estimate.",
+		"The model's widebody kit and Brembos are aftermarket; the numbers are the stock US 240SX KA24DE's."
+	]
+}

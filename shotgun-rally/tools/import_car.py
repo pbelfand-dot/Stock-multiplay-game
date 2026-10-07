@@ -62,7 +62,7 @@ The spec (tools/cars/<id>.json) says what's what in the model:
   * "wheel_faces" / "body_faces": the most triangles a wheel / the body keeps
     (decimated: the download stays small). The paint and the glass are never
     thinned (thinning them dents the panels): only the rest, down to 35 % at
-    most. Whatever is thinned gets its shading back from the part as it was
+    most ("body_least": a lower floor for a very dense model). Whatever is thinned gets its shading back from the part as it was
     (its normals copied over), so it isn't left lumpy
 Then every part's transform and modifiers are applied, a front wheel saved
 turned is straightened (its axle found from the shape: the tyre's thinnest
@@ -1197,7 +1197,7 @@ for k in CORNERS:
         join(corner[k]["cal"], "Caliper_" + k, c)
         rest -= set(corner[k]["cal"])
 body = join(list(rest), "Body", Vector((0, 0, 0)))
-decimate(body, spec.get("body_faces"), [paint] + glass + paint_n, 0.35)
+decimate(body, spec.get("body_faces"), [paint] + glass + paint_n, spec.get("body_least", 0.35))   # ("body_least": how far the rest may be thinned)
 bb = verts(body)
 parts["body_min"] = [float(bb[:, 0].min()), float(bb[:, 2].min()), float(-bb[:, 1].max())]
 parts["body_max"] = [float(bb[:, 0].max()), float(bb[:, 2].max()), float(-bb[:, 1].min())]

@@ -55,7 +55,9 @@ CARS = [
 STATUS = {
     1: "**in game**: HAKO 2000 (hako). Collada converted with assimp; its PBR sets wired by name; gear lever works; tested (models 0-100 8.1 s gravel; interior)",
     3: "**in game**: PLEIAD 22 (pleiad). Wheels by material; gear lever + handbrake work (RHD); tested (models 4.4 s; interior)",
+    4: "**in game**: RAIDEN GT (raiden). Wheels by material; badges dropped; its steering wheel cut out by a narrowed box (the cluster left out); dual-clutch: hands stay on the wheel; tested (models 0-100 3.2 s; interior)",
     5: "**in game**: LANCER IX (lancer). Its gear lever works; badges dropped, dash matted; tested (models 4.8 s; interior). One texture missing from the package",
+    6: "**in game**: KITSUNE 13 (kitsune). Body thinned 1.06M -> 437k triangles (interior kept whole); colours from its plain materials; its gear lever works; tested (models 7.9 s; interior). Rocket Bunny kit: sits 6 cm off the ground",
     11: "**in game**: AKATSUKI V (akatsuki). The .mtl's absolute texture paths fixed by the converter; screens wired; automatic; tested (models 5.1 s; interior)",
     39: "**in game**: HELLHOUND WB (hellhound). Low-poly exterior + high-poly interior; tested (models: on its wheels, 0-100 5.3 s on gravel; interior: eyes, gloves on its rim, automatic)",
 }
