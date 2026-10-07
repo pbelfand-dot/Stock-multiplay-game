@@ -61,6 +61,19 @@ round:
   in a leather boot, so the hand has something to shift. The rest of the interior is the model's.
 - The mud splats on the outside of its windshield, and wipers sweep it.
 
+### Driver fit (F9)
+
+`scripts/vehicle/fit_debug.gd` works out where the crew go in each car from its own interior: the
+driver's eyes (the seat camera) and the co-driver's, the hip point, the hands at a quarter to three
+on the rim, the gear lever's pivot and knob and the handbrake's grip, the pedals (estimated under the
+column: no model marks its pedals), where the driver gets in (outside the driver's door) and the
+chase camera's anchor. **F9** in a stage (or `--fit_debug` from the start) draws them over the car,
+seen through the body, with each wheel's centre and suspension travel, the collision boxes and an
+arrow along the car's forward. `tests/interior_check.gd` judges the fit in every car with an
+interior: the head under the roof, the wheel 0.35-0.9 m in front of the eyes, the hands within
+reach of the shoulders, the pedals 0.55-1.3 m ahead of the seat and below it, the door outside the
+body.
+
 ## Where the numbers come from
 
 All the numbers are in `scripts/vehicle/car_specs.gd` (SPECS). Weights, outputs,
@@ -180,7 +193,7 @@ upgrades) and weight.
      own clean-up of invalid geometry. Either way the panels came out blotchy, or looked caved in.
    - An interior worth keeping gets a `"cockpit"` key: where its steering wheel, gear lever and
      handbrake are (name patterns, a box round the loose pieces, or materials in a box) and what
-     the gearbox is (`"h5"`, `"h6"`, `"seq"`, `"auto"`). They're cut out as parts of their own,
+     the gearbox is (`"h4"`, `"h5"`, `"h6"`, `"seq"`, `"auto"`). They're cut out as parts of their own,
      each turning about its pivot, and `parts.json` says where they are, where the driver's eyes
      go and where the windshield is. `--parts` lists every part, where it is and how big;
      `--snapshot file.blend` saves the car as the tool sees it, to look at. Leave the key out and

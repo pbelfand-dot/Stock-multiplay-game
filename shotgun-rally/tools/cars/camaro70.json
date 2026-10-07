@@ -1,5 +1,14 @@
 {"id": "camaro70", "front": "-Y", "wheelbase": 2.743,
- "wheel": ["^EagleSuperCar", "^Plane\\.0(27|57|58|62)$", "^Rim25HIghPoly"],
- "caliper": ["^main\\.0(05|07|10|13)$"],
- "paint": ["^CarPaint$"], "glass": ["^Glass(\\.001)?$"],
- "wheel_faces": 30000, "body_faces": 300000, "tex_max": 1024}
+ "wheel": ["^EagleSuperCar", "^Plane\\.0(27|57|58|62)$", "^Rim25HIghPoly", "^(?-i:Main)(\\.00[1-3])?$"],
+ "caliper": ["^(?-i:main)(\\.0\\d\\d)?$"],
+ "drop": ["^Text\\.007$"], "drop_mats": ["^Z28$"],
+ "paint": ["^CarPaint$"], "glass": ["^Glass\\.001$"],
+ "materials": [["^Glass(\\.001)?$", "glass"]],
+ "finish": [["^(Chairs|Plastic\\.001|PedalsPlastic)$", {"metal": 0.0, "rough": 0.7}]],
+ "decimate_parts": [["^Cube\\.001$", 0.08]],
+ "wheel_faces": 24000, "caliper_faces": 6000, "body_faces": 200000, "tex_max": 1024,
+ "tex_sizes": [["^(NormalCarPaint\\.002|Old Metal Pan\\.002|BlackMetal\\.001|Exhaust|TurningLights|FrontMarkerLight|RearMarkerLight)$", 256],
+               ["^(PedalsPlastic|Laminated Wood|LcdScreen|RpmMeter|SpeedMeter|FuelMeter|WaterMeter|VoltsMeter|Tire\\.001)$", 512]],
+ "cockpit": {"gearbox": "h4",
+             "wheel": {"mats": ["^Steering$"], "box": [-0.62, -0.25, -0.03, 0.10, 0.65, 0.98]},
+             "shifter": {"mats": ["^Chrome$"], "box": [-0.11, -0.03, -0.03, 0.06, 0.40, 0.62]}}}

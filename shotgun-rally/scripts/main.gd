@@ -300,6 +300,7 @@ func _test_setup() -> void:
 			var cam := Camera3D.new()
 			cam.fov = 50.0
 			cam.near = 0.01
+			cam.far = 900.0                            # (as the game's cameras: not the whole forest to the horizon)
 			cam.cull_mask = 0xFFFFF & ~(1 << 1)        # not the driver's helmet (the camera can go in it)
 			game.car.add_child(cam)
 			cam.position = Vector3(v[0], v[1], v[2])

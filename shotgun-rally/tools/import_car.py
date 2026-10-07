@@ -322,7 +322,7 @@ found = {}
 for d in tex_dirs:
     for root, _, files in os.walk(d):
         for f in files:
-            if f.lower().endswith((".png", ".jpg", ".jpeg", ".tga", ".bmp", ".tif", ".tiff")):
+            if f.lower().endswith((".png", ".jpg", ".jpeg", ".tga", ".bmp", ".tif", ".tiff", ".webp")):
                 found.setdefault(_key(f), os.path.join(root, f))
 for img in list(bpy.data.images):
     # (an image the importer couldn't load is left a placeholder, "generated", but keeps its path)
@@ -1274,6 +1274,14 @@ for pat, px in spec.get("tex_sizes", []):
                     cap[nd.image.name] = min(cap.get(nd.image.name, most), px)
 for img in bpy.data.images:
     most = cap.get(img.name, spec.get("tex_max", 512))
+    # an image all one colour (a plain metal or roughness map, a flat tint) needs no more than 4 px
+    if img.size[0] > 4 and img.size[1] > 4 and img.channels > 0:
+        px = np.empty(img.size[0] * img.size[1] * img.channels, dtype=np.float32)
+        img.pixels.foreach_get(px)
+        px = px.reshape(-1, img.channels)
+        if float((px.max(axis=0) - px.min(axis=0)).max()) < 2.0 / 255.0:
+            print("%s: one colour, %dx%d -> 4x4" % (img.name, img.size[0], img.size[1]))
+            most = 4
     if img.size[0] > most or img.size[1] > most:
         f = float(most) / max(img.size[0], img.size[1])
         img.scale(max(1, int(img.size[0] * f)), max(1, int(img.size[1] * f)))
