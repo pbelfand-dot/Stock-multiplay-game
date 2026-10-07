@@ -150,9 +150,12 @@ func _process(dt: float) -> void:
 	if showroom:
 		# circle the parked car, low, framed to the right of the garage panel
 		_orbit += dt * 0.16
+		var fixed := Config.flag("shot_orbit")       # pictures: the camera held at one angle
+		if fixed:
+			_orbit = float(Config.arg("shot_orbit"))
 		var p := c + Vector3(cos(_orbit) * 5.2, 1.15, sin(_orbit) * 5.2)
 		var right := (c - p).cross(Vector3.UP).normalized()
-		_place(p, c + Vector3.UP * 0.3 - right * 1.9, dt, 4.0)      # look left of it: the car sits right of the panel
+		_place(p, c + Vector3.UP * 0.3 - right * 1.9, dt, 0.0 if fixed else 4.0)      # look left of it: the car sits right of the panel
 		return
 	_shot_t += dt
 	var at: Dictionary = st.locate(c, _hint)
