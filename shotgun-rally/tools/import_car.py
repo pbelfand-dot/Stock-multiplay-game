@@ -34,7 +34,9 @@ The spec (tools/cars/<id>.json) says what's what in the model:
   * "materials": [[pattern, {color, metal, rough, alpha, emit, texture}], ...]:
     how a material looks, for models whose materials didn't come with them; or
     one of the usual looks by name (LOOKS: "glass", "chrome", "red_lens" ...), or
-    {"look": name, ...changes}. "rims": the wheel material patterns the game
+    {"look": name, ...changes}. "finish": [[pattern, {"metal", "rough"}]]: just the
+    shine put right, the textures kept (an FBX's materials can come in half metal
+    and mirror smooth). "rims": the wheel material patterns the game
     colours from the garage (renamed "rim")
   * "sidewall": {"mats": [patterns], "from": 0.7}: a wheel modelled with its
     tyre's sidewalls in the rim's material: those faces past "from" x the tyre's
@@ -813,6 +815,16 @@ for mat in list(bpy.data.materials):
             elif "look" in p:
                 p = dict(LOOKS[p["look"]], **p)
             look(mat, p)
+            break
+# a material's shine put right, its textures kept ("finish": [[pattern, {"metal", "rough"}]]):
+# an FBX's materials can come in half metal and mirror smooth
+for mat in bpy.data.materials:
+    for pat, p in spec.get("finish", []):
+        if re.search(pat, mat.name, re.I) and mat.use_nodes:
+            for b in [n for n in mat.node_tree.nodes if n.type == 'BSDF_PRINCIPLED']:
+                for key, inp in (("metal", "Metallic"), ("rough", "Roughness")):
+                    if key in p and not b.inputs[inp].is_linked:
+                        b.inputs[inp].default_value = p[key]
             break
 # paint parts shaped by a normal map: painted, each keeping its map
 paint_n = []
