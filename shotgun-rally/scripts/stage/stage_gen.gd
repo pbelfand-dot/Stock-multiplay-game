@@ -69,7 +69,6 @@ var _hills: Array = []          # [[amp, wavelength, phase] x2]
 ## sweepers of 900-2,500 m, grades of a few per cent).
 var kind := "rally"
 const TOUGE_W := 6.4            # a touge's two lanes (m), give or take a little
-const TOUGE_RISE := 0.075       # how much a touge climbs a metre of road (on average, before smoothing)
 const HIGHWAY_LANES := 4
 const LANE_W := 3.6
 const HIGHWAY_SHOULDER := 1.5   # each side, outside the edge lines
@@ -282,6 +281,11 @@ func _make_elevation() -> void:
 			pts[i].y = height_at(i * STEP)
 		_limit_grade()
 		return
+	if kind == "touge":
+		_touge_profile()
+		_make_terrain()
+		_fit_terrain()
+		return
 	# JUMPS on the long straights (a run-up and room to land in a straight line),
 	# where the hillside isn't too steep (on a slope the jump just tilts with it,
 	# but a steep one would push the landing past MAX_GRADE)
@@ -339,8 +343,48 @@ func _limit_grade() -> void:
 			pts[i].y = (ys[i - 1] + ys[i] * 2.0 + ys[i + 1]) * 0.25
 
 
+## A TOUGE's heights: it falls (DOWNHILL) or climbs (UPHILL) the whole way, never
+## the other way, as a pass down a mountainside does: 7.5-12.5 % on the straights and
+## sweepers (two slow waves of steeper and easier), easing to ~5 % round the hairpins
+## (a switchback is laid flatter, or a car couldn't get round it), the changes of
+## grade rounded off over ~30 m, level at the start and the finish. A 5 km pass
+## falls about 400 m. Its own random numbers.
+const TOUGE_GRADE := [0.075, 0.125]
+const TOUGE_HAIRPIN_EASE := 0.42      # the grade's share left in the tightest bends
+func _touge_profile() -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = hash([seed_used, "touge_grade"])
+	var waves := [[rng.randf_range(380.0, 650.0), rng.randf() * TAU], [rng.randf_range(130.0, 220.0), rng.randf() * TAU]]
+	var n := pts.size()
+	var g := PackedFloat32Array()
+	g.resize(n)
+	for i in n:
+		var s := i * STEP
+		var w: float = 0.5 + 0.35 * sin(s / waves[0][0] * TAU + waves[0][1]) + 0.15 * sin(s / waves[1][0] * TAU + waves[1][1])
+		var grade := lerpf(TOUGE_GRADE[0], TOUGE_GRADE[1], clampf(w, 0.0, 1.0))
+		var tight := clampf(absf(curv[i]) * 15.0, 0.0, 1.0)         # (1 at a 15 m hairpin, half at 30 m)
+		grade *= lerpf(1.0, TOUGE_HAIRPIN_EASE, tight)
+		g[i] = grade * smoothstep(START_S, START_S + 60.0, s) * (1.0 - smoothstep(finish_s - 40.0, finish_s, s))
+	var half := int(15.0 / STEP)                                   # rounded over ~30 m
+	var gs := PackedFloat32Array()
+	gs.resize(n)
+	for i in n:
+		var sum := 0.0
+		var cnt := 0
+		for j in range(maxi(i - half, 0), mini(i + half + 1, n)):
+			sum += g[j]
+			cnt += 1
+		gs[i] = sum / cnt
+	var way := -1.0 if str(opts.get("dir", "up")) == "down" else 1.0
+	var y := 0.0
+	pts[0].y = 0.0
+	for i in range(1, n):
+		y += way * gs[i] * STEP
+		pts[i].y = y
+
+
 ## The steepest the road may get: a rally stage's MAX_GRADE, a touge a little less
-## (it climbs all the way, so it's steep for longer), a highway 4 %.
+## (it climbs or falls all the way, so it's steep for longer), a highway 4 %.
 func max_grade() -> float:
 	return {"highway": 0.04, "touge": 0.13}.get(kind, MAX_GRADE)
 
@@ -704,10 +748,10 @@ func _make_terrain() -> void:
 	if kind == "touge":
 		# a pass climbs the mountain (or comes down it): the slope runs along the road,
 		# with a little across it so it hangs on a hillside
-		# (~5 % of its length in all, however far apart its ends wound up: TOUGE_RISE a metre of road)
-		var up := -1.0 if str(opts.get("dir", "up")) == "down" else 1.0
+		# (the slope matched to the road's own climb or fall from start to finish: _touge_profile)
+		var rise: float = pts[pts.size() - 1].y - pts[0].y
 		var apart := Vector2(pts[pts.size() - 1].x - pts[0].x, pts[pts.size() - 1].z - pts[0].z).length()
-		_tilt = along * minf(TOUGE_RISE * length * 0.66 / maxf(apart, 1.0), 0.3) * up + Vector2(-along.y, along.x) * MOUNTAIN_SLOPE * 0.35 * (1.0 if rng.randf() < 0.5 else -1.0)
+		_tilt = along * clampf(rise * 0.85 / maxf(apart, 1.0), -0.35, 0.35) + Vector2(-along.y, along.x) * MOUNTAIN_SLOPE * 0.35 * (1.0 if rng.randf() < 0.5 else -1.0)
 	_ridges.clear()
 	for k in 2:
 		var a := rng.randf() * TAU

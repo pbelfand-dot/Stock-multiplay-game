@@ -14,9 +14,11 @@ Settings > STREET HANDLING; `--seen_cars_only` keeps the no-AI cars out of scree
 
 **The road** (`StageGen` kind `"touge"`): about 5 km of two narrow lanes (6.1-6.7 m),
 built from the same pieces as a rally stage but weighted to hairpins and tight S-bends
-(typically 50 corners, 15-25 of them tighter than 20 m). The mountainside's slope runs
-*along* the road (`TOUGE_RISE`), so the pass climbs (UPHILL) or falls (DOWNHILL) about
-5 % of its length overall, 170-270 m, never steeper than 13 %. No jumps, bridges,
+(typically 50 corners, 15-25 of them tighter than 20 m). It falls (DOWNHILL) or climbs
+(UPHILL) the **whole way, never the other way** (`_touge_profile`): 7.5-12.5 % on the
+straights and sweepers, easing to ~5 % round the hairpins (switchbacks are laid flatter),
+about 8 % on average: a 5 km pass drops ~430 m. Night, mostly (the night look comes with the
+graphics work). No jumps, bridges,
 villages or puddles: asphalt end to end. Each seed is its own pass with its own name
 ("KAZEMAKI PASS"), the same on every machine.
 
@@ -122,15 +124,18 @@ SIM is Assetto Corsa-like: each car on the road tyres it really has (`TireModel.
 - **braking** ~1.1x the cornering grip (as the magazines' tests show); the brakes can lock
   the tyres, and the brake balance follows the weight at the stop (a 911 brakes on its rear
   tyres too);
-- **the aids**: no drift assist, no countersteer help, no high-speed stability (the car does
-  what the tyres do); factory ABS where the real car has it as standard (the classics, the
-  prototypes and the rally cars without; the ANTI-LOCK switch still forces it on).
+- **the aids**: no drift assist, no countersteer help (the car slides as the tyres let it);
+  HIGH-SPEED STABILITY as its Settings switch says (on out of the box: it catches a clip in
+  traffic); factory ABS and traction control where the real car has them as standard (the
+  classics, the prototypes and the rally cars without; their switches still force them on;
+  no traction control in the touge's DRIFT rules).
 
 Measured (`tests/sim_check.gd`, a 76 km/h ramp-steer skid pad and 100-0 km/h): the Supra
 1.06 g and 37 m, the GT-R 1.00 g and 36 m, the AE86 0.80 g and 43 m, the GT3 RS 1.28 g and
 29 m; ARCADE gives the same road cars 1.4-1.6 g (the GT3 RS 1.96). What SIM means at the wheel: real cars slide
-earlier and need smoother hands; a clip on the rear corner at 150 km/h spins the car (no
-helper catches it), as it would in Assetto Corsa. ARCADE is there for those who'd rather not.
+earlier and need smoother hands; with HIGH-SPEED STABILITY switched off, a clip on the rear
+corner at 150 km/h spins the car, as it would in Assetto Corsa. ARCADE is there for those who'd
+rather.
 
 ## Tests
 

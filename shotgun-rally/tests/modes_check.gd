@@ -100,8 +100,15 @@ func _touge() -> void:
 		check(st.length > 4500.0 and x.hairpins >= 8, "touge (%s): %.1f km, %d corners, %d hairpins (tighter than 20 m)" % [dir, st.length / 1000.0, st.corners.size(), x.hairpins])
 		check(x.wmin >= 5.9 and x.wmax <= 6.9, "touge: two narrow lanes, %.1f-%.1f m wide" % [x.wmin, x.wmax])
 		check(x.steep <= st.max_grade() + 0.001, "touge: no steeper than %.0f %% (steepest %.1f %%)" % [st.max_grade() * 100.0, x.steep * 100.0])
-		var climbs: bool = x.rise > 80.0 if dir == "up" else x.rise < -80.0
-		check(climbs, "touge %s: %+.0f m from start to finish" % ["uphill" if dir == "up" else "downhill", x.rise])
+		var against := 0
+		for i in range(1, st.pts.size()):
+			var dy: float = st.pts[i].y - st.pts[i - 1].y
+			if (dy > 0.001 and dir == "down") or (dy < -0.001 and dir == "up"):
+				against += 1
+		var climbs: bool = x.rise > 300.0 if dir == "up" else x.rise < -300.0
+		check(climbs and against == 0, "touge %s: %+.0f m from start to finish (%.1f %% on average), %s all the way" % [
+			"uphill" if dir == "up" else "downhill", x.rise, absf(x.rise) / st.length * 100.0,
+			("climbing" if dir == "up" else "falling") if against == 0 else "NOT %s %d m of it" % ["climbing" if dir == "up" else "falling", int(against * st.STEP)]])
 		check(st.crests.filter(func(c): return c.jump).is_empty() and st.bridges.is_empty() and st.villages.is_empty() and st.puddles.is_empty(),
 			"touge: no jumps, bridges, villages or puddles; asphalt end to end (%s)" % st.describe())
 	var a = StageGen.new()

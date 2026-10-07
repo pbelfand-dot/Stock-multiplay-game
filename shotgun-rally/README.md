@@ -425,7 +425,8 @@ has. Its asphalt grip is set so it holds its real skid-pad figure (measured wher
 published one: GR Supra 1.07 g, GT-R 1.00, Hellcat ~0.93, 911 GT3 RS 1.24; estimated by age
 and tyre otherwise), the grip peaks at a road tyre's 7.5 deg and a sliding one keeps 85 %, it
 brakes at ~1.1x its cornering grip with the balance following the weight, and there's no drift
-assist, countersteer help or high-speed stability (factory ABS where the real car has it).
+assist or countersteer help (factory ABS and traction control where the real car has them;
+HIGH-SPEED STABILITY stays a Settings switch).
 `tests/sim_check.gd` measures nine cars on a skid pad and from 100 km/h: all within 6 % of their
 real figures (the Supra 1.06 g and 37 m). ARCADE keeps the rally's grip for those who'd rather.
 Details: [docs/modes.md](docs/modes.md).

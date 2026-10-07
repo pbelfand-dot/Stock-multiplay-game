@@ -666,8 +666,8 @@ func _street_summary() -> void:
 			func(): return "street: emergency braking from %d km/h: %.0f m (at most %.0f), straight (%.1f deg/s yaw)" % [v, r[bk].dist, most, r[bk].yaw])
 	_lim(["brake 150 steer pad"], func(): return r["brake 150 steer pad"].beta <= 12.0,
 		func(): return "street: braking from 150 and steering: it steers, no spin (%.1f deg slip)" % r["brake 150 steer pad"].beta)
-	# (a clip on the rear corner at 150, hands off, spins a real car on road tyres, and
-	# SIM's does: no high-speed stability to catch it. Printed, not judged)
+	# (a clip on the rear corner at 150, hands off: HIGH-SPEED STABILITY, on out of the
+	# box, catches it; with it switched off it spins, as a real car would. Printed)
 	if results.has("clip 150"):
 		print("[feel] info %-8s street: clipped on the rear corner at 150, hands off: %.0f deg slip at most%s" % [car_id, r["clip 150"].beta,
 			" (spun)" if r["clip 150"].beta > 90.0 else ", straight again in %.2f s" % r["clip 150"].back])
