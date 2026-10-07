@@ -12,6 +12,8 @@ extends Node3D
 
 const MeshBuf = preload("res://scripts/stage/mesh_buf.gd")
 const Crowd = preload("res://scripts/stage/crowd.gd")
+const WorldMaterials = preload("res://scripts/render/world_materials.gd")   # the materials, sky and sun
+const Graphics = preload("res://scripts/render/graphics.gd")
 
 const GRAVEL := Color(0.71, 0.6, 0.44)
 const TRACK := Color(0.6, 0.5, 0.36)
@@ -244,16 +246,10 @@ func _lying_on(col: Color, s: float, shade: float, patch: Dictionary) -> Color:
 	return col
 
 
-## The material for a road surface's mesh: ice shines.
-static func _surface_material(surf: String) -> StandardMaterial3D:
-	var m := MeshBuf.material()
-	if surf == "ice":
-		m.specular_mode = BaseMaterial3D.SPECULAR_SCHLICK_GGX   # (ice shines)
-		m.roughness = 0.12
-		m.metallic_specular = 0.9
-	elif surf == "asphalt":
-		m.roughness = 0.85
-	return m
+## The material for a road surface's mesh (WorldMaterials: textured from MEDIUM up, the
+## vertex colours as the colour; ice shines).
+static func _surface_material(surf: String) -> Material:
+	return WorldMaterials.road(surf)
 
 
 ## The berm at sample i: cars throw gravel to the outside of a bend, so it piles
@@ -607,8 +603,8 @@ func _far_terrain(mn: Vector3, mx: Vector3) -> void:
 func _add(mb, surface: String, node_name: String, mat: Material = null) -> MeshInstance3D:
 	var mi := MeshInstance3D.new()
 	mi.name = node_name
-	mi.mesh = mb.mesh()
-	mi.material_override = mat if mat else MeshBuf.material()
+	mi.mesh = mb.mesh(WorldMaterials.smooth(node_name))
+	mi.material_override = mat if mat else WorldMaterials.for_part(node_name, surface)
 	add_child(mi)
 	if surface != "" and not mb.faces.is_empty():
 		var sb := StaticBody3D.new()
@@ -710,7 +706,8 @@ func _forest() -> void:
 	var meshes := {}
 	for kind in ["pine", "round", "birch", "bush", "fern", "cedar"]:
 		meshes[kind] = _tree_mesh(kind)
-	var mat := MeshBuf.material()
+	var mat := WorldMaterials.foliage()
+	var view := Graphics.view_distance()                 # (the graphics quality: how far they're drawn)
 	for ci in chunks:
 		for kind in chunks[ci]:
 			var list: Array = chunks[ci][kind]
@@ -726,8 +723,8 @@ func _forest() -> void:
 			mmi.name = "Trees_%d_%s" % [ci, kind]
 			mmi.multimesh = mm
 			mmi.material_override = mat
-			var near: float = (FERN_DRAW if kind == "fern" else TREE_DRAW) * (0.65 if OS.has_feature("web") else 1.0)
-			mmi.visibility_range_end = FAR_DRAW if kind.ends_with("_far") else near
+			var near: float = (FERN_DRAW if kind == "fern" else TREE_DRAW) * (0.65 if OS.has_feature("web") else 1.0) * view
+			mmi.visibility_range_end = FAR_DRAW * view if kind.ends_with("_far") else near
 			mmi.visibility_range_end_margin = 40.0
 			mmi.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_DISABLED
 			if kind == "bush" or kind == "fern" or kind.ends_with("_far"):
@@ -913,7 +910,7 @@ func _barriers() -> void:
 				for k in range(a, b):
 					_barrier_bit(k * st.STEP, (k + 1) * st.STEP, side, walled, stone if walled else steel, body)
 			i = j + 1
-	_add(steel, "", "Armco")
+	_add(steel, "", "Armco", WorldMaterials.steel({"painted": touge}))
 	_add(stone, "", "StoneWalls")
 
 
@@ -1336,14 +1333,7 @@ func _stream(b: Dictionary, bi: int) -> void:
 	var mi := MeshInstance3D.new()
 	mi.name = "Stream%d" % bi
 	mi.mesh = mb.mesh()
-	var m := StandardMaterial3D.new()
-	m.vertex_color_use_as_albedo = true
-	m.vertex_color_is_srgb = true
-	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	m.albedo_color = Color(1, 1, 1, 0.88)
-	m.roughness = 0.12
-	m.metallic_specular = 0.6
-	mi.material_override = m
+	mi.material_override = WorldMaterials.water()
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(mi)
 
@@ -1422,10 +1412,7 @@ func _puddles() -> void:
 	var mi := MeshInstance3D.new()
 	mi.name = "Puddles"
 	mi.mesh = mb.mesh()
-	var m := MeshBuf.material()
-	m.roughness = 0.15
-	m.metallic_specular = 0.8
-	mi.material_override = m
+	mi.material_override = WorldMaterials.puddle()
 	add_child(mi)
 
 
@@ -1717,6 +1704,8 @@ func _mountains() -> void:
 	var rock := Color(0.24, 0.31, 0.38) if mood != "golden" else Color(0.34, 0.27, 0.34)
 	if mood == "overcast":
 		rock = Color(0.34, 0.36, 0.38)
+	elif mood == "night":
+		rock = Color(0.012, 0.015, 0.022)               # (dark against the night sky)
 	var verts := PackedVector3Array()
 	var cols := PackedColorArray()
 	var uvs := PackedVector2Array()
@@ -1794,61 +1783,10 @@ func _process(_dt: float) -> void:
 		_range.global_position = Vector3(c.x, _mountain_y, c.z)
 
 ## The light: "day" (high sun, blue sky), "golden" (an evening sun low through
-## the trees, warm and long-shadowed), "overcast" (grey sky, soft light, fog).
+## the trees, warm and long-shadowed), "overcast" (grey sky, soft light, fog): a
+## photographed sky, the sun where it is in the photo, the graphics quality's shadows
+## and effects (WorldMaterials.setup).
 func _environment() -> void:
-	var env := Environment.new()
-	var sky := Sky.new()
-	var sm := ProceduralSkyMaterial.new()
-	sm.sky_top_color = Color(0.32, 0.55, 0.85)
-	sm.sky_horizon_color = Color(0.72, 0.82, 0.9)
-	sm.ground_horizon_color = Color(0.6, 0.7, 0.62)
-	sm.ground_bottom_color = Color(0.25, 0.35, 0.22)
-	match mood:
-		"golden":
-			sm.sky_top_color = Color(0.3, 0.42, 0.7)
-			sm.sky_horizon_color = Color(1.0, 0.7, 0.42)
-			sm.ground_horizon_color = Color(0.7, 0.55, 0.4)
-		"overcast":
-			sm.sky_top_color = Color(0.52, 0.56, 0.6)
-			sm.sky_horizon_color = Color(0.7, 0.72, 0.74)
-			sm.ground_horizon_color = Color(0.55, 0.58, 0.56)
-	sky.sky_material = sm
-	_horizon = sm.sky_horizon_color
-	env.background_mode = Environment.BG_SKY
-	env.sky = sky
-	env.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
-	env.ambient_light_sky_contribution = 0.5     # the rest is a neutral grey: the cabin isn't blue
-	env.ambient_light_color = Color(0.62, 0.62, 0.6)
-	env.ambient_light_energy = 0.64              # soft: the shade side still shows its colour
-	env.tonemap_mode = Environment.TONE_MAPPER_FILMIC
-	env.tonemap_exposure = 0.95
-	env.fog_enabled = true
-	env.fog_light_color = Color(0.72, 0.8, 0.86)
-	env.fog_density = 0.0045
-	env.fog_sky_affect = 0.15
-	var we := WorldEnvironment.new()
-	we.environment = env
-	add_child(we)
-	var sun := DirectionalLight3D.new()
-	sun.rotation = Vector3(deg_to_rad(-52.0), deg_to_rad(35.0), 0.0)
-	sun.light_energy = 1.0
-	sun.light_color = Color(1.0, 0.96, 0.88)
-	match mood:
-		"golden":
-			sun.rotation = Vector3(deg_to_rad(-16.0), deg_to_rad(65.0), 0.0)
-			sun.light_color = Color(1.0, 0.72, 0.45)
-			sun.light_energy = 1.15
-			env.ambient_light_color = Color(0.62, 0.55, 0.52)
-			env.fog_light_color = Color(0.95, 0.72, 0.52)
-			env.fog_density = 0.006
-		"overcast":
-			sun.rotation = Vector3(deg_to_rad(-70.0), deg_to_rad(20.0), 0.0)
-			sun.light_color = Color(0.85, 0.88, 0.92)
-			sun.light_energy = 0.45
-			env.ambient_light_energy = 0.85
-			env.fog_light_color = Color(0.68, 0.71, 0.73)
-			env.fog_density = 0.016
-	sun.shadow_enabled = not OS.has_feature("web")     # (a browser on a Chromebook: lighter)
-	sun.shadow_opacity = 0.8                           # soft shadows (the cartoon look)
-	sun.directional_shadow_max_distance = 70.0
-	add_child(sun)
+	var w: Dictionary = WorldMaterials.setup(self, mood)
+	mood = w.mood
+	_horizon = w.horizon

@@ -52,16 +52,35 @@ func is_empty() -> bool:
 	return verts.is_empty()
 
 
-func mesh() -> ArrayMesh:
+## The mesh; smooth: the normals averaged where faces meet (the realistic look's ground
+## and road: no facets), except across a fold sharper than ~50 degrees.
+func mesh(smooth := false) -> ArrayMesh:
 	var arr := []
 	arr.resize(Mesh.ARRAY_MAX)
 	arr[Mesh.ARRAY_VERTEX] = verts
-	arr[Mesh.ARRAY_NORMAL] = norms
+	arr[Mesh.ARRAY_NORMAL] = smooth_normals() if smooth else norms
 	arr[Mesh.ARRAY_COLOR] = cols
 	var m := ArrayMesh.new()
 	if not verts.is_empty():
 		m.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arr)
 	return m
+
+
+## Each corner's normal: the faces meeting at that point (the very same Vector3: the
+## builders reuse a row's points), weighted by their area.
+func smooth_normals() -> PackedVector3Array:
+	var acc := {}
+	for i in range(0, verts.size(), 3):
+		var w: Vector3 = norms[i] * (verts[i + 1] - verts[i]).cross(verts[i + 2] - verts[i]).length()
+		for k in 3:
+			var v: Vector3 = verts[i + k]
+			acc[v] = acc.get(v, Vector3.ZERO) + w
+	var out := PackedVector3Array()
+	out.resize(verts.size())
+	for i in verts.size():
+		var s: Vector3 = (acc[verts[i]] as Vector3).normalized()
+		out[i] = s if s.dot(norms[i]) > 0.64 else norms[i]
+	return out
 
 
 func shape() -> ConcavePolygonShape3D:
