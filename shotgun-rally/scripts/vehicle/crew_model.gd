@@ -20,6 +20,8 @@ var skel: Skeleton3D
 var look := Vector2.ZERO        # yaw (+ = left), pitch (+ = up), rad
 var _b := {}                    # bone name -> index
 var _posed: Array = []          # bones we pose (reset to rest every frame)
+var _fore_base := Vector3.ONE   # the forearms' scale (slimmed for the gloves: hide_hands); along them it stretches to reach
+var stretch := [1.0, 1.0]       # how much each forearm is stretched this frame (left, right: 1 = not)
 var _to_skel := Transform3D()   # cockpit space -> skeleton space
 var _head_hidden := false
 var _head_mesh: MeshInstance3D   # the helmet, cut out of the body (see _split_head)
@@ -180,8 +182,9 @@ func hide_hands(on: bool) -> void:
 		_hand_mesh = _cut_hands(_body)
 	if _hand_mesh:
 		_hand_mesh.visible = not on
+	_fore_base = Vector3(FOREARM_SLIM, 1.0, FOREARM_SLIM) if on else Vector3.ONE
 	for arm in ["LeftForeArm", "RightForeArm"]:
-		skel.set_bone_pose_scale(_b[arm], Vector3(FOREARM_SLIM, 1.0, FOREARM_SLIM) if on else Vector3.ONE)
+		skel.set_bone_pose_scale(_b[arm], _fore_base)
 
 
 ## Where the elbows are this frame (cockpit space): [left, right].
@@ -352,6 +355,8 @@ func pose(hands: Array, elbow_out: Vector3, legs_fwd := 1.0) -> void:
 		return
 	for i in _posed:
 		skel.set_bone_pose_rotation(i, skel.get_bone_rest(i).basis.get_rotation_quaternion())
+	for arm in ["LeftForeArm", "RightForeArm"]:
+		skel.set_bone_pose_scale(_b[arm], _fore_base)
 	# lean the back a little forward toward the wheel
 	_aim("Spine02", "Spine01", Vector3(0.0, 1.0, -0.12))
 	# sitting
@@ -425,3 +430,11 @@ func _ik(upper: String, lower: String, end: String, target_c: Vector3, pole_c: V
 	var elbow := a + dir * x + side * h
 	_aim_skel(upper, lower, elbow - a)
 	_aim_skel(lower, end, (a + dir * d) - _pos(lower))
+	# out of reach: the forearm stretches the rest of the way along itself, so the sleeve
+	# always ends in the glove's gauntlet (the glove stays where it holds on)
+	var want := a.distance_to(t)
+	var k := 0 if lower.begins_with("Left") else 1
+	stretch[k] = 1.0
+	if want > (l1 + l2) * 0.999:
+		stretch[k] = minf((want - l1) / l2, 2.5)
+		skel.set_bone_pose_scale(_b[lower], Vector3(_fore_base.x, _fore_base.y * stretch[k], _fore_base.z))

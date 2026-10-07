@@ -106,6 +106,8 @@ var wiper_x: Array = WIPER_X
 var _wheel_axis := Vector3(0.0, -sin(WHEEL_TILT), cos(WHEEL_TILT))   # toward the driver
 const HIPS := Vector3(0.0, -0.72, 0.02)        # a crew member's hips from their eyes (the cartoon crew, x1.2)
 const BOARD := Vector3(-0.01, -0.35, -0.26)    # the map board from the co-driver's eyes (on the right: x mirrors)
+const SEAT_SLIDE := 0.22                       # m the driver may slide their seat forward to reach its wheel
+const WHEEL_CLEAR := 0.46                      # m the wheel's centre stays from their eyes, at the closest
 const OWN_SCALE := 1.0                         # in a car's own interior the crew are real size (it is): their
                                                # eyes 0.6 m over their hips, 0.69 over their thighs' joints, which
                                                # tools/import_car.py puts 8 cm over the cushion
@@ -127,6 +129,8 @@ func build(the_car, stage) -> void:
 		_own_mirror()
 	_windshield()
 	_crew()
+	if not own.is_empty():
+		_reach_wheel()
 	hands = DriverHands.new()
 	hands.suit_colour = SUIT_D
 	add_child(hands)
@@ -190,6 +194,35 @@ func _own_mirror() -> void:
 	add_child(mirror)
 	_mirror_glass(mirror, Vector2(float(m.size[0]), float(m.size[1])) * 0.96, 0.002)
 	_mirror_at = mirror.position + n * 0.03
+
+
+## The driver slides their seat forward until their hands reach the wheel at a
+## quarter to three with their arms nearly straight (a rally driver sits close; the
+## crew's arms are short for their size), up to SEAT_SLIDE, but not so close the
+## wheel is in their face. What's still out of reach the forearms stretch to
+## (crew_model.gd): the gloves never come off the sleeves.
+func _reach_wheel() -> void:
+	var m = _models.get("driver")
+	if m == null:
+		return
+	var z := _wheel_axis
+	var y := (Vector3.UP - z * z.dot(Vector3.UP)).normalized()
+	var x := y.cross(z)
+	var need := 0.0
+	for side in ["Left", "Right"]:
+		var sh: Vector3 = m.bone(side + "Arm")
+		var reach: float = sh.distance_to(m.bone(side + "ForeArm")) + m.bone(side + "ForeArm").distance_to(m.bone(side + "Hand"))
+		var grip: Vector3 = wheel_c + x * wheel_r * (-1.0 if side == "Left" else 1.0)
+		var v := grip - sh
+		var r2 := pow(reach * 0.95, 2.0) - v.x * v.x - v.y * v.y
+		if r2 > 0.0:
+			need = maxf(need, -v.z - sqrt(r2))
+		else:
+			need = SEAT_SLIDE
+	var room := Vector2(eye_driver.y - wheel_c.y, eye_driver.z - wheel_c.z).length() - WHEEL_CLEAR
+	var f := clampf(need, 0.0, minf(SEAT_SLIDE, maxf(room, 0.0)))
+	eye_driver.z -= f
+	m.position.z -= f
 
 
 ## Its own gear lever and handbrake for the hands (driver_hands.gd use_model).

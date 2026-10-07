@@ -15,6 +15,10 @@ extends SceneTree
 ##     automatic, or no lever modelled: the hand stays on the wheel
 ##   * the handbrake: that hand goes to its own lever and pulls it
 ##   * a car without one keeps the cockpit's own interior
+##   * the gloves never float: round the wheel both ways, on the handbrake and
+##     reaching for the gear lever, each forearm ends at its glove's wrist (a
+##     wheel out of reach: the driver slides their seat forward, the forearm
+##     stretches the rest, not much), in every car, ours too
 ## Prints one [interior] line per check; exits 1 on any FAIL.
 ## Run: godot --headless --path . -s tests/interior_check.gd
 
@@ -58,6 +62,8 @@ func _process(_dt: float) -> bool:
 			ours += 1
 			_ours(c.id)
 	fails += _check(own >= 5, "%d cars keep their own interior, %d the cockpit's" % [own, ours])
+	for id in ["kestrel"] + Array(Catalog.CARS.filter(func(c): return str(c.get("model", "")) != "").map(func(c): return c.id)):
+		_reach(id)
 	print("[interior] %s" % ("INTERIOR OK" if fails == 0 else "INTERIOR FAIL"))
 	quit(1 if fails > 0 else 0)
 	return true
@@ -168,6 +174,42 @@ func _own(id: String, ck: Dictionary) -> void:
 			"%s: the handbrake: the hand on its own lever, pulled (the grip %.0f cm up, %.0f back)" % [
 			id, (grip1.y - grip0.y) * 100.0, (grip1.z - grip0.z) * 100.0])
 		car.inp.handbrake = false
+	car.queue_free()
+
+
+## The gap between each forearm's end and its glove's wrist: steering one way to
+## the other (hand over hand), the handbrake, a gear change, at 60 fps.
+func _reach(id: String) -> void:
+	var made: Array = _car(id)
+	var car = made[0]
+	var cp = made[1]
+	var m = cp._models.get("driver")
+	if m == null:
+		fails += _check(false, "%s: the driver model loaded" % id)
+		car.queue_free()
+		return
+	var worst := 0.0
+	var where := ""
+	var most := 1.0
+	var states := []
+	for i in 15:
+		states.append(["steering %+.2f" % (-0.35 + i * 0.05), -0.35 + i * 0.05, false, 1, 0.6])
+	states.append(["the handbrake", 0.0, true, 1, 0.6])
+	states.append(["changing gear", 0.0, false, 2, 0.6])
+	for st_ in states:
+		car.steer = st_[1]
+		car.inp.handbrake = st_[2]
+		car.gear = st_[3]
+		for f in roundi(st_[4] / DT):
+			cp._process(DT)
+			for k in 2:
+				var g: float = m.bone("LeftHand" if k == 0 else "RightHand").distance_to(cp.hands.wrists[k])
+				most = maxf(most, m.stretch[k])
+				if g > worst:
+					worst = g
+					where = "%s, %s hand" % [st_[0], "left" if k == 0 else "right"]
+	fails += _check(worst < 0.015 and most < 1.6,
+		"%s: the gloves stay on the sleeves (the worst gap %.1f cm: %s; forearms stretched x%.2f at most)" % [id, worst * 100.0, where, most])
 	car.queue_free()
 
 
