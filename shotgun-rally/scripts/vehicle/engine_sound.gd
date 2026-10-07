@@ -56,6 +56,9 @@ const ENGINES := {
 	"i6_turbo": {"set": "six", "turbo": 0.45, "sc": 0.0, "anti_lag": false, "pops": 0.15, "bov": true, "whine": 0.15, "bang": false, "tone": "road"},
 	# a European twin-turbo V8 (RS 6, M5/M8, AMG): the V8 loops, a turbo's hush, a fuller road tone
 	"v8_turbo": {"set": "v8", "turbo": 0.35, "sc": 0.0, "anti_lag": false, "pops": 0.3, "bov": false, "whine": 0.15, "bang": false, "tone": "v8_road"},
+	# an F1-derived turbo-hybrid V6 (AMG ONE): the 458's high-revving loops, a turbo's whistle,
+	# a racing gearbox's whine and the race tone
+	"f1_hybrid": {"set": "v8", "turbo": 0.6, "sc": 0.0, "anti_lag": false, "pops": 0.2, "bov": false, "whine": 0.6, "bang": true, "tone": "race"},
 }
 ## Each tone's EQ (AudioEffectEQ6 bands 32, 100, 320, 1000, 3200, 10000 Hz, dB).
 const TONES := {

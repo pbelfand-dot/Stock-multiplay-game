@@ -1,0 +1,7 @@
+{"id": "hellcat", "front": "-Y", "wheelbase": 2.946,
+ "wheel": ["^car\\.Wheel\\.(Ft|Bk)\\.[LR]$", "^car\\.WheelBrake\\."],
+ "drop": ["^(BackBrakeCaliperR|BackLCaliper|BackLRim|BackLeftNuts|BackNutsR|BackRimR|FrontLBrakeCaliper|FrontLRim|FrontRightNuts|FrontRightRim|LeftFrontNuts)$",
+          "^car\\.Wheel\\.Ft\\.R\\.\\d+$", "word$", "^SideLogo$"],
+ "paint": ["^CarPaint$"], "glass": ["^Windows$"],
+ "materials": [["^Windows$", "glass"], ["^Headlight's Glass$", "clear_lens"]],
+ "wheel_faces": 8000, "body_faces": 60000, "tex_max": 512}

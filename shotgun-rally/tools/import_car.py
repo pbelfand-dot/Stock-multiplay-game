@@ -18,6 +18,8 @@ The spec (tools/cars/<id>.json) says what's what in the model:
     patterns of its wheels' (calipers') faces, made parts of their own;
     "split_mats": {"name": [patterns]}: more parts of their own ("<part>_name":
     an interior, to thin harder with "decimate_parts")
+  * "wheel_trim": true: a wheel material the body uses too (a splitter, a vent): faces far
+    from the rest of their corner's wheel stay with the body
   * "mirror": name patterns of parts the model only has on one side (a missing
     tyre): copied, mirrored, to the other
   * "shift": [[name pattern, [dx, dy, dz]]]: parts moved as they're loaded (the model's
@@ -241,6 +243,23 @@ bpy.ops.object.parent_clear(type='CLEAR_KEEP_TRANSFORM')
 for o in list(bpy.data.objects):                  # not in the scene, or not rendered: not part of the car
     if o.name not in vl.objects or o.hide_render:
         bpy.data.objects.remove(o, do_unlink=True)
+# the glTF importer's bone shapes (its "glTF_not_exported" collection) aren't parts of the car
+for c in bpy.data.collections:
+    if c.name.startswith("glTF_not_exported"):
+        for o in list(c.objects):
+            bpy.data.objects.remove(o, do_unlink=True)
+    c.hide_viewport = False
+    c.hide_select = False
+# (parts hidden in the viewport or locked against selection can't be converted: shown, unlocked)
+def _show(lc):
+    lc.hide_viewport = False
+    for c in lc.children:
+        _show(c)
+_show(vl.layer_collection)
+for o in vl.objects:
+    o.hide_viewport = False
+    o.hide_select = False
+    o.hide_set(False)
 bpy.ops.object.select_all(action='DESELECT')
 shapes = [o for o in vl.objects if o.type in ('MESH', 'CURVE', 'SURFACE', 'FONT', 'META')]
 for o in shapes:
@@ -562,6 +581,39 @@ for kind, objs in (("spin", spin), ("cal", cal)):
 for k in CORNERS:
     if not corner[k]["spin"]:
         raise SystemExit("no wheel parts at %s" % k)
+
+# ("wheel_trim": a wheel material also used on the body (a splitter, a vent): faces far from
+# the rest of their corner's wheel, side on, stay with the body: they'd spin, and skew the axle)
+if spec.get("wheel_trim"):
+    for k in CORNERS:
+        objs = corner[k]["spin"]
+        cen = np.vstack([np.array([p.center[:] for p in o.data.polygons]) for o in objs])
+        side = lambda q: np.stack([q @ np.array(fwd[:]), q[:, 2]], axis=1)
+        med = np.median(side(cen), axis=0)
+        reach = 2.0 * float(np.median(np.linalg.norm(side(cen) - med, axis=1)))
+        lat = np.median(cen @ np.array(right[:]))         # (and in from the wheel: a wheel is narrower than it is tall)
+        for o in list(objs):
+            c = np.array([p.center[:] for p in o.data.polygons])
+            far = np.linalg.norm(side(c) - med, axis=1) > reach
+            # (in from the wheel by any corner of the face: a long strip's middle can sit in the wheel)
+            vl = np.array([v.co[:] for v in o.data.vertices]) @ np.array(right[:]) - lat
+            far |= np.array([float(np.abs(vl[list(p.vertices)]).max()) > 0.6 * reach for p in o.data.polygons])
+            if not far.any():
+                continue
+            rest = o.copy()
+            rest.data = o.data.copy()
+            bpy.context.collection.objects.link(rest)
+            for obj, drop in ((o, far), (rest, ~far)):
+                bm = bmesh.new()
+                bm.from_mesh(obj.data)
+                bm.faces.ensure_lookup_table()
+                bmesh.ops.delete(bm, geom=[f for f, d in zip(bm.faces, drop) if d], context='FACES')
+                strip_loose(bm)
+                bm.to_mesh(obj.data)
+                bm.free()
+            rest.name = o.name + "_body"
+            meshes.append(rest)
+            print("wheel_trim: %d faces of %s left with the body" % (int(far.sum()), o.name))
 
 # straighten a front wheel saved turned: its axle is the tyre's thinnest way
 # (from the tyre's outer ring only: a deep hub would skew it)

@@ -1,0 +1,4 @@
+{"id": "gt3rs_992", "front": "+Y", "wheelbase": 2.457,
+ "wheel": ["^wheel_(lf|rf|lr|rr)"],
+ "caliper": ["^hub_"],
+ "wheel_faces": 20000, "body_faces": 250000, "tex_max": 1024}

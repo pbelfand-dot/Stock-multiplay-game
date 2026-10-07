@@ -70,6 +70,7 @@ STATUS = {
     40: "**in the registry** (traffic): SALOON (traffic_sedan). Nose along +X; its T_ texture sets wired; 60k triangles, 512 px; no-AI: converted and checked by scripts only",
     41: "**in the registry** (traffic): CROSSOVER (traffic_crossover). Nose along +X; its parts moved back under their parent (the FBX left them 2.27 m off: converter \"shift\"); no-AI: scripts only",
     42: "**in the registry** (traffic): PEOPLE MOVER (traffic_minivan). As the crossover (parts 1.6 m off, moved back); no-AI: scripts only",
+    37: "**in game**: BRAWLER 70 (brawler). Wheels (tyre, two-piece rim, disc) and calipers by part; brakes modelled bolt by bolt thinned 187k -> 6k a corner (converter: caliper_faces); seats 459k -> 37k; 12 one-colour 2K textures stored at 4x4 (converter); badges dropped; its console's ball-topped lever: a four-speed H (new \"h4\" gate); physics on 0.83 x the gross rating (GM's 1971 LT-1 gross/net); tested (models 5.8 s; interior). Source match: the package's 65.2 MB texture set matches AddMesh's 'Camaro 1970' listing (its FBX size doesn't)",
     39: "**in game**: HELLHOUND WB (hellhound). Low-poly exterior + high-poly interior; tested (models: on its wheels, 0-100 5.3 s on gravel; interior: eyes, gloves on its rim, automatic)",
 }
 DECISIONS = [

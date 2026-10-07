@@ -1,0 +1,4 @@
+{"id": "amg_one", "front": "+Y", "wheelbase": 2.72,
+ "wheel": ["^Object_6[5-9]$", "^Object_57$"],
+ "caliper": ["^Object_5[689]$"], "wheel_trim": true,
+ "wheel_faces": 20000, "body_faces": 250000, "tex_max": 1024}
