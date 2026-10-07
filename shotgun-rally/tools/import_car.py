@@ -51,6 +51,11 @@ The spec (tools/cars/<id>.json) says what's what in the model:
     shine put right, the textures kept (an FBX's materials can come in half metal
     and mirror smooth). "rims": the wheel material patterns the game
     colours from the garage (renamed "rim")
+  * "glb_patch": material fixes made to the GLB after it's written (tools/glb_patch.py:
+    a colour texture taken from the glow map, a glow, a colour, an alpha mode)
+  * "glow": [[pattern, strength]]: lamps that glow in their own colour (the emission
+    is the material's colour or texture: a white glow mask over a whole light cluster
+    turned its red tail lights white); 0: no glow
   * "sidewall": {"mats": [patterns], "from": 0.7}: a wheel modelled with its
     tyre's sidewalls in the rim's material: those faces past "from" x the tyre's
     radius become rubber
@@ -417,6 +422,9 @@ for img in list(bpy.data.images):
                     img.user_remap(fresh)
                 break
         else:
+            # (one the spec swaps for a file of its own isn't missing: "retexture" wires it below)
+            if any(re.search(pat, os.path.basename(p) or img.name, re.I) for pat, _ in spec.get("retexture", [])):
+                continue
             print("missing image:", img.name, img.filepath)
             missing_images.append(img)
 
@@ -853,6 +861,13 @@ for b in spec.get("drop_boxes", []):
 for b in spec.get("remat_boxes", []):
     x0, x1, y0, y1, z0, z1 = b["box"]
     to = bpy.data.materials.get(b["to"])
+    if to is None and b.get("copy_of"):
+        src_mat = bpy.data.materials.get(b["copy_of"])
+        if src_mat:
+            to = src_mat.copy()                      # (its texture kept: "glb_patch" tints it)
+            to.name = b["to"]
+    if to is None and b.get("new"):
+        to = bpy.data.materials.new(b["to"])         # (its look from "materials")
     if to is None:
         raise SystemExit("remat_boxes: no material %s" % b["to"])
     eye = Vector(b["facing"]) if b.get("facing") else None
@@ -1277,6 +1292,23 @@ for mat in bpy.data.materials:
                     if key in p and not b.inputs[inp].is_linked:
                         b.inputs[inp].default_value = p[key]
             break
+# lamps that glow in their own colours ("glow": [[pattern, strength]]): the emission is the
+# material's own colour (its texture), so a game rip's white glow mask over the whole light
+# cluster doesn't turn red tail lights white; strength 0 puts the glow out
+for mat in bpy.data.materials:
+    for pat, k in spec.get("glow", []):
+        if re.search(pat, mat.name, re.I) and mat.use_nodes:
+            nt = mat.node_tree
+            for b in [n for n in nt.nodes if n.type == 'BSDF_PRINCIPLED']:
+                for l in list(b.inputs["Emission Color"].links):
+                    nt.links.remove(l)
+                bc = b.inputs["Base Color"]
+                if bc.is_linked:
+                    nt.links.new(bc.links[0].from_socket, b.inputs["Emission Color"])
+                else:
+                    b.inputs["Emission Color"].default_value = bc.default_value
+                b.inputs["Emission Strength"].default_value = k
+            break
 # paint parts shaped by a normal map: painted, each keeping its map
 paint_n = []
 for mat in [m for m in bpy.data.materials if matches(m.name, spec.get("paint_normal", []))]:
@@ -1528,5 +1560,9 @@ from glb_alpha import fix_alpha
 ga = fix_alpha(glb)
 print("alpha: %d blended materials -> %d opaque, %d cut out, %d left blended (%s)" % (
     sum(len(v) for v in ga.values()), len(ga["OPAQUE"]), len(ga["MASK"]), len(ga["BLEND"]), ", ".join(ga["BLEND"][:8])))
+# the spec's material fixes ("glb_patch": tools/glb_patch.py)
+if spec.get("glb_patch"):
+    from glb_patch import apply as glb_patch
+    print("patched materials: %s" % glb_patch(glb, spec["glb_patch"]))
 json.dump(parts, open(os.path.join(out_dir, "parts.json"), "w"), indent=2)
 print("wrote %s (%d KB), body %d triangles" % (glb, os.path.getsize(glb) // 1024, tris(body)))

@@ -6,4 +6,6 @@
  "materials": [["^Doorrfok0101Mtl$", "glass"], ["^Doorlfok0071Mtl$", "glass"]],
  "wheel_faces": 20000, "body_faces": 220000, "tex_max": 1024,
  "cockpit": {"gearbox": "auto", "eye": [-0.332, -0.22, 0.96],
-             "wheel": {"mats": ["^Fsteer0011Mtl$"], "box": [-0.52, -0.14, 0.30, 0.50, 0.52, 0.80]}}}
+             "wheel": {"mats": ["^Fsteer0011Mtl$"], "box": [-0.52, -0.14, 0.30, 0.50, 0.52, 0.80]}},
+ "remat_boxes": [{"box": [-1.2, 1.2, -2.5, -1.85, 0.2, 1.0], "mats": ["^Ln4Mtl$"], "to": "tail_lamp", "copy_of": "Ln4Mtl"}],
+ "glb_patch": {"materials": {"^tail_lamp$": {"color": [1.0, 0.08, 0.05], "emissive": [0.6, 0.02, 0.0]}}}}

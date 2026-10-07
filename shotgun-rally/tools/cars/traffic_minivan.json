@@ -5,4 +5,5 @@
  "paint": ["^body$"], "glass": ["^glass$", "^window_glass$", "^window_darkglass$", "^glass_bumpy$"],
  "materials": [["^window_glass$", "glass"], ["^window_darkglass$", "glass"], ["^glass$", "clear_lens"], ["^red_glass$", "red_lens"]],
  "pbr_sets": true,
- "wheel_faces": 3000, "body_faces": 60000, "tex_max": 512}
+ "wheel_faces": 3000, "body_faces": 60000, "tex_max": 512,
+ "glb_patch": {"materials": {"^chrome$": {"color": [0.4, 0.4, 0.4]}, "^(black|rubber)$": {"color": [0.133, 0.133, 0.133]}, "^Bottom$": {"color": [0.106, 0.106, 0.106]}}}}

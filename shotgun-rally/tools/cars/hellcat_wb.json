@@ -7,4 +7,7 @@
  "graft": {"file": "Dodge Challenger SRT Hellcat Widebody Highpoly.glb", "parts": ["^Interior$", "^Dashboard$"]},
  "wheel_faces": 30000, "body_faces": 380000, "tex_max": 2048,
  "decimate_parts": [["^(Interior|Dashboard)$", 1.0]],
- "cockpit": {"gearbox": "auto", "wheel": {"box": [-0.65, -0.14, 0.27, 0.50, 0.70, 1.20]}}}
+ "cockpit": {"gearbox": "auto", "wheel": {"box": [-0.65, -0.14, 0.27, 0.50, 0.70, 1.20]}},
+ "glb_patch": {"materials": {"^Dark(\\.\\d+)?$": {"color": [0.03, 0.03, 0.035]},
+                               "^Light Glass$": {"color": [0.9, 0.9, 0.92, 0.22], "alpha": "BLEND"},
+                               "^Red DRL$": {"color": [0.55, 0.02, 0.02]}}}}

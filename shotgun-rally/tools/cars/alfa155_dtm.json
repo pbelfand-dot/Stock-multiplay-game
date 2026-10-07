@@ -3,4 +3,5 @@
  "paint": ["^Carpaint$"], "glass": ["^Windows$"],
  "materials": [["^Windows$", "glass"], ["^Mirror$", "chrome"]],
  "body_faces": 160000, "tex_max": 1024, "tex_format": "webp",
- "cockpit": {"gearbox": "h6", "wheel": {"parts": ["^GEO_Steer_HR_SUB\\d"]}, "shifter": {"parts": ["^GEO_Shift_SUB\\d"]}}}
+ "cockpit": {"gearbox": "h6", "wheel": {"parts": ["^GEO_Steer_HR_SUB\\d"]}, "shifter": {"parts": ["^GEO_Shift_SUB\\d"]}},
+ "glb_patch": {"materials": {"^(Details_AT|Grid2_Mult25|Grid3_Mult50|INT_Decal_Alfa)$": {"alpha": "MASK"}}}}
