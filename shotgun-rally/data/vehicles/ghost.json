@@ -1,0 +1,149 @@
+{
+ "id": "ghost",
+ "name": "GHOST J",
+ "order": 425,
+ "model": "jesko",
+ "category": "hyper",
+ "role": "hypercar",
+ "real": {
+  "manufacturer": "Koenigsegg",
+  "model": "Jesko Absolut",
+  "year": 2021,
+  "trim": "5.0 twin-turbo V8 (E85), 9-speed LST"
+ },
+ "specs": {
+  "power_hp": 1600,
+  "weight_kg": 1390,
+  "drivetrain": "RWD",
+  "transmission": "9-speed Light Speed Transmission (multi-clutch, paddles)",
+  "wheelbase_mm": 2700,
+  "top_speed_kmh": 440,
+  "front_weight": 0.44,
+  "notes": "Koenigsegg's low-drag Jesko: a 5.0 twin-turbo flat-plane V8, 1,600 hp at 7,800 rpm on E85 (1,280 hp on petrol), 1,500 N m at 5,100 rpm, an 8,500 rpm limit; the nine-speed multi-clutch LST; rear-wheel drive; 1,390 kg kerb; 2,700 mm wheelbase, 4,845 x 2,030 x 1,210 mm (autotijd.be, ultimatespecs.com). Its claimed 500+ km/h is simulated, never run: the game's top speed (440 km/h), weight distribution, ratios and the low-drag aero are estimates."
+ },
+ "garage": {
+  "price": 160000,
+  "engine_sound": "v8_turbo",
+  "livery": "stripes",
+  "number": 7,
+  "colours": [
+   [
+    0.9,
+    0.9,
+    0.88
+   ],
+   [
+    0.05,
+    0.05,
+    0.06
+   ],
+   [
+    0.75,
+    0.05,
+    0.04
+   ],
+   [
+    0.85,
+    0.65,
+    0.1
+   ]
+  ],
+  "wheels": "black",
+  "power": 1.0,
+  "grip": 1.0,
+  "brakes": 1.0,
+  "drive_front": 0.0,
+  "blurb": "1,600 hp through the rear wheels alone and nine gears it skips between at will: the fastest thing here in a straight line, and the easiest to put in a hedge."
+ },
+ "physics": {
+  "chassis": "sport",
+  "mass": 1390.0,
+  "front": 0.44,
+  "torque": 1500.0,
+  "curve": [
+   [
+    1000,
+    0.38
+   ],
+   [
+    2435,
+    0.721
+   ],
+   [
+    3870,
+    0.926
+   ],
+   [
+    5100,
+    1.0
+   ],
+   [
+    6045,
+    1.0
+   ],
+   [
+    7800,
+    0.974
+   ],
+   [
+    8500,
+    0.795
+   ]
+  ],
+  "idle": 850.0,
+  "limiter": 8500.0,
+  "turbo": 0.4,
+  "spool": [
+   1800.0,
+   3200.0
+  ],
+  "spool_time": 0.35,
+  "anti_lag": false,
+  "gears": [
+   6.0,
+   4.664,
+   3.626,
+   2.818,
+   2.191,
+   1.703,
+   1.324,
+   1.029,
+   0.8
+  ],
+  "final": 2.86,
+  "drive": "rwd",
+  "rear": [
+   "lsd",
+   0.35,
+   0.15,
+   30.0
+  ],
+  "cd": 0.28,
+  "area": 2.0,
+  "down": 0.3,
+  "brake": 1.0
+ },
+ "checks": {
+  "zero_100_max": 7.0
+ },
+ "interior": {
+  "own": true,
+  "camera": true,
+  "notes": "The model's cabin (untextured: plain dark leather, red accents, carbon): its wheel cut out by material in a box, the seat found by the probe; paddles: the hands stay on the wheel."
+ },
+ "source": {
+  "package": "koenigsegg-jesko-absolut-model.zip (JeskoAB_Model_Evee.blend)",
+  "candidate": 31,
+  "license": "Sketchfab download (no licence file in the zip); its materials are named CSR2_*: likely extracted from CSR Racing 2"
+ },
+ "research": [
+  "https://autotijd.be/en/specs/koenigsegg/jesko/absolut-3536",
+  "https://www.ultimatespecs.com/car-specs/Koenigsegg/M13339/Jesko-Absolut"
+ ],
+ "limitations": [
+  "The package has none of its 43 textures (the .blend points at a maps folder that wasn't included): every material is a plain look (carbon, rubber, dark leather with red accents, chrome lights).",
+  "Top speed, weight distribution, the ratios and aero are estimates.",
+  "Provenance: CSR Racing 2 assets (CSR2_ materials); fine among friends, replace before any public release.",
+  "The model's tail looks like the shorter Jesko Attack's (4.53 m long at the real wheelbase, the Absolut is 4.85 m)."
+ ]
+}

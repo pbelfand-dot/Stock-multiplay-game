@@ -1,0 +1,6 @@
+{"id": "alfa155_dtm", "front": "-Y", "wheelbase": 2.54,
+ "wheel": ["^g_Rim_", "^g_Tyre_"], "wheel_mats": ["^Brake_Disk$"], "caliper_mats": ["^Brake_Caliper$"],
+ "paint": ["^Carpaint$"], "glass": ["^Windows$"],
+ "materials": [["^Windows$", "glass"], ["^Mirror$", "chrome"]],
+ "body_faces": 160000, "tex_max": 1024, "tex_format": "webp",
+ "cockpit": {"gearbox": "h6", "wheel": {"parts": ["^GEO_Steer_HR_SUB\\d"]}, "shifter": {"parts": ["^GEO_Shift_SUB\\d"]}}}

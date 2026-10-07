@@ -1,9 +1,9 @@
 {"id": "honda_e", "front": "-X", "wheelbase": 2.53,
  "wheel_mats": ["^Pneumatic$", "^Rims$", "^ChromeRims$"],
  "drop": ["^SombraSketchfab", "^Xlay3d", "^HondaLogosRuedas"],
- "drop_mats": ["^SewsGolden$", "^SewsWhite$", "^HeatedLinesRearWindshield$"],
+ "drop_mats": ["^SewsGolden$", "^SewsWhite$", "^HeatedLinesRearWindshield$", "^CenterBigScreen$"],
  "paint": ["^CarPaintWhite$"], "glass": ["^Cristal$", "^CristalTintado$"],
- "materials": [["^Cristal$", "glass"], ["^CristalTintado$", "glass"]],
+ "materials": [["^Cristal$", "glass"], ["^CristalTintado$", "glass"], ["^(RearLampInteriorGlasses|LedRearLight)$", "red_lens"]],
  "wheel_faces": 10000, "body_faces": 160000, "body_least": 0.08, "tex_max": 1024, "tex_format": "webp",
  "decimate_parts": [["^Intermitentes$", 0.15], ["^SteeringWheel$", 0.3]],
  "cockpit": {"gearbox": "auto", "wheel": {"parts": ["^(BaseCueroVolante|BaseDetailCentro|BaseTraseraPlasticoVolante(Top)?|BlackVolante|BotonDerechoVolanteUnder|BotonesVolante[12]|CageLevasVolante|CentroVolanteClaxon|DetallesCageBotonesVolante|DetallesVolanteExterior|DientesRueditaVolante|RueditaVolante|HondaLogoVolante|LevasVolante|TapaUnderVolante)(\\.\\d+)?$"]}}}

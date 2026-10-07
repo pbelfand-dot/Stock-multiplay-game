@@ -1,0 +1,149 @@
+{
+ "id": "biscione",
+ "name": "BISCIONE V6",
+ "order": 470,
+ "model": "alfa155_dtm",
+ "category": "race",
+ "role": "track",
+ "real": {
+  "manufacturer": "Alfa Romeo",
+  "model": "155 V6 TI (DTM)",
+  "year": 1993,
+  "trim": "2.5 V6, four-wheel drive, 6-speed H-gate"
+ },
+ "specs": {
+  "power_hp": 420,
+  "weight_kg": 1040,
+  "drivetrain": "AWD",
+  "transmission": "6-speed manual, H-gate (1993; a sequential from 1994)",
+  "wheelbase_mm": 2540,
+  "top_speed_kmh": 270,
+  "front_weight": 0.55,
+  "notes": "Alfa Corse's Class 1 DTM car that beat the German makes on their own ground in 1993: a 2.5 litre V6, 420 hp at 11,800 rpm (about 430 in 1994); full-time four-wheel drive through a centre transfer case, 33 % front / 67 % rear; a six-speed with an H-gate (a sequential from 1994); 1,040 kg with much of the body in carbon (supercars.net, clubalfa.it, historicmotorsportcentral.com). The wheelbase is the road 155's (2,540 mm); torque isn't published (a high-revving NA curve from the power); the 12,000 rpm limiter, ~270 km/h, weight distribution, ratios and aero are estimates."
+ },
+ "garage": {
+  "price": 95000,
+  "engine_sound": "i6_race",
+  "livery": "stripes",
+  "number": 8,
+  "colours": [
+   [
+    0.75,
+    0.05,
+    0.04
+   ],
+   [
+    0.92,
+    0.92,
+    0.9
+   ],
+   [
+    0.1,
+    0.45,
+    0.2
+   ],
+   [
+    0.05,
+    0.05,
+    0.06
+   ]
+  ],
+  "wheels": "black",
+  "power": 1.0,
+  "grip": 1.0,
+  "brakes": 1.0,
+  "drive_front": 0.33,
+  "blurb": "A 1993 DTM saloon with a V6 that screams to 12,000 rpm and four-wheel drive: tiny, light, and it grips like it's on rails until it doesn't."
+ },
+ "physics": {
+  "chassis": "track",
+  "mass": 1040.0,
+  "front": 0.55,
+  "torque": 281.6,
+  "curve": [
+   [
+    1000,
+    0.5
+   ],
+   [
+    3871,
+    0.775
+   ],
+   [
+    6743,
+    0.94
+   ],
+   [
+    9204,
+    1.0
+   ],
+   [
+    11800,
+    0.9
+   ],
+   [
+    12000,
+    0.802
+   ]
+  ],
+  "idle": 1000.0,
+  "limiter": 12000.0,
+  "turbo": 0.0,
+  "gears": [
+   2.392,
+   1.921,
+   1.543,
+   1.24,
+   0.996,
+   0.8
+  ],
+  "final": 6.58,
+  "drive": "awd",
+  "front_share": 0.33,
+  "centre": [
+   "lsd",
+   0.25,
+   0.2,
+   30.0
+  ],
+  "front_diff": [
+   "lsd",
+   0.2,
+   0.1,
+   20.0
+  ],
+  "rear": [
+   "lsd",
+   0.35,
+   0.15,
+   30.0
+  ],
+  "cd": 0.45,
+  "area": 1.95,
+  "down": 2.4,
+  "brake": 1.25
+ },
+ "checks": {
+  "zero_100_max": 6.0
+ },
+ "interior": {
+  "own": true,
+  "camera": true,
+  "notes": "The model's race cockpit: its wheel and its gear lever cut out by part (the boot stays), the seat found by the probe; left-hand drive; the hand works the lever through an H6 gate."
+ },
+ "source": {
+  "package": "alfa-romeo-155-v6-ti-dtm.zip (ac_-_alfa_romeo_155_v6_ti_free.glb)",
+  "candidate": 17,
+  "license": "Sketchfab download; its name ('ac_') suggests an Assetto Corsa extraction. Handled as no-AI: converted and checked by local scripts only, its renders never viewed"
+ },
+ "research": [
+  "https://www.supercars.net/blog/?p=185588",
+  "https://www.clubalfa.it/en/how-a-screaming-alfa-romeo-sedan-humiliated-german-motorsport-in-1993-42263",
+  "https://historicmotorsportcentral.com/2016/11/29/touringcarmadness-the-alfa-romeo-155-v6-ti-fase-iniziale/"
+ ],
+ "limitations": [
+  "Not looked at: handled as no-AI, so its looks (materials, the cockpit) are checked by the tests only, never by eye.",
+  "The wheelbase is the road car's; torque, the limiter, top speed, weight distribution, ratios and aero are estimates.",
+  "Provenance: likely Assetto Corsa assets; fine among friends, replace before any public release."
+ ]
+}
