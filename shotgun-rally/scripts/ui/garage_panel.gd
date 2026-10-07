@@ -68,7 +68,7 @@ func _rebuild() -> void:
 	_body.add_child(blurb)
 	# how it drives (with its upgrades): its power and weight (its own engine and
 	# body: CarSpecs), the grip and brakes its upgrades add, which wheels drive
-	var cfg: Resource = CarSpecs.config(str(setup.get("model", "")))
+	var cfg: Resource = CarSpecs.config(str(setup.get("model", "")), float(setup.get("mass", 0.0)))
 	var ps := CarSpecs.power_ps(cfg, setup.power)
 	var stats := GridContainer.new()
 	stats.columns = 2

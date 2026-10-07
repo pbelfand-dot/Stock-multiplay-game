@@ -19,6 +19,18 @@ the models (the game has no real brands):
 The touge cars (HACHI, NIMBUS, both ROTORAs, SYLPH) are stock road cars. The rally cars are their
 rally versions.
 
+The four rally cars on the shared body weigh what their real class weighed:
+
+| Garage name | Class | Weight | Source |
+|---|---|---|---|
+| KESTREL R4 | FIA R4 (over 2 litres, turbo, four-wheel drive) | 1,300 kg | the R4 minimum (Wikipedia: Group R) |
+| BLUE COMET WRC | World Rally Car, 1997-2010 | 1,230 kg | the WRC minimum; the Impreza WRC and Lancer WRC both ran at it |
+| VORTEX EVO | World Rally Car, 1997-2010 | 1,230 kg | as above |
+| MARTELLO 037 | Group B | 960 kg | the Lancia Rally 037's competition weight |
+
+Their springs, dampers, anti-roll bars and brakes scale with the weight (`CarSpecs.rally`),
+the same way the cars with their own bodies do.
+
 ## Where the numbers come from
 
 All the numbers are in `scripts/vehicle/car_specs.gd` (SPECS). Weights, outputs,
@@ -125,8 +137,15 @@ upgrades) and weight.
    - logo materials to drop.
 
    `--survey` lists every material, where it is on the car and how big, to help write it.
+   Paint parts shaped by a normal map (a door handle plate, a fuel cap) go in `"paint_normal"`:
+   they're painted and keep their shape.
 3. `blender -b -Y --python tools/import_car.py -- tools/cars/<id>.json <model> [texture dir]`
    writes `assets/models/cars/<id>/<id>.glb` and `parts.json`. `-Y` keeps any scripts in a .blend switched off.
+   - The paint and the glass are never simplified, because simplifying them dents the panels.
+     Only the hidden parts (the interior, the underside) are, and those keep their original shading.
+   - Every part's normals are saved when the model loads and put back just before export. Cutting
+     and joining parts otherwise spoils Blender's stored normals, and so does the glTF exporter's
+     own clean-up of invalid geometry. Either way the panels came out blotchy, or looked caved in.
 4. Add the car's numbers to `SPECS` in `scripts/vehicle/car_specs.gd`, and a garage entry with `"model": "<id>"` in `scripts/game/catalog.gd`.
 5. `tests/car_models_check.gd` checks it:
    - it builds;

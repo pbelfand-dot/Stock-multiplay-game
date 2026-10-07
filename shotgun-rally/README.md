@@ -91,7 +91,7 @@ front, banking into the turns), trackside cameras it flashes past, a chase camer
   - **The rally cars on the shared body:** the **Kestrel R4** you start with, the blue-and-gold
     **Blue Comet WRC** (gold wheels), the white **Vortex Evo** with red and black slashes, and the
     **Martello 037** in white with navy, sky blue and red stripes (nearly all its power at the back:
-    it slides).
+    it slides). Each weighs what its real class did: R4 1,300 kg, WRC 1,230 kg, the 037 960 kg.
   - **Nine realistic cars with bodies of their own and the real cars' numbers** (weight, engine
     curve, turbo, gearbox, which wheels drive: [docs/cars.md](docs/cars.md) has the sources):
     - five stock touge cars: the rear-drive **Hachi 86** (AE86 Trueno: 120 PS, 940 kg, the

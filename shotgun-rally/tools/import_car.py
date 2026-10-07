@@ -27,7 +27,9 @@ The spec (tools/cars/<id>.json) says what's what in the model:
     and badges modelled into the body; "retexture": [[file name pattern, file]]: a
     texture swapped for a cleaned copy (a logo painted out)
   * "paint": material name patterns of the body paint: all become one material,
-    "paint" (the game paints it from the garage); "glass": the windows' (their
+    "paint" (the game paints it from the garage); "paint_normal": paint parts
+    shaped by a normal map (a door handle, a fuel cap): painted too, each its
+    own material "paint_n<i>" that keeps the map; "glass": the windows' (their
     lowest point along the sides is the window line, for the livery)
   * "materials": [[pattern, {color, metal, rough, alpha, emit, texture}], ...]:
     how a material looks, for models whose materials didn't come with them; or
@@ -40,7 +42,10 @@ The spec (tools/cars/<id>.json) says what's what in the model:
   * "decimate_parts": [[name pattern, ratio]]: parts thinned harder first (an
     interior seen through the windows)
   * "wheel_faces" / "body_faces": the most triangles a wheel / the body keeps
-    (decimated: the download stays small)
+    (decimated: the download stays small). The paint and the glass are never
+    thinned (thinning them dents the panels): only the rest, down to 35 % at
+    most. Whatever is thinned gets its shading back from the part as it was
+    (its normals copied over), so it isn't left lumpy
 Then every part's transform and modifiers are applied, a front wheel saved
 turned is straightened (its axle found from the shape: the tyre's thinnest
 way), the car is turned nose to +Y (in the GLB: -Z, the game's forward), scaled
@@ -48,19 +53,27 @@ to the wheelbase, its tyres on the ground (z 0) and the middle between the axles
 at the origin. Each corner becomes Wheel_FL / FR / RL / RR (and Caliper_..),
 its origin at the wheel's centre; the rest is one Body. Images are shrunk to
 512 px ("tex_max"). "--survey" after the paths prints every material (where, how big,
-its colour) in the car's own frame instead of exporting.
+its colour) in the car's own frame instead of exporting; "--out DIR" writes
+somewhere else than assets/models/cars/<id> (to try a spec out).
 """
 import bpy, bmesh, sys, json, re, math, os
 import numpy as np
 from mathutils import Vector, Matrix
+from mathutils.bvhtree import BVHTree
 
 argv = sys.argv[sys.argv.index("--") + 1:]
 survey = "--survey" in argv
 argv = [a for a in argv if a != "--survey"]
+out_arg = None
+if "--out" in argv:
+    k = argv.index("--out")
+    out_arg = argv[k + 1]
+    argv = argv[:k] + argv[k + 2:]
 spec_path, src = argv[0], argv[1]
 tex_dirs = [os.path.dirname(os.path.abspath(src))] + [os.path.abspath(d) for d in argv[2:]]
 spec = json.load(open(spec_path))
-out_dir = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(spec_path)), "..", "..", "assets", "models", "cars", spec["id"]))
+out_dir = os.path.abspath(out_arg) if out_arg else \
+    os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(spec_path)), "..", "..", "assets", "models", "cars", spec["id"]))
 CORNERS = ["FL", "FR", "RL", "RR"]
 
 
@@ -72,6 +85,71 @@ def strip_loose(bm):
     """Vertices and edges no face uses go (some models carry them: they'd stretch a part's bounds)."""
     bmesh.ops.delete(bm, geom=[e for e in bm.edges if not e.link_faces], context='EDGES')
     bmesh.ops.delete(bm, geom=[v for v in bm.verts if not v.link_faces], context='VERTS')
+
+
+def store_normals(o):
+    """Its normals as they are now, kept in a corner attribute ("keep_n"), from
+    when it's loaded to the export: Blender keeps custom normals relative to the
+    faces round each vertex, so cutting faces away next to a part (the trim off
+    the paint) or joining parts spoils them; restore_normals puts these back."""
+    me = o.data
+    if hasattr(me, "calc_normals_split"):
+        me.calc_normals_split()
+    n = np.zeros(len(me.loops) * 3, dtype=np.float32)
+    me.loops.foreach_get("normal", n)
+    a = me.attributes.get("keep_n") or me.attributes.new("keep_n", 'FLOAT_VECTOR', 'CORNER')
+    a.data.foreach_set("vector", n)
+
+
+def restore_normals(o):
+    me = o.data
+    a = me.attributes.get("keep_n")
+    if a is None:
+        return
+    n = np.zeros(len(me.loops) * 3, dtype=np.float32)
+    a.data.foreach_get("vector", n)
+    me.attributes.remove(a)
+    n = n.reshape(-1, 3)
+    for p in me.polygons:
+        p.use_smooth = True
+    if hasattr(me, "use_auto_smooth"):
+        me.use_auto_smooth = True
+        me.auto_smooth_angle = math.pi
+    # sharp exactly where the kept normals break across an edge (Blender averages
+    # the custom normals of the corners it smooths together: a crease would go soft)
+    vi = np.zeros(len(me.loops), dtype=np.int64)
+    me.loops.foreach_get("vertex_index", vi)
+    ei = np.zeros(len(me.loops), dtype=np.int64)
+    me.loops.foreach_get("edge_index", ei)
+    first = {}
+    sharp = np.zeros(len(me.edges), dtype=bool)
+    for p in me.polygons:
+        ls = p.loop_indices
+        for k, li in enumerate(ls):
+            nx = ls[(k + 1) % len(ls)]
+            e = ei[li]
+            for corner in (li, nx):
+                key = (e, vi[corner])
+                f = first.get(key)
+                if f is None:
+                    first[key] = corner
+                elif np.dot(n[f], n[corner]) < 0.9998:
+                    sharp[e] = True
+    me.edges.foreach_set("use_edge_sharp", sharp.tolist())
+    me.normals_split_custom_set(n.tolist())
+
+
+def xform(o, M):
+    """o.data.transform(M), its kept normals (keep_n) turned with it."""
+    o.data.transform(M)
+    a = o.data.attributes.get("keep_n")
+    if a is not None:
+        n = np.zeros(len(o.data.loops) * 3, dtype=np.float32)
+        a.data.foreach_get("vector", n)
+        R = np.array(M.to_3x3().inverted().transposed())
+        n = n.reshape(-1, 3) @ R.T
+        n /= np.linalg.norm(n, axis=1, keepdims=True) + 1e-12
+        a.data.foreach_set("vector", n.astype(np.float32).ravel())
 
 
 # ── load: real meshes, modifiers and transforms applied ──────────────────
@@ -125,13 +203,15 @@ for o in bpy.data.objects:
         strip_loose(bm)
         bm.to_mesh(o.data)
         bm.free()
+        store_normals(o)
+        o.data.validate()          # (bad bits gone now, the kept normals with them)
 for o in list(bpy.data.objects):
     if matches(o.name, spec.get("drop", [])) or len(o.data.polygons) == 0:
         bpy.data.objects.remove(o, do_unlink=True)
 meshes = list(bpy.data.objects)
 if spec.get("pre_scale", 1.0) != 1.0:
     for o in meshes:
-        o.data.transform(Matrix.Scale(spec["pre_scale"], 4))
+        xform(o, Matrix.Scale(spec["pre_scale"], 4))
 
 # the faces of logo materials go
 drop_mats = spec.get("drop_mats", [])
@@ -242,7 +322,7 @@ for o in [o for o in meshes if matches(o.name, spec.get("mirror", []))]:
     bpy.context.collection.objects.link(n)
     a = right
     m = Matrix.Translation(a * mid_lat) @ (Matrix.Identity(4) - 2.0 * Matrix([[a.x * a.x, a.x * a.y, a.x * a.z, 0], [a.y * a.x, a.y * a.y, a.y * a.z, 0], [a.z * a.x, a.z * a.y, a.z * a.z, 0], [0, 0, 0, 0]])) @ Matrix.Translation(-a * mid_lat)
-    n.data.transform(m)
+    xform(n, m)
     bm = bmesh.new()                              # (a mirror turns the faces inside out)
     bm.from_mesh(n.data)
     bmesh.ops.reverse_faces(bm, faces=bm.faces)
@@ -313,7 +393,7 @@ for k in CORNERS:
             if abs(ang) > math.radians(2.0):
                 m = Matrix.Translation(c) @ Matrix.Rotation(ang, 4, 'Z') @ Matrix.Translation(-c)
                 for o in corner[k]["spin"] + corner[k]["cal"]:
-                    o.data.transform(m)
+                    xform(o, m)
                 print("straightened %s by %.1f deg" % (k, math.degrees(ang)))
     corner[k]["c"] = centre(corner[k]["spin"])[0]
 
@@ -356,7 +436,7 @@ origin.z = ground
 turn = Matrix.Rotation(math.atan2(fwd.x, fwd.y), 4, 'Z')    # fwd -> +Y
 M = Matrix.Scale(s, 4) @ turn @ Matrix.Translation(-origin)
 for o in meshes:
-    o.data.transform(M)
+    xform(o, M)
 for k in CORNERS:
     corner[k]["c"] = M @ corner[k]["c"]
 print("scaled x%.4f (model wheelbase %.3f -> %.3f m)" % (s, base, spec["wheelbase"]))
@@ -467,6 +547,22 @@ for mat in list(bpy.data.materials):
                 p = dict(LOOKS[p["look"]], **p)
             look(mat, p)
             break
+# paint parts shaped by a normal map: painted, each keeping its map
+paint_n = []
+for mat in [m for m in bpy.data.materials if matches(m.name, spec.get("paint_normal", []))]:
+    img = next((n.image for n in mat.node_tree.nodes if n.type == 'TEX_IMAGE' and n.image), None) if mat.use_nodes else None
+    look(mat, {"color": [0.8, 0.1, 0.1], "metal": 0.0, "rough": 0.3})
+    if img:
+        img.colorspace_settings.name = 'Non-Color'
+        nt = mat.node_tree
+        tex = nt.nodes.new("ShaderNodeTexImage")
+        tex.image = img
+        nm = nt.nodes.new("ShaderNodeNormalMap")
+        nt.links.new(tex.outputs["Color"], nm.inputs["Color"])
+        bsdf = next(n for n in nt.nodes if n.type == 'BSDF_PRINCIPLED')
+        nt.links.new(nm.outputs["Normal"], bsdf.inputs["Normal"])
+    mat.name = "paint_n%d" % len(paint_n)
+    paint_n.append(mat)
 paint = None
 for mat in list(bpy.data.materials):
     if matches(mat.name, spec.get("paint", [])) and paint is None:
@@ -504,25 +600,64 @@ def tris(o):
     return sum(len(p.vertices) - 2 for p in o.data.polygons)
 
 
-def decimate(o, most):
-    n = tris(o)
-    if most and n > most:
-        m = o.modifiers.new("dec", 'DECIMATE')
-        m.ratio = most / n
-        vl.objects.active = o
-        bpy.ops.object.modifier_apply(modifier=m.name)
-        smooth(o)
-        print("%s: %d -> %d triangles" % (o.name, n, tris(o)))
-
-
-def smooth(o):
-    """After a decimation: smooth shading again, creases kept (by angle), so the
-    surfaces aren't left faceted."""
+def thin(o, ratio):
+    """Decimate o to ratio x its triangles, then copy the normals of the part as
+    it was back onto it: the shading stays the original's (a thinned part's own
+    normals come out lumpy)."""
+    restore_normals(o)
+    was = o.copy()
+    was.data = o.data.copy()
+    bpy.context.collection.objects.link(was)
+    m = o.modifiers.new("dec", 'DECIMATE')
+    m.ratio = ratio
+    vl.objects.active = o
+    bpy.ops.object.modifier_apply(modifier=m.name)
     for p in o.data.polygons:
         p.use_smooth = True
     if hasattr(o.data, "use_auto_smooth"):
-        o.data.use_auto_smooth = True
-        o.data.auto_smooth_angle = math.radians(40.0)
+        o.data.use_auto_smooth = True            # (custom normals need it, Blender < 4.1)
+        o.data.auto_smooth_angle = math.pi
+    t = o.modifiers.new("normals", 'DATA_TRANSFER')
+    t.object = was
+    t.use_loop_data = True
+    t.data_types_loops = {'CUSTOM_NORMAL'}
+    t.loop_mapping = 'POLYINTERP_NEAREST'
+    bpy.ops.object.modifier_apply(modifier=t.name)
+    bpy.data.objects.remove(was, do_unlink=True)
+    store_normals(o)
+
+
+def decimate(o, most, keep=(), least=0.0):
+    """At most `most` triangles; faces in the materials `keep` (the paint, the
+    glass) untouched: only the rest is thinned, to `least` x its triangles at most."""
+    n = tris(o)
+    if not most or n <= most:
+        return
+    idx = {i for i, sl in enumerate(o.material_slots) if sl.material in keep}
+    kept = None
+    if idx:
+        kept = o.copy()
+        kept.data = o.data.copy()
+        bpy.context.collection.objects.link(kept)
+        for ob, inside in ((o, False), (kept, True)):
+            bm = bmesh.new()
+            bm.from_mesh(ob.data)
+            bmesh.ops.delete(bm, geom=[f for f in bm.faces if (f.material_index in idx) != inside], context='FACES')
+            strip_loose(bm)
+            bm.to_mesh(ob.data)
+            bm.free()
+    k = tris(kept) if kept else 0
+    rest = tris(o)
+    ratio = min(max((most - k) / max(rest, 1), least), 1.0)
+    if ratio < 1.0 and rest > 0:
+        thin(o, ratio)
+    if kept:
+        bpy.ops.object.select_all(action='DESELECT')
+        kept.select_set(True)
+        o.select_set(True)
+        vl.objects.active = o
+        bpy.ops.object.join()
+    print("%s: %d -> %d triangles (%d kept whole)" % (o.name, n, tris(o), k))
 
 
 def game(v):
@@ -534,13 +669,12 @@ for pat, ratio in spec.get("decimate_parts", []):
     for o in meshes:
         if re.search(pat, o.name, re.I) and all(o not in corner[k]["spin"] + corner[k]["cal"] for k in CORNERS):
             n = tris(o)
-            m = o.modifiers.new("dec", 'DECIMATE')
-            m.ratio = ratio
-            vl.objects.active = o
-            bpy.ops.object.modifier_apply(modifier=m.name)
-            smooth(o)
+            thin(o, ratio)
             print("%s: %d -> %d triangles (its own ratio)" % (o.name, n, tris(o)))
 
+for o in meshes:
+    if o.data.attributes.get("keep_n") is None:
+        store_normals(o)
 parts = {"wheels": [], "radius": [], "width": []}
 rest = set(meshes)
 for k in CORNERS:
@@ -556,19 +690,35 @@ for k in CORNERS:
         join(corner[k]["cal"], "Caliper_" + k, c)
         rest -= set(corner[k]["cal"])
 body = join(list(rest), "Body", Vector((0, 0, 0)))
-decimate(body, spec.get("body_faces"))
+decimate(body, spec.get("body_faces"), [paint] + glass + paint_n, 0.35)
 bb = verts(body)
 parts["body_min"] = [float(bb[:, 0].min()), float(bb[:, 2].min()), float(-bb[:, 1].max())]
 parts["body_max"] = [float(bb[:, 0].max()), float(bb[:, 2].max()), float(-bb[:, 1].min())]
 parts["wheelbase"] = spec["wheelbase"]
-# the livery's guides: the sills (the paint's lowest point between the axles) and the window line
-mid = abs(bb[:, 1]) < spec["wheelbase"] * 0.25
-def lowest(mats):
+# the livery's guides: the sills (the paint's lowest point between the axles) and the
+# window line (the side glass's lowest point that shows: a window modelled on down
+# inside the door doesn't count, a ray from the side meets the door first)
+def lowest(mats, seen=False):
     idx = {i for i, sl in enumerate(body.material_slots) if sl.material in mats}
-    zs = [p.center.z for p in body.data.polygons if p.material_index in idx and abs(p.center.y) < spec["wheelbase"] * 0.25]
+    polys = [p for p in body.data.polygons if p.material_index in idx and abs(p.center.y) < spec["wheelbase"] * 0.25]
+    if seen:
+        tree = BVHTree.FromPolygons([v.co for v in body.data.vertices], [p.vertices for p in body.data.polygons])
+        side = []
+        for p in polys:
+            for d in (1.0, -1.0):
+                hit = tree.ray_cast(Vector((d * 5.0, p.center.y, p.center.z)), Vector((-d, 0.0, 0.0)))
+                if hit[2] == p.index:
+                    side.append(p)
+                    break
+        polys = side or polys
+    zs = [p.center.z for p in polys]
     return float(min(zs)) if zs else None
 parts["sill"] = lowest([paint]) if paint else float(bb[:, 2].min())
-parts["belt"] = lowest(glass)
+parts["belt"] = lowest(glass, True)
+for o in bpy.data.objects:
+    if o.type == 'MESH':
+        o.data.validate()          # (the glTF export validates too: then its normals would scramble)
+        restore_normals(o)
 most = spec.get("tex_max", 512)
 for img in bpy.data.images:
     if img.size[0] > most or img.size[1] > most:

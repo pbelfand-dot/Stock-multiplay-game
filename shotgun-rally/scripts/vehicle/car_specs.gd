@@ -104,17 +104,43 @@ const SPECS := {
 		"cd": 0.39, "area": 2.0, "down": 0.2, "brake": 1.0},
 }
 
+## The rally car (the shared body) at a weight of its own (kg; 0: the rally car's
+## 1,280): its inertia, springs, dampers, bars, tyre loads and brakes scaled with
+## the weight, as for the cars above (the same ride frequencies).
+static func rally(mass: float) -> Resource:
+	var base: Resource = load(BASE)
+	if mass <= 0.0 or absf(mass - base.mass) < 0.5:
+		return base
+	var key := "rally %d" % roundi(mass)
+	if _cache.has(key):
+		return _cache[key]
+	var c: Resource = base.duplicate(true)
+	var k: float = mass / base.mass
+	c.mass = mass
+	c.inertia = base.inertia * k
+	for sus in [c.front_suspension, c.rear_suspension]:
+		for f in ["spring_rate", "bump_damping", "rebound_damping", "high_speed_bump", "high_speed_rebound", "anti_roll_rate"]:
+			sus.set(f, float(sus.get(f)) * k)
+	for t in [c.front_tire, c.rear_tire]:
+		t.nominal_load = float(t.nominal_load) * k
+	c.brake_torque = base.brake_torque * k
+	c.handbrake_torque = base.handbrake_torque * k
+	_cache[key] = c
+	return c
+
+
 ## The rally car's size (body, cabin) the inertia scales from: length, width, height (m).
 const BASE_SIZE := Vector3(3.9, 1.7, 1.35)
 
 static var _cache := {}
 
 
-## The CarConfig for this model (none, or one without a spec: the rally car).
-static func config(model: String) -> Resource:
+## The CarConfig for this model (none, or one without a spec: the rally car, at
+## `mass` kg if given: rally()).
+static func config(model: String, mass := 0.0) -> Resource:
 	var base: Resource = load(BASE)
 	if not SPECS.has(model):
-		return base
+		return rally(mass)
 	if _cache.has(model):
 		return _cache[model]
 	var s: Dictionary = SPECS[model]

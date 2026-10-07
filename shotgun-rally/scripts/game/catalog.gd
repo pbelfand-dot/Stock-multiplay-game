@@ -8,23 +8,26 @@ extends RefCounted
 ## (CarSpecs: weight, engine, gearbox, which wheels drive).
 
 ## power / grip / brakes: x the base car's (a car with its own model: x its own).
+## mass: kg, for the cars on the shared body: the real class's minimum weight (R4
+## 1,300; a 1997-2010 World Rally Car 1,230; the 037's Group B class 960); the
+## shared body's springs, dampers and brakes scale with it (CarSpecs.rally).
 ## drive_front: the share of the engine's torque to the front axle (0.5 =
 ## four-wheel drive, an even split like a modern rally car's; 0.15 = nearly all
 ## at the back: it slides; 0 = rear-drive, 1 = front-drive).
 const CARS := [
-	{"id": "kestrel", "name": "KESTREL R4", "price": 0, "livery": "kestrel", "number": 7,
+	{"id": "kestrel", "name": "KESTREL R4", "price": 0, "livery": "kestrel", "number": 7, "mass": 1300.0,
 		"colours": [Color(0.78, 0.12, 0.1), Color(0.95, 0.95, 0.93), Color(0.08, 0.08, 0.09), Color(0.95, 0.95, 0.93)],
 		"wheels": "silver", "power": 1.0, "grip": 1.0, "brakes": 1.0, "drive_front": 0.5,
 		"blurb": "The club car everyone starts in. Four-wheel drive, forgiving, quick enough to learn on."},
-	{"id": "comet", "name": "BLUE COMET WRC", "price": 12000, "livery": "comet", "number": 5,
+	{"id": "comet", "name": "BLUE COMET WRC", "price": 12000, "livery": "comet", "number": 5, "mass": 1230.0,
 		"colours": [Color(0.07, 0.2, 0.6), Color(1.0, 0.8, 0.1), Color(0.95, 0.95, 0.95), Color(1.0, 0.8, 0.1)],
 		"wheels": "gold", "power": 1.08, "grip": 1.05, "brakes": 1.05, "drive_front": 0.53,
 		"blurb": "Blue and gold, gold wheels, a boxer burble. Planted and precise: the 90s world champion's look."},
-	{"id": "vortex", "name": "VORTEX EVO", "price": 18000, "livery": "vortex", "number": 3,
+	{"id": "vortex", "name": "VORTEX EVO", "price": 18000, "livery": "vortex", "number": 3, "mass": 1230.0,
 		"colours": [Color(0.95, 0.95, 0.94), Color(0.82, 0.08, 0.07), Color(0.07, 0.07, 0.08), Color(0.82, 0.08, 0.07)],
 		"wheels": "white", "power": 1.13, "grip": 1.02, "brakes": 1.08, "drive_front": 0.5,
 		"blurb": "White with red and black slashes. A turbo that kicks hard out of every hairpin."},
-	{"id": "martello", "name": "MARTELLO 037", "price": 26000, "livery": "martello", "number": 1,
+	{"id": "martello", "name": "MARTELLO 037", "price": 26000, "livery": "martello", "number": 1, "mass": 960.0,
 		"colours": [Color(0.96, 0.96, 0.94), Color(0.06, 0.13, 0.38), Color(0.3, 0.62, 0.9), Color(0.85, 0.1, 0.08)],
 		"wheels": "white", "power": 1.2, "grip": 0.97, "brakes": 1.05, "drive_front": 0.15,
 		"blurb": "The last great rear-drive rally car, in white with navy, sky blue and red stripes. Wild."},
@@ -150,7 +153,7 @@ static func setup(car_id: String, paint := {}, levels := {}, tuning := {}) -> Di
 	var c := car(car_id)
 	var s := {"car": c.id, "name": c.name, "model": str(c.get("model", "")), "livery": paint.get("livery", c.livery),
 		"colours": paint.get("colours", c.colours).duplicate(), "wheels": paint.get("wheels", c.wheels),
-		"number": int(paint.get("number", c.number)), "drive_front": c.drive_front,
+		"number": int(paint.get("number", c.number)), "drive_front": c.drive_front, "mass": float(c.get("mass", 0.0)),
 		"tyre": str(tuning.get("tyre", "auto")), "preset": str(tuning.get("preset", "auto"))}
 	s.wheel_colour = wheels(s.wheels).colour
 	for k in UPGRADES:

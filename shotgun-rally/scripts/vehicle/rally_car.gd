@@ -355,15 +355,17 @@ func apply_setup(s: Dictionary) -> bool:
 		return false                                   # (_ready applies it)
 	var swapped := false
 	var want := str(s.get("model", ""))
-	if want != model_id and not _fixed_config:
+	var want_kg := float(s.get("mass", 0.0))
+	var reweigh := want == "" and model_id == "" and absf(CarSpecs.config("", want_kg).mass - config.mass) > 0.5
+	if (want != model_id or reweigh) and not _fixed_config:
+		swapped = want != model_id                   # (another body; a car on the same body is a repaint)
 		model_id = want
-		config = CarSpecs.config(model_id)
+		config = CarSpecs.config(model_id, want_kg)
 		_own_config = false
 		_base_parts = {}
 		tyre_kind = ""
 		setup_kind = ""
 		_configure()
-		swapped = true
 	if not _own_config:
 		# this car's own numbers from now on (the profile is shared by every car)
 		config = config.duplicate(true)
@@ -389,8 +391,9 @@ func apply_setup(s: Dictionary) -> bool:
 				spun.append((mw[1] as Node3D).get_child(0))
 		for i in (body.mesh.get_surface_count() if body else 0):
 			var m := body.mesh.surface_get_material(i)
-			if m and m.resource_name == "paint":
-				Livery.paint_model(body, i, spun, s, self, _model_info)
+			if m and (m.resource_name == "paint" or m.resource_name.begins_with("paint_n")):
+				var nmap: Texture2D = (m as BaseMaterial3D).normal_texture if m is BaseMaterial3D and (m as BaseMaterial3D).normal_enabled else null
+				Livery.paint_model(body, i, spun, s, self, _model_info, nmap)
 	elif body_model:
 		Livery.paint(body_model.get_child(0), [], s, self)
 		var rim := StandardMaterial3D.new()             # the rims take the wheel colour
@@ -911,7 +914,7 @@ func _flaps_swing(dt: float) -> void:
 func _load_config() -> void:
 	if config == null:
 		model_id = str(setup.get("model", ""))
-		config = CarSpecs.config(model_id)
+		config = CarSpecs.config(model_id, float(setup.get("mass", 0.0)))
 		_config_from_setup = true
 
 

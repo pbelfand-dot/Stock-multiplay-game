@@ -45,8 +45,9 @@ static func paint(body: MeshInstance3D, wheels: Array, setup: Dictionary, holder
 ## The same for a car with a model of its own (tools/import_car.py): its
 ## "paint" surface (body, surface) gets the livery, mapped by the body's size
 ## (info: its parts.json: the length, the sills and the window line, the wheels),
-## and the rims (materials "rim_..." on the wheels) the wheel colour.
-static func paint_model(body: MeshInstance3D, surface: int, wheels: Array, setup: Dictionary, holder: Node, info: Dictionary) -> void:
+## and the rims (materials "rim_..." on the wheels) the wheel colour. A paint part
+## shaped by a normal map (a door handle: "paint_n..." surfaces) passes its map.
+static func paint_model(body: MeshInstance3D, surface: int, wheels: Array, setup: Dictionary, holder: Node, info: Dictionary, normal_map: Texture2D = null) -> void:
 	var m := ShaderMaterial.new()
 	m.shader = _model()
 	var cols: Array = setup.get("colours", [])
@@ -62,7 +63,12 @@ static func paint_model(body: MeshInstance3D, surface: int, wheels: Array, setup
 	m.set_shader_parameter("map_z", Vector2((lo[2] + hi[2]) * 0.5, 0.95 / maxf((hi[2] - lo[2]) * 0.5, 1.0)))
 	m.set_shader_parameter("map_y", Vector2(sill, 0.32 / maxf(belt - sill, 0.15)))
 	m.set_shader_parameter("map_x", 0.45 / half_w)
+	var along: float = 0.95 / maxf((hi[2] - lo[2]) * 0.5, 1.0)
+	m.set_shader_parameter("roundel_fix", (0.32 / maxf(belt - sill, 0.15)) / along)
 	m.set_shader_parameter("metal", 0.12)
+	if normal_map:                                   # (a paint part shaped by a map: a door handle)
+		m.set_shader_parameter("normal_tex", normal_map)
+		m.set_shader_parameter("normal_amt", 1.0)
 	body.set_surface_override_material(surface, m)
 	var rim := StandardMaterial3D.new()
 	rim.albedo_color = setup.get("wheel_colour", Color(0.72, 0.73, 0.75))
@@ -240,6 +246,9 @@ uniform vec2 map_z = vec2(0.0, 0.43);            // the body's middle along it (
 uniform vec2 map_y = vec2(0.3, 0.7);             // its sills' height (m), and m -> units
 uniform float map_x = 0.5;                       // m -> units across
 uniform float metal = 0.1;
+uniform float roundel_fix = 1.0;                 // m -> units up over along: the number disc round in metres
+uniform sampler2D normal_tex : hint_normal;
+uniform float normal_amt = 0.0;                  // 1: the part's normal map (a door handle) shapes it
 """ + _UNIFORMS + _VARYINGS + """
 void vertex() {
 	// the model: x right, y up, -z forward (m); the Higgsfield body: x back, y up, z left
@@ -250,7 +259,7 @@ void vertex() {
 void fragment() {
 	vec3 albedo = pattern(mp, mn);
 	float side = smoothstep(0.6, 0.8, abs(mn.z));
-	vec2 q = vec2(mp.x - roundel.x, mp.y - roundel.y);
+	vec2 q = vec2(mp.x - roundel.x, (mp.y - roundel.y) / roundel_fix);
 	float r = length(q);
 	if (side > 0.0 && r < roundel_r) {
 		vec2 uv = vec2((mp.z > 0.0 ? q.x : -q.x) / (2.0 * roundel_r) + 0.5, 0.5 - q.y / (2.0 * roundel_r));
@@ -259,6 +268,10 @@ void fragment() {
 		albedo = mix(albedo, disc, side);
 	}
 	ALBEDO = albedo;
+	if (normal_amt > 0.0) {
+		NORMAL_MAP = texture(normal_tex, UV).rgb;
+		NORMAL_MAP_DEPTH = normal_amt;
+	}
 	METALLIC = metal;
 	ROUGHNESS = 0.32;
 	SPECULAR = 0.5;

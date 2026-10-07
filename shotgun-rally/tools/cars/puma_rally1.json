@@ -92,5 +92,20 @@
  },
  "drop_mats": [
   "^dummy_material_8\\.001$"
+ ],
+ "drop_boxes": [
+  {
+   "box": [
+    -0.1,
+    0.1,
+    -1.95,
+    -1.82,
+    0.76,
+    0.89
+   ],
+   "mats": [
+    "^dummy_material_0\\.001$"
+   ]
+  }
  ]
 }

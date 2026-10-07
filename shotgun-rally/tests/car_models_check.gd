@@ -9,7 +9,8 @@ extends SceneTree
 ##     (CHECKS: the real car's, give or take the game's tyres), the right wheels
 ##     driven (rear-drive: the fronts roll free; front-drive: the rears)
 ##   * the garage swaps it: a car built as the KESTREL becomes it (apply_setup):
-##     its weight, wheelbase and body change, and back
+##     its weight, wheelbase and body change, and back; the cars on the shared
+##     body each weigh their own (the COMET 1,230 kg, the MARTELLO 960)
 ## Prints one [models] line per check; exits 1 on any FAIL.
 ## Run: godot --headless --fixed-fps 120 --path . -s tests/car_models_check.gd
 
@@ -164,6 +165,12 @@ func _swap() -> void:
 	fails += _check(back and car.model_id == "" and absf(car.mass - m0) < 1.0 and car.body_model != null,
 		"... and back (%d kg, the Higgsfield body)" % car.mass)
 	fails += _check(not car.apply_setup(Catalog.setup("comet")), "a car on the same body (the COMET) is a repaint, not a swap")
+	fails += _check(absf(car.mass - 1230.0) < 1.0, "... at its own weight, a World Rally Car's 1,230 kg (%d kg)" % car.mass)
+	car.apply_setup(Catalog.setup("martello"))
+	var spring: float = car.config.front_suspension.spring_rate
+	car.apply_setup(Catalog.setup("kestrel"))
+	fails += _check(absf(car.mass - 1300.0) < 1.0 and spring < car.config.front_suspension.spring_rate * 0.8,
+		"the MARTELLO 037 weighs a Group B car's 960 kg, its springs softer with it; the KESTREL an R4's 1,300 (%d kg)" % car.mass)
 	print("[models] %s" % ("MODELS OK" if fails == 0 else "MODELS FAIL"))
 	quit(1 if fails > 0 else 0)
 
