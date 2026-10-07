@@ -153,7 +153,7 @@ func start(seed_in: int, stage_in: int, o := {}) -> void:
 		return
 	car = RallyCar.new()
 	car.name = "Car"
-	car.setup = Catalog.for_stage(Net.car_setup(), st)   # (built as the driver's car from the start: its own body and numbers)
+	car.setup = _car_setup()                      # (built as the driver's car from the start: its own body and numbers)
 	add_child(car)
 	# (cut up: start in a lane, the second from the right, not astride two)
 	_start_pos = st.world_at(st.START_S - 3.0, st.LANE_W * 0.5 if mode == "cutup" else 0.0)
@@ -198,12 +198,22 @@ func start(seed_in: int, stage_in: int, o := {}) -> void:
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
 
+## The driver's car from their garage set up for this stage (Catalog.for_stage); in
+## the touge's DRIFT rules on SIM STREET, without its factory traction control.
+func _car_setup() -> Dictionary:
+	var s := Catalog.for_stage(Net.car_setup(), st)
+	if s.has("street") and mode == "touge" and opts.get("rules", "time") == "drift":
+		s.street = s.street.duplicate()
+		s.street[3] = false
+	return s
+
+
 ## Seats decide who simulates the car, whose camera goes where, and whether
 ## the AI co-driver talks (only when nobody's in the passenger seat).
 func _apply_roster() -> void:
 	my_seat = Net.my_seat()
 	var driver_here: bool = my_seat == "driver"
-	var setup := Catalog.for_stage(Net.car_setup(), st)   # the driver's car from their garage, its tyres for this stage
+	var setup := _car_setup()                    # the driver's car from their garage, its tyres for this stage
 	if car.apply_setup(setup) and state == "grid":     # another car (a new driver's): put it down again
 		car.place(_start_pos, st.heading_at(st.START_S))
 	cockpit.set_paint(setup.colours[0])
@@ -522,7 +532,10 @@ func _process(dt: float) -> void:
 		pens.append("JUMP START")
 	if resets > 0:
 		pens.append("%d RESET%s" % [resets, "" if resets == 1 else "S"])
-	_lights.pen_text = "+%d s  %s" % [int(penalties), " · ".join(pens)] if penalties > 0.0 else ""
+	if mode == "cutup":                                # (scored on points, not the clock: no seconds to add)
+		_lights.pen_text = " · ".join(pens)
+	else:
+		_lights.pen_text = "+%d s  %s" % [int(penalties), " · ".join(pens)] if penalties > 0.0 else ""
 	_engine_audio()
 	if _t_alive > 12.0 and _hint_label.text.begins_with("YOU"):
 		_update_hint()
@@ -887,8 +900,9 @@ func _update_hint() -> void:
 func _seat_help(pad: bool) -> String:
 	if my_seat == "driver":
 		var alone := " · F wipers" if Net.peer_in("codriver") == 0 else ""
-		return ("YOU DRIVE: left stick steer · RT gas · LT brake · B handbrake · Y reset · R3 chase cam" if pad
-			else "YOU DRIVE: WASD / arrows · SPACE handbrake · R reset (+5 s) · C chase cam" + alone)
+		return ("YOU DRIVE: left stick steer · RT gas · LT brake · B handbrake · Y reset · R3 chase cam" + (" · LB flash a rival" if rivals else "") if pad
+			else "YOU DRIVE: WASD / arrows · SPACE handbrake · R reset%s · C chase cam%s" % ["" if mode == "cutup" else " (+5 s)",
+				" · H flash a rival" if rivals else ""] + alone)
 	return ("YOU RIDE SHOTGUN: hold LT to look at the map and call the road · A wipers · right stick look" if pad
 		else "YOU RIDE SHOTGUN: hold RIGHT MOUSE (or Q) to look at the map and call the road · F wipers · mouse to look")
 

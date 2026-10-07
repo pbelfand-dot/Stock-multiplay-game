@@ -9,7 +9,8 @@ extends SceneTree
 ## Each car against its own figure (Catalog.street_grip: the real skid-pad g, and
 ## braking ~1.1x that on road tyres): within 10 % sideways, 12 % braking. And the
 ## same car on the rally game's ARCADE grip, for comparison (printed, not judged),
-## and SIM's aids: no drift assist, countersteer help or high-speed stability.
+## and SIM's aids: no drift assist, countersteer help or high-speed stability; the
+## factory ABS and traction control the real car has.
 ## Run: godot --headless --fixed-fps 120 --path . -s tests/sim_check.gd [-- --car=akatsuki]
 
 const CARS := ["akatsuki", "raiden", "hellhound", "hachi", "lancer", "kaiser_2", "elfer_rs", "kestrel", "elfer_r"]
@@ -219,7 +220,8 @@ func _report() -> void:
 		r.ok = absf(r.g / r.want - 1.0) <= BRAKE_TOL
 	if c.sim:
 		r.aids_ok = not car.assist.cfg.drift_assist and not car.assist.cfg.countersteer_help and not car.assist.cfg.high_speed_stability \
-			and car.assist.cfg.anti_lock == (bool(Catalog.street_grip(c.car)[2]) or c.k == "brake")
+			and car.assist.cfg.anti_lock == (bool(Catalog.street_grip(c.car)[2]) or c.k == "brake") \
+			and car.assist.cfg.traction_control == bool(Catalog.street_grip(c.car)[3])
 		if not r.ok or not r.aids_ok:
 			fails += 1
 	results.append(r)

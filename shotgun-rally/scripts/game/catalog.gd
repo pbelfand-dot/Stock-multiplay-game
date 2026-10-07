@@ -165,15 +165,23 @@ const STREET_ROLE := {"race_prototype": [1.7, "slick"], "track": [1.22, "cup"], 
 ## and the rally cars (role "rally"; their rules ban it). Settings' ANTI-LOCK
 ## switch still turns it on for every car.
 const NO_ABS := ["brawler", "hako", "hachi", "kitsune", "rotora_fc", "nimbus", "biscione", "gtp963", "vsr"]
+## ... and factory traction control: today's road cars (2010s on), the hypercars, the
+## GT3 cars and the prototypes have it; the classics, the 1990s cars and the rally
+## cars don't. Off in the touge's DRIFT rules (drifters switch it off); Settings'
+## TRACTION CONTROL still turns it on for every car.
+const FACTORY_TC := ["akatsuki", "raiden", "hellhound", "hellhound_s", "kaiser_2", "kaiser_4", "kaiser_8", "kaiser_t",
+	"kombi", "gls", "mochi", "traffic_sedan", "traffic_crossover", "traffic_minivan", "elfer_rs", "uno", "ghost",
+	"centuria", "vento", "bolt16", "elfer_r", "elfer_evo", "gtp963", "vsr"]
 
 
-## [g, tyre kind, factory ABS] for this car in SIM STREET (STREET, else by its
-## role, else a modern road car's 0.95 on road tyres).
+## [g, tyre kind, factory ABS, factory TC] for this car in SIM STREET (STREET, else
+## by its role, else a modern road car's 0.95 on road tyres).
 static func street_grip(id: String) -> Array:
 	var e = VehicleRegistry.entry(id)
 	var role := str(e.get("role", "")) if e != null else ""
 	var out: Array = (STREET[id] if STREET.has(id) else STREET_ROLE.get(role, [0.95, "street"])).duplicate()
 	out.append(not (id in NO_ABS or role == "rally"))
+	out.append(id in FACTORY_TC)
 	return out
 
 

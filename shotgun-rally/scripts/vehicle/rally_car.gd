@@ -534,8 +534,9 @@ func _street_brakes() -> void:
 
 ## The driver aids for how it's driving: Settings' (assists), but in SIM STREET
 ## without the arcade's helpers (drift assist, countersteer help, high-speed
-## stability): the car does what the tyres do, as in Assetto Corsa; and ABS on if
-## the real car has it as standard (Catalog.street_grip's factory ABS).
+## stability): the car does what the tyres do, as in Assetto Corsa; and ABS and
+## traction control on if the real car has them as standard (Catalog.street_grip's
+## factory aids).
 func _set_aids() -> void:
 	if assist == null or assists == null:
 		return
@@ -547,6 +548,8 @@ func _set_aids() -> void:
 		a.set(k, false)
 	if street.size() > 2 and bool(street[2]):
 		a.anti_lock = true                               # (its factory ABS)
+	if street.size() > 3 and bool(street[3]):
+		a.traction_control = true                        # (its factory traction control)
 	assist.setup(a)
 
 
