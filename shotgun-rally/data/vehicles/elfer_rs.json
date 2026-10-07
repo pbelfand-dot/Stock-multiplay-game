@@ -1,0 +1,136 @@
+{
+ "id": "elfer_rs",
+ "name": "ELFER RS",
+ "order": 360,
+ "model": "gt3rs_992",
+ "category": "euro",
+ "role": "track",
+ "real": {
+  "manufacturer": "Porsche",
+  "model": "911 GT3 RS (992)",
+  "year": 2023,
+  "trim": "4.0 flat-six, 7-speed PDK"
+ },
+ "specs": {
+  "power_hp": 518,
+  "weight_kg": 1450,
+  "drivetrain": "RWD",
+  "transmission": "7-speed PDK (dual-clutch, paddles)",
+  "wheelbase_mm": 2457,
+  "top_speed_kmh": 296,
+  "front_weight": 0.39,
+  "notes": "The road-legal track 911: a 4.0 litre flat-six, 525 PS (518 hp) at 8,500 rpm and 465 N m at 6,300 rpm, a 9,000 rpm limit; a seven-speed PDK; rear-wheel drive; about 1,450 kg (1,482 in some lists); 2,457 mm wheelbase; 296 km/h (stuttcars.com, drivearabia.com). Its huge swan-neck wing and active aero give it real downforce (the track chassis); weight distribution and ratios are estimates."
+ },
+ "garage": {
+  "price": 85000,
+  "engine_sound": "i6_race",
+  "livery": "stripes",
+  "number": 23,
+  "colours": [
+   [
+    0.35,
+    0.65,
+    0.2
+   ],
+   [
+    0.05,
+    0.05,
+    0.06
+   ],
+   [
+    0.92,
+    0.92,
+    0.9
+   ],
+   [
+    0.85,
+    0.12,
+    0.05
+   ]
+  ],
+  "wheels": "black",
+  "power": 1.0,
+  "grip": 1.0,
+  "brakes": 1.0,
+  "drive_front": 0.0,
+  "blurb": "A 911 with a race car's wing and a flat-six that screams to 9,000: road tyres, number plates, and lap times that embarrass race cars."
+ },
+ "physics": {
+  "chassis": "track",
+  "mass": 1450.0,
+  "front": 0.39,
+  "torque": 465.0,
+  "curve": [
+   [
+    1000,
+    0.5
+   ],
+   [
+    2855,
+    0.775
+   ],
+   [
+    4710,
+    0.94
+   ],
+   [
+    6300,
+    1.0
+   ],
+   [
+    8500,
+    0.933
+   ],
+   [
+    9000,
+    0.812
+   ]
+  ],
+  "idle": 1000.0,
+  "limiter": 9000.0,
+  "turbo": 0.0,
+  "gears": [
+   2.912,
+   2.348,
+   1.893,
+   1.526,
+   1.231,
+   0.992,
+   0.8
+  ],
+  "final": 4.5,
+  "drive": "rwd",
+  "rear": [
+   "lsd",
+   0.35,
+   0.15,
+   30.0
+  ],
+  "cd": 0.45,
+  "area": 1.95,
+  "down": 2.4,
+  "brake": 1.25
+ },
+ "checks": {
+  "zero_100_max": 7.0
+ },
+ "interior": {
+  "own": true,
+  "camera": true,
+  "notes": "The model's cabin: its wheel cut out by material, the seat found by the probe; left-hand drive; a PDK: the hands stay on the wheel."
+ },
+ "source": {
+  "package": "porsche-992-gt3-rs-2024.zip (porsche_992_gt3_rs_2024__www_vecarz_com.glb)",
+  "candidate": 35,
+  "license": "Sketchfab download (vecarz.com watermark in the file name; no licence file in the zip)"
+ },
+ "research": [
+  "https://stuttcars.com/?p=463488",
+  "https://www.drivearabia.com/news/2023/01/03/2023-porsche-911-gt3-rs"
+ ],
+ "limitations": [
+  "Every material in the file is named Wheel_Paint_Red_N: the paint, glass, lights, wheels and the steering wheel picked from where each sits on the car.",
+  "Weight distribution and the ratios are estimates.",
+  "The second GT3 RS package (a GTA-style port with uncoloured panels) is unused."
+ ]
+}

@@ -1,4 +1,7 @@
-{"id": "gt3rs_992", "front": "+Y", "wheelbase": 2.457,
- "wheel": ["^wheel_(lf|rf|lr|rr)"],
- "caliper": ["^hub_"],
- "wheel_faces": 20000, "body_faces": 250000, "tex_max": 1024}
+{"id": "gt3rs_992", "front": "-Y", "wheelbase": 2.457,
+ "wheel_mats": ["^Wheel_Paint_Red_(37|42|41|43|39)$"], "caliper_mats": ["^Wheel_Paint_Red_(38|40|45)$"],
+ "paint": ["^Wheel_Paint_Red_35$"], "glass": ["^Wheel_Paint_Red_4$"],
+ "materials": [["^Wheel_Paint_Red_4$", "glass"], ["^Wheel_Paint_Red_2$", "clear_lens"], ["^Wheel_Paint_Red_(59|3)$", "red_lens"]],
+ "wheel_faces": 12000, "caliper_faces": 3000, "body_faces": 160000, "body_least": 0.1, "tex_max": 1024, "tex_format": "webp",
+ "cockpit": {"gearbox": "auto", "wheel": {"mats": ["^Wheel_Paint_Red_30$"]}},
+ "decimate_parts": [["^Object_(706|728|991)$", 0.35]]}

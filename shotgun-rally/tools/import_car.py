@@ -554,7 +554,7 @@ def verts(o):
 
 
 def centre(objs):
-    pts = np.vstack([verts(o) for o in objs])
+    pts = np.vstack([v for v in (verts(o) for o in objs) if len(v)])     # (a split can leave a part empty)
     return Vector(((pts.min(0) + pts.max(0)) * 0.5).tolist()), pts
 
 
@@ -691,6 +691,15 @@ if spec.get("wheel_trim"):
             rest.name = o.name + "_body"
             meshes.append(rest)
             print("wheel_trim: %d faces of %s left with the body" % (int(far.sum()), o.name))
+
+# (a split or the trim can leave a part with nothing in it: gone)
+for k in CORNERS:
+    for kind in ("spin", "cal"):
+        for o in [o for o in corner[k][kind] if len(o.data.polygons) == 0]:
+            corner[k][kind].remove(o)
+            if o in meshes:
+                meshes.remove(o)
+            bpy.data.objects.remove(o, do_unlink=True)
 
 # straighten a front wheel saved turned: its axle is the tyre's thinnest way
 # (from the tyre's outer ring only: a deep hub would skew it)
