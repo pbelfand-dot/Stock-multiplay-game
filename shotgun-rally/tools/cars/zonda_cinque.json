@@ -1,0 +1,9 @@
+{"id": "zonda_cinque", "front": "-Y", "wheelbase": 2.73,
+ "wheel_mats": ["^rim\\.001$", "^EXT_Tyre", "^inner_rim", "^outer_rim", "^hub\\.001$", "^rotor"],
+ "caliper_mats": ["^caliper\\.001$", "^Brake_Plastic"],
+ "drop_mats": ["^emblem", "^INT_BADGE", "^badge\\.001$", "^numplate", "^INT_GLASS"],
+ "paint": ["^body(_2)?\\.001$"], "glass": ["^window\\.001$"],
+ "materials": [["^window\\.001$", "glass"], ["^glass\\.001$", "clear_lens"], ["^mirror(Left|Right)", "chrome"]],
+ "wheel_faces": 16000, "body_faces": 200000, "tex_max": 1024,
+ "cockpit": {"gearbox": "auto",
+             "wheel": {"mats": ["^mottled\\.001$", "^bump_stitching", "^metal\\.001$"], "box": [-0.50, -0.12, 0.55, 0.71, 0.52, 0.88]}}}

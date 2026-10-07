@@ -736,6 +736,16 @@ for o in meshes:
 for k in CORNERS:
     corner[k]["c"] = M @ corner[k]["c"]
 print("scaled x%.4f (model wheelbase %.3f -> %.3f m)" % (s, base, spec["wheelbase"]))
+# every tyre on the ground: a wheel the model left floating (smaller front tyres modelled at
+# the rear ones' axle height, a raked stance) let down onto it, the body staying where it is
+for k in CORNERS:
+    lift = min(float(verts(o)[:, 2].min()) for o in corner[k]["spin"])
+    if lift > 0.003:
+        down = Matrix.Translation((0.0, 0.0, -lift))
+        for o in corner[k]["spin"] + corner[k]["cal"]:
+            xform(o, down)
+        corner[k]["c"] = down @ corner[k]["c"]
+        print("%s wheel let down %.0f mm onto the ground" % (k, lift * 1000))
 
 def loose_in(o, box, cut=False):
     """The faces of o's loose pieces that lie wholly inside box ([x0, x1, y0, y1,

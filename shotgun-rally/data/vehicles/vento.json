@@ -1,0 +1,80 @@
+{
+	"id": "vento",
+	"name": "VENTO CINQUE",
+	"order": 420,
+	"model": "zonda_cinque",
+	"category": "hyper",
+	"role": "hypercar",
+	"real": {
+		"manufacturer": "Pagani",
+		"model": "Zonda Cinque",
+		"year": 2009,
+		"trim": "7.3 AMG V12, 6-speed sequential"
+	},
+	"specs": {
+		"power_hp": 669,
+		"weight_kg": 1210,
+		"drivetrain": "RWD",
+		"transmission": "6-speed sequential (paddles)",
+		"wheelbase_mm": 2730,
+		"top_speed_kmh": 349,
+		"front_weight": 0.43,
+		"notes": "One of five: the Mercedes-AMG 7.3 V12, 678 CV (669 hp) and 780 Nm, a six-speed robotised sequential worked by paddles, carbon-titanium bodywork, 1,210 kg; 0-100 km/h about 3.4 s and ~349 km/h (Pagani; Motor Authority). The rpm of the peaks (6,200 / 4,000) are the commonly quoted Zonda F/Cinque figures, not confirmed for the Cinque; the ratios aren't published: spread for the top speed. 43 % front, the drag and downforce are estimates."
+	},
+	"garage": {
+		"price": 110000,
+		"engine_sound": "v8",
+		"livery": "plain",
+		"number": 5,
+		"colours": [[0.85, 0.85, 0.87], [0.6, 0.03, 0.02], [0.05, 0.05, 0.055], [0.95, 0.75, 0.1]],
+		"wheels": "silver",
+		"power": 1.0,
+		"grip": 1.0,
+		"brakes": 1.0,
+		"drive_front": 0.0,
+		"blurb": "Five were built: a hand-made Italian carbon wedge with a huge AMG V12 behind your head and a sequential box. Light, loud and very fast in a straight line."
+	},
+	"physics": {
+		"chassis": "sport",
+		"mass": 1210.0,
+		"front": 0.43,
+		"torque": 780.0,
+		"curve": [[1000, 0.62], [2050, 0.829], [3100, 0.954], [4000, 1.0], [6200, 0.985], [7000, 0.788]],
+		"idle": 850.0,
+		"limiter": 7000.0,
+		"turbo": 0.0,
+		"gears": [3.68, 2.712, 1.999, 1.473, 1.086, 0.8],
+		"final": 2.97,
+		"drive": "rwd",
+		"rear": ["lsd", 0.35, 0.15, 30.0],
+		"cd": 0.33,
+		"area": 1.9,
+		"down": 0.5,
+		"brake": 1.0
+	},
+	"checks": {
+		"zero_100_max": 6.0
+	},
+	"interior": {
+		"own": true,
+		"camera": true,
+		"notes": "The model's: its three-spoke wheel (cut out by material in a box), the dash and console; paddles: the hands stay on the wheel."
+	},
+	"source": {
+		"package": "2009-pagani-zonda-cinque.zip",
+		"author": "see the licence notes",
+		"license": "CC Attribution",
+		"url": "https://sketchfab.com/3d-models/2009-pagani-zonda-cinque",
+		"attribution": "2009 Pagani Zonda Cinque (Sketchfab, CC BY)",
+		"candidate": 26
+	},
+	"research": [
+		"https://www.pagani.com/zonda-cinque/",
+		"https://www.motorauthority.com/news/1023927_update-pagani-zonda-cinque-official-specs-and-photos",
+		"https://www.supercars.net/blog/2009-pagani-zonda-cinque/"
+	],
+	"limitations": [
+		"The rpm of its peaks, the gear ratios, weight distribution, drag and downforce are estimates.",
+		"The model is one mesh: its wheels and calipers cut out by material."
+	]
+}
