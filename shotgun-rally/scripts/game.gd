@@ -95,8 +95,11 @@ var _t_alive := 0.0
 var _sfx := {}
 var _engine                        # EngineSound
 var _gravel: AudioStreamPlayer3D
-var _squeal: AudioStreamPlayer3D     # the tyres on the asphalt, sliding
+var _squeal: AudioStreamPlayer3D     # the tyres on the asphalt, sliding (off: TYRE_SQUEAL)
 var _squeal_amt := 0.0
+## The tyre squeal on asphalt: off for now (the owner: it sounds bad). The loop
+## and its cue (car.grip_use) stay, to come back with a better recording.
+const TYRE_SQUEAL := false
 # the modes beyond rally stages (Modes): "" (a stage), "touge", "cutup"
 var mode := ""
 var traffic                          # Traffic (cut up)
@@ -534,13 +537,14 @@ func _audio() -> void:
 	_gravel.bus = "SFX"
 	car.add_child(_gravel)
 	_gravel.play()
-	_squeal = AudioStreamPlayer3D.new()
-	_squeal.stream = EngineSound.looped("res://assets/sfx/squeal.wav")
-	_squeal.unit_size = 6.0
-	_squeal.volume_db = -80.0
-	_squeal.bus = "SFX"
-	car.add_child(_squeal)
-	_squeal.play()
+	if TYRE_SQUEAL:
+		_squeal = AudioStreamPlayer3D.new()
+		_squeal.stream = EngineSound.looped("res://assets/sfx/squeal.wav")
+		_squeal.unit_size = 6.0
+		_squeal.volume_db = -80.0
+		_squeal.bus = "SFX"
+		car.add_child(_squeal)
+		_squeal.play()
 	for n in ["tick", "bell", "splat", "wiper", "thud", "crash"]:
 		var p := AudioStreamPlayer.new()
 		p.stream = load("res://assets/sfx/%s.wav" % n)
@@ -567,6 +571,8 @@ func _engine_audio() -> void:
 	_gravel.pitch_scale = 0.8 + clampf(spd / 40.0, 0.0, 0.5)
 	# on the asphalt the tyres squeal as they near their limit: quietly from ~70 %
 	# of their grip, building to a howl in a slide (the warning before it goes)
+	if _squeal == null:
+		return
 	var sq: float = car.grip_use * on_ground * clampf(spd / 8.0, 0.0, 1.0) if car.on_surface == "asphalt" else 0.0
 	_squeal_amt = move_toward(_squeal_amt, sq, get_process_delta_time() * 6.0)
 	_squeal.volume_db = linear_to_db(maxf(_squeal_amt, 0.001)) - 13.0
