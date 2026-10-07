@@ -18,6 +18,8 @@ extends Node3D
 ## through an RPC on this node.
 
 const StageGen = preload("res://scripts/stage/stage_gen.gd")
+const LoopGen = preload("res://scripts/stage/loop_gen.gd")
+const LoopBuilder = preload("res://scripts/stage/loop_builder.gd")
 const StageBuilder = preload("res://scripts/stage/stage_builder.gd")
 const Notes = preload("res://scripts/stage/pacenotes.gd")
 const RallyCar = preload("res://scripts/vehicle/rally_car.gd")
@@ -102,6 +104,7 @@ var _squeal_amt := 0.0
 const TYRE_SQUEAL := false
 # the modes beyond rally stages (Modes): "" (a stage), "touge", "cutup"
 var mode := ""
+var looped := false                  # the map's a loop (cut up's LAKESHORE LOOP): no finish
 var traffic                          # Traffic (cut up)
 var cutup                            # CutupScore
 var touge                            # TougeRules
@@ -126,13 +129,15 @@ func start(seed_in: int, stage_in: int, o := {}) -> void:
 	if not is_inside_tree():
 		return
 	mode = str(o.get("mode", "")) if Modes.is_mode(o) else ""
-	st = StageGen.new()
+	# cut up's map is the LAKESHORE LOOP: a loop, no finish (its s keeps growing lap after lap)
+	looped = str(o.get("gen", {}).get("kind", "")) == "loop"
+	st = LoopGen.new() if looped else StageGen.new()
 	st.opts = o.get("gen", {})
 	st.generate(seed_value, float(o.get("length", Config.arg("length", 2600))))
 	notes = Notes.build(st)
 	calls = Notes.calls(notes)
 	stage_generated.emit()
-	builder = StageBuilder.new()
+	builder = LoopBuilder.new() if looped else StageBuilder.new()
 	builder.mood = o.get("mood", "day")
 	add_child(builder)
 	await builder.build_async(st, func(f: float, what: String): progress.emit(0.06 + f * 0.64, what))
@@ -270,7 +275,7 @@ func _physics_process(dt: float) -> void:
 	_t_alive += dt
 	var at: Dictionary = st.locate(car.global_position, _hint)
 	_hint = at.i
-	car_s = at.s
+	car_s = st.unwrap(at.s, car_s) if looped else at.s
 	car_d = at.d
 	car.set_lanes(st, car_s, car_d)
 	cockpit.map_board.car_s = car_s
@@ -746,7 +751,11 @@ func _build_hud() -> void:
 	title.add_theme_font_size_override("font_size", 36)
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vb.add_child(title)
-	for b in [["RESUME", _toggle_pause], ["QUIT TO MENU", func(): get_parent().to_menu()]]:
+	var buttons := [["RESUME", _toggle_pause]]
+	if looped:
+		buttons.append(["END RUN", _end_run])          # (a loop has no finish: the run ends when you say)
+	buttons.append(["QUIT TO MENU", func(): get_parent().to_menu()])
+	for b in buttons:
 		var btn := Button.new()
 		btn.text = b[0]
 		btn.add_theme_font_override("font", font)
@@ -792,6 +801,19 @@ func _panel() -> PanelContainer:
 	p.grow_vertical = Control.GROW_DIRECTION_BOTH
 	_hud.add_child(p)
 	return p
+
+
+## On a loop (no finish): the run ends here, with its results.
+func _end_run() -> void:
+	if _pause.visible:
+		_toggle_pause()
+	if state != "running":
+		return
+	var args := [stage_time, penalties, resets, jump_start]
+	if Net.online():
+		stage_finished.rpc(args[0], args[1], args[2], args[3])
+	else:
+		stage_finished(args[0], args[1], args[2], args[3])
 
 
 func _toggle_pause() -> void:

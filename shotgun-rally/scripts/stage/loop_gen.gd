@@ -39,6 +39,9 @@ var city: Array = []
 var city_ground := 4.0
 var _n := 0                          # samples round the loop (pts has one more: the start again)
 var _bumps := FastNoiseLite.new()
+var extra_r := PackedFloat32Array()  # per sample: an acceleration/deceleration lane's width on our right (0..LANE_W)
+var extra_l := PackedFloat32Array()  # ... on the other carriageway's right (our left)
+var _ramp_paths := {}
 var _hill_grid := {}                 # 500 m cells -> the hills that reach into them (land_at)
 const HILL_CELL := 500.0
 
@@ -92,6 +95,7 @@ func generate(seed_value: int, _target := 2600.0) -> void:
 				if not _hill_grid.has(key):
 					_hill_grid[key] = []
 				_hill_grid[key].append(hl)
+	_extra_lanes()
 	_bumps.seed = 7
 	_bumps.frequency = 1.0 / 260.0
 	_bumps.fractal_octaves = 3
@@ -283,3 +287,77 @@ func in_city(x: float, z: float) -> bool:
 		if (x - c.x) * (x - c.x) + (z - c.z) * (z - c.z) < c.r * c.r:
 			return true
 	return false
+
+
+## A ramp's road: {pts, heads, len}, from its gore (where it meets the highway, in the
+## middle of its extra lane) out to where it ends, 4 m a point. It runs alongside
+## the highway at first, then curves away (260 m radius) and down to the ground (6 %).
+## An exit's traffic drives it from the gore out; an entry's from the end in.
+func ramp_path(r: Dictionary) -> Dictionary:
+	var key := "%s/%s/%.1f" % [r.side, r.kind, r.s]
+	if _ramp_paths.has(key):
+		return _ramp_paths[key]
+	var right: bool = r.side == "right"
+	var gore: float = r.s
+	var d0: float = (EDGE + LANE_W * 0.5 + SHOULDER_R - LANE_W * 0.5) if right else (ONCOMING_D - EDGE - SHOULDER_R + LANE_W * 0.5 - LANE_W * 0.5)
+	d0 = (EDGE + LANE_W * 0.5) if right else (ONCOMING_D - EDGE - LANE_W * 0.5)
+	var travel := 1.0 if right else -1.0          # which way round the loop its carriageway's traffic goes
+	var walk := travel * (1.0 if r.kind == "off" else -1.0)   # which way the path walks from the gore
+	var away := 1.0 if right else -1.0            # which way (in d) it leaves
+	var p := world_at(gore, d0)
+	var h := heading_at(gore) + (0.0 if walk > 0.0 else PI)
+	var y := p.y
+	var pts := PackedVector3Array()
+	var heads := PackedFloat32Array()
+	var n := 90
+	for k in n + 1:
+		pts.append(Vector3(p.x, y, p.z))
+		heads.append(h)
+		var u := float(k) / n
+		# turning away from the road: right of travel for our ramps, left for theirs, either way the walk goes
+		h += (1.0 / 260.0) * smoothstep(0.08, 0.35, u) * away * signf(walk) * 4.0
+		p += Vector3(sin(h), 0.0, -cos(h)) * 4.0
+		var g := maxf(land_at(p.x, p.z), city_ground if in_city(p.x, p.z) else -1.0)
+		y = move_toward(y, maxf(g, 0.5) + 0.3, 0.06 * 4.0 * smoothstep(0.1, 0.3, u))
+	var out := {"pts": pts, "heads": heads, "len": n * 4.0}
+	_ramp_paths[key] = out
+	return out
+
+
+## The ramps' extra lanes, sample by sample: a deceleration lane before an exit (a 60 m
+## taper, then full), an acceleration lane after an entry (full, then an 80 m taper),
+## on the right of whichever carriageway the ramp is on, the way its traffic goes.
+func _extra_lanes() -> void:
+	extra_r.resize(_n)
+	extra_l.resize(_n)
+	extra_r.fill(0.0)
+	extra_l.fill(0.0)
+	for r in ramps:
+		var len_: float = r.len
+		var travel := 1.0 if r.side == "right" else -1.0
+		var i0 := int((float(r.s) - len_ - 100.0) / STEP)
+		var i1 := int((float(r.s) + len_ + 100.0) / STEP)
+		for i in range(i0, i1 + 1):
+			var s := i * STEP
+			var ds := gore_ds(s, float(r.s)) * travel           # m past the gore, the way its traffic goes
+			var w := 0.0
+			if r.kind == "off" and ds > -len_ and ds <= 0.0:
+				w = clampf((ds + len_) / 60.0, 0.0, 1.0)
+			elif r.kind == "on" and ds >= 0.0 and ds < len_:
+				w = clampf((len_ - ds) / 80.0, 0.0, 1.0)
+			if w > 0.0:
+				var j := posmod(i, _n)
+				if r.side == "right":
+					extra_r[j] = maxf(extra_r[j], w * LANE_W)
+				else:
+					extra_l[j] = maxf(extra_l[j], w * LANE_W)
+
+
+## s - s0 the nearest way round the loop (-length/2 .. length/2).
+func gore_ds(s: float, s0: float) -> float:
+	return fposmod(s - s0 + length * 0.5, length) - length * 0.5
+
+
+## The extra lane's width on our right at s (0: none).
+func extra_lane(s: float) -> float:
+	return extra_r[int(_at(s).x)]

@@ -59,6 +59,8 @@ func _init(stage) -> void:
 
 ## Inputs for the car at road position (s, d) going at speed (m/s).
 func drive(car, s: float, d: float) -> Dictionary:
+	if st.has_method("wrap_s"):
+		s = st.wrap_s(s)                                 # (a loop: its s keeps growing lap after lap)
 	var spd: float = car.linear_velocity.length()
 	var xf: Transform3D = car.global_transform
 	var fwd: Vector3 = -xf.basis.z

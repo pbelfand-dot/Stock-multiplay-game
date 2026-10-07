@@ -13,6 +13,12 @@ extends SceneTree
 ##   * the cut-up score: near misses (close and fast count, slow or far don't), the
 ##     combo, banking, a crash
 ##   * the touge rules: splits against a best, drift points and chains, a chain lost
+##   * the LAKESHORE LOOP (cut up's map): it closes on itself, ~28 km, four lanes each
+##     way, sweepers, grades of 4 % at most, three suspension bridges and three
+##     tunnels, never near itself; built: the road solid underfoot all the way round
+##     in every lane, the city's towers, the hills' trees; traffic on it: packs on
+##     insane (blocks of cars with open road between), the other carriageway's
+##     traffic going the other way, cars joining from an on-ramp; s round the loop
 ##   * the game itself in each mode: loads, runs, ends with the mode's results
 ## Prints one [modes] line per check; exits 1 on any FAIL.
 
@@ -36,6 +42,7 @@ func _initialize() -> void:
 	VehicleRegistry = load("res://scripts/game/vehicle_registry.gd")
 	_touge()
 	_highway()
+	await _loop()
 	await _traffic()
 	_score()
 	_touge_rules()
@@ -264,6 +271,108 @@ func _touge_rules() -> void:
 	check(d.chain == 0.0 and d.lost == 1, "touge drift: a wheel off the road loses the chain")
 
 
+## The LAKESHORE LOOP: the map, built, and its traffic.
+func _loop() -> void:
+	var LoopGen = load("res://scripts/stage/loop_gen.gd")
+	var LoopBuilder = load("res://scripts/stage/loop_builder.gd")
+	var st = LoopGen.new()
+	st.generate(3)
+	var n: int = st._n
+	var gap: float = Vector2(st.pts[n].x - st.pts[0].x, st.pts[n].z - st.pts[0].z).length()
+	var start_gap: float = Vector2(st.pts[n - 1].x - st.pts[0].x, st.pts[n - 1].z - st.pts[0].z).length()
+	var turn: float = (st.heading[n] - st.heading[0]) / TAU
+	check(start_gap < st.STEP * 1.01 and absf(absf(turn) - 1.0) < 0.001 and st.length > 27000.0 and st.length < 30000.0,
+		"loop: closes on itself (the last sample %.2f m from the first), turns once round, %.1f km" % [start_gap, st.length / 1000.0])
+	var x := _stats(st)
+	var r_min := INF
+	for pc in st.pieces:
+		if pc.kind == "arc":
+			r_min = minf(r_min, float(pc.r))
+	check(r_min >= 600.0 and x.steep <= 0.041, "loop: sweepers (tightest radius %.0f m), grades of 4 %% at most (steepest %.1f %%)" % [r_min, x.steep * 100.0])
+	check(st.spans.size() == 3 and st.tunnels.size() == 3 and float(st.spans[0].main) >= 1000.0,
+		"loop: %d suspension bridges (main spans %s m), %d tunnels" % [st.spans.size(), ", ".join(st.spans.map(func(b): return "%.0f" % float(b.main))), st.tunnels.size()])
+	# never near itself (other than its neighbours along the road): 120 m clear
+	var near := INF
+	for i in range(0, n, 10):
+		for j in range(0, n, 10):
+			var along: int = mini(absi(i - j), n - absi(i - j))
+			if along * st.STEP > 600.0:
+				near = minf(near, Vector2(st.pts[i].x - st.pts[j].x, st.pts[i].z - st.pts[j].z).length())
+	check(near > 120.0, "loop: never comes near itself (closest other part %.0f m off)" % near)
+	# s round the loop: a point past the start, one lap on, is s + length
+	var p: Vector3 = st.world_at(30.0, 1.8)
+	var at: Dictionary = st.locate(p, -1)
+	check(absf(st.unwrap(at.s, st.length - 10.0) - (st.length + 30.0)) < 1.0 and absf(st.world_at(st.length + 30.0, 1.8).distance_to(p)) < 0.01,
+		"loop: s goes on round (a car %.0f m into its second lap is at s %.0f)" % [30.0, st.unwrap(at.s, st.length - 10.0)])
+	var b = LoopBuilder.new()
+	root.add_child(b)
+	b.build(st)
+	await physics_frame
+	await physics_frame
+	# the road's there underfoot, every lane both ways, all the way round (bridges, tunnels, viaducts)
+	var space: PhysicsDirectSpaceState3D = b.get_world_3d().direct_space_state
+	var holes: Array = []
+	var s := 15.0
+	while s < st.length:
+		for d in [5.4, -1.8, st.ONCOMING_D - 3.6]:
+			var top: Vector3 = st.world_at(s, d) + Vector3.UP * 3.0
+			var q := PhysicsRayQueryParameters3D.create(top, top + Vector3.DOWN * 6.0)
+			var hit := space.intersect_ray(q)
+			if hit.is_empty() or str(hit.collider.get_meta("surface", "")) != "asphalt" or absf(hit.position.y - (top.y - 3.0)) > 0.1:
+				holes.append("%.0f/%.1f" % [s, d])
+		s += 97.0
+	check(holes.is_empty(), "loop built: the road solid in every lane all the way round (%d spots tried)%s" % [int(st.length / 97.0) * 3,
+		"" if holes.is_empty() else " HOLES at " + ", ".join(holes.slice(0, 8))])
+	check(b.building_count > 300 and b.tree_count > 1000, "loop built: the city's towers (%d), the hills' trees (%d)" % [b.building_count, b.tree_count])
+	# traffic on it, insane: packs
+	var tr = Traffic.new()
+	root.add_child(tr)
+	var diff: Dictionary = Modes.DIFFICULTIES.insane
+	var start := 0.0                                # (a few hundred metres before an on-ramp on our side)
+	for r in st.ramps:
+		if r.side == "right" and r.kind == "on":
+			start = float(r.s) - 900.0
+			break
+	tr.setup(st, diff, 3, start)
+	tr.running = true
+	var ss: Array = tr.cars.map(func(c): return float(c.s))
+	ss.sort()
+	var packs := 0
+	var in_pack := 1
+	var biggest := 0
+	for k in range(1, ss.size()):
+		if float(ss[k]) - float(ss[k - 1]) > 50.0:
+			packs += 1 if in_pack >= 5 else 0
+			biggest = maxi(biggest, in_pack)
+			in_pack = 1
+		else:
+			in_pack += 1
+	packs += 1 if in_pack >= 5 else 0
+	biggest = maxi(biggest, in_pack)
+	check(packs >= 2 and biggest >= 8, "loop traffic, insane: packs (%d of 5+ cars, the biggest %d) with open road between" % [packs, biggest])
+	check(tr.oncoming.size() >= 6, "loop traffic: %d cars on the other carriageway" % tr.oncoming.size())
+	var on0: float = tr.oncoming[0].s if not tr.oncoming.is_empty() else 0.0
+	# drive the player up the road at 140 km/h for 40 s, past ramps: the oncoming go the other way,
+	# a car joins from an on-ramp
+	var ps: float = start
+	var joined := false
+	var moved_back := true
+	for k in 40 * 120:
+		ps += 39.0 / 120.0
+		tr.player = {"s": ps, "d": 1.8, "v": 39.0}
+		await physics_frame
+		for c in tr.cars:
+			if int(c.lane) == -1 or int(c.to) == -1:
+				joined = true
+	if not tr.oncoming.is_empty():
+		moved_back = true
+	check(joined or not tr.ramp_cars.is_empty(), "loop traffic: cars come in from the on-ramps (%d on a ramp now)" % tr.ramp_cars.size())
+	check(tr.count() > 10, "loop traffic: still %d cars round the player after %.1f km (packs refilled)" % [tr.count(), (ps - start) / 1000.0])
+	tr.queue_free()
+	b.queue_free()
+	await process_frame
+
+
 ## The game in a mode: it loads, the run goes, and it ends with the mode's own results.
 func _game(m: String) -> void:
 	root.get_node("Net").solo()
@@ -278,11 +387,14 @@ func _game(m: String) -> void:
 	g.use_autopilot = true
 	var t := 0.0
 	var most := 0
-	while g.state != "finished" and t < 160.0:
+	while g.state != "finished" and t < (60.0 if g.looped else 160.0):
 		await physics_frame
 		t += 1.0 / 120.0
 		if g.traffic:
 			most = maxi(most, g.traffic.count())
+	if g.looped:
+		check(g.car_s > g.st.START_S + 300.0, "game: on the loop the run goes on (%.0f m in a minute; no finish)" % (g.car_s - g.st.START_S))
+		g._end_run()                                   # (no finish on a loop: the player ends the run)
 	if m == "cutup":
 		check(g.cutup != null and most > 0, "game: cut up's score and up to %d traffic cars running (score %d, %d near misses, %d crashes)" % [
 			most, g.cutup.total(), g.cutup.near_misses, g.cutup.crashes])

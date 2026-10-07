@@ -73,7 +73,7 @@ const STEPS := [["_environment", "Checking the weather"], ["_road", "Laying the 
 
 
 ## (the game calls this on a rally stage's start boards: nothing to show here)
-func set_start_clock(_t: float) -> void:
+func set_start_clock(_text: String, _col: Color) -> void:
 	pass
 
 
@@ -94,26 +94,8 @@ func _prepare(stage) -> void:
 	for i in n:
 		raw[i] = 1.0 if st.support_at(i * st.STEP) == "ground" else 0.0
 	_ground_f = _ease(raw, 30)
-	# the ramps' extra lanes: a deceleration lane before an exit (a 60 m taper, then full), an
-	# acceleration lane after an entry (full, then an 80 m taper)
-	_extra_r.resize(n)
-	_extra_l.resize(n)
-	for r in st.ramps:
-		var s0: float = r.s
-		var len_: float = r.len
-		for i in n:
-			var s: float = i * st.STEP
-			var ds: float = _ds(s, s0) * (1.0 if r.side == "right" else -1.0)   # m past the gore, the way its traffic goes (- before)
-			var w := 0.0
-			if r.kind == "off" and ds > -len_ and ds <= 0.0:
-				w = clampf((ds + len_) / 60.0, 0.0, 1.0)
-			elif r.kind == "on" and ds >= 0.0 and ds < len_:
-				w = clampf((len_ - ds) / 80.0, 0.0, 1.0)
-			if w > 0.0:
-				if r.side == "right":
-					_extra_r[i] = maxf(_extra_r[i], w * st.LANE_W)
-				else:
-					_extra_l[i] = maxf(_extra_l[i], w * st.LANE_W)
+	_extra_r = st.extra_r
+	_extra_l = st.extra_l
 
 
 ## s - s0 round the loop, the nearest way (-L/2 .. L/2).
@@ -1248,37 +1230,12 @@ func _ramps() -> void:
 
 
 func _ramp(r: Dictionary) -> void:
-	var right: bool = r.side == "right"
-	var dir := 1.0 if right else -1.0                 # which way the ramp's traffic goes round the loop
-	var away := 1.0 if right else -1.0                # which way (in d) the ramp leaves the road
+	var path := st.ramp_path(r)
+	var pts: PackedVector3Array = path.pts
+	var heads: PackedFloat32Array = path.heads
+	var n := pts.size() - 1
 	var gore: float = r.s
-	var d0: float = (st.EDGE + st.SHOULDER_R + st.LANE_W * 0.5) if right else (st.ONCOMING_D - st.EDGE - st.SHOULDER_R - st.LANE_W * 0.5)
-	# the ramp's centreline: from the gore, along the road and curving away (off), or the
-	# same path the other way round (on: it ends at the gore)
-	var length := 360.0
-	var radius := 260.0
-	var p0 := st.world_at(gore, d0)
-	var h0 := st.heading_at(gore) + (0.0 if dir > 0.0 else PI)
-	var pts := PackedVector3Array()
-	var heads := PackedFloat32Array()
-	var bend := 1.0 if (r.kind == "off") == right else -1.0
-	var turn := away * (1.0 if r.kind == "off" else -1.0) * (dir)
-	var p := p0
-	var h := h0
-	var ground := st.land_at(p0.x, p0.z)
-	var y := p0.y
-	var n := int(length / 4.0)
-	var trail_dir := 1.0 if r.kind == "off" else -1.0   # off: walk away from the gore forwards; on: backwards
-	for k in n + 1:
-		pts.append(Vector3(p.x, y, p.z))
-		heads.append(h)
-		var u := float(k) / n
-		var k_turn := (1.0 / radius) * smoothstep(0.05, 0.35, u) * away * dir
-		h += k_turn * 4.0 * trail_dir
-		var fwd := Vector3(sin(h), 0.0, -cos(h)) * trail_dir
-		p += fwd * 4.0
-		var g := maxf(st.land_at(p.x, p.z), st.city_ground if st.in_city(p.x, p.z) else -1.0)
-		y = move_toward(y, maxf(g, 0.5) + 0.3, 0.06 * 4.0)
+	var right_side: bool = r.side == "right"
 	# the deck / road: 6 m of asphalt, a barrier each side, its collision
 	var i := int(gore / st.STEP)
 	for k in n:
@@ -1292,8 +1249,12 @@ func _ramp(r: Dictionary) -> void:
 		var row_a := PackedVector3Array([a - ra * w, a + ra * w])
 		var row_b := PackedVector3Array([b - rb * w, b + rb * w])
 		var vv := PackedFloat32Array([-w, w])
-		if k < 4:
-			continue                                  # (the first metres overlap the highway's own asphalt)
+		# (alongside the highway, the ramp's lane is the highway's own extra lane: its own road
+		# starts once it's clear of the highway's edge)
+		var walk := (1.0 if right_side else -1.0) * (1.0 if r.kind == "off" else -1.0)   # (which way along the road it walks)
+		var off_road: float = absf(st.locate(a, posmod(int(gore / st.STEP) + int(k * 2 * walk), st._n)).d - (0.0 if right_side else st.ONCOMING_D))
+		if off_road < st.EDGE + st.SHOULDER_R + st.LANE_W + w + 0.3:
+			continue
 		_buf(i, "asphalt").ribbon(row_a, row_b, k * 4.0, (k + 1) * 4.0, vv)
 		_body(i, "asphalt").ribbon(row_a, row_b, k * 4.0, (k + 1) * 4.0, vv, Color.WHITE, true)
 		for sd in [-1.0, 1.0]:
