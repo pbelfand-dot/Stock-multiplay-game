@@ -1,0 +1,8 @@
+{"id": "traffic_minivan", "front": "+X", "wheelbase": 3.0,
+ "wheel": ["^Wheel_(FL|FR|RL|RR)$"], "caliper": ["^Brake_(FL|FR|RL|RR)$"],
+ "drop": ["^Needle_"],
+ "shift": [["^(?!Body$)", [-1.596, 0.0, -0.353]]],
+ "paint": ["^body$"], "glass": ["^glass$", "^window_glass$", "^window_darkglass$", "^glass_bumpy$"],
+ "materials": [["^window_glass$", "glass"], ["^window_darkglass$", "glass"], ["^glass$", "clear_lens"], ["^red_glass$", "red_lens"]],
+ "pbr_sets": true,
+ "wheel_faces": 3000, "body_faces": 60000, "tex_max": 512}

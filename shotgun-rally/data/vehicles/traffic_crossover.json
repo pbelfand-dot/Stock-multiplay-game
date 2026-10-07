@@ -1,0 +1,59 @@
+{
+	"id": "traffic_crossover",
+	"name": "CROSSOVER",
+	"order": 310,
+	"model": "traffic_crossover",
+	"category": "traffic",
+	"role": "traffic",
+	"real": {
+		"manufacturer": "generic",
+		"model": "Generic crossover",
+		"trim": "2024 Toyota RAV4 LE 2.5 FWD (representative)"
+	},
+	"specs": {
+		"power_hp": 203,
+		"weight_kg": 1529,
+		"drivetrain": "FWD",
+		"transmission": "8-speed automatic",
+		"wheelbase_mm": 2690,
+		"front_weight": 0.58,
+		"notes": "Toyota's 2024 RAV4 LE: the same 2.5 (203 hp at 6,600 rpm, 249 Nm at 5,000 rpm) and 8-speed, 1,529 kg, FWD, 2,690 mm wheelbase. Its final drive wasn't found: 3.0 is an estimate, as are 58 % front and Cd 0.33 on 2.65 m^2."
+	},
+	"traffic": {
+		"weight": 1.0,
+		"paints": [[0.85, 0.85, 0.86], [0.6, 0.62, 0.64], [0.05, 0.05, 0.06], [0.32, 0.33, 0.35], [0.08, 0.14, 0.3], [0.5, 0.06, 0.06], [0.75, 0.72, 0.62]]
+	},
+	"physics": {
+		"chassis": "suv",
+		"mass": 1529.0,
+		"front": 0.58,
+		"torque": 249.0,
+		"curve": [[1000, 0.62], [2400, 0.829], [3800, 0.954], [5000, 1.0], [6600, 0.88], [6800, 0.743]],
+		"idle": 850.0,
+		"limiter": 6800.0,
+		"turbo": 0.0,
+		"gears": [5.25, 3.03, 1.95, 1.46, 1.22, 1.0, 0.81, 0.67],
+		"final": 3.0,
+		"drive": "fwd",
+		"front_diff": ["open", 0.0, 0.0, 0.0],
+		"cd": 0.33,
+		"area": 2.65,
+		"down": 0.0,
+		"brake": 0.85
+	},
+	"checks": {
+		"zero_100_max": 14.0
+	},
+	"interior": {
+		"own": true,
+		"camera": false,
+		"notes": "A simple interior, seen through the windows (traffic only: nobody sits in it)."
+	},
+	"source": {
+		"package": "CGTrader_New_Cars/traffic/generic_crossover",
+		"license": "CGTrader Royalty Free License (no AI)",
+		"notes": "No-AI licence: converted and checked only by local scripts and tests; nobody, human or AI, looked at its textures or renders.",
+		"candidate": 41
+	},
+	"limitations": ["A generic car: its numbers are a representative real car's (2024 Toyota RAV4 LE 2.5 FWD (representative))."]
+}

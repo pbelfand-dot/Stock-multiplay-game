@@ -20,6 +20,8 @@ The spec (tools/cars/<id>.json) says what's what in the model:
     an interior, to thin harder with "decimate_parts")
   * "mirror": name patterns of parts the model only has on one side (a missing
     tyre): copied, mirrored, to the other
+  * "shift": [[name pattern, [dx, dy, dz]]]: parts moved as they're loaded (the model's
+    frame and units: children an FBX left off by their parent's offset)
   * "drop": name patterns of parts to leave out (badges); "drop_mats": material
     name patterns whose faces go (logos and nameplates: the cars have no real brands);
     "drop_boxes": [{"box": [x0, x1, y0, y1, z0, z1], "mats": [patterns]}]: faces in a
@@ -263,6 +265,13 @@ for o in bpy.data.objects:
         bm.free()
         store_normals(o)
         o.data.validate()          # (bad bits gone now, the kept normals with them)
+# parts moved as they were loaded ("shift": [[name pattern, [dx, dy, dz]]], the model's own
+# frame and units): an FBX whose parent was moved with its own vertices held in place, leaving
+# its children off by its offset
+for pat, d in spec.get("shift", []):
+    for o in bpy.data.objects:
+        if o.type == 'MESH' and matches(o.name, [pat]):
+            o.data.transform(Matrix.Translation(Vector(d)))
 for o in list(bpy.data.objects):
     if matches(o.name, spec.get("drop", [])) or len(o.data.polygons) == 0:
         bpy.data.objects.remove(o, do_unlink=True)
@@ -389,10 +398,11 @@ if spec.get("pbr_sets"):
     sets = {}
     for d in tex_dirs:
         for f in (os.listdir(d) if os.path.isdir(d) else []):
-            m = re.match(r"(.+?)_(albedo|basecolor|base_color|diffuse|diff|normal|nrm|roughness|metallic|emissive|opacity|opac)\.(png|jpe?g|tga|dds)$", f, re.I)
+            m = re.match(r"(.+?)_(albedo|basecolor|base_color|diffuse|diff|normal|nrm|roughness|metallic|metalness|metalic|emissive|opacity|opac)\.(png|jpe?g|tga|dds)$", f, re.I)
             if m:
-                key = {"diff": "diffuse", "nrm": "normal", "opac": "opacity"}.get(m.group(2).lower(), m.group(2).lower())
-                sets.setdefault(m.group(1).lower(), {})[key] = os.path.join(d, f)
+                key = {"diff": "diffuse", "nrm": "normal", "opac": "opacity", "metalness": "metallic", "metalic": "metallic"}.get(m.group(2).lower(), m.group(2).lower())
+                name = re.sub(r"^t_", "", m.group(1).lower())       # (Unreal-style "T_<material>_BaseColor" too)
+                sets.setdefault(name, {})[key] = os.path.join(d, f)
     def _flat(path):
         """The image's lowest and highest brightness (sampled)."""
         im = bpy.data.images.load(path, check_existing=True)

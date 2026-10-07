@@ -66,6 +66,10 @@ STATUS = {
     19: "duplicate of #18 (one car: KAISER 4 WB)",
     20: "**in game**: KAISER 5 E (kaiser_5). Wheels by material; emblems dropped (the wheel hub's too); headliner and dash matted; its wheel cut out by material, its gear knob by box: a working six-speed H; the 3.8's 340 PS, 25 % LSD; tested (models 5.4 s; interior, the lever through the gate)",
     21: "**in game**: KAISER 8 GC (kaiser_8). A BeamNG-style mod holding five body kits and trim colours: the stock Competition set kept by part name; 146 per-part UV maps collapsed to one (converter: the GLB went 157 MB -> 7.6 MB); its \"_diff\" textures wired by name; tyres given rubber (no texture in the package); badges dropped; its wheel by its own parts; tested (models 3.0 s; interior)",
+    25: "**in the registry** (premium traffic): GRAND SUV 63 (gls). Front is +Y in this file; its \"black\" trim (white in the file) given black; the bonnet and boot stars dropped (the grille's is in its texture); traffic only, no cockpit",
+    40: "**in the registry** (traffic): SALOON (traffic_sedan). Nose along +X; its T_ texture sets wired; 60k triangles, 512 px; no-AI: converted and checked by scripts only",
+    41: "**in the registry** (traffic): CROSSOVER (traffic_crossover). Nose along +X; its parts moved back under their parent (the FBX left them 2.27 m off: converter \"shift\"); no-AI: scripts only",
+    42: "**in the registry** (traffic): PEOPLE MOVER (traffic_minivan). As the crossover (parts 1.6 m off, moved back); no-AI: scripts only",
     39: "**in game**: HELLHOUND WB (hellhound). Low-poly exterior + high-poly interior; tested (models: on its wheels, 0-100 5.3 s on gravel; interior: eyes, gloves on its rim, automatic)",
 }
 DECISIONS = [

@@ -1,0 +1,59 @@
+{
+	"id": "traffic_minivan",
+	"name": "PEOPLE MOVER",
+	"order": 320,
+	"model": "traffic_minivan",
+	"category": "traffic",
+	"role": "traffic",
+	"real": {
+		"manufacturer": "generic",
+		"model": "Generic minivan",
+		"trim": "Honda Odyssey 3.5 V6 (representative)"
+	},
+	"specs": {
+		"power_hp": 280,
+		"weight_kg": 2053,
+		"drivetrain": "FWD",
+		"transmission": "10-speed automatic",
+		"wheelbase_mm": 3000,
+		"front_weight": 0.555,
+		"notes": "Honda's Odyssey 3.5 V6: 280 hp at 6,000 rpm, 355 Nm at 4,700 rpm, 2,053 kg, FWD, 55.5 % front, the 10-speed's ratios and 3.61 final drive, 3,000 mm wheelbase. Cd 0.33 on 2.9 m^2 is an estimate."
+	},
+	"traffic": {
+		"weight": 0.6,
+		"paints": [[0.85, 0.85, 0.86], [0.6, 0.62, 0.64], [0.05, 0.05, 0.06], [0.32, 0.33, 0.35], [0.08, 0.14, 0.3], [0.5, 0.06, 0.06], [0.75, 0.72, 0.62]]
+	},
+	"physics": {
+		"chassis": "suv",
+		"mass": 2053.0,
+		"front": 0.555,
+		"torque": 355.0,
+		"curve": [[1000, 0.62], [2295, 0.829], [3590, 0.954], [4700, 1.0], [6000, 0.936], [6800, 0.747]],
+		"idle": 850.0,
+		"limiter": 6800.0,
+		"turbo": 0.0,
+		"gears": [5.246, 3.271, 2.185, 1.597, 1.304, 1.0, 0.782, 0.653, 0.581, 0.517],
+		"final": 3.61,
+		"drive": "fwd",
+		"front_diff": ["open", 0.0, 0.0, 0.0],
+		"cd": 0.33,
+		"area": 2.9,
+		"down": 0.0,
+		"brake": 0.85
+	},
+	"checks": {
+		"zero_100_max": 14.0
+	},
+	"interior": {
+		"own": true,
+		"camera": false,
+		"notes": "A simple interior, seen through the windows (traffic only: nobody sits in it)."
+	},
+	"source": {
+		"package": "CGTrader_New_Cars/traffic/generic_minivan",
+		"license": "CGTrader Royalty Free License (no AI)",
+		"notes": "No-AI licence: converted and checked only by local scripts and tests; nobody, human or AI, looked at its textures or renders.",
+		"candidate": 42
+	},
+	"limitations": ["A generic car: its numbers are a representative real car's (Honda Odyssey 3.5 V6 (representative))."]
+}

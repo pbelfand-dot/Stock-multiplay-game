@@ -1,0 +1,7 @@
+{"id": "traffic_sedan", "front": "+X", "wheelbase": 2.819,
+ "wheel": ["^Wheel_(FL|FR|RL|RR)$"], "caliper": ["^Brake_(FL|FR|RL|RR)$"],
+ "drop": ["^Needle_"],
+ "paint": ["^body$"], "glass": ["^glass$", "^window_glass$", "^window_darkglass$", "^glass_bumpy$"],
+ "materials": [["^window_glass$", "glass"], ["^window_darkglass$", "glass"], ["^glass$", "clear_lens"], ["^red_glass$", "red_lens"]],
+ "pbr_sets": true,
+ "wheel_faces": 3000, "body_faces": 60000, "tex_max": 512}

@@ -1,0 +1,76 @@
+{
+	"id": "gls",
+	"name": "GRAND SUV 63",
+	"order": 330,
+	"model": "gls63",
+	"category": "traffic",
+	"role": "premium_traffic",
+	"real": {
+		"manufacturer": "Mercedes-AMG",
+		"model": "GLS 63 4MATIC+ (X167)",
+		"year": 2021,
+		"trim": "612 PS, AMG SPEEDSHIFT TCT 9G"
+	},
+	"specs": {
+		"power_hp": 603,
+		"weight_kg": 2625,
+		"drivetrain": "AWD",
+		"transmission": "9-speed automatic (wet start-off clutch)",
+		"wheelbase_mm": 3135,
+		"top_speed_kmh": 250,
+		"front_weight": 0.53,
+		"notes": "612 PS (450 kW) at 5,750 rpm and 850 Nm from 2,500 rpm (auto motor und sport; 603 hp US rating), 3,135 mm wheelbase, 250 km/h limited (280 with the Driver's Package), 0-100 km/h in 4.2 s. Published weights conflict (2,700 kg EU kerb with a driver per ADAC and ams; 2,663 kg curb elsewhere): the game uses 2,625 kg, a plausible DIN figure that no official source confirms. The 9-speed's ratios weren't published: generated for the top speed. 4MATIC+ is fully variable: 35 % front used. 53 % front and Cd 0.33 on 3.0 m^2 are estimates."
+	},
+	"traffic": {
+		"weight": 0.12,
+		"paints": [[0.05, 0.05, 0.06], [0.85, 0.85, 0.87], [0.55, 0.57, 0.6], [0.1, 0.12, 0.2]]
+	},
+	"physics": {
+		"chassis": "suv",
+		"mass": 2625.0,
+		"front": 0.53,
+		"torque": 850.0,
+		"curve": [[1000, 0.38], [1525, 0.721], [2050, 0.926], [2500, 1.0], [4500, 1.0], [5750, 0.879], [6500, 0.702]],
+		"idle": 850.0,
+		"limiter": 6500.0,
+		"turbo": 0.4,
+		"spool": [1800.0, 3200.0],
+		"spool_time": 0.35,
+		"anti_lag": false,
+		"gears": [6.0, 4.664, 3.626, 2.818, 2.191, 1.703, 1.324, 1.029, 0.8],
+		"final": 3.85,
+		"drive": "awd",
+		"front_share": 0.35,
+		"centre": ["lsd", 0.25, 0.2, 30.0],
+		"front_diff": ["lsd", 0.2, 0.1, 20.0],
+		"rear": ["lsd", 0.35, 0.15, 30.0],
+		"cd": 0.33,
+		"area": 3.0,
+		"down": 0.0,
+		"brake": 0.85
+	},
+	"checks": {
+		"zero_100_max": 10.0
+	},
+	"interior": {
+		"own": true,
+		"camera": false,
+		"notes": "Traffic only: its simple interior seen through the windows."
+	},
+	"source": {
+		"package": "CGTrader_New_Cars/traffic/mercedes_gls_63_amg (gls63.glb and textures (1).rar: the same files)",
+		"author": "Mo3Dler (CGTrader)",
+		"license": "CGTrader Royalty Free License (fan-made model, 'not an official Mercedes-Benz product')",
+		"url": "https://www.cgtrader.com/3d-models/car/suv/mercedes-benz-gls-63-amg-1c516e66-3d66-42f8-8494-b380cd886d5e",
+		"candidate": 25
+	},
+	"research": [
+		"https://www.auto-motor-und-sport.de/fahrbericht/mercedes-amg-gls-63/technische-daten/",
+		"https://www.adac.de/rund-ums-fahrzeug/autokatalog/marken-modelle/mercedes-benz/gls/167-facelift/329239/",
+		"https://media.mbusa.com/releases/release-b04e095eb7930ced5925d964ff3c730d-2021-mercedes-amg-gls-63-suv"
+	],
+	"limitations": [
+		"The weight (2,625 kg), the 9-speed's ratios, the AWD split, weight distribution and drag are estimates.",
+		"Traffic only: no fitted cockpit."
+	]
+}

@@ -1,0 +1,59 @@
+{
+	"id": "traffic_sedan",
+	"name": "SALOON",
+	"order": 300,
+	"model": "traffic_sedan",
+	"category": "traffic",
+	"role": "traffic",
+	"real": {
+		"manufacturer": "generic",
+		"model": "Generic mid-size sedan",
+		"trim": "2024 Toyota Camry LE 2.5 FWD (representative)"
+	},
+	"specs": {
+		"power_hp": 203,
+		"weight_kg": 1501,
+		"drivetrain": "FWD",
+		"transmission": "8-speed automatic",
+		"wheelbase_mm": 2819,
+		"front_weight": 0.6,
+		"notes": "Toyota's 2024 Camry LE: 203 hp at 6,600 rpm, 249 Nm at 5,000 rpm, 1,501 kg, FWD, the 8-speed's ratios and 2.80 final drive, 2,819 mm wheelbase. 60 % front, Cd 0.29 on 2.25 m^2 are estimates."
+	},
+	"traffic": {
+		"weight": 1.0,
+		"paints": [[0.85, 0.85, 0.86], [0.6, 0.62, 0.64], [0.05, 0.05, 0.06], [0.32, 0.33, 0.35], [0.08, 0.14, 0.3], [0.5, 0.06, 0.06], [0.75, 0.72, 0.62]]
+	},
+	"physics": {
+		"chassis": "road",
+		"mass": 1501.0,
+		"front": 0.6,
+		"torque": 249.0,
+		"curve": [[1000, 0.62], [2400, 0.829], [3800, 0.954], [5000, 1.0], [6600, 0.88], [6800, 0.743]],
+		"idle": 850.0,
+		"limiter": 6800.0,
+		"turbo": 0.0,
+		"gears": [5.25, 3.03, 1.95, 1.46, 1.22, 1.0, 0.81, 0.67],
+		"final": 2.8,
+		"drive": "fwd",
+		"front_diff": ["open", 0.0, 0.0, 0.0],
+		"cd": 0.29,
+		"area": 2.25,
+		"down": 0.0,
+		"brake": 0.85
+	},
+	"checks": {
+		"zero_100_max": 14.0
+	},
+	"interior": {
+		"own": true,
+		"camera": false,
+		"notes": "A simple interior, seen through the windows (traffic only: nobody sits in it)."
+	},
+	"source": {
+		"package": "CGTrader_New_Cars/traffic/generic_sedan",
+		"license": "CGTrader Royalty Free License (no AI)",
+		"notes": "No-AI licence: converted and checked only by local scripts and tests; nobody, human or AI, looked at its textures or renders.",
+		"candidate": 40
+	},
+	"limitations": ["A generic car: its numbers are a representative real car's (2024 Toyota Camry LE 2.5 FWD (representative))."]
+}
