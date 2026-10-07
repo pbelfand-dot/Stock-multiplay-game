@@ -120,6 +120,10 @@ var tyre_kind := ""                # the tyres on it, "gravel" or "tarmac", and 
 var setup_kind := ""
 var grip_assist := -1.0            # extra tyre grip (0 real .. 1.5, 2 arcade: TireModel.grippy); below 0: the game's Settings
 var _tuned_grip := -1.0
+## SIM STREET (Settings > STREET HANDLING on the road modes): [g, tyre kind] from the
+## setup's "street" (Catalog.street_grip), else empty: the rally game's grip.
+var street: Array = []
+var _tuned_street: Array = []
 var _base_parts := {}              # its own suspension, tyres and rack, before a setup changed them
 var _mud: Resource
 var _model_wheels: Array = []      # [pivot, spinner, rest position] per corner (model units)
@@ -410,7 +414,7 @@ func apply_setup(s: Dictionary) -> bool:
 		config = config.duplicate(true)
 		_own_config = true
 		_base = {"torque": config.engine.max_torque if config.engine else 0.0, "brakes": config.brake_torque,
-			"front": config.drivetrain.front_share if config.drivetrain else 0.5}
+			"front": config.drivetrain.front_share if config.drivetrain else 0.5, "bias": config.brake_bias}
 		if drivetrain:
 			drivetrain.cfg = config.drivetrain
 			drivetrain.eng = config.engine
@@ -419,7 +423,10 @@ func apply_setup(s: Dictionary) -> bool:
 	config.brake_torque = _base.brakes * brake_mult
 	if config.drivetrain:
 		config.drivetrain.front_share = float(s.get("drive_front", _base.front))
+	street = s.get("street", [])
 	_tune(str(s.get("tyre", "gravel")), str(s.get("preset", "gravel")))
+	_street_brakes()
+	_set_aids()
 	for k in 4:
 		wheels[k].surface_mu = lane_mu[k] * grip_mult
 	if body_model and model_id != "":
@@ -455,9 +462,13 @@ func apply_setup(s: Dictionary) -> bool:
 func _tune(tyre: String, kind: String) -> void:
 	tyre = "tarmac" if tyre == "tarmac" else "gravel"
 	kind = "tarmac" if kind == "tarmac" else "gravel"
-	if tyre == tyre_kind and kind == setup_kind and grip_assist == _tuned_grip:
+	if not street.is_empty():
+		tyre = "tarmac"                                 # (SIM STREET: the car's own road tyres, its road setup)
+		kind = "tarmac"
+	if tyre == tyre_kind and kind == setup_kind and grip_assist == _tuned_grip and street == _tuned_street:
 		return
 	_tuned_grip = grip_assist
+	_tuned_street = street.duplicate()
 	if _base_parts.is_empty():
 		_base_parts = {"front": config.front_suspension, "rear": config.rear_suspension, "ft": config.front_tire,
 			"rt": config.rear_tire, "rack": config.steering.rack_speed_deg if config.steering else 0.0,
@@ -483,8 +494,12 @@ func _tune(tyre: String, kind: String) -> void:
 	config.front_suspension = sus[0]
 	config.rear_suspension = sus[1]
 	var TM = RallyWheel.TireModel
-	config.front_tire = TM.grippy(_base_parts.ft_tarmac if tyre == "tarmac" else _base_parts.ft, grip_assist)
-	config.rear_tire = TM.grippy(_base_parts.rt_tarmac if tyre == "tarmac" else _base_parts.rt, grip_assist, true)
+	if not street.is_empty():
+		config.front_tire = TM.street(_base_parts.ft_tarmac, float(street[0]), str(street[1]))
+		config.rear_tire = TM.street(_base_parts.rt_tarmac, float(street[0]), str(street[1]))
+	else:
+		config.front_tire = TM.grippy(_base_parts.ft_tarmac if tyre == "tarmac" else _base_parts.ft, grip_assist)
+		config.rear_tire = TM.grippy(_base_parts.rt_tarmac if tyre == "tarmac" else _base_parts.rt, grip_assist, true)
 	if config.steering:
 		config.steering.rack_speed_deg = _base_parts.rack * (1.25 if kind == "tarmac" else 1.0)
 	for k in 4:
@@ -492,6 +507,47 @@ func _tune(tyre: String, kind: String) -> void:
 			config.front_tire if k < 2 else config.rear_tire, config.tyre_radius, config.tyre_width, config.wheel_inertia)
 	_static_comp = [RallyWheel.Suspension.static_compression(config.front_suspension, loads[0]),
 		RallyWheel.Suspension.static_compression(config.rear_suspension, loads[1])]
+
+
+## SIM STREET's brakes: a road car's brakes can lock its tyres (the stops are the
+## tyres' limit, as in the magazines' tests), and its brake balance (with ABS, the
+## electronic brake distribution) shares the braking as the weight does at that
+## deceleration: the static front share plus what pitches forward (a g x h / L,
+## h the centre of mass's height: ~0.5 m on a road car, lower on cup-tyred sports
+## cars, ~0.36 m on a race car), so a rear-engined car brakes on its rear tyres
+## too. The rally game: its own brakes and balance.
+const STREET_COM_H := {"street": 0.5, "cup": 0.45, "slick": 0.36}
+func _street_brakes() -> void:
+	if street.is_empty():
+		config.brake_bias = float(_base.get("bias", config.brake_bias))
+		return
+	var TM = RallyWheel.TireModel
+	var kind := str(street[1])
+	var spec: Dictionary = TM.STREET_KINDS.get(kind, TM.STREET_KINDS.street)
+	var a: float = float(street[0]) * float(spec.brake)               # the stop's g
+	var loads: Array = config.static_loads(1.0)
+	var front := float(loads[0]) / (float(loads[0]) + float(loads[1]))
+	var h: float = STREET_COM_H.get(kind, 0.5)
+	config.brake_bias = clampf(front + a * h / (config.rear_axle - config.front_axle), 0.5, 0.8)
+	config.brake_torque = maxf(config.brake_torque, 1.4 * config.mass * 9.81 * a * config.tyre_radius)
+
+
+## The driver aids for how it's driving: Settings' (assists), but in SIM STREET
+## without the arcade's helpers (drift assist, countersteer help, high-speed
+## stability): the car does what the tyres do, as in Assetto Corsa; and ABS on if
+## the real car has it as standard (Catalog.street_grip's factory ABS).
+func _set_aids() -> void:
+	if assist == null or assists == null:
+		return
+	if street.is_empty():
+		assist.setup(assists)
+		return
+	var a: Resource = assists.duplicate()
+	for k in ["drift_assist", "countersteer_help", "high_speed_stability"]:
+		a.set(k, false)
+	if street.size() > 2 and bool(street[2]):
+		a.anti_lock = true                               # (its factory ABS)
+	assist.setup(a)
 
 
 ## Put the car down at (pos, yaw), still, sitting at its ride height above pos.
@@ -560,7 +616,7 @@ func set_lanes(stage, s: float, d: float) -> void:
 	for k in 4:
 		var off: Vector3 = wheels[k].global_position - global_position
 		lane_mu[k] = stage.lane_mu(s + off.dot(fwd), d + off.dot(right))
-		var cut := 0.6 if _tuned_grip >= RallyWheel.TireModel.ARCADE else 0.4 * clampf(_tuned_grip, 0.0, 1.0)
+		var cut := 0.0 if not street.is_empty() else 0.6 if _tuned_grip >= RallyWheel.TireModel.ARCADE else 0.4 * clampf(_tuned_grip, 0.0, 1.0)
 		lane_mu[k] = 1.0 - (1.0 - lane_mu[k]) * (1.0 - cut)   # (extra grip: the loose stuff costs less)
 		wheels[k].surface_mu = lane_mu[k] * grip_mult
 
@@ -782,7 +838,7 @@ const TIP_DAMP := 6000.0           # N m per rad/s tipping further
 const TIP_MAX := 14000.0           # N m at most
 
 func _tip_guard() -> void:
-	if _tuned_grip <= 0.0 or grounded == 0 or grounded == 4:
+	if (_tuned_grip <= 0.0 and street.is_empty()) or grounded == 0 or grounded == 4:
 		return
 	var n := Vector3.ZERO
 	for w in wheels:

@@ -64,9 +64,10 @@ func setup(stage, difficulty: Dictionary, seed_value: int, player_s: float) -> v
 	var edge: float = lanes * stage.LANE_W * 0.5
 	for k in lanes:
 		lane_d.append(edge - stage.LANE_W * (k + 0.5))       # lane 0 at the right edge
+	var seen_only := OS.get_cmdline_user_args().has("--seen_cars_only")   # (screenshots: no no-AI cars)
 	for e in VehicleRegistry.traffic_pool():
 		var path := "res://assets/models/cars/%s/%s.glb" % [e.model, e.model]
-		if not ResourceLoader.exists(path):
+		if not ResourceLoader.exists(path) or (seen_only and VehicleRegistry.no_ai(e.id)):
 			continue
 		var scene: PackedScene = load(path)
 		var probe: Node3D = scene.instantiate()
@@ -78,6 +79,12 @@ func setup(stage, difficulty: Dictionary, seed_value: int, player_s: float) -> v
 	looped = stage.has_method("wrap_s")
 	if _pool.is_empty():
 		return
+	_populate(player_s)
+
+
+## The traffic for a player at player_s: packs (or a spread) ahead, the other
+## carriageway's. Again (restart_at) after a jump up the road (a screenshot's).
+func _populate(player_s: float) -> void:
 	player.s = player_s
 	if _packs():
 		# packs ahead, open road between (the first a little way up the road)
@@ -374,6 +381,21 @@ func _body_for(m: Dictionary, solid := true) -> Node3D:
 		wheels.append(n)
 	body.set_meta("wheels", wheels)
 	return body
+
+
+## Start again with the player at s: every car gone, new traffic round s.
+func restart_at(s: float) -> void:
+	for c in cars.duplicate():
+		if not c.has("rival"):
+			_remove(c)
+	for o in oncoming:
+		(o.body as Node).queue_free()
+	oncoming.clear()
+	for r in ramp_cars:
+		(r.body as Node).queue_free()
+	ramp_cars.clear()
+	if not _pool.is_empty():
+		_populate(s)
 
 
 func _remove(c: Dictionary) -> void:

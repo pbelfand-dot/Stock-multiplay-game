@@ -10,6 +10,9 @@ const UI = preload("res://scripts/ui/ui_kit.gd")
 const SURFACES := [["any", "ANY: GRAVEL, TARMAC OR MIXED"], ["gravel", "GRAVEL"], ["tarmac", "TARMAC"], ["mixed", "MIXED: GRAVEL + TARMAC"]]
 ## Extra tyre grip (Config.grip_assist, TireModel.grippy).
 const GRIPS := [["2.0", "ARCADE (OUT OF THE BOX)"], ["1.5", "MORE GRIP"], ["1.0", "GRIPPY"], ["0.0", "REAL (SLIPPERY GRAVEL)"]]
+## The road modes' handling (Config.street_handling): SIM, the car on its real road
+## tyres without the drift helpers (Assetto Corsa-like), or the rally game's ARCADE.
+const STREETS := [["sim", "SIM (REAL ROAD TYRES)"], ["arcade", "ARCADE (AS THE RALLY)"]]
 const AIDS := [
 	["anti_lock", "ABS", "A locking wheel gets its brake eased off: brake hard and still steer."],
 	["traction_control", "TRACTION CONTROL", "Spinning wheels get the throttle cut: flat out off the line, no smoke."],
@@ -62,7 +65,8 @@ func _ready() -> void:
 	right.add_child(UI.label("DRIVING AIDS", 20, UI.YELLOW, true))
 	for a in AIDS:
 		right.add_child(_toggle(a[1], a[2], bool(config.aids.get(a[0], false)), func(on): config.aids[a[0]] = on))
-	right.add_child(_cycle("TYRE GRIP", GRIPS, "%.1f" % config.grip_assist, func(k): config.grip_assist = float(k)))
+	right.add_child(_cycle("TYRE GRIP  (RALLY)", GRIPS, "%.1f" % config.grip_assist, func(k): config.grip_assist = float(k)))
+	right.add_child(_cycle("STREET HANDLING  (CUT UP, TOUGE)", STREETS, config.street_handling, func(k): config.street_handling = k))
 	right.add_child(_cycle("STAGES  (PLAY NOW, ONLINE)", SURFACES, config.quick_surface, func(k): config.quick_surface = k))
 	var back_btn := UI.button("BACK", func(): back.emit(), 20, 140)
 	back_btn.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN

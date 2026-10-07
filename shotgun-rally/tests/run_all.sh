@@ -42,6 +42,11 @@ for car in kestrel martello; do
   run_g 900 --headless --fixed-fps 120 --path . -s tests/feel_check.gd -- --cfg=oob --car=$car 2>&1 | grep -E "\[feel\] (ok|FAIL|FEEL)" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
 done
 run_g 300 --headless --fixed-fps 120 --path . -s tests/feel_check.gd -- --cfg=sim --car=kestrel --only=limit 2>&1 | grep -E "\[feel\] (ok|FAIL|FEEL)" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
+echo "== SIM STREET handling (cut up, the touge): each car's real skid-pad grip and 100-0 braking on its road tyres, its aids (no drift helpers, factory ABS); through traffic on keys and a pad"
+run_g 300 --headless --fixed-fps 120 --path . -s tests/sim_check.gd 2>&1 | grep -E "\[sim\].*(SIM |FAIL|average|hook)|SIM (OK|FAIL)" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
+for car in akatsuki hellhound; do
+  run_g 900 --headless --fixed-fps 120 --path . -s tests/feel_check.gd -- --cfg=street --car=$car 2>&1 | grep -E "\[feel\] (ok|FAIL|info|FEEL)" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
+done
 echo "== tyres and setup: tarmac tyres grip more on asphalt and far less on gravel, the tarmac setup rolls less, AUTO picks for the stage"
 run_g 180 --headless --fixed-fps 120 --path . -s tests/tuning_check.gd 2>&1 | grep -E "\[tuning\] (ok|FAIL|TUNING)" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
 echo "== jumps: air time by speed, clean four-wheel landings, no second bounce, braking in the air dips the nose"

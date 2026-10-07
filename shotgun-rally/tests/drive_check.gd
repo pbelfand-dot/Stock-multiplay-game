@@ -178,7 +178,7 @@ func _physics_process(dt: float) -> bool:
 				car.inp = {"steer": 0.0, "throttle": 1.0, "brake": 0.0, "handbrake": false}
 				if car.kmh() >= 100.0:
 					t100 = t
-					fails += _check(t100 < max100, "0-100 km/h in %.1f s on gravel (under %.0f s)" % [t100, max100])
+					fails += _check(t100 < max100, "0-100 km/h in %.1f s on %s (under %.0f s)" % [t100, str(st.sections[0].surface) if not st.sections.is_empty() else "gravel", max100])
 				elif t > 15.0:
 					fails += _check(false, "0-100 km/h: only %.0f km/h after 15 s" % car.kmh())
 					return _finish()
@@ -197,7 +197,11 @@ func _physics_process(dt: float) -> bool:
 				car.inp = {"steer": 1.0, "throttle": 0.0, "brake": 0.0, "handbrake": true}
 			else:
 				var turned := absf(wrapf(car.global_rotation.y - flick_yaw, -PI, PI))
-				fails += _check(turned > deg_to_rad(60.0), "handbrake flick at 50 km/h turned %.0f deg in 1.5 s" % rad_to_deg(turned))
+				# (on SIM STREET's road tyres the fronts bite less than the arcade's, so the car
+				# yaws round more slowly: 45 deg in the 1.5 s still shows the handbrake works)
+				var need := 45.0 if not car.street.is_empty() else 60.0
+				fails += _check(turned > deg_to_rad(need), "handbrake flick at 50 km/h turned %.0f deg in 1.5 s (over %.0f%s)" % [rad_to_deg(turned), need,
+					", SIM STREET" if not car.street.is_empty() else ""])
 				return _finish()
 	return false
 

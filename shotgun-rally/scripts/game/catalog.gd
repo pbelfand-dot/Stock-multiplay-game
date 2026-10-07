@@ -116,7 +116,8 @@ static func setup(car_id: String, paint := {}, levels := {}, tuning := {}) -> Di
 
 
 ## A setup for this stage: "auto" tyres / setup become tarmac where the stage is
-## asphalt most of the way, gravel otherwise.
+## asphalt most of the way, gravel otherwise. On the road modes with SIM STREET
+## handling on, "street": [g, tyre kind] (street_grip).
 static func for_stage(setup: Dictionary, st) -> Dictionary:
 	var s := setup.duplicate()
 	var asphalt := 0.0
@@ -127,7 +128,62 @@ static func for_stage(setup: Dictionary, st) -> Dictionary:
 	for k in ["tyre", "preset"]:
 		if str(s.get(k, "auto")) == "auto":
 			s[k] = pick
+	if street_sim(st):
+		s.street = street_grip(str(s.get("car", "")))     # SIM STREET: its real road tyres (RallyCar._tune)
 	return s
+
+
+## SIM STREET (Settings > STREET HANDLING): each car's lateral grip on its own tyres
+## on dry asphalt, as a steady skid-pad figure (g), and the kind of tyre
+## (TireModel.STREET_KINDS: "street", "cup" for Cup 2 / R-compound road tyres,
+## "slick" for race cars, whose wings add their downforce on top). Measured
+## figures where magazines published them (Car and Driver / Motor Trend skid pads:
+## GR Supra 1.07, GT-R 0.99-1.02, Hellcat 0.92-0.94, 911 GT3 RS 1.24); the rest
+## estimated from cars of their kind, age and tyres (a 1970s car on its period
+## tyres ~0.78, the 1980s ~0.82, the 1990s ~0.86-0.92, today's sports cars on
+## performance tyres ~1.0, economy cars ~0.85-0.88). Not listed: by its role.
+const STREET := {
+	"akatsuki": [1.07, "street"], "raiden": [1.0, "street"], "hellhound": [0.95, "street"], "hellhound_s": [0.93, "street"],
+	"brawler": [0.78, "street"], "hako": [0.78, "street"], "hachi": [0.8, "street"], "kitsune": [0.84, "street"],
+	"rotora_fc": [0.84, "street"], "rotora_fd": [0.9, "street"], "nimbus": [0.84, "street"], "sylph": [0.9, "street"],
+	"pleiad": [0.92, "street"], "lancer": [0.96, "street"], "kaiser_5": [0.85, "street"], "kaiser_2": [1.04, "street"],
+	"kaiser_4": [1.02, "street"], "kaiser_8": [1.0, "street"], "kaiser_t": [1.0, "street"], "kombi": [0.97, "street"],
+	"gls": [0.88, "street"], "mochi": [0.86, "street"],
+	"traffic_sedan": [0.86, "street"], "traffic_crossover": [0.84, "street"], "traffic_minivan": [0.84, "street"],
+	"elfer_rs": [1.24, "cup"], "uno": [1.22, "cup"], "ghost": [1.2, "cup"], "vento": [1.12, "cup"], "centuria": [1.12, "cup"],
+	"elfer_r": [1.6, "slick"], "elfer_evo": [1.6, "slick"], "biscione": [1.45, "slick"], "bolt16": [1.6, "slick"],
+	"gtp963": [1.7, "slick"], "vsr": [1.7, "slick"],
+	# rally cars on tarmac rally tyres (near-slicks today, narrower then)
+	"ocelot": [1.25, "cup"], "kestrel": [1.18, "cup"], "comet": [1.2, "cup"], "vortex": [1.2, "cup"],
+	"kaiser": [1.1, "cup"], "martello": [1.08, "cup"], "sedici": [1.1, "cup"], "vierrad": [1.08, "cup"],
+}
+const STREET_ROLE := {"race_prototype": [1.7, "slick"], "track": [1.22, "cup"], "hypercar": [1.12, "cup"],
+	"rally": [1.15, "cup"]}
+## SIM STREET's factory ABS (as Assetto Corsa's "factory" aids): on for the cars
+## that have it as standard (today's road cars, GT3 race cars), off for these: the
+## classics (1970s-80s, and early-90s cars where it was an option), the prototypes,
+## and the rally cars (role "rally"; their rules ban it). Settings' ANTI-LOCK
+## switch still turns it on for every car.
+const NO_ABS := ["brawler", "hako", "hachi", "kitsune", "rotora_fc", "nimbus", "biscione", "gtp963", "vsr"]
+
+
+## [g, tyre kind, factory ABS] for this car in SIM STREET (STREET, else by its
+## role, else a modern road car's 0.95 on road tyres).
+static func street_grip(id: String) -> Array:
+	var e = VehicleRegistry.entry(id)
+	var role := str(e.get("role", "")) if e != null else ""
+	var out: Array = (STREET[id] if STREET.has(id) else STREET_ROLE.get(role, [0.95, "street"])).duplicate()
+	out.append(not (id in NO_ABS or role == "rally"))
+	return out
+
+
+## Is SIM STREET handling on for this stage? The road kinds (the loop, a highway,
+## the touge) when Settings > STREET HANDLING says SIM (Config.street_handling).
+static func street_sim(st) -> bool:
+	if not str(st.get("kind")) in ["loop", "highway", "touge"]:
+		return false
+	var cfg = Engine.get_main_loop().root.get_node_or_null("Config") if Engine.get_main_loop() is SceneTree else null
+	return cfg == null or str(cfg.get("street_handling")) != "arcade"
 
 
 ## The car everyone starts with, as it comes.

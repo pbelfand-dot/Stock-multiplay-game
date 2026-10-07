@@ -284,7 +284,10 @@ func _test_setup() -> void:
 	if Config.flag("screenshot"):
 		var s := float(Config.arg("shot_s", 0))
 		if s > 0.0:
-			game.car.place(game.st.world_at(s, 0.0), game.st.heading_at(s))
+			game.car.place(game.st.world_at(s, game.st.LANE_W * 0.5 if game.traffic else 0.0), game.st.heading_at(s))
+			game.car_s = s
+			if game.traffic:
+				game.traffic.restart_at(s)               # (the traffic round the car, not back at the start)
 		game.cam.force_read = Config.flag("shot_read")
 		game.cam.yaw = float(Config.arg("shot_yaw", 0.0))
 		game.cam.pitch = float(Config.arg("shot_pitch", -0.06))

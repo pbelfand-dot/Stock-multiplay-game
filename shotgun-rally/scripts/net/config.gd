@@ -34,6 +34,12 @@ var aids := AIDS_DEFAULT.duplicate()
 ## nearly as grippy as asphalt; real gravel feels like ice to most players).
 var grip_assist := 2.0
 const GRIP_VERSION := 2         # saved before this, GRIPPY (the old out of the box) takes ARCADE once
+## STREET HANDLING, for the road modes (cut up, the touge): "sim" (out of the box: the
+## car on the road tyres it really has, its real skid-pad grip, weight moving about,
+## no drift assist: Assetto Corsa-like; TireModel.street, Catalog.street_grip) or
+## "arcade" (the rally game's grip and drift assist there too). Rally stages are
+## always the TYRE GRIP setting's.
+var street_handling := "sim"
 var args := {}                 # --key=value / --flag from the command line
 
 
@@ -53,6 +59,7 @@ func _ready() -> void:
 		var saved_grip := float(cf.get_value("aids", "grip", grip_assist))
 		if int(cf.get_value("aids", "grip_version", 1)) >= GRIP_VERSION or saved_grip != 1.0:
 			grip_assist = saved_grip
+		street_handling = "arcade" if str(cf.get_value("aids", "street", street_handling)) == "arcade" else "sim"
 		if int(cf.get_value("aids", "version", 1)) >= AIDS_VERSION:
 			for key in aids:
 				aids[key] = cf.get_value("aids", key, aids[key])
@@ -63,6 +70,8 @@ func _ready() -> void:
 		player_name = args.name
 	if args.has("port"):
 		port = int(args.port)
+	if args.has("street"):
+		street_handling = "arcade" if args.street == "arcade" else "sim"
 	_buses()
 
 
@@ -112,6 +121,7 @@ func save() -> void:
 	cf.set_value("aids", "version", AIDS_VERSION)
 	cf.set_value("aids", "grip", grip_assist)
 	cf.set_value("aids", "grip_version", GRIP_VERSION)
+	cf.set_value("aids", "street", street_handling)
 	cf.save(PATH)
 
 
