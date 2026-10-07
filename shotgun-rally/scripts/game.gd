@@ -37,6 +37,7 @@ const Traffic = preload("res://scripts/stage/traffic.gd")
 const CutupScore = preload("res://scripts/game/cutup_score.gd")
 const Rivals = preload("res://scripts/game/rivals.gd")
 const TougeRules = preload("res://scripts/game/touge_rules.gd")
+const Ghost = preload("res://scripts/game/ghost.gd")
 const FitDebug = preload("res://scripts/vehicle/fit_debug.gd")
 
 signal progress(fraction: float, what: String)
@@ -110,6 +111,7 @@ var traffic                          # Traffic (cut up)
 var cutup                            # CutupScore
 var rivals                           # Rivals (cut up on the loop: the highway battles)
 var touge                            # TougeRules
+var ghost                            # Ghost (touge time attack: your best run on this pass)
 var mode_result := {}                # the run's score / time / best, for the results
 var _mode_label: Label               # top right: the score, the combo, the drift chain
 var _flash_label: Label              # mid-screen: NEAR MISS +300, a split, CRASH
@@ -628,6 +630,11 @@ func _setup_mode(o: Dictionary) -> void:
 			touge = TougeRules.new()
 			var best := Profile.mode_best(Modes.best_key(o, seed_value))
 			touge.best_splits = best.get("splits", [])
+			if o.get("rules", "time") == "time":
+				ghost = Ghost.new()
+				ghost.name = "Ghost"
+				add_child(ghost)
+				ghost.setup(Modes.best_key(o, seed_value))
 
 
 ## Every physics tick in a mode: the traffic, the score, the splits, the drift.
@@ -647,6 +654,8 @@ func _mode_tick(dt: float) -> void:
 				if int(ev[2]) > 0:
 					cutup.bonus(int(ev[2]))
 			rivals.events.clear()
+		if ghost:
+			ghost.tick(stage_time, car.global_transform.translated_local(Vector3(0.0, -car._ground(), 0.0)))
 		if touge:
 			if touge.split_check(car_s, st.START_S, stage_time):
 				var dl: float = touge.last_split_delta
@@ -675,13 +684,17 @@ func _mode_text() -> String:
 			t += "\nCOMBO  x%d   %.0f s" % [cutup.combo, maxf(CutupScore.COMBO_TIME - cutup.since_near, 0.0)]
 		return t + "\n%.0f km/h" % car.kmh()
 	if touge:
+		# (the chase cam has no dash board: the clock and the speed are here too)
 		if opts.get("rules", "time") == "drift":
 			var t2 := "DRIFT  %d" % touge.total()
 			if touge.chain > 0.0:
 				t2 += "\nCHAIN  +%d   x%.1f" % [int(touge.chain), touge.multiplier()]
-			return t2 + ("\n%.0f deg" % touge.angle if touge.drifting else "")
+			return t2 + ("\n%.0f deg" % touge.angle if touge.drifting else "") + "\n%.0f km/h" % car.kmh()
 		var best := Profile.mode_best(Modes.best_key(opts, seed_value))
-		return "BEST  %s" % (fmt_time(float(best.value)) if not best.is_empty() else "--")
+		var t3 := "TIME  %s" % fmt_time(stage_time if state != "grid" else 0.0)
+		if touge.last_split_delta != INF and stage_time - touge.last_split_at < 8.0:
+			t3 += "   %+.1f" % touge.last_split_delta
+		return t3 + "\nBEST  %s" % (fmt_time(float(best.value)) if not best.is_empty() else "--") + "\n%.0f km/h" % car.kmh()
 	return ""
 
 
@@ -718,6 +731,8 @@ func _finish_mode() -> void:
 		var total: float = result.time + result.penalties
 		var old := Profile.mode_best(key)
 		var best3 := Profile.record_mode(key, total, true, touge.splits)
+		if best3 and ghost and result.penalties <= 0.0:
+			ghost.save_record(str(car.setup.get("model", "")))   # (the next run races it; a run with resets doesn't make a ghost)
 		lines = ["PASS RECORD  %s%s" % [fmt_time(total) if best3 else fmt_time(float(old.value)),
 			"   NEW RECORD" if best3 else "   (%+.1f s)" % (total - float(old.value))]]
 		mode_result = {"time": total, "best": best3}

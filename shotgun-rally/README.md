@@ -113,9 +113,20 @@ front, banking into the turns), trackside cameras it flashes past, a chase camer
 - **Credits** come from finishing stages: a base, more for a longer stage, a bonus for beating the
   pace and for a clean run, x1.5 in story mode, plus the rally prizes. Both players in a crew
   earn. There's no real money anywhere.
+- **MODES** ([docs/modes.md](docs/modes.md)): **TOUGE**, a Japanese mountain pass, uphill or
+  downhill, TIME ATTACK (splits every km against your best) or DRIFT (points for sliding, chained);
+  **CUT UP**, the **LAKESHORE LOOP**: one endless 28 km loop of divided highway (a city expressway
+  on viaducts, three tunnels through the hills, three suspension bridges over the lakes, the
+  longest with a 1,100 m main span) full of traffic. Weave through it as close as you dare, as
+  long as you like (END RUN in the pause menu); on HARD and INSANE the traffic comes in packs
+  across all four lanes, cars join and leave by the ramps, the other carriageway has its own.
+  **Highway battles**: a rival with a nickname turns up in the traffic; get right behind it and
+  flash your lights (H) to race it 3 km through the traffic to a finish gate.
 - **ONLINE**: your name, host (pick your seat) or join by IP.
-- **SETTINGS**: mouse look, invert Y, volume, the co-driver's call timing, and the driving aids for
-  the new physics (each its own switch).
+- **SETTINGS**: mouse look, invert Y, volume, the co-driver's call timing, the driving aids for
+  the new physics (each its own switch), TYRE GRIP for the rally, and **STREET HANDLING** for the
+  touge and cut up: **SIM** (out of the box: each car on the road tyres it really has, its real
+  skid-pad grip, no drift helpers, factory ABS: Assetto Corsa-like) or **ARCADE** (as the rally).
 
 ## How a stage plays
 
@@ -408,6 +419,17 @@ Corsa's gamepad assist; sources in the commit history):
 - `tests/handling_check.gd` measures it: at 50 / 80 / 110 km/h full steering has to be the most
   grip (before the rework, full steering at 110 km/h gave 0.68 g and 25 % gave 0.80 g).
 
+**SIM STREET handling (October 2026).** "Assetto Corsa-style handling" for the touge and cut
+up: Settings > STREET HANDLING > SIM (out of the box) puts each car on the road tyres it really
+has. Its asphalt grip is set so it holds its real skid-pad figure (measured where magazines
+published one: GR Supra 1.07 g, GT-R 1.00, Hellcat ~0.93, 911 GT3 RS 1.24; estimated by age
+and tyre otherwise), the grip peaks at a road tyre's 7.5 deg and a sliding one keeps 85 %, it
+brakes at ~1.1x its cornering grip with the balance following the weight, and there's no drift
+assist, countersteer help or high-speed stability (factory ABS where the real car has it).
+`tests/sim_check.gd` measures nine cars on a skid pad and from 100 km/h: all within 6 % of their
+real figures (the Supra 1.06 g and 37 m). ARCADE keeps the rally's grip for those who'd rather.
+Details: [docs/modes.md](docs/modes.md).
+
 ## Controls
 
 | | Keyboard / mouse | Controller |
@@ -420,6 +442,7 @@ Corsa's gamepad assist; sources in the commit history):
 | Look around | mouse | right stick |
 | Reset car (+5 s) | R | Y |
 | **Driver:** chase camera on / off | C | right stick click |
+| **Cut up:** flash your lights (challenge the rival ahead) | H | LB |
 | Start / next stage (host) | ENTER | START |
 | Pause | ESC | BACK |
 

@@ -42,6 +42,7 @@ var _count := -1
 var _gate: Node3D
 var _rng := RandomNumberGenerator.new()
 var _used := {}
+var pick_only := ""                 # (tests: this rival, by registry id, every time)
 
 
 func setup(traffic_, st_, seed_value: int) -> void:
@@ -127,6 +128,8 @@ func hud_text(player: Dictionary) -> String:
 
 func _spawn(ps: float) -> void:
 	var picks: Array = ROSTER.filter(func(r): return not _used.has(r[0]) and VehicleRegistry.entry(r[0]) != null)
+	if pick_only != "":
+		picks = ROSTER.filter(func(r): return r[0] == pick_only)
 	if picks.is_empty():
 		_used.clear()
 		picks = ROSTER.filter(func(r): return VehicleRegistry.entry(r[0]) != null)

@@ -8,7 +8,9 @@ const SurfaceConfig = preload("res://scripts/vehicle/physics/config/surface_conf
 const DIR := "res://data/surfaces/"
 const DEFAULT := "gravel"
 ## Other names for the same surfaces (the current car's names, plain words).
-const ALIASES := {"tarmac": "asphalt", "road": "asphalt", "dirt road": "dirt"}
+## Concrete (the LAKESHORE LOOP's barriers, parapets, tunnel walls: what a tyre
+## scrubs along them) grips as dry asphalt does (both ~0.8-1.0 for a tyre).
+const ALIASES := {"tarmac": "asphalt", "road": "asphalt", "dirt road": "dirt", "concrete": "asphalt", "barrier": "asphalt"}
 
 static var _named := {}
 

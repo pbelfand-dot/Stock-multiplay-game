@@ -1,6 +1,6 @@
 extends SceneTree
 ## The modes beyond rally stages: the touge and cut up.
-## Run: godot --headless --fixed-fps 120 --path . -s tests/modes_check.gd
+## Run: godot --headless --fixed-fps 120 --path . -s tests/modes_check.gd [-- --only=battles]
 ##   * a touge: a narrow two-lane pass full of hairpins that climbs (or falls) all
 ##     the way, no steeper than its limit, the same pass from the same seed; built
 ##     with guardrails, curve mirrors and cedar forest
@@ -23,7 +23,10 @@ extends SceneTree
 ##     close behind starts the race (3, 2, 1, GO, a gate 3 km on); it races through
 ##     the traffic (past cars, never through one); a fast player wins it, a slow one
 ##     loses it; a win pays into the score
-##   * the game itself in each mode: loads, runs, ends with the mode's results
+##   * the touge's ghost: a run recorded, saved, loaded and played back at the same
+##     clock (in between samples too), gone near the player, gone past its finish
+##   * the game itself in each mode: loads, runs, ends with the mode's results; a
+##     time attack's record leaves a ghost the next run races
 ## Prints one [modes] line per check; exits 1 on any FAIL.
 
 var StageGen
@@ -44,15 +47,22 @@ func _initialize() -> void:
 	TougeRules = load("res://scripts/game/touge_rules.gd")
 	Modes = load("res://scripts/game/modes.gd")
 	VehicleRegistry = load("res://scripts/game/vehicle_registry.gd")
-	_touge()
-	_highway()
-	await _loop()
-	await _battles()
-	await _traffic()
-	_score()
-	_touge_rules()
-	await _game("touge")
-	await _game("cutup")
+	var only := ""
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--only="):
+			only = a.trim_prefix("--only=")         # (one part: touge, highway, loop, battles, traffic, score, rules, ghost, game)
+	if only in ["", "touge"]: _touge()
+	if only in ["", "highway"]: _highway()
+	if only in ["", "loop"]: await _loop()
+	if only in ["", "battles"]: await _battles()
+	if only in ["", "traffic"]: await _traffic()
+	if only in ["", "score"]: _score()
+	if only in ["", "rules"]: _touge_rules()
+	if only in ["", "ghost"]: _ghost()
+	if only in ["", "game"]:
+		await _game("touge")
+		await _ghost_game()
+		await _game("cutup")
 	print("[modes] %s" % ("MODES OK" if fails == 0 else "MODES FAIL"))
 	quit(1 if fails else 0)
 
@@ -314,6 +324,18 @@ func _loop() -> void:
 	b.build(st)
 	await physics_frame
 	await physics_frame
+	# every surface its colliders say they are is one the tyres know (not gravel by default)
+	var metas := {}
+	var stack: Array = [b]
+	while not stack.is_empty():
+		var nd: Node = stack.pop_back()
+		if nd is CollisionObject3D and nd.has_meta("surface"):
+			metas[str(nd.get_meta("surface"))] = true
+		stack.append_array(nd.get_children())
+	var Surfaces = load("res://scripts/vehicle/physics/surfaces.gd")
+	var unknown: Array = metas.keys().filter(func(m): return m != "gravel" and Surfaces.named(m) == Surfaces.named("gravel"))
+	check(unknown.is_empty() and not metas.is_empty(), "loop: every collider's surface is a real one (%s)%s" % [", ".join(metas.keys()),
+		"" if unknown.is_empty() else "; falling back to gravel: " + ", ".join(unknown)])
 	# the road's there underfoot, every lane both ways, all the way round (bridges, tunnels, viaducts)
 	var space: PhysicsDirectSpaceState3D = b.get_world_3d().direct_space_state
 	var holes: Array = []
@@ -399,6 +421,7 @@ func _battles() -> void:
 		tr.player = {"s": ps, "d": 1.8, "v": v}
 		rv._next = 0.0
 		rv.state = "none"
+		rv.pick_only = "hachi" if race == 0 else "ghost"   # (a level-1 rival, then a level-5 one: the result's the speed's, not the draw's)
 		rv.tick(0.01, tr.player, false)
 		var spawned: bool = rv.state == "cruise" and not rv.rival.is_empty()
 		# catch it up (straight down its lane), flash it from close behind
@@ -453,6 +476,76 @@ func _battles() -> void:
 
 
 ## The game in a mode: it loads, the run goes, and it ends with the mode's own results.
+func _ghost() -> void:
+	var Ghost = load("res://scripts/game/ghost.gd")
+	var k := "test/ghost/%d" % Time.get_ticks_usec()
+	var g = Ghost.new()
+	root.add_child(g)
+	g.setup(k)
+	check(g.best.is_empty(), "ghost: none for a pass never driven")
+	var t := 0.0
+	while t <= 10.0:                                    # 10 s at 10 m/s along x, turning slowly
+		g.tick(t, Transform3D(Basis(Vector3.UP, t * 0.1), Vector3(t * 10.0, 0.0, 0.0)))
+		t += 1.0 / 120.0
+	g.save_record("hachi")
+	g.queue_free()
+	var g2 = Ghost.new()
+	root.add_child(g2)
+	g2.setup(k)
+	var at = Ghost.sample(g2.best, 5.05)
+	check(not g2.best.is_empty() and g2.best_model == "hachi" and g2._body != null and at != null
+		and absf((at as Transform3D).origin.x - 50.5) < 0.05 and absf((at as Transform3D).basis.get_euler().y - 0.505) < 0.01,
+		"ghost: saved, loaded (%d samples, %s) and played back between samples (x %.2f m at 5.05 s, want 50.50)" % [
+		g2.best.size() / Ghost.STRIDE, g2.best_model, (at as Transform3D).origin.x if at != null else -1.0])
+	g2.tick(5.0, Transform3D(Basis(), Vector3(50.0, 30.0, 0.0)))
+	var seen: bool = g2._body.visible
+	g2.tick(5.0, Transform3D(Basis(), Vector3(50.5, 0.5, 0.0)))
+	var near_hidden: bool = not g2._body.visible
+	check(seen and near_hidden and Ghost.sample(g2.best, 10.5) == null,
+		"ghost: shown away from the player, gone right where the player is (the start: not in the cockpit), gone past its finish")
+	DirAccess.remove_absolute(Ghost.file_for(k))
+	g2.queue_free()
+
+
+## A touge time attack: the record leaves a ghost, and the next run on the pass races it.
+func _ghost_game() -> void:
+	var Ghost = load("res://scripts/game/ghost.gd")
+	root.get_node("Net").solo()
+	var o: Dictionary = Modes.touge_opts(4, "up", "time")
+	o["length"] = 1200.0
+	var file: String = Ghost.file_for(Modes.best_key(o, 4))
+	DirAccess.remove_absolute(file)
+	var Profile = load("res://scripts/game/profile.gd")
+	Profile.ensure_loaded()
+	Profile.mode_bests.erase(Modes.best_key(o, 4))
+	var Game = load("res://scripts/game.gd")
+	var ghosts := []
+	for run in 2:
+		var g = Game.new()
+		root.add_child(g)
+		await g.start(4, 1, o)
+		ghosts.append(g.ghost.best.size() / Ghost.STRIDE)
+		g.begin_countdown()
+		g.use_autopilot = true
+		var t := 0.0
+		var gap := 0.0                                  # (the same autopilot drives both: the ghost runs with it)
+		while g.state != "finished" and t < 160.0:
+			await physics_frame
+			t += 1.0 / 120.0
+			if run == 1 and g.state == "running":
+				var at = Ghost.sample(g.ghost.best, g.stage_time)
+				if at != null:
+					gap = maxf(gap, (at as Transform3D).origin.distance_to(g.car.global_position))
+		if run == 1:
+			check(g.ghost._body != null and gap > 0.0 and gap < 40.0,
+				"game: the second time attack on the pass races the first one's ghost (%d samples; it ran within %.1f m of the same autopilot)" % [ghosts[1], gap])
+		g.queue_free()
+		await process_frame
+	check(ghosts[0] == 0 and ghosts[1] > 50 and FileAccess.file_exists(file),
+		"game: the first time attack leaves a ghost (none before it, %d samples after)" % ghosts[1])
+	DirAccess.remove_absolute(file)
+
+
 func _game(m: String) -> void:
 	root.get_node("Net").solo()
 	var Game = load("res://scripts/game.gd")
