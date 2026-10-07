@@ -118,6 +118,16 @@ var _mode_label: Label               # top right: the score, the combo, the drif
 var _flash_label: Label              # mid-screen: NEAR MISS +300, a split, CRASH
 var _flash_t := 0.0
 var fit_debug                        # FitDebug: the driver-fit overlay (F9, --fit_debug)
+# a street session online (Net.street): everyone in their own car
+var street_online := false
+var others := {}                     # peer id -> RallyCar: the other drivers' cars, played from their streams
+var standings: Array = []            # [[peer id, total s]], the touge race's finishers, quickest first
+var _ready_peers: Array = []         # the machines whose stage is loaded (the car streams to them)
+var _start_yaw := 0.0
+var _waiting := false                # (joined mid-race on the touge: in the next one)
+var _pos_t := 0.0
+var _place := 0                      # the touge race: where you are (1 = leading), 0 = not racing
+var _hints := {}                     # peer id -> its car's last road index (locating them)
 
 
 ## Build the stage, a step a frame (await it): progress(fraction, what) feeds the
@@ -128,6 +138,7 @@ func start(seed_in: int, stage_in: int, o := {}) -> void:
 	seed_value = seed_in
 	stage_no = stage_in
 	opts = o
+	street_online = Net.online() and Net.street()
 	use_autopilot = Config.flag("autopilot")
 	progress.emit(0.02, "Reading the road book")
 	await get_tree().process_frame
@@ -155,12 +166,13 @@ func start(seed_in: int, stage_in: int, o := {}) -> void:
 	if not is_inside_tree():
 		return
 	car = RallyCar.new()
-	car.name = "Car"
+	car.name = "Car_%d" % Net.my_id() if street_online else "Car"   # (the same path on every machine: its stream finds it)
 	car.setup = _car_setup()                      # (built as the driver's car from the start: its own body and numbers)
 	add_child(car)
-	# (cut up: start in a lane, the second from the right, not astride two)
-	_start_pos = st.world_at(st.START_S - 3.0, st.LANE_W * 0.5 if mode == "cutup" else 0.0)
-	car.place(_start_pos, st.heading_at(st.START_S))
+	var spot := _grid_spot(Net.my_id())
+	_start_pos = spot[0]
+	_start_yaw = spot[1]
+	car.place(_start_pos, _start_yaw)
 	car.hit.connect(_on_hit)
 	car.landed.connect(_on_landed)
 	var fx := DriftFx.new()                       # dirt + stones off the tyres when it slides
@@ -210,7 +222,7 @@ func start(seed_in: int, stage_in: int, o := {}) -> void:
 ## The driver's car from their garage set up for this stage (Catalog.for_stage); in
 ## the touge's DRIFT rules on SIM STREET, without its factory traction control.
 func _car_setup() -> Dictionary:
-	var s := Catalog.for_stage(Net.car_setup(), st)
+	var s := Catalog.for_stage(Net.car_setup_for(Net.my_id()) if street_online else Net.car_setup(), st)
 	if s.has("street") and mode == "touge" and opts.get("rules", "time") == "drift":
 		s.street = s.street.duplicate()
 		s.street[3] = false
@@ -221,16 +233,89 @@ func _car_setup() -> Dictionary:
 ## the AI co-driver talks (only when nobody's in the passenger seat).
 func _apply_roster() -> void:
 	my_seat = Net.my_seat()
-	var driver_here: bool = my_seat == "driver"
+	var seat := "driver" if my_seat == "racer" else my_seat   # (a street session: everyone drives their own)
+	var driver_here: bool = seat == "driver"
+	var spot := _grid_spot(Net.my_id())
+	var moved: bool = spot[0] != _start_pos
+	_start_pos = spot[0]
+	_start_yaw = spot[1]
 	var setup := _car_setup()                    # the driver's car from their garage, its tyres for this stage
-	if car.apply_setup(setup) and state == "grid":     # another car (a new driver's): put it down again
-		car.place(_start_pos, st.heading_at(st.START_S))
+	if (car.apply_setup(setup) or moved) and state == "grid":     # another car (a new driver's), another slot: put it down again
+		car.place(_start_pos, _start_yaw)
 	cockpit.set_paint(setup.colours[0])
 	car.set_simulating(driver_here)
-	cam.attach(car, my_seat, cockpit.eye_for(my_seat))
-	cockpit.set_my_seat(my_seat)
-	ai.enabled = Net.peer_in("codriver") == 0 and mode == ""
+	cam.attach(car, seat, cockpit.eye_for(seat))
+	cockpit.set_my_seat(seat)
+	ai.enabled = not street_online and Net.peer_in("codriver") == 0 and mode == ""
+	if street_online:
+		_sync_racers()
+		if multiplayer.is_server():
+			for id in _loaded_peers.keys():          # (someone left: stop streaming at them)
+				if not Net.players.has(id):
+					_loaded_peers.erase(id)
+			_to_ready("set_ready_peers", [_loaded_peers.keys()])
 	_update_hint()
+
+
+## A car's place on the grid (its driver's slot in a street session: two abreast on a
+## touge, four on the highway, rows 9 m apart): [position, heading].
+func _grid_spot(id: int) -> Array:
+	var k := maxi(Net.racers().find(id), 0) if street_online else 0
+	var across: Array = [0.0]
+	if mode == "cutup":
+		across = [st.LANE_W * 0.5, -st.LANE_W * 0.5, st.LANE_W * 1.5, -st.LANE_W * 1.5]   # (in a lane, not astride two)
+	elif street_online:
+		across = [1.6, -1.6]
+	var s: float = st.START_S - 3.0 - float(k / across.size()) * 9.0
+	return [st.world_at(s, float(across[k % across.size()])), st.heading_at(s)]
+
+
+## The other drivers' cars (a street session): one per racer in the roster, played
+## from their streams (not simulated here), solid or ghosts as the host set it, a name
+## over each; dirt, smoke and tyre marks as your own.
+func _sync_racers() -> void:
+	var want: Array = Net.racers()
+	for id in others.keys():
+		if not id in want:
+			(others[id] as Node).queue_free()
+			others.erase(id)
+			_hints.erase(id)
+	for id in want:
+		if id == Net.my_id():
+			continue
+		if others.has(id):
+			others[id].apply_setup(Catalog.for_stage(Net.car_setup_for(id), st))   # (their garage car may have come since)
+			continue
+		var c = RallyCar.new()
+		c.name = "Car_%d" % id
+		c.setup = Catalog.for_stage(Net.car_setup_for(id), st)
+		add_child(c)
+		c.set_simulating(false)
+		var spot := _grid_spot(id)
+		c.place(spot[0], spot[1])
+		c.set_outside(true)
+		if not bool(Net.session.get("collide", true)):
+			car.add_collision_exception_with(c)
+			c.add_collision_exception_with(car)
+		var fx := DriftFx.new()
+		fx.car = c
+		c.add_child(fx)
+		var marks := SkidMarks.new()
+		marks.car = c
+		marks.fx = fx
+		add_child(marks)
+		var tag := Label3D.new()
+		tag.name = "NameTag"
+		tag.text = Net.player_name(id)
+		tag.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+		tag.font_size = 56
+		tag.pixel_size = 0.01
+		tag.outline_size = 12
+		tag.no_depth_test = false
+		tag.position = Vector3(0.0, 2.1, 0.0)
+		tag.visibility_range_end = 400.0
+		c.add_child(tag)
+		others[id] = c
 
 
 # ── loading handshake (host) ──────────────────────────────────────────────
@@ -239,9 +324,43 @@ func _apply_roster() -> void:
 func loaded() -> void:
 	if not multiplayer.is_server():
 		return
-	_loaded_peers[multiplayer.get_remote_sender_id()] = true
+	var who := multiplayer.get_remote_sender_id()
+	_loaded_peers[who] = true
+	if Net.street():
+		_to_ready("set_ready_peers", [_loaded_peers.keys()])
+		if who != Net.my_id() and state != "grid":
+			catch_up.rpc_id(who, state)                # (joined mid-run)
 	if _loaded_peers.size() >= Net.players.size():
 		set_all_loaded.rpc(true)
+
+
+## (a street session) Call `method` here and on every other machine whose stage is
+## loaded (the host knows them; everyone else, from set_ready_peers): a machine still
+## loading has no Game for it to land in.
+func _to_ready(method: String, args: Array) -> void:
+	var ids: Array = _loaded_peers.keys() if multiplayer.is_server() else _ready_peers
+	callv(method, args)
+	for id in ids:
+		if id != Net.my_id():
+			callv("rpc_id", [id, method] + args)
+
+
+## (a street session) The machines whose stage is loaded: the car streams to them.
+@rpc("authority", "call_local", "reliable")
+func set_ready_peers(ids: Array) -> void:
+	_ready_peers = ids
+
+
+## (a street session) Joined while the others are already going: on the highway you're
+## straight in; on a touge you're in the next race (the grid, watching this one).
+@rpc("authority", "reliable")
+func catch_up(host_state: String) -> void:
+	if looped and host_state in ["countdown", "running"]:
+		state = "running"
+		stage_time = 0.0
+	else:
+		_waiting = true
+	_update_hint()
 
 
 @rpc("authority", "call_local", "reliable")
@@ -256,6 +375,17 @@ func crew_ready() -> bool:
 	return all_loaded and (not Net.online() or Net.crew_full())
 
 
+## (host) Has every player's stage loaded? (a street session: nobody still loading
+## misses the countdown)
+func _all_in() -> bool:
+	if not street_online:
+		return true
+	for id in Net.players:
+		if not _loaded_peers.has(id):
+			return false
+	return true
+
+
 # ── the stage ─────────────────────────────────────────────────────────────
 
 @rpc("authority", "call_local", "reliable")
@@ -265,7 +395,7 @@ func begin_countdown() -> void:
 	state = "countdown"
 	countdown = COUNTDOWN
 	_last_count = -1
-	car.place(_start_pos, st.heading_at(st.START_S))
+	car.place(_start_pos, _start_yaw)
 	ai.hush()                                    # the count has to land on the second
 	_update_hint()
 
@@ -283,6 +413,19 @@ func stage_finished(time: float, pens: float, n_resets: int, jumped: bool) -> vo
 	_play("bell", -4.0)
 	_show_results()
 	finished.emit(result)
+
+
+## (a street session, the touge) A driver crossed the line: the race's order, quickest
+## first (time plus penalties), on every machine.
+@rpc("any_peer", "call_local", "reliable")
+func racer_finished(id: int, total: float) -> void:
+	for e in standings:
+		if int(e[0]) == id:
+			return
+	standings.append([id, total])
+	standings.sort_custom(func(a, b): return float(a[1]) < float(b[1]))
+	if state == "finished":
+		_show_results()
 
 
 @rpc("any_peer", "call_local", "reliable")
@@ -303,9 +446,14 @@ func _physics_process(dt: float) -> void:
 	car.set_lanes(st, car_s, car_d)
 	cockpit.map_board.car_s = car_s
 	car.stream_ok = crew_ready()          # nobody to send to (or they're still loading): don't
+	if street_online:
+		car.stream_peers = _ready_peers.filter(func(p): return p != Net.my_id())
+		if car.stream_peers.is_empty():
+			car.stream_ok = false
 	match state:
 		"grid":
-			if Net.is_server() and crew_ready() and (Input.is_action_just_pressed("ready") or Config.flag("autostart")):
+			if Net.is_server() and crew_ready() and _all_in() and (Input.is_action_just_pressed("ready") or
+					(Config.flag("autostart") and Net.racers().size() >= int(Config.arg("min_racers", 1)))):
 				if Net.online():
 					begin_countdown.rpc()
 				else:
@@ -338,7 +486,11 @@ func _physics_process(dt: float) -> void:
 			stage_time += dt
 			if car.simulate and car_s >= st.finish_s:
 				var args := [stage_time, penalties, resets, jump_start]
-				if Net.online():
+				if street_online:
+					# (your own run ends; the others race on: the order comes in as they finish)
+					stage_finished(args[0], args[1], args[2], args[3])
+					_to_ready("racer_finished", [Net.my_id(), stage_time + penalties])
+				elif Net.online():
 					stage_finished.rpc(args[0], args[1], args[2], args[3])
 				else:
 					stage_finished(args[0], args[1], args[2], args[3])
@@ -366,7 +518,7 @@ func _physics_process(dt: float) -> void:
 		ai.update(-1000.0, 0.0, dt)
 	# tell the other player where we're looking (their view of our helmet)
 	_look_acc += dt
-	if Net.online() and crew_ready() and _look_acc > 0.1:
+	if Net.online() and not street_online and crew_ready() and _look_acc > 0.1:
 		_look_acc = 0.0
 		send_look.rpc(my_seat, cam.yaw if not cam.reading else 0.1, cam.pitch if not cam.reading else -0.9)
 
@@ -427,7 +579,7 @@ func reset_car() -> void:
 
 
 func _sync_penalties() -> void:
-	if Net.online():
+	if Net.online() and not street_online:            # (a crew shares one car's clock; a street session doesn't)
 		set_penalties.rpc(penalties, resets, jump_start)
 
 
@@ -443,7 +595,7 @@ func _puddles() -> void:
 	if inside and not _in_puddle and spd > 6.0:
 		var amount := clampf(spd / 22.0, 0.35, 1.0)
 		var sd := randi()
-		if Net.online():
+		if Net.online() and not street_online:
 			splat.rpc(amount, sd)
 		else:
 			splat(amount, sd)
@@ -477,7 +629,7 @@ func _process(dt: float) -> void:
 		return
 	# wipers: the co-driver's job (the driver's when alone)
 	if Input.is_action_just_pressed("wipers") and (my_seat == "codriver" or Net.peer_in("codriver") == 0):
-		if Net.online():
+		if Net.online() and not street_online:
 			wipe.rpc()
 		else:
 			wipe()
@@ -643,7 +795,7 @@ func _setup_mode(o: Dictionary) -> void:
 			traffic.setup(st, diff, seed_value, st.START_S)
 			cutup = CutupScore.new()
 			cutup.near = float(diff.near)
-			if looped:
+			if looped and not street_online:          # (online: your friends are the rivals)
 				rivals = Rivals.new()
 				rivals.name = "Rivals"
 				add_child(rivals)
@@ -652,11 +804,26 @@ func _setup_mode(o: Dictionary) -> void:
 			touge = TougeRules.new()
 			var best := Profile.mode_best(Modes.best_key(o, seed_value))
 			touge.best_splits = best.get("splits", [])
-			if o.get("rules", "time") == "time":
+			if o.get("rules", "time") == "time" and not street_online:   # (online: a race, not your ghost)
 				ghost = Ghost.new()
 				ghost.name = "Ghost"
 				add_child(ghost)
 				ghost.setup(Modes.best_key(o, seed_value))
+
+
+## (a street session, the touge) Where you are in the race: 1 + those already over the
+## line + those further down the road than you.
+func _race_place() -> int:
+	var ahead := standings.size()
+	for id in others:
+		var c = others[id]
+		if not is_instance_valid(c) or standings.any(func(e): return int(e[0]) == id):
+			continue
+		var at: Dictionary = st.locate(c.global_position, int(_hints.get(id, -1)))
+		_hints[id] = at.i
+		if float(at.s) > car_s:
+			ahead += 1
+	return ahead + 1
 
 
 ## Every physics tick in a mode: the traffic, the score, the splits, the drift.
@@ -678,6 +845,11 @@ func _mode_tick(dt: float) -> void:
 			rivals.events.clear()
 		if ghost:
 			ghost.tick(stage_time, car.global_transform.translated_local(Vector3(0.0, -car._ground(), 0.0)))
+		if street_online and touge:
+			_pos_t -= dt
+			if _pos_t <= 0.0:
+				_pos_t = 0.25
+				_place = _race_place()
 		if touge:
 			if touge.split_check(car_s, st.START_S, stage_time):
 				var dl: float = touge.last_split_delta
@@ -714,6 +886,8 @@ func _mode_text() -> String:
 			return t2 + ("\n%.0f deg" % touge.angle if touge.drifting else "") + "\n%.0f km/h" % car.kmh()
 		var best := Profile.mode_best(Modes.best_key(opts, seed_value))
 		var t3 := "TIME  %s" % fmt_time(stage_time if state != "grid" else 0.0)
+		if street_online and _place > 0 and state == "running":
+			t3 = "POS  %d / %d\n" % [_place, others.size() + 1] + t3
 		if touge.last_split_delta != INF and stage_time - touge.last_split_at < 8.0:
 			t3 += "   %+.1f" % touge.last_split_delta
 		return t3 + "\nBEST  %s" % (fmt_time(float(best.value)) if not best.is_empty() else "--") + "\n%.0f km/h" % car.kmh()
@@ -867,10 +1041,10 @@ func _end_run() -> void:
 	if state != "running":
 		return
 	var args := [stage_time, penalties, resets, jump_start]
-	if Net.online():
+	if Net.online() and not street_online:
 		stage_finished.rpc(args[0], args[1], args[2], args[3])
 	else:
-		stage_finished(args[0], args[1], args[2], args[3])
+		stage_finished(args[0], args[1], args[2], args[3])     # (a street session: your own run ends, not theirs)
 
 
 func _toggle_pause() -> void:
@@ -885,7 +1059,12 @@ func _update_hint() -> void:
 	var pad: bool = Controls.has_pad()
 	match state:
 		"grid":
-			if Net.online() and not Net.crew_full():
+			if _waiting:
+				t = "A race is on: you're in the next one (watch this one)"
+			elif street_online and others.is_empty() and Net.is_server():
+				t = "Waiting for friends to join (port %d, your IPs: %s)... or press %s to go now" % [
+					Config.port, ", ".join(_my_ips()), "START" if pad else "ENTER"]
+			elif Net.online() and not Net.crew_full():
 				t = "Waiting for your crew to join...  (port %d, your IPs: %s)" % [Config.port, ", ".join(_my_ips())]
 			elif not all_loaded:
 				t = "Loading the stage..."
@@ -940,6 +1119,19 @@ func _show_results() -> void:
 		head = Modes.title(opts, st).replace("\n", "  ·  ") + "  COMPLETE"
 	var lines := [head, "", "Time  %s" % fmt_time(r.time)]
 	lines.append_array(mode_result.get("lines", []))
+	if street_online and touge:
+		lines.append("")
+		lines.append("THE RACE")
+		for k in standings.size():
+			var id := int(standings[k][0])
+			lines.append("%d.  %s  %s%s" % [k + 1, "YOU" if id == Net.my_id() else Net.player_name(id), fmt_time(float(standings[k][1])),
+				"   WINNER" if k == 0 else ""])
+		var still: Array = []
+		for id in others:
+			if not standings.any(func(e): return int(e[0]) == id):
+				still.append(Net.player_name(id))
+		if not still.is_empty():
+			lines.append("still racing: " + ", ".join(still))
 	_results_label.add_theme_font_size_override("font_size", 22 if _result_extra.size() > 3 else 28)
 	if r.penalties > 0.0:
 		var why: Array = []

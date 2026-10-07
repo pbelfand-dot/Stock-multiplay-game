@@ -81,6 +81,7 @@ var inp := {"steer": 0.0, "throttle": 0.0, "brake": 0.0, "handbrake": false}
 var simulate := true
 var stream_ok := false             # quiet until the game says both machines have loaded (a car still being
                                    # built must not talk to a machine that has no Car yet)
+var stream_peers: Array = []        # (a street session) the peers to stream to, those whose stage is loaded; empty: everyone
 var states_received := 0           # co-driver side: stream packets in (tests)
 var speed := 0.0                   # along the car (m/s, + = forward)
 var gear := 1                      # the gear (R = -1, N = 0)
@@ -646,9 +647,14 @@ func _physics_process(dt: float) -> void:
 		_net_acc += dt
 		if _net_acc >= 1.0 / NET_HZ and stream_ok and _online():
 			_net_acc = 0.0
-			net_state.rpc(Time.get_ticks_msec(), global_position, global_transform.basis.get_rotation_quaternion(),
+			var args := [Time.get_ticks_msec(), global_position, global_transform.basis.get_rotation_quaternion(),
 				linear_velocity, steer, rpm, gear, PackedFloat32Array(comp), slip, on_surface, bool(inp.handbrake),
-				clampf(float(inp.throttle), 0.0, 1.0), grip_use)
+				clampf(float(inp.throttle), 0.0, 1.0), grip_use]
+			if stream_peers.is_empty():
+				callv("rpc", ["net_state"] + args)
+			else:                                        # (a street session: only the machines that have the stage)
+				for p in stream_peers:
+					callv("rpc_id", [p, "net_state"] + args)
 	else:
 		_play_stream(dt)
 	_flaps_swing(dt)

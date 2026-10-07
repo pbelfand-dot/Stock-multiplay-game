@@ -4,6 +4,9 @@ extends Node
 ## for the next stage. Command line (after `--`):
 ##   --solo [--seed=N]                       drive alone, the AI co-driver calls
 ##   --host [--seat=driver|codriver]         host a crew (the other seat joins)
+##   --host --mode=touge|cutup ... --street [--ghosts] [--min_racers=N]   host a street session (up to 8,
+##                                           each in their own car; --ghosts: no collisions; tests:
+##                                           --autostart waits for N racers, all loaded)
 ##   --join=IP                               join a host
 ##   --autostart --autopilot                 tests: start the countdown / drive by itself
 ##   --smoke=host|client                     2-player test: drive a stage, both check it
@@ -41,6 +44,7 @@ var rally_times: Array = []                  # story: my total on each stage of 
 var rally_lengths: Array = []
 var _test_t := 0.0
 var _smoke_done := false
+var _smoke_ok := false
 var _loading := false
 var _air_t := 0.0
 var _shot_jumped := false                  # (--shot_s --autostart: jumped up the road at GO)
@@ -59,6 +63,10 @@ func _ready() -> void:
 		show_menu("", Config.arg("menu_panel", ""))
 	elif Config.flag("screenshot") or Config.flag("solo") or Config.flag("aicheck"):
 		start_solo(seed_value)
+	elif Config.flag("host") and Config.flag("street") and Config.flag("mode"):
+		start_mode({"mode": Config.arg("mode"), "dir": Config.arg("dir", "up"), "rules": Config.arg("rules", "time"),
+			"difficulty": Config.arg("difficulty", "normal"), "online": true, "collide": not Config.flag("ghosts"),
+			"seed": int(Config.arg("seed", -1))})
 	elif Config.flag("host"):
 		host_game(Config.arg("seat", "driver"))
 	elif Config.flag("join"):
@@ -103,14 +111,25 @@ func start_solo(s: int) -> void:
 
 ## A touge or cut-up run's settings, like `like` (its mode, direction, rules, difficulty) on seed s.
 func mode_opts(s: int, like: Dictionary) -> Dictionary:
+	var o: Dictionary
 	if like.get("mode") == "cutup":
-		return Modes.with_time(Modes.cutup_opts(s, str(like.get("difficulty", "normal"))), Config.time_of_day)
-	return Modes.with_time(Modes.touge_opts(s, str(like.get("dir", "up")), str(like.get("rules", "time"))), Config.time_of_day)
+		o = Modes.cutup_opts(s, str(like.get("difficulty", "normal")))
+	else:
+		o = Modes.touge_opts(s, str(like.get("dir", "up")), str(like.get("rules", "time")))
+	if Config.flag("length") and like.get("mode") != "cutup":
+		o["length"] = float(Config.arg("length"))      # (tests: a shorter pass)
+	return Modes.with_time(o, Config.time_of_day)
 
 
-## From the menu's MODES: a touge or a cut-up run, alone.
+## From the menu's MODES: a touge or a cut-up run, alone, or hosted online for up to
+## eight friends (m.online: a street session, everyone in their own car; m.collide).
 func start_mode(m: Dictionary) -> void:
-	Net.solo()
+	if m.get("online", false):
+		if Net.host(Config.port, "racer", "street", bool(m.get("collide", true))) != OK:
+			to_menu("Couldn't host on port %d (is another game running?)" % Config.port)
+			return
+	else:
+		Net.solo()
 	var s := randi() % 100000 if int(m.get("seed", -1)) < 0 else int(m.seed)
 	load_stage(s, 1, mode_opts(s, m))
 
@@ -169,6 +188,12 @@ func _on_connected() -> void:
 
 ## Host: someone joined: everyone (re)loads the stage and meets at the start line.
 func _on_peer_connected(id: int) -> void:
+	if multiplayer.is_server() and Net.street():
+		# a street session: the newcomer loads the stage that's on; the rest drive on
+		await get_tree().create_timer(0.4).timeout
+		if Net.players.has(id) and game:
+			load_stage.rpc_id(id, seed_value, stage_no, opts)
+		return
 	if multiplayer.is_server():
 		if game:
 			game.all_loaded = false            # stop streaming at them: they have no Game yet
@@ -275,6 +300,9 @@ func to_menu(msg := "", panel := "") -> void:
 	else:
 		menu.status(msg)
 	if Config.flag("smoke"):
+		if _smoke_ok:
+			get_tree().quit(0)                         # (done and checked: the host's just gone first)
+			return
 		print("[smoke] %s: FAIL %s" % [Config.arg("smoke"), msg])
 		get_tree().quit(1)
 
@@ -383,6 +411,9 @@ func _on_stage_finished(r: Dictionary) -> void:
 		return
 	_smoke_done = true
 	var role := Config.arg("smoke")
+	if game.street_online:
+		_street_smoke(role)
+		return
 	var gap: float = game.car.global_position.distance_to(game.st.world_at(game.st.finish_s, 0.0))
 	if role == "host":
 		print("[smoke] host: stage finished in %s (+%.0f s), seat %s, car %.0f m from the finish" % [
@@ -399,6 +430,31 @@ func _on_stage_finished(r: Dictionary) -> void:
 		and r.penalties == 0.0
 	print("[smoke] %s: %s" % [role, "OK" if ok else "FAIL"])
 	await get_tree().create_timer(1.5).timeout
+	get_tree().quit(0 if ok else 1)
+
+
+## A street session's test (several machines racing a pass): once this one's over the
+## line, wait for everyone's; each must have seen every other car's stream, and all of
+## them must agree on the order.
+func _street_smoke(role: String) -> void:
+	var t := 0.0
+	while game.standings.size() < Net.racers().size() and t < 90.0:
+		await get_tree().create_timer(0.5).timeout
+		t += 0.5
+	var names: Array = game.standings.map(func(e): return Net.player_name(int(e[0])))
+	var least := 1 << 30
+	for id in game.others:
+		least = mini(least, int(game.others[id].states_received))
+	var gap: float = game.car.global_position.distance_to(game.st.world_at(game.st.finish_s, 0.0))
+	print("[smoke] %s: street race, %d racers, %d other cars here, fewest updates from one %d, car %.0f m from the finish" % [
+		role, Net.racers().size(), game.others.size(), least, gap])
+	print("[smoke] %s: race order %s" % [role, " > ".join(names)])
+	var ok: bool = game.standings.size() == Net.racers().size() and game.others.size() == Net.racers().size() - 1 \
+		and least > 100 and gap < 40.0
+	print("[smoke] %s: %s" % [role, "OK" if ok else "FAIL"])
+	_smoke_ok = ok
+	# (the host goes last: a guest still checking would take the host leaving for a failure)
+	await get_tree().create_timer(4.0 if multiplayer.is_server() else 0.5).timeout
 	get_tree().quit(0 if ok else 1)
 
 
