@@ -1,0 +1,43 @@
+[remap]
+
+importer="texture"
+type="CompressedTexture2D"
+uid="uid://b8f4vpmh2muc6"
+path="res://.godot/imported/cadillac_vr_Map #17.png-af7248e15dfd6e47d8e5a82a8138a286.ctex"
+metadata={
+"vram_texture": false
+}
+generator_parameters={
+"md5": "11439ea5f5f89c2d95f6dc540770289a"
+}
+
+[deps]
+
+source_file="res://assets/models/cars/cadillac_vr/cadillac_vr_Map #17.png"
+dest_files=["res://.godot/imported/cadillac_vr_Map #17.png-af7248e15dfd6e47d8e5a82a8138a286.ctex"]
+
+[params]
+
+compress/mode=4
+compress/high_quality=false
+compress/lossy_quality=0.7
+compress/uastc_level=0
+compress/rdo_quality_loss=0.0
+compress/hdr_compression=1
+compress/normal_map=0
+compress/channel_pack=0
+mipmaps/generate=true
+mipmaps/limit=-1
+roughness/mode=0
+roughness/src_normal=""
+process/channel_remap/red=0
+process/channel_remap/green=1
+process/channel_remap/blue=2
+process/channel_remap/alpha=3
+process/fix_alpha_border=true
+process/premult_alpha=false
+process/normal_map_invert_y=false
+process/hdr_as_srgb=false
+process/hdr_clamp_exposure=false
+process/size_limit=0
+detect_3d/compress_to=0

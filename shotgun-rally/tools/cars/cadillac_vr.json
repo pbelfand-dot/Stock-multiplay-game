@@ -1,0 +1,7 @@
+{"id": "cadillac_vr", "front": "+X", "wheelbase": 3.148,
+ "wheel_mats": ["^Wheels$", "^EXT_Tyre$", "^brake_disk$"], "caliper_mats": ["^caliper$"],
+ "drop": ["^Object-01$"], "drop_mats": ["^logo_cos$"],
+ "paint": ["^Body$"], "glass": ["^Glass$", "^windows_ext$"],
+ "materials": [["^Glass$", "glass"], ["^windows_ext$", "glass"]],
+ "wheel_faces": 12000, "body_faces": 160000, "tex_max": 1024,
+ "cockpit": {"gearbox": "auto", "wheel": {"parts": ["^STEER_HR_SUB"]}}}

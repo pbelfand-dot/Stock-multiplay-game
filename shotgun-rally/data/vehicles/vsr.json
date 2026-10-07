@@ -1,0 +1,75 @@
+{
+	"id": "vsr",
+	"name": "VEE-SR GTP",
+	"order": 500,
+	"model": "cadillac_vr",
+	"category": "race",
+	"role": "race_prototype",
+	"real": {
+		"manufacturer": "Cadillac",
+		"model": "V-Series.R (LMDh / GTP)",
+		"year": 2023,
+		"trim": "5.5 V8 + Bosch hybrid, Xtrac 7-speed sequential"
+	},
+	"specs": {
+		"power_hp": 671,
+		"weight_kg": 1030,
+		"drivetrain": "RWD",
+		"transmission": "7-speed sequential (Xtrac P1359, paddles)",
+		"wheelbase_mm": 3148,
+		"top_speed_kmh": 340,
+		"front_weight": 0.46,
+		"notes": "An LMDh prototype on a Dallara LMP2 tub: the naturally aspirated LMC55R 5.5 V8 with the series' 50 kW Bosch motor at the rear, the pair held to 500 kW (680 PS) by the rules; 1,030 kg minimum; Xtrac P1359 7-speed sequential; 3,148 mm wheelbase, 4,990 x 1,996 mm; Michelin 29/71-18 front, 34/71-18 rear (Wikipedia, Wayne Taylor Racing's spec sheet). Torque isn't published (from the power, a high-revving NA curve); the power peak's rpm (7,600), the limiter, ~340 km/h (Le Mans trim), the ratios, weight distribution and aero (the prototype chassis' downforce) are estimates."
+	},
+	"garage": {
+		"price": 140000,
+		"engine_sound": "v8",
+		"livery": "stripes",
+		"number": 2,
+		"colours": [[0.05, 0.05, 0.06], [0.75, 0.75, 0.78], [0.02, 0.2, 0.5], [0.6, 0.03, 0.02]],
+		"wheels": "black",
+		"power": 1.0,
+		"grip": 1.0,
+		"brakes": 1.0,
+		"drive_front": 0.0,
+		"blurb": "A Le Mans prototype with a naturally aspirated V8 that howls to 8,500: barely a tonne, wings everywhere, and more grip than anything else here once it's going fast."
+	},
+	"physics": {
+		"chassis": "prototype",
+		"mass": 1030.0,
+		"front": 0.46,
+		"torque": 698.6,
+		"curve": [[1000, 0.5], [2725, 0.775], [4450, 0.94], [5928, 1.0], [7600, 0.9], [8500, 0.757]],
+		"idle": 1000.0,
+		"limiter": 8500.0,
+		"turbo": 0.0,
+		"gears": [2.912, 2.348, 1.893, 1.526, 1.231, 0.992, 0.8],
+		"final": 3.7,
+		"drive": "rwd",
+		"rear": ["lsd", 0.35, 0.15, 30.0],
+		"cd": 0.5,
+		"area": 1.75,
+		"down": 3.8,
+		"brake": 1.4
+	},
+	"checks": {
+		"zero_100_max": 7.0
+	},
+	"interior": {
+		"own": true,
+		"camera": true,
+		"notes": "The model's carbon tub: its racing wheel cut out by part, the seat found by the probe; paddles: the hands stay on the wheel."
+	},
+	"source": {
+		"package": "CGTrader_New_Cars/cadillac_v_series_r (cadillac_v_series_r.glb)",
+		"candidate": 29,
+		"license": "CGTrader Royalty Free License (seller CGI-FORGE, best match)",
+		"url": "https://www.cgtrader.com/3d-models/car/racing-car/cadillac-v-series-r"
+	},
+	"research": ["https://en.wikipedia.org/wiki/Cadillac_V-Series.R", "https://waynetaylorracing.com/carspecs"],
+	"limitations": [
+		"Torque, the power peak's rpm, top speed, the ratios, weight distribution and aero are estimates.",
+		"Provenance: parts named like a racing-sim mod (ORECA_03 calipers, STEER_HR, a 963 LED material); fine among friends, replace before any public release.",
+		"The game's livery replaces its race livery (its body is the game's paint)."
+	]
+}

@@ -1125,6 +1125,8 @@ if survey_parts:
     print("PARTS (x right, y forward, z up; m)")
     for o in sorted(meshes, key=lambda o: o.name):
         v = verts(o)
+        if len(v) == 0:
+            continue
         mats = sorted({sl.material.name for sl in o.material_slots if sl.material})
         print("  %-30s %6d tris  x %5.2f..%5.2f y %5.2f..%5.2f z %5.2f..%5.2f  %s" % (o.name[:30], sum(len(p.vertices) - 2 for p in o.data.polygons),
             v[:, 0].min(), v[:, 0].max(), v[:, 1].min(), v[:, 1].max(), v[:, 2].min(), v[:, 2].max(), ",".join(mats)[:70]))
