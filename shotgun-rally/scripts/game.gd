@@ -453,7 +453,7 @@ func _physics_process(dt: float) -> void:
 	match state:
 		"grid":
 			if Net.is_server() and crew_ready() and _all_in() and (Input.is_action_just_pressed("ready") or
-					(Config.flag("autostart") and Net.racers().size() >= int(Config.arg("min_racers", 1)))):
+					(Config.flag("autostart") and (not street_online or Net.racers().size() >= int(Config.arg("min_racers", 1))))):
 				if Net.online():
 					begin_countdown.rpc()
 				else:
