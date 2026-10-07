@@ -6,6 +6,7 @@ extends PanelContainer
 signal back
 
 const UI = preload("res://scripts/ui/ui_kit.gd")
+const GraphicsSettings = preload("res://scripts/ui/graphics_settings.gd")
 ## What PLAY NOW and online stages are (Config.quick_surface, Main.quick_opts).
 const SURFACES := [["any", "ANY: GRAVEL, TARMAC OR MIXED"], ["gravel", "GRAVEL"], ["tarmac", "TARMAC"], ["mixed", "MIXED: GRAVEL + TARMAC"]]
 ## Extra tyre grip (Config.grip_assist, TireModel.grippy).
@@ -59,6 +60,8 @@ func _ready() -> void:
 	left.add_child(UI.gap(6))
 	left.add_child(UI.label("CO-DRIVER", 20, UI.YELLOW, true))
 	left.add_child(_slider("CALLS  LATE  ·  EARLY", -1.0, 1.0, config.call_early, func(x): config.call_early = x))
+	left.add_child(UI.gap(6))
+	left.add_child(GraphicsSettings.new())          # quality, render scale, car lights, renderer
 	right.add_child(UI.label("DRIVING AIDS", 20, UI.YELLOW, true))
 	for a in AIDS:
 		right.add_child(_toggle(a[1], a[2], bool(config.aids.get(a[0], false)), func(on): config.aids[a[0]] = on))
