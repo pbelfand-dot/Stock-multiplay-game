@@ -1,0 +1,16 @@
+Help me integrate the vehicle assets described in MANIFEST.json into my racing game.
+
+Goals:
+- Use the Dodge Challenger SRT Hellcat Widebody 2022 as a hero/player car.
+- Use the sedan, crossover, minivan, and Mercedes GLS as believable everyday traffic.
+- Keep wheels as separate movable objects where the source model supports that.
+- Preserve UVs, material slots, texture paths, and original source files.
+- Create lightweight collision meshes and practical LOD settings for traffic.
+- Make several traffic paint variants using material instances, not duplicated meshes.
+- Do not merge wheel meshes into the body.
+- Do not edit the originals in place; put converted/imported assets in a separate generated folder.
+
+License boundary:
+The generic sedan, crossover, and minivan are marked "Royalty Free License (no AI)" on CGTrader. Do not open, inspect, parse, upload, convert, or reproduce those asset files. Use only MANIFEST.json and the paths/names it provides to write import scripts or project configuration. Before accessing any other model file, ask me to confirm that its license permits AI processing.
+
+First, inspect my game project's engine and folder structure. Then propose the smallest safe import plan and show which generated files you intend to create before changing anything.

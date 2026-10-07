@@ -1,0 +1,36 @@
+{
+  "favorite": {
+    "name": "Dodge Challenger SRT Hellcat Widebody 2022",
+    "folder": "dodge_challenger_srt_hellcat_widebody_2022",
+    "preferred_file": "dodge_challenger_srt_hellcat_widebody_2022/gltf.zip",
+    "engine_file": "dodge_challenger_srt_hellcat_widebody_2022/fbx.zip",
+    "textures": "dodge_challenger_srt_hellcat_widebody_2022/textures.zip"
+  },
+  "traffic": [
+    {
+      "role": "sedan",
+      "model": "traffic/generic_sedan/generic_sedan.fbx",
+      "textures": "traffic/generic_sedan/textures.rar",
+      "license_note": "CGTrader page displayed Royalty Free License (no AI)"
+    },
+    {
+      "role": "crossover",
+      "model": "traffic/generic_crossover/generic_crossover.fbx",
+      "textures": "traffic/generic_crossover/textures.rar",
+      "license_note": "CGTrader page displayed Royalty Free License (no AI)"
+    },
+    {
+      "role": "minivan",
+      "model": "traffic/generic_minivan/generic_minivan.fbx",
+      "textures": "traffic/generic_minivan/textures.rar",
+      "license_note": "CGTrader page displayed Royalty Free License (no AI)"
+    },
+    {
+      "role": "suv",
+      "model": "traffic/mercedes_gls_63_amg/mercedes_gls_63_amg.glb",
+      "textures": "traffic/mercedes_gls_63_amg/textures.rar",
+      "license_note": "Verify the individual CGTrader license before AI upload"
+    }
+  ]
+}
+
