@@ -67,7 +67,9 @@ at the origin. Each corner becomes Wheel_FL / FR / RL / RR (and Caliper_..),
 its origin at the wheel's centre; the rest is one Body. Images are shrunk to
 512 px ("tex_max"). "--survey" after the paths prints every material (where, how big,
 its colour) in the car's own frame instead of exporting; "--out DIR" writes
-somewhere else than assets/models/cars/<id> (to try a spec out).
+somewhere else than assets/models/cars/<id> (to try a spec out). A conversion that
+looks wrong (wheels that don't match side to side, the body through the ground,
+the eyes outside the car) prints WARNING lines.
 """
 import bpy, bmesh, sys, json, re, math, os
 import numpy as np
@@ -996,6 +998,26 @@ for img in bpy.data.images:
     if img.size[0] > most or img.size[1] > most:
         f = float(most) / max(img.size[0], img.size[1])
         img.scale(max(1, int(img.size[0] * f)), max(1, int(img.size[1] * f)))
+
+# a conversion gone wrong says so (it would still export): wheels that don't match side to side or
+# corner to corner, the body through the ground, the driver's eyes outside the car
+warn = []
+r = parts["radius"]
+if max(r) > min(r) * 1.06:
+    warn.append("the wheels' radii differ: %s" % ", ".join("%.3f" % x for x in r))
+w = parts["wheels"]
+for a, b, axle in ((0, 1, "front"), (2, 3, "rear")):
+    if abs(w[a][0] + w[b][0]) > 0.02 or abs(w[a][1] - w[b][1]) > 0.02 or abs(w[a][2] - w[b][2]) > 0.02:
+        warn.append("the %s wheels aren't mirror images: %s / %s" % (axle, w[a], w[b]))
+if bb[:, 2].min() < -0.02:
+    warn.append("the body goes %.0f mm through the ground" % (-bb[:, 2].min() * 1000))
+if cockpit:
+    e = spec["_cock"]["eye"]
+    lo, hi = parts["body_min"], parts["body_max"]
+    if not all(lo[k] < e[k] < hi[k] for k in range(3)):
+        warn.append("the driver's eyes %s are outside the body" % e)
+for m in warn:
+    print("WARNING: %s" % m)
 
 os.makedirs(out_dir, exist_ok=True)
 glb = os.path.join(out_dir, spec["id"] + ".glb")
