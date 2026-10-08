@@ -23,9 +23,11 @@ const CATCH := 1.0               # how much of the tail's angle it countersteers
 
 var st                           # StageGen
 var _vmax := PackedFloat32Array()  # corner speed limit per centerline sample
+var lane := INF                  # (a showcase weaving through traffic) the d to hold instead of its own line
+var cap := 60.0                  # m/s: never faster than this (the showcase holds it behind traffic)
 
 
-func _init(stage) -> void:
+func _init(stage, pace := 1.0) -> void:
 	st = stage
 	_vmax.resize(st.pts.size())
 	for i in st.pts.size():
@@ -35,7 +37,7 @@ func _init(stage) -> void:
 			k = maxf(k, absf(st.curv[j]))
 		# a narrow road leaves less room to straighten the bend: slower; and the surface
 		# along its line (toward the inside): the asphalt grips more, ice and snow far less
-		var mu: float = MU * clampf(0.86 + 0.14 * (st.widths[i] - 4.6), 0.86, 1.0)
+		var mu: float = MU * pace * clampf(0.86 + 0.14 * (st.widths[i] - 4.6), 0.86, 1.0)   # (pace: the showcase drives harder)
 		var g: float = st.grip_at(i * st.STEP, clampf(st.curv[i] * 30.0, -0.6, 0.6))
 		mu *= g
 		_vmax[i] = 60.0 if k < 1e-4 else minf(60.0, sqrt(mu * 9.8 / k))
@@ -71,6 +73,8 @@ func drive(car, s: float, d: float) -> Dictionary:
 	var ahead_i := clampi(int((s + look) / st.STEP), 0, st.curv.size() - 1)
 	var bend: float = st.curv[ahead_i]
 	var line_d := clampf(bend * 30.0, -0.6, 0.6)         # + curvature = a right turn, whose inside is d > 0
+	if lane < INF:
+		line_d = lane
 	# where the front axle is on the road
 	var front: Vector3 = car.global_position + fwd * -car.config.front_axle
 	var fs: float = s + fwd.dot(st.forward_at(s)) * -car.config.front_axle
@@ -106,7 +110,7 @@ func drive(car, s: float, d: float) -> Dictionary:
 	var slip := deg_to_rad(tyre.lateral_peak_deg) * (1.0 - sqrt(1.0 - share)) * signf(k)
 	var steer_cmd := clampf((atan(base * k) + slip + CATCH * tail) / lock, -1.0, 1.0)
 	# speed: the lowest braking-allowed speed over the next 150 m
-	var want := 60.0
+	var want := cap
 	var i0 := int(s / st.STEP)
 	for j in range(i0, mini(_vmax.size(), i0 + int(150.0 / st.STEP))):
 		var dist: float = (j - i0) * st.STEP

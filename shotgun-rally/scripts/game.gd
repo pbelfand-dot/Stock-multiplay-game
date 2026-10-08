@@ -89,6 +89,7 @@ var _stuck := 0.0
 var _mud_t := 0.0
 var _said_wipers := false
 var _chase := false                 # the driver picked the chase cam (C)
+var view_override := ""              # (the showcase) the view it's filming: "seat", or "chase" for its own cameras
 var built := false                  # start() has finished (it builds over several frames)
 var _look_acc := 0.0
 var _last_count := -1
@@ -676,6 +677,8 @@ func _process(dt: float) -> void:
 		want = "chase"
 	if Config.flag("screenshot"):
 		want = Config.arg("shot_view", "seat")
+	if view_override != "" and state == "running":
+		want = view_override
 	if want != cam.view:
 		cam.view = want
 		car.set_outside(want != "seat")

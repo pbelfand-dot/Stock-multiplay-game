@@ -21,6 +21,9 @@ extends Node
 ##                         --shot_count=N (the start lights at N, 0 = GO) --shot_results [--shot_race] (the results panel)
 ##                         --shot_stray=M (a touge's stray car M up the road, coming the other way)]
 ##   --menu_shot=out.png [--menu_panel=maps|cars|online|settings --garage_tab=setup --shot_wait=6]   a picture of the home screen
+##   --showcase=rally|touge|cutup [--autostart --autopilot --stray --shot_s=M]   film a mode for a showcase
+##                                           video (run with --write-movie out.avi --fixed-fps 30): the
+##                                           autopilot drives, scripts/game/showcase.gd cuts between cameras
 ##   --story=RALLY[,STAGE]                   (with --solo / --screenshot) a story stage
 ##   --surface=gravel|tarmac|mixed|any [--ice]   a quick stage's surface (else Settings')
 ##   --profile=PATH                          another save file (credits, garage, story)
@@ -333,11 +336,16 @@ func to_menu(msg := "", panel := "") -> void:
 # ── tests ─────────────────────────────────────────────────────────────────
 
 func _test_setup() -> void:
+	if Config.flag("showcase"):                      # film it (with --write-movie): scripts/game/showcase.gd
+		var sc = load("res://scripts/game/showcase.gd").new()
+		game.add_child(sc)
+		sc.setup(game, Config.arg("showcase", "rally"))
 	if Config.flag("screenshot"):
 		var s := float(Config.arg("shot_s", 0))
 		if s > 0.0:
 			game.car.place(game.st.world_at(s, game.st.LANE_W * 0.5 if game.traffic else 0.0), game.st.heading_at(s))
 			game.car_s = s
+			game._hint = int(s / game.st.STEP)            # (where to look for the car on the road now)
 			if game.traffic:
 				game.traffic.restart_at(s)               # (the traffic round the car, not back at the start)
 		game.cam.force_read = Config.flag("shot_read")
@@ -405,13 +413,14 @@ func _process(dt: float) -> void:
 			_street_cutup_smoke(Config.arg("smoke"))
 	# (--shot_s with --autostart: the countdown puts the car back on the grid, so the jump
 	# up the road comes at GO, rolling at 100 km/h, the traffic brought along)
-	if Config.flag("screenshot") and Config.flag("autostart") and float(Config.arg("shot_s", 0)) > 0.0 and not _shot_jumped \
+	if (Config.flag("screenshot") or Config.flag("showcase")) and Config.flag("autostart") and float(Config.arg("shot_s", 0)) > 0.0 and not _shot_jumped \
 			and game.built and game.state == "running":
 		_shot_jumped = true
 		var s := float(Config.arg("shot_s", 0))
 		game.car.place(game.st.world_at(s, game.st.LANE_W * 0.5 if game.traffic else 0.0), game.st.heading_at(s))
 		game.car.set_speed(100.0 / 3.6)
 		game.car_s = s
+		game._hint = int(s / game.st.STEP)            # (where to look for the car on the road now)
 		if game.traffic:
 			game.traffic.restart_at(s)
 	var shot_now: bool = _test_t > float(Config.arg("shot_wait", 2.0))
