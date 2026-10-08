@@ -39,20 +39,33 @@ static var SPECS: Dictionary = VehicleRegistry.physics()
 ## damp: the dampers on top of that (x freq x damp); arb: the anti-roll bars; mu: the
 ## tyres' grip, x the rally tyre's; peak: where their grip peaks (slip), x; loose: how
 ## much of their grip they keep off tarmac (slicks on gravel: little); steer: degrees
-## of lock; com: the centre of mass, m below the rally car's. Road cars: soft and
-## long-legged but short of a rally car's travel; sports cars stiffer on stickier
-## tyres; GT3 / DTM cars stiff, low, on slicks; prototypes stiffer still.
+## of lock; com: the centre of mass, m below the rally car's.
+## The road classes set their suspension outright instead, from the car's own weight
+## (_road_suspension): ride: the ride frequency front / rear (Hz); roll: how far the body
+## leans per g of cornering (deg; real cars: an SUV 3.5-5, a sports car 2-3, a GT3 ~1);
+## roll_front: the front axle's share of the roll stiffness (55-65 % on road cars: they
+## push before they slide); cog: the centre of mass's height above the road (m); zeta:
+## the dampers' share of critical, bump / rebound; room: the travel above the car at rest
+## before the bump stop (m). An SUV leans and nods and settles in a bob or two; a sports
+## car leans a little; a GT3 hardly at all.
 const CHASSIS := {
 	"rally": {},
-	"road": {"travel": 0.17, "freq": 1.0, "damp": 0.9, "arb": 1.3, "mu": 1.0, "peak": 0.95, "loose": 0.85, "steer": 34.0, "com": 0.03},
-	"suv": {"travel": 0.2, "freq": 0.95, "damp": 0.95, "arb": 1.7, "mu": 0.97, "peak": 1.0, "loose": 0.9, "steer": 36.0, "com": -0.08},
+	"road": {"travel": 0.17, "ride": [1.4, 1.5], "roll": 2.8, "roll_front": 0.62, "cog": 0.52, "zeta": [0.32, 0.62], "room": 0.09,
+		"mu": 1.0, "peak": 0.95, "loose": 0.85, "steer": 34.0},
+	"suv": {"travel": 0.2, "ride": [1.25, 1.35], "roll": 4.0, "roll_front": 0.66, "cog": 0.66, "zeta": [0.32, 0.62], "room": 0.1,
+		"mu": 0.97, "peak": 1.0, "loose": 0.9, "steer": 36.0},
 	# a performance SUV (X5 M, Trackhawk): stiffer and lower than a plain one, on wider tyres; still tall
-	"sport_suv": {"travel": 0.18, "freq": 1.12, "damp": 1.05, "arb": 1.95, "mu": 1.02, "peak": 0.96, "loose": 0.88, "steer": 35.0, "com": -0.04},
+	"sport_suv": {"travel": 0.18, "ride": [1.45, 1.55], "roll": 3.2, "roll_front": 0.63, "cog": 0.62, "zeta": [0.36, 0.68], "room": 0.09,
+		"mu": 1.02, "peak": 0.96, "loose": 0.88, "steer": 35.0},
 	# a tall, boxy one (the G-Class): soft, high, rolls and pitches more, on a ladder frame's steering
-	"tall_suv": {"travel": 0.22, "freq": 0.9, "damp": 0.92, "arb": 1.45, "mu": 0.96, "peak": 1.04, "loose": 0.95, "steer": 33.0, "com": -0.14},
-	"sport": {"travel": 0.14, "freq": 1.3, "damp": 1.1, "arb": 1.8, "mu": 1.06, "peak": 0.9, "loose": 0.8, "steer": 33.0, "com": 0.06},
-	"track": {"travel": 0.09, "freq": 2.0, "damp": 1.5, "arb": 2.6, "mu": 1.3, "peak": 0.8, "loose": 0.55, "steer": 27.0, "com": 0.1},
-	"prototype": {"travel": 0.07, "freq": 2.6, "damp": 1.8, "arb": 3.0, "mu": 1.4, "peak": 0.75, "loose": 0.45, "steer": 24.0, "com": 0.13},
+	"tall_suv": {"travel": 0.22, "ride": [1.2, 1.3], "roll": 4.8, "roll_front": 0.64, "cog": 0.74, "zeta": [0.3, 0.58], "room": 0.11,
+		"mu": 0.96, "peak": 1.04, "loose": 0.95, "steer": 33.0},
+	"sport": {"travel": 0.14, "ride": [1.65, 1.75], "roll": 2.1, "roll_front": 0.58, "cog": 0.46, "zeta": [0.36, 0.7], "room": 0.07,
+		"mu": 1.06, "peak": 0.9, "loose": 0.8, "steer": 33.0},
+	"track": {"travel": 0.09, "ride": [2.4, 2.6], "roll": 1.2, "roll_front": 0.52, "cog": 0.4, "zeta": [0.45, 0.8], "room": 0.04,
+		"mu": 1.3, "peak": 0.8, "loose": 0.55, "steer": 27.0},
+	"prototype": {"travel": 0.07, "ride": [2.9, 3.1], "roll": 0.8, "roll_front": 0.5, "cog": 0.34, "zeta": [0.5, 0.85], "room": 0.03,
+		"mu": 1.4, "peak": 0.75, "loose": 0.45, "steer": 24.0},
 }
 
 
@@ -61,16 +74,19 @@ static func _chassis(c: Resource, kind: String) -> void:
 	var k: Dictionary = CHASSIS.get(kind, {})
 	if k.is_empty():
 		return
-	var f: float = k.freq
-	for sus in [c.front_suspension, c.rear_suspension]:
-		var stop_at: float = sus.bump_stop_start / sus.travel
-		sus.travel = k.travel
-		sus.bump_stop_start = k.travel * stop_at
-		sus.spring_rate = sus.spring_rate * f * f
-		for n in ["bump_damping", "rebound_damping", "high_speed_bump", "high_speed_rebound"]:
-			sus.set(n, float(sus.get(n)) * f * k.damp)
-		sus.anti_roll_rate = sus.anti_roll_rate * k.arb
-		sus.max_force = maxf(sus.max_force, sus.spring_rate * k.travel * 3.0)
+	if k.has("ride"):
+		_road_suspension(c, k)
+	else:
+		var f: float = k.freq
+		for sus in [c.front_suspension, c.rear_suspension]:
+			var stop_at: float = sus.bump_stop_start / sus.travel
+			sus.travel = k.travel
+			sus.bump_stop_start = k.travel * stop_at
+			sus.spring_rate = sus.spring_rate * f * f
+			for n in ["bump_damping", "rebound_damping", "high_speed_bump", "high_speed_rebound"]:
+				sus.set(n, float(sus.get(n)) * f * k.damp)
+			sus.anti_roll_rate = sus.anti_roll_rate * k.arb
+			sus.max_force = maxf(sus.max_force, sus.spring_rate * k.travel * 3.0)
 	for t in [c.front_tire, c.rear_tire]:
 		t.lateral_mu = t.lateral_mu * k.mu
 		t.longitudinal_mu = t.longitudinal_mu * k.mu
@@ -79,7 +95,43 @@ static func _chassis(c: Resource, kind: String) -> void:
 		t.loose_grip = t.loose_grip * k.loose
 	if c.steering:
 		c.steering.max_angle_deg = k.steer
-	c.center_of_mass.y -= float(k.get("com", 0.0))
+	if k.has("cog"):                                  # (its height above the road, the car at rest on its springs)
+		c.center_of_mass.y = float(k.cog) - _ride_height(c)
+	else:
+		c.center_of_mass.y -= float(k.get("com", 0.0))
+
+
+## A road car's springs, dampers and bars from its own weight (a chassis class with "ride"):
+## the springs for the ride frequency on each corner's share of the weight, the dampers a
+## share of critical on them, room to roll and nod before the bump stops, and the bars
+## for the roll gradient: the roll stiffness that leans it "roll" degrees a g with its
+## centre of mass at "cog" (the tyres push at the road), the front taking "roll_front".
+static func _road_suspension(c: Resource, k: Dictionary) -> void:
+	var g := float(ProjectSettings.get_setting("physics/3d/default_gravity", 9.8))
+	var loads: Array = c.static_loads(g)
+	var zeta: Array = k.get("zeta", [0.3, 0.55])
+	var room: float = float(k.get("room", 0.08))
+	var roll_k: float = c.mass * g * float(k.cog) / deg_to_rad(float(k.roll))
+	for i in 2:
+		var sus: Resource = c.front_suspension if i == 0 else c.rear_suspension
+		var corner: float = loads[i] / g
+		var w: float = TAU * float(k.ride[i])
+		var fast_bump: float = sus.high_speed_bump / maxf(sus.bump_damping, 1.0)
+		var fast_rebound: float = sus.high_speed_rebound / maxf(sus.rebound_damping, 1.0)
+		sus.spring_rate = w * w * corner
+		var crit := 2.0 * sqrt(sus.spring_rate * corner)
+		sus.bump_damping = float(zeta[0]) * crit
+		sus.rebound_damping = float(zeta[1]) * crit
+		sus.high_speed_bump = sus.bump_damping * fast_bump
+		sus.high_speed_rebound = sus.rebound_damping * fast_rebound
+		var at_rest: float = loads[i] / sus.spring_rate
+		sus.bump_stop_start = at_rest + room
+		sus.travel = maxf(float(k.travel), sus.bump_stop_start + 0.04)
+		var track: float = c.front_track if i == 0 else c.rear_track
+		var share: float = float(k.roll_front) if i == 0 else 1.0 - float(k.roll_front)
+		sus.anti_roll_rate = maxf(share * roll_k / (track * track) - sus.spring_rate * 0.5, 0.0)
+		sus.max_force = maxf(sus.max_force, sus.spring_rate * sus.travel * 3.0)
+	c.road_suspension = true
 
 
 ## The rally car (the shared body) at a weight of its own (kg; 0: the rally car's

@@ -484,7 +484,7 @@ func _tune(tyre: String, kind: String) -> void:
 	for k in 2:
 		var base: Resource = _base_parts.front if k == 0 else _base_parts.rear
 		var t: Resource = base
-		if kind == "tarmac":
+		if kind == "tarmac" and not config.road_suspension:     # (a road car's own setup is its road setup)
 			t = base.duplicate()
 			t.spring_rate = base.spring_rate * 1.5
 			for f in ["bump_damping", "rebound_damping", "high_speed_bump", "high_speed_rebound"]:

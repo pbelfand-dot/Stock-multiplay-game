@@ -13,6 +13,9 @@ extends Resource
 @export var center_of_mass := Vector3(0.0, -0.05, -0.12)
 ## Moment of inertia about the car's own axes (kg m²): x pitch, y yaw, z roll.
 @export var inertia := Vector3(1850.0, 2050.0, 520.0)
+## A road car's own suspension (CarSpecs: worked out from its weight for a ride frequency and
+## a roll gradient): never stiffened into the rally tarmac setup (RallyCar._tune).
+@export var road_suspension := false
 
 @export_group("Wheels")
 ## Front axle position along the car (car-space z, negative = forward).
