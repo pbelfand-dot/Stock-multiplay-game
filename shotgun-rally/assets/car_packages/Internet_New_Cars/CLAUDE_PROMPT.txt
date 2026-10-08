@@ -1,0 +1,20 @@
+Continue the SHOTGUN RALLY vehicle integration autonomously. I am going to bed, so do not stop to ask me to choose implementation details. Make sensible decisions, work one vehicle at a time, test each one, and continue until all six are either working in the game or have a precise technical blocker documented.
+
+The six new source packages are in `shotgun-rally/assets/car_packages/Internet_New_Cars/`:
+
+1. `volkswagen-id4-2021.zip` — Volkswagen ID.4 2021, original GLB, CC BY 4.0, creator ItsDiyor.
+2. `jeep-grand-cherokee-trackhawk.zip` — Jeep Grand Cherokee Trackhawk, original OBJ package, CC BY 4.0, creator David_Holiday.
+3. `dodge-durango-srt-392.zip` — Dodge Durango SRT 392, original OBJ package nested inside the download zip, CC BY 4.0, creator fvrenbld.
+4. `2016-bmw-x5-m.zip` — BMW X5 M 2016, original FBX package nested inside the download zip, CC BY-NC-SA 4.0, creator Ddiaz Design; private/non-commercial use only.
+5. `bmw-x7-2020.zip` — BMW X7 2020, original GLB, CC BY 4.0, creator ItsDiyor.
+6. `2020-mercedes-benz-g-class-amg-g63.zip` — Mercedes-AMG G63 2020, original GLB, CC BY-NC 4.0, creator Outlaw Games; private/non-commercial use only.
+
+Read `Internet_New_Cars/README.md`, `docs/VEHICLE_PROGRESS.md`, `docs/CREDITS.md`, the vehicle registry, existing conversion scripts, and tests before changing code. Do not delete or flatten cabin geometry. Each vehicle must retain a usable, good-looking interior for first-person driving: seats, dashboard, steering wheel, console, door cards, glass, gauges/screens, and sensible materials. Put the player character in a believable driving pose, align hands to the steering wheel, keep head/limbs out of the roof and doors, and set a good first-person eye position. Preserve separated wheels, brakes, steering wheel, and gear controls wherever the source permits. Avoid making the entire car one rotating wheel mesh.
+
+For every car, independently choose an appropriate fictional in-game name, role, handling class, drivetrain, transmission, sound, LOD strategy, collision, camera, and tuning. The Trackhawk, Durango SRT, X5 M, and G63 should feel like heavy high-performance SUVs. The X7 should be a fast luxury SUV/premium traffic option. The ID.4 should feel like a heavy electric crossover with immediate torque, regenerative-style lift-off behavior if the current physics supports it, and electric motor/inverter sound rather than a combustion sound.
+
+After each car is imported, research trustworthy sources for the exact real vehicle or the closest clearly stated trim and record horsepower/power, torque, curb weight, drivetrain, transmission, wheelbase, dimensions, top speed, and 0–60 mph or 0–100 km/h. If the source model has no exact trim, choose and document one reasonable trim rather than asking me. Use those facts to tune the game while preserving fun and stability. Add source links and required creator attribution to the project documentation and credits.
+
+Run the relevant import validation, automated tests, and a playable smoke test after each vehicle. Check exterior appearance, intact interior, wheel placement/rotation, transparent glass, scale, ground contact, cockpit camera, character fit, steering animation, performance, and loading errors. Fix issues you find. Keep the repository private because some packages are non-commercial and some existing assets have uncertain provenance. Do not publish raw assets or change repository visibility.
+
+There is no 30 MB project limit. GitHub's 100 MB single-file limit still applies; split only files that exceed that hard limit, and prefer normal direct files otherwise. Do not remove working existing cars. Commit and push the completed integration and documentation when all checks pass.
