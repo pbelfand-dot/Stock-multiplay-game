@@ -53,6 +53,10 @@ var lamp_heads: Array = []           # the lamp posts' heads: [{s, head, ground}
 var tree_count := 0
 var building_count := 0
 var real_building_count := 0         # of them the library's (EnvAssets "building"), the rest drawn boxes
+var _rib_y := [[], []]               # the land ribbons' rows as drawn (right, left), every 2nd sample: a height at each RIBBON distance
+var _rib_d0 := [[], []]              # ... each row's first point's d
+var _far := {}                       # the far land's grid as drawn {lo, cell, w, nx, nz, hs}
+var _ramp_grid := {}                 # 50 m cells -> the ramps' road points there (nothing's built on them)
 
 
 func build(stage) -> void:
@@ -101,14 +105,21 @@ func _prepare(stage) -> void:
 		if not _road_grid.has(key):
 			_road_grid[key] = []
 		_road_grid[key].append(i)
-	# ground-ness, eased over ~60 m so the land doesn't step where the support changes
+	# ground-ness, eased over ~60 m so the land doesn't step where the support changes (a tunnel
+	# counts: the cut up to its portal is the land's, not eased off into the air before it)
 	var raw := PackedFloat32Array()
 	raw.resize(n)
 	for i in n:
-		raw[i] = 1.0 if st.support_at(i * st.STEP) == "ground" else 0.0
+		raw[i] = 1.0 if st.support_at(i * st.STEP) in ["ground", "tunnel"] else 0.0
 	_ground_f = _ease(raw, 30)
 	_extra_r = st.extra_r
 	_extra_l = st.extra_l
+	for r in st.ramps:
+		for p in st.ramp_path(r).pts:
+			var key := Vector2i(floori(p.x / 50.0), floori(p.z / 50.0))
+			if not _ramp_grid.has(key):
+				_ramp_grid[key] = []
+			_ramp_grid[key].append(p)
 
 
 ## s - s0 round the loop, the nearest way (-L/2 .. L/2).
@@ -464,48 +475,75 @@ func _edges(i: int) -> Vector2:
 	return Vector2(st.ONCOMING_D - st.EDGE - st.SHOULDER_R - _extra_l[j], st.EDGE + st.SHOULDER_R + _extra_r[j])
 
 
+## The asphalt's edges at the ends of the stretch from sample i to i+1: as _edges, but at a
+## ramp's nose (where the widened edge it curves off on ends at once) both ends take the
+## narrower, so the widened asphalt ends square across the road where the ramp's own starts.
+func _seg_edges(i: int) -> Array:
+	var a := _edges(i)
+	var b := _edges(i + 1)
+	if absf(a.x - b.x) > 1.0:
+		a.x = maxf(a.x, b.x)
+		b.x = a.x
+	if absf(a.y - b.y) > 1.0:
+		a.y = minf(a.y, b.y)
+		b.y = a.y
+	return [a, b]
+
+
 func _road() -> void:
 	var n: int = st._n
 	var step: float = st.STEP
-	var prev := PackedVector3Array()
-	var prev_v := PackedFloat32Array()
-	for i in n + 1:
+	for i in n:
 		var s := i * step
-		var e := _edges(i)
-		var ds := PackedFloat32Array([e.x, st.ONCOMING_D - st.EDGE, st.MEDIAN_D - st.MEDIAN * 0.5, st.MEDIAN_D + st.MEDIAN * 0.5, st.EDGE, e.y])
-		var row := PackedVector3Array()
-		for d in ds:
-			row.append(st.world_at(s, d))
-		if i > 0:
-			var cols := PackedColorArray()
-			for k in ds.size():
-				# the shoulders a touch lighter than the lanes (less traffic polish)
-				var shoulder: bool = k == 0 or k == ds.size() - 1 or k == 2 or k == 3
-				cols.append(Color(1.08, 1.08, 1.06) if shoulder else Color(1, 1, 1))
-			_buf(i - 1, "asphalt").ribbon(prev, row, s - step, s, ds, Color.WHITE, false, cols, cols)
-			_body(i - 1, "asphalt").ribbon(prev, row, s - step, s, ds, Color.WHITE, true)
-			_markings(i - 1)
-		prev = row
-		prev_v = ds
+		var se := _seg_edges(i)
+		var rows := []
+		var ds := PackedFloat32Array()
+		for k in 2:
+			var e: Vector2 = se[k]
+			ds = PackedFloat32Array([e.x, st.ONCOMING_D - st.EDGE, st.MEDIAN_D - st.MEDIAN * 0.5, st.MEDIAN_D + st.MEDIAN * 0.5, st.EDGE, e.y])
+			var row := PackedVector3Array()
+			for d in ds:
+				row.append(st.world_at(s + k * step, d))
+			rows.append(row)
+		var cols := PackedColorArray()
+		for k in ds.size():
+			# the shoulders a touch lighter than the lanes (less traffic polish)
+			var shoulder: bool = k == 0 or k == ds.size() - 1 or k == 2 or k == 3
+			cols.append(Color(1.08, 1.08, 1.06) if shoulder else Color(1, 1, 1))
+		_buf(i, "asphalt").ribbon(rows[0], rows[1], s, s + step, ds, Color.WHITE, false, cols, cols)
+		_body(i, "asphalt").ribbon(rows[0], rows[1], s, s + step, ds, Color.WHITE, true)
+		_markings(i)
 
+
+const RAMP_LINE := 1.85              # m: a ramp's edge lines either side of its middle (its lane between)
 
 ## The lines painted between samples i and i+1: solid edge lines, dashed lane lines
 ## (8 m of paint, 12 m gap, as on a Japanese expressway), both carriageways; where a
-## ramp's extra lane runs alongside, the edge line is a short, thick dashed one.
+## ramp's extra lane runs alongside, the edge line is a short, thick dashed one; where the
+## ramp's lane curves off the widened edge (from its gore to its nose) the edge line is solid
+## and the ramp's lane has its own two (the gore opening between).
 func _markings(i: int) -> void:
 	var s0: float = i * st.STEP
 	var s1: float = s0 + st.STEP
 	var j := posmod(i, st._n)
-	var lines := []   # [d, width, dashed]
+	var lines := []   # [d, width, dashed (, d at s1)]
 	for side in [0.0, st.ONCOMING_D]:
 		var mirror: float = 1.0 if side == 0.0 else -1.0
 		var extra: float = _extra_r[j] if side == 0.0 else _extra_l[j]
-		lines.append([side + mirror * st.EDGE, 0.2 if extra <= 0.0 else 0.45, 0.0 if extra <= 0.0 else 2.0])
+		var rm: PackedFloat32Array = st.ramp_r if side == 0.0 else st.ramp_l
+		var ra: float = rm[j]
+		var rb: float = rm[posmod(j + 1, st._n)]
+		if ra != 0.0 and rb != 0.0:
+			lines.append([side + mirror * st.EDGE, 0.2, 0.0])
+			for e in [-1.0, 1.0]:
+				lines.append([ra + e * RAMP_LINE, 0.15, 0.0, rb + e * RAMP_LINE])
+		else:
+			lines.append([side + mirror * st.EDGE, 0.2 if extra <= 0.0 else 0.45, 0.0 if extra <= 0.0 else 2.0])
+			if extra > 0.5:
+				lines.append([side + mirror * (st.EDGE + extra + 0.1), 0.2, 0.0])
 		lines.append([side - mirror * st.EDGE, 0.15, 0.0])
 		for k in [-1.0, 0.0, 1.0]:
 			lines.append([side + k * st.LANE_W, 0.15, 1.0])
-		if extra > 0.5:
-			lines.append([side + mirror * (st.EDGE + extra + 0.1), 0.2, 0.0])
 	var gb := _buf(i, "paint")
 	# the toll plaza: the lines fan out with the lanes (st.toll_d), solid from 80 m before the
 	# booths (no changing lanes there), none under the islands
@@ -529,7 +567,7 @@ func _markings(i: int) -> void:
 				continue
 		var lift := Vector3.UP * 0.015
 		var d0 := d
-		var d1 := d
+		var d1: float = l[3] if l.size() > 3 else d
 		if spread:
 			d0 = _toll_line_d(d, a0)
 			d1 = _toll_line_d(d, a1)
@@ -562,13 +600,17 @@ func _barriers() -> void:
 		# at the toll plaza the booths' middle island takes its place)
 		if sup != "tunnel" and not _toll_island_at(s):
 			_concrete_profile(i, st.MEDIAN_D, [[-0.3, 0.0], [-0.1, st.BARRIER_H], [0.1, st.BARRIER_H], [0.3, 0.0]], "concrete")
+		var se := _seg_edges(i)
+		var e: Vector2 = se[0]
+		var e2: Vector2 = se[1]
 		if sup == "tunnel":
+			# (the floor paved out to the tubes' walls: it stopped 0.6 m short, a slot down to the land)
+			_ledge(i, e, e2, e.y + 0.55, e2.y + 0.55, 1.0)
+			_ledge(i, e, e2, e.x - 0.55, e2.x - 0.55, -1.0)
 			continue
-		var e := _edges(i)
-		var e2 := _edges(i + 1)
+		# (where a ramp curves off the widened edge the barrier goes out along the ramp's outside,
+		# to its nose, where the ramp's own barriers take over and ours comes back to the road's edge)
 		for side in [1.0, -1.0]:
-			if _ramp_gap(s, side):
-				continue
 			var d0: float = (e.y + 0.4) if side > 0.0 else (e.x - 0.4)
 			var d1: float = (e2.y + 0.4) if side > 0.0 else (e2.x - 0.4)
 			if sup == "viaduct" or sup == "bridge":
@@ -593,17 +635,11 @@ func _ledge(i: int, e: Vector2, e2: Vector2, d0: float, d1: float, side: float) 
 	_body(i, "asphalt").ribbon(ra, rb, s0, s1, a, Color.WHITE, true)
 
 
-## Is the outer barrier open here (a ramp leaving or joining between its gore and its end)?
-func _ramp_gap(s: float, side: float) -> bool:
-	for r in st.ramps:
-		if (r.side == "right") != (side > 0.0):
-			continue
-		var ds := _ds(s, r.s) * (1.0 if r.side == "right" else -1.0)
-		if r.kind == "off" and ds > -4.0 and ds < 60.0:
-			return true
-		if r.kind == "on" and ds > -60.0 and ds < 4.0:
-			return true
-	return false
+## Is a ramp leaving or joining here, its lane on the widened edge (between its gore and its
+## nose: the outer barrier's out along the ramp's outside)?
+func _ramp_at(s: float, side: float) -> bool:
+	var j := int(st.wrap_s(s) / st.STEP)
+	return (st.ramp_r[j] if side > 0.0 else st.ramp_l[j]) != 0.0
 
 
 ## A concrete profile along the road between samples i and i+1: [[d offset, height]]
@@ -621,8 +657,16 @@ func _concrete_profile(i: int, d: float, prof: Array, key: String) -> void:
 		if k > 0:
 			v += Vector2(prof[k][0] - prof[k - 1][0], prof[k][1] - prof[k - 1][1]).length()
 		vs.append(v)
-	_buf(i, key).ribbon(ra, rb, s0, s1, vs)
+	_faces(_buf(i, key), ra, rb, s0, s1, vs)
 	_body(i, "concrete").ribbon(ra, rb, s0, s1, vs, Color.WHITE, true)
+
+
+## A ribbon drawn a face at a time: hard edges at the profile's corners (one ribbon averages
+## the normals round them, and the concrete, textured by its normal, came out streaked like
+## dry grass down the walls' faces).
+func _faces(gb: GeoBuf, ra: PackedVector3Array, rb: PackedVector3Array, s0: float, s1: float, vs: PackedFloat32Array) -> void:
+	for f in ra.size() - 1:
+		gb.ribbon(ra.slice(f, f + 2), rb.slice(f, f + 2), s0, s1, vs.slice(f, f + 2))
 
 
 ## A viaduct's or bridge's parapet: a concrete wall 1.1 m over the road on the
@@ -643,7 +687,7 @@ func _parapet(i: int, d0: float, d1: float, side: float, sound: bool) -> void:
 		rb.append(st.world_at(s1, d1 + p.x) + Vector3.UP * p.y)
 		vs.append(v)
 		v += 1.0
-	_buf(i, "concrete").ribbon(ra, rb, s0, s1, vs)
+	_faces(_buf(i, "concrete"), ra, rb, s0, s1, vs)
 	_body(i, "concrete").ribbon(ra, rb, s0, s1, vs, Color.WHITE, true)
 	if sound:
 		# ribbed panels 3 m tall on posts, set on the parapet
@@ -701,8 +745,9 @@ func _viaducts() -> void:
 		var sup: String = st.support_at(s)
 		if sup != "viaduct" and sup != "bridge":
 			continue
-		var e := _edges(i)
-		var e2 := _edges(i + 1)
+		var se := _seg_edges(i)
+		var e: Vector2 = se[0]
+		var e2: Vector2 = se[1]
 		var down := Vector3.UP * -DECK_DEPTH
 		var a0 := st.world_at(s, e.x - 0.05) + down
 		var a1 := st.world_at(s, e.y + 0.05) + down
@@ -737,57 +782,160 @@ func _land_col(p: Vector3, slope: float) -> Color:
 	return c
 
 
-## The land along the road, each side out to 300 m: flush with the shoulder, then
-## an embankment or a cut into the land (1 in 2) where the road's on the ground;
-## the land as it is under viaducts and bridges and over the tunnels.
+## The land along the road, each side out to 300 m: flush with the road's paved edge, then
+## an embankment or a cut into the land (1 in 2) where the road's on the ground (up to a
+## tunnel's portal; over the tubes the cut's floor is the hill's own edge, 10.5 m up); the
+## land as it is under viaducts and bridges. Its outer edge has a 4 m skirt down into the far
+## land (no crack between them where they don't quite meet). The rows as drawn are kept
+## (_rib_y, _rib_d0: _drawn_y), and the land under the viaducts' decks drawn (_under_deck).
 func _ribbon() -> void:
 	var n: int = st._n
 	var step: float = st.STEP * 2.0
 	for side in [1.0, -1.0]:
 		var prev := PackedVector3Array()
 		var prev_c := PackedColorArray()
+		var prev_s := 0.0
 		var vs := PackedFloat32Array()
 		for d in RIBBON:
 			vs.append(d)
+		vs.append(RIBBON[RIBBON.size() - 1] + 4.0)   # (the skirt)
 		var i := 0
 		while i <= n:
 			var s := i * st.STEP
-			var e := _edges(i)
-			var d0: float = (e.y + 0.6) if side > 0.0 else (e.x - 0.6)
-			var edge := st.world_at(s, d0)
-			var road_y := edge.y - 0.25
-			var g: float = _ground_f[posmod(i, n)]
-			var right: Vector3 = st.right_at(s) * side
-			var row := PackedVector3Array()
-			var cols := PackedColorArray()
-			for k in RIBBON.size():
-				var dist: float = RIBBON[k]
-				var p := edge + right * dist
-				var land := st.land_at(p.x, p.z)
-				var y := land
-				if g > 0.0:
-					var slope_len := maxf(10.0, absf(land - road_y) * 2.0)
-					var t := smoothstep(2.0, 2.0 + slope_len, dist)
-					y = lerpf(land, lerpf(road_y, land, t), g)
+			# a tunnel's portal since the last row: the land steps up there to the hill over the
+			# tubes (or down off it), at once, behind the portal's wing walls (_portal): a row
+			# each side of the step, at the portal
+			if not prev.is_empty():
+				for t in st.tunnels:
+					for e in [[float(t.s0), false], [float(t.s1), true]]:
+						var ps: float = e[0]
+						if ps > prev_s and ps <= s:
+							var ip := int(ps / st.STEP)
+							for hill in [e[1], not e[1]]:
+								var pr: Array = _rib_row(ps, _edges(ip), _ground_f[posmod(ip, n)], side, hill)
+								_rib_strip(prev, prev_c, pr[0], pr[1], prev_s, ps, vs, side, ip)
+								prev = pr[0]
+								prev_c = pr[1]
+								prev_s = ps
+			var rr: Array = _rib_row(s, _land_edges(i), _ground_f[posmod(i, n)], side, _in_tube(s))
+			var row: PackedVector3Array = rr[0]
+			var ys := PackedFloat32Array()
+			for q in RIBBON.size():
+				ys.append(row[q].y)
+			_rib_y[0 if side > 0.0 else 1].append(ys)
+			_rib_d0[0 if side > 0.0 else 1].append(rr[2])
+			if not prev.is_empty():
+				_rib_strip(prev, prev_c, row, rr[1], prev_s, s, vs, side, i - 2)
+			prev = row
+			prev_c = rr[1]
+			prev_s = s
+			i += 2
+	_under_deck()
+
+
+## Is s between a tunnel's portals (its first, not its last: st.tunnels', where the portals
+## stand; its support starts and ends a metre or so off them)?
+func _in_tube(s: float) -> bool:
+	var w := st.wrap_s(s)
+	for t in st.tunnels:
+		if w >= float(t.s0) and w < float(t.s1):
+			return true
+	return false
+
+
+## The asphalt's edges for the land ribbon's row at sample i: the narrowest from i-1 to i+1
+## (a row stands for 4 m of road: where the road narrows at once, at a ramp's nose, the land
+## starts at the narrow edge, tucked under the wide end, not short of the narrow one).
+func _land_edges(i: int) -> Vector2:
+	var e := _edges(i)
+	for k in [i - 1, i + 1]:
+		var o := _edges(k)
+		e = Vector2(maxf(e.x, o.x), minf(e.y, o.y))
+	return e
+
+
+## A row of the land ribbon across the road at s, one side: [points out to 300 m and the skirt,
+## their colours, the first point's d]. e: the asphalt's edges there; g: how much the road's on
+## the ground (its cut or embankment); hill: over a tunnel's tubes.
+func _rib_row(s: float, e: Vector2, g: float, side: float, hill: bool) -> Array:
+	var d0: float = (e.y + 0.45) if side > 0.0 else (e.x - 0.45)   # (where the paved ledge ends)
+	var edge := st.world_at(s, d0)
+	var road_y := edge.y - 0.02
+	if hill:
+		road_y = _hill_y(s, d0)
+		g = 1.0
+	var right: Vector3 = st.right_at(s) * side
+	var row := PackedVector3Array()
+	var cols := PackedColorArray()
+	for k in RIBBON.size():
+		var dist: float = RIBBON[k]
+		var p := edge + right * dist
+		var land := st.land_at(p.x, p.z)
+		var y := land
+		if g > 0.0:
+			var slope_len := maxf(10.0, absf(land - road_y) * 2.0)
+			var t := smoothstep(2.0, 2.0 + slope_len, dist)
+			y = lerpf(land, lerpf(road_y, land, t), g)
+		p.y = y
+		row.append(p)
+		var sl := 0.0
+		if k > 0:
+			sl = absf(y - row[k - 1].y) / maxf(RIBBON[k] - RIBBON[k - 1], 0.1)
+		cols.append(_land_col(p, sl))
+	row.append(row[row.size() - 1] + Vector3.DOWN * 4.0)      # (the skirt)
+	cols.append(cols[cols.size() - 1])
+	return [row, cols, d0]
+
+
+## The land ribbon between two rows (at sa, sb) one side, into chunk i's buffers.
+func _rib_strip(prev: PackedVector3Array, prev_c: PackedColorArray, row: PackedVector3Array, cols: PackedColorArray,
+		sa: float, sb: float, vs: PackedFloat32Array, side: float, i: int) -> void:
+	var ra := prev if side > 0.0 else _rev(prev)
+	var rb := row if side > 0.0 else _rev(row)
+	var ca := prev_c if side > 0.0 else _revc(prev_c)
+	var cb := cols if side > 0.0 else _revc(cols)
+	var v2 := vs if side > 0.0 else _revf(vs)
+	_buf(i, "terrain").ribbon(ra, rb, sa, sb, v2, Color.WHITE, false, ca, cb)
+	# the near part can be driven on (off the road over a guardrail's end): collision out to 30 m
+	var near := 6
+	_body(i, "grass").ribbon(_slice(ra, side, near), _slice(rb, side, near), sa, sb, _slicef(v2, side, near), Color.WHITE, true)
+
+
+## The land under a viaduct's or a bridge's deck, between the two land ribbons' first points
+## (there was none: a strip of the water's plane showed under every viaduct, its piers standing
+## in it), under the deck by 0.3 m at least.
+func _under_deck() -> void:
+	var n: int = st._n
+	var R: Array = _rib_y[0]
+	var L: Array = _rib_y[1]
+	var prev := PackedVector3Array()
+	for r in R.size():
+		var i := r * 2
+		var s := i * st.STEP
+		var sup: String = st.support_at(s)
+		var row := PackedVector3Array()
+		if sup == "viaduct" or sup == "bridge" or (_ground_f[posmod(i, n)] < 0.999 and sup != "tunnel"):
+			var dl: float = _rib_d0[1][r]
+			var dr: float = _rib_d0[0][r]
+			var deck := st.world_at(s, 0.0).y - DECK_DEPTH - 0.3
+			for k in 9:
+				var d := lerpf(dl, dr, k / 8.0)
+				var p := st.world_at(s, d)
+				var y := minf(st.land_at(p.x, p.z), deck)
+				if k == 0:
+					y = L[r][0]
+				elif k == 8:
+					y = R[r][0]
 				p.y = y
 				row.append(p)
-				var sl := 0.0
-				if k > 0:
-					sl = absf(y - row[k - 1].y) / maxf(RIBBON[k] - RIBBON[k - 1], 0.1)
-				cols.append(_land_col(p, sl))
-			if not prev.is_empty():
-				var ra := prev if side > 0.0 else _rev(prev)
-				var rb := row if side > 0.0 else _rev(row)
-				var ca := prev_c if side > 0.0 else _revc(prev_c)
-				var cb := cols if side > 0.0 else _revc(cols)
-				var v2 := vs if side > 0.0 else _revf(vs)
-				_buf(i - 2, "terrain").ribbon(ra, rb, s - step, s, v2, Color.WHITE, false, ca, cb)
-				# the near part can be driven on (off the road over a guardrail's end): collision out to 30 m
-				var near := 6
-				_body(i - 2, "grass").ribbon(_slice(ra, side, near), _slice(rb, side, near), s - step, s, _slicef(v2, side, near), Color.WHITE, true)
-			prev = row
-			prev_c = cols
-			i += 2
+		if not prev.is_empty() and not row.is_empty():
+			var vs := PackedFloat32Array()
+			var cols := PackedColorArray()
+			for k in 9:
+				vs.append(k * 5.0)
+				cols.append(_land_col(row[k], 0.1))
+			_buf(i - 2, "terrain").ribbon(prev, row, s - 2.0 * st.STEP, s, vs, Color.WHITE, false, cols, cols)
+		prev = row
 
 
 func _rev(a: PackedVector3Array) -> PackedVector3Array:
@@ -819,7 +967,10 @@ func _slicef(a: PackedFloat32Array, side: float, k: int) -> PackedFloat32Array:
 
 
 ## The land beyond the ribbons, out to the horizon: a grid (40 m) over the map and
-## 3 km round it, in 1 km tiles; near the road it's kept under the ribbons.
+## 3 km round it, in 1 km tiles; near the road it's kept under the ribbons: 8 m under the
+## road (and the land) within 170 m of it, easing up to 1.5 m under the land by 270 m and to
+## the land by 340 m (past the ribbons' outer edge, ~300 m out, their skirt down into it: it
+## was 8 m under out to 300 m, a crevasse along the ribbons' edge wherever it showed).
 func _far_land() -> void:
 	var lo := Vector2(INF, INF)
 	var hi := Vector2(-INF, -INF)
@@ -861,11 +1012,13 @@ func _far_land() -> void:
 			var z := lo.y + zi * cell
 			var h := st.land_at(x, z)
 			var dr: float = dist[k]
-			if dr < 300.0:
-				h = minf(h, minf(near_y[k], h) - 8.0)
+			if dr < 270.0:
+				var full := minf(h, minf(near_y[k], h) - 8.0)
+				h = full if dr < 170.0 else lerpf(full, h - 1.5, (dr - 170.0) / 100.0)
 			elif dr < 340.0:
-				h -= 8.0 * (340.0 - dr) / 40.0
+				h -= 1.5 * (340.0 - dr) / 70.0
 			hs[k] = h
+	_far = {"lo": lo, "cell": cell, "w": w, "nx": nx, "nz": nz, "hs": hs}
 	var mat := _mat("terrain")
 	for tz in range(0, nz, tile):
 		for tx in range(0, nx, tile):
@@ -887,6 +1040,65 @@ func _far_land() -> void:
 			add_child(mi)
 
 
+## The hill over a tunnel's tubes at (s, d) (as _tunnels draws it, and the land ribbons meet
+## it): from the portals' tops (10.5 m over the road) rising to the hill's own height 60 m in.
+func _hill_y(s: float, d: float) -> float:
+	var t := st.tunnel_at(s)
+	var p := st.world_at(s, d)
+	if t.is_empty():
+		return p.y + 10.5
+	var fa := clampf(minf(s - float(t.s0), float(t.s1) - s) / 60.0, 0.0, 1.0)
+	return lerpf(p.y + 10.5, maxf(st.land_at(p.x, p.z), p.y + 10.5), fa)
+
+
+## The far land's height at (x, z) as drawn (its 40 m grid, its triangles).
+func _far_y(x: float, z: float) -> float:
+	if _far.is_empty():
+		return st.land_at(x, z)
+	var fx: float = (x - _far.lo.x) / _far.cell
+	var fz: float = (z - _far.lo.y) / _far.cell
+	var xi := clampi(int(floor(fx)), 0, int(_far.nx) - 1)
+	var zi := clampi(int(floor(fz)), 0, int(_far.nz) - 1)
+	var u := clampf(fx - xi, 0.0, 1.0)
+	var v := clampf(fz - zi, 0.0, 1.0)
+	var w: int = _far.w
+	var hs: PackedFloat32Array = _far.hs
+	var h00 := hs[zi * w + xi]
+	var h10 := hs[zi * w + xi + 1]
+	var h01 := hs[(zi + 1) * w + xi]
+	var h11 := hs[(zi + 1) * w + xi + 1]
+	if u <= v:
+		return h00 + u * (h11 - h01) + v * (h01 - h00)
+	return h00 + u * (h10 - h00) + v * (h11 - h10)
+
+
+## The ground as drawn at road coordinates (s, d) off the road: the land ribbon there (its
+## rows as drawn, _rib_y), or the far land (whichever is on top). What's stood on the land
+## stands on this: the land the ribbons are shaped from (st.land_at) isn't what's drawn by
+## the road (its cuts and embankments, the far land kept under the ribbons, the triangles).
+func _drawn_y(s: float, d: float) -> float:
+	var p := st.world_at(s, d)
+	var far := _far_y(p.x, p.z)
+	var side := 0 if d > 0.0 else 1
+	var rows: Array = _rib_y[side]
+	if rows.size() < 2:
+		return far
+	var fi := st.wrap_s(s) / (2.0 * st.STEP)
+	var r0 := mini(int(floor(fi)), rows.size() - 2)
+	var t := clampf(fi - r0, 0.0, 1.0)
+	var d0: float = _rib_d0[side][r0]
+	var dist := (d - d0) * (1.0 if side == 0 else -1.0)
+	if dist < 0.0 or dist > RIBBON[RIBBON.size() - 1]:
+		return far
+	var k := 0
+	while k < RIBBON.size() - 2 and RIBBON[k + 1] < dist:
+		k += 1
+	var u: float = (dist - RIBBON[k]) / (RIBBON[k + 1] - RIBBON[k])
+	var a: PackedFloat32Array = rows[r0]
+	var b: PackedFloat32Array = rows[r0 + 1]
+	return maxf(lerpf(lerpf(a[k], a[k + 1], u), lerpf(b[k], b[k + 1], u), t), far)
+
+
 ## How far (flat) (x, z) is from the road's centreline (up to ~400 m; INF further).
 func _road_dist(x: float, z: float) -> float:
 	var key := Vector2i(floori(x / 100.0), floori(z / 100.0))
@@ -895,6 +1107,25 @@ func _road_dist(x: float, z: float) -> float:
 		for dz in range(-4, 5):
 			for i in _road_grid.get(key + Vector2i(dx, dz), []):
 				var p: Vector3 = st.pts[i]
+				best = minf(best, Vector2(p.x - x, p.z - z).length())
+	return best
+
+
+## Is s within m of a tunnel's portal?
+func _near_portal(s: float, m: float) -> bool:
+	for t in st.tunnels:
+		if absf(_ds(s, float(t.s0))) < m or absf(_ds(s, float(t.s1))) < m:
+			return true
+	return false
+
+
+## How far (flat) (x, z) is from the nearest ramp's road (its middle; up to ~100 m, INF further).
+func _ramp_dist(x: float, z: float) -> float:
+	var key := Vector2i(floori(x / 50.0), floori(z / 50.0))
+	var best := INF
+	for dx in range(-2, 3):
+		for dz in range(-2, 3):
+			for p in _ramp_grid.get(key + Vector2i(dx, dz), []):
 				best = minf(best, Vector2(p.x - x, p.z - z).length())
 	return best
 
@@ -1039,13 +1270,16 @@ func _suspension_bridge(b: Dictionary) -> void:
 			if top.y - foot.y > 1.5 and absf(s - t0) > 4.0 and absf(s - t1) > 4.0:
 				_buf(int(s / st.STEP), "cable").box((top + foot) * 0.5, Vector3(0.14, top.y - foot.y, 0.14))
 			s += 15.0
-		# the anchorages: concrete blocks the cables run into
+		# the anchorages: concrete blocks the cables run into, beside the deck (their inner face
+		# just clear of the parapet: centred on the cable they stood on the outer lanes), solid
 		for e in [[s0, anch0], [s1, anch1]]:
-			var p: Vector3 = e[1]
+			var p: Vector3 = e[1] + st.right_at(float(e[0])) * (7.3 if d > 0.0 else -7.3)
 			var ground := maxf(st.land_at(p.x, p.z), -3.0)
 			var h: float = p.y + 4.0 - ground
-			_buf(int(float(e[0]) / st.STEP), "concrete").box(Vector3(p.x, ground + h * 0.5, p.z), Vector3(16.0, h, 22.0),
-				Basis(Vector3.UP, -st.heading_at(float(e[0]))))
+			var ai := int(float(e[0]) / st.STEP)
+			var ab := Basis(Vector3.UP, -st.heading_at(float(e[0])))
+			_buf(ai, "concrete").box(Vector3(p.x, ground + h * 0.5, p.z), Vector3(16.0, h, 22.0), ab)
+			_body(ai, "concrete").box(Vector3(p.x, ground + h * 0.5, p.z), Vector3(16.0, h, 22.0), ab, Color.WHITE, true)
 	# the deck's fairing: a streamlined box under the road, its sides sloping in
 	var i0 := int(s0 / st.STEP)
 	var i1 := int(s1 / st.STEP)
@@ -1139,42 +1373,138 @@ func _tunnels() -> void:
 					var l1 := st.world_at(sb, dl + w * f) + Vector3.UP * (5.0 + 2.6 * sin(PI * f) - 0.25)
 					var side := st.right_at(sa) * 0.25
 					_buf(i, "lamp").quad(l0 - side, l1 - side, l1 + side, l0 + side, Vector2(sa, 0), Vector2(sb, 0), Vector2(sb, 1), Vector2(sa, 1))
-			# the wall between the tubes
+			# the wall between the tubes (5 cm behind their walls: it was flush with them, flickering)
 			var m0 := st.world_at(sa, st.MEDIAN_D)
 			var m1 := st.world_at(sb, st.MEDIAN_D)
-			_buf(i, "concrete").box((m0 + m1) * 0.5 + Vector3.UP * 3.8, Vector3(0.6, 7.6, st.STEP + 0.02), Basis(Vector3.UP, -st.heading_at(sa)))
-			# the hill over the tubes (the land ribbons start at the road's edges)
+			_buf(i, "concrete").box((m0 + m1) * 0.5 + Vector3.UP * 3.8, Vector3(0.5, 7.6, st.STEP + 0.02), Basis(Vector3.UP, -st.heading_at(sa)))
+			# the hill over the tubes, out to where the land ribbons start (the same points, the
+			# same heights: _hill_y; it fell short of them, gaps of 4-11 m over the tubes' ends)
 			var ra2 := PackedVector3Array()
 			var rb2 := PackedVector3Array()
 			var vs2 := PackedFloat32Array()
 			var cols := PackedColorArray()
-			# (from the portals' tops at the ends, rising to the hill's own height 60 m in)
-			var fa := clampf(minf(sa - s0, s1 - sa) / 60.0, 0.0, 1.0)
-			var fb := clampf(minf(sb - s0, s1 - sb) / 60.0, 0.0, 1.0)
-			for d in [wall_l - 1.0, (wall_l + wall_r) * 0.5, wall_r + 1.0]:
+			var ea := _edges(i)
+			for d in [ea.x - 0.45, (wall_l + wall_r) * 0.5, ea.y + 0.45]:
 				var pa := st.world_at(sa, d)
 				var pb := st.world_at(sb, d)
-				pa.y = lerpf(pa.y + 10.5, maxf(st.land_at(pa.x, pa.z), pa.y + 10.5), fa)
-				pb.y = lerpf(pb.y + 10.5, maxf(st.land_at(pb.x, pb.z), pb.y + 10.5), fb)
+				pa.y = _hill_y(sa, d)
+				pb.y = _hill_y(sb, d)
 				ra2.append(pa)
 				rb2.append(pb)
 				vs2.append(d)
 				cols.append(_land_col(pa, 0.2))
 			_buf(i, "terrain").ribbon(ra2, rb2, sa, sb, vs2, Color.WHITE, false, cols, cols)
-		# the portals: a concrete face round both tubes' mouths, at each end
 		for e in [[s0, 1.0], [s1, -1.0]]:
-			var ps: float = e[0]
-			var i := int(ps / st.STEP)
-			var bas := Basis(Vector3.UP, -st.heading_at(ps))
-			var c := st.world_at(ps, (wall_l + wall_r) * 0.5)
-			var wide := wall_r - wall_l + 16.0
-			var top_y := c.y + 10.5
-			# above the mouths
-			_buf(i, "concrete").box(Vector3(c.x, (c.y + 7.8 + top_y) * 0.5, c.z), Vector3(wide, top_y - c.y - 7.8, 1.2), bas)
-			# each side of the mouths
-			for d in [wall_r + 4.0, wall_l - 4.0]:
-				var p := st.world_at(ps, d)
-				_buf(i, "concrete").box(Vector3(p.x, (p.y + top_y) * 0.5, p.z), Vector3(8.0, top_y - p.y, 1.2), bas)
+			_portal(float(e[0]), float(e[1]), wall_l, wall_r)
+
+
+const PORTAL_T := 1.2                # m: a portal's (and its wing walls') thickness
+
+## A tunnel's portal at ps (into: which way along the road the tubes go in from it): a
+## concrete face 1.2 m thick round both tubes' arched mouths, up to the hill over them (and a
+## coping 0.4 m over it), and its wing walls out each side across the cut, holding the hill
+## back: the land steps up 10.5 m at the portal (the cut's floor at the road, the hill's over
+## the tubes, _ribbon), and a wall stands in front of the step wherever there is one, its top
+## along the hill's side of it, sinking into the cut's slope where the step runs out.
+func _portal(ps: float, into: float, wall_l: float, wall_r: float) -> void:
+	var i := int(ps / st.STEP)
+	var fwd := st.forward_at(ps)
+	var front := fwd * (-into * PORTAL_T * 0.5)          # (the face toward the open cut)
+	var facing := fwd * -into
+	var gb := _buf(i, "concrete")
+	# over the mouths: from the arches' crowns (7.6 m) up to the coping
+	var over: Array = []
+	for d in [wall_l, st.MEDIAN_D, wall_r]:
+		over.append([d, st.world_at(ps, d).y + 7.6, _hill_y(ps, d) + 0.4])
+	_wall_slab(gb, null, ps, front, facing, over, true)
+	# round each tube's arch, up to 7.6 m; the pier between the tubes
+	for tube in [[st.MEDIAN_D + 0.3, wall_r], [wall_l, st.MEDIAN_D - 0.3]]:
+		var dl: float = tube[0]
+		var w: float = tube[1] - dl
+		var arch: Array = []
+		for k in 9:
+			var a := PI * k / 8.0
+			var d := dl + w * 0.5 - cos(a) * w * 0.5
+			var y0 := st.world_at(ps, d).y
+			arch.append([d, y0 + 5.0 + sin(a) * 2.6, y0 + 7.6])
+		_wall_slab(gb, null, ps, front, facing, arch, false)
+	_wall_slab(gb, null, ps, front, facing, [[st.MEDIAN_D - 0.3, st.world_at(ps, st.MEDIAN_D - 0.3).y, st.world_at(ps, st.MEDIAN_D - 0.3).y + 7.6],
+		[st.MEDIAN_D + 0.3, st.world_at(ps, st.MEDIAN_D + 0.3).y, st.world_at(ps, st.MEDIAN_D + 0.3).y + 7.6]], false)
+	# the wing walls: the land's rows each side of the step (the cut's, the hill's), as _ribbon
+	# draws them at the portal; the wall from the tube's outer wall out along them
+	var e := _edges(i)
+	for side in [1.0, -1.0]:
+		var cut: Array = _rib_row(ps, e, _ground_f[posmod(i, st._n)], side, false)
+		var hill: Array = _rib_row(ps, e, 1.0, side, true)
+		var d0: float = cut[2]
+		var start: float = absf((wall_r if side > 0.0 else wall_l) - d0)
+		var pts: Array = []
+		for k in range(1, RIBBON.size()):
+			if RIBBON[k] <= start and k < RIBBON.size() - 1:
+				continue
+			var lo: float = RIBBON[k - 1]
+			var hi: float = RIBBON[k]
+			for dist in ([start, hi] if pts.is_empty() else [hi]):
+				var u := clampf((dist - lo) / (hi - lo), 0.0, 1.0)
+				var a: float = lerpf(cut[0][k - 1].y, cut[0][k].y, u)
+				var b: float = lerpf(hill[0][k - 1].y, hill[0][k].y, u)
+				var step := maxf(b - a, 0.0)
+				pts.append([d0 + side * dist, a - 0.5, a + step + 0.4 * clampf(step, 0.0, 1.0)])
+			if (hill[0][k].y - cut[0][k].y) < 0.05:
+				break
+		if side < 0.0:
+			pts.reverse()
+		_wall_slab(gb, _body(i, "concrete"), ps, front, facing, pts, true, [side < 0.0, side > 0.0])
+
+
+## A slab of wall across the road at ps, 1.2 m thick: pts [[d, bottom y, top y]] (d rising),
+## its face (toward `facing`, `front` off ps) and, if `full`, its back and its top; its ends
+## where asked (ends: [the first point's, the last's]); collision for its face if `body`.
+func _wall_slab(gb: GeoBuf, body, ps: float, front: Vector3, facing: Vector3, pts: Array, full: bool, ends := [false, false]) -> void:
+	var at := func(k: int, y: float, f: float) -> Vector3:
+		var p := st.world_at(ps, float(pts[k][0]))
+		return Vector3(p.x, y, p.z) + front * f
+	for k in pts.size() - 1:
+		var d0: float = pts[k][0]
+		var d1: float = pts[k + 1][0]
+		var faces := [[1.0, facing]]
+		if full:
+			faces.append([-1.0, -facing])
+		for fc in faces:
+			var a: Vector3 = at.call(k, pts[k][1], fc[0])
+			var b: Vector3 = at.call(k + 1, pts[k + 1][1], fc[0])
+			var c: Vector3 = at.call(k + 1, pts[k + 1][2], fc[0])
+			var d: Vector3 = at.call(k, pts[k][2], fc[0])
+			_quad_to(gb, a, b, c, d, fc[1], Vector2(d0, a.y), Vector2(d1, b.y), Vector2(d1, c.y), Vector2(d0, d.y))
+			if body != null and fc[0] > 0.0:
+				_quad_to(body, a, b, c, d, fc[1], Vector2.ZERO, Vector2.ZERO, Vector2.ZERO, Vector2.ZERO, true)
+		if full:
+			# its top
+			var t0: Vector3 = at.call(k, pts[k][2], 1.0)
+			var t1: Vector3 = at.call(k + 1, pts[k + 1][2], 1.0)
+			var t2: Vector3 = at.call(k + 1, pts[k + 1][2], -1.0)
+			var t3: Vector3 = at.call(k, pts[k][2], -1.0)
+			_quad_to(gb, t0, t1, t2, t3, Vector3.UP, Vector2(d0, 0.0), Vector2(d1, 0.0), Vector2(d1, PORTAL_T), Vector2(d0, PORTAL_T))
+	for k in [0, pts.size() - 1]:
+		if ends[0 if k == 0 else 1]:
+			var a: Vector3 = at.call(k, pts[k][1], 1.0)
+			var b: Vector3 = at.call(k, pts[k][1], -1.0)
+			var c: Vector3 = at.call(k, pts[k][2], -1.0)
+			var d: Vector3 = at.call(k, pts[k][2], 1.0)
+			var p0: Vector3 = at.call(k, 0.0, 0.0)
+			var p1: Vector3 = at.call(1 if k == 0 else k - 1, 0.0, 0.0)
+			var out := (p0 - p1).normalized()
+			_quad_to(gb, a, b, c, d, out, Vector2(0.0, a.y), Vector2(PORTAL_T, b.y), Vector2(PORTAL_T, c.y), Vector2(0.0, d.y))
+
+
+## A quad, its corners turned so that it faces `facing` (GeoBuf.quad: counter-clockwise seen
+## from the front).
+func _quad_to(gb: GeoBuf, a: Vector3, b: Vector3, c: Vector3, d: Vector3, facing: Vector3, ua: Vector2, ub: Vector2,
+		uc: Vector2, ud: Vector2, collide := false) -> void:
+	if (c - a).cross(d - b).dot(facing) >= 0.0:                # (its diagonals: a corner can be a point)
+		gb.quad(a, b, c, d, ua, ub, uc, ud, Color.WHITE, collide)
+	else:
+		gb.quad(a, d, c, b, ua, ud, uc, ub, Color.WHITE, collide)
 
 
 func _roadside() -> void:
@@ -1276,7 +1606,10 @@ func _gantries() -> void:
 		var i := int(s / st.STEP)
 		var bas := Basis(Vector3.UP, -st.heading_at(s))
 		var a := st.world_at(s, st.MEDIAN_D + 0.6)
-		var b := st.world_at(s, st.OUTER_R + 0.8)
+		# the outer post past the road's edge where it is (an extra lane's: it stood in the lane),
+		# on a viaduct on its parapet (it stood in the air beside the deck)
+		var on_deck: bool = st.support_at(s) in ["viaduct", "bridge"]
+		var b := st.world_at(s, _edges(i).y + (0.575 if on_deck else 1.2))
 		for p in [a, b]:
 			_buf(i, "steel").box(p + Vector3.UP * 3.6, Vector3(0.4, 7.2, 0.4), bas)
 		var mid := (a + b) * 0.5 + Vector3.UP * 7.0
@@ -1617,22 +1950,40 @@ func _overpasses() -> void:
 			_buf(i, "concrete").box(mid, Vector3(13.0, 1.4, length / n + 0.05), bas)
 			for side in [1.0, -1.0]:
 				_buf(i, "concrete").box(mid + across * side * 6.3 + Vector3.UP * 1.2, Vector3(0.4, 1.0, length / n + 0.05), bas)
-		# piers: just outside our barriers, in the median, outside theirs, and further out
-		for d in [st.OUTER_R + 3.0, st.MEDIAN_D, st.OUTER_L - 3.0]:
-			var p := st.world_at(s, d)
-			var t := (p - c).dot(along)
-			var q := c + along * t
-			_buf(i, "concrete").box(Vector3(q.x, (p.y + deck_y - 0.7) * 0.5, q.z), Vector3(1.1 if d == st.MEDIAN_D else 1.6, deck_y - 0.7 - p.y, 8.0), bas)
+		# piers: 3 m outside our barriers (past an extra lane's), in the median, outside theirs,
+		# under the deck where it crosses there, each a wall along the highway (they ran along
+		# the deck: across the road, into the lanes, and the outer ones fell short of the
+		# barriers on the skewed decks); beside a viaduct they (and the further ones, at each
+		# end) stand on the ground (they hung in the air beside it)
+		var wide := _edges(i)
+		for k in range(i - 6, i + 7):
+			var ek := _edges(k)
+			wide = Vector2(minf(wide.x, ek.x), maxf(wide.y, ek.y))
+		var lat: float = along.dot(st.right_at(s))         # (the deck's line: across the road this much a metre)
+		var up_in_air: bool = st.support_at(s) in ["viaduct", "bridge"]
+		for d in [wide.y + 3.4, st.MEDIAN_D, wide.x - 3.4]:
+			var q: Vector3 = c + along * ((float(d) - (st.OUTER_L + st.OUTER_R) * 0.5) / lat)
+			var qs: float = st.locate(q, i).s
+			var foot: float = st.world_at(qs, d).y
+			if d != st.MEDIAN_D:
+				foot = maxf(st.land_at(q.x, q.z), -2.0) if up_in_air else foot - 0.5   # (into the embankment's top)
+			_buf(i, "concrete").box(Vector3(q.x, (foot + deck_y - 0.7) * 0.5, q.z), Vector3(1.1 if d == st.MEDIAN_D else 1.6, deck_y - 0.7 - foot, 8.0),
+				Basis(Vector3.UP, -st.heading_at(qs)))
 		for u in [-60.0, 60.0]:
 			var q: Vector3 = c + along * float(u)
-			var g := maxf(st.land_at(q.x, q.z), road_y - 4.0)
+			# (on the ground the land by the road is its cut or embankment: standing down to the
+			# land or the road, whichever's lower, it's in the ground either way)
+			var g := maxf(st.land_at(q.x, q.z), -2.0) if up_in_air else minf(st.land_at(q.x, q.z), road_y) - 0.5
 			if deck_y - 0.7 - g > 1.0:
 				_buf(i, "concrete").box(Vector3(q.x, (g + deck_y - 0.7) * 0.5, q.z), Vector3(1.6, deck_y - 0.7 - g, 8.0), bas)
 
 
-## The ramps off and onto the highway: each a lane of its own (with shoulders and
-## barriers) curving away from the gore and down to the ground, where it ends at a
-## closed gate (the game's world is the highway).
+## The ramps off and onto the highway: each a lane of its own (with shoulders, its edge
+## lines and barriers) curving away from the gore and down to the ground, where it ends at
+## a closed gate (the game's world is the highway). From the gore to its nose the ramp's lane
+## is the highway's own widened edge (LoopGen._extra_lanes; its lines: _markings; the outer
+## barrier out along it): its own road starts at the nose, square across the road where the
+## widened asphalt ends (it was skipped until it was 17 m out: ~60 m with no road under it).
 func _ramps() -> void:
 	for r in st.ramps:
 		_ramp(r)
@@ -1643,29 +1994,37 @@ func _ramp(r: Dictionary) -> void:
 	var pts: PackedVector3Array = path.pts
 	var heads: PackedFloat32Array = path.heads
 	var n := pts.size() - 1
-	var gore: float = r.s
-	var right_side: bool = r.side == "right"
-	# the deck / road: 6 m of asphalt, a barrier each side, its collision
-	var i := int(gore / st.STEP)
-	for k in n:
-		var a := pts[k]
-		var b := pts[k + 1]
-		var fa := Vector3(sin(heads[k]), 0, -cos(heads[k]))
-		var fb := Vector3(sin(heads[k + 1]), 0, -cos(heads[k + 1]))
-		var ra := fa.cross(Vector3.UP).normalized() * -1.0
-		var rb := fb.cross(Vector3.UP).normalized() * -1.0
-		var w := 3.2
+	var w: float = st.RAMP_W
+	var i := int(float(r.s) / st.STEP)
+	# its rows across, each a middle and a vector to its right (a point at offset o: c + rv * o):
+	# the first on the highway's line across at the nose (banked as the road is there), then the
+	# path's points past it (flat across)
+	var nose_s: float = path.nose_s
+	var k0: int = int(path.nose) + 1
+	var u := signf(Vector3(sin(heads[k0]), 0, -cos(heads[k0])).cross(Vector3.UP).dot(st.right_at(nose_s)))   # (its right: the road's, or its left)
+	var cs: Array = [st.world_at(nose_s, float(path.nose_d))]
+	var rvs: Array = [st.right_at(nose_s) * u + Vector3.UP * (-u * st.bank_at(nose_s))]
+	for k in range(k0, n + 1):
+		cs.append(pts[k])
+		rvs.append(Vector3(sin(heads[k]), 0, -cos(heads[k])).cross(Vector3.UP).normalized())
+	# the deck / road: 6.4 m of asphalt, its edge lines, a barrier each side, its collision
+	var along := 0.0
+	for j in cs.size() - 1:
+		var a: Vector3 = cs[j]
+		var b: Vector3 = cs[j + 1]
+		var ra: Vector3 = rvs[j]
+		var rb: Vector3 = rvs[j + 1]
+		var u0 := along
+		along += a.distance_to(b)
 		var row_a := PackedVector3Array([a - ra * w, a + ra * w])
 		var row_b := PackedVector3Array([b - rb * w, b + rb * w])
 		var vv := PackedFloat32Array([-w, w])
-		# (alongside the highway, the ramp's lane is the highway's own extra lane: its own road
-		# starts once it's clear of the highway's edge)
-		var walk := (1.0 if right_side else -1.0) * (1.0 if r.kind == "off" else -1.0)   # (which way along the road it walks)
-		var off_road: float = absf(st.locate(a, posmod(int(gore / st.STEP) + int(k * 2 * walk), st._n)).d - (0.0 if right_side else st.ONCOMING_D))
-		if off_road < st.EDGE + st.SHOULDER_R + st.LANE_W + w + 0.3:
-			continue
-		_buf(i, "asphalt").ribbon(row_a, row_b, k * 4.0, (k + 1) * 4.0, vv)
-		_body(i, "asphalt").ribbon(row_a, row_b, k * 4.0, (k + 1) * 4.0, vv, Color.WHITE, true)
+		_buf(i, "asphalt").ribbon(row_a, row_b, u0, along, vv)
+		_body(i, "asphalt").ribbon(row_a, row_b, u0, along, vv, Color.WHITE, true)
+		for o in [-RAMP_LINE, RAMP_LINE]:
+			var lift := Vector3.UP * 0.015
+			_buf(i, "paint").quad(a + ra * (o - 0.075) + lift, a + ra * (o + 0.075) + lift, b + rb * (o + 0.075) + lift, b + rb * (o - 0.075) + lift,
+				Vector2(u0, 0), Vector2(u0, 0.15), Vector2(along, 0.15), Vector2(along, 0))
 		for sd in [-1.0, 1.0]:
 			var e0: Vector3 = a + ra * sd * (w + 0.2)
 			var e1: Vector3 = b + rb * sd * (w + 0.2)
@@ -1677,25 +2036,42 @@ func _ramp(r: Dictionary) -> void:
 				ta.append(e0 + ra * q[0] + Vector3.UP * q[1])
 				tb.append(e1 + rb * q[0] + Vector3.UP * q[1])
 				vs.append(q[0])
-			_buf(i, "concrete").ribbon(ta, tb, k * 4.0, (k + 1) * 4.0, vs)
-			_body(i, "concrete").ribbon(ta, tb, k * 4.0, (k + 1) * 4.0, vs, Color.WHITE, true)
-		# under it, while it's off the ground: a deck and piers
+			_faces(_buf(i, "concrete"), ta, tb, u0, along, vs)
+			_body(i, "concrete").ribbon(ta, tb, u0, along, vs, Color.WHITE, true)
+		# under it, while it's off the ground: a deck (its sides down from the barriers' feet,
+		# its underside) and piers
 		var g := st.land_at(a.x, a.z)
 		if a.y - g > 2.0:
-			_buf(i, "concrete").quad(a - ra * w + Vector3.UP * -1.5, a + ra * w + Vector3.UP * -1.5, b + rb * w + Vector3.UP * -1.5, b - rb * w + Vector3.UP * -1.5,
-				Vector2.ZERO, Vector2(1, 0), Vector2(1, 1), Vector2(0, 1))
-			if k % 8 == 0:
+			var down := Vector3.UP * -1.5
+			_buf(i, "concrete").quad(a + ra * w + down, a - ra * w + down, b - rb * w + down, b + rb * w + down,
+				Vector2(u0, w), Vector2(u0, -w), Vector2(along, -w), Vector2(along, w))
+			for sd in [-1.0, 1.0]:
+				var f0: Vector3 = a + ra * sd * (w + 0.45)
+				var f1: Vector3 = b + rb * sd * (w + 0.45)
+				var g0: Vector3 = a + ra * sd * w + down
+				var g1: Vector3 = b + rb * sd * w + down
+				_quad_to(_buf(i, "concrete"), f0, f1, g1, g0, ra * sd, Vector2(u0, 0), Vector2(along, 0), Vector2(along, 1.5), Vector2(u0, 1.5))
+			if j % 8 == 1:
 				_buf(i, "concrete").box(Vector3(a.x, (g + a.y - 1.5) * 0.5, a.z), Vector3(1.6, a.y - 1.5 - g, 1.6))
+	# an exit's nose: a crash cushion (yellow and black) in the gore, before the barriers' ends
+	if r.kind == "off":
+		var right_side: bool = r.side == "right"
+		var walk := (1.0 if right_side else -1.0)
+		var hw: float = (st.EDGE + st.SHOULDER_R + 0.4) if right_side else (st.ONCOMING_D - st.EDGE - st.SHOULDER_R - 0.4)
+		var rw: float = float(path.nose_d) + (-(w + 0.2) if right_side else (w + 0.2))
+		for k in 6:
+			_road_box(nose_s - walk * (0.25 + 0.5 * k), (hw + rw) * 0.5, Vector3(absf(rw - hw) + 0.5, 0.9, 0.5), "toll_paint",
+				TOLL_COLS.yellow if k % 2 == 0 else TOLL_COLS.dark, true)
 	# the closed gate at its far end
 	var e := pts[n]
-	var fe := Vector3(sin(heads[n]), 0, -cos(heads[n]))
 	_buf(i, "concrete").box(e + Vector3.UP * 0.6, Vector3(7.0, 1.2, 0.8), Basis(Vector3.UP, -heads[n]))
 	_body(i, "concrete").box(e + Vector3.UP * 0.6, Vector3(7.0, 1.2, 0.8), Basis(Vector3.UP, -heads[n]), Color.WHITE, true)
 
 
 ## The city's towers, both sides of the expressway: blocks of offices and flats,
 ## lower near the road, taller back from it and in the middle of town; none on a
-## road (this or another part of the loop) or in the water.
+## road (this or another part of the loop, or a ramp) or in the water; each on the lowest
+## ground drawn under it.
 const CITY_FRONT := 190.0            # m from the road's middle: the library's buildings (EnvAssets "building") this near, the drawn towers beyond
 const CITY_REAL_DRAW := 1800.0       # m: a real building drawn this far (its LODs: Godot's, per building)
 
@@ -1751,7 +2127,18 @@ func _city() -> void:
 						if clash:
 							continue
 						var rb := Basis(Vector3.UP, -st.heading_at(s) + (PI * 0.5 if along else 0.0) + (PI if _rng.randf() < 0.5 else 0.0))
-						real.append([id, Transform3D(rb, Vector3(q.x, gq - 0.3, q.z)), rad])
+						# none on a ramp (they ran through 23 of the 24): one there keeps its plot (the
+						# rest of the town where it was) but isn't built
+						var on_ramp := _ramp_dist(q.x, q.z) < rad + st.RAMP_W + 4.0
+						# on the lowest ground drawn under it (a 3 x 3 grid over its footprint: the land
+						# under its middle left gaps under its sides, over the cuts and the far land)
+						var g_lo := gq
+						for ca in ([] if on_ramp else [-0.5, 0.0, 0.5]):
+							for cb in [-0.5, 0.0, 0.5]:
+								var cp: Vector3 = Vector3(q.x, 0, q.z) + rb * Vector3(float(sz[0]) * ca, 0.0, float(sz[2]) * cb)
+								var cl: Dictionary = st.locate(cp, int(st.wrap_s(s) / st.STEP))
+								g_lo = minf(g_lo, _drawn_y(float(cl.s), float(cl.d)))
+						real.append([id, Transform3D(rb, Vector3(q.x, g_lo - 0.3, q.z)), rad, on_ramp])
 						occupied[Vector2i(floori(q.x / 30.0), floori(q.z / 30.0))] = true
 						continue
 					if g < 1.5 or _road_dist(p.x, p.z) < 34.0 + maxf(w, dep) * 0.5:
@@ -1767,10 +2154,20 @@ func _city() -> void:
 					if occupied.has(key):
 						continue
 					occupied[key] = true
-					var bas := Basis(Vector3.UP, -st.heading_at(s)).scaled(Vector3(w, hgt, dep))
-					xfs.append(Transform3D(bas, Vector3(p.x, g + hgt * 0.5 - 0.5, p.z)))
-					cols.append(palette[_rng.randi() % palette.size()])
+					# (turned, then scaled in its own axes: scaled after turning, the box was sheared)
+					var bas := Basis(Vector3.UP, -st.heading_at(s)) * Basis.from_scale(Vector3(w, hgt, dep))
+					var col: Color = palette[_rng.randi() % palette.size()]
+					if _ramp_dist(p.x, p.z) < Vector2(w, dep).length() * 0.5 + st.RAMP_W + 4.0:
+						continue
+					# on the lowest ground drawn under its corners (its x across the road, z along it)
+					var g_lo := g
+					for ca in [-0.5, 0.5]:
+						for cb in [-0.5, 0.5]:
+							g_lo = minf(g_lo, _drawn_y(s + dep * cb, off + w * ca))
+					xfs.append(Transform3D(bas, Vector3(p.x, g_lo + hgt * 0.5 - 0.5, p.z)))
+					cols.append(col)
 			s += _rng.randf_range(40.0, 70.0)
+	real = real.filter(func(r): return not r[3])
 	building_count = xfs.size() + real.size()
 	real_building_count = real.size()
 	# the library's buildings: each its own node (Godot picks each one's level of detail by its
@@ -1810,7 +2207,9 @@ func _building_mesh() -> ArrayMesh:
 
 
 ## Trees on the hills and the lakeshore (not in the city, not in the water, not on the
-## road's verges): pines and broadleaves, in clumps, out to ~400 m from the road.
+## road's verges or a ramp, not on the step at a tunnel's portal): pines and broadleaves, in
+## clumps, out to ~400 m from the road, each on the ground as drawn (_drawn_y: on the land
+## the ground's shaped from, 1 in 7 floated over the road's cuts and the far land, up to 60 m).
 func _trees() -> void:
 	var pine := _tree_mesh(true)
 	var broad := _tree_mesh(false)
@@ -1825,16 +2224,21 @@ func _trees() -> void:
 			for side in [1.0, -1.0]:
 				for k in 6:
 					var d: float = (st.OUTER_R + _rng.randf_range(14.0, 380.0)) if side > 0.0 else (st.OUTER_L - _rng.randf_range(14.0, 380.0))
-					var p := st.world_at(s + _rng.randf_range(-6.0, 6.0), d)
+					var ts := s + _rng.randf_range(-6.0, 6.0)
+					var p := st.world_at(ts, d)
 					if noise.get_noise_2d(p.x, p.z) < -0.05:
 						continue                              # (clumps: open ground between)
 					var g := st.land_at(p.x, p.z)
 					if g < 2.0 or st.in_city(p.x, p.z) or _road_dist(p.x, p.z) < 26.0:
 						continue
+					g = _drawn_y(ts, d)
 					var sc := _rng.randf_range(0.75, 1.35)
 					var xf := Transform3D(Basis(Vector3.UP, _rng.randf() * TAU).scaled(Vector3(sc, sc * _rng.randf_range(0.9, 1.2), sc)), Vector3(p.x, g - 0.2, p.z))
 					var c := int(int(s / st.STEP) / CH)
 					var key := Vector2i(c, 0 if zone == "hills" and _rng.randf() < 0.7 else 1)
+					# (by a portal the land steps 10.5 m between two of its kept rows: _drawn_y can't say which side)
+					if _near_portal(ts, 5.0) or _ramp_dist(p.x, p.z) < st.RAMP_W + 6.0:
+						continue
 					if not per_chunk.has(key):
 						per_chunk[key] = []
 					per_chunk[key].append(xf)
