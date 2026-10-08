@@ -307,12 +307,12 @@ then a cop raid, an arrest and the jail teleport. CI runs all of it on every pus
 
 [![SHOTGUN RALLY: you drive, your friend rides shotgun with the map](shotgun-rally/docs/screens/banner.jpg)](shotgun-rally/README.md)
 
-**You drive. Your friend rides shotgun with the map.** A cartoony 2-player online co-op rally game.
+**You drive. Your friend rides shotgun with the map.** A 2-player online co-op rally game.
 One of you drives, blind past the next crest. The other sits in the passenger seat with a map of the
 road ahead, works out what's coming and yells it: "LEFT! TIGHT LEFT! OVER THE CREST!" No friend
 online? The **AI co-driver** takes the seat.
 
-Plus **MODES**, alone or with **up to 8 friends online**, each in their own car: the **TOUGE**, a
+Plus **MODES**, alone or **online with up to 8 drivers**, each in their own car: the **TOUGE**, a
 Japanese mountain pass at night lit only by its street lamps and your headlights (time attack
 against your ghost, drift, or online a race to the bottom), and **CUT UP**, weaving through
 heavy highway traffic on an endless 28 km loop of viaducts, tunnels and suspension bridges.
@@ -352,7 +352,7 @@ than the updater needs one download by hand.)
 | | |
 |---|---|
 | ![The home screen: the logo and menu over your car flat out on a stage](shotgun-rally/docs/screens/home.jpg) | ![MODES: the touge and cut up, alone or online up to 8](shotgun-rally/docs/screens/modes.jpg) |
-| ![The touge at night: street lamps, your headlights, a local coming up the other lane](shotgun-rally/docs/screens/touge_night.jpg) | ![Cut up: the LAKESHORE LOOP full of traffic](shotgun-rally/docs/screens/cutup.jpg) |
+| ![The touge at night: sodium street lamps, your headlights, the cedars close](shotgun-rally/docs/screens/touge_night.jpg) | ![Cut up at night: the LAKESHORE LOOP's towers lit, lamps along the highway](shotgun-rally/docs/screens/cutup.jpg) |
 | ![An online touge's results: the podium](shotgun-rally/docs/screens/results.jpg) | ![GO: the start lights](shotgun-rally/docs/screens/start_lights.jpg) |
 | ![Driver](shotgun-rally/docs/screens/driver.jpg) | ![Co-driver looking at the map](shotgun-rally/docs/screens/codriver.jpg) |
 | ![Mud on the windshield](shotgun-rally/docs/screens/mud.jpg) | ![The start: five lights and a clock each side of the road](shotgun-rally/docs/screens/start.jpg) |

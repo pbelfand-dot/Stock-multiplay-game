@@ -2,12 +2,12 @@
 
 ![SHOTGUN RALLY: you drive, your friend rides shotgun with the map](docs/screens/banner.jpg)
 
-**You drive. Your friend rides shotgun with the map.** A cartoony 2-player online co-op rally
+**You drive. Your friend rides shotgun with the map.** A 2-player online co-op rally
 game. One of you drives, blind past the next crest. The other sits in the passenger seat with a
 map of the road ahead, works out what's coming and yells it: "LEFT! TIGHT LEFT! OVER THE CREST!"
 No friend online? The **AI co-driver** takes the seat.
 
-Plus **MODES**, alone or with **up to 8 friends online**, each in their own car: the **TOUGE**, a
+Plus **MODES**, alone or **online with up to 8 drivers**, each in their own car: the **TOUGE**, a
 Japanese mountain pass at night lit only by its street lamps and your headlights (time attack
 against your ghost, drift, or online a race to the bottom), and **CUT UP**, weaving through
 heavy highway traffic on an endless 28 km loop ([docs/modes.md](docs/modes.md)).
@@ -19,7 +19,7 @@ heavy highway traffic on an endless 28 km loop ([docs/modes.md](docs/modes.md)).
 | | |
 |---|---|
 | ![The home screen: the logo and menu over your car flat out on a stage](docs/screens/home.jpg) | ![MODES: the touge and cut up, alone or online up to 8](docs/screens/modes.jpg) |
-| ![The touge at night: street lamps, your headlights, a local coming up the other lane](docs/screens/touge_night.jpg) | ![Cut up: the LAKESHORE LOOP full of traffic](docs/screens/cutup.jpg) |
+| ![The touge at night: sodium street lamps, your headlights, the cedars close](docs/screens/touge_night.jpg) | ![Cut up at night: the LAKESHORE LOOP's towers lit, lamps along the highway](docs/screens/cutup.jpg) |
 | ![An online touge's results: the podium](docs/screens/results.jpg) | ![GO: the start lights](docs/screens/start_lights.jpg) |
 | ![The garage: buy, paint, upgrade](docs/screens/garage.jpg) | ![The loading screen: the night touge's key art](docs/screens/loading.jpg) |
 | ![The realistic cars: Rotora FD in the garage, real power and weight](docs/screens/garage_fd.jpg) | ![The nine realistic cars](docs/screens/cars_lineup.jpg) |
@@ -108,10 +108,14 @@ front, banking into the turns), trackside cameras it flashes past, a chase camer
       **Martello Sedici** (Delta Integrale Group A, 1992: ~315 PS, 1,100 kg, four-wheel drive with
       the Martello's stripes), the **Vierrad S1** (Sport quattro Group B: ~455 PS, turbo lag, a
       locked centre diff), and the **Ocelot R1** (Puma Rally1: ~385 PS, spool, wings).
-  - The realistic cars sit in the cartoon world on purpose: clear-coated paint, glass you can see
-    through, chrome. The world around them is soft flat colour (a little less saturated, light that
-    wraps round, no shine, softer shadows), so the cars stand out. The garage shows each car's
-    real power, weight and drive layout.
+  - **The look** ([docs/graphics_plan.md](docs/graphics_plan.md)): on a PC or Mac the game draws
+    with Godot's Forward+ renderer: photographed skies, scanned asphalt, gravel, grass and rock (all
+    CC0: [docs/CREDITS_WORLD.md](docs/CREDITS_WORLD.md)), clear-coated paint, glass and chrome on the
+    cars, speed blur. **SETTINGS > WORLD > TIME OF DAY** sets the hour (dawn, golden hour, night with
+    the street lamps, the cars' own lamps and the city's lit windows); **SETTINGS > GRAPHICS** has
+    LOW / MEDIUM / HIGH / ULTRA (LOW: flat colours and light shadows, for weak laptops) and a render
+    scale. The web build and Chromebooks use the lighter Compatibility renderer. The garage shows
+    each car's real power, weight and drive layout.
   - Paint any car you own (main, accent and stripe colours, free). Liveries (11, from twin stripes
     to tricolore and goldline) and wheels are bought once and fit any car, the realistic ones too.
     Pick your race number, buy three steps each of engine, tyre and brake upgrades, and pick gravel
@@ -119,7 +123,7 @@ front, banking into the turns), trackside cameras it flashes past, a chase camer
 - **Credits** come from finishing stages: a base, more for a longer stage, a bonus for beating the
   pace and for a clean run, x1.5 in story mode, plus the rally prizes. Both players in a crew
   earn. There's no real money anywhere.
-- **MODES** ([docs/modes.md](docs/modes.md)), alone or **online with up to 8 friends**, each in
+- **MODES** ([docs/modes.md](docs/modes.md)), alone or **online with up to 8 drivers**, each in
   their own car (the host picks collisions or ghosts): **TOUGE**, a Japanese mountain pass at
   night, uphill or downhill, lit only by its street lamps and your headlights, cedars streaming
   past, now and then a local driver on the road; TIME ATTACK (splits every km against your best,
