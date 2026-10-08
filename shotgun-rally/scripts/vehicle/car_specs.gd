@@ -60,7 +60,7 @@ const CHASSIS := {
 	# a tall, boxy one (the G-Class): soft, high, rolls and pitches more, on a ladder frame's steering
 	"tall_suv": {"travel": 0.22, "ride": [1.2, 1.3], "roll": 4.8, "roll_front": 0.64, "cog": 0.74, "zeta": [0.3, 0.58], "room": 0.11,
 		"mu": 0.96, "peak": 1.04, "loose": 0.95, "steer": 33.0},
-	"sport": {"travel": 0.14, "ride": [1.65, 1.75], "roll": 2.1, "roll_front": 0.58, "cog": 0.46, "zeta": [0.36, 0.7], "room": 0.07,
+	"sport": {"travel": 0.14, "ride": [1.65, 1.75], "roll": 2.1, "roll_front": 0.62, "cog": 0.46, "zeta": [0.36, 0.7], "room": 0.07,
 		"mu": 1.06, "peak": 0.9, "loose": 0.8, "steer": 33.0},
 	"track": {"travel": 0.09, "ride": [2.4, 2.6], "roll": 1.2, "roll_front": 0.52, "cog": 0.4, "zeta": [0.45, 0.8], "room": 0.04,
 		"mu": 1.3, "peak": 0.8, "loose": 0.55, "steer": 27.0},
