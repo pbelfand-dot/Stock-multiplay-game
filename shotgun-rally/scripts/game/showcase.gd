@@ -80,6 +80,12 @@ func _physics_process(dt: float) -> void:
 		return
 	if kind == "cutup" and game.traffic:
 		_weave(dt)
+	elif kind == "touge" and game.stray:
+		# the local coming up the pass: keep to our own lane till it's by (the autopilot's
+		# line cuts the corners, into its lane)
+		var c: Dictionary = game.stray.car
+		var rel: float = float(c.s) - game.car_s if not c.is_empty() else -INF
+		game.autopilot.lane = -game.st.LANE_W * 0.5 if rel > -8.0 and rel < 170.0 else INF
 
 
 ## The next shot: which camera, set up where it needs to be.

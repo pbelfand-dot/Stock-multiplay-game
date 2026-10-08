@@ -89,12 +89,19 @@ func generate(seed_value: int, target := 2600.0) -> void:
 	if kind != "rally":
 		opts = opts.duplicate()
 		opts["surface"] = "tarmac"                   # (a touge and a highway are asphalt end to end)
+	var clear := false
 	for attempt in 60:
 		_rng.seed = hash([seed_value, attempt])
 		_make_pieces(target)
 		_sample()
 		if _clear_of_itself():
+			clear = true
 			break
+	if not clear and kind != "highway":
+		# (none came out clear by chance: a long touge, all hairpins, curls back over
+		# itself, so it's grown a stretch at a time instead)
+		_rng.seed = hash([seed_value, "grow"])
+		_grow_pieces(target)
 	finish_s = length - FINISH_BACK
 	_make_sections()
 	mountain = opts.get("surface", "gravel") == "tarmac" and kind != "highway"
@@ -122,21 +129,129 @@ func _make_pieces(target: float) -> void:
 	var yaw := 0.0                  # where the road points, relative to the start (rad)
 	var last_dir := 0
 	while total < target - 140.0:
-		# a straight (often short: rally roads are busy)
-		var sl: float = [_rng.randf_range(15, 45), _rng.randf_range(30, 90), _rng.randf_range(80, 200)][_pick([5, 4, 2])]
-		pieces.append({"kind": "straight", "len": sl})
-		total += sl
-		# a corner, or a run of them (S-bends link with no straight in between)
-		var run := 1 + (1 if _rng.randf() < 0.35 else 0) + (1 if _rng.randf() < 0.12 else 0)
-		for k in run:
-			var c := _corner(yaw, last_dir if k > 0 else 0)
-			if k > 0:
-				pieces.append({"kind": "straight", "len": _rng.randf_range(0.0, 12.0)})
-			pieces.append(c)
-			yaw += c.dir * (c.ang + c.ang2)
-			last_dir = c.dir
-			total += c.r * c.ang + c.r2 * c.ang2
+		var g := _stretch(yaw, last_dir)
+		pieces.append_array(g.pieces)
+		total += g.len
+		yaw = g.yaw
+		last_dir = g.last_dir
 	pieces.append({"kind": "straight", "len": FINISH_BACK + 30.0})
+
+
+## The next stretch of road from where it points (yaw) and which way the last
+## corner went: a straight (often short: rally roads are busy), then a corner or a
+## run of them (S-bends link with no straight in between).
+func _stretch(yaw: float, last_dir: int) -> Dictionary:
+	var out: Array = []
+	var sl: float = [_rng.randf_range(15, 45), _rng.randf_range(30, 90), _rng.randf_range(80, 200)][_pick([5, 4, 2])]
+	out.append({"kind": "straight", "len": sl})
+	var total := sl
+	var run := 1 + (1 if _rng.randf() < 0.35 else 0) + (1 if _rng.randf() < 0.12 else 0)
+	for k in run:
+		var c := _corner(yaw, last_dir if k > 0 else 0)
+		if k > 0:
+			out.append({"kind": "straight", "len": _rng.randf_range(0.0, 12.0)})
+		out.append(c)
+		yaw += c.dir * (c.ang + c.ang2)
+		last_dir = c.dir
+		total += c.r * c.ang + c.r2 * c.ang2
+	return {"pieces": out, "len": total, "yaw": yaw, "last_dir": last_dir}
+
+
+## The road grown a stretch at a time (when no layout came out clear of itself by
+## chance): each new stretch is drawn again (up to 12 times) until it keeps CLEARANCE
+## from the road already laid; boxed in, the last stretch is taken back.
+func _grow_pieces(target: float) -> void:
+	pieces = [{"kind": "straight", "len": START_S + 40.0}]
+	var total := START_S + 40.0
+	var yaw := 0.0
+	var last_dir := 0
+	var marks: Array = []           # [pieces, total, yaw, last_dir] before each stretch (to take one back)
+	var misses := 0
+	var done := false
+	_sample()
+	var grid := _road_grid()
+	for tries in 4000:
+		var g: Dictionary
+		if total >= target - 140.0:
+			g = {"pieces": [{"kind": "straight", "len": FINISH_BACK + 30.0}], "len": FINISH_BACK + 30.0, "yaw": yaw, "last_dir": last_dir}
+		else:
+			g = _stretch(yaw, last_dir)
+		if _keeps_clear(g.pieces, grid):
+			marks.append([pieces.size(), total, yaw, last_dir])
+			pieces.append_array(g.pieces)
+			if total >= target - 140.0:
+				done = true
+				break
+			total += g.len
+			yaw = g.yaw
+			last_dir = g.last_dir
+			misses = 0
+		else:
+			misses += 1
+			if misses < 12 or marks.is_empty():
+				continue
+			var m: Array = marks.pop_back()
+			pieces.resize(m[0])
+			total = m[1]
+			yaw = m[2]
+			last_dir = m[3]
+			misses = 0
+		_sample()
+		grid = _road_grid()
+	if not done:
+		pieces.append({"kind": "straight", "len": FINISH_BACK + 30.0})   # (out of tries: it ends where it got to)
+	_sample()
+
+
+## The road's points by CLEARANCE-sized cell (for _keeps_clear).
+func _road_grid() -> Dictionary:
+	var grid := {}
+	for i in pts.size():
+		var key := Vector2i(floori(pts[i].x / CLEARANCE), floori(pts[i].z / CLEARANCE))
+		if not grid.has(key):
+			grid[key] = []
+		grid[key].append(i)
+	return grid
+
+
+## True if `more` pieces, laid on from the end of the road, keep CLEARANCE from
+## every part of it that isn't a neighbour (as _clear_of_itself counts them).
+func _keeps_clear(more: Array, grid: Dictionary) -> bool:
+	# (from the road's real end: the last part of a STEP that _sample left off first,
+	# on the last piece's curve)
+	var laid := 0.0
+	for pc in pieces:
+		laid += pc.len if pc.kind == "straight" else pc.r * pc.ang + pc.r2 * pc.ang2
+	var last: Dictionary = pieces[pieces.size() - 1]
+	var k_last: float = 0.0 if last.kind == "straight" else (last.dir / last.r2 if last.ang2 > 0.0 else last.dir / last.r)
+	var ks: Array = [[maxf(laid - (pts.size() - 1) * STEP, 0.0), k_last]]
+	for pc in more:
+		if pc.kind == "straight":
+			ks.append([pc.len, 0.0])
+		else:
+			ks.append([pc.r * pc.ang, pc.dir / pc.r])
+			if pc.ang2 > 0.0:
+				ks.append([pc.r2 * pc.ang2, pc.dir / pc.r2])
+	var skip := int(CLEARANCE * 3.0 / STEP)
+	var p: Vector3 = pts[pts.size() - 1]
+	var h: float = heading[heading.size() - 1]
+	var i := pts.size() - 1
+	for seg in ks:
+		var left: float = seg[0]
+		while left > 1e-6:
+			var take := minf(STEP, left)
+			var dh: float = take * float(seg[1])
+			p += Vector3(sin(h + dh * 0.5), 0.0, -cos(h + dh * 0.5)) * take
+			h += dh
+			left -= take
+			i += 1
+			var c := Vector2i(floori(p.x / CLEARANCE), floori(p.z / CLEARANCE))
+			for dx in range(-1, 2):
+				for dz in range(-1, 2):
+					for j in grid.get(c + Vector2i(dx, dz), []):
+						if i - int(j) > skip and Vector2(p.x - pts[j].x, p.z - pts[j].z).length() < CLEARANCE:
+							return false
+	return true
 
 
 ## A highway: long straights and sweepers (900-2,500 m radius, 8-35 degrees), never

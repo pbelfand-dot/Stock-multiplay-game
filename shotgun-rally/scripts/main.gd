@@ -412,13 +412,14 @@ func _process(dt: float) -> void:
 			_smoke_done = true
 			_street_cutup_smoke(Config.arg("smoke"))
 	# (--shot_s with --autostart: the countdown puts the car back on the grid, so the jump
-	# up the road comes at GO, rolling at 100 km/h, the traffic brought along)
+	# up the road comes at GO, rolling at 100 km/h (or what the autopilot would be doing
+	# there: not into a hairpin flat out), the traffic brought along)
 	if (Config.flag("screenshot") or Config.flag("showcase")) and Config.flag("autostart") and float(Config.arg("shot_s", 0)) > 0.0 and not _shot_jumped \
 			and game.built and game.state == "running":
 		_shot_jumped = true
 		var s := float(Config.arg("shot_s", 0))
 		game.car.place(game.st.world_at(s, game.st.LANE_W * 0.5 if game.traffic else 0.0), game.st.heading_at(s))
-		game.car.set_speed(100.0 / 3.6)
+		game.car.set_speed(minf(100.0 / 3.6, game.autopilot.want_at(s)) if game.autopilot else 100.0 / 3.6)
 		game.car_s = s
 		game._hint = int(s / game.st.STEP)            # (where to look for the car on the road now)
 		if game.traffic:

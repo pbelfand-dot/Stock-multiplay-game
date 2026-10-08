@@ -2,8 +2,9 @@ extends SceneTree
 ## The modes beyond rally stages: the touge and cut up.
 ## Run: godot --headless --fixed-fps 120 --path . -s tests/modes_check.gd [-- --only=battles]
 ##   * a touge: a narrow two-lane pass full of hairpins that climbs (or falls) all
-##     the way, no steeper than its limit, the same pass from the same seed; built
-##     with guardrails, curve mirrors and cedar forest
+##     the way, no steeper than its limit, the same pass from the same seed, never
+##     back past or under itself; built with guardrails, curve mirrors and cedar
+##     forest, nothing solid on the road
 ##   * a highway: four lanes, sweepers only, a few per cent at most; concrete
 ##     barriers both sides the whole way
 ##   * the traffic: the registry's traffic cars on it, about as many as the
@@ -53,6 +54,7 @@ func _initialize() -> void:
 			only = a.trim_prefix("--only=")         # (one part: touge (with the night and the stray car), highway, loop, battles, traffic, score, rules, ghost, game)
 	if only in ["", "touge"]:
 		_touge()
+		await _touge_road()
 		await _night_touge()
 		await _stray()
 	if only in ["", "highway"]: _highway()
@@ -123,6 +125,19 @@ func _touge() -> void:
 	b.opts = {"kind": "touge", "dir": "up"}
 	b.generate(11, 4000.0)
 	check(a.pts == b.pts and a.touge_name() == b.touge_name(), "touge: the same seed builds the same pass (%s) on every machine" % a.touge_name())
+	# a long pass never comes back past or under itself (more than half of them did: with
+	# no layout clear by chance the road is grown a stretch at a time)
+	var clear := 0
+	var shortest := INF
+	for sd in range(1, 13):
+		for dir in ["up", "down"]:
+			var p = StageGen.new()
+			p.opts = {"kind": "touge", "dir": dir}
+			p.generate(sd, Modes.TOUGE_LENGTH)
+			clear += 1 if p._clear_of_itself() else 0
+			shortest = minf(shortest, p.length)
+	check(clear == 24 and shortest > 4500.0, "touge: %d of 24 passes of 5 km keep %.0f m from every other part of themselves (the shortest %.1f km)" % [
+		clear, StageGen.CLEARANCE, shortest / 1000.0])
 	# built: guardrails, props, cedars
 	var builder = StageBuilder.new()
 	root.add_child(builder)
@@ -136,6 +151,40 @@ func _touge() -> void:
 	check(rails != null and props != null and builder.crowd_count == 0,
 		"touge built: guardrail, curve mirrors / chevrons / km posts, no spectators (%d trees)" % builder.tree_count)
 	builder.queue_free()
+
+
+## Nothing solid on a touge's road: a car-sized box swept down the middle and both
+## lanes touches nothing (seed 5 downhill once ran under its own hillside: cars
+## stopped dead in the middle of the road).
+func _touge_road() -> void:
+	var st = StageGen.new()
+	st.opts = {"kind": "touge", "dir": "down"}
+	st.generate(5, Modes.TOUGE_LENGTH)
+	var b = StageBuilder.new()
+	root.add_child(b)
+	b.build(st)
+	for k in 3:
+		await physics_frame
+	var space: PhysicsDirectSpaceState3D = root.get_world_3d().direct_space_state
+	var q := PhysicsShapeQueryParameters3D.new()
+	var box := BoxShape3D.new()
+	box.size = Vector3(1.6, 0.8, 1.6)
+	q.shape = box
+	var hits := 0
+	var first := ""
+	var s: float = st.START_S
+	while s < st.finish_s:
+		for d in [-1.8, 0.0, 1.8]:
+			q.transform = Transform3D(Basis(Vector3.UP, st.heading_at(s)), st.world_at(s, d) + Vector3.UP * 0.9)
+			var r: Array = space.intersect_shape(q, 1)
+			if not r.is_empty():
+				hits += 1
+				if first == "":
+					first = "%s at s %.0f" % [r[0].collider.name, s]
+		s += 2.0
+	check(hits == 0, "touge: nothing solid on the road, %.1f km of it swept in both lanes (%d hits%s)" % [
+		(st.finish_s - st.START_S) / 1000.0, hits, (": " + first) if first != "" else ""])
+	b.queue_free()
 
 
 ## The touge at night: street lamps along the pass (before the tight bends, then no

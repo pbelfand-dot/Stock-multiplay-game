@@ -109,12 +109,7 @@ func drive(car, s: float, d: float) -> Dictionary:
 	var share := clampf(spd * spd * absf(k) / (tyre.lateral_mu * 9.8), 0.0, 1.0)
 	var slip := deg_to_rad(tyre.lateral_peak_deg) * (1.0 - sqrt(1.0 - share)) * signf(k)
 	var steer_cmd := clampf((atan(base * k) + slip + CATCH * tail) / lock, -1.0, 1.0)
-	# speed: the lowest braking-allowed speed over the next 150 m
-	var want := cap
-	var i0 := int(s / st.STEP)
-	for j in range(i0, mini(_vmax.size(), i0 + int(150.0 / st.STEP))):
-		var dist: float = (j - i0) * st.STEP
-		want = minf(want, sqrt(_vmax[j] * _vmax[j] + 2.0 * DECEL * dist))
+	var want := want_at(s)
 	if s > st.finish_s + 5.0:
 		want = 0.0                                       # through the finish: stop
 	var thr := 0.0
@@ -129,3 +124,13 @@ func drive(car, s: float, d: float) -> Dictionary:
 	# (pressed, as a stick, so that it gets there through the steering aids, if they're on)
 	var press: float = car.assist.input_for(car, steer_cmd, 1.0 / Engine.physics_ticks_per_second)
 	return {"steer": press, "throttle": thr, "brake": brk, "handbrake": false, "analog": true}
+
+
+## The speed it wants at s: the lowest braking-allowed speed over the next 150 m.
+func want_at(s: float) -> float:
+	var want := cap
+	var i0 := int(s / st.STEP)
+	for j in range(i0, mini(_vmax.size(), i0 + int(150.0 / st.STEP))):
+		var dist: float = (j - i0) * st.STEP
+		want = minf(want, sqrt(_vmax[j] * _vmax[j] + 2.0 * DECEL * dist))
+	return want

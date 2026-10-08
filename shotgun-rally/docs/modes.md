@@ -20,7 +20,13 @@ built from the same pieces as a rally stage but weighted to hairpins and tight S
 straights and sweepers, easing to ~5 % round the hairpins (switchbacks are laid flatter),
 about 8 % on average: a 5 km pass drops ~430 m. Run at night (Settings' TIME OF DAY can make
 it any hour). No jumps, bridges, villages or puddles: asphalt end to end. Each seed is its own pass with its own name
-("KAZEMAKI PASS"), the same on every machine.
+("KAZEMAKI PASS"), the same on every machine. **It never comes back past or under itself**:
+every part of the road stays 55 m from every part that isn't its neighbour (`CLEARANCE`).
+A whole layout is drawn up to 60 times for one that comes out clear; when none does (more
+than half of the 5 km passes, all those hairpins), the road is grown a stretch at a time
+instead (`_grow_pieces`): each new stretch is drawn again until it keeps clear, and when it's
+boxed in the last one is taken back. (Before, the last try was kept: such a pass could run
+under its own hillside, a wall in the middle of the road.)
 
 **The look**: a solid yellow centre line (no overtaking, as on Japanese mountain roads),
 white edge lines; white-painted guardrail wherever the road drops away *and* round the
@@ -194,7 +200,8 @@ rather.
 ## Tests
 
 `tests/modes_check.gd` (in `tests/run_all.sh`): the touge's hairpins, widths, climb,
-grade limit and determinism, its guardrail and props; the highway's lanes, sweepers,
+grade limit and determinism, 24 passes of 5 km all clear of themselves, its guardrail and
+props, nothing solid on the road (a car-sized box swept down both lanes); the highway's lanes, sweepers,
 grades and barriers; the LAKESHORE LOOP (closes exactly, radii, grades, the bridges and
 tunnels where they should be, never near itself, s unwrapping lap after lap, the road,
 towers and trees solid where a ray hits them); a minute of traffic with the player weaving
