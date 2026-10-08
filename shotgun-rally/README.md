@@ -62,7 +62,7 @@ The links never change. Every change to this folder on `main` replaces the files
 > The repo is **public**: the links work for anyone, no GitHub account needed.
 
 **It updates itself.** The menu shows your build number top right. Every time you open the game
-it checks for a newer build, downloads it in the background (the whole game, ~270 MB), checks it's complete, and
+it checks for a newer build, downloads it in the background (the whole game, ~490 MB), checks it's complete, and
 shows **RESTART TO UPDATE** (or it switches over by itself the next time you start it). If an
 update ever fails to start, the game drops it and starts as you installed it. Some changes (a
 new Godot version, new project settings) can't be sent that way: then the button says
