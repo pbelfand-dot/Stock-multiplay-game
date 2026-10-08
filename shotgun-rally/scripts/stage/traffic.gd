@@ -910,27 +910,49 @@ func _drive_racer(c: Dictionary, dt: float) -> void:
 			c.t = 0.0
 		return
 	r.think = float(r.think) - dt
-	if r.think > 0.0 or float(lead.gap) > 140.0 or float(lead.v) > float(c.v) - 1.0:
+	# held up: the car ahead is slower than it wants to go (not slower than it's going:
+	# once it's matched that car's speed it would never look for a way past again)
+	if r.think > 0.0 or float(lead.gap) > 140.0 or float(lead.v) > float(r.top_v) - 3.0:
 		return
 	r.think = maxf(0.12, 0.45 - 0.06 * int(r.level))       # (the better ones see a gap sooner)
-	var here: float = lead.gap
+	var here := _lane_room(lead)
 	var best := -1
-	var best_free := here + 12.0
+	var best_free := here + 6.0
 	for to in [int(c.lane) - 1, int(c.lane) + 1]:
-		if to < 0 or to >= lanes:
+		if not _racer_can_enter(c, to):
 			continue
-		var ahead := _leader(to, float(c.s), float(c.half_len), c)
-		var back := _follower(to, float(c.s), float(c.half_len), c)
-		if float(back.gap) < 3.0 or float(ahead.gap) < 6.0:
-			continue
-		if back.car != null and float(back.v) - float(c.v) > 6.0 and float(back.gap) < 25.0:
-			continue
-		if _player_in(to) and absf(float(player.s) - float(c.s)) < PLAYER_HALF_LEN + float(c.half_len) + 2.0:
-			continue                                         # (the player's alongside there)
-		var free: float = ahead.gap
+		var free := _lane_room(_leader(to, float(c.s), float(c.half_len), c))
+		# (a lane is worth crossing for the open one beyond it, too)
+		var far: int = to + (to - int(c.lane))
+		if far >= 0 and far < lanes:
+			free = maxf(free, _lane_room(_leader(far, float(c.s), float(c.half_len), c)) - 15.0)
 		if free > best_free:
 			best_free = free
 			best = to
 	if best >= 0:
 		c.to = best
 		c.t = 0.0
+
+
+## How much a lane's leader lets a racer get on: the gap to it, plus what its speed
+## opens (or closes) over the next few seconds.
+func _lane_room(lead: Dictionary) -> float:
+	if float(lead.gap) >= INF:
+		return 1000.0
+	return float(lead.gap) + float(lead.v) * 3.0
+
+
+## A racer can move into lane `to` now: room ahead and behind, nothing closing fast
+## from behind, the player not alongside.
+func _racer_can_enter(c: Dictionary, to: int) -> bool:
+	if to < 0 or to >= lanes:
+		return false
+	var ahead := _leader(to, float(c.s), float(c.half_len), c)
+	var back := _follower(to, float(c.s), float(c.half_len), c)
+	if float(back.gap) < 3.0 or float(ahead.gap) < 6.0:
+		return false
+	if back.car != null and float(back.v) - float(c.v) > 6.0 and float(back.gap) < 25.0:
+		return false
+	if _player_in(to) and absf(float(player.s) - float(c.s)) < PLAYER_HALF_LEN + float(c.half_len) + 2.0:
+		return false                                         # (the player's alongside there)
+	return true
