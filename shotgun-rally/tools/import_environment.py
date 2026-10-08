@@ -2,6 +2,8 @@
 for the game, by a spec in tools/environment_specs.json. Run headless (one spec per run):
 
     blender -b -Y --python shotgun-rally/tools/import_environment.py -- <spec id> [--list]
+        [--work DIR] (the unpacked packs somewhere else: another checkout's environment_work)
+        [--out FILE] (a trial: write there instead of the spec's runtime file)
 
 A spec ({"id": {...}}):
   src       the source file, relative to assets/environment_packages/ (the CC0 library) or
@@ -17,9 +19,11 @@ A spec ({"id": {...}}):
   scale     (optional) a factor (sources in cm: 0.01)
   max_tex   the longest side a texture keeps (px)
   tex_format "webp" (default) or "jpeg" / "png"
-  mode      "props" (default), "tree" (tools/vegetation.py: the LODs and the billboard) or
+  mode      "props" (default), "tree" (tools/vegetation.py: the LODs and the billboard),
             "building" (tools/buildings.py: light, one baked material, a window mask; one GLB
-            per building; extra arguments after the spec id: just those source files)
+            per building; extra arguments after the spec id: just those source files) or
+            "skyline" (tools/skyline.py: the far tier's silhouettes, no material, all in one
+            GLB; extra arguments: just those source files, for a trial with --out)
 Each part ends up a node of its own in the GLB, its mesh in its own space; the game takes the
 meshes by part name (scripts/stage/env_assets.gd). The source files are only read.
 """
@@ -146,11 +150,36 @@ def tris(o):
 
 
 def main():
+    global WORK
     argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
     if not argv or argv[0] == "--list":
         print("\n".join(sorted(json.load(open(os.path.join(HERE, "environment_specs.json"))))))
         return
+    out_file = ""
+    for flag in ("--work", "--out"):                          # (--work DIR: the packs unpacked elsewhere; --out FILE: a trial)
+        if flag in argv:
+            k = argv.index(flag)
+            if flag == "--work":
+                WORK = os.path.abspath(argv[k + 1])
+            else:
+                out_file = os.path.abspath(argv[k + 1])
+            del argv[k:k + 2]
     spec = spec_for(argv[0])
+    if spec.get("mode", "props") == "skyline":
+        sys.path.insert(0, HERE)
+        import skyline
+        only = argv[1:]
+        if only and not out_file:
+            raise SystemExit("just some of the files would make a GLB with just those: give --out FILE (a trial)")
+        objs, rows = [], []
+        bpy.ops.wm.read_factory_settings(use_empty=True)
+        for rel in spec["srcs"]:
+            if only and not any(o == os.path.splitext(os.path.basename(rel))[0] for o in only):
+                continue
+            rows += skyline.convert(spec, source_path(rel), objs)
+        skyline.export(objs, out_file or os.path.join(RUNTIME, spec["out"]))
+        print("skyline total: %d buildings, %d triangles" % (len(rows), sum(r["tris"] for r in rows)))
+        return
     if spec.get("mode", "props") == "building":
         sys.path.insert(0, HERE)
         import buildings

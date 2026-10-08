@@ -17,7 +17,8 @@ extends SceneTree
 ##   * the LAKESHORE LOOP (cut up's map): it closes on itself, ~28 km, four lanes each
 ##     way, sweepers, grades of 4 % at most, three suspension bridges and three
 ##     tunnels, never near itself; built: the road solid underfoot all the way round
-##     in every lane, the city's towers, the hills' trees; traffic on it: packs on
+##     in every lane, the city's towers, the hills' trees; the city's far tier (the
+##     31-building pack) on the ground, off the road, no building on another; traffic on it: packs on
 ##     insane (blocks of cars with open road between), the other carriageway's
 ##     traffic going the other way, cars joining from an on-ramp; s round the loop
 ##   * the highway battles (Rivals): a rival shows up in the traffic, flashing it from
@@ -512,6 +513,7 @@ func _loop() -> void:
 	check(holes.is_empty(), "loop built: the road solid in every lane all the way round (%d spots tried)%s" % [int(st.length / 97.0) * 3,
 		"" if holes.is_empty() else " HOLES at " + ", ".join(holes.slice(0, 8))])
 	check(b.building_count > 300 and b.tree_count > 1000, "loop built: the city's towers (%d), the hills' trees (%d)" % [b.building_count, b.tree_count])
+	_far_tier(b, st)
 	# traffic on it, insane: packs
 	var tr = Traffic.new()
 	root.add_child(tr)
@@ -559,6 +561,139 @@ func _loop() -> void:
 	tr.queue_free()
 	b.queue_free()
 	await process_frame
+
+
+## The LAKESHORE LOOP's far tier (the 31-building pack behind the city's front rows:
+## scripts/stage/city_skyline.gd): there, its three levels of detail, no shadows; every building
+## on the ground as drawn (the land's triangles under its footprint: nowhere above them, at most
+## 0.5 m into them at the lowest), 40 m and more from the road's centreline (and the ramps'),
+## its footprint clear of every other building's (the far ones, the front rows, the drawn
+## towers left).
+func _far_tier(b, st) -> void:
+	var EnvAssets = load("res://scripts/stage/env_assets.gd")
+	var CitySkyline = load("res://scripts/stage/city_skyline.gd")
+	var far: Node = b.get_node_or_null("CitySkyline")
+	var feet: Array = []                            # [footprint, foot height, design]
+	var lods := {}
+	var shadows := 0
+	var drawn := 0
+	if far != null:
+		for mmi in far.get_children():
+			lods[int(mmi.get_meta("lod", 0))] = true
+			shadows += 1 if mmi.cast_shadow != GeometryInstance3D.SHADOW_CASTING_SETTING_OFF else 0
+			drawn += mmi.multimesh.instance_count if int(mmi.get_meta("lod", 0)) == 0 else 0
+		# (where each stands: the node's record; a MultiMesh's transforms can't be read back headless)
+		for e in far.get_meta("buildings", []):
+			var sz: Array = EnvAssets.info(str(e[0])).get("size", [0.0, 0.0, 0.0])
+			var xf: Transform3D = e[1]
+			feet.append([_foot(xf, Vector3.ZERO, float(sz[0]), float(sz[2])), xf.origin.y, str(e[0])])
+	var designs := {}
+	for f in feet:
+		designs[f[2]] = true
+	check(feet.size() > 150 and drawn == feet.size() and designs.size() >= 12 and lods.size() == 3 and shadows == 0,
+		"loop's far tier: %d buildings of the 31-building pack (%d designs; %d drawn), three levels of detail, no shadows" % [feet.size(), designs.size(), drawn])
+	# the ground as drawn: the ribbons along the road (the chunks' "terrain") and the far land's tiles
+	var faces := PackedVector3Array()
+	for n in b.get_children():
+		if n is MeshInstance3D and String(n.name).begins_with("Land"):
+			faces.append_array((n as MeshInstance3D).mesh.get_faces())
+		elif String(n.name).begins_with("Chunk") and n.get_node_or_null("terrain") != null:
+			faces.append_array((n.get_node("terrain") as MeshInstance3D).mesh.get_faces())
+	var land := TriangleMesh.new()
+	land.create_from_faces(faces)
+	var afloat: Array = []
+	var sunk: Array = []
+	var worst := 0.0
+	for f in feet:
+		var lo := INF
+		for p in _foot_points(f[0]):
+			var hit: Dictionary = land.intersect_ray(Vector3(p.x, 2000.0, p.y), Vector3.DOWN)
+			lo = minf(lo, (hit.position as Vector3).y if not hit.is_empty() else -INF)
+		worst = maxf(worst, absf(float(f[1]) - lo))
+		if float(f[1]) > lo + 0.05:
+			afloat.append("%s at %.0f, %.0f (%.2f m up)" % [f[2], f[0].c.x, f[0].c.y, float(f[1]) - lo])
+		elif float(f[1]) < lo - 0.5:
+			sunk.append("%s at %.0f, %.0f (%.2f m down)" % [f[2], f[0].c.x, f[0].c.y, lo - float(f[1])])
+	check(not feet.is_empty() and afloat.is_empty() and sunk.is_empty(),
+		"loop's far tier: every building on the ground (its foot within %.2f m of the lowest ground under it)%s" % [worst,
+		"" if afloat.is_empty() and sunk.is_empty() else "; FLOATING " + ", ".join(afloat.slice(0, 4)) + " SUNK " + ", ".join(sunk.slice(0, 4))])
+	# off the road: its footprint 40 m and more from every sample of the centreline and the ramps
+	var grid := {}
+	var road_pts: Array = []
+	for i in st._n:
+		road_pts.append(Vector2(st.pts[i].x, st.pts[i].z))
+	for r in st.ramps:
+		for q in st.ramp_path(r).pts:
+			road_pts.append(Vector2(q.x, q.z))
+	for q in road_pts:
+		var key := Vector2i(floori(q.x / 100.0), floori(q.y / 100.0))
+		if not grid.has(key):
+			grid[key] = []
+		grid[key].append(q)
+	var nearest := INF
+	var near_road: Array = []
+	for f in feet:
+		var r: Dictionary = f[0]
+		var key := Vector2i(floori(r.c.x / 100.0), floori(r.c.y / 100.0))
+		var d := INF
+		for dx in range(-2, 3):
+			for dz in range(-2, 3):
+				for q in grid.get(key + Vector2i(dx, dz), []):
+					var v: Vector2 = q - r.c
+					var out := Vector2(maxf(absf(v.dot(r.ax)) - r.hx, 0.0), maxf(absf(v.dot(r.az)) - r.hz, 0.0))
+					d = minf(d, out.length())
+		nearest = minf(nearest, d)
+		if d < 40.0:
+			near_road.append("%s at %.0f, %.0f (%.0f m)" % [f[2], r.c.x, r.c.y, d])
+	check(not feet.is_empty() and near_road.is_empty(), "loop's far tier: none near the road or a ramp (the nearest %.0f m from the centreline)%s" % [nearest,
+		"" if near_road.is_empty() else "; TOO NEAR " + ", ".join(near_road.slice(0, 4))])
+	# no two footprints overlapping: the far ones, the front rows, the drawn towers left
+	var others: Array = []
+	for n in b.get_children():
+		if n is MeshInstance3D and String(n.name).begins_with("Building_"):
+			var ab: AABB = (n as MeshInstance3D).mesh.get_aabb()
+			others.append(_foot(n.transform, ab.get_center(), ab.size.x, ab.size.z))
+		elif n is MultiMeshInstance3D and String(n.name).begins_with("Towers"):
+			for k in n.multimesh.instance_count:
+				var xf: Transform3D = n.multimesh.get_instance_transform(k)
+				others.append(_foot(Transform3D(xf.basis.orthonormalized(), xf.origin), Vector3.ZERO, xf.basis.x.length(), xf.basis.z.length()))
+	var clashes: Array = []
+	var cells := {}
+	for k in feet.size():
+		var key := Vector2i(floori(feet[k][0].c.x / 100.0), floori(feet[k][0].c.y / 100.0))
+		if not cells.has(key):
+			cells[key] = []
+		cells[key].append(k)
+	for k in feet.size():
+		var r: Dictionary = feet[k][0]
+		var key := Vector2i(floori(r.c.x / 100.0), floori(r.c.y / 100.0))
+		for dx in range(-1, 2):
+			for dz in range(-1, 2):
+				for j in cells.get(key + Vector2i(dx, dz), []):
+					if j > k and CitySkyline.overlap(r, feet[j][0]):
+						clashes.append("%s / %s at %.0f, %.0f" % [feet[k][2], feet[j][2], r.c.x, r.c.y])
+		for o in others:
+			if o.c.distance_to(r.c) < 260.0 and CitySkyline.overlap(r, o):
+				clashes.append("%s / a front-row building at %.0f, %.0f" % [feet[k][2], r.c.x, r.c.y])
+	check(not feet.is_empty() and clashes.is_empty(), "loop's far tier: no building on another (%d far, %d front-row and drawn ones round them)%s" % [feet.size(), others.size(),
+		"" if clashes.is_empty() else "; CLASH " + ", ".join(clashes.slice(0, 4))])
+
+
+## A building's footprint on the ground: its middle (the transform's origin plus `mid`, in its
+## own space), its sides' directions and half sizes (sx, sz: its size along its own x and z).
+func _foot(xf: Transform3D, mid: Vector3, sx: float, sz: float) -> Dictionary:
+	var c: Vector3 = xf * mid
+	return {"c": Vector2(c.x, c.z), "ax": Vector2(xf.basis.x.x, xf.basis.x.z).normalized(),
+		"az": Vector2(xf.basis.z.x, xf.basis.z.z).normalized(), "hx": sx * 0.5, "hz": sz * 0.5}
+
+
+## Its middle, corners and sides' middles.
+func _foot_points(r: Dictionary) -> Array:
+	var out: Array = []
+	for u in [-1.0, 0.0, 1.0]:
+		for v in [-1.0, 0.0, 1.0]:
+			out.append(r.c + r.ax * r.hx * u * 0.98 + r.az * r.hz * v * 0.98)
+	return out
 
 
 ## The highway battles: a rival, a challenge, two races (one won, one lost).

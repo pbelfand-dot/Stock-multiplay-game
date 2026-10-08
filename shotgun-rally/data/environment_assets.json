@@ -1127,6 +1127,750 @@
     "mid"
    ],
    "source": "owner's pack: 22 Buildings 2024 (Blender), 3320 triangles in the source"
+  },
+  "bld31_01a": {
+   "kind": "skyline",
+   "glb": "res://assets/environment_runtime/city/bld31.glb",
+   "part": "bld31_01a",
+   "size": [
+    17.2,
+    40.9,
+    8.4
+   ],
+   "tris": 1046,
+   "tris_lods": [
+    248,
+    120
+   ],
+   "floor": 2.7,
+   "bay": 2.65,
+   "roof": 40.9,
+   "tags": [
+    "city",
+    "far",
+    "mid"
+   ],
+   "source": "owner's pack: 31 Model separate Files (FBX), 01.FBX, 94381 triangles in the source"
+  },
+  "bld31_01b": {
+   "kind": "skyline",
+   "glb": "res://assets/environment_runtime/city/bld31.glb",
+   "part": "bld31_01b",
+   "size": [
+    17.2,
+    27.4,
+    8.4
+   ],
+   "tris": 1000,
+   "tris_lods": [
+    250,
+    120
+   ],
+   "floor": 2.7,
+   "bay": 2.35,
+   "roof": 27.4,
+   "tags": [
+    "city",
+    "far",
+    "low"
+   ],
+   "source": "owner's pack: 31 Model separate Files (FBX), 01.FBX, 72151 triangles in the source"
+  },
+  "bld31_02": {
+   "kind": "skyline",
+   "glb": "res://assets/environment_runtime/city/bld31.glb",
+   "part": "bld31_02",
+   "size": [
+    11.0,
+    38.9,
+    6.1
+   ],
+   "tris": 1006,
+   "tris_lods": [
+    250,
+    120
+   ],
+   "floor": 2.8,
+   "bay": 2.6,
+   "roof": 38.9,
+   "tags": [
+    "city",
+    "far",
+    "low"
+   ],
+   "source": "owner's pack: 31 Model separate Files (FBX), 02.FBX, 76885 triangles in the source"
+  },
+  "bld31_03": {
+   "kind": "skyline",
+   "glb": "res://assets/environment_runtime/city/bld31.glb",
+   "part": "bld31_03",
+   "size": [
+    14.6,
+    49.1,
+    18.4
+   ],
+   "tris": 1246,
+   "tris_lods": [
+    250,
+    120
+   ],
+   "floor": 2.85,
+   "bay": 2.0,
+   "roof": 49.1,
+   "tags": [
+    "city",
+    "far",
+    "mid"
+   ],
+   "source": "owner's pack: 31 Model separate Files (FBX), 03.FBX, 168601 triangles in the source"
+  },
+  "bld31_04": {
+   "kind": "skyline",
+   "glb": "res://assets/environment_runtime/city/bld31.glb",
+   "part": "bld31_04",
+   "size": [
+    17.8,
+    23.5,
+    10.3
+   ],
+   "tris": 1000,
+   "tris_lods": [
+    250,
+    120
+   ],
+   "floor": 2.8,
+   "bay": 3.15,
+   "roof": 23.5,
+   "tags": [
+    "city",
+    "far",
+    "low"
+   ],
+   "source": "owner's pack: 31 Model separate Files (FBX), 04.FBX, 534253 triangles in the source"
+  },
+  "bld31_05": {
+   "kind": "skyline",
+   "glb": "res://assets/environment_runtime/city/bld31.glb",
+   "part": "bld31_05",
+   "size": [
+    21.7,
+    66.3,
+    14.0
+   ],
+   "tris": 1662,
+   "tris_lods": [
+    332,
+    120
+   ],
+   "floor": 2.8,
+   "bay": 1.4,
+   "roof": 66.3,
+   "tags": [
+    "city",
+    "far",
+    "mid"
+   ],
+   "source": "owner's pack: 31 Model separate Files (FBX), 05.FBX, 88524 triangles in the source"
+  },
+  "bld31_06": {
+   "kind": "skyline",
+   "glb": "res://assets/environment_runtime/city/bld31.glb",
+   "part": "bld31_06",
+   "size": [
+    30.3,
+    85.7,
+    47.2
+   ],
+   "tris": 2234,
+   "tris_lods": [
+    446,
+    156
+   ],
+   "floor": 2.75,
+   "bay": 2.6,
+   "roof": 85.6,
+   "tags": [
+    "city",
+    "far",
+    "tall"
+   ],
+   "source": "owner's pack: 31 Model separate Files (FBX), 06.FBX, 305923 triangles in the source"
+  },
+  "bld31_07": {
+   "kind": "skyline",
+   "glb": "res://assets/environment_runtime/city/bld31.glb",
+   "part": "bld31_07",
+   "size": [
+    25.0,
+    26.2,
+    17.1
+   ],
+   "tris": 1000,
+   "tris_lods": [
+    250,
+    120
+   ],
+   "floor": 2.8,
+   "bay": 2.6,
+   "roof": 25.5,
+   "tags": [
+    "city",
+    "far",
+    "low"
+   ],
+   "source": "owner's pack: 31 Model separate Files (FBX), 07.FBX, 90865 triangles in the source"
+  },
+  "bld31_08": {
+   "kind": "skyline",
+   "glb": "res://assets/environment_runtime/city/bld31.glb",
+   "part": "bld31_08",
+   "size": [
+    15.9,
+    18.1,
+    21.4
+   ],
+   "tris": 1000,
+   "tris_lods": [
+    250,
+    120
+   ],
+   "floor": 3.65,
+   "bay": 2.6,
+   "roof": 16.9,
+   "tags": [
+    "city",
+    "far",
+    "low"
+   ],
+   "source": "owner's pack: 31 Model separate Files (FBX), 08.FBX, 71848 triangles in the source"
+  },
+  "bld31_09": {
+   "kind": "skyline",
+   "glb": "res://assets/environment_runtime/city/bld31.glb",
+   "part": "bld31_09",
+   "size": [
+    24.1,
+    27.0,
+    10.6
+   ],
+   "tris": 1000,
+   "tris_lods": [
+    250,
+    120
+   ],
+   "floor": 2.95,
+   "bay": 2.6,
+   "roof": 27.0,
+   "tags": [
+    "city",
+    "far",
+    "low"
+   ],
+   "source": "owner's pack: 31 Model separate Files (FBX), 09.FBX, 74577 triangles in the source"
+  },
+  "bld31_10": {
+   "kind": "skyline",
+   "glb": "res://assets/environment_runtime/city/bld31.glb",
+   "part": "bld31_10",
+   "size": [
+    41.0,
+    35.1,
+    20.5
+   ],
+   "tris": 1000,
+   "tris_lods": [
+    250,
+    120
+   ],
+   "floor": 2.7,
+   "bay": 2.6,
+   "roof": 35.0,
+   "tags": [
+    "city",
+    "far",
+    "low"
+   ],
+   "source": "owner's pack: 31 Model separate Files (FBX), 10.FBX, 205439 triangles in the source"
+  },
+  "bld31_11": {
+   "kind": "skyline",
+   "glb": "res://assets/environment_runtime/city/bld31.glb",
+   "part": "bld31_11",
+   "size": [
+    50.3,
+    129.8,
+    38.5
+   ],
+   "tris": 3295,
+   "tris_lods": [
+    658,
+    230
+   ],
+   "floor": 2.8,
+   "bay": 2.6,
+   "roof": 129.8,
+   "tags": [
+    "city",
+    "far",
+    "tall"
+   ],
+   "source": "owner's pack: 31 Model separate Files (FBX), 11.FBX, 451157 triangles in the source"
+  },
+  "bld31_12": {
+   "kind": "skyline",
+   "glb": "res://assets/environment_runtime/city/bld31.glb",
+   "part": "bld31_12",
+   "size": [
+    35.6,
+    89.7,
+    27.1
+   ],
+   "tris": 2334,
+   "tris_lods": [
+    466,
+    162
+   ],
+   "floor": 3.35,
+   "bay": 2.65,
+   "roof": 89.7,
+   "tags": [
+    "city",
+    "far",
+    "tall"
+   ],
+   "source": "owner's pack: 31 Model separate Files (FBX), 12.FBX, 335336 triangles in the source"
+  },
+  "bld31_13": {
+   "kind": "skyline",
+   "glb": "res://assets/environment_runtime/city/bld31.glb",
+   "part": "bld31_13",
+   "size": [
+    25.7,
+    126.7,
+    25.7
+   ],
+   "tris": 3214,
+   "tris_lods": [
+    642,
+    224
+   ],
+   "floor": 2.8,
+   "bay": 2.55,
+   "roof": 126.3,
+   "tags": [
+    "city",
+    "far",
+    "tall"
+   ],
+   "source": "owner's pack: 31 Model separate Files (FBX), 13.FBX, 209480 triangles in the source"
+  },
+  "bld31_14": {
+   "kind": "skyline",
+   "glb": "res://assets/environment_runtime/city/bld31.glb",
+   "part": "bld31_14",
+   "size": [
+    25.2,
+    134.2,
+    25.3
+   ],
+   "tris": 3393,
+   "tris_lods": [
+    678,
+    236
+   ],
+   "floor": 2.8,
+   "bay": 1.55,
+   "roof": 133.8,
+   "tags": [
+    "city",
+    "far",
+    "tall"
+   ],
+   "source": "owner's pack: 31 Model separate Files (FBX), 14.FBX, 271658 triangles in the source"
+  },
+  "bld31_15": {
+   "kind": "skyline",
+   "glb": "res://assets/environment_runtime/city/bld31.glb",
+   "part": "bld31_15",
+   "size": [
+    19.6,
+    36.6,
+    11.2
+   ],
+   "tris": 998,
+   "tris_lods": [
+    250,
+    120
+   ],
+   "floor": 2.8,
+   "bay": 1.85,
+   "roof": 36.6,
+   "tags": [
+    "city",
+    "far",
+    "low"
+   ],
+   "source": "owner's pack: 31 Model separate Files (FBX), 15.FBX, 114029 triangles in the source"
+  },
+  "bld31_16": {
+   "kind": "skyline",
+   "glb": "res://assets/environment_runtime/city/bld31.glb",
+   "part": "bld31_16",
+   "size": [
+    21.0,
+    20.4,
+    9.1
+   ],
+   "tris": 1000,
+   "tris_lods": [
+    250,
+    118
+   ],
+   "floor": 2.8,
+   "bay": 2.8,
+   "roof": 19.8,
+   "tags": [
+    "city",
+    "far",
+    "low"
+   ],
+   "source": "owner's pack: 31 Model separate Files (FBX), 16.FBX, 60895 triangles in the source"
+  },
+  "bld31_17": {
+   "kind": "skyline",
+   "glb": "res://assets/environment_runtime/city/bld31.glb",
+   "part": "bld31_17",
+   "size": [
+    13.9,
+    34.5,
+    14.4
+   ],
+   "tris": 998,
+   "tris_lods": [
+    250,
+    118
+   ],
+   "floor": 4.1,
+   "bay": 2.6,
+   "roof": 32.4,
+   "tags": [
+    "city",
+    "far",
+    "low"
+   ],
+   "source": "owner's pack: 31 Model separate Files (FBX), 17.FBX, 130998 triangles in the source"
+  },
+  "bld31_18": {
+   "kind": "skyline",
+   "glb": "res://assets/environment_runtime/city/bld31.glb",
+   "part": "bld31_18",
+   "size": [
+    15.6,
+    30.0,
+    14.8
+   ],
+   "tris": 1000,
+   "tris_lods": [
+    250,
+    120
+   ],
+   "floor": 3.0,
+   "bay": 1.8,
+   "roof": 30.0,
+   "tags": [
+    "city",
+    "far",
+    "low"
+   ],
+   "source": "owner's pack: 31 Model separate Files (FBX), 18.FBX, 85856 triangles in the source"
+  },
+  "bld31_19": {
+   "kind": "skyline",
+   "glb": "res://assets/environment_runtime/city/bld31.glb",
+   "part": "bld31_19",
+   "size": [
+    15.2,
+    30.4,
+    11.2
+   ],
+   "tris": 1000,
+   "tris_lods": [
+    250,
+    120
+   ],
+   "floor": 2.7,
+   "bay": 1.6,
+   "roof": 30.4,
+   "tags": [
+    "city",
+    "far",
+    "low"
+   ],
+   "source": "owner's pack: 31 Model separate Files (FBX), 19.FBX, 108485 triangles in the source"
+  },
+  "bld31_20": {
+   "kind": "skyline",
+   "glb": "res://assets/environment_runtime/city/bld31.glb",
+   "part": "bld31_20",
+   "size": [
+    16.5,
+    27.1,
+    25.4
+   ],
+   "tris": 1000,
+   "tris_lods": [
+    250,
+    120
+   ],
+   "floor": 2.8,
+   "bay": 4.35,
+   "roof": 26.1,
+   "tags": [
+    "city",
+    "far",
+    "low"
+   ],
+   "source": "owner's pack: 31 Model separate Files (FBX), 20.FBX, 112081 triangles in the source"
+  },
+  "bld31_21": {
+   "kind": "skyline",
+   "glb": "res://assets/environment_runtime/city/bld31.glb",
+   "part": "bld31_21",
+   "size": [
+    41.4,
+    70.9,
+    21.3
+   ],
+   "tris": 1886,
+   "tris_lods": [
+    376,
+    130
+   ],
+   "floor": 2.7,
+   "bay": 2.6,
+   "roof": 70.9,
+   "tags": [
+    "city",
+    "far",
+    "mid"
+   ],
+   "source": "owner's pack: 31 Model separate Files (FBX), 21.FBX, 308902 triangles in the source"
+  },
+  "bld31_22": {
+   "kind": "skyline",
+   "glb": "res://assets/environment_runtime/city/bld31.glb",
+   "part": "bld31_22",
+   "size": [
+    20.1,
+    66.9,
+    26.8
+   ],
+   "tris": 1676,
+   "tris_lods": [
+    334,
+    120
+   ],
+   "floor": 2.95,
+   "bay": 2.6,
+   "roof": 66.9,
+   "tags": [
+    "city",
+    "far",
+    "mid"
+   ],
+   "source": "owner's pack: 31 Model separate Files (FBX), 22.FBX, 111417 triangles in the source"
+  },
+  "bld31_23": {
+   "kind": "skyline",
+   "glb": "res://assets/environment_runtime/city/bld31.glb",
+   "part": "bld31_23",
+   "size": [
+    46.5,
+    67.9,
+    18.3
+   ],
+   "tris": 1800,
+   "tris_lods": [
+    360,
+    124
+   ],
+   "floor": 2.8,
+   "bay": 2.6,
+   "roof": 67.7,
+   "tags": [
+    "city",
+    "far",
+    "mid"
+   ],
+   "source": "owner's pack: 31 Model separate Files (FBX), 23.FBX, 251454 triangles in the source"
+  },
+  "bld31_24": {
+   "kind": "skyline",
+   "glb": "res://assets/environment_runtime/city/bld31.glb",
+   "part": "bld31_24",
+   "size": [
+    51.1,
+    137.5,
+    41.9
+   ],
+   "tris": 3306,
+   "tris_lods": [
+    657,
+    229
+   ],
+   "floor": 2.8,
+   "bay": 2.9,
+   "roof": 137.5,
+   "tags": [
+    "city",
+    "far",
+    "tall"
+   ],
+   "source": "owner's pack: 31 Model separate Files (FBX), 24.FBX, 491733 triangles in the source"
+  },
+  "bld31_25": {
+   "kind": "skyline",
+   "glb": "res://assets/environment_runtime/city/bld31.glb",
+   "part": "bld31_25",
+   "size": [
+    47.0,
+    17.9,
+    56.0
+   ],
+   "tris": 1000,
+   "tris_lods": [
+    250,
+    120
+   ],
+   "floor": 2.8,
+   "bay": 2.1,
+   "roof": 16.9,
+   "tags": [
+    "city",
+    "far",
+    "low"
+   ],
+   "source": "owner's pack: 31 Model separate Files (FBX), 25.FBX, 225795 triangles in the source"
+  },
+  "bld31_26": {
+   "kind": "skyline",
+   "glb": "res://assets/environment_runtime/city/bld31.glb",
+   "part": "bld31_26",
+   "size": [
+    15.7,
+    46.3,
+    18.1
+   ],
+   "tris": 1172,
+   "tris_lods": [
+    250,
+    118
+   ],
+   "floor": 2.9,
+   "bay": 2.45,
+   "roof": 46.3,
+   "tags": [
+    "city",
+    "far",
+    "mid"
+   ],
+   "source": "owner's pack: 31 Model separate Files (FBX), 26.FBX, 111773 triangles in the source"
+  },
+  "bld31_27": {
+   "kind": "skyline",
+   "glb": "res://assets/environment_runtime/city/bld31.glb",
+   "part": "bld31_27",
+   "size": [
+    11.8,
+    30.9,
+    29.1
+   ],
+   "tris": 1000,
+   "tris_lods": [
+    248,
+    120
+   ],
+   "floor": 2.8,
+   "bay": 2.6,
+   "roof": 30.5,
+   "tags": [
+    "city",
+    "far",
+    "low"
+   ],
+   "source": "owner's pack: 31 Model separate Files (FBX), 27.FBX, 102639 triangles in the source"
+  },
+  "bld31_28": {
+   "kind": "skyline",
+   "glb": "res://assets/environment_runtime/city/bld31.glb",
+   "part": "bld31_28",
+   "size": [
+    12.8,
+    31.1,
+    22.8
+   ],
+   "tris": 998,
+   "tris_lods": [
+    250,
+    120
+   ],
+   "floor": 2.8,
+   "bay": 2.0,
+   "roof": 31.1,
+   "tags": [
+    "city",
+    "far",
+    "low"
+   ],
+   "source": "owner's pack: 31 Model separate Files (FBX), 28.FBX, 110557 triangles in the source"
+  },
+  "bld31_29": {
+   "kind": "skyline",
+   "glb": "res://assets/environment_runtime/city/bld31.glb",
+   "part": "bld31_29",
+   "size": [
+    30.3,
+    18.0,
+    25.9
+   ],
+   "tris": 998,
+   "tris_lods": [
+    248,
+    120
+   ],
+   "floor": 2.8,
+   "bay": 2.15,
+   "roof": 17.5,
+   "tags": [
+    "city",
+    "far",
+    "low"
+   ],
+   "source": "owner's pack: 31 Model separate Files (FBX), 29.FBX, 112259 triangles in the source"
+  },
+  "bld31_30": {
+   "kind": "skyline",
+   "glb": "res://assets/environment_runtime/city/bld31.glb",
+   "part": "bld31_30",
+   "size": [
+    25.3,
+    47.4,
+    15.5
+   ],
+   "tris": 1204,
+   "tris_lods": [
+    250,
+    120
+   ],
+   "floor": 2.8,
+   "bay": 4.2,
+   "roof": 47.4,
+   "tags": [
+    "city",
+    "far",
+    "mid"
+   ],
+   "source": "owner's pack: 31 Model separate Files (FBX), 30.FBX, 152883 triangles in the source"
   }
  }
 }
