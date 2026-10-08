@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-"""Restores the owner's environment packages (assets/environment_packages/user_sources/:
-whole files and files split into 90 MB parts, listed in ENVIRONMENT_ASSET_MANIFEST.tsv)
+"""Restores the environment source packages (CC0 and owner-provided archives,
+stored whole or split into 90 MB parts and listed in ENVIRONMENT_ASSET_MANIFEST.tsv)
 and checks each one's size and SHA-256 against the manifest. The same job as
 restore_environment_assets.sh (zsh, macOS), on any system with Python 3 and git:
 

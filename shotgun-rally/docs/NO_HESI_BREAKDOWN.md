@@ -1,9 +1,11 @@
-# No Hesi: what the owner's three clips show, and what cut up takes from them
+# No Hesi: what the owner's reference clips show, and what cut up takes from them
 
 No Hesi is a set of Assetto Corsa cut-up servers: dozens of players on one long highway
 map full of AI traffic, weaving through it as fast and close as they dare. The owner sent
 three vertical clips (about 14 s each; frames pulled every second with ffmpeg, looked at
 as contact sheets):
+
+The owner added a fourth, long-form 1080p60 reference on 2026-10-08: **“I Tried No Hesi's NEW REALISTIC PHYSICS!”**. Its exact MP4 is stored in GitHub-safe parts and documented at [`docs/reference/NO_HESI_REALISTIC_PHYSICS_VIDEO.md`](reference/NO_HESI_REALISTIC_PHYSICS_VIDEO.md). Treat its observable steering, tyre response, weight transfer, recovery, and camera behavior as the primary feel target for cutting-up physics.
 
 | Clip | What's in it |
 |---|---|

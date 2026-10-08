@@ -25,7 +25,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          # (not the owner's source packs: gigabytes the game doesn't use; the tests and the
+          # (not the source packs: gigabytes the game doesn't use; the tests and the
           # exports need only the converted assets. Blobs fetched as the checkout needs them.)
           filter: blob:none
           sparse-checkout-cone-mode: false
@@ -33,6 +33,7 @@ jobs:
             /*
             !/shotgun-rally/assets/car_packages/
             !/shotgun-rally/assets/environment_packages/user_sources/
+            !/shotgun-rally/assets/environment_packages/cc0/source_packs/
       - name: Install Godot (outside the project folder)
         run: |
           curl -sSL -o "$RUNNER_TEMP/godot.zip" "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable/Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip"
@@ -59,7 +60,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          # (not the owner's source packs: gigabytes the game doesn't use; the tests and the
+          # (not the source packs: gigabytes the game doesn't use; the tests and the
           # exports need only the converted assets. Blobs fetched as the checkout needs them.)
           filter: blob:none
           sparse-checkout-cone-mode: false
@@ -67,6 +68,7 @@ jobs:
             /*
             !/shotgun-rally/assets/car_packages/
             !/shotgun-rally/assets/environment_packages/user_sources/
+            !/shotgun-rally/assets/environment_packages/cc0/source_packs/
       - name: Install Godot + export templates
         run: |
           curl -sSL -o "$RUNNER_TEMP/godot.zip" "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable/Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip"
