@@ -1,7 +1,8 @@
 # Modes: the touge and cut up
 
 Two ways to drive besides the rally stages, both from **MODES** on the home screen
-(`scripts/ui/modes_panel.gd`), both solo. They're stages like any other underneath: the
+(`scripts/ui/modes_panel.gd`), alone or online with up to eight friends (below). They're
+stages like any other underneath: the
 generator (`scripts/stage/stage_gen.gd`) makes a road of a different *kind*, the builder
 (`scripts/stage/stage_builder.gd`) dresses it, and the game (`scripts/game.gd`) runs the
 mode's rules on top. `scripts/game/modes.gd` holds the options each mode loads a stage with.
@@ -17,9 +18,8 @@ built from the same pieces as a rally stage but weighted to hairpins and tight S
 (typically 50 corners, 15-25 of them tighter than 20 m). It falls (DOWNHILL) or climbs
 (UPHILL) the **whole way, never the other way** (`_touge_profile`): 7.5-12.5 % on the
 straights and sweepers, easing to ~5 % round the hairpins (switchbacks are laid flatter),
-about 8 % on average: a 5 km pass drops ~430 m. Night, mostly (the night look comes with the
-graphics work). No jumps, bridges,
-villages or puddles: asphalt end to end. Each seed is its own pass with its own name
+about 8 % on average: a 5 km pass drops ~430 m. Run at night (Settings' TIME OF DAY can make
+it any hour). No jumps, bridges, villages or puddles: asphalt end to end. Each seed is its own pass with its own name
 ("KAZEMAKI PASS"), the same on every machine.
 
 **The look**: a solid yellow centre line (no overtaking, as on Japanese mountain roads),
@@ -28,6 +28,29 @@ outside of every tight bend; some concrete parapets; sugi cedar forest (tall, na
 dark spires); at each hairpin an orange curve mirror and yellow chevron boards pointing
 the way it turns; kilometre posts; the pass's name board and a vending machine at the
 start; a GOAL arch. No spectators, no co-driver.
+
+**At night** the only light on the mountain is the street lamps' (`scripts/stage/street_lamps.gd`)
+and the cars' own. A lamp stands before every tight bend (on its outside, behind the guardrail),
+at the start and the finish, and never more than ~120 m from the next (about 12 a kilometre,
+the posts there by day too). Each lamp's sodium head glows with a glare round it and a pool of
+light on the road under it, faked (no real light: a pass of them costs next to nothing); the
+four lamps nearest your car get real lights as well, so the car, the guardrail and the cedars
+light up as you pass and fall dark behind. The cedars stand closer to the road than on a
+rally stage (6.4 m from the centreline), a wall streaming past in the lights. No moon to speak
+of, no glow on the horizon: black ridges, the forest fading into black. Every car's lamps are
+on (`scripts/vehicle/car_lamps.gd`): a headlight beam down the road, the lamps' glow, red tail
+lamps; in the driver's seat the dials glow just enough to see the wheel and your hands. (The
+web and Chromebook build draws at most 12 lights on anything at once: the other drivers'
+beams are the two nearest you, the rest glow.)
+
+**The stray car** (`scripts/game/stray_car.gd`): now and then a local is out on the pass. It
+turns up 260-420 m ahead (out of sight round a bend), 20-45 s into the run, then 40-90 s after
+the last one has gone: mostly coming up the other way in its own lane (Japan drives on the
+left: ours is the left lane, theirs the right as you look up the road), sometimes pottering
+along ahead in yours at 32-46 km/h for you to get past. It takes the bends at a local's pace
+(it brakes for the next 50 m: ~27 km/h in a hairpin), its lamps lit at night. Hit it and it
+stops where it is, hazards blinking, until you're 140 m past. Each machine has its own (an
+online racer's stray isn't in anyone else's world); the tests' autopilot runs without one.
 
 **TIME ATTACK**: the clock, with a split every kilometre against your best run on that
 pass (green ahead, red behind); the best time and its splits are kept per pass, direction
@@ -109,6 +132,34 @@ picking the most open lane. The results show rivals beaten and lost.
 
 A hit car stops where it is. R (+5 s) puts you back in the lane with the most room.
 
+## Online: street sessions (up to 8)
+
+MODES > **HOST ONLINE (UP TO 8)**, then START a touge or a cut-up difficulty: the host's
+machine opens a street session (`Net.host(..., "street", collide)`, port 7777). Friends join
+from **ONLINE > JOIN** with the host's IP (as for a crew), each driving their own garage car:
+every car is simulated on its own driver's machine and streamed to the others ~30 times a
+second, played back smoothly 0.1 s behind (snapshot interpolation), with a name over it. The
+host picks **COLLISIONS: ON** (you can hit each other) or **GHOSTS** (you drive through each
+other). The grid: two abreast on a touge, across four lanes in cut up, rows 9 m apart. The
+host starts the countdown for everyone (ENTER), as for a crew. Someone joining late loads the
+stage the host is on: on the loop they drive straight in; on a touge they wait for the next
+race (R at the results runs the pass again for everyone).
+
+- **Touge online is a race to the bottom** (or the top): first across the line wins. The HUD
+  shows your place (POS 2 / 5) as you go; each finish goes to every machine, and the results
+  show THE RACE in order (time plus penalties) with gold, silver and bronze badges, and who's
+  still on the way. No ghost online (your friends are the race).
+- **Cut up online**: the host's machine runs the traffic round every player (as AssettoServer
+  runs AI traffic per player on a No Hesi server) and sends each machine the cars round its
+  driver 10 times a second (7 numbers a car); the others play it back, easing to it and
+  dead-reckoning between updates. Hit a car and your machine tells the host, so it stops for
+  everyone. Each driver keeps their own score; no rival battles online.
+
+Command line (tests): `--host --street --mode=touge|cutup [--ghosts] [--min_racers=N]
+--autostart --autopilot`, the others `--join=127.0.0.1 --autopilot`; `tests/run_all.sh` races
+three machines down a touge (all three agree on the order) and runs three on the loop (the
+host's traffic round each).
+
 ## Street handling: SIM or ARCADE (Settings)
 
 **STREET HANDLING (CUT UP, TOUGE)** in Settings: **SIM** out of the box, **ARCADE** to drive
@@ -152,5 +203,8 @@ steady), packs, the oncoming carriageway, ramp joins and exits; the score's near
 combo, banking and crash; highway battles (a challenge, a win, a loss); the touge's splits
 and drift chains; every traffic car loading car-sized on four wheels; a reset landing in
 the clearest lane; and a run of each mode in the game (cut up: a minute on the loop, then
-END RUN). `tests/drive_check.gd --kind=touge` has the autopilot drive a pass.
+END RUN); the night touge (lamps before every tight bend and never more than ~120 m apart,
+lit only at night, the real lights following the car and fading away from the lamps) and the
+stray car (turns up ahead, keeps its lane, slows for hairpins, stops when hit, goes once
+you're past). `tests/drive_check.gd --kind=touge` has the autopilot drive a pass.
 `tests/sim_check.gd` and `tests/feel_check.gd --cfg=street`: SIM street handling.

@@ -18,7 +18,8 @@ extends Node
 ##                         --shot_cam=x,y,z,tx,ty,tz (a free close-up camera, car-local: at xyz, looking at t; the car holds still, or drives with --autostart --autopilot)
 ##                         --shot_jump (at 120 km/h onto the stage's first (big) jump: the picture is taken mid-air)
 ##                         --shot_shift (with --autostart --autopilot: the picture is taken mid gear change)
-##                         --shot_count=N (the start lights at N, 0 = GO) --shot_results [--shot_race] (the results panel)]
+##                         --shot_count=N (the start lights at N, 0 = GO) --shot_results [--shot_race] (the results panel)
+##                         --shot_stray=M (a touge's stray car M up the road, coming the other way)]
 ##   --menu_shot=out.png [--menu_panel=maps|cars|online|settings --garage_tab=setup --shot_wait=6]   a picture of the home screen
 ##   --story=RALLY[,STAGE]                   (with --solo / --screenshot) a story stage
 ##   --surface=gravel|tarmac|mixed|any [--ice]   a quick stage's surface (else Settings')
@@ -350,6 +351,8 @@ func _test_setup() -> void:
 			game._hud.visible = false
 		if Config.flag("shot_count"):              # the start lights at this count (0: GO)
 			game._lights.hold = {"state": "countdown", "count": int(Config.arg("shot_count", 3))}
+		if Config.flag("shot_stray") and game.stray:   # the touge's stray car this far up the road, coming at us
+			game.stray.spawn_at(game.car_s + float(Config.arg("shot_stray", 30.0)), -1)
 		if Config.flag("shot_results"):            # the results panel (made-up numbers; --shot_race: a podium)
 			game.shot_results(Config.flag("shot_race"))
 		if Config.flag("shot_cam"):

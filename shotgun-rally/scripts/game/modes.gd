@@ -26,11 +26,9 @@ const HIGHWAY_LENGTH := 8000.0
 
 
 static func touge_opts(seed_value: int, dir := "up", rules := "time") -> Dictionary:
-	# (a touge is run at night, mostly: the night look comes with the graphics work's
-	# "night" mood; a world without it lights it as the day)
-	var moods := ["night", "night", "night", "golden"]
-	return {"mode": "touge", "rules": rules, "dir": dir, "length": TOUGE_LENGTH,
-		"mood": moods[absi(hash([seed_value, "touge_mood"])) % moods.size()],
+	# (a touge is run at night: the street lamps the only light, the cars' lamps on;
+	# Settings' TIME OF DAY can still make it any hour)
+	return {"mode": "touge", "rules": rules, "dir": dir, "length": TOUGE_LENGTH, "mood": "night",
 		"gen": {"kind": "touge", "dir": dir}}
 
 

@@ -50,8 +50,11 @@ func _initialize() -> void:
 	var only := ""
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--only="):
-			only = a.trim_prefix("--only=")         # (one part: touge, highway, loop, battles, traffic, score, rules, ghost, game)
-	if only in ["", "touge"]: _touge()
+			only = a.trim_prefix("--only=")         # (one part: touge (with the night and the stray car), highway, loop, battles, traffic, score, rules, ghost, game)
+	if only in ["", "touge"]:
+		_touge()
+		await _night_touge()
+		await _stray()
 	if only in ["", "highway"]: _highway()
 	if only in ["", "loop"]: await _loop()
 	if only in ["", "battles"]: await _battles()
@@ -133,6 +136,105 @@ func _touge() -> void:
 	check(rails != null and props != null and builder.crowd_count == 0,
 		"touge built: guardrail, curve mirrors / chevrons / km posts, no spectators (%d trees)" % builder.tree_count)
 	builder.queue_free()
+
+
+## The touge at night: street lamps along the pass (before the tight bends, then no
+## stretch without one for long), lit (StreetLamps: heads, pools, a few real lights
+## that follow the car) only at night; by day the posts alone.
+func _night_touge() -> void:
+	var st = StageGen.new()
+	st.opts = {"kind": "touge", "dir": "down"}
+	st.generate(7, Modes.TOUGE_LENGTH)
+	for mood in ["day", "night"]:
+		var b = StageBuilder.new()
+		b.mood = mood
+		root.add_child(b)
+		b.build(st)
+		var gap := 0.0
+		for i in range(1, b.lamps.size()):
+			gap = maxf(gap, float(b.lamps[i].s) - float(b.lamps[i - 1].s))
+		var tight := 0
+		var lit_bends := 0
+		for c in st.corners:
+			if c.r_min <= 45.0 and c.s0 > st.START_S + 20.0 and c.s0 < st.finish_s - 10.0:
+				tight += 1
+				if b.lamps.any(func(l): return absf(float(l.s) - (c.s0 - 8.0)) < 1.0 or absf(float(l.s) - (st.START_S + 12.0)) < 1.0):
+					lit_bends += 1
+		var sl = b.street_lamps
+		if mood == "night":
+			var car := Node3D.new()
+			root.add_child(car)
+			car.global_position = b.lamps[3].head - Vector3.UP * 7.0
+			sl.target = car
+			for k in 3:
+				await process_frame
+			var on: Array = sl._lights.filter(func(o): return o.visible and o.light_energy > 0.5)
+			check(sl != null and sl.lamps.size() == b.lamps.size() and not on.is_empty() and on.size() <= sl.REAL,
+				"night touge: %d street lamps lit (%.1f per km), %d real lights on round the car under one" % [
+				b.lamps.size(), b.lamps.size() / (st.length / 1000.0), on.size()])
+			car.global_position = b.lamps[3].head + Vector3(400.0, 0.0, 400.0)
+			for k in 16:
+				await process_frame
+			check(sl._lights.all(func(o): return not o.visible or o.light_energy < 0.05),
+				"night touge: the real lights fade out away from the lamps (only the faked pools there)")
+			car.queue_free()
+		else:
+			check(sl == null and b.lamps.size() > 20 and gap <= 135.0 and lit_bends == tight,
+				"touge: lamp posts before all %d tight bends, never more than %.0f m apart (%d); unlit by day" % [tight, gap, b.lamps.size()])
+		b.queue_free()
+	var o: Dictionary = Modes.touge_opts(3)
+	check(o.mood == "night" and Modes.with_time(o, 13.0).mood == "day", "touge: at night unless Settings' time of day says otherwise")
+
+
+## The touge's stray car: turns up ahead now and then, keeps to its lane (toward us:
+## the right lane; with us: ours), slows for the hairpins, stops when it's hit, and
+## is gone once the player's well past.
+func _stray() -> void:
+	var st = StageGen.new()
+	st.opts = {"kind": "touge", "dir": "down"}
+	st.generate(7, Modes.TOUGE_LENGTH)
+	var Stray = load("res://scripts/game/stray_car.gd")
+	var sc = Stray.new()
+	root.add_child(sc)
+	sc.setup(st, 7, false)
+	var player_s: float = st.START_S + 200.0
+	var t := 0.0
+	while sc.spawned == 0 and t < 60.0:
+		sc.tick(0.1, player_s, st.world_at(player_s, 0.0))
+		t += 0.1
+	check(sc.spawned == 1 and float(sc.car.s) - player_s >= sc.AHEAD[0] - 1.0, "stray car: one turns up %.0f m ahead after %.0f s (%s)" % [
+		float(sc.car.get("s", 0.0)) - player_s, t, "coming the other way" if int(sc.car.get("dir", 0)) < 0 else "going our way"])
+	# drive one toward us down the pass: in its lane all the way, slow in the hairpins
+	sc._remove()
+	sc.spawn_at(st.finish_s - 60.0, -1)
+	var off := 0.0
+	var v_tight := 0.0
+	var v_open := 0.0
+	var dt := 1.0 / 30.0
+	for k in 30 * 60:
+		sc.tick(dt, st.START_S, st.world_at(st.START_S, 0.0))
+		if sc.car.is_empty():
+			break
+		off = maxf(off, absf(float(sc.car.d) - st.LANE_W * 0.5))    # (the body goes there at the physics step)
+		var r: float = sc._radius(float(sc.car.s))
+		if r < 18.0:
+			v_tight = maxf(v_tight, float(sc.car.v))
+		elif r > 150.0:
+			v_open = maxf(v_open, float(sc.car.v))
+	check(off < 0.3 and v_tight > 0.0 and v_tight < 8.5 and v_open > 11.0,
+		"stray car: keeps to the right lane coming toward us (within %.2f m), hairpins at %.0f km/h, open road %.0f km/h" % [off, v_tight * 3.6, v_open * 3.6])
+	if not sc.car.is_empty():
+		sc._remove()
+	sc.spawn_at(st.START_S + 600.0, 1)
+	sc.bump((sc.car.body as Node3D).global_position + Vector3(1.0, 0.0, 0.0))
+	var stop_s: float = sc.car.s
+	for k in 30:
+		sc.tick(dt, st.START_S + 500.0, st.world_at(st.START_S + 500.0, 0.0))
+	check(sc.car.crashed and absf(float(sc.car.s) - stop_s) < 0.01 and sc.crashes == 1, "stray car: hit, it stops where it is")
+	sc.tick(dt, stop_s + 200.0, st.world_at(stop_s + 200.0, 0.0))
+	check(sc.car.is_empty(), "stray car: gone once you're well past (next in %.0f s)" % sc._wait)
+	sc.queue_free()
+	await process_frame
 
 
 func _highway() -> void:

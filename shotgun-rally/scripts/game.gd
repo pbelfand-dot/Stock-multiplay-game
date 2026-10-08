@@ -39,6 +39,8 @@ const Traffic = preload("res://scripts/stage/traffic.gd")
 const CutupScore = preload("res://scripts/game/cutup_score.gd")
 const Rivals = preload("res://scripts/game/rivals.gd")
 const TougeRules = preload("res://scripts/game/touge_rules.gd")
+const StrayCar = preload("res://scripts/game/stray_car.gd")
+const CarLamps = preload("res://scripts/vehicle/car_lamps.gd")
 const Ghost = preload("res://scripts/game/ghost.gd")
 const FitDebug = preload("res://scripts/vehicle/fit_debug.gd")
 
@@ -117,6 +119,9 @@ var cutup                            # CutupScore
 var rivals                           # Rivals (cut up on the loop: the highway battles)
 var touge                            # TougeRules
 var ghost                            # Ghost (touge time attack: your best run on this pass)
+var stray                            # StrayCar (the touge: now and then a local on the pass)
+var night := false                   # a night stage: the cars' lamps on (a touge: its street lamps lit)
+var _beam_t := 0.0
 var mode_result := {}                # the run's score / time / best, for the results
 var _mode_label: Label               # top right: the score, the combo, the drift chain
 var _flash_label: Label              # mid-screen: NEAR MISS +300, a split, CRASH
@@ -206,6 +211,7 @@ func start(seed_in: int, stage_in: int, o := {}) -> void:
 	add_child(ai)
 	ai.setup(calls if mode == "" else [])           # (a touge and a highway: no co-driver calling)
 	_setup_mode(o)
+	_night_lights()
 	autopilot = Autopilot.new(st)
 	cam = SeatCam.new()
 	cam.chase_style = "street" if mode != "" else "rally"   # (cut up, the touge: low and close)
@@ -289,6 +295,7 @@ func _sync_racers() -> void:
 			continue
 		if others.has(id):
 			others[id].apply_setup(Catalog.for_stage(Net.car_setup_for(id), st))   # (their garage car may have come since)
+			_fit_lamps(others[id])
 			continue
 		var c = RallyCar.new()
 		c.name = "Car_%d" % id
@@ -320,6 +327,7 @@ func _sync_racers() -> void:
 		tag.visibility_range_end = 400.0
 		c.add_child(tag)
 		others[id] = c
+		_fit_lamps(c)
 
 
 # ── loading handshake (host) ──────────────────────────────────────────────
@@ -500,6 +508,14 @@ func _physics_process(dt: float) -> void:
 					stage_finished(args[0], args[1], args[2], args[3])
 	if mode != "":
 		_mode_tick(dt)
+	if night and street_online:
+		_beam_t -= dt
+		if _beam_t <= 0.0:
+			_beam_t = 0.5
+			_others_beams()
+	if stray and state == "running":
+		stray.enabled = not use_autopilot or Config.flag("stray")   # (the tests' autopilot doesn't steer round it)
+		stray.tick(dt, car_s, car.global_position)
 	if car.simulate:
 		_drive_inputs()
 		_puddles()
@@ -777,6 +793,8 @@ func _on_hit(impact: float) -> void:
 			if absf(float(c.s) - car_s) < float(c.half_len) + 3.0 and absf(float(c.d) - car_d) < float(c.half_w) + 1.6:
 				traffic.hit(c.body)
 		_flash("CRASH  -%d" % CutupScore.CRASH_PENALTY, Color(1.0, 0.3, 0.25))
+	if stray:
+		stray.bump(car.global_position)
 	if touge and touge.chain > 0.0:
 		touge.lose()
 		_flash("CHAIN LOST", Color(1.0, 0.3, 0.25))
@@ -814,6 +832,51 @@ func _setup_mode(o: Dictionary) -> void:
 				ghost.name = "Ghost"
 				add_child(ghost)
 				ghost.setup(Modes.best_key(o, seed_value))
+			stray = StrayCar.new()
+			add_child(stray)
+			stray.setup(st, seed_value, str(o.get("mood", "")) == "night")
+
+
+## A night stage: the street lamps (a touge's) light round your car; every car's lamps on.
+func _night_lights() -> void:
+	night = str(opts.get("mood", "")) == "night" and not looped
+	if not night:
+		return
+	if builder.get("street_lamps") != null:
+		builder.street_lamps.target = car
+	_fit_lamps(car)
+	# the dials' glow in the cabin: the wheel and your hands just there in the dark
+	var dash := OmniLight3D.new()
+	dash.name = "DashGlow"
+	dash.light_color = Color(1.0, 0.72, 0.42)
+	dash.light_energy = 0.4
+	dash.omni_range = 1.2
+	dash.shadow_enabled = false
+	car.add_child(dash)
+	dash.position = cockpit.eye_for(my_seat if my_seat != "" else "driver") + Vector3(0.0, -0.32, -0.5)
+
+
+func _fit_lamps(c) -> void:
+	if not night or c.body_model == null:
+		return
+	var old = c.get_node_or_null("CarLamps")
+	if old:
+		old.remove()
+		old.name = "CarLampsOld"
+	CarLamps.fit(c, c.body_model, true, c == car)      # (a tail light on yours only)
+
+
+## At night the other drivers' headlight beams: the two nearest you within 150 m (a
+## real light each; the rest just glow: the web build can only light so much at once).
+func _others_beams() -> void:
+	var near: Array = []
+	for id in others:
+		var c = others[id]
+		if is_instance_valid(c) and c.get_node_or_null("CarLamps"):
+			near.append([c.global_position.distance_to(car.global_position), c])
+	near.sort_custom(func(a, b): return a[0] < b[0])
+	for k in near.size():
+		near[k][1].get_node("CarLamps").set_beam(k < 2 and near[k][0] < 150.0)
 
 
 ## (host, online cut up) The other players for the traffic: where each one's car is on

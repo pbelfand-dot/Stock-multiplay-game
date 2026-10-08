@@ -113,8 +113,11 @@ front, banking into the turns), trackside cameras it flashes past, a chase camer
 - **Credits** come from finishing stages: a base, more for a longer stage, a bonus for beating the
   pace and for a clean run, x1.5 in story mode, plus the rally prizes. Both players in a crew
   earn. There's no real money anywhere.
-- **MODES** ([docs/modes.md](docs/modes.md)): **TOUGE**, a Japanese mountain pass, uphill or
-  downhill, TIME ATTACK (splits every km against your best) or DRIFT (points for sliding, chained);
+- **MODES** ([docs/modes.md](docs/modes.md)), alone or **online with up to 8 friends**, each in
+  their own car (the host picks collisions or ghosts): **TOUGE**, a Japanese mountain pass at
+  night, uphill or downhill, lit only by its street lamps and your headlights, cedars streaming
+  past, now and then a local driver on the road; TIME ATTACK (splits every km against your best,
+  your record as a ghost) or DRIFT (points for sliding, chained); online, a race to the bottom;
   **CUT UP**, the **LAKESHORE LOOP**: one endless 28 km loop of divided highway (a city expressway
   on viaducts, three tunnels through the hills, three suspension bridges over the lakes, the
   longest with a 1,100 m main span) full of traffic. Weave through it as close as you dare, as
@@ -122,7 +125,8 @@ front, banking into the turns), trackside cameras it flashes past, a chase camer
   across all four lanes, cars join and leave by the ramps, the other carriageway has its own.
   **Highway battles**: a rival with a nickname turns up in the traffic; get right behind it and
   flash your lights (H) to race it 3 km through the traffic to a finish gate.
-- **ONLINE**: your name, host (pick your seat) or join by IP.
+- **ONLINE**: your name, host a crew (pick your seat), or join a crew or a friend's street session
+  by IP.
 - **SETTINGS**: mouse look, invert Y, volume, the co-driver's call timing, the driving aids for
   the new physics (each its own switch), TYRE GRIP for the rally, and **STREET HANDLING** for the
   touge and cut up: **SIM** (out of the box: each car on the road tyres it really has, its real
@@ -457,6 +461,11 @@ Details: [docs/modes.md](docs/modes.md).
      join with the host's `100.x.y.z` address. No router setup.
    - **Different houses (advanced):** the host forwards **UDP 7777** on their router.
 3. Use Discord (or any voice chat) to talk. Yelling is the game.
+
+**Racing each other (up to 8):** the host opens **MODES**, picks **HOST ONLINE (UP TO 8)** and
+**COLLISIONS: ON** or **GHOSTS**, then starts a touge or a cut-up difficulty; everyone else
+JOINs from ONLINE as above, each in their own garage car. A touge is first to the bottom (the
+results show the podium); in cut up the host's traffic is everyone's.
 
 The driver's computer runs the car and streams it to the co-driver ~30 times a second; the
 co-driver's screen plays it back 0.1 s behind, smoothly, so the passenger seat never jitters.
