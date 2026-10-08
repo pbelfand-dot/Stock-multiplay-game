@@ -27,7 +27,7 @@ const AIDS := [
 
 
 func _ready() -> void:
-	add_theme_stylebox_override("panel", UI.box())
+	add_theme_stylebox_override("panel", UI.panel_skin("rally"))
 	custom_minimum_size = Vector2(1040, 0)
 	var v := VBoxContainer.new()
 	v.add_theme_constant_override("separation", 4)

@@ -17,7 +17,8 @@ extends Node
 ##                         --shot_drift (start it sliding sideways: the dirt flies)
 ##                         --shot_cam=x,y,z,tx,ty,tz (a free close-up camera, car-local: at xyz, looking at t; the car holds still, or drives with --autostart --autopilot)
 ##                         --shot_jump (at 120 km/h onto the stage's first (big) jump: the picture is taken mid-air)
-##                         --shot_shift (with --autostart --autopilot: the picture is taken mid gear change)]
+##                         --shot_shift (with --autostart --autopilot: the picture is taken mid gear change)
+##                         --shot_count=N (the start lights at N, 0 = GO) --shot_results [--shot_race] (the results panel)]
 ##   --menu_shot=out.png [--menu_panel=maps|cars|online|settings --garage_tab=setup --shot_wait=6]   a picture of the home screen
 ##   --story=RALLY[,STAGE]                   (with --solo / --screenshot) a story stage
 ##   --surface=gravel|tarmac|mixed|any [--ice]   a quick stage's surface (else Settings')
@@ -276,19 +277,38 @@ func load_stage(s: int, n: int, o: Dictionary) -> void:
 	if not Config.flag("screenshot") or Config.flag("shot_loading"):
 		screen = LoadingScreen.new()
 		add_child(screen)
-		screen.begin(n, "%s  ·  %s" % [o.title, o.stage_name] if o.get("mode") == "story" else "")
+		var heading := "%s  ·  %s" % [o.title, o.stage_name] if o.get("mode") == "story" else ""
+		if Modes.is_mode(o):
+			heading = "TOUGE" if o.mode == "touge" else "CUT UP"
+		screen.begin(n, heading, {"touge": "key_touge", "cutup": "key_cutup"}.get(str(o.get("mode", "")), "key_rally"), Modes.is_mode(o))
 	game = Game.new()
 	game.name = "Game"
 	add_child(game)
 	if screen:
 		game.progress.connect(screen.progress)
-		game.stage_generated.connect(func(): screen.set_stage(game.st.length, game.st.corners.size(), s))
+		game.stage_generated.connect(func(): screen.set_stage(game.st.length, game.st.corners.size(), s, _stage_words(game.st),
+			Modes.title(o, game.st).replace("\n", "  ·  ") if Modes.is_mode(o) else ""))
 	await game.start(s, n, o)
 	_loading = false
 	game.finished.connect(_on_stage_finished)
 	_test_setup()
 	if screen and not Config.flag("shot_loading"):
 		screen.finish()
+
+
+## What a stage is, for the loading screen: "of gravel", "of mountain pass" ...
+static func _stage_words(st) -> String:
+	match str(st.kind):
+		"touge":
+			return "of mountain pass"
+		"loop", "highway":
+			return "of highway"
+	var surfs := {}
+	for sec in st.sections:
+		surfs[str(sec.surface)] = true
+	if surfs.size() > 1:
+		return "of gravel and tarmac"
+	return "of tarmac" if surfs.has("asphalt") else "of gravel"
 
 
 func to_menu(msg := "", panel := "") -> void:
@@ -328,6 +348,10 @@ func _test_setup() -> void:
 				game.cockpit.wipe(int(Config.arg("shot_wipe", 1)))
 		if Config.flag("shot_nohud"):
 			game._hud.visible = false
+		if Config.flag("shot_count"):              # the start lights at this count (0: GO)
+			game._lights.hold = {"state": "countdown", "count": int(Config.arg("shot_count", 3))}
+		if Config.flag("shot_results"):            # the results panel (made-up numbers; --shot_race: a podium)
+			game.shot_results(Config.flag("shot_race"))
 		if Config.flag("shot_cam"):
 			var v := Array(Config.arg("shot_cam").split(",")).map(func(t): return float(t))
 			var cam := Camera3D.new()

@@ -18,7 +18,7 @@ var _body: VBoxContainer
 
 
 func _ready() -> void:
-	add_theme_stylebox_override("panel", UI.box())
+	add_theme_stylebox_override("panel", UI.panel_skin("rally"))
 	custom_minimum_size = Vector2(780, 0)
 	_body = VBoxContainer.new()
 	_body.add_theme_constant_override("separation", 8)
@@ -64,7 +64,7 @@ func _card(i: int) -> Button:
 	b.alignment = HORIZONTAL_ALIGNMENT_LEFT
 	b.disabled = not open
 	if i == _sel:
-		b.add_theme_stylebox_override("normal", UI.box(UI.RED, 8, 10))
+		UI.mark(b)
 	return b
 
 

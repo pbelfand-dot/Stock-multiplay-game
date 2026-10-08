@@ -31,6 +31,7 @@ const AICoDriver = preload("res://scripts/vehicle/ai_codriver.gd")
 const Autopilot = preload("res://scripts/vehicle/autopilot.gd")
 const EngineSound = preload("res://scripts/vehicle/engine_sound.gd")
 const StartLights = preload("res://scripts/ui/start_lights.gd")
+const UI = preload("res://scripts/ui/ui_kit.gd")
 const Catalog = preload("res://scripts/game/catalog.gd")
 const Modes = preload("res://scripts/game/modes.gd")
 const Profile = preload("res://scripts/game/profile.gd")
@@ -94,7 +95,10 @@ var _lights                         # StartLights: the countdown + stage clock o
 var _hint_label: Label
 var _big_label: Label
 var _results: PanelContainer
+var _results_head: Label             # the stage / mode (under the banner art)
 var _results_label: Label
+var _race_box: VBoxContainer         # a street race's finishers, badges on the podium
+var _results_foot: Label             # Main's lines and what ENTER does
 var _pause: PanelContainer
 var _t_alive := 0.0
 var _sfx := {}
@@ -989,12 +993,34 @@ func _build_hud() -> void:
 	_big_label.offset_right = 500
 	_big_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_hud.add_child(_big_label)
+	# the results: the banner art (rally: STAGE COMPLETE; the modes: RESULTS), the
+	# stage, its numbers, a street race's podium, then what next
 	_results = _panel()
+	var rv := VBoxContainer.new()
+	rv.add_theme_constant_override("separation", 6)
+	_results.add_child(rv)
+	var banner := UI.art("banner_results" if mode != "" else "banner_stage")
+	if banner:
+		var bt := TextureRect.new()
+		bt.texture = banner
+		bt.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		bt.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		bt.custom_minimum_size = Vector2(560, 560.0 * banner.get_height() / banner.get_width())
+		rv.add_child(bt)
+	_results_head = UI.label("", 30, UI.YELLOW, true)
+	_results_head.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	rv.add_child(_results_head)
 	_results_label = Label.new()
 	_results_label.add_theme_font_override("font", font)
 	_results_label.add_theme_font_size_override("font_size", 28)
 	_results_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_results.add_child(_results_label)
+	rv.add_child(_results_label)
+	_race_box = VBoxContainer.new()
+	_race_box.add_theme_constant_override("separation", 2)
+	rv.add_child(_race_box)
+	_results_foot = UI.label("", 22, UI.CREAM)
+	_results_foot.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	rv.add_child(_results_foot)
 	_results.visible = false
 	_pause = _panel()
 	var vb := VBoxContainer.new()
@@ -1044,13 +1070,11 @@ func _build_hud() -> void:
 	_hud.add_child(_flash_label)
 
 
+## A panel in the middle of the screen, in the art's style: the modes' night,
+## or the rally's carbon.
 func _panel() -> PanelContainer:
 	var p := PanelContainer.new()
-	var sb := StyleBoxFlat.new()
-	sb.bg_color = Color(0.06, 0.06, 0.07, 0.88)
-	sb.set_corner_radius_all(14)
-	sb.set_content_margin_all(28)
-	p.add_theme_stylebox_override("panel", sb)
+	p.add_theme_stylebox_override("panel", UI.panel_skin("night" if mode != "" else "rally", 28))
 	p.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
 	p.grow_horizontal = Control.GROW_DIRECTION_BOTH
 	p.grow_vertical = Control.GROW_DIRECTION_BOTH
@@ -1127,6 +1151,60 @@ func _my_ips() -> Array:
 	return out.slice(0, 3)
 
 
+## (screenshots) The results panel with made-up numbers; race: a street touge's
+## podium too (made-up names).
+func shot_results(race: bool) -> void:
+	state = "finished"
+	result = {"time": 214.37, "penalties": 0.0, "total": 214.37, "resets": 0, "jump_start": false, "stage": stage_no, "seed": seed_value}
+	mode_result = {"lines": ["PASS RECORD  3:31.90   (+2.5 s)"]} if touge else {}
+	if race:
+		street_online = true
+		var names := ["MIKA", "SAMI", "JO"]
+		for k in names.size():
+			Net.players[k + 2] = {"name": names[k], "seat": "racer"}
+		standings = [[3, 211.02], [Net.my_id(), 214.37], [2, 219.8], [4, 230.15]]
+	_show_results()
+
+
+## A street touge's finishers so far, in order: the podium with its badges
+## (assets/ui/badge_1..3), and who's still on the way down.
+func _show_race() -> void:
+	for c in _race_box.get_children():
+		c.queue_free()
+	_race_box.visible = street_online and touge
+	if not _race_box.visible:
+		return
+	var title := UI.label("THE RACE", 26, UI.YELLOW, true)
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_race_box.add_child(title)
+	for k in standings.size():
+		var id := int(standings[k][0])
+		var row := HBoxContainer.new()
+		row.alignment = BoxContainer.ALIGNMENT_CENTER
+		row.add_theme_constant_override("separation", 12)
+		var badge := UI.art("badge_%d" % (k + 1)) if k < 3 else null
+		if badge:
+			var b := TextureRect.new()
+			b.texture = badge
+			b.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+			b.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+			b.custom_minimum_size = Vector2(36, 40)
+			row.add_child(b)
+		else:
+			row.add_child(UI.label("%d." % (k + 1), 24, UI.CREAM, true))
+		row.add_child(UI.label("%s   %s" % ["YOU" if id == Net.my_id() else Net.player_name(id), fmt_time(float(standings[k][1]))],
+			24, UI.YELLOW if id == Net.my_id() else UI.CREAM, k == 0))
+		_race_box.add_child(row)
+	var still: Array = []
+	for id in others:
+		if not standings.any(func(e): return int(e[0]) == id):
+			still.append(Net.player_name(id))
+	if not still.is_empty():
+		var l := UI.label("still racing: " + ", ".join(still), 18, UI.DIM)
+		l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		_race_box.add_child(l)
+
+
 ## Main's lines under the results (credits, rally standings) and what ENTER does.
 func set_result_extra(lines: Array, next_text: String) -> void:
 	_result_extra = lines
@@ -1138,24 +1216,14 @@ func set_result_extra(lines: Array, next_text: String) -> void:
 func _show_results() -> void:
 	_results.visible = true
 	var r := result
-	var head: String = opts.stage_name + "  COMPLETE" if opts.get("mode") == "story" else "STAGE %d COMPLETE" % r.stage
+	var head: String = opts.stage_name if opts.get("mode") == "story" else "STAGE %d" % r.stage
 	if mode != "":
-		head = Modes.title(opts, st).replace("\n", "  ·  ") + "  COMPLETE"
-	var lines := [head, "", "Time  %s" % fmt_time(r.time)]
+		head = Modes.title(opts, st).replace("\n", "  ·  ")
+	if UI.art("banner_results" if mode != "" else "banner_stage") == null:
+		head += "  COMPLETE"                           # (no banner art to say it)
+	_results_head.text = head
+	var lines := ["Time  %s" % fmt_time(r.time)]
 	lines.append_array(mode_result.get("lines", []))
-	if street_online and touge:
-		lines.append("")
-		lines.append("THE RACE")
-		for k in standings.size():
-			var id := int(standings[k][0])
-			lines.append("%d.  %s  %s%s" % [k + 1, "YOU" if id == Net.my_id() else Net.player_name(id), fmt_time(float(standings[k][1])),
-				"   WINNER" if k == 0 else ""])
-		var still: Array = []
-		for id in others:
-			if not standings.any(func(e): return int(e[0]) == id):
-				still.append(Net.player_name(id))
-		if not still.is_empty():
-			lines.append("still racing: " + ", ".join(still))
 	_results_label.add_theme_font_size_override("font_size", 22 if _result_extra.size() > 3 else 28)
 	if r.penalties > 0.0:
 		var why: Array = []
@@ -1165,13 +1233,15 @@ func _show_results() -> void:
 			why.append("%d reset%s" % [r.resets, "s" if r.resets > 1 else ""])
 		lines.append("Penalties  +%.0f s  (%s)" % [r.penalties, ", ".join(why)])
 	lines.append("TOTAL  %s" % fmt_time(r.total))
-	if not _result_extra.is_empty():
-		lines.append("")
-		lines.append_array(_result_extra)
-	lines.append("")
-	if Net.is_server():
-		lines.append("ENTER  %s     R  retry this one" % _next_text + ("     TAB  swap seats" if Net.online() and Net.crew_full() else ""))
-	else:
-		lines.append("Waiting for the host...")
 	_results_label.text = "\n".join(lines)
+	_show_race()
+	var foot: Array = []
+	if not _result_extra.is_empty():
+		foot.append_array(_result_extra)
+		foot.append("")
+	if Net.is_server():
+		foot.append("ENTER  %s     R  retry this one" % _next_text + ("     TAB  swap seats" if Net.online() and Net.crew_full() else ""))
+	else:
+		foot.append("Waiting for the host...")
+	_results_foot.text = "\n".join(foot)
 	_update_hint()
