@@ -16,6 +16,9 @@ changes (a regex, matched against the GLB's material names):
   * "no_base_texture": true: the colour texture dropped (the factor alone)
   * "alpha": "OPAQUE" / "MASK" / "BLEND" (+ "cutoff" for MASK)
   * "double_sided": true / false
+  * "no_occlusion": true: the occlusion map dropped (a rip whose packed map's red channel
+    isn't occlusion: it darkened a whole cabin to black in the shade)
+  * "metal" / "rough": the metallic / roughness factors (x the map, if it has one)
 """
 import json
 import os
@@ -84,6 +87,12 @@ def apply(path, patch):
                         m.pop("alphaCutoff", None)
             if "double_sided" in ch:
                 m["doubleSided"] = bool(ch["double_sided"])
+            if ch.get("no_occlusion"):
+                m.pop("occlusionTexture", None)
+            if "metal" in ch:
+                pbr["metallicFactor"] = float(ch["metal"])
+            if "rough" in ch:
+                pbr["roughnessFactor"] = float(ch["rough"])
             done.append(m.get("name", "?"))
     if "extensions" in json.dumps(j.get("materials", [])) and any(
             "KHR_materials_emissive_strength" in m.get("extensions", {}) for m in j.get("materials", [])):

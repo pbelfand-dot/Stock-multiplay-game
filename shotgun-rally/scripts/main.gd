@@ -480,6 +480,7 @@ func _on_stage_finished(r: Dictionary) -> void:
 	var ok: bool = gap < 40.0 and (game.my_seat == "driver" or game.car.states_received > 100) \
 		and r.penalties == 0.0
 	print("[smoke] %s: %s" % [role, "OK" if ok else "FAIL"])
+	_smoke_ok = ok                                   # (the other machine may quit first: its leaving isn't a failure now)
 	await get_tree().create_timer(1.5).timeout
 	get_tree().quit(0 if ok else 1)
 

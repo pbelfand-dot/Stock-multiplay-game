@@ -24,10 +24,12 @@ static func torque(cfg: Resource, rpm: float, throttle: float, boost: float) -> 
 	return throttle * cfg.max_torque * curve(cfg, rpm) * f
 
 
-## What it loses to friction (N m, against its spin): more with the throttle shut.
+## What it loses to friction (N m, against its spin): more with the throttle shut (an
+## electric car's regen: a steady pull back, fading out below a twentieth of its top revs).
 static func friction(cfg: Resource, rpm: float, throttle: float) -> float:
 	var r := maxf(rpm, 0.0)
-	return cfg.friction + cfg.friction_per_rpm * r + (1.0 - throttle) * cfg.closed_throttle_per_rpm * r
+	var regen: float = cfg.regen_torque * clampf(r / maxf(cfg.limiter_rpm * 0.05, 1.0), 0.0, 1.0)
+	return cfg.friction + cfg.friction_per_rpm * r + (1.0 - throttle) * (cfg.closed_throttle_per_rpm * r + regen)
 
 
 ## Where the boost is heading at these revs and throttle (0..1).

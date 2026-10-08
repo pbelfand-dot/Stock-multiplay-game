@@ -27,6 +27,9 @@ extends Resource
 @export_range(0.0, 0.05, 0.0005) var friction_per_rpm := 0.004
 ## ... plus, with the throttle shut, this much per rpm more (pumping: engine braking).
 @export_range(0.0, 0.05, 0.0005) var closed_throttle_per_rpm := 0.006
+## An electric car's regenerative braking: with the throttle shut the motor holds back this
+## much (N m, at the motor) whatever its speed, fading out as it slows to a stop (0: none).
+@export_range(0.0, 400.0, 1.0, "suffix:N m") var regen_torque := 0.0
 
 @export_group("Turbo")
 ## The share of max_torque the boost gives (the rest it makes without boost).

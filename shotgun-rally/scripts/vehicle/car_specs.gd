@@ -46,6 +46,10 @@ const CHASSIS := {
 	"rally": {},
 	"road": {"travel": 0.17, "freq": 1.0, "damp": 0.9, "arb": 1.3, "mu": 1.0, "peak": 0.95, "loose": 0.85, "steer": 34.0, "com": 0.03},
 	"suv": {"travel": 0.2, "freq": 0.95, "damp": 0.95, "arb": 1.7, "mu": 0.97, "peak": 1.0, "loose": 0.9, "steer": 36.0, "com": -0.08},
+	# a performance SUV (X5 M, Trackhawk): stiffer and lower than a plain one, on wider tyres; still tall
+	"sport_suv": {"travel": 0.18, "freq": 1.12, "damp": 1.05, "arb": 1.95, "mu": 1.02, "peak": 0.96, "loose": 0.88, "steer": 35.0, "com": -0.04},
+	# a tall, boxy one (the G-Class): soft, high, rolls and pitches more, on a ladder frame's steering
+	"tall_suv": {"travel": 0.22, "freq": 0.9, "damp": 0.92, "arb": 1.45, "mu": 0.96, "peak": 1.04, "loose": 0.95, "steer": 33.0, "com": -0.14},
 	"sport": {"travel": 0.14, "freq": 1.3, "damp": 1.1, "arb": 1.8, "mu": 1.06, "peak": 0.9, "loose": 0.8, "steer": 33.0, "com": 0.06},
 	"track": {"travel": 0.09, "freq": 2.0, "damp": 1.5, "arb": 2.6, "mu": 1.3, "peak": 0.8, "loose": 0.55, "steer": 27.0, "com": 0.1},
 	"prototype": {"travel": 0.07, "freq": 2.6, "damp": 1.8, "arb": 3.0, "mu": 1.4, "peak": 0.75, "loose": 0.45, "steer": 24.0, "com": 0.13},
@@ -169,6 +173,10 @@ static func config(model: String, mass := 0.0) -> Resource:
 		e.spool_full_rpm = s.spool[1]
 		e.spool_time = s.get("spool_time", base.engine.spool_time)
 	e.anti_lag = bool(s.get("anti_lag", false))
+	if s.has("regen"):                              # (an electric car: no pumping losses, its motor's regen instead)
+		e.regen_torque = float(s.regen)
+		e.closed_throttle_per_rpm = 0.0
+		e.friction_per_rpm = float(s.get("motor_loss", 0.001))
 	# the gearbox and the diffs
 	var d: Resource = c.drivetrain
 	d.gear_ratios = PackedFloat32Array(s.gears)

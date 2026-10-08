@@ -8,6 +8,9 @@ off (a .blend can carry Python):
 The spec (tools/cars/<id>.json) says what's what in the model:
   * "pre_scale": the model's units to m before anything else (an FBX in cm: 100)
   * "turn": degrees about the up axis to turn a model saved at an angle (applied first)
+  * "rotate": [x, y, z] degrees: a model saved lying down (its up not the file's), stood up
+  * "rename": [[pattern, name]]: materials named in another language given English names (the
+    game finds the lamps by words like "light", "tail", "brake")
   * "front": which way its nose points after loading ("+X", "-X", "+Y", "-Y";
     Blender's axes, Z up)
   * "wheelbase": the real car's (m): the model is scaled to it
@@ -15,6 +18,9 @@ The spec (tools/cars/<id>.json) says what's what in the model:
     disc); "caliper": the parts that stay on the hub without spinning. A part
     holding more than one wheel is cut up, each face going to the corner it's in. "straighten": false leaves
     the front wheels as they are (they're found turned by more than 2 deg)
+  * "wheel_islands": {"tyre_mats": [patterns], "margin": m}: a model all in one piece whose
+    wheels share the body's materials: the tyres say where the wheels are, and the loose pieces
+    inside each tyre's drum join it (spinning; off the axle and not round: a caliper)
   * "wheel_mats" / "caliper_mats": a model all in one piece: the material
     patterns of its wheels' (calipers') faces, made parts of their own;
     "split_mats": {"name": [patterns]}: more parts of their own ("<part>_name":
@@ -35,7 +41,8 @@ The spec (tools/cars/<id>.json) says what's what in the model:
     box in the car's frame (m: x right, y forward, z up from the ground), lettering
     and badges modelled into the body ("whole": true: only the loose pieces wholly
     inside, so what they sit on stays); "retexture": [[file name pattern, file]]: a
-    texture swapped for a cleaned copy (a logo painted out); "remat_boxes": [{"box",
+    texture swapped for a cleaned copy (a logo painted out); "lift": [[image name pattern,
+    floor]]: its darkest colours raised to that floor (0-1: pure-black palettes); "remat_boxes": [{"box",
     "mats", "to": material, "facing": [x, y, z]}]: those faces given another of the
     model's materials (chrome trim round the inside of a windshield, body paint on a
     dash top), only the ones facing the point (the driver's eyes) if it's given
@@ -325,9 +332,22 @@ if len(uv_names) > 8:
             uvs.remove(uv)
         uvs[0].name = "UVMap"
     print("UV maps: %d names across the parts, one kept on each" % len(uv_names))
+# materials named in another language: "rename": [[pattern, name]] (the game finds lamps by English
+# words: "Feux_stop" -> "brakelight"), before anything else reads the names
+for pat, new in spec.get("rename", []):
+    for mat in list(bpy.data.materials):
+        if re.search(pat, mat.name, re.I):
+            print("renamed %s -> %s" % (mat.name, new))
+            mat.name = new
 if spec.get("pre_scale", 1.0) != 1.0:
     for o in meshes:
         xform(o, Matrix.Scale(spec["pre_scale"], 4))
+# a model saved lying down (an OBJ whose up isn't the file's Y): "rotate": [x, y, z] degrees, first
+if spec.get("rotate"):
+    rx, ry, rz = (math.radians(float(v)) for v in spec["rotate"])
+    R = Matrix.Rotation(rz, 4, 'Z') @ Matrix.Rotation(ry, 4, 'Y') @ Matrix.Rotation(rx, 4, 'X')
+    for o in meshes:
+        xform(o, R)
 
 # the faces of logo materials go
 drop_mats = spec.get("drop_mats", [])
@@ -556,6 +576,20 @@ for pat, f in spec.get("retexture", []):
                             n.image = new
             print("retextured %s -> %s" % (img.name, f))
 
+# a texture's darkest colours lifted to a floor ("lift": [[image name pattern, floor]], 0-1 as
+# stored): a game rip's palette whose blacks are pure 0 (a whole cabin went black in the shade)
+for pat, floor in spec.get("lift", []):
+    for img in list(bpy.data.images):
+        if img.size[0] and re.search(pat, os.path.basename(bpy.path.abspath(img.filepath)) or img.name, re.I):
+            px = np.empty(img.size[0] * img.size[1] * img.channels, dtype=np.float32)
+            img.pixels.foreach_get(px)
+            px = px.reshape(-1, img.channels)
+            px[:, :3] = np.maximum(px[:, :3], float(floor))
+            img.pixels.foreach_set(px.ravel())
+            img.update()
+            img.pack()
+            print("lifted %s to %.2f" % (img.name, float(floor)))
+
 
 def verts(o):
     return np.array([v.co[:] for v in o.data.vertices], dtype=float)
@@ -600,8 +634,135 @@ for pats, suffix in splits:
         n.name = o.name + suffix
         meshes.append(n)
         print("%s: %d faces by material" % (n.name, len(n.data.polygons)))
-spec["wheel"] = spec.get("wheel", []) + (["_wheelpart$"] if spec.get("wheel_mats") else [])
-spec["caliper"] = spec.get("caliper", []) + (["_caliperpart$"] if spec.get("caliper_mats") else [])
+
+
+def islands(o, faces, eps=1e-4):
+    """o's faces (of `faces`) in loose pieces: touching by a shared corner, or corners within
+    eps of each other (a part saved in slices whose seams don't quite meet): [[face index]]."""
+    from mathutils.kdtree import KDTree
+    me = o.data
+    used = sorted({v for fi in faces for v in me.polygons[fi].vertices})
+    parent = {v: v for v in used}
+    def find(x):
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+    def union(a, b):
+        ra, rb = find(a), find(b)
+        if ra != rb:
+            parent[ra] = rb
+    kd = KDTree(len(used))
+    for v in used:
+        kd.insert(me.vertices[v].co, v)
+    kd.balance()
+    for v in used:
+        for _, w, _ in kd.find_range(me.vertices[v].co, eps):
+            union(v, w)
+    for fi in faces:
+        vs = me.polygons[fi].vertices
+        for v in vs[1:]:
+            union(vs[0], v)
+    groups = {}
+    for fi in faces:
+        groups.setdefault(find(me.polygons[fi].vertices[0]), []).append(fi)
+    return list(groups.values())
+
+
+# a model all in one piece whose wheels share the body's materials (a game rip: one texture
+# atlas): "wheel_islands": {"tyre_mats": [patterns], "margin": m}: the tyres (a material of
+# their own) say where the four wheels are (the middle, the radius, the axle: the tyre's
+# thinnest way); every loose piece wholly inside a tyre's drum (within its radius, between its
+# faces give or take "margin") joins that wheel: it spins with it, or, its middle off the axle
+# and not round (a caliper), it stays on the hub
+wi = spec.get("wheel_islands")
+if wi:
+    allpts = np.vstack([verts(o) for o in meshes if len(o.data.vertices)])
+    size = float(np.linalg.norm(allpts.max(0) - allpts.min(0)))          # (the model's size: its units may not be metres)
+    eps = size * 2e-5
+    tyres = []                                      # [centre, axis (0..2), radius, half width]
+    for o in meshes:
+        idx = [i for i, p in enumerate(o.data.polygons) if p.material_index < len(o.material_slots)
+               and o.material_slots[p.material_index].material and matches(o.material_slots[p.material_index].material.name, wi["tyre_mats"])]
+        co = verts(o)
+        for g in islands(o, idx, eps):
+            pts = co[sorted({v for fi in g for v in o.data.polygons[fi].vertices})]
+            lo, hi = pts.min(0), pts.max(0)
+            ext = hi - lo
+            ax = int(np.argmin(ext))
+            e = np.delete(ext, ax)
+            r = float(e.max()) * 0.5
+            # a tyre (or one of its skins): big enough (not a valve, lettering, a disc in the tyres'
+            # material), round, its axle level
+            if r < size * 0.035 or abs(float(e[0] - e[1])) > 0.12 * float(e.max()) or ax == 2:
+                continue
+            c = (lo + hi) * 0.5
+            for t in tyres:                         # (its other skins: the same middle)
+                if np.linalg.norm(c - t[0]) < max(r, t[2]):
+                    t[2], t[3] = max(t[2], r), max(t[3], float(ext[ax]) * 0.5)
+                    break
+            else:
+                tyres.append([c, ax, r, float(ext[ax]) * 0.5])
+    if os.environ.get("IMPORT_DEBUG"):
+        for t in tyres:
+            print("tyre", np.round(t[0], 3), "axis", t[1], "r %.3f hw %.3f" % (t[2], t[3]))
+    tyres.sort(key=lambda t: t[0][2])               # (the four on the road: a spare on the tailgate is higher up)
+    tyres = tyres[:4]
+    if len(tyres) != 4:
+        raise SystemExit("wheel_islands: %d tyres found (4 wanted)" % len(tyres))
+    margin = float(wi.get("margin", 0.03)) * size / 5.0
+    moved = 0
+    for o in list(meshes):
+        if o.name.endswith(suffixes):
+            continue
+        co = np.array([v.co[:] for v in o.data.vertices], dtype=float)
+        tyre_idx = {i for i, sl in enumerate(o.material_slots) if sl.material and matches(sl.material.name, wi["tyre_mats"])}
+        spin_f, cal_f = [], []
+        for g in islands(o, range(len(o.data.polygons)), eps):
+            pts = co[sorted({v for fi in g for v in o.data.polygons[fi].vertices})]
+            for c, ax, r, hw in tyres:
+                rest = [k for k in range(3) if k != ax]
+                d = np.linalg.norm(pts[:, rest] - c[rest], axis=1)
+                a = pts[:, ax] - c[ax]
+                if d.max() > r * 1.03 or a.min() < -hw - margin or a.max() > hw + margin:
+                    continue
+                lo, hi = pts[:, rest].min(0), pts[:, rest].max(0)
+                off = np.linalg.norm((lo + hi) * 0.5 - c[rest])
+                # a caliper: off the axle, not round, inside the rim (not lettering on the tyre)
+                caliper = off > 0.2 * r and float((hi - lo).max()) < 1.2 * r and d.max() < 0.8 * r \
+                    and not any(o.data.polygons[fi].material_index in tyre_idx for fi in g)
+                (cal_f if caliper else spin_f).extend(g)
+                break
+        for faces, suffix in ((spin_f, "_wheelpart"), (cal_f, "_caliperpart")):
+            if not faces:
+                continue
+            keep = set(faces)
+            n = o.copy()
+            n.data = o.data.copy()
+            bpy.context.collection.objects.link(n)
+            bm = bmesh.new()
+            bm.from_mesh(n.data)
+            bm.faces.ensure_lookup_table()
+            bmesh.ops.delete(bm, geom=[f for f in bm.faces if f.index not in keep], context='FACES')
+            strip_loose(bm)
+            bm.to_mesh(n.data)
+            bm.free()
+            n.name = o.name[:40] + suffix               # (Blender cuts names at 63 characters: keep the suffix)
+            meshes.append(n)
+            moved += len(faces)
+        gone = set(spin_f) | set(cal_f)
+        if gone:
+            bm = bmesh.new()
+            bm.from_mesh(o.data)
+            bm.faces.ensure_lookup_table()
+            bmesh.ops.delete(bm, geom=[f for f in bm.faces if f.index in gone], context='FACES')
+            strip_loose(bm)
+            bm.to_mesh(o.data)
+            bm.free()
+    print("wheel_islands: 4 tyres (radius %s), %d faces moved to the wheels and calipers" % (
+        ", ".join("%.3f" % t[2] for t in tyres), moved))
+spec["wheel"] = spec.get("wheel", []) + (["_wheelpart$"] if spec.get("wheel_mats") or wi else [])
+spec["caliper"] = spec.get("caliper", []) + (["_caliperpart$"] if spec.get("caliper_mats") or wi else [])
 spin = [o for o in meshes if matches(o.name, spec["wheel"])]
 if not spin:
     raise SystemExit("no wheel parts: check the spec's \"wheel\" patterns")
