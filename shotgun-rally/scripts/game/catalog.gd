@@ -25,10 +25,6 @@ const CARS := [
 		"colours": [Color(0.96, 0.96, 0.94), Color(0.06, 0.13, 0.38), Color(0.3, 0.62, 0.9), Color(0.85, 0.1, 0.08)],
 		"wheels": "white", "power": 1.2, "grip": 0.97, "brakes": 1.05, "drive_front": 0.15,
 		"blurb": "The last great rear-drive rally car, in white with navy, sky blue and red stripes. Wild."},
-	{"id": "goldline30", "name": "GOLDLINE 30", "price": 15000, "livery": "plain", "number": 30, "body": "coupe",
-		"colours": [Color(0.78, 0.12, 0.1), Color(0.95, 0.95, 0.93), Color(0.08, 0.08, 0.09), Color(0.95, 0.95, 0.93)],
-		"wheels": "gold", "power": 1.1, "grip": 1.0, "brakes": 1.05, "drive_front": 0.1,
-		"blurb": "A boxy late-80s coupé in red, white and gold, sat low over gold wheels. Nearly all the drive at the back: made for sliding down mountain passes."},
 ]
 
 ## Liveries (patterns painted over the body: see livery.gd). Each car comes
@@ -108,12 +104,12 @@ static func wheels(id: String) -> Dictionary:
 
 
 ## Everything the game needs to build and paint a car: what the driver's machine
-## drives and both machines draw (body: which model). paint: {colours, livery, wheels, number}
+## drives and both machines draw. paint: {colours, livery, wheels, number}
 ## (missing keys: the car's own); levels: {engine, tyres, brakes} steps bought;
 ## tuning: {tyre, preset} ("auto" until the stage settles it: for_stage).
 static func setup(car_id: String, paint := {}, levels := {}, tuning := {}) -> Dictionary:
 	var c := car(car_id)
-	var s := {"car": c.id, "name": c.name, "body": c.get("body", "hatch"), "livery": paint.get("livery", c.livery),
+	var s := {"car": c.id, "name": c.name, "livery": paint.get("livery", c.livery),
 		"colours": paint.get("colours", c.colours).duplicate(), "wheels": paint.get("wheels", c.wheels),
 		"number": int(paint.get("number", c.number)), "drive_front": c.drive_front,
 		"tyre": str(tuning.get("tyre", "auto")), "preset": str(tuning.get("preset", "auto"))}

@@ -84,9 +84,6 @@ var _mirror_t := 0.0
 var _shift_leds: Array = []                    # their materials, left to right
 var _trip_label: Label3D
 var _mats := {}
-var crew_only := false                         # seen from outside through clear glass: only the crew show
-var _my_seat := ""
-var _hidden_outside: Array = []                # what show_crew_only hid
 
 signal wiper_stroke
 
@@ -151,7 +148,7 @@ func _mirror_glass(mirror: Node3D) -> void:
 func _mirror(dt: float) -> void:
 	if _mirror_vp == null:
 		return
-	if not is_visible_in_tree() or crew_only:
+	if not is_visible_in_tree():
 		_mirror_vp.render_target_update_mode = SubViewport.UPDATE_DISABLED
 		return
 	_mirror_t += dt
@@ -941,33 +938,8 @@ func _harnesses() -> void:
 
 ## Which seat is yours: your own model loses its head (your camera is in it).
 func set_my_seat(seat: String) -> void:
-	_my_seat = seat
 	for s in _models:
-		_models[s].hide_head(s == seat and not crew_only)
-
-
-## Seen from outside through a body's clear glass (RallyCar.see_through): only
-## the crew show, belted in, both with their heads; the rest of the cabin is
-## shaped for the hatchback and would poke through another body. Off again:
-## what this hid comes back, nothing else.
-func show_crew_only(on: bool) -> void:
-	if on == crew_only:
-		return
-	crew_only = on
-	if on:
-		var crew: Array = _models.values()
-		crew.append(hands)
-		for c in get_children():
-			if c is Node3D and (c as Node3D).visible and not crew.has(c) and not String(c.name).begins_with("Harness"):
-				(c as Node3D).visible = false
-				_hidden_outside.append(c)
-	else:
-		for c in _hidden_outside:
-			if is_instance_valid(c):
-				(c as Node3D).visible = true
-		_hidden_outside.clear()
-	for s in _models:
-		_models[s].hide_head(s == _my_seat and not on)
+		_models[s].hide_head(s == seat)
 
 
 func _box_crew() -> void:

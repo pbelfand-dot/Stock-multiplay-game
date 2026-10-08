@@ -13,10 +13,9 @@ static var _cache := {}
 
 
 ## The wheel: radius and width in its own units (m for the plain tyres, model
-## units for the body model's), the axle along "x" or "z", and how many spokes
-## (more = thinner, like a multi-spoke rally wheel).
-static func build(radius: float, width: float, axis := "x", spokes := SPOKES) -> ArrayMesh:
-	var key := "%.4f_%.4f_%s_%d" % [radius, width, axis, spokes]
+## units for the body model's), the axle along "x" or "z".
+static func build(radius: float, width: float, axis := "x") -> ArrayMesh:
+	var key := "%.4f_%.4f_%s" % [radius, width, axis]
 	if _cache.has(key):
 		return _cache[key]
 	var rubber := SurfaceTool.new()
@@ -49,10 +48,9 @@ static func build(radius: float, width: float, axis := "x", spokes := SPOKES) ->
 	var face := half * 0.45                 # the spoke face sits a little in from the outside
 	_disc(rim, bead_r * 0.97, bead_r * 0.86, face, axis)           # the outer ring of the dish
 	_disc(rim, bead_r * 0.30, 0.0, face + half * 0.08, axis)        # the hub
-	var thin := sqrt(float(SPOKES) / spokes)
-	for s in spokes:
-		var a := TAU * s / spokes
-		_spoke(rim, a, bead_r * 0.28, bead_r * 0.88, bead_r * 0.11 * thin, bead_r * 0.07 * thin, face, half * 0.08, axis)
+	for s in SPOKES:
+		var a := TAU * s / SPOKES
+		_spoke(rim, a, bead_r * 0.28, bead_r * 0.88, bead_r * 0.11, bead_r * 0.07, face, half * 0.08, axis)
 	_nut(rim, bead_r * 0.12, face + half * 0.08, half * 0.1, axis)
 	var mesh := ArrayMesh.new()
 	rubber.generate_normals()
