@@ -11,7 +11,6 @@ extends Node3D
 ## Every surface the tyres can touch says what it is (meta "surface").
 
 const MeshBuf = preload("res://scripts/stage/mesh_buf.gd")
-const StreetLamps = preload("res://scripts/stage/street_lamps.gd")
 const Crowd = preload("res://scripts/stage/crowd.gd")
 const WorldMaterials = preload("res://scripts/render/world_materials.gd")   # the materials, sky and sun
 const Graphics = preload("res://scripts/render/graphics.gd")
@@ -68,7 +67,7 @@ const FERN_DRAW := 150.0            # the ferns and undergrowth along the verges
 var st
 var start_clocks: Array = []        # the countdown boards at the start line (driver's side, co-driver's side)
 var lamps: Array = []               # a touge's street lamps: [{s, head, ground}] (the posts are built; lit at night)
-var street_lamps                    # StreetLamps (a night touge): the game points it at the player's car
+var street_lamps                    # StreetLamps (a touge's or a highway's, at night): the game points it at the player's car
 var tree_count := 0
 var crowd_count := 0
 var people_count := 0
@@ -166,6 +165,7 @@ func _road() -> void:
 		prev_a = row_a
 	for surf in bufs:
 		var mi := _add(bufs[surf], surf, "Road" if surf == "gravel" else "Road_" + surf, _surface_material(surf))
+		mi.layers = WorldMaterials.ROAD_LAYER            # (lit at night by the street lamps' pools, not their real lights)
 		if surf == "ice":
 			mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	# the start line
@@ -1625,7 +1625,7 @@ func _touge_lamps(mb) -> void:
 	want.append_array(filled)
 	want.sort_custom(func(a, b): return a[0] < b[0])
 	lamps.clear()
-	var lit := mood == "night"
+	var lit := WorldMaterials.night_amount >= 0.05         # (night, or dusk: StreetLamps dims them)
 	for w in want:
 		var ls: float = clampf(float(w[0]), 2.0, st.length - 2.0)
 		var sd: float = w[1]
@@ -1639,10 +1639,7 @@ func _touge_lamps(mb) -> void:
 		if not lit:                                  # (lit, StreetLamps draws a glowing one)
 			_box(mb, head - inward * 0.3, head + inward * 0.3, Vector3.UP, 0.3, 0.08, Color(0.85, 0.84, 0.8))
 		lamps.append({"s": ls, "head": head, "ground": st.world_at(ls, sd * (half - 1.4))})
-	if lit:
-		street_lamps = StreetLamps.new()
-		add_child(street_lamps)
-		street_lamps.setup(lamps)
+	street_lamps = WorldMaterials.street_lights(self, lamps)
 
 
 ## What stands beside the road: a highway's lamp posts and distance gantries; a
@@ -1662,18 +1659,20 @@ const GANTRY_GREEN := Color(0.05, 0.38, 0.2)
 func _highway_props() -> void:
 	var mb := MeshBuf.new()
 	var s: float = st.START_S + 30.0
-	var lamps: Array = []                                  # (lit at night: WorldMaterials.street_lights)
+	var heads: Array = []                                  # (lit at night: WorldMaterials.street_lights)
+	var lit := WorldMaterials.night_amount >= 0.05
 	while s < st.length - 20.0:
 		var half: float = st.width_at(s) * 0.5
 		var base: Vector3 = st.world_at(s, -(half + 1.3))
 		var r: Vector3 = st.right_at(s)
 		_box(mb, base, base + Vector3.UP * 9.0, st.forward_at(s), 0.18, 0.18, LAMP)
 		_box(mb, base + Vector3.UP * 9.0, base + Vector3.UP * 9.0 + r * 2.4, Vector3.UP, 0.12, 0.12, LAMP)
-		_box(mb, base + Vector3.UP * 8.9 + r * 2.2, base + Vector3.UP * 8.9 + r * 2.9, Vector3.UP, 0.35, 0.16, Color(0.9, 0.88, 0.75))
-		lamps.append({"head": base + Vector3.UP * 8.8 + r * 2.55, "ground": st.world_at(s, -(half + 1.3) + 4.5), "radius": 11.0})
+		if not lit:                                        # (lit, StreetLamps draws a glowing one)
+			_box(mb, base + Vector3.UP * 8.9 + r * 2.2, base + Vector3.UP * 8.9 + r * 2.9, Vector3.UP, 0.35, 0.16, Color(0.9, 0.88, 0.75))
+		heads.append({"s": s, "head": base + Vector3.UP * 8.8 + r * 2.55, "ground": st.world_at(s, -(half + 1.3) + 4.5), "radius": 16.0})
 		s += 70.0
 	_add(mb, "", "LampPosts")
-	WorldMaterials.street_lights(self, lamps)
+	street_lamps = WorldMaterials.street_lights(self, heads)
 	# distance gantries: every 2 km, how far to the finish
 	var g := MeshBuf.new()
 	var gs: float = st.START_S + 600.0

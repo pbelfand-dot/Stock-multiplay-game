@@ -839,16 +839,19 @@ func _setup_mode(o: Dictionary) -> void:
 				ghost.setup(Modes.best_key(o, seed_value))
 			stray = StrayCar.new()
 			add_child(stray)
-			stray.setup(st, seed_value, str(o.get("mood", "")) == "night")
+			stray.setup(st, seed_value, str(builder.get("mood")) == "night")
 
 
-## A night stage: the street lamps (a touge's) light round your car; every car's lamps on.
+## A night stage (the touge by default, any stage at a night hour: the builder's mood is
+## the hour's once it's lit): every car's lamps on (CarLamps; CarLook's own at dusk); the
+## street lamps (a touge's, the loop's viaducts and city) light round your car whenever
+## they're lit, dusk included.
 func _night_lights() -> void:
-	night = str(opts.get("mood", "")) == "night" and not looped
-	if not night:
-		return
+	night = str(builder.get("mood")) == "night"
 	if builder.get("street_lamps") != null:
 		builder.street_lamps.target = car
+	if not night:
+		return
 	_fit_lamps(car)
 	# the dials' glow in the cabin: the wheel and your hands just there in the dark
 	var dash := OmniLight3D.new()
@@ -864,11 +867,7 @@ func _night_lights() -> void:
 func _fit_lamps(c) -> void:
 	if not night or c.body_model == null:
 		return
-	var old = c.get_node_or_null("CarLamps")
-	if old:
-		old.remove()
-		old.name = "CarLampsOld"
-	CarLamps.fit(c, c.body_model, true, c == car)      # (a tail light on yours only)
+	CarLamps.fit(c, c.body_model, true, c == car)      # (a tail light, twin beams on yours only; a new body: fitted anew)
 
 
 ## At night the other drivers' headlight beams: the two nearest you within 150 m (a

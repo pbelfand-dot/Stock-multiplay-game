@@ -11,6 +11,12 @@ extends Node3D
 ## else from the fallbacks here (textured from noise). Cut into 200 m chunks, each
 ## drawn only within a range of the camera; every surface the tyres touch says
 ## what it is (meta "surface").
+##
+## The light: WorldMaterials.setup (the sky, the sun, the quality's effects) for the mood
+## or the hour (time_of_day, Settings' TIME OF DAY), with a thinner fog (a highway: the
+## bridges kilometres off). At night (and dusk) the lamp posts on the viaducts, the
+## bridges and through the city are lit (StreetLamps: street_lamps, the game points it at
+## the player's car), the towers' windows light up, the traffic's lamps glow (Traffic).
 
 const GeoBuf = preload("res://scripts/stage/geo_buf.gd")
 const LoopGen = preload("res://scripts/stage/loop_gen.gd")
@@ -26,7 +32,7 @@ const GUARD_POST := 4.0              # m between a guardrail's posts
 ## The tunnels' insides (and the lamps) are on their own render layer, which the sun
 ## doesn't light (its shadow map is too coarse to keep it out of a tube): they're lit
 ## by their own lamps and the sky's ambient. They still cast the sun's shadows.
-const TUNNEL_LAYER := 2
+const TUNNEL_LAYER := 1 << 13      # (not 1 << 1: the driver's seat camera leaves that layer out, his helmet's)
 
 var mood := "day"
 var time_of_day := -1.0              # the hour (0-24) to light it for, or -1: by its mood (Modes.with_time)
@@ -41,6 +47,8 @@ var _ground_f := PackedFloat32Array()   # per sample: 1 on "ground" (embankment/
 var _extra_r := PackedFloat32Array()    # per sample: the extra width of an acceleration/deceleration lane, right
 var _extra_l := PackedFloat32Array()    # ... and on the other carriageway's
 var start_clocks: Array = []         # (the rally stages' countdown boards: none here)
+var street_lamps                     # StreetLamps (lit at night / dusk; else null): the game sets its target
+var lamp_heads: Array = []           # the lamp posts' heads: [{s, head, ground}] (lit at night)
 var tree_count := 0
 var building_count := 0
 
@@ -119,16 +127,21 @@ func _ease(raw: PackedFloat32Array, w: int) -> PackedFloat32Array:
 
 # ── materials ─────────────────────────────────────────────────────────────
 
-const WM_FOR := {"asphalt": "asphalt", "paint": "road_paint", "concrete": "concrete", "grass": "grass",
-	"rock": "rock", "water": "water", "steel": "steel", "building": "glass_windows", "dirt": "dirt"}
+## WorldMaterials' material for each key (and its options for this map's meshes: UVs in
+## metres, UV.x along the road); the rest (the towers' facades, the trees, signs, cables,
+## the tunnels' self-lit walls) are this map's own.
+const WM_FOR := {"asphalt": ["asphalt", {"uv": true, "uv_along": "x", "tint": Color(0.52, 0.54, 0.58)}], "paint": ["road_paint", {"vertex": "colour", "tint": Color(0.85, 0.85, 0.83)}],
+	"concrete": ["concrete", {}], "steel": ["steel", {"tint": Color(0.62, 0.64, 0.67)}],
+	"water": ["water", {"tint": Color(0.035, 0.085, 0.12)}], "terrain": ["terrain", {}],
+	"post_lamp": ["street_lamp_head", {}]}
 
 
 func _mat(key: String) -> Material:
 	if _mats.has(key):
 		return _mats[key]
 	var m: Material = null
-	if _wm and WM_FOR.has(key) and _wm.has_method(WM_FOR[key]):
-		m = _wm.call(WM_FOR[key])
+	if _wm and WM_FOR.has(key) and _wm.has_method(WM_FOR[key][0]):
+		m = _wm.call(WM_FOR[key][0], WM_FOR[key][1])
 	if m == null:
 		m = _fallback(key)
 	_mats[key] = m
@@ -226,12 +239,19 @@ func _fallback(key: String) -> Material:
 			m.emission = Color(0.42, 0.4, 0.34)
 			m.emission_energy_multiplier = 0.6
 			m.uv1_scale = Vector3(0.5, 0.5, 1.0)
-		"lamp":
+		"lamp", "post_lamp":
 			m.vertex_color_use_as_albedo = false
 			m.albedo_color = Color(1.0, 0.93, 0.78)
 			m.emission_enabled = true
 			m.emission = Color(1.0, 0.86, 0.62)
 			m.emission_energy_multiplier = 2.5
+		"beacon":
+			# (the bridge towers' aircraft warning lights: red, brighter at night)
+			m.vertex_color_use_as_albedo = false
+			m.albedo_color = Color(0.5, 0.06, 0.04)
+			m.emission_enabled = true
+			m.emission = Color(1.0, 0.1, 0.05)
+			m.emission_energy_multiplier = 1.5 + 6.0 * (_wm.night_amount if _wm else 0.0)
 		"sign":
 			m.albedo_color = Color(0.04, 0.36, 0.17)
 			m.roughness = 0.5
@@ -258,6 +278,7 @@ func _building_material() -> ShaderMaterial:
 shader_type spatial;
 // The towers' facades: floors and window bays in metres on each face (the box is
 // scaled per tower: its scale is read back from the model matrix), a few windows lit.
+uniform float night = 0.0;   // 0 day .. 1 night: more windows lit, and brighter
 varying vec2 face;
 varying float roof;
 varying float seed;
@@ -280,17 +301,19 @@ void fragment() {
 		float wide = 0.06 + 0.1 * fract(seed * 7.0);
 		float frame = step(wide, f.x) * step(f.x, 1.0 - wide) * step(0.16, f.y) * step(f.y, 0.88);
 		frame *= step(3.0, face.y);                               // (the ground floor: a plinth)
-		float lit = step(0.9, hash(floor(cell) + seed * 31.0));
+		float lit = step(0.9 - 0.17 * night, hash(floor(cell) + seed * 31.0));
 		vec3 glass = mix(vec3(0.06, 0.09, 0.12), vec3(0.2, 0.27, 0.33), hash(floor(cell) * 1.7 + seed));
 		ALBEDO = mix(tint, glass, frame);
 		METALLIC = frame * 0.6;
 		ROUGHNESS = mix(0.85, 0.1, frame);
-		EMISSION = frame * lit * vec3(0.9, 0.8, 0.6) * 0.12;
+		vec3 warm = mix(vec3(1.0, 0.7, 0.4), vec3(0.62, 0.74, 1.0), step(0.72, hash(floor(cell) * 3.1 + seed)));   // (some offices cold-white)
+		EMISSION = frame * lit * warm * mix(0.12, 1.0, night) * (0.35 + 0.65 * hash(floor(cell) * 5.3 + seed));
 	}
 }
 """
 	var m := ShaderMaterial.new()
 	m.shader = sh
+	m.set_shader_parameter("night", _wm.night_amount if _wm else (1.0 if mood == "night" else 0.0))
 	return m
 
 
@@ -331,10 +354,12 @@ func _finish() -> void:
 			mi.material_override = _mat(key)
 			mi.visibility_range_end = LAND_RANGE if key in land_keys else (9000.0 if key.begins_with("steel") or key == "cable" else ROAD_RANGE)
 			mi.visibility_range_end_margin = 200.0
-			if key in ["paint", "lamp"]:
+			if key in ["paint", "lamp", "post_lamp", "beacon"]:
 				mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 			if key in ["tunnel", "lamp"]:
 				mi.layers = TUNNEL_LAYER
+			elif key in ["asphalt", "paint"] and _wm:
+				mi.layers = _wm.ROAD_LAYER                   # (lit at night by the street lamps' pools, not their real lights)
 			node.add_child(mi)
 	for c in _bodies:
 		for surface in _bodies[c]:
@@ -355,34 +380,39 @@ func _finish() -> void:
 # ── the sky ───────────────────────────────────────────────────────────────
 
 func _environment() -> void:
-	var env: Environment = null
-	if _wm and _wm.has_method("environment"):
-		env = _wm.environment(mood)
-	if env == null:
-		env = Environment.new()
-		var sky := Sky.new()
-		var sm := ProceduralSkyMaterial.new()
-		sm.sky_top_color = Color(0.3, 0.52, 0.84)
-		sm.sky_horizon_color = Color(0.7, 0.8, 0.9)
-		sm.ground_horizon_color = Color(0.62, 0.68, 0.7)
-		sm.ground_bottom_color = Color(0.3, 0.33, 0.3)
-		sm.sun_angle_max = 20.0
-		if mood == "golden":
-			sm.sky_top_color = Color(0.28, 0.4, 0.68)
-			sm.sky_horizon_color = Color(1.0, 0.72, 0.45)
-			sm.ground_horizon_color = Color(0.75, 0.6, 0.45)
-		sky.sky_material = sm
-		env.background_mode = Environment.BG_SKY
-		env.sky = sky
-		env.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
-		env.ambient_light_energy = 0.8
-		env.reflected_light_source = Environment.REFLECTION_SOURCE_SKY
-		env.tonemap_mode = Environment.TONE_MAPPER_FILMIC
-		env.tonemap_exposure = 1.0
-		env.fog_enabled = true
-		env.fog_light_color = sm.sky_horizon_color
-		env.fog_density = 0.00016                     # (a highway: you see the bridges kilometres off)
-		env.fog_sky_affect = 0.3
+	if _wm and _wm.has_method("setup"):
+		# (the sky, the sun, the quality's effects; a thinner fog: the bridges kilometres off)
+		var w: Dictionary = _wm.setup(self, mood, time_of_day, {"fog": 0.16})
+		mood = w.mood
+		var ws: DirectionalLight3D = w.sun
+		ws.light_cull_mask = 0xFFFFF & ~TUNNEL_LAYER
+		ws.shadow_caster_mask = 0xFFFFFFFF
+		return
+	# (no WorldMaterials: a drawn sky, the old light)
+	var env := Environment.new()
+	var sky := Sky.new()
+	var sm := ProceduralSkyMaterial.new()
+	sm.sky_top_color = Color(0.3, 0.52, 0.84)
+	sm.sky_horizon_color = Color(0.7, 0.8, 0.9)
+	sm.ground_horizon_color = Color(0.62, 0.68, 0.7)
+	sm.ground_bottom_color = Color(0.3, 0.33, 0.3)
+	sm.sun_angle_max = 20.0
+	if mood == "golden":
+		sm.sky_top_color = Color(0.28, 0.4, 0.68)
+		sm.sky_horizon_color = Color(1.0, 0.72, 0.45)
+		sm.ground_horizon_color = Color(0.75, 0.6, 0.45)
+	sky.sky_material = sm
+	env.background_mode = Environment.BG_SKY
+	env.sky = sky
+	env.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
+	env.ambient_light_energy = 0.8
+	env.reflected_light_source = Environment.REFLECTION_SOURCE_SKY
+	env.tonemap_mode = Environment.TONE_MAPPER_FILMIC
+	env.tonemap_exposure = 1.0
+	env.fog_enabled = true
+	env.fog_light_color = sm.sky_horizon_color
+	env.fog_density = 0.00016                     # (a highway: you see the bridges kilometres off)
+	env.fog_sky_affect = 0.3
 	var we := WorldEnvironment.new()
 	we.environment = env
 	add_child(we)
@@ -893,8 +923,8 @@ func _suspension_bridge(b: Dictionary) -> void:
 		for y in [deck_y - 6.0, deck_y + (top - deck_y) * 0.55, top - 4.0]:
 			_buf(i, paint).box(Vector3(c.x, y, c.z), Vector3(span_w, 5.0, 4.0), bas)
 		# an aircraft warning light on top
-		_buf(i, "lamp").box(Vector3(legs[0].x, top + 1.0, legs[0].z), Vector3(1.2, 1.2, 1.2))
-		_buf(i, "lamp").box(Vector3(legs[1].x, top + 1.0, legs[1].z), Vector3(1.2, 1.2, 1.2))
+		_buf(i, "beacon").box(Vector3(legs[0].x, top + 1.0, legs[0].z), Vector3(1.2, 1.2, 1.2))
+		_buf(i, "beacon").box(Vector3(legs[1].x, top + 1.0, legs[1].z), Vector3(1.2, 1.2, 1.2))
 	# the cables, each side: anchorage -> tower -> (main span) -> tower -> anchorage
 	for d in [dl, dr]:
 		var path := PackedVector3Array()
@@ -1092,8 +1122,10 @@ func _roadside() -> void:
 ## Lamp posts on the median every 48 m where the road's up off the ground (the city's
 ## viaduct, the bridges) and through the city: a pole, an arm over each carriageway.
 func _lamp_posts() -> void:
-	var post := _post_mesh()
+	var lit: bool = _wm != null and _wm.night_amount >= 0.05
+	var post := _post_mesh(not lit)
 	var per_chunk := {}
+	lamp_heads.clear()
 	var s := 10.0
 	while s < st.length:
 		var sup := st.support_at(s)
@@ -1104,21 +1136,38 @@ func _lamp_posts() -> void:
 			if not per_chunk.has(c):
 				per_chunk[c] = []
 			per_chunk[c].append(xf)
+			for side in [1.0, -1.0]:                     # (an arm over each carriageway)
+				var head: Vector3 = xf * Vector3(side * 5.0, 10.76, 0.0)
+				# the road under it, and its slope there (the pool lies on it, not buried by the cross-fall)
+				var d: float = st.MEDIAN_D + 5.0
+				if st.world_at(s, st.MEDIAN_D - 5.0).distance_to(head) < st.world_at(s, d).distance_to(head):
+					d = st.MEDIAN_D - 5.0
+				var g := st.world_at(s, d)
+				var up := (st.world_at(s, d + 1.0) - st.world_at(s, d - 1.0)).cross(st.world_at(s + 1.0, d) - g).normalized()
+				if up.y < 0.0:
+					up = -up
+				lamp_heads.append({"s": s, "head": head, "ground": g, "up": up, "radius": 25.0})   # (11 m up, 48 m apart: the pools meet)
 		s += 48.0
 	for c in per_chunk:
 		_multimesh(post, per_chunk[c], "Lamps%03d" % c, ROAD_RANGE)
+	if lit:
+		street_lamps = _wm.street_lights(self, lamp_heads)
 
 
 ## A lamp post's mesh (its origin at its foot on the median): an 11 m pole, two arms
-## reaching 5 m over each carriageway, a lamp head at each end.
-func _post_mesh() -> ArrayMesh:
+## reaching 5 m over each carriageway, a lamp head at each end (unlit; lit, StreetLamps
+## draws the glowing glass under it).
+func _post_mesh(heads := true) -> ArrayMesh:
 	var steel := GeoBuf.new()
 	var lamp := GeoBuf.new()
 	steel.box(Vector3(0, 5.6, 0), Vector3(0.22, 11.2, 0.22))
 	for side in [1.0, -1.0]:
 		steel.box(Vector3(side * 2.6, 11.0, 0), Vector3(5.2, 0.14, 0.14))
-		lamp.box(Vector3(side * 5.0, 10.85, 0), Vector3(0.9, 0.18, 0.35))
-	return _mesh2(steel, "steel", lamp, "lamp")
+		if heads:
+			lamp.box(Vector3(side * 5.0, 10.85, 0), Vector3(0.9, 0.18, 0.35))
+		else:
+			steel.box(Vector3(side * 5.0, 10.95, 0), Vector3(0.9, 0.12, 0.35))   # (the housing over the glass)
+	return _mesh2(steel, "steel", lamp, "post_lamp")
 
 
 func _mesh2(a: GeoBuf, ka: String, b: GeoBuf, kb: String) -> ArrayMesh:

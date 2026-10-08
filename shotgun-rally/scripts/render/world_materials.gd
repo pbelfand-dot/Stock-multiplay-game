@@ -18,13 +18,14 @@ extends RefCounted
 ## opts (all optional): "uv" (bool), "vertex" ("tint" | "colour"), "tint" (Color),
 ##   "scale" (metres one repeat of the texture covers), "rough" (x roughness),
 ##   "normal" (x normal-map strength), "painted" (steel(): painted, not bare galvanised),
-##   "streaks" (asphalt() with "uv": tyre-worn streaks along UV.y, default 0.18)
+##   "streaks" (asphalt() with "uv": tyre-worn streaks along UV.y, default 0.18), "uv_along"
+##   ("y" | "x": which UV runs along the road)
 ## LOW quality, or the textures missing (the web build): flat vertex colours, the old look.
 ## Materials are cached: the same call returns the same material (clear_cache() after a
 ## quality change; the stage builder builds fresh each stage).
 ##
 ## LIGHT:
-##   setup(parent, mood, hour = -1) -> {env, sun, world_environment, mood, horizon, hour, night}:
+##   setup(parent, mood, hour = -1, opts = {}) -> {env, sun, world_environment, mood, horizon, hour, night}:
 ##     adds a WorldEnvironment and the sun to parent for "day" | "golden" | "overcast" |
 ##     "night" (or the hour) and applies the quality to the screen (a --mood=... / --hour=...
 ##     command line overrides, for pictures)
@@ -36,12 +37,14 @@ extends RefCounted
 ##   hour (the sun on its arc: up ~06:00, 60 degrees at 13:00, down ~19:30; the moon at
 ##   night), the mood then only saying "overcast" or not. state(mood, hour) -> the numbers;
 ##   environment_at(hour, overcast), sun_at(hour, overcast), sun_arc(hour) -> (elev, yaw).
-## NIGHT (a highway, a town):
-##   street_lights(parent, [{"head": Vector3, "ground": Vector3, "up"?, "radius"?, "colour"?}, ...])
-##     the lit heads, glare halos and faked pools of light on the road (no real lights:
-##     hundreds cost next to nothing); nothing by day. street_lamp_head(): the head's material.
+## NIGHT (a touge, a highway, the LAKESHORE LOOP's viaducts and city, a town):
+##   street_lights(parent, [{"head": Vector3, "ground": Vector3, "up"?, "radius"?, "s"?}, ...])
+##     -> StreetLamps (scripts/stage/street_lamps.gd) or null by day: the lit heads, glare
+##     halos and faked pools of light on the road, a few real lights following its `target`
+##     (the player's car). street_lamp_head(): the head's material (lit by night_amount).
 ##   buildings(): some windows lit at night. Traffic / plain car models:
 ##     CarLook.glow_model(model) (scripts/render/car_look.gd) after painting: their lamps glow.
+##   A car's beams and lamp glow at night: CarLamps (scripts/vehicle/car_lamps.gd).
 ## The speed blur (SpeedBlur) comes with setup(): MEDIUM+, Forward+.
 ## The skies are photographed (CC0, Poly Haven; tools/world_textures.py makes them), drawn
 ## by a sky shader that turns each so its sun is where the DirectionalLight is.
@@ -278,138 +281,25 @@ static func street_lamp_head(opts := {}) -> Material:
 
 
 const SODIUM := Color(1.0, 0.58, 0.22)
+## The road's meshes go on this render layer (as well as no other): the street lamps' few
+## real lights leave the road to their faked pools (no light counted twice), the cars'
+## headlights and the sun light it as everything else.
+const ROAD_LAYER := 1 << 11
 
-## Street lights at night (nothing by day): for each lamp {"head": Vector3 (where its
-## glass is), "ground": Vector3 (the road under it), "up": the road's normal there (default
-## up), "radius": the pool of light's (m, default 9), "colour": default sodium}: the lit
-## head, a glare halo round it (the glow blooms it), and a pool of light on the road, faked
-## (a flat disc that brightens what's under it, as a lamp would, without a real light:
-## hundreds of them cost next to nothing). All batched (three MultiMeshes). Returns the
-## node holding them, or null by day; at dusk / dawn (night_amount between) they're dimmer.
+## Street lights at night (nothing by day): a StreetLamps node (scripts/stage/street_lamps.gd)
+## added to parent for lamps [{"head": Vector3 (where its glass is), "ground": Vector3 (the
+## road under it), "up": the road's normal there (default up), "radius": the pool of light's
+## (m, default 9), "s"?: along the road}]: the lit heads, glare halos, pools of light on the
+## road (faked: a multiplying disc on Forward+, an added one on Compatibility; hundreds cost
+## next to nothing) and a few real lights round its `target` (the player's car: the game
+## sets it). Returns it, or null by day; at dusk / dawn (night_amount between) it's dimmer.
 static func street_lights(parent: Node3D, lamps: Array) -> Node3D:
 	if night_amount < 0.05 or lamps.is_empty():
 		return null
-	var lit := clampf(night_amount, 0.0, 1.0)
-	var holder := Node3D.new()
-	holder.name = "StreetLights"
-	holder.add_to_group("street_lights")                 # (CarLook lights the car from the nearest)
-	parent.add_child(holder)
-	var at := PackedVector3Array()
-	var heads := _instances(lamps.size(), _lamp_head_mesh(), street_lamp_head())
-	var glare := _instances(lamps.size(), _glare_mesh(), _glare_material())
-	var pools := _instances(lamps.size(), _pool_mesh(), _pool_material())
-	for i in lamps.size():
-		var l: Dictionary = lamps[i]
-		var head: Vector3 = l.head
-		var ground: Vector3 = l.get("ground", head - Vector3.UP * 8.0)
-		var up: Vector3 = (l.get("up", Vector3.UP) as Vector3).normalized()
-		var r := float(l.get("radius", 9.0))
-		heads.multimesh.set_instance_transform(i, Transform3D(Basis(), head))
-		at.append(head)
-		glare.multimesh.set_instance_transform(i, Transform3D(Basis().scaled(Vector3.ONE * 2.6), head - Vector3.UP * 0.12))
-		var x := up.cross(Vector3.FORWARD if absf(up.z) < 0.9 else Vector3.RIGHT).normalized()
-		var z := x.cross(up).normalized()
-		pools.multimesh.set_instance_transform(i, Transform3D(Basis(x * r * 2.0, up, z * r * 2.0), ground + up * 0.08))
-	for mmi in [heads, glare, pools]:
-		mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		holder.add_child(mmi)
-	holder.set_meta("heads", at)
-	(glare.material_override as StandardMaterial3D).albedo_color = Color(1.6, 1.6, 1.6) * lit
-	var pool := pools.material_override as ShaderMaterial
-	pool.set_shader_parameter("gain", 40.0 * lit)
-	pool.next_pass.set_shader_parameter("gain", 40.0 * lit)
-	return holder
-
-
-static func _instances(n: int, mesh: Mesh, mat: Material) -> MultiMeshInstance3D:
-	var mm := MultiMesh.new()
-	mm.transform_format = MultiMesh.TRANSFORM_3D
-	mm.mesh = mesh
-	mm.instance_count = n
-	var mmi := MultiMeshInstance3D.new()
-	mmi.multimesh = mm
-	mmi.material_override = mat
-	return mmi
-
-
-static func _lamp_head_mesh() -> Mesh:
-	var b := BoxMesh.new()
-	b.size = Vector3(0.62, 0.06, 0.3)
-	return b
-
-
-static func _glare_mesh() -> Mesh:
-	var q := QuadMesh.new()
-	q.size = Vector2(1.0, 1.0)
-	return q
-
-
-static func _glare_material() -> Material:
-	if _cache.has("glare"):
-		return _cache.glare
-	var g := Gradient.new()
-	g.set_color(0, Color(1.0, 0.75, 0.45, 0.9))
-	g.set_color(1, Color(1.0, 0.5, 0.15, 0.0))
-	g.add_point(0.18, Color(1.0, 0.62, 0.28, 0.35))
-	var t := GradientTexture2D.new()
-	t.gradient = g
-	t.fill = GradientTexture2D.FILL_RADIAL
-	t.fill_from = Vector2(0.5, 0.5)
-	t.fill_to = Vector2(1.0, 0.5)
-	t.width = 128
-	t.height = 128
-	var m := StandardMaterial3D.new()
-	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	m.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
-	m.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
-	m.billboard_keep_scale = true
-	m.albedo_texture = t
-	m.albedo_color = Color(1.6, 1.6, 1.6)
-	m.no_depth_test = false
-	m.disable_fog = false
-	_cache["glare"] = m
-	return m
-
-
-static func _pool_mesh() -> Mesh:
-	var p := PlaneMesh.new()
-	p.size = Vector2(1.0, 1.0)
-	return p
-
-
-## The pool of light: multiplies what's under it (so the asphalt brightens as much as its
-## colour allows, a white line more), plus a touch added for the darkest.
-static func _pool_material() -> Material:
-	if _cache.has("pool"):
-		return _cache.pool
-	var sh := Shader.new()
-	sh.code = POOL_SHADER
-	var m := ShaderMaterial.new()
-	m.shader = sh
-	m.set_shader_parameter("colour", SODIUM)
-	var add := ShaderMaterial.new()
-	var sh2 := Shader.new()
-	sh2.code = POOL_SHADER.replace("blend_mul", "blend_add").replace("vec3 lit = 1.0 + colour.rgb * gain * f;", "vec3 lit = colour.rgb * 0.0003 * gain * f;")
-	add.shader = sh2
-	add.set_shader_parameter("colour", SODIUM)
-	m.next_pass = add
-	_cache["pool"] = m
-	return m
-
-
-const POOL_SHADER := """
-shader_type spatial;
-render_mode blend_mul, unshaded, depth_draw_never, cull_back, shadows_disabled, fog_disabled;
-uniform vec4 colour : source_color = vec4(1.0, 0.58, 0.22, 1.0);
-uniform float gain = 40.0;
-void fragment() {
-	float r = length(UV * 2.0 - 1.0);
-	float f = pow(clamp(1.0 - r, 0.0, 1.0), 1.6);
-	vec3 lit = 1.0 + colour.rgb * gain * f;
-	ALBEDO = lit;
-}
-"""
+	var sl: Node3D = (load("res://scripts/stage/street_lamps.gd") as GDScript).new()
+	parent.add_child(sl)
+	sl.setup(lamps)
+	return sl
 
 
 ## The material for a stage-builder part by its name (and the surface the tyres feel).
@@ -496,10 +386,11 @@ static var night_amount := 0.0           # 0 day .. 1 night: the night pieces fa
 
 ## A WorldEnvironment and the sun for the mood, or for an hour (0.0-24.0: the time of day;
 ## the mood then only says whether it's overcast), added to parent; the quality applied to
-## the screen. A --mood=... or --hour=... command line overrides (pictures). Returns {env,
+## the screen. opts: "fog" (x the fog: a highway's long views want less). A --mood=... or
+## --hour=... command line overrides (pictures). Returns {env,
 ## sun, world_environment, mood (the nearest mood, for things built per mood: the far
 ## mountains' colours), horizon (Color), hour, night (0..1)}.
-static func setup(parent: Node, mood := "day", hour := -1.0) -> Dictionary:
+static func setup(parent: Node, mood := "day", hour := -1.0, opts := {}) -> Dictionary:
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--mood="):
 			mood = a.trim_prefix("--mood=")
@@ -508,6 +399,7 @@ static func setup(parent: Node, mood := "day", hour := -1.0) -> Dictionary:
 	if not MOODS.has(mood):
 		mood = "day"
 	var s := state(mood, hour)
+	s.fog = float(s.fog) * float(opts.get("fog", 1.0))
 	night_amount = s.night
 	night = s.night > 0.5
 	var env := _environment(s)
@@ -524,8 +416,8 @@ static func setup(parent: Node, mood := "day", hour := -1.0) -> Dictionary:
 
 
 ## The quality on the screen, the speed blur: once parent is in the tree (a frame later, if need be).
-static func _screen_setup(parent: Node, we: WorldEnvironment) -> void:
-	if is_instance_valid(parent) and parent.is_inside_tree():
+static func _screen_setup(parent, we) -> void:
+	if is_instance_valid(parent) and is_instance_valid(we) and parent.is_inside_tree():
 		Graphics.apply_viewport(parent.get_viewport())
 		SpeedBlur.attach(parent, we)
 
@@ -683,6 +575,7 @@ static func _environment(s: Dictionary) -> Environment:
 			env.adjustment_enabled = false
 		elif a == "--look_noglow":
 			env.glow_enabled = false
+	env.set_meta("night", float(s.night))               # (Graphics: Compatibility's glow at night only)
 	Graphics.apply_environment(env)
 	return env
 
@@ -845,6 +738,7 @@ static func _surface(n: String, opts: Dictionary) -> Material:
 			sm.set_shader_parameter("night_lit", 2.5 * float(opts.get("night", 0.0)))
 		if n == "asphalt" and opts.get("uv", false):
 			sm.set_shader_parameter("streaks", float(opts.get("streaks", 0.18)))
+			sm.set_shader_parameter("along_x", str(opts.get("uv_along", "y")) == "x")
 		m = sm
 	_cache[key] = m
 	return m
@@ -1019,7 +913,8 @@ uniform float vc_sat = 1.0;             // the vertex colours' saturation, x
 uniform float vc_gain = 1.0;            // ... and brightness, x
 uniform vec3 backlight = vec3(0.0);     // FOLIAGE: the sun through the leaves
 uniform float night_lit = 0.0;          // GLASS: at night, some windows lit (this bright)
-uniform float streaks = 0.0;            // UV_MODE: darker tyre-worn streaks along the road (UV.y)
+uniform float streaks = 0.0;            // UV_MODE: darker tyre-worn streaks along the road (UV.y) ...
+uniform bool along_x = false;           // ... or UV.x
 #ifdef TERRAIN
 uniform sampler2D grass_tex : source_color, filter_linear_mipmap_anisotropic, repeat_enable;
 uniform sampler2D grass_nrm : hint_normal, filter_linear_mipmap_anisotropic, repeat_enable;
@@ -1196,7 +1091,8 @@ void fragment() {
 #else
   #ifdef UV_MODE
 	sample_uv(UV, wpos, n, a, wn);
-	a.rgb *= 1.0 - streaks * smoothstep(0.35, 0.8, vnoise(vec2(UV.x * 1.7, UV.y * 0.035)));
+	vec2 ruv = along_x ? UV.yx : UV;
+	a.rgb *= 1.0 - streaks * smoothstep(0.35, 0.8, vnoise(vec2(ruv.x * 1.7, ruv.y * 0.035)));
   #else
     #ifdef TRIPLANAR
 	sample_set(albedo_tex, normal_tex, wpos, n, tex_scale, normal_strength, true, a, wn);

@@ -58,8 +58,9 @@ weak PCs still run it. This is the plan (with what was checked while building it
    sky; the mirror's camera gets the world's light without the costly effects.
 6. **Lamps**: the head and tail lamp materials found by name, existing glow and where they
    sit on the car (front / back quarter), given emission masked by their own texture: dim
-   running lights by day, brake lights when braking, full at night; real lights (two spot
-   headlights, two small red omni lights) at night or when Settings says so.
+   running lights by day, brake lights when braking, full at night (CarLook). One lamp
+   material over both ends of a car (some rips) is split front / back at load, so the tail
+   lamps glow red and brighten on the brakes. The real lights are CarLamps' (see 9).
 7. **Settings: GRAPHICS** (`scripts/ui/graphics_settings.gd`, two lines in
    `settings_panel.gd`): QUALITY LOW / MEDIUM / HIGH / ULTRA (first run: picked from the GPU:
    discrete -> HIGH, integrated -> MEDIUM, Compatibility / software -> LOW), RENDER SCALE,
@@ -74,11 +75,57 @@ weak PCs still run it. This is the plan (with what was checked while building it
 | AO / GI | - | SSAO (half) | SSAO + SSIL | SSAO + SSIL + SDFGI |
 | reflections | sky | sky | + SSR, car probe | + SSR full size |
 | glow | - | yes | yes | yes |
-| AA | MSAA 2x | MSAA 2x | TAA + MSAA 2x | TAA + MSAA 4x |
+| speed blur | - | 6 taps | 10 taps | 10 taps |
+| AA (in a stage) | MSAA 2x | FXAA | TAA | TAA |
+| AA (the garage) | MSAA 2x | MSAA 2x | TAA + MSAA 2x | TAA + MSAA 4x |
 | view distance | x0.8 | x1 | x1.15 | x1.3 |
 
-Compatibility ignores what it can't do (SSIL, SSR, SDFGI, TAA, PCSS, card trees) without
-errors, and its glow is off (its simpler glow blooms the road lines).
+Compatibility ignores what it can't do (SSIL, SSR, SDFGI, TAA, PCSS, card trees, the speed
+blur) without errors, and its glow is off by day (its simpler glow blooms the road lines),
+on at night (the lamps).
+
+8. **Time of day** (`WorldMaterials.setup(parent, mood, hour)`, Settings > WORLD > TIME OF
+   DAY through `Modes.with_time()` and the builders' `time_of_day`): an hour lights the world
+   for that hour: the sun on its arc (up ~06:00, 60 degrees at 13:00, down ~19:30), the two
+   nearest sky photos blended (night: a drawn sky with stars and a moon), the exposure, fog,
+   colour grade and the sun's colour from a table of hours. `night_amount` (0 day .. 1
+   night) fades the night pieces in through dusk and out at dawn: the cars' lamps, the
+   beams (from 0.3), the street lamps (from 0.05, dimmer at dusk), lit windows. The mood
+   then only says overcast or not; the builders' `mood` becomes the hour's (the game's night
+   switch reads it), so a rally stage at 23:00 is a night stage.
+9. **Night** (the touge, mostly; any map at a night hour):
+   - **Street lamps** (`scripts/stage/street_lamps.gd`, made by `WorldMaterials.street_lights()`):
+     the touge's posts (before every tight bend, no gap over ~120 m), the highway stage's,
+     and the LAKESHORE LOOP's (the median posts on the viaducts, bridges and through the
+     city, one head over each carriageway: ~700 lamps). Each: a lit sodium head, a glare
+     sprite, a pool of light on the road, faked: on Forward+ with the lamps apart (the
+     touge) a disc that multiplies what's under it (asphalt brightens as its colour allows,
+     a white line more: like a real light), where pools overlap (the highway stage, the
+     loop: 48 m apart, both carriageways) and on Compatibility an added one (multiplied twice
+     over the road blows out to white; Compatibility can't brighten past white by
+     multiplying). The four lamps nearest the player's car get real omni lights that fade
+     in and out with distance (the car's paint, the guardrails and trees light up as they
+     pass); where the pools multiply, not the road (`WorldMaterials.ROAD_LAYER`: it keeps its
+     pool, no light counted twice). All batched: three MultiMeshes.
+   - **The cars' lamps**: CarLook (emission on the lamp lenses, red tails, brake lights)
+     and CarLamps (`scripts/vehicle/car_lamps.gd`): the headlight beams (spot lights where
+     CarLook found the headlamps; your own car two on Forward+ MEDIUM+, one casting
+     shadows on HIGH / ULTRA; everyone else one, the game turning far ones off), a red glow
+     on the road behind yours, glow sprites only where no lamp material was found or
+     there's no bloom (Compatibility, LOW), hazards. The game fits them at night, CarLook at
+     dusk or with CAR LIGHTS ALWAYS; OFF leaves only your own beam at night.
+   - **The traffic** (cut up): its lamps glow (CarLook.glow_model) and at night each car
+     throws a faked pool of headlight on the road ahead and red behind (one additive mesh,
+     260 m) instead of real lights (dozens of cars).
+   - **The loop's city**: the towers' facade shader lights ~40 % of the windows at night
+     (warm and cold white); the bridge towers' red beacons; no shadows from the moon.
+   - A dash glow in the cockpit (the game), the stray local car's lamps (CarLamps + glow).
+10. **Speed blur** (`scripts/render/speed_blur.gd`, a compositor pass, Forward+ MEDIUM+):
+   the world smears along its motion vectors plus a pull toward where the camera's heading,
+   stronger at the screen's edges, from ~90 km/h, all of it by ~220; the car and cockpit
+   (no motion relative to the camera) stay sharp. The motion vectors and depth read as
+   empty under MSAA (checked on llvmpipe; the resolve isn't filled in for a compositor
+   effect), so while the blur is on the stage drops MSAA for FXAA / TAA (the table).
 
 ## Lens 1: why it works and is good
 
@@ -93,6 +140,15 @@ errors, and its glow is off (its simpler glow blooms the road lines).
 - Everything degrades: LOW is today's look under the new sky, Compatibility silently skips
   what it can't do, and the renderer can be switched without a command line.
 - Download cost is small: 12 MB imported (textures, skies, the twig atlas).
+- The night is mostly faked where it's cheap and real where you look: hundreds of street
+  lamps are three batched MultiMeshes (a lit head, a glare, a pool that brightens the road
+  as a lamp would), with only the four nearest the car real lights; the traffic's
+  headlights on the road are one additive mesh a car. The player's car gets real beams,
+  the paint catches the street lamps' real lights as it passes them. One system for every
+  map: the touge, the highway stage and the loop all call `WorldMaterials.street_lights()`.
+- The time of day is one table of hours blended (sun, sky photos, exposure, fog, grade),
+  so any hour is lit, dusk and dawn included, and every night piece fades with
+  `night_amount` instead of switching on at a mood.
 
 ## Lens 2: what won't work, or isn't accounted for
 
@@ -119,6 +175,31 @@ errors, and its glow is off (its simpler glow blooms the road lines).
 - `project.godot` changes, so the updater's "base" changes: players get the download-page
   prompt once, not a silent pack update.
 
+- **Night on weak PCs and Chromebooks**: at night there are ~6-9 real lights (4 street-lamp
+  omnis following the car, your two beams (one shadowed on HIGH+), the red tail glow,
+  online the two nearest drivers' beams). Forward+ handles that easily; Compatibility pays
+  per light per object, so a Chromebook at night costs more than by day (the work branch's
+  night had the same count; CAR LIGHTS OFF drops everyone's beams but your own).
+  Compatibility's glow is on at night only, untested on a real Chromebook GPU.
+- **The speed blur and MSAA**: the blur's inputs read as empty under MSAA (seen on
+  llvmpipe; maybe not on every GPU, but there's no way to tell here), so in a stage the
+  blur levels use FXAA / TAA: MEDIUM's edges are softer than with MSAA 2x (and cheaper);
+  the garage keeps MSAA. TAA can still ghost behind the car.
+- **The faked pools** are flat discs: on a crest or a steep camber their edge can sink
+  into the road (the loop's lie on the road's slope; the touge's on its own level), and a
+  pool doesn't light the car or the guardrail (the four real lights do that near the car;
+  they leave the road to the pools, so the road under a lamp looks the same near or far).
+- **The loop's tunnels** were on render layer 2, which the driver's seat camera leaves out
+  (the helmet's): from the cockpit the tunnels' walls and lamps vanished. Now layer 14.
+- **The time of day** is static in a run (no clock running), the sky photos are fixed
+  (the clouds don't move, the golden photo is turned to the sun's direction at dusk and
+  dawn alike), and 18:00-20:00 blends two photos, which shows as a slightly soft sky.
+- **The loop by night** has no lamps on its embankments and in the hills (lit only by the
+  cars and the city's glow), the towers' windows are a pattern (no interiors), the loop's
+  trees stay low-poly (no card trees there yet).
+- **Lamp finding** on the rips is still heuristic; a car whose lamps weren't found gets
+  sprites at its body's corners, which can sit a little off its real lamps.
+
 ## Lens 3: is it worth it
 
 - **Cost**: a few days of work, ~12 MB of download, more GPU on HIGH / ULTRA. Tests are
@@ -132,3 +213,9 @@ errors, and its glow is off (its simpler glow blooms the road lines).
 - **Biggest win for least work**, in order: the sky + tonemapping + shadows, the road and
   ground textures (the road is what you look at), the trees, the car's reflections and
   clear coat, the lamps.
+- **The night and the time of day** cost no download (all code and shaders) and a few real
+  lights' worth of GPU at night, which Forward+ hardly notices; against Assetto Corsa (whose night needs
+  mods: real headlights, emissive lamps, baked street lighting) this is the same recipe
+  (emissive + bloom + a few real lights + faked pools); Forza Horizon's night adds real
+  shadows from every lamp and wet roads, which would mean many shadowed lights: not for
+  this game's weak-PC promise.

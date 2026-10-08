@@ -10,6 +10,7 @@ extends Node3D
 
 const VehicleRegistry = preload("res://scripts/game/vehicle_registry.gd")
 const CarLamps = preload("res://scripts/vehicle/car_lamps.gd")
+const CarLook = preload("res://scripts/render/car_look.gd")
 const AHEAD := [260.0, 420.0]   # m ahead of the player it turns up (round a bend or two, out of sight)
 const FIRST := [20.0, 45.0]     # s into the run before the first one
 const GAP := [40.0, 90.0]       # s between one leaving and the next
@@ -101,6 +102,7 @@ func spawn_at(s: float, dir: int) -> void:
 	body.add_child(cs)
 	add_child(body)
 	_paint(model, m.paints[_rng.randi() % m.paints.size()])
+	CarLook.glow_model(model)                        # (its lamps glow: dim by day, full at night)
 	var kmh: Array = ONCOMING_KMH if dir < 0 else AHEAD_KMH
 	var v0: float = _rng.randf_range(kmh[0], kmh[1]) / 3.6
 	car = {"body": body, "model": model, "s": s, "d": lane_d(dir), "v": v0, "v0": v0, "dir": dir, "crashed": false,

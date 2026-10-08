@@ -37,6 +37,7 @@ extends Node3D
 
 const VehicleRegistry = preload("res://scripts/game/vehicle_registry.gd")
 const CarLook = preload("res://scripts/render/car_look.gd")   # the lamps glow (traffic models: glow_model)
+const CarLamps = preload("res://scripts/vehicle/car_lamps.gd")
 
 const AHEAD := 650.0
 const BEHIND := 160.0
@@ -477,6 +478,7 @@ func _body_for(m: Dictionary, solid := true, paint := -1) -> Node3D:
 	_paint(model, m.paints[pi % m.paints.size()])
 	body.set_meta("paint", pi)
 	CarLook.glow_model(model)                        # (its lamps: running lights by day, full at night)
+	CarLamps.road_glow(model)                        # (at night: its headlights' light on the road, the red behind)
 	var wheels: Array = []
 	for n in model.find_children("Wheel_*", "Node3D", true, false):
 		wheels.append(n)

@@ -7,6 +7,11 @@ extends SceneTree
 ##   * the card trees: each kind builds, a sensible size and triangle count
 ##   * smooth normals: averaged on rolling ground, kept across a sharp fold
 ##   * a stage builds with all of it (its sky, its sun with shadows, its road's material)
+##   * the time of day: the sun's arc, smooth changes, night fading in at dusk
+##   * the night: street lamps (none by day; lit, a few real lights follow the car, the pool
+##     added on Compatibility or where pools overlap, else multiplied on Forward+), a touge lit by the hour alone, the
+##     LAKESHORE LOOP's lamp posts and lit windows, a car's lamps (CarLamps: fitted once per
+##     body, its glow where the lamps are, hazards), one lamp material over both ends split
 ## Run: godot --headless --path . -s tests/render_check.gd   (prints [render] lines; exit 1 on a FAIL)
 
 const Graphics = preload("res://scripts/render/graphics.gd")
@@ -14,6 +19,7 @@ const WorldMaterials = preload("res://scripts/render/world_materials.gd")
 const CarLook = preload("res://scripts/render/car_look.gd")
 const Foliage = preload("res://scripts/render/foliage.gd")
 const MeshBuf = preload("res://scripts/stage/mesh_buf.gd")
+const CarLamps = preload("res://scripts/vehicle/car_lamps.gd")
 
 var fails := 0
 
@@ -27,6 +33,12 @@ func _initialize() -> void:
 	_trees()
 	_smooth()
 	_stage()
+	await process_frame                                   # (the tree live: global transforms)
+	_street_lamps()
+	await _touge_by_hour()
+	_loop_night()
+	_car_lamps()
+	_split()
 	print("[render] %s" % ("RENDER OK" if fails == 0 else "RENDER FAIL (%d)" % fails))
 	quit(1 if fails > 0 else 0)
 
@@ -192,3 +204,145 @@ func _stage() -> void:
 	_check(we != null and we.environment.sky != null and sun != null and sun.shadow_enabled and road != null and road.material_override != null,
 		"a stage builds with its sky, its sun's shadows and its road's material")
 	b.queue_free()
+
+
+## Street lamps: nothing by day; at night a StreetLamps with every lamp, its few real
+## lights on round the car under one (and off away from them); the faked pools added on
+## Compatibility (and here, headless), multiplied on Forward+.
+func _street_lamps() -> void:
+	var holder := Node3D.new()
+	root.add_child(holder)
+	var lamps: Array = []
+	for k in 12:
+		lamps.append({"head": Vector3(3.0, 8.0, -k * 40.0), "ground": Vector3(1.0, 0.0, -k * 40.0), "s": k * 40.0})
+	WorldMaterials.night_amount = 0.0
+	var day = WorldMaterials.street_lights(holder, lamps)
+	WorldMaterials.night_amount = 1.0
+	var sl = WorldMaterials.street_lights(holder, lamps)
+	var car := Node3D.new()
+	holder.add_child(car)
+	car.position = Vector3(1.0, 0.5, -80.0)
+	sl.target = car
+	sl._process(0.25)
+	var on: Array = sl._lights.filter(func(o): return o.visible and o.light_energy > 0.5)
+	car.position = Vector3(500.0, 0.5, 500.0)
+	sl._t = 0.0
+	sl._process(0.25)
+	var off: bool = sl._lights.all(func(o): return not o.visible or o.light_energy < 0.05)
+	var pool: ShaderMaterial = sl._pools.material_override
+	var added := "blend_add" in pool.shader.code
+	_check(day == null and sl != null and sl.lamps.size() == 12 and on.size() >= 1 and on.size() <= sl.REAL and off,
+		"street lamps: none by day; at night %d lit, %d real lights round the car under one, none far off" % [sl.lamps.size(), on.size()])
+	_check(added != Graphics.forward() and (pool.next_pass != null) == Graphics.forward(),
+		"street lamps: the pool of light %s on this renderer (%s)" % ["added" if added else "multiplied", RenderingServer.get_current_rendering_method()])
+	var dense: Array = []                               # (a highway's: 48 m apart, wide pools that overlap)
+	for k in 6:
+		for x in [5.0, -5.0]:                           # (an arm over each carriageway)
+			dense.append({"head": Vector3(x, 10.7, -k * 48.0), "ground": Vector3(x, 0.0, -k * 48.0), "radius": 25.0})
+	var hw = WorldMaterials.street_lights(holder, dense)
+	_check(hw.overlapping and "blend_add" in (hw._pools.material_override as ShaderMaterial).shader.code and not sl.overlapping,
+		"street lamps: pools that overlap only add (multiplied twice over they'd blow out); apart, they may multiply")
+	WorldMaterials.night_amount = 0.5
+	var dusk = WorldMaterials.street_lights(holder, lamps)
+	_check(dusk != null and is_equal_approx(dusk.lit, 0.5), "street lamps: at dusk lit, at half strength (%.2f)" % dusk.lit)
+	WorldMaterials.night_amount = 0.0
+	holder.free()
+
+
+## The time of day alone makes a touge night (its street lamps lit) or day (the posts only).
+func _touge_by_hour() -> void:
+	var StageGen = load("res://scripts/stage/stage_gen.gd")
+	var StageBuilder = load("res://scripts/stage/stage_builder.gd")
+	var st = StageGen.new()
+	st.opts = {"kind": "touge", "dir": "down"}
+	st.generate(7, 1600.0)
+	var res := []
+	for hour in [23.0, 13.0, 19.9]:
+		var b = StageBuilder.new()
+		b.mood = "day"
+		b.time_of_day = hour
+		root.add_child(b)
+		b.build(st)
+		res.append([b.mood, b.street_lamps != null, WorldMaterials.night_amount])
+		b.queue_free()
+		await process_frame
+	_check(res[0][0] == "night" and res[0][1] and res[1][0] == "day" and not res[1][1] and res[2][1] and res[2][2] < 1.0,
+		"a touge by the hour: 23:00 night, its lamps lit; 13:00 day, unlit; 19:54 lit, dimmer (%.2f)" % res[2][2])
+	WorldMaterials.night_amount = 0.0
+
+
+## The LAKESHORE LOOP at night: its lamp posts' heads lit (the viaducts, the bridges, the
+## city), the towers' windows lit; by day neither.
+func _loop_night() -> void:
+	var LoopGen = load("res://scripts/stage/loop_gen.gd")
+	var LoopBuilder = load("res://scripts/stage/loop_builder.gd")
+	var st = LoopGen.new()
+	st.generate(5)
+	var res := {}
+	for mood in ["night", "day"]:
+		var b = LoopBuilder.new()
+		b.mood = mood
+		root.add_child(b)
+		b._prepare(st)
+		b._environment()
+		b._lamp_posts()
+		var towers: ShaderMaterial = b._mat("building")
+		res[mood] = [b.lamp_heads.size(), b.street_lamps != null, float(towers.get_shader_parameter("night")), b.get_node_or_null("WorldEnvironment") != null]
+		b.free()
+	_check(res.night[0] > 100 and res.night[1] and res.night[2] > 0.9 and res.night[3] and res.day[0] == res.night[0] and not res.day[1] and res.day[2] < 0.05,
+		"the loop at night: %d lamp heads lit (the viaducts, bridges, city), the towers' windows lit; by day neither" % res.night[0])
+	WorldMaterials.night_amount = 0.0
+
+
+## A car's lamps (CarLamps): fitted once per body (again: the same node; a new body: a new
+## one), a glow at each corner where nothing else lights the lamps, at the lamps CarLook
+## found when it did; hazards blink.
+func _car_lamps() -> void:
+	var car := Node3D.new()
+	root.add_child(car)
+	var body := Node3D.new()
+	car.add_child(body)
+	var mi := MeshInstance3D.new()
+	var bm := BoxMesh.new()
+	bm.size = Vector3(1.8, 1.3, 4.4)
+	mi.mesh = bm
+	mi.position = Vector3(0, 0.75, 0)
+	body.add_child(mi)
+	var a = CarLamps.fit(car, body, true, true)
+	var again = CarLamps.fit(car, body, true, true)
+	var glows: int = a._glows.size()
+	var body2 := body.duplicate()
+	car.add_child(body2)
+	body2.set_meta("lamp_boxes", {"head": AABB(Vector3(-0.7, 0.6, -2.2), Vector3(1.4, 0.2, 0.2)), "tail": AABB(Vector3(-0.7, 0.8, 2.0), Vector3(1.4, 0.2, 0.2))})
+	var b = CarLamps.fit(car, body2, true, true)
+	var heads: Array = b._corners.head
+	b.hazards(true)
+	b._process(0.1)
+	var amber := ((b._glows[0][0] as MeshInstance3D).material_override as StandardMaterial3D).albedo_color.b < 0.3
+	b.hazards(false)
+	_check(again == a and glows == 4 and b != a and car.get_node_or_null("CarLamps") == b and is_equal_approx(heads[0].z, -2.23) \
+		and absf(heads[0].y - 0.7) < 0.01 and amber,
+		"car lamps: fitted once per body (%s), a glow at each corner (%d), at the lamps found (%s), hazards blink (%s)" % [
+		again == a and b != a and car.get_node_or_null("CarLamps") == b, glows, str(heads[0]), amber])
+	car.free()
+
+
+## One lamp material over both ends of a car: split front / back (the tail lamps can glow red).
+func _split() -> void:
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	for z in [-2.1, 1.9]:                                 # (a lamp at each end, one surface)
+		for v in [Vector3(-0.6, 0.6, z), Vector3(0.6, 0.6, z), Vector3(0.6, 0.8, z + 0.2), Vector3(-0.6, 0.6, z), Vector3(0.6, 0.8, z + 0.2), Vector3(-0.6, 0.8, z + 0.2)]:
+			st.add_vertex(v)
+	var mesh := st.commit()
+	var mat := StandardMaterial3D.new()
+	mat.resource_name = "lights"
+	mesh.surface_set_material(0, mat)
+	var box := AABB(Vector3(-0.9, 0.1, -2.2), Vector3(1.8, 1.2, 4.4))
+	var before := CarLook._kind_in(box, CarLook._surface_box(mesh, 0))
+	var out: ArrayMesh = CarLook._split_mesh(mesh, Transform3D.IDENTITY, [0], box)
+	var kinds := []
+	for i in out.get_surface_count():
+		kinds.append(CarLook._kind_in(box, CarLook._surface_box(out, i)))
+	_check(before == "both" and kinds == ["head", "tail"] and out.surface_get_material(1) == mat,
+		"one lamp material over both ends: split into %s" % str(kinds))

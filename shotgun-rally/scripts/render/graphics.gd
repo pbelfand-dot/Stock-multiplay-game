@@ -257,7 +257,8 @@ static func apply_environment(env: Environment) -> void:
 		env.sdfgi_min_cell_size = 0.4
 		env.sdfgi_y_scale = Environment.SDFGI_Y_SCALE_75_PERCENT
 		env.sdfgi_energy = 0.9
-	env.glow_enabled = bool(get_value("glow")) and f            # (Compatibility's glow blooms the road lines)
+	# (Compatibility's glow blooms the road lines by day; at night its lamps want it)
+	env.glow_enabled = bool(get_value("glow")) and (f or float(env.get_meta("night", 0.0)) > 0.5)
 	env.glow_intensity = 0.55
 	env.glow_strength = 1.0
 	env.glow_bloom = 0.03

@@ -11,17 +11,20 @@ extends Node3D
 ## red glass ...; never a screen, a dial, an indicator, a reverse or fog lamp), by already
 ## glowing, and by where on the car they are (the front or the back quarter). They get
 ## emission masked by their own texture: dim running lights by day, the tail lamps bright
-## when braking, both full at night (fading in at dusk: WorldMaterials.night_amount). Real
-## lights (two spot headlights, two small red tail lights) when it's dark or Settings says
-## CAR LIGHTS ON. The tyres matte rubber.
-## MEDIUM and up: a soft contact shadow under the car (the sky can't reach under it: ambient
-## occlusion, faked by a darkening quad on the ground, gone when it flies); at night the two
-## nearest street lamps light the car (only the car: lights on its own layer, no shadows),
-## so their glow slides over the paint.
+## when braking, both full at night (fading in at dusk: WorldMaterials.night_amount). A lamp
+## material over both ends is split front / back so the tail lamps glow red. The real
+## lights (the headlights' beams, red on the road behind) are CarLamps'
+## (scripts/vehicle/car_lamps.gd): the game fits them at night, CarLook itself at dusk or
+## when Settings says CAR LIGHTS ALWAYS; they go where the lamps were found (lamp_boxes()).
+## The tyres matte rubber.
+## MEDIUM and up, Forward+: a soft contact shadow under the car (the sky can't reach under it: ambient
+## occlusion, faked by a darkening quad on the ground, gone when it flies). At night the
+## street lamps' few real lights (StreetLamps) light the car as it passes them.
 ## LOW quality leaves the materials as they are (the lamps still glow).
 
 const Graphics = preload("res://scripts/render/graphics.gd")
 const WorldMaterials = preload("res://scripts/render/world_materials.gd")
+const CAR_LAMPS := "res://scripts/vehicle/car_lamps.gd"
 
 ## the car's model meshes go on this render layer (as well as no other), so its own
 ## reflection probe doesn't see it from inside
@@ -45,16 +48,14 @@ var _tail: Array = []                # ... tail lamps
 var _both: Array = []                # ... one material for both ends (an atlas)
 var _head_at: Array = []             # [AABB] where they are (model space)
 var _tail_at: Array = []
-var _lights: Array = []              # the real lights: [SpotLight3D x2, OmniLight3D x2]
 var _probe: ReflectionProbe
 var _brake := 0.0
 var _nt := 0.0                       # how dark it is (WorldMaterials.night_amount when last looked)
-var _real := false
+var _own_lamps: Node3D              # CarLamps fitted here (dusk, CAR LIGHTS ALWAYS), not by the game
 var _mirror_done := false
 var _mirror_tries := 0
 var _blob: MeshInstance3D            # the contact shadow
 var _blob_amount := 0.0
-var _lamp_lights: Array = []         # [OmniLight3D x2]: the nearest street lamps' light on the car
 
 
 static func dress(owner_car: Node3D, owner_model: Node3D, info: Dictionary) -> Node3D:
@@ -399,33 +400,15 @@ func _lamp_material(src: BaseMaterial3D, kind: String, at: AABB) -> BaseMaterial
 
 func _graphics_changed() -> void:
 	_nt = WorldMaterials.night_amount
-	var want_real := (Graphics.car_lights() == "on" or (Graphics.car_lights() == "auto" and _nt > 0.3)) and not Graphics.headless()
-	if want_real != _real:
-		_real = want_real
-		_set_real_lights(want_real)
-	var fancy := Graphics.level() != "low" and not Graphics.headless()
+	_car_lamps.call_deferred()
+	# (the contact shadow multiplies the ground: Forward+ only, Compatibility's tonemapped
+	# multiply darkens the whole quad: a dark box under the car)
+	var fancy := Graphics.level() != "low" and not Graphics.headless() and Graphics.forward()
 	if fancy and _blob == null:
 		_add_blob()
 	elif not fancy and _blob:
 		_blob.queue_free()
 		_blob = null
-	var want_lamps := fancy and _nt > 0.05
-	if want_lamps and _lamp_lights.is_empty():
-		for i in 2:
-			var o := OmniLight3D.new()
-			o.top_level = true
-			o.omni_range = 16.0
-			o.omni_attenuation = 1.2
-			o.light_color = WorldMaterials.SODIUM
-			o.light_cull_mask = CAR_LAYER
-			o.light_specular = 1.0
-			o.visible = false
-			add_child(o)
-			_lamp_lights.append(o)
-	elif not want_lamps:
-		for o in _lamp_lights:
-			o.queue_free()
-		_lamp_lights.clear()
 	var want_probe := bool(Graphics.get_value("probe")) and Graphics.forward() and not Graphics.headless()
 	if want_probe and _probe == null:
 		_add_probe()
@@ -433,6 +416,22 @@ func _graphics_changed() -> void:
 		_probe.queue_free()
 		_probe = null
 	_glow(0.0)
+
+
+## The real lights (CarLamps) at dusk, or always if Settings says so; the game's own (at
+## night) left as they are. (Deferred: the car may be busy taking its children in.)
+func _car_lamps() -> void:
+	if not is_inside_tree() or car == null:
+		return
+	var want := (Graphics.car_lights() == "on" or (Graphics.car_lights() == "auto" and _nt > 0.3)) and not Graphics.headless()
+	var fitted = car.get_node_or_null("CarLamps")
+	if want and (fitted == null or fitted.model != model):
+		var yours: bool = car.get("simulate") == true           # (the player's car: twin beams, the red on the road)
+		_own_lamps = load(CAR_LAMPS).fit(car, model, true, yours)
+	elif not want and _own_lamps and is_instance_valid(_own_lamps) and fitted == _own_lamps:
+		_own_lamps.remove()
+		_own_lamps.name = "CarLampsOld"
+		_own_lamps = null
 
 
 func _process(dt: float) -> void:
@@ -445,8 +444,6 @@ func _process(dt: float) -> void:
 	_glow(_brake)
 	if _blob:
 		_place_blob(dt)
-	if not _lamp_lights.is_empty() and Engine.get_process_frames() % 3 == 0:
-		_follow_lamps()
 	if not _mirror_done and Engine.get_process_frames() % 15 == 0:
 		_mirror_tries += 1
 		_mirror_done = _mirror_tries > 20                 # (no cockpit mirror: the menu's car)
@@ -482,55 +479,6 @@ func _glow(brake: float) -> void:
 		m.emission_energy_multiplier = tail
 	for m in _both:
 		m.emission_energy_multiplier = lerpf(1.2, 4.0, _nt)
-	if _real:
-		var beams := 1.0 if Graphics.car_lights() == "on" else clampf((_nt - 0.2) / 0.5, 0.0, 1.0)
-		for l in _lights:
-			if l is OmniLight3D:
-				(l as OmniLight3D).light_energy = 0.12 + brake * 0.5
-			elif l is SpotLight3D:
-				(l as SpotLight3D).light_energy = 9.0 * beams
-
-
-func _set_real_lights(on: bool) -> void:
-	for l in _lights:
-		l.queue_free()
-	_lights.clear()
-	if not on:
-		return
-	var off := model.position
-	var hb := _merge(_head_at)
-	var front_y := hb.get_center().y if hb.size != Vector3.ZERO else _box.position.y + 0.35 * _box.size.y
-	var front_z := hb.position.z if hb.size != Vector3.ZERO else _box.position.z + 0.15
-	var half := (hb.size.x * 0.5 if hb.size.x > 0.6 else _box.size.x * 0.5) * 0.72
-	var shadows := Graphics.level() in ["high", "ultra"] and Graphics.forward()
-	for side in [-1.0, 1.0]:
-		var s := SpotLight3D.new()
-		s.position = off + Vector3(hb.get_center().x + side * half if hb.size != Vector3.ZERO else side * half, front_y, front_z - 0.05)
-		s.rotation = Vector3(deg_to_rad(-4.0), 0.0, 0.0)          # looking down the road (-z), a touch down
-		s.spot_range = 75.0
-		s.spot_angle = 30.0
-		s.spot_angle_attenuation = 1.6
-		s.spot_attenuation = 0.6
-		s.light_energy = 9.0
-		s.light_color = Color(1.0, 0.95, 0.86)
-		s.light_specular = 0.6
-		s.shadow_enabled = shadows and side > 0.0             # (one shadow: half the cost)
-		add_child(s)
-		_lights.append(s)
-	var tb := _merge(_tail_at)
-	var rear_z := tb.end.z if tb.size != Vector3.ZERO else _box.end.z - 0.1
-	var rear_y := tb.get_center().y if tb.size != Vector3.ZERO else _box.position.y + 0.45 * _box.size.y
-	for side in [-1.0, 1.0]:
-		var o := OmniLight3D.new()
-		o.position = off + Vector3(side * _box.size.x * 0.36, rear_y, rear_z + 0.25)
-		o.omni_range = 2.4
-		o.omni_attenuation = 1.5
-		o.light_color = Color(1.0, 0.08, 0.04)
-		o.light_energy = 0.12
-		o.light_specular = 0.2
-		o.light_cull_mask = 0xFFFFF & ~CAR_LAYER              # (a red glow on the road, not on the car)
-		add_child(o)
-		_lights.append(o)
 
 
 ## The contact shadow: a quad the car's footprint (a little more), darkening the ground
@@ -598,32 +546,6 @@ void fragment() {
 	ALBEDO = vec3(1.0 - amount * f);
 }
 """
-
-
-## At night, the two nearest street lamps (WorldMaterials.street_lights) as real lights on
-## the car's layer only: the paint shows them, nothing else is lit twice.
-func _follow_lamps() -> void:
-	var here := global_position
-	var best: Array = []                                   # [[d2, pos, colour]]
-	for holder in get_tree().get_nodes_in_group("street_lights"):
-		var h := holder as Node3D
-		if h == null or not h.is_inside_tree():
-			continue
-		var heads: PackedVector3Array = h.get_meta("heads", PackedVector3Array())
-		var xf := h.global_transform
-		for p in heads:
-			var g: Vector3 = xf * p
-			var d2 := g.distance_squared_to(here)
-			if d2 > 900.0:
-				continue
-			best.append([d2, g])
-	best.sort_custom(func(a, b): return a[0] < b[0])
-	for i in _lamp_lights.size():
-		var o: OmniLight3D = _lamp_lights[i]
-		o.visible = i < best.size()
-		if o.visible:
-			o.global_position = best[i][1]
-			o.light_energy = 3.0 * _nt
 
 
 static func _merge(boxes: Array) -> AABB:
