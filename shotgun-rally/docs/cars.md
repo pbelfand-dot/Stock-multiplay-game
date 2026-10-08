@@ -211,11 +211,30 @@ upgrades) and weight.
      go and where the windshield is. `--parts` lists every part, where it is and how big;
      `--snapshot file.blend` saves the car as the tool sees it, to look at. Leave the key out and
      the game builds its own rally cockpit instead (an interior too rough to sit in).
-4. Add its registry entry, `data/vehicles/<id>.json` (`docs/vehicles.md`): the researched numbers in `specs`,
+   - Lamps and lenses that came without their colours: `"glow"` makes a lamp glow in its own
+     colour (its texture), `"remat_boxes"` with `"new": true` gives the faces of a material in a
+     box a new one (the back half of a lens shared front and back made a red lens), or with
+     `"copy_of"` a copy that keeps its textures. `"glb_patch"` (`tools/glb_patch.py`) changes
+     materials in the written GLB, JSON only: a colour, a glow (from the material's own texture
+     or its glow map), the colour texture taken from the glow map, the alpha mode, two-sided.
+     It runs at the end of every conversion and on its own on a GLB already made:
+     `python3 tools/glb_patch.py tools/cars/<id>.json`.
+4. Check how it looks:
+   - `blender -b -Y --python tools/model_audit.py -- <id>` checks the GLB by numbers (what Godot
+     will draw: one-sided faces culled from behind, blended and cut-out materials by their alpha):
+     all four wheels, round about their axle and on centre (else they wobble), a tyre all round, a
+     rim you can see from outside (not see-through, not inside out, not turned to face the car,
+     the same on both sides), no wheel left behind in the Body, red tail lights you can see from
+     behind (not glowing white), no big material that lost its colour (a white "black"), nothing
+     invisible that isn't glass. It's how the cars whose licences say no AI are checked.
+   - `xvfb-run -a godot --path . --resolution 1280x800 -s tools/car_shots.gd -- --out=<dir> --ids=<registry id>`
+     takes four pictures of it in the game's light (front and rear three-quarter, the side,
+     straight behind; `--set=wheels`: each wheel close up).
+5. Add its registry entry, `data/vehicles/<id>.json` (`docs/vehicles.md`): the researched numbers in `specs`,
    its `physics` from `tools/vehicle_physics.py` (power, weight, drive, engine kind, chassis), a `garage` and/or
    `traffic` block, its `source` and `limitations`; `python3 tools/vehicle_registry.py check`, and
    `python3 tools/vehicle_credits.py > docs/CREDITS.md`.
-5. `tests/car_models_check.gd` checks it:
+6. `tests/car_models_check.gd` checks it:
    - it builds;
    - it sits on its wheels;
    - its body clears the ground;
@@ -224,3 +243,37 @@ upgrades) and weight.
    `tests/interior_check.gd` checks its interior: the driver's eyes are in the car on its wheel's
    side, the gloves are on its rim, the steering turns its wheel, the hand works its lever through
    the gates (or stays put in an automatic) and pulls its handbrake.
+
+## The model audit (October 2026)
+
+Every car was checked with `tools/model_audit.py` and pictured with `tools/car_shots.gd`. What was
+wrong and how each was put right (in its `tools/cars/<id>.json`):
+
+- **CENTURIA 16 (Chiron):** its left wheels were inside out on one-sided materials, so their
+  rims vanished from outside (you saw the hollow back of the wheel and the brake); the old
+  `turn_wheels` made it worse (it turned the brakes round too). Now: no turn, the wheels two-sided.
+  Its lamps glowed white (a white colour texture under a glow map holding the real colours): the
+  colour now comes from the glow map, so the tail lights are red.
+- **HELLHOUND WB (Hellcat Widebody):** "Dark" and "Light Glass" came with no colour (white), so
+  the tail lamps were two white bars; now a dark housing behind clear glass with the red ring.
+- **HELLHOUND (Hellcat, traffic):** its tail lamps lost their colours (grey); now red lenses.
+- **KAISER 8 (M8):** its red tail glass was grey and its arch liners, diffuser and trims white;
+  now red lights and black trim.
+- **HACHI (AE86):** its lamp covers' texture wasn't linked in the FBX (grey lenses); now linked,
+  with its red, amber and clear. (The converter also kept a retextured image from being dropped
+  as missing: the seatbelts had lost theirs.)
+- **OCELOT (Puma Rally1):** one lens material front and back, set to chrome; the back half is a red lens.
+- **BOLT W16 (Bolide):** its tyres were only their lettering decal (see-through, silver-white):
+  now black rubber; a see-through cockpit (carbon at 27 % alpha) made solid; its X tail light
+  glowed white at 200x: now red.
+- **UNO HYBRID (AMG ONE):** its lamps had no colour and no glow: the back ones are red now.
+- **VENTO CINQUE (Zonda):** white tail lamps under opaque white covers: red, the covers clear.
+- **VIERRAD (Sport quattro):** its red tail glass was nearly black: red glass now.
+- **SYLPH (S15):** a white driver's seat; its red lamp ring glows.
+- **ELFER R EVO (GT3 R evo), traffic minivan:** no AI, fixed from the numbers only: the evo's
+  lamps glowed white (now their own colours); the minivan's black trim, rubber and underside were
+  white (now the colours the sedan from the same set has).
+- **BISCIONE (Alfa 155), MOCHI e (Honda e):** grilles and decals with hard-edged alpha now cut out
+  (the alpha fixer had treated every WebP-textured car's materials as opaque: it couldn't read
+  WebP images; fixed). Parts that are never see-through (rims, tyres, chrome, carbon) stay opaque
+  whatever their texture's alpha holds (often a shine mask in game rips).

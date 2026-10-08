@@ -7,13 +7,21 @@ game. One of you drives, blind past the next crest. The other sits in the passen
 map of the road ahead, works out what's coming and yells it: "LEFT! TIGHT LEFT! OVER THE CREST!"
 No friend online? The **AI co-driver** takes the seat.
 
+Plus **MODES**, alone or with **up to 8 friends online**, each in their own car: the **TOUGE**, a
+Japanese mountain pass at night lit only by its street lamps and your headlights (time attack
+against your ghost, drift, or online a race to the bottom), and **CUT UP**, weaving through
+heavy highway traffic on an endless 28 km loop ([docs/modes.md](docs/modes.md)).
+
 > SHOTGUN RALLY lives in this `shotgun-rally/` folder, next to BAGHOLDERS on `main`. It's its own Godot
 > project with its own build, so the two games never touch each other. Both games' downloads are on
 > the [repo's front page](../README.md).
 
 | | |
 |---|---|
-| ![The home screen: your car flat out on a stage behind the menu](docs/screens/home.jpg) | ![The garage: buy, paint, upgrade](docs/screens/garage.jpg) |
+| ![The home screen: the logo and menu over your car flat out on a stage](docs/screens/home.jpg) | ![MODES: the touge and cut up, alone or online up to 8](docs/screens/modes.jpg) |
+| ![The touge at night: street lamps, your headlights, a local coming up the other lane](docs/screens/touge_night.jpg) | ![Cut up: the LAKESHORE LOOP full of traffic](docs/screens/cutup.jpg) |
+| ![An online touge's results: the podium](docs/screens/results.jpg) | ![GO: the start lights](docs/screens/start_lights.jpg) |
+| ![The garage: buy, paint, upgrade](docs/screens/garage.jpg) | ![The loading screen: the night touge's key art](docs/screens/loading.jpg) |
 | ![The realistic cars: Rotora FD in the garage, real power and weight](docs/screens/garage_fd.jpg) | ![The nine realistic cars](docs/screens/cars_lineup.jpg) |
 | ![Story mode: the Shotgun Series](docs/screens/maps.jpg) | ![Mountains on the horizon, the Mud & Mist rally's fog](docs/screens/mud_mist.jpg) |
 | ![Driver](docs/screens/driver.jpg) | ![Co-driver looking at the map](docs/screens/codriver.jpg) |
@@ -47,22 +55,20 @@ The links never change. Every change to this folder on `main` replaces the files
   School Chromebooks often have Linux switched off: for those there's a browser version,
   [ShotgunRally-Web.zip](https://github.com/pbelfand-dot/Stock-multiplay-game/releases/download/shotgun-latest/ShotgunRally-Web.zip)
   (solo play: a browser can't connect two machines), which has to be put on a web host first:
-  upload the zip to [itch.io](https://itch.io) as an HTML game (free), or GitHub Pages once the repo is public.
+  upload the zip to [itch.io](https://itch.io) as an HTML game (free), or GitHub Pages (possible now the repo is public; not tried yet).
 - All of them on one page: [releases/shotgun-latest](https://github.com/pbelfand-dot/Stock-multiplay-game/releases/tag/shotgun-latest)
 - **itch.io:** set-up steps in [`docs/ITCH.md`](docs/ITCH.md)
 
-> While this repo is **private**, the links only work for people with access to it.
+> The repo is **public**: the links work for anyone, no GitHub account needed.
 
 **It updates itself.** The menu shows your build number top right. Every time you open the game
-it checks for a newer build, downloads it in the background (a few MB), checks it's complete, and
+it checks for a newer build, downloads it in the background (the whole game, ~490 MB), checks it's complete, and
 shows **RESTART TO UPDATE** (or it switches over by itself the next time you start it). If an
 update ever fails to start, the game drops it and starts as you installed it. Some changes (a
 new Godot version, new project settings) can't be sent that way: then the button says
 **OPEN DOWNLOAD PAGE** and you download the zip again.
 - **The first build with the updater has to be downloaded by hand once** (older copies don't
   have it).
-- **While the repo is private** the game can't reach the update files: it says so and the button
-  opens the download page instead. Once the repo is public, updates just work, nothing to change.
 - Playing together: both of you need the same build. If you're on different builds the game tells
   the one who joined who needs to update.
 
@@ -113,9 +119,24 @@ front, banking into the turns), trackside cameras it flashes past, a chase camer
 - **Credits** come from finishing stages: a base, more for a longer stage, a bonus for beating the
   pace and for a clean run, x1.5 in story mode, plus the rally prizes. Both players in a crew
   earn. There's no real money anywhere.
-- **ONLINE**: your name, host (pick your seat) or join by IP.
-- **SETTINGS**: mouse look, invert Y, volume, the co-driver's call timing, and the driving aids for
-  the new physics (each its own switch).
+- **MODES** ([docs/modes.md](docs/modes.md)), alone or **online with up to 8 friends**, each in
+  their own car (the host picks collisions or ghosts): **TOUGE**, a Japanese mountain pass at
+  night, uphill or downhill, lit only by its street lamps and your headlights, cedars streaming
+  past, now and then a local driver on the road; TIME ATTACK (splits every km against your best,
+  your record as a ghost) or DRIFT (points for sliding, chained); online, a race to the bottom;
+  **CUT UP**, the **LAKESHORE LOOP**: one endless 28 km loop of divided highway (a city expressway
+  on viaducts, three tunnels through the hills, three suspension bridges over the lakes, the
+  longest with a 1,100 m main span) full of traffic. Weave through it as close as you dare, as
+  long as you like (END RUN in the pause menu); on HARD and INSANE the traffic comes in packs
+  across all four lanes, cars join and leave by the ramps, the other carriageway has its own.
+  **Highway battles**: a rival with a nickname turns up in the traffic; get right behind it and
+  flash your lights (H) to race it 3 km through the traffic to a finish gate.
+- **ONLINE**: your name, host a crew (pick your seat), or join a crew or a friend's street session
+  by IP.
+- **SETTINGS**: mouse look, invert Y, volume, the co-driver's call timing, the driving aids for
+  the new physics (each its own switch), TYRE GRIP for the rally, and **STREET HANDLING** for the
+  touge and cut up: **SIM** (out of the box: each car on the road tyres it really has, its real
+  skid-pad grip, no drift helpers, factory ABS: Assetto Corsa-like) or **ARCADE** (as the rally).
 
 ## How a stage plays
 
@@ -408,6 +429,18 @@ Corsa's gamepad assist; sources in the commit history):
 - `tests/handling_check.gd` measures it: at 50 / 80 / 110 km/h full steering has to be the most
   grip (before the rework, full steering at 110 km/h gave 0.68 g and 25 % gave 0.80 g).
 
+**SIM STREET handling (October 2026).** "Assetto Corsa-style handling" for the touge and cut
+up: Settings > STREET HANDLING > SIM (out of the box) puts each car on the road tyres it really
+has. Its asphalt grip is set so it holds its real skid-pad figure (measured where magazines
+published one: GR Supra 1.07 g, GT-R 1.00, Hellcat ~0.93, 911 GT3 RS 1.24; estimated by age
+and tyre otherwise), the grip peaks at a road tyre's 7.5 deg and a sliding one keeps 85 %, it
+brakes at ~1.1x its cornering grip with the balance following the weight, and there's no drift
+assist or countersteer help (factory ABS and traction control where the real car has them;
+HIGH-SPEED STABILITY stays a Settings switch).
+`tests/sim_check.gd` measures nine cars on a skid pad and from 100 km/h: all within 6 % of their
+real figures (the Supra 1.06 g and 37 m). ARCADE keeps the rally's grip for those who'd rather.
+Details: [docs/modes.md](docs/modes.md).
+
 ## Controls
 
 | | Keyboard / mouse | Controller |
@@ -420,6 +453,7 @@ Corsa's gamepad assist; sources in the commit history):
 | Look around | mouse | right stick |
 | Reset car (+5 s) | R | Y |
 | **Driver:** chase camera on / off | C | right stick click |
+| **Cut up:** flash your lights (challenge the rival ahead) | H | LB |
 | Start / next stage (host) | ENTER | START |
 | Pause | ESC | BACK |
 
@@ -433,6 +467,11 @@ Corsa's gamepad assist; sources in the commit history):
      join with the host's `100.x.y.z` address. No router setup.
    - **Different houses (advanced):** the host forwards **UDP 7777** on their router.
 3. Use Discord (or any voice chat) to talk. Yelling is the game.
+
+**Racing each other (up to 8):** the host opens **MODES**, picks **HOST ONLINE (UP TO 8)** and
+**COLLISIONS: ON** or **GHOSTS**, then starts a touge or a cut-up difficulty; everyone else
+JOINs from ONLINE as above, each in their own garage car. A touge is first to the bottom (the
+results show the podium); in cut up the host's traffic is everyone's.
 
 The driver's computer runs the car and streams it to the co-driver ~30 times a second; the
 co-driver's screen plays it back 0.1 s behind, smoothly, so the passenger seat never jitters.

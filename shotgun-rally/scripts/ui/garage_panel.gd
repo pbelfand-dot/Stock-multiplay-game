@@ -29,7 +29,7 @@ var _note: Label
 
 
 func _ready() -> void:
-	add_theme_stylebox_override("panel", UI.box())
+	add_theme_stylebox_override("panel", UI.panel_skin("rally"))
 	custom_minimum_size = Vector2(720, 0)
 	_body = VBoxContainer.new()
 	_body.add_theme_constant_override("separation", 7)
@@ -85,7 +85,7 @@ func _rebuild() -> void:
 			continue
 		var kb := UI.button(kd[1], _pick_kind.bind(kd[0]), 15, 88)
 		if kd[0] == _kind:
-			kb.add_theme_stylebox_override("normal", UI.box(UI.RED, 8, 10))
+			UI.mark(kb)
 		kinds.add_child(kb)
 	_body.add_child(kinds)
 	# the real car's numbers (the registry's researched specs), no badges
@@ -138,7 +138,7 @@ func _rebuild() -> void:
 		for t in [["paint", "PAINT"], ["livery", "LIVERY"], ["wheels", "WHEELS"], ["number", "NUMBER"], ["upgrades", "UPGRADES"], ["setup", "SETUP"]]:
 			var tb := UI.button(t[1], func(): _tab = t[0]; _rebuild(), 18, 104)
 			if t[0] == _tab:
-				tb.add_theme_stylebox_override("normal", UI.box(UI.RED, 8, 10))
+				UI.mark(tb)
 			tabs.add_child(tb)
 		_body.add_child(tabs)
 		var content := VBoxContainer.new()

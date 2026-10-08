@@ -5,31 +5,59 @@ extends RefCounted
 ##   TOUGE: a Japanese mountain pass (StageGen kind "touge"), uphill or downhill,
 ##     alone against the clock. TIME ATTACK: the clock, a split at every kilometre
 ##     against your best on that pass; DRIFT: points for sliding (TougeRules).
-##   CUT UP: a highway (StageGen kind "highway") full of traffic (Traffic): weave
-##     through it as fast and as close as you dare (CutupScore). Four difficulties.
+##   CUT UP: the LAKESHORE LOOP (LoopGen: one fixed ~28 km loop of highway: the city,
+##     the bridges over the lakes, the hills' tunnels) full of traffic (Traffic): weave
+##     through it as fast and as close as you dare (CutupScore), as long as you like
+##     (END RUN in the pause menu). Four difficulties.
 
 const DIFFICULTIES := {
-	# cars a km (all lanes), their speeds (km/h), how close a near miss is (m), how often they change lanes
+	# cars a km (all lanes), their speeds (km/h), how close a near miss is (m), how often they change lanes.
+	# HARD and INSANE: as busy as Assetto Corsa's No Hesi servers in the owner's clips (counted:
+	# ~35 cars a km by day, ~45 at night, across the lanes)
 	"easy": {"name": "EASY", "density": 7.0, "speed": [70.0, 110.0], "near": 1.6, "lane_changes": 0.4},
-	"normal": {"name": "NORMAL", "density": 12.0, "speed": [80.0, 120.0], "near": 1.2, "lane_changes": 0.7},
-	"hard": {"name": "HARD", "density": 18.0, "speed": [90.0, 130.0], "near": 0.9, "lane_changes": 1.0},
-	"insane": {"name": "INSANE", "density": 26.0, "speed": [90.0, 140.0], "near": 0.7, "lane_changes": 1.4},
+	"normal": {"name": "NORMAL", "density": 15.0, "speed": [80.0, 120.0], "near": 1.2, "lane_changes": 0.7},
+	"hard": {"name": "HARD", "density": 30.0, "speed": [85.0, 130.0], "near": 0.9, "lane_changes": 1.0},
+	# insane: that much traffic again, in packs of 6-12 across all four lanes, 80-160 m of open road between
+	"insane": {"name": "INSANE", "density": 45.0, "speed": [90.0, 140.0], "near": 0.7, "lane_changes": 1.4,
+		"pack": [6, 12], "pack_gap": [80.0, 160.0]},
 }
 const TOUGE_LENGTH := 5000.0
 const HIGHWAY_LENGTH := 8000.0
 
 
 static func touge_opts(seed_value: int, dir := "up", rules := "time") -> Dictionary:
-	var moods := ["day", "golden", "overcast"]
-	return {"mode": "touge", "rules": rules, "dir": dir, "length": TOUGE_LENGTH,
-		"mood": moods[absi(hash([seed_value, "touge_mood"])) % moods.size()],
+	# (a touge is run at night: the street lamps the only light, the cars' lamps on;
+	# Settings' TIME OF DAY can still make it any hour)
+	return {"mode": "touge", "rules": rules, "dir": dir, "length": TOUGE_LENGTH, "mood": "night",
 		"gen": {"kind": "touge", "dir": dir}}
 
 
 static func cutup_opts(seed_value: int, difficulty := "normal") -> Dictionary:
 	return {"mode": "cutup", "difficulty": difficulty if DIFFICULTIES.has(difficulty) else "normal",
 		"length": HIGHWAY_LENGTH, "mood": "golden" if absi(hash([seed_value, "hw_mood"])) % 3 == 0 else "day",
-		"gen": {"kind": "highway"}}
+		"gen": {"kind": "loop"}}
+
+
+## The light for an hour (0-24): the nearest of the world's moods ("night", "golden"
+## for dawn and evening, "day"), for the stage while it's lit by mood.
+static func mood_for_hour(h: float) -> String:
+	h = fposmod(h, 24.0)
+	if h < 5.5 or h >= 20.0:
+		return "night"
+	if h < 8.0 or h >= 17.0:
+		return "golden"
+	return "day"
+
+
+## A run's settings with Settings' TIME OF DAY on them (AUTO, below 0: as they are):
+## "time" (the hour) and the mood nearest it. They go to every machine with the stage.
+static func with_time(o: Dictionary, hour: float) -> Dictionary:
+	if hour < 0.0:
+		return o
+	var t := o.duplicate()
+	t["time"] = fposmod(hour, 24.0)
+	t["mood"] = mood_for_hour(hour)
+	return t
 
 
 static func difficulty(o: Dictionary) -> Dictionary:
@@ -43,7 +71,7 @@ static func title(o: Dictionary, st) -> String:
 			return "%s\n%s · %s" % [st.touge_name(), "UPHILL" if o.get("dir", "up") == "up" else "DOWNHILL",
 				"DRIFT" if o.get("rules", "time") == "drift" else "TIME ATTACK"]
 		"cutup":
-			return "CUT UP\nHIGHWAY · %s · %.0f km" % [difficulty(o).name, st.length / 1000.0]
+			return "CUT UP\n%s · %s · %.0f km" % [st.touge_name() if st.has_method("wrap_s") else "HIGHWAY", difficulty(o).name, st.length / 1000.0]
 	return ""
 
 

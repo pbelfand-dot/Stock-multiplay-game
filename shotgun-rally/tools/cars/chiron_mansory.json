@@ -2,8 +2,11 @@
  "wheel": ["^Object_3[345](\\.\\d+)?$", "^hub_[lr][fr]$"],
  "drop": ["\\.col$", "^misc_g$"],
  "drop_mats": ["^badge", "material_logo", "^mns_logaw", "^mansory_centuria", "^decal_", "symbols_embossed"],
- "unmix": true, "turn_wheels": ["FL", "RL"],
+ "unmix": true,
  "paint": ["\\[PRIMARY\\]$"], "glass": ["^glass$"],
  "materials": [["^glass$", "glass"], ["\\[SECONDARY\\]$", "carbon"], ["^16 \\(4\\)", "interior"], ["^7 \\(8\\)$", "interior"]],
  "wheel_faces": 20000, "body_faces": 240000, "tex_max": 1024,
- "cockpit": {"gearbox": "auto", "wheel": {"parts": ["^steeringwheel"]}}}
+ "cockpit": {"gearbox": "auto", "wheel": {"parts": ["^steeringwheel"]}},
+ "glb_patch": {"materials": {"^vehiclelights$": {"base_from_emissive": true, "emissive": [0.45, 0.45, 0.45]},
+                               "^lights_chiron$": {"base_from_emissive": true, "emissive": [0.45, 0.45, 0.45]},
+                               "^LOD_A_(WHEEL|TYRE|ROTOR)_": {"double_sided": true}}}}

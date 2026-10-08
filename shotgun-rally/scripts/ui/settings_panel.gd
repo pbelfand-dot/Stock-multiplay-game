@@ -11,6 +11,9 @@ const GraphicsSettings = preload("res://scripts/ui/graphics_settings.gd")
 const SURFACES := [["any", "ANY: GRAVEL, TARMAC OR MIXED"], ["gravel", "GRAVEL"], ["tarmac", "TARMAC"], ["mixed", "MIXED: GRAVEL + TARMAC"]]
 ## Extra tyre grip (Config.grip_assist, TireModel.grippy).
 const GRIPS := [["2.0", "ARCADE (OUT OF THE BOX)"], ["1.5", "MORE GRIP"], ["1.0", "GRIPPY"], ["0.0", "REAL (SLIPPERY GRAVEL)"]]
+## The road modes' handling (Config.street_handling): SIM, the car on its real road
+## tyres without the drift helpers (Assetto Corsa-like), or the rally game's ARCADE.
+const STREETS := [["sim", "SIM (REAL ROAD TYRES)"], ["arcade", "ARCADE (AS THE RALLY)"]]
 const AIDS := [
 	["anti_lock", "ABS", "A locking wheel gets its brake eased off: brake hard and still steer."],
 	["traction_control", "TRACTION CONTROL", "Spinning wheels get the throttle cut: flat out off the line, no smoke."],
@@ -25,15 +28,21 @@ const AIDS := [
 
 
 func _ready() -> void:
-	add_theme_stylebox_override("panel", UI.box())
+	add_theme_stylebox_override("panel", UI.panel_skin("rally"))
 	custom_minimum_size = Vector2(1040, 0)
 	var v := VBoxContainer.new()
 	v.add_theme_constant_override("separation", 4)
 	add_child(v)
 	v.add_child(UI.label("SETTINGS", 28, UI.CREAM, true))
+	# (it scrolls when the screen's too short for it all: 720p; the focus scrolls it on a pad)
+	var scroll := ScrollContainer.new()
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	scroll.follow_focus = true
+	scroll.custom_minimum_size = Vector2(1000, 470)
+	v.add_child(scroll)
 	var cols := HBoxContainer.new()
 	cols.add_theme_constant_override("separation", 30)
-	v.add_child(cols)
+	scroll.add_child(cols)
 	var left := VBoxContainer.new()
 	left.custom_minimum_size = Vector2(310, 0)
 	left.add_theme_constant_override("separation", 8)
@@ -61,11 +70,15 @@ func _ready() -> void:
 	left.add_child(UI.label("CO-DRIVER", 20, UI.YELLOW, true))
 	left.add_child(_slider("CALLS  LATE  ·  EARLY", -1.0, 1.0, config.call_early, func(x): config.call_early = x))
 	left.add_child(UI.gap(6))
+	left.add_child(UI.label("WORLD", 20, UI.YELLOW, true))
+	left.add_child(_time_slider(config))
+	left.add_child(UI.gap(6))
 	left.add_child(GraphicsSettings.new())          # quality, render scale, car lights, renderer
 	right.add_child(UI.label("DRIVING AIDS", 20, UI.YELLOW, true))
 	for a in AIDS:
 		right.add_child(_toggle(a[1], a[2], bool(config.aids.get(a[0], false)), func(on): config.aids[a[0]] = on))
-	right.add_child(_cycle("TYRE GRIP", GRIPS, "%.1f" % config.grip_assist, func(k): config.grip_assist = float(k)))
+	right.add_child(_cycle("TYRE GRIP  (RALLY)", GRIPS, "%.1f" % config.grip_assist, func(k): config.grip_assist = float(k)))
+	right.add_child(_cycle("STREET HANDLING  (CUT UP, TOUGE)", STREETS, config.street_handling, func(k): config.street_handling = k))
 	right.add_child(_cycle("STAGES  (PLAY NOW, ONLINE)", SURFACES, config.quick_surface, func(k): config.quick_surface = k))
 	var back_btn := UI.button("BACK", func(): back.emit(), 20, 140)
 	back_btn.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
@@ -133,6 +146,40 @@ func _slider(title: String, lo: float, hi: float, value: float, apply: Callable)
 		get_node("/root/Config").save())
 	box.add_child(s)
 	return box
+
+
+## TIME OF DAY (Config.time_of_day): a slider through the day, half an hour a step;
+## right down at the left end it's AUTO (the stage's own light).
+func _time_slider(config) -> Control:
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 2)
+	var row := HBoxContainer.new()
+	var title := UI.label("TIME OF DAY", 18, UI.CREAM)
+	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(title)
+	var shown := UI.label(_hour_text(config.time_of_day), 18, UI.YELLOW)
+	row.add_child(shown)
+	box.add_child(row)
+	var s := HSlider.new()
+	s.min_value = -0.5                                 # (the first step: AUTO)
+	s.max_value = 23.5
+	s.step = 0.5
+	s.value = config.time_of_day if config.time_of_day >= 0.0 else -0.5
+	s.custom_minimum_size = Vector2(280, 24)
+	s.focus_mode = Control.FOCUS_ALL
+	s.value_changed.connect(func(x: float):
+		config.time_of_day = x if x >= 0.0 else -1.0
+		shown.text = _hour_text(config.time_of_day)
+		config.save())
+	box.add_child(s)
+	box.add_child(_note("PLAY NOW, the modes and online (the host's). Left end: AUTO, the stage's own light.", 290, 13))
+	return box
+
+
+static func _hour_text(h: float) -> String:
+	if h < 0.0:
+		return "AUTO"
+	return "%02d:%02d" % [int(h), int(round(fmod(h, 1.0) * 60.0)) % 60]
 
 
 func _note(text: String, width := 300.0, size := 14) -> Label:

@@ -4,6 +4,9 @@ extends Node
 ## for the next stage. Command line (after `--`):
 ##   --solo [--seed=N]                       drive alone, the AI co-driver calls
 ##   --host [--seat=driver|codriver]         host a crew (the other seat joins)
+##   --host --mode=touge|cutup ... --street [--ghosts] [--min_racers=N]   host a street session (up to 8,
+##                                           each in their own car; --ghosts: no collisions; tests:
+##                                           --autostart waits for N racers, all loaded)
 ##   --join=IP                               join a host
 ##   --autostart --autopilot                 tests: start the countdown / drive by itself
 ##   --smoke=host|client                     2-player test: drive a stage, both check it
@@ -14,8 +17,13 @@ extends Node
 ##                         --shot_drift (start it sliding sideways: the dirt flies)
 ##                         --shot_cam=x,y,z,tx,ty,tz (a free close-up camera, car-local: at xyz, looking at t; the car holds still, or drives with --autostart --autopilot)
 ##                         --shot_jump (at 120 km/h onto the stage's first (big) jump: the picture is taken mid-air)
-##                         --shot_shift (with --autostart --autopilot: the picture is taken mid gear change)]
+##                         --shot_shift (with --autostart --autopilot: the picture is taken mid gear change)
+##                         --shot_count=N (the start lights at N, 0 = GO) --shot_results [--shot_race] (the results panel)
+##                         --shot_stray=M (a touge's stray car M up the road, coming the other way)]
 ##   --menu_shot=out.png [--menu_panel=maps|cars|online|settings --garage_tab=setup --shot_wait=6]   a picture of the home screen
+##   --showcase=rally|touge|cutup [--autostart --autopilot --stray --shot_s=M]   film a mode for a showcase
+##                                           video (run with --write-movie out.avi --fixed-fps 30): the
+##                                           autopilot drives, scripts/game/showcase.gd cuts between cameras
 ##   --story=RALLY[,STAGE]                   (with --solo / --screenshot) a story stage
 ##   --surface=gravel|tarmac|mixed|any [--ice]   a quick stage's surface (else Settings')
 ##   --profile=PATH                          another save file (credits, garage, story)
@@ -41,8 +49,12 @@ var rally_times: Array = []                  # story: my total on each stage of 
 var rally_lengths: Array = []
 var _test_t := 0.0
 var _smoke_done := false
+var _smoke_ok := false
+var _run_t := 0.0
+var _traffic_counts: Array = []     # (online cut-up test) cars round us, once a second
 var _loading := false
 var _air_t := 0.0
+var _shot_jumped := false                  # (--shot_s --autostart: jumped up the road at GO)
 var _shift_gear := 0
 var _shift_t := -1.0
 
@@ -58,6 +70,10 @@ func _ready() -> void:
 		show_menu("", Config.arg("menu_panel", ""))
 	elif Config.flag("screenshot") or Config.flag("solo") or Config.flag("aicheck"):
 		start_solo(seed_value)
+	elif Config.flag("host") and Config.flag("street") and Config.flag("mode"):
+		start_mode({"mode": Config.arg("mode"), "dir": Config.arg("dir", "up"), "rules": Config.arg("rules", "time"),
+			"difficulty": Config.arg("difficulty", "normal"), "online": true, "collide": not Config.flag("ghosts"),
+			"seed": int(Config.arg("seed", -1))})
 	elif Config.flag("host"):
 		host_game(Config.arg("seat", "driver"))
 	elif Config.flag("join"):
@@ -102,14 +118,25 @@ func start_solo(s: int) -> void:
 
 ## A touge or cut-up run's settings, like `like` (its mode, direction, rules, difficulty) on seed s.
 func mode_opts(s: int, like: Dictionary) -> Dictionary:
+	var o: Dictionary
 	if like.get("mode") == "cutup":
-		return Modes.cutup_opts(s, str(like.get("difficulty", "normal")))
-	return Modes.touge_opts(s, str(like.get("dir", "up")), str(like.get("rules", "time")))
+		o = Modes.cutup_opts(s, str(like.get("difficulty", "normal")))
+	else:
+		o = Modes.touge_opts(s, str(like.get("dir", "up")), str(like.get("rules", "time")))
+	if Config.flag("length") and like.get("mode") != "cutup":
+		o["length"] = float(Config.arg("length"))      # (tests: a shorter pass)
+	return Modes.with_time(o, Config.time_of_day)
 
 
-## From the menu's MODES: a touge or a cut-up run, alone.
+## From the menu's MODES: a touge or a cut-up run, alone, or hosted online for up to
+## eight friends (m.online: a street session, everyone in their own car; m.collide).
 func start_mode(m: Dictionary) -> void:
-	Net.solo()
+	if m.get("online", false):
+		if Net.host(Config.port, "racer", "street", bool(m.get("collide", true))) != OK:
+			to_menu("Couldn't host on port %d (is another game running?)" % Config.port)
+			return
+	else:
+		Net.solo()
 	var s := randi() % 100000 if int(m.get("seed", -1)) < 0 else int(m.seed)
 	load_stage(s, 1, mode_opts(s, m))
 
@@ -130,7 +157,7 @@ func quick_opts(s: int) -> Dictionary:
 		gen["surface"] = surf
 	if ice:
 		gen["ice"] = true
-	return {"mode": "quick", "gen": gen}
+	return Modes.with_time({"mode": "quick", "gen": gen}, Config.time_of_day)
 
 
 func host_game(seat: String) -> void:
@@ -168,6 +195,12 @@ func _on_connected() -> void:
 
 ## Host: someone joined: everyone (re)loads the stage and meets at the start line.
 func _on_peer_connected(id: int) -> void:
+	if multiplayer.is_server() and Net.street():
+		# a street session: the newcomer loads the stage that's on; the rest drive on
+		await get_tree().create_timer(0.4).timeout
+		if Net.players.has(id) and game:
+			load_stage.rpc_id(id, seed_value, stage_no, opts)
+		return
 	if multiplayer.is_server():
 		if game:
 			game.all_loaded = false            # stop streaming at them: they have no Game yet
@@ -249,19 +282,38 @@ func load_stage(s: int, n: int, o: Dictionary) -> void:
 	if not Config.flag("screenshot") or Config.flag("shot_loading"):
 		screen = LoadingScreen.new()
 		add_child(screen)
-		screen.begin(n, "%s  ·  %s" % [o.title, o.stage_name] if o.get("mode") == "story" else "")
+		var heading := "%s  ·  %s" % [o.title, o.stage_name] if o.get("mode") == "story" else ""
+		if Modes.is_mode(o):
+			heading = "TOUGE" if o.mode == "touge" else "CUT UP"
+		screen.begin(n, heading, {"touge": "key_touge", "cutup": "key_cutup"}.get(str(o.get("mode", "")), "key_rally"), Modes.is_mode(o))
 	game = Game.new()
 	game.name = "Game"
 	add_child(game)
 	if screen:
 		game.progress.connect(screen.progress)
-		game.stage_generated.connect(func(): screen.set_stage(game.st.length, game.st.corners.size(), s))
+		game.stage_generated.connect(func(): screen.set_stage(game.st.length, game.st.corners.size(), s, _stage_words(game.st),
+			Modes.title(o, game.st).replace("\n", "  ·  ") if Modes.is_mode(o) else ""))
 	await game.start(s, n, o)
 	_loading = false
 	game.finished.connect(_on_stage_finished)
 	_test_setup()
 	if screen and not Config.flag("shot_loading"):
 		screen.finish()
+
+
+## What a stage is, for the loading screen: "of gravel", "of mountain pass" ...
+static func _stage_words(st) -> String:
+	match str(st.kind):
+		"touge":
+			return "of mountain pass"
+		"loop", "highway":
+			return "of highway"
+	var surfs := {}
+	for sec in st.sections:
+		surfs[str(sec.surface)] = true
+	if surfs.size() > 1:
+		return "of gravel and tarmac"
+	return "of tarmac" if surfs.has("asphalt") else "of gravel"
 
 
 func to_menu(msg := "", panel := "") -> void:
@@ -274,6 +326,9 @@ func to_menu(msg := "", panel := "") -> void:
 	else:
 		menu.status(msg)
 	if Config.flag("smoke"):
+		if _smoke_ok:
+			get_tree().quit(0)                         # (done and checked: the host's just gone first)
+			return
 		print("[smoke] %s: FAIL %s" % [Config.arg("smoke"), msg])
 		get_tree().quit(1)
 
@@ -281,10 +336,18 @@ func to_menu(msg := "", panel := "") -> void:
 # ── tests ─────────────────────────────────────────────────────────────────
 
 func _test_setup() -> void:
+	if Config.flag("showcase"):                      # film it (with --write-movie): scripts/game/showcase.gd
+		var sc = load("res://scripts/game/showcase.gd").new()
+		game.add_child(sc)
+		sc.setup(game, Config.arg("showcase", "rally"))
 	if Config.flag("screenshot"):
 		var s := float(Config.arg("shot_s", 0))
 		if s > 0.0:
-			game.car.place(game.st.world_at(s, 0.0), game.st.heading_at(s))
+			game.car.place(game.st.world_at(s, game.st.LANE_W * 0.5 if game.traffic else 0.0), game.st.heading_at(s))
+			game.car_s = s
+			game._hint = int(s / game.st.STEP)            # (where to look for the car on the road now)
+			if game.traffic:
+				game.traffic.restart_at(s)               # (the traffic round the car, not back at the start)
 		game.cam.force_read = Config.flag("shot_read")
 		game.cam.yaw = float(Config.arg("shot_yaw", 0.0))
 		game.cam.pitch = float(Config.arg("shot_pitch", -0.06))
@@ -295,6 +358,12 @@ func _test_setup() -> void:
 				game.cockpit.wipe(int(Config.arg("shot_wipe", 1)))
 		if Config.flag("shot_nohud"):
 			game._hud.visible = false
+		if Config.flag("shot_count"):              # the start lights at this count (0: GO)
+			game._lights.hold = {"state": "countdown", "count": int(Config.arg("shot_count", 3))}
+		if Config.flag("shot_stray") and game.stray:   # the touge's stray car this far up the road, coming at us
+			game.stray.spawn_at(game.car_s + float(Config.arg("shot_stray", 30.0)), -1)
+		if Config.flag("shot_results"):            # the results panel (made-up numbers; --shot_race: a podium)
+			game.shot_results(Config.flag("shot_race"))
 		if Config.flag("shot_cam"):
 			var v := Array(Config.arg("shot_cam").split(",")).map(func(t): return float(t))
 			var cam := Camera3D.new()
@@ -334,6 +403,27 @@ func _process(dt: float) -> void:
 	if game == null:
 		return
 	_test_t += dt
+	# an online cut-up test (no finish on the loop): check after --smoke_after s of driving
+	if Config.flag("smoke") and not _smoke_done and game.built and game.street_online and game.looped and game.state == "running":
+		_run_t += dt
+		if _run_t > 8.0 and int(_run_t) != int(_run_t - dt):     # (the traffic round us, once a second: the check looks at the spread)
+			_traffic_counts.append(game.traffic._mirror.size() if game.traffic.mirror else game.traffic.cars.size())
+		if _run_t > float(Config.arg("smoke_after", 40.0)):
+			_smoke_done = true
+			_street_cutup_smoke(Config.arg("smoke"))
+	# (--shot_s with --autostart: the countdown puts the car back on the grid, so the jump
+	# up the road comes at GO, rolling at 100 km/h (or what the autopilot would be doing
+	# there: not into a hairpin flat out), the traffic brought along)
+	if (Config.flag("screenshot") or Config.flag("showcase")) and Config.flag("autostart") and float(Config.arg("shot_s", 0)) > 0.0 and not _shot_jumped \
+			and game.built and game.state == "running":
+		_shot_jumped = true
+		var s := float(Config.arg("shot_s", 0))
+		game.car.place(game.st.world_at(s, game.st.LANE_W * 0.5 if game.traffic else 0.0), game.st.heading_at(s))
+		game.car.set_speed(minf(100.0 / 3.6, game.autopilot.want_at(s)) if game.autopilot else 100.0 / 3.6)
+		game.car_s = s
+		game._hint = int(s / game.st.STEP)            # (where to look for the car on the road now)
+		if game.traffic:
+			game.traffic.restart_at(s)
 	var shot_now: bool = _test_t > float(Config.arg("shot_wait", 2.0))
 	if Config.flag("shot_jump") and game.built:      # mid-air (or give up after 8 s)
 		var flying := true
@@ -368,6 +458,9 @@ func _on_stage_finished(r: Dictionary) -> void:
 		return
 	_smoke_done = true
 	var role := Config.arg("smoke")
+	if game.street_online:
+		_street_smoke(role)
+		return
 	var gap: float = game.car.global_position.distance_to(game.st.world_at(game.st.finish_s, 0.0))
 	if role == "host":
 		print("[smoke] host: stage finished in %s (+%.0f s), seat %s, car %.0f m from the finish" % [
@@ -384,6 +477,63 @@ func _on_stage_finished(r: Dictionary) -> void:
 		and r.penalties == 0.0
 	print("[smoke] %s: %s" % [role, "OK" if ok else "FAIL"])
 	await get_tree().create_timer(1.5).timeout
+	get_tree().quit(0 if ok else 1)
+
+
+## A street session's test (several machines racing a pass): once this one's over the
+## line, wait for everyone's; each must have seen every other car's stream, and all of
+## them must agree on the order.
+func _street_smoke(role: String) -> void:
+	var t := 0.0
+	while game.standings.size() < Net.racers().size() and t < 90.0:
+		await get_tree().create_timer(0.5).timeout
+		t += 0.5
+	var names: Array = game.standings.map(func(e): return "%s %.3f" % [Net.player_name(int(e[0])), float(e[1])])
+	var least := 1 << 30
+	for id in game.others:
+		least = mini(least, int(game.others[id].states_received))
+	var gap: float = game.car.global_position.distance_to(game.st.world_at(game.st.finish_s, 0.0))
+	print("[smoke] %s: street race, %d racers, %d other cars here, fewest updates from one %d, car %.0f m from the finish" % [
+		role, Net.racers().size(), game.others.size(), least, gap])
+	print("[smoke] %s: race order %s" % [role, " > ".join(names)])
+	var ok: bool = game.standings.size() == Net.racers().size() and game.others.size() == Net.racers().size() - 1 \
+		and least > 100 and gap < 40.0
+	print("[smoke] %s: %s" % [role, "OK" if ok else "FAIL"])
+	_smoke_ok = ok
+	# (the host goes last: a guest still checking would take the host leaving for a failure)
+	await get_tree().create_timer(4.0 if multiplayer.is_server() else 0.5).timeout
+	get_tree().quit(0 if ok else 1)
+
+
+## An online cut-up test: the host's traffic round every player, mirrored on each
+## guest's machine; every other car seen.
+func _street_cutup_smoke(role: String) -> void:
+	var tr = game.traffic
+	var least := 1 << 30
+	for id in game.others:
+		least = mini(least, int(game.others[id].states_received))
+	var ok: bool = game.others.size() == Net.racers().size() - 1 and least > 100
+	# the traffic's size swings by a whole pack as one leaves behind and the next comes in
+	# ahead: judged on its average over the run, its low noted
+	var lo := 0
+	var mean := 0.0
+	if not _traffic_counts.is_empty():
+		lo = int(_traffic_counts.min())
+		mean = float(_traffic_counts.reduce(func(a, b): return a + b, 0)) / _traffic_counts.size()
+	var spread := "(over %d s: %d-%d, %.0f on average)" % [_traffic_counts.size(), lo, int(_traffic_counts.max()) if not _traffic_counts.is_empty() else 0, mean]
+	if multiplayer.is_server():
+		print("[smoke] %s: the traffic: %d cars round %d players (the others' %d), sending to %d machines %s" % [
+			role, tr.cars.size(), tr.others_p.size() + 1, tr.others_p.size(), tr.net_peers.size(), spread])
+		ok = ok and not tr.mirror and tr.others_p.size() == Net.racers().size() - 1 and tr.net_peers.size() == tr.others_p.size() \
+			and mean > 20.0
+	else:
+		print("[smoke] %s: the host's traffic mirrored here: %d of its cars round me, %d hits reported %s" % [
+			role, tr._mirror.size(), tr.hits_sent, spread])
+		ok = ok and tr.mirror and mean >= 8.0
+	print("[smoke] %s: %d other cars, fewest updates from one %d, %.0f km driven" % [role, game.others.size(), least, (game.car_s - game.st.START_S) / 1000.0])
+	print("[smoke] %s: %s" % [role, "OK" if ok else "FAIL"])
+	_smoke_ok = ok
+	await get_tree().create_timer(6.0 if multiplayer.is_server() else 0.5).timeout
 	get_tree().quit(0 if ok else 1)
 
 

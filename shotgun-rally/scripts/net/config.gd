@@ -34,6 +34,17 @@ var aids := AIDS_DEFAULT.duplicate()
 ## nearly as grippy as asphalt; real gravel feels like ice to most players).
 var grip_assist := 2.0
 const GRIP_VERSION := 2         # saved before this, GRIPPY (the old out of the box) takes ARCADE once
+## STREET HANDLING, for the road modes (cut up, the touge): "sim" (out of the box: the
+## car on the road tyres it really has, its real skid-pad grip, weight moving about,
+## no drift assist: Assetto Corsa-like; TireModel.street, Catalog.street_grip) or
+## "arcade" (the rally game's grip and drift assist there too). Rally stages are
+## always the TYRE GRIP setting's.
+var street_handling := "sim"
+## TIME OF DAY for PLAY NOW, the modes and online (the host's goes to everyone): an
+## hour 0-24, or below 0 for AUTO (the stage's own light: its mood). Story stages keep
+## theirs. (Modes.mood_for_hour: the nearest light the world has; the graphics work
+## lights it from the hour itself.)
+var time_of_day := -1.0
 var args := {}                 # --key=value / --flag from the command line
 
 
@@ -53,6 +64,8 @@ func _ready() -> void:
 		var saved_grip := float(cf.get_value("aids", "grip", grip_assist))
 		if int(cf.get_value("aids", "grip_version", 1)) >= GRIP_VERSION or saved_grip != 1.0:
 			grip_assist = saved_grip
+		street_handling = "arcade" if str(cf.get_value("aids", "street", street_handling)) == "arcade" else "sim"
+		time_of_day = float(cf.get_value("stage", "time_of_day", time_of_day))
 		if int(cf.get_value("aids", "version", 1)) >= AIDS_VERSION:
 			for key in aids:
 				aids[key] = cf.get_value("aids", key, aids[key])
@@ -63,6 +76,10 @@ func _ready() -> void:
 		player_name = args.name
 	if args.has("port"):
 		port = int(args.port)
+	if args.has("time"):
+		time_of_day = float(args.time)
+	if args.has("street"):
+		street_handling = "arcade" if args.street == "arcade" else "sim"
 	_buses()
 
 
@@ -107,11 +124,13 @@ func save() -> void:
 	cf.set_value("audio", "effects", sfx_volume)
 	cf.set_value("audio", "voice", voice_volume)
 	cf.set_value("stage", "surface", quick_surface)
+	cf.set_value("stage", "time_of_day", time_of_day)
 	for key in aids:
 		cf.set_value("aids", key, aids[key])
 	cf.set_value("aids", "version", AIDS_VERSION)
 	cf.set_value("aids", "grip", grip_assist)
 	cf.set_value("aids", "grip_version", GRIP_VERSION)
+	cf.set_value("aids", "street", street_handling)
 	cf.save(PATH)
 
 

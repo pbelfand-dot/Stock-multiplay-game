@@ -5,4 +5,8 @@
  "materials": [["^GlassClear$", "glass"], ["^glass_tint$", "glass"]],
  "wheel_faces": 16000, "body_faces": 200000, "tex_max": 1024,
  "cockpit": {"gearbox": "auto", "eye": [-0.40, -0.25, 0.84],
-             "wheel": {"mats": ["^CSR2_Interior$"], "box": [-0.57, -0.23, 0.28, 0.42, 0.46, 0.72]}}}
+             "wheel": {"mats": ["^CSR2_Interior$"], "box": [-0.57, -0.23, 0.28, 0.42, 0.46, 0.72]}},
+ "glb_patch": {"materials": {"^CSR2_Wheel1A_Tire$": {"color": [0.03, 0.03, 0.03], "no_base_texture": true, "alpha": "OPAQUE"},
+                               "^CSR2_Wheel1A_Rotor$": {"color": [0.3, 0.3, 0.32], "no_base_texture": true, "alpha": "OPAQUE"},
+                               "^carbon_int$": {"alpha": "OPAQUE"},
+                               "^Material\\.002$": {"color": [0.5, 0.02, 0.02], "emissive": [1.0, 0.03, 0.0], "emissive_strength": 3.0}}}}

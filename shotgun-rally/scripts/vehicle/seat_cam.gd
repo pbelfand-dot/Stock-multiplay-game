@@ -30,6 +30,10 @@ var yaw := 0.0
 var pitch := -0.06
 var reading := false
 var view := "seat"              # "seat" | "chase" | "orbit"
+## The chase camera's style: "rally" (high and back, looking down on the road ahead)
+## or "street" (cut up and the touge: low and close, over the roof to the horizon, as
+## Assetto Corsa's cut-up servers film it; the view widens with speed).
+var chase_style := "rally"
 var force_read := false         # tests / screenshots: eyes on the map board
 var _read_blend := 0.0
 var _lean := Vector3.ZERO
@@ -123,7 +127,9 @@ func _process(dt: float) -> void:
 	_buzz_t += dt * (14.0 + spd * 0.4)
 	var buzz := clampf(spd / 30.0, 0.0, 1.0) * 0.0022 * rough
 	shake += Vector3(sin(_buzz_t * 1.7) + sin(_buzz_t * 3.1) * 0.5, sin(_buzz_t * 2.3) + sin(_buzz_t * 4.7) * 0.4, 0.0) * buzz
-	fov = lerpf(fov, 76.0 + clampf(spd / 45.0, 0.0, 1.0) * 8.0, clampf(dt * 2.0, 0.0, 1.0))
+	var street_chase := view == "chase" and chase_style == "street"
+	var fov_want := (72.0 + clampf(spd / 70.0, 0.0, 1.0) * 16.0) if street_chase else 76.0 + clampf(spd / 45.0, 0.0, 1.0) * 8.0
+	fov = lerpf(fov, fov_want, clampf(dt * 2.0, 0.0, 1.0))
 
 	var head := Transform3D(Basis.from_euler(Vector3(look_pitch, look_yaw, 0.0), EULER_ORDER_YXZ), eye + _lean + shake)
 	match view:
@@ -139,12 +145,16 @@ func _process(dt: float) -> void:
 			var dir := Vector3(fwd.x, 0.0, fwd.z).normalized()
 			if vel.length() > 4.0:
 				dir = dir.lerp(Vector3(vel.x, 0.0, vel.z).normalized(), 0.5).normalized()
-			var want := xf.origin - dir * 6.5 + Vector3.UP * 2.3
+			var back := 5.2 if street_chase else 6.5
+			var up := 1.1 if street_chase else 2.3                 # (above the car's origin, itself ~0.4 m up: ~1.5 m)
+			var want := xf.origin - dir * back + Vector3.UP * up
 			if not _chase_ready:
 				_chase_pos = want
 				_chase_ready = true
-			_chase_pos = _chase_pos.lerp(want, clampf(dt * 7.0, 0.0, 1.0))
-			global_transform = Transform3D(Basis(), _chase_pos + shake).looking_at(xf.origin + Vector3.UP * 0.9 + dir * 3.0, Vector3.UP)
+			# (street: it trails a little more, so the car moves about the frame as it weaves)
+			_chase_pos = _chase_pos.lerp(want, clampf(dt * (5.5 if street_chase else 7.0), 0.0, 1.0))
+			var look := xf.origin + (Vector3.UP * 0.8 + dir * 14.0 if street_chase else Vector3.UP * 0.9 + dir * 3.0)
+			global_transform = Transform3D(Basis(), _chase_pos + shake * (2.0 if street_chase else 1.0)).looking_at(look, Vector3.UP)
 		_:
 			global_transform = xf * head
 			_chase_ready = false

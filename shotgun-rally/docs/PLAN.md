@@ -76,7 +76,7 @@ inside of corners, dust, mud on the glass, night and fog stages.
 | 4 | **The co-driver gets bored** | Calling turns for 4 minutes isn't enough | The jobs list: start countdown, wipers, OK board, triangle run, pushing the car, time cards, road book, recce |
 | 5 | **Voice chat itself** | Building in-game voice is real work | Phase 1: use Discord. Later: in-game voice. The quick-call wheel covers people without a mic |
 | 6 | **Connecting** | Host + IP + Tailscale is fine between friends (BAGHOLDERS works this way) | Keep it for now. A lobby / relay is only needed if strangers play together |
-| 7 | **The repo is private** | Download links only work for people with access to the repo. Your friends get a 404 | Make the repo public, or add friends as collaborators. *(BAGHOLDERS' links have the same problem today)* |
+| 7 | **The repo was private** | Download links only worked for people with access to the repo | **Done:** the owner made the repo public on 2026-10-08; the links and the updater work for anyone |
 | 8 | **Releases share one page** | BAGHOLDERS' "releases/latest" link could start pointing at the rally build | The rally release uses its own tag (`shotgun-latest`) and is **never marked "latest"** |
 | 9 | **Rally physics ≠ highway physics** | Gravel, mud, jumps, landings, rollovers. The BAGHOLDERS car body isn't built for airtime | Phase 1's biggest job: a raycast-suspension car, tested before any art |
 | 10 | **Steering wheels** | Godot reads most wheels like a controller with axes, but **force feedback** is the hard part and every wheel maps differently | Keyboard + controller first. A wheel calibration screen next. Force feedback last (tell me which wheel you have) |
@@ -137,7 +137,8 @@ It's free, so "business" means **getting players and keeping costs at zero.**
 
 ## Still open
 
-1. **Making the repo public: careful.** This repo also holds BAGHOLDERS, and BAGHOLDERS has
+1. **The repo is public now** (the owner's choice, 2026-10-08). What this note warned about still
+   applies to what's published: this repo also holds BAGHOLDERS, and BAGHOLDERS has
    8 commercial songs in `assets/music/` (Rick Ross, Moneybagg Yo, Martin Solveig & GTA...) plus the
    real car models baked into `realcars_kit.glb`. Making the repo public would publish those files and
    their whole history. **Better:** give SHOTGUN RALLY its own public repo (its folder has none of

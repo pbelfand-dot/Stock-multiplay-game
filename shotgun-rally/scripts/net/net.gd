@@ -1,9 +1,13 @@
 extends Node
-## Connection + crew roster (autoload "Net"). The host is the authoritative
-## server (peer id 1) for the stage: which seed, when the countdown starts,
-## the results. The CAR belongs to whoever sits in the driver's seat: their
-## machine simulates it and streams it to the other.
-## ENet over UDP, default port 7777. Two players max (one crew).
+## Connection + roster (autoload "Net"). The host is the authoritative server
+## (peer id 1) for the stage: which seed, when the countdown starts, the results.
+## Two kinds of session (session.kind):
+##   "crew": the rally's: two players, one car; it belongs to whoever sits in the
+##     driver's seat: their machine simulates it and streams it to the other.
+##   "street": the touge and cut up online: up to MAX_STREET players, each in their
+##     own car ("racer"), simulated on their own machine and streamed to the rest;
+##     session.collide: whether the cars hit each other or pass through (ghosts).
+## ENet over UDP, default port 7777.
 
 signal roster_changed
 signal connected_ok
@@ -11,12 +15,14 @@ signal connection_failed(reason: String)
 signal server_gone
 signal wrong_version(text: String)
 
-const MAX_PLAYERS := 2
+const MAX_PLAYERS := 2         # a crew
+const MAX_STREET := 8          # a street session: everyone drives their own car
 const Profile = preload("res://scripts/game/profile.gd")
 const Catalog = preload("res://scripts/game/catalog.gd")
 
-var players := {}          # peer_id -> {name, seat ("driver" | "codriver"), car: their garage setup}
+var players := {}          # peer_id -> {name, seat ("driver" | "codriver" | "racer"), car: their garage setup}
 var in_session := false
+var session := {"kind": "crew", "collide": true}
 
 
 func _ready() -> void:
@@ -39,13 +45,19 @@ func my_id() -> int:
 	return multiplayer.get_unique_id() if online() else 1
 
 
-func host(port: int, seat: String) -> Error:
+## Is this a street session (everyone in their own car)?
+func street() -> bool:
+	return str(session.get("kind", "crew")) == "street"
+
+
+func host(port: int, seat: String, kind := "crew", collide := true) -> Error:
 	var peer := ENetMultiplayerPeer.new()
-	var err := peer.create_server(port, MAX_PLAYERS)
+	var err := peer.create_server(port, MAX_STREET if kind == "street" else MAX_PLAYERS)
 	if err != OK:
 		return err
 	multiplayer.multiplayer_peer = peer
-	players = {1: {"name": Config.player_name, "seat": seat, "car": Profile.setup()}}
+	session = {"kind": kind, "collide": collide}
+	players = {1: {"name": Config.player_name, "seat": "racer" if kind == "street" else seat, "car": Profile.setup()}}
 	in_session = true
 	roster_changed.emit()
 	return OK
@@ -65,6 +77,7 @@ func join(ip: String, port: int) -> Error:
 ## Solo: no network, you're the driver.
 func solo() -> void:
 	multiplayer.multiplayer_peer = OfflineMultiplayerPeer.new()
+	session = {"kind": "crew", "collide": true}
 	players = {1: {"name": Config.player_name, "seat": "driver", "car": Profile.setup()}}
 	in_session = true
 	roster_changed.emit()
@@ -80,6 +93,7 @@ func _drop() -> void:
 	multiplayer.multiplayer_peer = OfflineMultiplayerPeer.new()
 	players = {}
 	in_session = false
+	session = {"kind": "crew", "collide": true}
 
 
 ## Peer id in a seat (0 = empty).
@@ -91,11 +105,30 @@ func peer_in(seat: String) -> int:
 
 
 func my_seat() -> String:
-	return players.get(my_id(), {}).get("seat", "driver")
+	return players.get(my_id(), {}).get("seat", "racer" if street() else "driver")
 
 
 func crew_full() -> bool:
+	if street():
+		return true                                  # (a street session races with whoever's there)
 	return peer_in("driver") != 0 and peer_in("codriver") != 0
+
+
+## A street session's drivers, in the order they joined (the host first): their grid slots.
+func racers() -> Array:
+	var ids: Array = players.keys().filter(func(id): return players[id].get("seat", "") == "racer")
+	ids.sort()
+	return ids
+
+
+## A player's car from their garage (the starter car if they haven't said yet).
+func car_setup_for(id: int) -> Dictionary:
+	var c = players.get(id, {}).get("car", {})
+	return c if c is Dictionary and not c.is_empty() else Catalog.default_setup()
+
+
+func player_name(id: int) -> String:
+	return str(players.get(id, {}).get("name", "Player %d" % id))
 
 
 ## The car on the stage: the driver's, from their garage (the starter car if
@@ -110,10 +143,10 @@ func car_setup() -> Dictionary:
 func _on_peer_connected(id: int) -> void:
 	if not multiplayer.is_server():
 		return
-	if players.size() >= MAX_PLAYERS:
+	if players.size() >= (MAX_STREET if street() else MAX_PLAYERS):
 		(multiplayer.multiplayer_peer as ENetMultiplayerPeer).disconnect_peer(id)
 		return
-	var free_seat := "codriver" if peer_in("driver") != 0 else "driver"
+	var free_seat := "racer" if street() else ("codriver" if peer_in("driver") != 0 else "driver")
 	players[id] = {"name": "Player %d" % players.size(), "seat": free_seat}
 	_send_roster()
 
@@ -165,7 +198,7 @@ func bad_version(host_build: int) -> void:
 
 ## Host: swap who drives (only between stages).
 func swap_seats() -> void:
-	if not multiplayer.is_server():
+	if not multiplayer.is_server() or street():
 		return
 	for id in players:
 		players[id].seat = "codriver" if players[id].seat == "driver" else "driver"
@@ -175,10 +208,12 @@ func swap_seats() -> void:
 func _send_roster() -> void:
 	roster_changed.emit()
 	if online():
-		set_roster.rpc(players)
+		set_roster.rpc(players, session)
 
 
 @rpc("authority", "reliable")
-func set_roster(p: Dictionary) -> void:
+func set_roster(p: Dictionary, sess := {}) -> void:
 	players = p
+	if not sess.is_empty():
+		session = sess
 	roster_changed.emit()

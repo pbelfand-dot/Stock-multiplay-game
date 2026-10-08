@@ -22,7 +22,9 @@ extends SceneTree
 ##     how long it takes to settle, a spin?
 ## Configs: --cfg=oob (out of the box: ARCADE grip, tarmac tyres and setup, the
 ## default aids), oob_nodrift (the same, drift assist off), sim (REAL tyres,
-## every aid off). --car=kestrel (4WD) | martello (rear drive). --only=prefix.
+## every aid off), street (SIM STREET, the road modes' out of the box: the car's
+## real road tyres, Catalog.street_grip, the default aids less SIM's three).
+## --car=kestrel (4WD) | martello (rear drive) | any car. --only=prefix.
 ## Run: godot --headless --fixed-fps 120 --path . -s tests/feel_check.gd -- --cfg=oob --car=kestrel
 
 var RallyCar
@@ -106,6 +108,8 @@ func _make_car() -> void:
 	car = RallyCar.new()
 	car.grip_assist = 0.0 if cfg == "sim" else 2.0
 	car.setup = Catalog.setup(car_id, {}, {}, {"tyre": "tarmac", "preset": "tarmac"})
+	if cfg == "street":
+		car.setup.street = Catalog.street_grip(car_id)
 	root.add_child(car)
 	car.place(Vector3.ZERO, 0.0)
 	var TM = load("res://scripts/vehicle/physics/tire_model.gd")
@@ -567,6 +571,9 @@ var fails := 0
 
 func _summary() -> void:
 	var r := results
+	if cfg == "street":
+		_street_summary()
+		return
 	if cfg == "sim":
 		_lim(["limit 80 pad"], func(): return absf(r["limit 80 pad"].peak - 1.34) < 0.06,
 			func(): return "pure sim (REAL, aids off): the real tyres' grip, %.2f g (always ~1.34)" % r["limit 80 pad"].peak)
@@ -634,6 +641,38 @@ func _summary() -> void:
 			r["limit 80 pad"].cue[1], r["limit 80 pad"].cue[2], r["limit 80 pad"].quiet])
 	_lim(["limit 80 pad"], func(): return r["limit 80 pad"].peak >= 1.35 and r["limit 80 pad"].peak <= 1.75,
 		func(): return "ARCADE grip on tarmac tyres: %.2f g (1.9 rolled it and wouldn't let a drift live)" % r["limit 80 pad"].peak)
+	_done()
+
+
+## SIM STREET through traffic, on keys and a pad: no arcade helpers, so the bar is
+## a real car's (Assetto Corsa's): it can be driven, not that it forgives.
+func _street_summary() -> void:
+	var r := results
+	var g: float = Catalog.street_grip(car_id)[0]
+	for v in [150, 200]:
+		for dev in ["kb", "pad"]:
+			var ln := "lane %d %s" % [v, dev]
+			# (keys: the test's on-off driver hunts round the lane for a while without the
+			# arcade's yaw damping, so on keys it's judged on staying in control: no
+			# slide, no big overshoot; on a pad, settled too)
+			_lim([ln], func(): return r[ln].beta <= 5.0 and r[ln].over <= 1.5 and (dev == "kb" or (r[ln].done <= 4.0 and r[ln].wobble <= 3)),
+				func(): return "street %s: a lane change at %d km/h done in %.2f s, %.2f m overshoot, %.1f deg slip, %d wobbles" % [dev, v, r[ln].done, r[ln].over, r[ln].beta, int(r[ln].wobble)])
+	_lim(["flick 200 kb"], func(): return r["flick 200 kb"].beta <= 6.0,
+		func(): return "street keys: a quick flick at 200 km/h: %.1f deg slip, turned %.1f deg" % [r["flick 200 kb"].beta, r["flick 200 kb"].turned])
+	for v in [200, 150]:
+		var bk := "brake %d" % v
+		var most: float = pow(v / 3.6, 2.0) / (2.0 * 0.8 * g * 9.81) + v / 3.6 * 0.25   # (within 80 % of its tyres, the pedal's travel)
+		_lim([bk], func(): return r[bk].yaw <= 3.0 and r[bk].dist <= most,
+			func(): return "street: emergency braking from %d km/h: %.0f m (at most %.0f), straight (%.1f deg/s yaw)" % [v, r[bk].dist, most, r[bk].yaw])
+	_lim(["brake 150 steer pad"], func(): return r["brake 150 steer pad"].beta <= 12.0,
+		func(): return "street: braking from 150 and steering: it steers, no spin (%.1f deg slip)" % r["brake 150 steer pad"].beta)
+	# (a clip on the rear corner at 150, hands off: HIGH-SPEED STABILITY, on out of the
+	# box, catches it; with it switched off it spins, as a real car would. Printed)
+	if results.has("clip 150"):
+		print("[feel] info %-8s street: clipped on the rear corner at 150, hands off: %.0f deg slip at most%s" % [car_id, r["clip 150"].beta,
+			" (spun)" if r["clip 150"].beta > 90.0 else ", straight again in %.2f s" % r["clip 150"].back])
+	_lim(["limit 80 pad nolim"], func(): return absf(r["limit 80 pad nolim"].peak / g - 1.0) <= 0.12,
+		func(): return "street: its grip %.2f g (the real car's skid pad %.2f)" % [r["limit 80 pad nolim"].peak, g])
 	_done()
 
 

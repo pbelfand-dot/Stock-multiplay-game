@@ -129,4 +129,5 @@
    0.15
   ]
  ],
- "cockpit": {"gearbox": "h6", "wheel": {"mats": ["^red_steeringwheel$"], "box": [0.1, 0.6, 0.0, 0.4, 0.4, 1.0]}, "shifter": {"box": [-0.06, 0.06, 0.15, 0.32, 0.4, 0.65]}, "handbrake": {"box": [0.04, 0.16, -0.4, 0.25, 0.3, 0.55], "pivot": "rear"}, "mirror": {"mats": ["^mirrors$"], "box": [-0.2, 0.2, 0.0, 0.3, 0.9, 1.1]}}}
+ "cockpit": {"gearbox": "h6", "wheel": {"mats": ["^red_steeringwheel$"], "box": [0.1, 0.6, 0.0, 0.4, 0.4, 1.0]}, "shifter": {"box": [-0.06, 0.06, 0.15, 0.32, 0.4, 0.65]}, "handbrake": {"box": [0.04, 0.16, -0.4, 0.25, 0.3, 0.55], "pivot": "rear"}, "mirror": {"mats": ["^mirrors$"], "box": [-0.2, 0.2, 0.0, 0.3, 0.9, 1.1]}},
+ "glb_patch": {"materials": {"^seatdriver$": {"color": [0.08, 0.08, 0.09]}, "^lights_lod0_TRANSPARENT$": {"emissive_from_base": 2.0}}}}

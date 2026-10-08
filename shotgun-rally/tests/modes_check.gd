@@ -1,9 +1,10 @@
 extends SceneTree
 ## The modes beyond rally stages: the touge and cut up.
-## Run: godot --headless --fixed-fps 120 --path . -s tests/modes_check.gd
+## Run: godot --headless --fixed-fps 120 --path . -s tests/modes_check.gd [-- --only=battles]
 ##   * a touge: a narrow two-lane pass full of hairpins that climbs (or falls) all
-##     the way, no steeper than its limit, the same pass from the same seed; built
-##     with guardrails, curve mirrors and cedar forest
+##     the way, no steeper than its limit, the same pass from the same seed, never
+##     back past or under itself; built with guardrails, curve mirrors and cedar
+##     forest, nothing solid on the road
 ##   * a highway: four lanes, sweepers only, a few per cent at most; concrete
 ##     barriers both sides the whole way
 ##   * the traffic: the registry's traffic cars on it, about as many as the
@@ -13,7 +14,20 @@ extends SceneTree
 ##   * the cut-up score: near misses (close and fast count, slow or far don't), the
 ##     combo, banking, a crash
 ##   * the touge rules: splits against a best, drift points and chains, a chain lost
-##   * the game itself in each mode: loads, runs, ends with the mode's results
+##   * the LAKESHORE LOOP (cut up's map): it closes on itself, ~28 km, four lanes each
+##     way, sweepers, grades of 4 % at most, three suspension bridges and three
+##     tunnels, never near itself; built: the road solid underfoot all the way round
+##     in every lane, the city's towers, the hills' trees; traffic on it: packs on
+##     insane (blocks of cars with open road between), the other carriageway's
+##     traffic going the other way, cars joining from an on-ramp; s round the loop
+##   * the highway battles (Rivals): a rival shows up in the traffic, flashing it from
+##     close behind starts the race (3, 2, 1, GO, a gate 3 km on); it races through
+##     the traffic (past cars, never through one); a fast player wins it, a slow one
+##     loses it; a win pays into the score
+##   * the touge's ghost: a run recorded, saved, loaded and played back at the same
+##     clock (in between samples too), gone near the player, gone past its finish
+##   * the game itself in each mode: loads, runs, ends with the mode's results; a
+##     time attack's record leaves a ghost the next run races
 ## Prints one [modes] line per check; exits 1 on any FAIL.
 
 var StageGen
@@ -34,13 +48,29 @@ func _initialize() -> void:
 	TougeRules = load("res://scripts/game/touge_rules.gd")
 	Modes = load("res://scripts/game/modes.gd")
 	VehicleRegistry = load("res://scripts/game/vehicle_registry.gd")
-	_touge()
-	_highway()
-	await _traffic()
-	_score()
-	_touge_rules()
-	await _game("touge")
-	await _game("cutup")
+	var only := ""
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--only="):
+			only = a.trim_prefix("--only=")         # (one part: touge (with the night and the stray car), highway, loop, battles, traffic, score, rules, ghost, game)
+	if only in ["", "touge"]:
+		_touge()
+		await _touge_road()
+		await _night_touge()
+		await _stray()
+	if only in ["", "highway"]: _highway()
+	if only in ["", "loop"]: await _loop()
+	if only in ["", "battles"]: await _battles()
+	if only in ["", "traffic"]: await _traffic()
+	if only in ["", "score"]: _score()
+	if only in ["", "rules"]:
+		_touge_rules()
+		_time_of_day()
+	if only in ["", "ghost"]: _ghost()
+	if only in ["", "game"]:
+		await process_frame                        # (the autoloads in the tree first: Net, Config)
+		await _game("touge")
+		await _ghost_game()
+		await _game("cutup")
 	print("[modes] %s" % ("MODES OK" if fails == 0 else "MODES FAIL"))
 	quit(1 if fails else 0)
 
@@ -77,8 +107,15 @@ func _touge() -> void:
 		check(st.length > 4500.0 and x.hairpins >= 8, "touge (%s): %.1f km, %d corners, %d hairpins (tighter than 20 m)" % [dir, st.length / 1000.0, st.corners.size(), x.hairpins])
 		check(x.wmin >= 5.9 and x.wmax <= 6.9, "touge: two narrow lanes, %.1f-%.1f m wide" % [x.wmin, x.wmax])
 		check(x.steep <= st.max_grade() + 0.001, "touge: no steeper than %.0f %% (steepest %.1f %%)" % [st.max_grade() * 100.0, x.steep * 100.0])
-		var climbs: bool = x.rise > 80.0 if dir == "up" else x.rise < -80.0
-		check(climbs, "touge %s: %+.0f m from start to finish" % ["uphill" if dir == "up" else "downhill", x.rise])
+		var against := 0
+		for i in range(1, st.pts.size()):
+			var dy: float = st.pts[i].y - st.pts[i - 1].y
+			if (dy > 0.001 and dir == "down") or (dy < -0.001 and dir == "up"):
+				against += 1
+		var climbs: bool = x.rise > 300.0 if dir == "up" else x.rise < -300.0
+		check(climbs and against == 0, "touge %s: %+.0f m from start to finish (%.1f %% on average), %s all the way" % [
+			"uphill" if dir == "up" else "downhill", x.rise, absf(x.rise) / st.length * 100.0,
+			("climbing" if dir == "up" else "falling") if against == 0 else "NOT %s %d m of it" % ["climbing" if dir == "up" else "falling", int(against * st.STEP)]])
 		check(st.crests.filter(func(c): return c.jump).is_empty() and st.bridges.is_empty() and st.villages.is_empty() and st.puddles.is_empty(),
 			"touge: no jumps, bridges, villages or puddles; asphalt end to end (%s)" % st.describe())
 	var a = StageGen.new()
@@ -88,6 +125,19 @@ func _touge() -> void:
 	b.opts = {"kind": "touge", "dir": "up"}
 	b.generate(11, 4000.0)
 	check(a.pts == b.pts and a.touge_name() == b.touge_name(), "touge: the same seed builds the same pass (%s) on every machine" % a.touge_name())
+	# a long pass never comes back past or under itself (more than half of them did: with
+	# no layout clear by chance the road is grown a stretch at a time)
+	var clear := 0
+	var shortest := INF
+	for sd in range(1, 13):
+		for dir in ["up", "down"]:
+			var p = StageGen.new()
+			p.opts = {"kind": "touge", "dir": dir}
+			p.generate(sd, Modes.TOUGE_LENGTH)
+			clear += 1 if p._clear_of_itself() else 0
+			shortest = minf(shortest, p.length)
+	check(clear == 24 and shortest > 4500.0, "touge: %d of 24 passes of 5 km keep %.0f m from every other part of themselves (the shortest %.1f km)" % [
+		clear, StageGen.CLEARANCE, shortest / 1000.0])
 	# built: guardrails, props, cedars
 	var builder = StageBuilder.new()
 	root.add_child(builder)
@@ -101,6 +151,139 @@ func _touge() -> void:
 	check(rails != null and props != null and builder.crowd_count == 0,
 		"touge built: guardrail, curve mirrors / chevrons / km posts, no spectators (%d trees)" % builder.tree_count)
 	builder.queue_free()
+
+
+## Nothing solid on a touge's road: a car-sized box swept down the middle and both
+## lanes touches nothing (seed 5 downhill once ran under its own hillside: cars
+## stopped dead in the middle of the road).
+func _touge_road() -> void:
+	var st = StageGen.new()
+	st.opts = {"kind": "touge", "dir": "down"}
+	st.generate(5, Modes.TOUGE_LENGTH)
+	var b = StageBuilder.new()
+	root.add_child(b)
+	b.build(st)
+	for k in 3:
+		await physics_frame
+	var space: PhysicsDirectSpaceState3D = root.get_world_3d().direct_space_state
+	var q := PhysicsShapeQueryParameters3D.new()
+	var box := BoxShape3D.new()
+	box.size = Vector3(1.6, 0.8, 1.6)
+	q.shape = box
+	var hits := 0
+	var first := ""
+	var s: float = st.START_S
+	while s < st.finish_s:
+		for d in [-1.8, 0.0, 1.8]:
+			q.transform = Transform3D(Basis(Vector3.UP, st.heading_at(s)), st.world_at(s, d) + Vector3.UP * 0.9)
+			var r: Array = space.intersect_shape(q, 1)
+			if not r.is_empty():
+				hits += 1
+				if first == "":
+					first = "%s at s %.0f" % [r[0].collider.name, s]
+		s += 2.0
+	check(hits == 0, "touge: nothing solid on the road, %.1f km of it swept in both lanes (%d hits%s)" % [
+		(st.finish_s - st.START_S) / 1000.0, hits, (": " + first) if first != "" else ""])
+	b.queue_free()
+
+
+## The touge at night: street lamps along the pass (before the tight bends, then no
+## stretch without one for long), lit (StreetLamps: heads, pools, a few real lights
+## that follow the car) only at night; by day the posts alone.
+func _night_touge() -> void:
+	var st = StageGen.new()
+	st.opts = {"kind": "touge", "dir": "down"}
+	st.generate(7, Modes.TOUGE_LENGTH)
+	for mood in ["day", "night"]:
+		var b = StageBuilder.new()
+		b.mood = mood
+		root.add_child(b)
+		b.build(st)
+		var gap := 0.0
+		for i in range(1, b.lamps.size()):
+			gap = maxf(gap, float(b.lamps[i].s) - float(b.lamps[i - 1].s))
+		var tight := 0
+		var lit_bends := 0
+		for c in st.corners:
+			if c.r_min <= 45.0 and c.s0 > st.START_S + 20.0 and c.s0 < st.finish_s - 10.0:
+				tight += 1
+				if b.lamps.any(func(l): return absf(float(l.s) - (c.s0 - 8.0)) < 1.0 or absf(float(l.s) - (st.START_S + 12.0)) < 1.0):
+					lit_bends += 1
+		var sl = b.street_lamps
+		if mood == "night":
+			var car := Node3D.new()
+			root.add_child(car)
+			car.global_position = b.lamps[3].head - Vector3.UP * 7.0
+			sl.target = car
+			for k in 3:
+				await process_frame
+			var on: Array = sl._lights.filter(func(o): return o.visible and o.light_energy > 0.5)
+			check(sl != null and sl.lamps.size() == b.lamps.size() and not on.is_empty() and on.size() <= sl.REAL,
+				"night touge: %d street lamps lit (%.1f per km), %d real lights on round the car under one" % [
+				b.lamps.size(), b.lamps.size() / (st.length / 1000.0), on.size()])
+			car.global_position = b.lamps[3].head + Vector3(400.0, 0.0, 400.0)
+			for k in 16:
+				await process_frame
+			check(sl._lights.all(func(o): return not o.visible or o.light_energy < 0.05),
+				"night touge: the real lights fade out away from the lamps (only the faked pools there)")
+			car.queue_free()
+		else:
+			check(sl == null and b.lamps.size() > 20 and gap <= 135.0 and lit_bends == tight,
+				"touge: lamp posts before all %d tight bends, never more than %.0f m apart (%d); unlit by day" % [tight, gap, b.lamps.size()])
+		b.queue_free()
+	var o: Dictionary = Modes.touge_opts(3)
+	check(o.mood == "night" and Modes.with_time(o, 13.0).mood == "day", "touge: at night unless Settings' time of day says otherwise")
+
+
+## The touge's stray car: turns up ahead now and then, keeps to its lane (toward us:
+## the right lane; with us: ours), slows for the hairpins, stops when it's hit, and
+## is gone once the player's well past.
+func _stray() -> void:
+	var st = StageGen.new()
+	st.opts = {"kind": "touge", "dir": "down"}
+	st.generate(7, Modes.TOUGE_LENGTH)
+	var Stray = load("res://scripts/game/stray_car.gd")
+	var sc = Stray.new()
+	root.add_child(sc)
+	sc.setup(st, 7, false)
+	var player_s: float = st.START_S + 200.0
+	var t := 0.0
+	while sc.spawned == 0 and t < 60.0:
+		sc.tick(0.1, player_s, st.world_at(player_s, 0.0))
+		t += 0.1
+	check(sc.spawned == 1 and float(sc.car.s) - player_s >= sc.AHEAD[0] - 1.0, "stray car: one turns up %.0f m ahead after %.0f s (%s)" % [
+		float(sc.car.get("s", 0.0)) - player_s, t, "coming the other way" if int(sc.car.get("dir", 0)) < 0 else "going our way"])
+	# drive one toward us down the pass: in its lane all the way, slow in the hairpins
+	sc._remove()
+	sc.spawn_at(st.finish_s - 60.0, -1)
+	var off := 0.0
+	var v_tight := 0.0
+	var v_open := 0.0
+	var dt := 1.0 / 30.0
+	for k in 30 * 60:
+		sc.tick(dt, st.START_S, st.world_at(st.START_S, 0.0))
+		if sc.car.is_empty():
+			break
+		off = maxf(off, absf(float(sc.car.d) - st.LANE_W * 0.5))    # (the body goes there at the physics step)
+		var r: float = sc._radius(float(sc.car.s))
+		if r < 18.0:
+			v_tight = maxf(v_tight, float(sc.car.v))
+		elif r > 150.0:
+			v_open = maxf(v_open, float(sc.car.v))
+	check(off < 0.3 and v_tight > 0.0 and v_tight < 8.5 and v_open > 11.0,
+		"stray car: keeps to the right lane coming toward us (within %.2f m), hairpins at %.0f km/h, open road %.0f km/h" % [off, v_tight * 3.6, v_open * 3.6])
+	if not sc.car.is_empty():
+		sc._remove()
+	sc.spawn_at(st.START_S + 600.0, 1)
+	sc.bump((sc.car.body as Node3D).global_position + Vector3(1.0, 0.0, 0.0))
+	var stop_s: float = sc.car.s
+	for k in 30:
+		sc.tick(dt, st.START_S + 500.0, st.world_at(st.START_S + 500.0, 0.0))
+	check(sc.car.crashed and absf(float(sc.car.s) - stop_s) < 0.01 and sc.crashes == 1, "stray car: hit, it stops where it is")
+	sc.tick(dt, stop_s + 200.0, st.world_at(stop_s + 200.0, 0.0))
+	check(sc.car.is_empty(), "stray car: gone once you're well past (next in %.0f s)" % sc._wait)
+	sc.queue_free()
+	await process_frame
 
 
 func _highway() -> void:
@@ -264,7 +447,278 @@ func _touge_rules() -> void:
 	check(d.chain == 0.0 and d.lost == 1, "touge drift: a wheel off the road loses the chain")
 
 
+## The LAKESHORE LOOP: the map, built, and its traffic.
+func _loop() -> void:
+	var LoopGen = load("res://scripts/stage/loop_gen.gd")
+	var LoopBuilder = load("res://scripts/stage/loop_builder.gd")
+	var st = LoopGen.new()
+	st.generate(3)
+	var n: int = st._n
+	var gap: float = Vector2(st.pts[n].x - st.pts[0].x, st.pts[n].z - st.pts[0].z).length()
+	var start_gap: float = Vector2(st.pts[n - 1].x - st.pts[0].x, st.pts[n - 1].z - st.pts[0].z).length()
+	var turn: float = (st.heading[n] - st.heading[0]) / TAU
+	check(start_gap < st.STEP * 1.01 and absf(absf(turn) - 1.0) < 0.001 and st.length > 27000.0 and st.length < 30000.0,
+		"loop: closes on itself (the last sample %.2f m from the first), turns once round, %.1f km" % [start_gap, st.length / 1000.0])
+	var x := _stats(st)
+	var r_min := INF
+	for pc in st.pieces:
+		if pc.kind == "arc":
+			r_min = minf(r_min, float(pc.r))
+	check(r_min >= 600.0 and x.steep <= 0.041, "loop: sweepers (tightest radius %.0f m), grades of 4 %% at most (steepest %.1f %%)" % [r_min, x.steep * 100.0])
+	check(st.spans.size() == 3 and st.tunnels.size() == 3 and float(st.spans[0].main) >= 1000.0,
+		"loop: %d suspension bridges (main spans %s m), %d tunnels" % [st.spans.size(), ", ".join(st.spans.map(func(b): return "%.0f" % float(b.main))), st.tunnels.size()])
+	# never near itself (other than its neighbours along the road): 120 m clear
+	var near := INF
+	for i in range(0, n, 10):
+		for j in range(0, n, 10):
+			var along: int = mini(absi(i - j), n - absi(i - j))
+			if along * st.STEP > 600.0:
+				near = minf(near, Vector2(st.pts[i].x - st.pts[j].x, st.pts[i].z - st.pts[j].z).length())
+	check(near > 120.0, "loop: never comes near itself (closest other part %.0f m off)" % near)
+	# s round the loop: a point past the start, one lap on, is s + length
+	var p: Vector3 = st.world_at(30.0, 1.8)
+	var at: Dictionary = st.locate(p, -1)
+	check(absf(st.unwrap(at.s, st.length - 10.0) - (st.length + 30.0)) < 1.0 and absf(st.world_at(st.length + 30.0, 1.8).distance_to(p)) < 0.01,
+		"loop: s goes on round (a car %.0f m into its second lap is at s %.0f)" % [30.0, st.unwrap(at.s, st.length - 10.0)])
+	var b = LoopBuilder.new()
+	root.add_child(b)
+	b.build(st)
+	await physics_frame
+	await physics_frame
+	# every surface its colliders say they are is one the tyres know (not gravel by default)
+	var metas := {}
+	var stack: Array = [b]
+	while not stack.is_empty():
+		var nd: Node = stack.pop_back()
+		if nd is CollisionObject3D and nd.has_meta("surface"):
+			metas[str(nd.get_meta("surface"))] = true
+		stack.append_array(nd.get_children())
+	var Surfaces = load("res://scripts/vehicle/physics/surfaces.gd")
+	var unknown: Array = metas.keys().filter(func(m): return m != "gravel" and Surfaces.named(m) == Surfaces.named("gravel"))
+	check(unknown.is_empty() and not metas.is_empty(), "loop: every collider's surface is a real one (%s)%s" % [", ".join(metas.keys()),
+		"" if unknown.is_empty() else "; falling back to gravel: " + ", ".join(unknown)])
+	# the road's there underfoot, every lane both ways, all the way round (bridges, tunnels, viaducts)
+	var space: PhysicsDirectSpaceState3D = b.get_world_3d().direct_space_state
+	var holes: Array = []
+	var s := 15.0
+	while s < st.length:
+		for d in [5.4, -1.8, st.ONCOMING_D - 3.6]:
+			var top: Vector3 = st.world_at(s, d) + Vector3.UP * 3.0
+			var q := PhysicsRayQueryParameters3D.create(top, top + Vector3.DOWN * 6.0)
+			var hit := space.intersect_ray(q)
+			if hit.is_empty() or str(hit.collider.get_meta("surface", "")) != "asphalt" or absf(hit.position.y - (top.y - 3.0)) > 0.1:
+				holes.append("%.0f/%.1f" % [s, d])
+		s += 97.0
+	check(holes.is_empty(), "loop built: the road solid in every lane all the way round (%d spots tried)%s" % [int(st.length / 97.0) * 3,
+		"" if holes.is_empty() else " HOLES at " + ", ".join(holes.slice(0, 8))])
+	check(b.building_count > 300 and b.tree_count > 1000, "loop built: the city's towers (%d), the hills' trees (%d)" % [b.building_count, b.tree_count])
+	# traffic on it, insane: packs
+	var tr = Traffic.new()
+	root.add_child(tr)
+	var diff: Dictionary = Modes.DIFFICULTIES.insane
+	var start := 0.0                                # (a few hundred metres before an on-ramp on our side)
+	for r in st.ramps:
+		if r.side == "right" and r.kind == "on":
+			start = float(r.s) - 900.0
+			break
+	tr.setup(st, diff, 3, start)
+	tr.running = true
+	var ss: Array = tr.cars.map(func(c): return float(c.s))
+	ss.sort()
+	var packs := 0
+	var in_pack := 1
+	var biggest := 0
+	for k in range(1, ss.size()):
+		if float(ss[k]) - float(ss[k - 1]) > 50.0:
+			packs += 1 if in_pack >= 5 else 0
+			biggest = maxi(biggest, in_pack)
+			in_pack = 1
+		else:
+			in_pack += 1
+	packs += 1 if in_pack >= 5 else 0
+	biggest = maxi(biggest, in_pack)
+	check(packs >= 2 and biggest >= 8, "loop traffic, insane: packs (%d of 5+ cars, the biggest %d) with open road between" % [packs, biggest])
+	check(tr.oncoming.size() >= 6, "loop traffic: %d cars on the other carriageway" % tr.oncoming.size())
+	var on0: float = tr.oncoming[0].s if not tr.oncoming.is_empty() else 0.0
+	# drive the player up the road at 140 km/h for 40 s, past ramps: the oncoming go the other way,
+	# a car joins from an on-ramp
+	var ps: float = start
+	var joined := false
+	var moved_back := true
+	for k in 40 * 120:
+		ps += 39.0 / 120.0
+		tr.player = {"s": ps, "d": 1.8, "v": 39.0}
+		await physics_frame
+		for c in tr.cars:
+			if int(c.lane) == -1 or int(c.to) == -1:
+				joined = true
+	if not tr.oncoming.is_empty():
+		moved_back = true
+	check(joined or not tr.ramp_cars.is_empty(), "loop traffic: cars come in from the on-ramps (%d on a ramp now)" % tr.ramp_cars.size())
+	check(tr.count() > 10, "loop traffic: still %d cars round the player after %.1f km (packs refilled)" % [tr.count(), (ps - start) / 1000.0])
+	tr.queue_free()
+	b.queue_free()
+	await process_frame
+
+
+## The highway battles: a rival, a challenge, two races (one won, one lost).
+func _battles() -> void:
+	var LoopGen = load("res://scripts/stage/loop_gen.gd")
+	var Rivals = load("res://scripts/game/rivals.gd")
+	var st = LoopGen.new()
+	st.generate(3)
+	var tr = Traffic.new()
+	root.add_child(tr)
+	var start: float = st.spans[0].s0 - 6000.0         # (the hills: no ramps to muddle it)
+	tr.setup(st, Modes.DIFFICULTIES.hard, 4, start)
+	tr.running = true
+	var rv = Rivals.new()
+	root.add_child(rv)
+	rv.setup(tr, st, 4)
+	var results := []
+	for race in 2:
+		var ps: float = start + race * 8000.0
+		var v := 26.0
+		tr.player = {"s": ps, "d": 1.8, "v": v}
+		rv._next = 0.0
+		rv.state = "none"
+		rv.pick_only = "hachi" if race == 0 else "ghost"   # (a level-1 rival, then a level-5 one: the result's the speed's, not the draw's)
+		rv.tick(0.01, tr.player, false)
+		var spawned: bool = rv.state == "cruise" and not rv.rival.is_empty()
+		# catch it up (straight down its lane), flash it from close behind
+		var t := 0.0
+		while rv.state == "cruise" and t < 60.0:
+			var gap: float = float(rv.rival.s) - ps
+			v = 45.0 if gap > 30.0 else float(rv.rival.v)
+			ps += v / 120.0
+			tr.player = {"s": ps, "d": float(rv.rival.d), "v": v}
+			await physics_frame
+			rv.tick(1.0 / 120.0, tr.player, rv.can_challenge(tr.player))
+			t += 1.0 / 120.0
+		var flashed: bool = rv.state == "intro"
+		# the race: the player at 300 km/h the first time, 110 the second (in a lane of its own:
+		# the test's player is a point that goes through cars; the rival has to go round them)
+		var pv := 300.0 / 3.6 if race == 0 else 110.0 / 3.6
+		var overlaps := 0
+		var passed := {}
+		var gate := false
+		t = 0.0
+		while rv.state in ["intro", "race"] and t < 200.0:
+			ps += (pv if rv.state == "race" else float(rv.rival.v)) / 120.0
+			tr.player = {"s": ps, "d": -5.4, "v": pv}
+			await physics_frame
+			rv.tick(1.0 / 120.0, tr.player, false)
+			t += 1.0 / 120.0
+			gate = gate or rv._gate != null
+			if rv.state == "race":
+				var me: Dictionary = rv.rival
+				for c in tr.cars:
+					if c == me:
+						continue
+					var ds: float = absf(float(c.s) - float(me.s))
+					if ds < float(c.half_len) + float(me.half_len) - 0.3 and absf(float(c.d) - float(me.d)) < float(c.half_w) + float(me.half_w) - 0.2:
+						overlaps += 1
+					if float(me.s) > float(c.s) + 10.0:
+						passed[c.id] = true
+		var ev: Array = rv.events.map(func(e): return e[0])
+		results.append({"spawned": spawned, "flashed": flashed, "gate": gate, "overlaps": overlaps, "passed": passed.size(), "events": ev,
+			"beaten": rv.beaten, "lost": rv.lost})
+		rv.events.clear()
+		rv._drop()
+	var r0: Dictionary = results[0]
+	var r1: Dictionary = results[1]
+	check(r0.spawned and r0.flashed and r0.gate, "battles: a rival shows up in the traffic, flashing it from close behind starts the race (a gate 3 km on)")
+	check(r0.beaten == 1 and r1.lost == 1, "battles: at 300 km/h the player wins it, at 110 the rival does (%s / %s)" % [
+		" · ".join(r0.events.slice(-1)), " · ".join(r1.events.slice(-1))])
+	check(r0.overlaps == 0 and r1.overlaps == 0 and r1.passed >= 5, "battles: the rival races through the traffic (past %d cars), never through one" % r1.passed)
+	rv.queue_free()
+	tr.queue_free()
+	await process_frame
+
+
 ## The game in a mode: it loads, the run goes, and it ends with the mode's own results.
+## Settings' TIME OF DAY: AUTO leaves a run's light alone; an hour rides with the run
+## (to every machine) with the mood nearest it.
+func _time_of_day() -> void:
+	var o: Dictionary = Modes.touge_opts(5, "down")
+	var auto: Dictionary = Modes.with_time(o, -1.0)
+	var noon: Dictionary = Modes.with_time(o, 13.0)
+	var dusk: Dictionary = Modes.with_time(o, 18.5)
+	var late: Dictionary = Modes.with_time(Modes.cutup_opts(5), 1.5)
+	check(auto == o and float(noon.time) == 13.0 and noon.mood == "day" and dusk.mood == "golden" and late.mood == "night" and float(late.time) == 1.5,
+		"time of day: AUTO keeps the run's light (%s); 13:00 day, 18:30 golden, 01:30 night ride with the run" % o.mood)
+
+
+func _ghost() -> void:
+	var Ghost = load("res://scripts/game/ghost.gd")
+	var k := "test/ghost/%d" % Time.get_ticks_usec()
+	var g = Ghost.new()
+	root.add_child(g)
+	g.setup(k)
+	check(g.best.is_empty(), "ghost: none for a pass never driven")
+	var t := 0.0
+	while t <= 10.0:                                    # 10 s at 10 m/s along x, turning slowly
+		g.tick(t, Transform3D(Basis(Vector3.UP, t * 0.1), Vector3(t * 10.0, 0.0, 0.0)))
+		t += 1.0 / 120.0
+	g.save_record("hachi")
+	g.queue_free()
+	var g2 = Ghost.new()
+	root.add_child(g2)
+	g2.setup(k)
+	var at = Ghost.sample(g2.best, 5.05)
+	check(not g2.best.is_empty() and g2.best_model == "hachi" and g2._body != null and at != null
+		and absf((at as Transform3D).origin.x - 50.5) < 0.05 and absf((at as Transform3D).basis.get_euler().y - 0.505) < 0.01,
+		"ghost: saved, loaded (%d samples, %s) and played back between samples (x %.2f m at 5.05 s, want 50.50)" % [
+		g2.best.size() / Ghost.STRIDE, g2.best_model, (at as Transform3D).origin.x if at != null else -1.0])
+	g2.tick(5.0, Transform3D(Basis(), Vector3(50.0, 30.0, 0.0)))
+	var seen: bool = g2._body.visible
+	g2.tick(5.0, Transform3D(Basis(), Vector3(50.5, 0.5, 0.0)))
+	var near_hidden: bool = not g2._body.visible
+	check(seen and near_hidden and Ghost.sample(g2.best, 10.5) == null,
+		"ghost: shown away from the player, gone right where the player is (the start: not in the cockpit), gone past its finish")
+	DirAccess.remove_absolute(Ghost.file_for(k))
+	g2.queue_free()
+
+
+## A touge time attack: the record leaves a ghost, and the next run on the pass races it.
+func _ghost_game() -> void:
+	var Ghost = load("res://scripts/game/ghost.gd")
+	root.get_node("Net").solo()
+	var o: Dictionary = Modes.touge_opts(4, "up", "time")
+	o["length"] = 1200.0
+	var file: String = Ghost.file_for(Modes.best_key(o, 4))
+	DirAccess.remove_absolute(file)
+	var Profile = load("res://scripts/game/profile.gd")
+	Profile.ensure_loaded()
+	Profile.mode_bests.erase(Modes.best_key(o, 4))
+	var Game = load("res://scripts/game.gd")
+	var ghosts := []
+	for run in 2:
+		var g = Game.new()
+		root.add_child(g)
+		await g.start(4, 1, o)
+		ghosts.append(g.ghost.best.size() / Ghost.STRIDE)
+		g.begin_countdown()
+		g.use_autopilot = true
+		var t := 0.0
+		var gap := 0.0                                  # (the same autopilot drives both: the ghost runs with it)
+		while g.state != "finished" and t < 160.0:
+			await physics_frame
+			t += 1.0 / 120.0
+			if run == 1 and g.state == "running":
+				var at = Ghost.sample(g.ghost.best, g.stage_time)
+				if at != null:
+					gap = maxf(gap, (at as Transform3D).origin.distance_to(g.car.global_position))
+		if run == 1:
+			check(g.ghost._body != null and gap > 0.0 and gap < 40.0,
+				"game: the second time attack on the pass races the first one's ghost (%d samples; it ran within %.1f m of the same autopilot)" % [ghosts[1], gap])
+		g.queue_free()
+		await process_frame
+	check(ghosts[0] == 0 and ghosts[1] > 50 and FileAccess.file_exists(file),
+		"game: the first time attack leaves a ghost (none before it, %d samples after)" % ghosts[1])
+	DirAccess.remove_absolute(file)
+
+
 func _game(m: String) -> void:
 	root.get_node("Net").solo()
 	var Game = load("res://scripts/game.gd")
@@ -278,11 +732,20 @@ func _game(m: String) -> void:
 	g.use_autopilot = true
 	var t := 0.0
 	var most := 0
-	while g.state != "finished" and t < 160.0:
+	var stuck := 0.0
+	while g.state != "finished" and t < (60.0 if g.looped else 160.0):
 		await physics_frame
 		t += 1.0 / 120.0
 		if g.traffic:
 			most = maxi(most, g.traffic.count())
+		# (the autopilot doesn't steer round traffic: stuck in a pack, it presses R as a player would)
+		stuck = stuck + 1.0 / 120.0 if g.state == "running" and g.car.kmh() < 5.0 else 0.0
+		if stuck > 3.0:
+			g.reset_car()
+			stuck = 0.0
+	if g.looped:
+		check(g.car_s > g.st.START_S + 300.0, "game: on the loop the run goes on (%.0f m in a minute, %d resets; no finish)" % [g.car_s - g.st.START_S, g.resets])
+		g._end_run()                                   # (no finish on a loop: the player ends the run)
 	if m == "cutup":
 		check(g.cutup != null and most > 0, "game: cut up's score and up to %d traffic cars running (score %d, %d near misses, %d crashes)" % [
 			most, g.cutup.total(), g.cutup.near_misses, g.cutup.crashes])

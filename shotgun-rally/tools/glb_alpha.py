@@ -10,6 +10,9 @@ judged by what its alpha really is (the base colour factor's times its texture's
   * holes with hard edges (under 5 % of the texture's pixels in between): "MASK"
     (cut out at 0.5: drawn with the opaque surfaces)
   * anything else (glass, soft decals, a factor under 1): left "BLEND"
+  ... except the parts that are never see-through (rims, tyres, chrome, carbon,
+  calipers, the body, the interior: SOLID): a game texture's alpha is often a
+  shine mask (Assetto Corsa's), so they're opaque whatever their texture's alpha
 Only the GLB's JSON changes (the materials' alphaMode / alphaCutoff); the binary
 chunk, every mesh and image, stays byte for byte.
 
@@ -17,12 +20,14 @@ Run in Blender (it decodes the images: PNG, JPEG, WebP):
   blender -b -Y --python tools/glb_alpha.py -- a.glb [b.glb ...] [--dry]
 tools/import_car.py runs it on every car it writes.
 """
-import json, os, struct, sys, tempfile
+import json, os, re, struct, sys, tempfile
 
 import bpy
 import numpy as np
 
 EXT = {"image/png": ".png", "image/jpeg": ".jpg", "image/webp": ".webp"}
+SOLID = re.compile(r"rim|tyre|tire|wheel|chrome|carbon|calip|callip|\bnut|bolt|exhaust|metal|paint|body|"
+                   r"interior|seat|leather|plastic|rubber|weld|dis[ck]|rotor|hub|chassis|engine", re.I)
 
 
 def _read(path):
@@ -44,7 +49,9 @@ def _write(path, j, rest):
 
 def _alpha_of(j, rest, tex_index, cache):
     """The texture's alpha channel (a flat array, 0..1), or None if it has none."""
-    src = j["textures"][tex_index].get("source")
+    t = j["textures"][tex_index]
+    # (a WebP image is the EXT_texture_webp extension's source: no plain "source")
+    src = t.get("source", t.get("extensions", {}).get("EXT_texture_webp", {}).get("source"))
     if src is None:
         return None
     if src in cache:
@@ -87,7 +94,9 @@ def verdict(j, rest, m, cache):
     if a is None or float(a.min()) > 0.98:
         return "OPAQUE"
     soft = float(((a > 0.1) & (a < 0.9)).mean())
-    return "MASK" if soft < 0.05 else "BLEND"
+    if soft < 0.05:
+        return "MASK"
+    return "OPAQUE" if SOLID.search(m.get("name", "")) else "BLEND"
 
 
 def fix_alpha(path, dry=False):

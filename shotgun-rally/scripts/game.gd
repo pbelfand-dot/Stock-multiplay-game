@@ -18,22 +18,30 @@ extends Node3D
 ## through an RPC on this node.
 
 const StageGen = preload("res://scripts/stage/stage_gen.gd")
+const LoopGen = preload("res://scripts/stage/loop_gen.gd")
+const LoopBuilder = preload("res://scripts/stage/loop_builder.gd")
 const StageBuilder = preload("res://scripts/stage/stage_builder.gd")
 const Notes = preload("res://scripts/stage/pacenotes.gd")
 const RallyCar = preload("res://scripts/vehicle/rally_car.gd")
 const Cockpit = preload("res://scripts/vehicle/cockpit.gd")
 const DriftFx = preload("res://scripts/vehicle/drift_fx.gd")
+const SkidMarks = preload("res://scripts/vehicle/skid_marks.gd")
 const SeatCam = preload("res://scripts/vehicle/seat_cam.gd")
 const AICoDriver = preload("res://scripts/vehicle/ai_codriver.gd")
 const Autopilot = preload("res://scripts/vehicle/autopilot.gd")
 const EngineSound = preload("res://scripts/vehicle/engine_sound.gd")
 const StartLights = preload("res://scripts/ui/start_lights.gd")
+const UI = preload("res://scripts/ui/ui_kit.gd")
 const Catalog = preload("res://scripts/game/catalog.gd")
 const Modes = preload("res://scripts/game/modes.gd")
 const Profile = preload("res://scripts/game/profile.gd")
 const Traffic = preload("res://scripts/stage/traffic.gd")
 const CutupScore = preload("res://scripts/game/cutup_score.gd")
+const Rivals = preload("res://scripts/game/rivals.gd")
 const TougeRules = preload("res://scripts/game/touge_rules.gd")
+const StrayCar = preload("res://scripts/game/stray_car.gd")
+const CarLamps = preload("res://scripts/vehicle/car_lamps.gd")
+const Ghost = preload("res://scripts/game/ghost.gd")
 const FitDebug = preload("res://scripts/vehicle/fit_debug.gd")
 
 signal progress(fraction: float, what: String)
@@ -81,6 +89,7 @@ var _stuck := 0.0
 var _mud_t := 0.0
 var _said_wipers := false
 var _chase := false                 # the driver picked the chase cam (C)
+var view_override := ""              # (the showcase) the view it's filming: "seat", or "chase" for its own cameras
 var built := false                  # start() has finished (it builds over several frames)
 var _look_acc := 0.0
 var _last_count := -1
@@ -89,24 +98,46 @@ var _lights                         # StartLights: the countdown + stage clock o
 var _hint_label: Label
 var _big_label: Label
 var _results: PanelContainer
+var _results_head: Label             # the stage / mode (under the banner art)
 var _results_label: Label
+var _race_box: VBoxContainer         # a street race's finishers, badges on the podium
+var _results_foot: Label             # Main's lines and what ENTER does
 var _pause: PanelContainer
 var _t_alive := 0.0
 var _sfx := {}
 var _engine                        # EngineSound
 var _gravel: AudioStreamPlayer3D
-var _squeal: AudioStreamPlayer3D     # the tyres on the asphalt, sliding
+var _squeal: AudioStreamPlayer3D     # the tyres on the asphalt, sliding (off: TYRE_SQUEAL)
 var _squeal_amt := 0.0
+## The tyre squeal on asphalt: off for now (the owner: it sounds bad). The loop
+## and its cue (car.grip_use) stay, to come back with a better recording.
+const TYRE_SQUEAL := false
 # the modes beyond rally stages (Modes): "" (a stage), "touge", "cutup"
 var mode := ""
+var looped := false                  # the map's a loop (cut up's LAKESHORE LOOP): no finish
 var traffic                          # Traffic (cut up)
 var cutup                            # CutupScore
+var rivals                           # Rivals (cut up on the loop: the highway battles)
 var touge                            # TougeRules
+var ghost                            # Ghost (touge time attack: your best run on this pass)
+var stray                            # StrayCar (the touge: now and then a local on the pass)
+var night := false                   # a night stage: the cars' lamps on (a touge: its street lamps lit)
+var _beam_t := 0.0
 var mode_result := {}                # the run's score / time / best, for the results
 var _mode_label: Label               # top right: the score, the combo, the drift chain
 var _flash_label: Label              # mid-screen: NEAR MISS +300, a split, CRASH
 var _flash_t := 0.0
 var fit_debug                        # FitDebug: the driver-fit overlay (F9, --fit_debug)
+# a street session online (Net.street): everyone in their own car
+var street_online := false
+var others := {}                     # peer id -> RallyCar: the other drivers' cars, played from their streams
+var standings: Array = []            # [[peer id, total s]], the touge race's finishers, quickest first
+var _ready_peers: Array = []         # the machines whose stage is loaded (the car streams to them)
+var _start_yaw := 0.0
+var _waiting := false                # (joined mid-race on the touge: in the next one)
+var _pos_t := 0.0
+var _place := 0                      # the touge race: where you are (1 = leading), 0 = not racing
+var _hints := {}                     # peer id -> its car's last road index (locating them)
 
 
 ## Build the stage, a step a frame (await it): progress(fraction, what) feeds the
@@ -117,20 +148,25 @@ func start(seed_in: int, stage_in: int, o := {}) -> void:
 	seed_value = seed_in
 	stage_no = stage_in
 	opts = o
+	street_online = Net.online() and Net.street()
 	use_autopilot = Config.flag("autopilot")
 	progress.emit(0.02, "Reading the road book")
 	await get_tree().process_frame
 	if not is_inside_tree():
 		return
 	mode = str(o.get("mode", "")) if Modes.is_mode(o) else ""
-	st = StageGen.new()
+	# cut up's map is the LAKESHORE LOOP: a loop, no finish (its s keeps growing lap after lap)
+	looped = str(o.get("gen", {}).get("kind", "")) == "loop"
+	st = LoopGen.new() if looped else StageGen.new()
 	st.opts = o.get("gen", {})
 	st.generate(seed_value, float(o.get("length", Config.arg("length", 2600))))
 	notes = Notes.build(st)
 	calls = Notes.calls(notes)
 	stage_generated.emit()
-	builder = StageBuilder.new()
+	builder = LoopBuilder.new() if looped else StageBuilder.new()
 	builder.mood = o.get("mood", "day")
+	if "time_of_day" in builder:
+		builder.time_of_day = float(o.get("time", -1.0))   # (the hour, -1: by the mood; the graphics work lights by it)
 	add_child(builder)
 	await builder.build_async(st, func(f: float, what: String): progress.emit(0.06 + f * 0.64, what))
 	if not is_inside_tree():
@@ -140,18 +176,24 @@ func start(seed_in: int, stage_in: int, o := {}) -> void:
 	if not is_inside_tree():
 		return
 	car = RallyCar.new()
-	car.name = "Car"
-	car.setup = Catalog.for_stage(Net.car_setup(), st)   # (built as the driver's car from the start: its own body and numbers)
+	car.name = "Car_%d" % Net.my_id() if street_online else "Car"   # (the same path on every machine: its stream finds it)
+	car.setup = _car_setup()                      # (built as the driver's car from the start: its own body and numbers)
 	add_child(car)
-	# (cut up: start in a lane, the second from the right, not astride two)
-	_start_pos = st.world_at(st.START_S - 3.0, st.LANE_W * 0.5 if mode == "cutup" else 0.0)
-	car.place(_start_pos, st.heading_at(st.START_S))
+	var spot := _grid_spot(Net.my_id())
+	_start_pos = spot[0]
+	_start_yaw = spot[1]
+	car.place(_start_pos, _start_yaw)
 	car.hit.connect(_on_hit)
 	car.landed.connect(_on_landed)
 	var fx := DriftFx.new()                       # dirt + stones off the tyres when it slides
 	fx.name = "DriftFx"
 	fx.car = car
 	car.add_child(fx)
+	var marks := SkidMarks.new()                  # black rubber on the asphalt where the tyres slid
+	marks.name = "SkidMarks"
+	marks.car = car
+	marks.fx = fx
+	add_child(marks)
 	progress.emit(0.84, "Strapping in the crew")
 	await get_tree().process_frame
 	if not is_inside_tree():
@@ -170,8 +212,10 @@ func start(seed_in: int, stage_in: int, o := {}) -> void:
 	add_child(ai)
 	ai.setup(calls if mode == "" else [])           # (a touge and a highway: no co-driver calling)
 	_setup_mode(o)
+	_night_lights()
 	autopilot = Autopilot.new(st)
 	cam = SeatCam.new()
+	cam.chase_style = "street" if mode != "" else "rally"   # (cut up, the touge: low and close)
 	add_child(cam)
 	_audio()
 	_build_hud()
@@ -186,20 +230,105 @@ func start(seed_in: int, stage_in: int, o := {}) -> void:
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
 
+## The driver's car from their garage set up for this stage (Catalog.for_stage); in
+## the touge's DRIFT rules on SIM STREET, without its factory traction control.
+func _car_setup() -> Dictionary:
+	var s := Catalog.for_stage(Net.car_setup_for(Net.my_id()) if street_online else Net.car_setup(), st)
+	if s.has("street") and mode == "touge" and opts.get("rules", "time") == "drift":
+		s.street = s.street.duplicate()
+		s.street[3] = false
+	return s
+
+
 ## Seats decide who simulates the car, whose camera goes where, and whether
 ## the AI co-driver talks (only when nobody's in the passenger seat).
 func _apply_roster() -> void:
 	my_seat = Net.my_seat()
-	var driver_here: bool = my_seat == "driver"
-	var setup := Catalog.for_stage(Net.car_setup(), st)   # the driver's car from their garage, its tyres for this stage
-	if car.apply_setup(setup) and state == "grid":     # another car (a new driver's): put it down again
-		car.place(_start_pos, st.heading_at(st.START_S))
+	var seat := "driver" if my_seat == "racer" else my_seat   # (a street session: everyone drives their own)
+	var driver_here: bool = seat == "driver"
+	var spot := _grid_spot(Net.my_id())
+	var moved: bool = spot[0] != _start_pos
+	_start_pos = spot[0]
+	_start_yaw = spot[1]
+	var setup := _car_setup()                    # the driver's car from their garage, its tyres for this stage
+	if (car.apply_setup(setup) or moved) and state == "grid":     # another car (a new driver's), another slot: put it down again
+		car.place(_start_pos, _start_yaw)
 	cockpit.set_paint(setup.colours[0])
 	car.set_simulating(driver_here)
-	cam.attach(car, my_seat, cockpit.eye_for(my_seat))
-	cockpit.set_my_seat(my_seat)
-	ai.enabled = Net.peer_in("codriver") == 0 and mode == ""
+	cam.attach(car, seat, cockpit.eye_for(seat))
+	cockpit.set_my_seat(seat)
+	ai.enabled = not street_online and Net.peer_in("codriver") == 0 and mode == ""
+	if street_online:
+		_sync_racers()
+		if multiplayer.is_server():
+			for id in _loaded_peers.keys():          # (someone left: stop streaming at them)
+				if not Net.players.has(id):
+					_loaded_peers.erase(id)
+			_to_ready("set_ready_peers", [_loaded_peers.keys()])
 	_update_hint()
+
+
+## A car's place on the grid (its driver's slot in a street session: two abreast on a
+## touge, four on the highway, rows 9 m apart): [position, heading].
+func _grid_spot(id: int) -> Array:
+	var k := maxi(Net.racers().find(id), 0) if street_online else 0
+	var across: Array = [0.0]
+	if mode == "cutup":
+		across = [st.LANE_W * 0.5, -st.LANE_W * 0.5, st.LANE_W * 1.5, -st.LANE_W * 1.5]   # (in a lane, not astride two)
+	elif street_online:
+		across = [1.6, -1.6]
+	var s: float = st.START_S - 3.0 - float(k / across.size()) * 9.0
+	return [st.world_at(s, float(across[k % across.size()])), st.heading_at(s)]
+
+
+## The other drivers' cars (a street session): one per racer in the roster, played
+## from their streams (not simulated here), solid or ghosts as the host set it, a name
+## over each; dirt, smoke and tyre marks as your own.
+func _sync_racers() -> void:
+	var want: Array = Net.racers()
+	for id in others.keys():
+		if not id in want:
+			(others[id] as Node).queue_free()
+			others.erase(id)
+			_hints.erase(id)
+	for id in want:
+		if id == Net.my_id():
+			continue
+		if others.has(id):
+			others[id].apply_setup(Catalog.for_stage(Net.car_setup_for(id), st))   # (their garage car may have come since)
+			_fit_lamps(others[id])
+			continue
+		var c = RallyCar.new()
+		c.name = "Car_%d" % id
+		c.setup = Catalog.for_stage(Net.car_setup_for(id), st)
+		add_child(c)
+		c.set_simulating(false)
+		var spot := _grid_spot(id)
+		c.place(spot[0], spot[1])
+		c.set_outside(true)
+		if not bool(Net.session.get("collide", true)):
+			car.add_collision_exception_with(c)
+			c.add_collision_exception_with(car)
+		var fx := DriftFx.new()
+		fx.car = c
+		c.add_child(fx)
+		var marks := SkidMarks.new()
+		marks.car = c
+		marks.fx = fx
+		add_child(marks)
+		var tag := Label3D.new()
+		tag.name = "NameTag"
+		tag.text = Net.player_name(id)
+		tag.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+		tag.font_size = 56
+		tag.pixel_size = 0.01
+		tag.outline_size = 12
+		tag.no_depth_test = false
+		tag.position = Vector3(0.0, 2.1, 0.0)
+		tag.visibility_range_end = 400.0
+		c.add_child(tag)
+		others[id] = c
+		_fit_lamps(c)
 
 
 # ── loading handshake (host) ──────────────────────────────────────────────
@@ -208,9 +337,43 @@ func _apply_roster() -> void:
 func loaded() -> void:
 	if not multiplayer.is_server():
 		return
-	_loaded_peers[multiplayer.get_remote_sender_id()] = true
+	var who := multiplayer.get_remote_sender_id()
+	_loaded_peers[who] = true
+	if Net.street():
+		_to_ready("set_ready_peers", [_loaded_peers.keys()])
+		if who != Net.my_id() and state != "grid":
+			catch_up.rpc_id(who, state)                # (joined mid-run)
 	if _loaded_peers.size() >= Net.players.size():
 		set_all_loaded.rpc(true)
+
+
+## (a street session) Call `method` here and on every other machine whose stage is
+## loaded (the host knows them; everyone else, from set_ready_peers): a machine still
+## loading has no Game for it to land in.
+func _to_ready(method: String, args: Array) -> void:
+	var ids: Array = _loaded_peers.keys() if multiplayer.is_server() else _ready_peers
+	callv(method, args)
+	for id in ids:
+		if id != Net.my_id():
+			callv("rpc_id", [id, method] + args)
+
+
+## (a street session) The machines whose stage is loaded: the car streams to them.
+@rpc("authority", "call_local", "reliable")
+func set_ready_peers(ids: Array) -> void:
+	_ready_peers = ids
+
+
+## (a street session) Joined while the others are already going: on the highway you're
+## straight in; on a touge you're in the next race (the grid, watching this one).
+@rpc("authority", "reliable")
+func catch_up(host_state: String) -> void:
+	if looped and host_state in ["countdown", "running"]:
+		state = "running"
+		stage_time = 0.0
+	else:
+		_waiting = true
+	_update_hint()
 
 
 @rpc("authority", "call_local", "reliable")
@@ -225,6 +388,17 @@ func crew_ready() -> bool:
 	return all_loaded and (not Net.online() or Net.crew_full())
 
 
+## (host) Has every player's stage loaded? (a street session: nobody still loading
+## misses the countdown)
+func _all_in() -> bool:
+	if not street_online:
+		return true
+	for id in Net.players:
+		if not _loaded_peers.has(id):
+			return false
+	return true
+
+
 # ── the stage ─────────────────────────────────────────────────────────────
 
 @rpc("authority", "call_local", "reliable")
@@ -234,7 +408,7 @@ func begin_countdown() -> void:
 	state = "countdown"
 	countdown = COUNTDOWN
 	_last_count = -1
-	car.place(_start_pos, st.heading_at(st.START_S))
+	car.place(_start_pos, _start_yaw)
 	ai.hush()                                    # the count has to land on the second
 	_update_hint()
 
@@ -254,6 +428,21 @@ func stage_finished(time: float, pens: float, n_resets: int, jumped: bool) -> vo
 	finished.emit(result)
 
 
+## (a street session, the touge) A driver crossed the line: the race's order, quickest
+## first (time plus penalties), on every machine.
+@rpc("any_peer", "call_local", "reliable")
+func racer_finished(id: int, total: float) -> void:
+	for e in standings:
+		if int(e[0]) == id:
+			return
+	standings.append([id, total])
+	# quickest first; a dead heat (identical times: it happens with identical cars) split
+	# by grid slot, the same on every machine whatever order the finishes arrived in
+	standings.sort_custom(func(a, b): return float(a[1]) < float(b[1]) or (float(a[1]) == float(b[1]) and int(a[0]) < int(b[0])))
+	if state == "finished":
+		_show_results()
+
+
 @rpc("any_peer", "call_local", "reliable")
 func set_penalties(pens: float, n_resets: int, jumped: bool) -> void:
 	penalties = pens
@@ -267,14 +456,19 @@ func _physics_process(dt: float) -> void:
 	_t_alive += dt
 	var at: Dictionary = st.locate(car.global_position, _hint)
 	_hint = at.i
-	car_s = at.s
+	car_s = st.unwrap(at.s, car_s) if looped else at.s
 	car_d = at.d
 	car.set_lanes(st, car_s, car_d)
 	cockpit.map_board.car_s = car_s
 	car.stream_ok = crew_ready()          # nobody to send to (or they're still loading): don't
+	if street_online:
+		car.stream_peers = _ready_peers.filter(func(p): return p != Net.my_id())
+		if car.stream_peers.is_empty():
+			car.stream_ok = false
 	match state:
 		"grid":
-			if Net.is_server() and crew_ready() and (Input.is_action_just_pressed("ready") or Config.flag("autostart")):
+			if Net.is_server() and crew_ready() and _all_in() and (Input.is_action_just_pressed("ready") or
+					(Config.flag("autostart") and (not street_online or Net.racers().size() >= int(Config.arg("min_racers", 1))))):
 				if Net.online():
 					begin_countdown.rpc()
 				else:
@@ -307,12 +501,24 @@ func _physics_process(dt: float) -> void:
 			stage_time += dt
 			if car.simulate and car_s >= st.finish_s:
 				var args := [stage_time, penalties, resets, jump_start]
-				if Net.online():
+				if street_online:
+					# (your own run ends; the others race on: the order comes in as they finish)
+					stage_finished(args[0], args[1], args[2], args[3])
+					_to_ready("racer_finished", [Net.my_id(), stage_time + penalties])
+				elif Net.online():
 					stage_finished.rpc(args[0], args[1], args[2], args[3])
 				else:
 					stage_finished(args[0], args[1], args[2], args[3])
 	if mode != "":
 		_mode_tick(dt)
+	if night and street_online:
+		_beam_t -= dt
+		if _beam_t <= 0.0:
+			_beam_t = 0.5
+			_others_beams()
+	if stray and state == "running":
+		stray.enabled = not use_autopilot or Config.flag("stray")   # (the tests' autopilot doesn't steer round it)
+		stray.tick(dt, car_s, car.global_position)
 	if car.simulate:
 		_drive_inputs()
 		_puddles()
@@ -335,7 +541,7 @@ func _physics_process(dt: float) -> void:
 		ai.update(-1000.0, 0.0, dt)
 	# tell the other player where we're looking (their view of our helmet)
 	_look_acc += dt
-	if Net.online() and crew_ready() and _look_acc > 0.1:
+	if Net.online() and not street_online and crew_ready() and _look_acc > 0.1:
 		_look_acc = 0.0
 		send_look.rpc(my_seat, cam.yaw if not cam.reading else 0.1, cam.pitch if not cam.reading else -0.9)
 
@@ -396,7 +602,7 @@ func reset_car() -> void:
 
 
 func _sync_penalties() -> void:
-	if Net.online():
+	if Net.online() and not street_online:            # (a crew shares one car's clock; a street session doesn't)
 		set_penalties.rpc(penalties, resets, jump_start)
 
 
@@ -412,7 +618,7 @@ func _puddles() -> void:
 	if inside and not _in_puddle and spd > 6.0:
 		var amount := clampf(spd / 22.0, 0.35, 1.0)
 		var sd := randi()
-		if Net.online():
+		if Net.online() and not street_online:
 			splat.rpc(amount, sd)
 		else:
 			splat(amount, sd)
@@ -446,7 +652,7 @@ func _process(dt: float) -> void:
 		return
 	# wipers: the co-driver's job (the driver's when alone)
 	if Input.is_action_just_pressed("wipers") and (my_seat == "codriver" or Net.peer_in("codriver") == 0):
-		if Net.online():
+		if Net.online() and not street_online:
 			wipe.rpc()
 		else:
 			wipe()
@@ -471,6 +677,8 @@ func _process(dt: float) -> void:
 		want = "chase"
 	if Config.flag("screenshot"):
 		want = Config.arg("shot_view", "seat")
+	if view_override != "" and state == "running":
+		want = view_override
 	if want != cam.view:
 		cam.view = want
 		car.set_outside(want != "seat")
@@ -510,7 +718,10 @@ func _process(dt: float) -> void:
 		pens.append("JUMP START")
 	if resets > 0:
 		pens.append("%d RESET%s" % [resets, "" if resets == 1 else "S"])
-	_lights.pen_text = "+%d s  %s" % [int(penalties), " · ".join(pens)] if penalties > 0.0 else ""
+	if mode == "cutup":                                # (scored on points, not the clock: no seconds to add)
+		_lights.pen_text = " · ".join(pens)
+	else:
+		_lights.pen_text = "+%d s  %s" % [int(penalties), " · ".join(pens)] if penalties > 0.0 else ""
 	_engine_audio()
 	if _t_alive > 12.0 and _hint_label.text.begins_with("YOU"):
 		_update_hint()
@@ -534,13 +745,14 @@ func _audio() -> void:
 	_gravel.bus = "SFX"
 	car.add_child(_gravel)
 	_gravel.play()
-	_squeal = AudioStreamPlayer3D.new()
-	_squeal.stream = EngineSound.looped("res://assets/sfx/squeal.wav")
-	_squeal.unit_size = 6.0
-	_squeal.volume_db = -80.0
-	_squeal.bus = "SFX"
-	car.add_child(_squeal)
-	_squeal.play()
+	if TYRE_SQUEAL:
+		_squeal = AudioStreamPlayer3D.new()
+		_squeal.stream = EngineSound.looped("res://assets/sfx/squeal.wav")
+		_squeal.unit_size = 6.0
+		_squeal.volume_db = -80.0
+		_squeal.bus = "SFX"
+		car.add_child(_squeal)
+		_squeal.play()
 	for n in ["tick", "bell", "splat", "wiper", "thud", "crash"]:
 		var p := AudioStreamPlayer.new()
 		p.stream = load("res://assets/sfx/%s.wav" % n)
@@ -567,6 +779,8 @@ func _engine_audio() -> void:
 	_gravel.pitch_scale = 0.8 + clampf(spd / 40.0, 0.0, 0.5)
 	# on the asphalt the tyres squeal as they near their limit: quietly from ~70 %
 	# of their grip, building to a howl in a slide (the warning before it goes)
+	if _squeal == null:
+		return
 	var sq: float = car.grip_use * on_ground * clampf(spd / 8.0, 0.0, 1.0) if car.on_surface == "asphalt" else 0.0
 	_squeal_amt = move_toward(_squeal_amt, sq, get_process_delta_time() * 6.0)
 	_squeal.volume_db = linear_to_db(maxf(_squeal_amt, 0.001)) - 13.0
@@ -584,6 +798,8 @@ func _on_hit(impact: float) -> void:
 			if absf(float(c.s) - car_s) < float(c.half_len) + 3.0 and absf(float(c.d) - car_d) < float(c.half_w) + 1.6:
 				traffic.hit(c.body)
 		_flash("CRASH  -%d" % CutupScore.CRASH_PENALTY, Color(1.0, 0.3, 0.25))
+	if stray:
+		stray.bump(car.global_position)
 	if touge and touge.chain > 0.0:
 		touge.lose()
 		_flash("CHAIN LOST", Color(1.0, 0.3, 0.25))
@@ -600,16 +816,108 @@ func _setup_mode(o: Dictionary) -> void:
 	match mode:
 		"cutup":
 			traffic = Traffic.new()
-			traffic.name = "Traffic"
+			traffic.name = "Traffic"                # (the same path everywhere: the host's traffic finds it)
+			traffic.mirror = street_online and not multiplayer.is_server()   # (online: the host's traffic, played back)
 			add_child(traffic)
 			var diff := Modes.difficulty(o)
 			traffic.setup(st, diff, seed_value, st.START_S)
 			cutup = CutupScore.new()
 			cutup.near = float(diff.near)
+			if looped and not street_online:          # (online: your friends are the rivals)
+				rivals = Rivals.new()
+				rivals.name = "Rivals"
+				add_child(rivals)
+				rivals.setup(traffic, st, seed_value)
 		"touge":
 			touge = TougeRules.new()
 			var best := Profile.mode_best(Modes.best_key(o, seed_value))
 			touge.best_splits = best.get("splits", [])
+			if o.get("rules", "time") == "time" and not street_online:   # (online: a race, not your ghost)
+				ghost = Ghost.new()
+				ghost.name = "Ghost"
+				add_child(ghost)
+				ghost.setup(Modes.best_key(o, seed_value))
+			stray = StrayCar.new()
+			add_child(stray)
+			stray.setup(st, seed_value, str(o.get("mood", "")) == "night")
+
+
+## A night stage: the street lamps (a touge's) light round your car; every car's lamps on.
+func _night_lights() -> void:
+	night = str(opts.get("mood", "")) == "night" and not looped
+	if not night:
+		return
+	if builder.get("street_lamps") != null:
+		builder.street_lamps.target = car
+	_fit_lamps(car)
+	# the dials' glow in the cabin: the wheel and your hands just there in the dark
+	var dash := OmniLight3D.new()
+	dash.name = "DashGlow"
+	dash.light_color = Color(1.0, 0.72, 0.42)
+	dash.light_energy = 0.4
+	dash.omni_range = 1.2
+	dash.shadow_enabled = false
+	car.add_child(dash)
+	dash.position = cockpit.eye_for(my_seat if my_seat != "" else "driver") + Vector3(0.0, -0.32, -0.5)
+
+
+func _fit_lamps(c) -> void:
+	if not night or c.body_model == null:
+		return
+	var old = c.get_node_or_null("CarLamps")
+	if old:
+		old.remove()
+		old.name = "CarLampsOld"
+	CarLamps.fit(c, c.body_model, true, c == car)      # (a tail light on yours only)
+
+
+## At night the other drivers' headlight beams: the two nearest you within 150 m (a
+## real light each; the rest just glow: the web build can only light so much at once).
+func _others_beams() -> void:
+	var near: Array = []
+	for id in others:
+		var c = others[id]
+		if is_instance_valid(c) and c.get_node_or_null("CarLamps"):
+			near.append([c.global_position.distance_to(car.global_position), c])
+	near.sort_custom(func(a, b): return a[0] < b[0])
+	for k in near.size():
+		near[k][1].get_node("CarLamps").set_beam(k < 2 and near[k][0] < 150.0)
+
+
+## (host, online cut up) The other players for the traffic: where each one's car is on
+## the road (from its stream), so the traffic fills in round them and minds them, and
+## which machines get which cars.
+func _traffic_for_everyone() -> void:
+	var ps: Array = []
+	var peers := {}
+	for id in others:
+		var c = others[id]
+		if not is_instance_valid(c):
+			continue
+		var at: Dictionary = st.locate(c.global_position, int(_hints.get(id, -1)))
+		_hints[id] = at.i
+		var s: float = car_s + (wrapf(float(at.s) - car_s, -st.length * 0.5, st.length * 0.5) if looped else float(at.s) - car_s)
+		var p := {"s": s, "d": float(at.d), "v": c.linear_velocity.dot(st.forward_at(s))}
+		ps.append(p)
+		if id in _ready_peers or _loaded_peers.has(id):
+			peers[id] = p
+	traffic.others_p = ps
+	traffic.net_peers = peers
+
+
+## (a street session, the touge) Where you are in the race: 1 + those already over the
+## line + those further down the road than you.
+func _race_place() -> int:
+	var ahead := standings.size()
+	for id in others:
+		var c = others[id]
+		if not is_instance_valid(c) or standings.any(func(e): return int(e[0]) == id):
+			continue
+		var at: Dictionary = st.locate(c.global_position, int(_hints.get(id, -1)))
+		_hints[id] = at.i
+		if float(at.s) > car_s:
+			ahead += 1
+	return ahead + 1
 
 
 ## Every physics tick in a mode: the traffic, the score, the splits, the drift.
@@ -618,10 +926,26 @@ func _mode_tick(dt: float) -> void:
 	if traffic:
 		traffic.player = {"s": car_s, "d": car_d, "v": v_along}
 		traffic.running = state != "grid"
+		if street_online and multiplayer.is_server():
+			_traffic_for_everyone()
 	if state == "running":
 		if cutup:
 			for nm in cutup.update(dt, {"s": car_s, "d": car_d, "v": v_along}, traffic.snapshot()):
 				_flash("NEAR MISS  +%d%s" % [nm.points, "   x%d" % cutup.combo if cutup.combo > 1 else ""], Color(1.0, 0.85, 0.2))
+		if rivals:
+			rivals.tick(dt, {"s": car_s, "d": car_d, "v": v_along}, car.simulate and Input.is_action_just_pressed("flash"))
+			for ev in rivals.events:
+				_flash(ev[0], ev[1])
+				if int(ev[2]) > 0:
+					cutup.bonus(int(ev[2]))
+			rivals.events.clear()
+		if ghost:
+			ghost.tick(stage_time, car.global_transform.translated_local(Vector3(0.0, -car._ground(), 0.0)))
+		if street_online and touge:
+			_pos_t -= dt
+			if _pos_t <= 0.0:
+				_pos_t = 0.25
+				_place = _race_place()
 		if touge:
 			if touge.split_check(car_s, st.START_S, stage_time):
 				var dl: float = touge.last_split_delta
@@ -642,17 +966,27 @@ func _mode_tick(dt: float) -> void:
 func _mode_text() -> String:
 	if cutup:
 		var t := "SCORE  %d" % cutup.total()
+		if rivals:
+			var b: String = rivals.hud_text({"s": car_s, "d": car_d, "v": car.linear_velocity.dot(st.forward_at(car_s))})
+			if b != "":
+				t = b + "\n" + t
 		if cutup.combo > 0:
 			t += "\nCOMBO  x%d   %.0f s" % [cutup.combo, maxf(CutupScore.COMBO_TIME - cutup.since_near, 0.0)]
 		return t + "\n%.0f km/h" % car.kmh()
 	if touge:
+		# (the chase cam has no dash board: the clock and the speed are here too)
 		if opts.get("rules", "time") == "drift":
 			var t2 := "DRIFT  %d" % touge.total()
 			if touge.chain > 0.0:
 				t2 += "\nCHAIN  +%d   x%.1f" % [int(touge.chain), touge.multiplier()]
-			return t2 + ("\n%.0f deg" % touge.angle if touge.drifting else "")
+			return t2 + ("\n%.0f deg" % touge.angle if touge.drifting else "") + "\n%.0f km/h" % car.kmh()
 		var best := Profile.mode_best(Modes.best_key(opts, seed_value))
-		return "BEST  %s" % (fmt_time(float(best.value)) if not best.is_empty() else "--")
+		var t3 := "TIME  %s" % fmt_time(stage_time if state != "grid" else 0.0)
+		if street_online and _place > 0 and state == "running":
+			t3 = "POS  %d / %d\n" % [_place, others.size() + 1] + t3
+		if touge.last_split_delta != INF and stage_time - touge.last_split_at < 8.0:
+			t3 += "   %+.1f" % touge.last_split_delta
+		return t3 + "\nBEST  %s" % (fmt_time(float(best.value)) if not best.is_empty() else "--") + "\n%.0f km/h" % car.kmh()
 	return ""
 
 
@@ -676,6 +1010,8 @@ func _finish_mode() -> void:
 		var best := sc > 0 and Profile.record_mode(key, float(sc), false)
 		lines = ["SCORE  %d%s" % [sc, "   NEW BEST" if best else ""],
 			"%d near misses · best combo x%d · %d crash%s" % [cutup.near_misses, cutup.best_combo, cutup.crashes, "" if cutup.crashes == 1 else "es"]]
+		if rivals and rivals.beaten + rivals.lost > 0:
+			lines.append("rivals beaten %d · lost %d" % [rivals.beaten, rivals.lost])
 		mode_result = {"score": sc, "best": best}
 	elif touge and opts.get("rules", "time") == "drift":
 		var sc2: int = touge.finish()
@@ -687,6 +1023,8 @@ func _finish_mode() -> void:
 		var total: float = result.time + result.penalties
 		var old := Profile.mode_best(key)
 		var best3 := Profile.record_mode(key, total, true, touge.splits)
+		if best3 and ghost and result.penalties <= 0.0:
+			ghost.save_record(str(car.setup.get("model", "")))   # (the next run races it; a run with resets doesn't make a ghost)
 		lines = ["PASS RECORD  %s%s" % [fmt_time(total) if best3 else fmt_time(float(old.value)),
 			"   NEW RECORD" if best3 else "   (%+.1f s)" % (total - float(old.value))]]
 		mode_result = {"time": total, "best": best3}
@@ -723,12 +1061,34 @@ func _build_hud() -> void:
 	_big_label.offset_right = 500
 	_big_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_hud.add_child(_big_label)
+	# the results: the banner art (rally: STAGE COMPLETE; the modes: RESULTS), the
+	# stage, its numbers, a street race's podium, then what next
 	_results = _panel()
+	var rv := VBoxContainer.new()
+	rv.add_theme_constant_override("separation", 6)
+	_results.add_child(rv)
+	var banner := UI.art("banner_results" if mode != "" else "banner_stage")
+	if banner:
+		var bt := TextureRect.new()
+		bt.texture = banner
+		bt.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		bt.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		bt.custom_minimum_size = Vector2(560, 560.0 * banner.get_height() / banner.get_width())
+		rv.add_child(bt)
+	_results_head = UI.label("", 30, UI.YELLOW, true)
+	_results_head.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	rv.add_child(_results_head)
 	_results_label = Label.new()
 	_results_label.add_theme_font_override("font", font)
 	_results_label.add_theme_font_size_override("font_size", 28)
 	_results_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_results.add_child(_results_label)
+	rv.add_child(_results_label)
+	_race_box = VBoxContainer.new()
+	_race_box.add_theme_constant_override("separation", 2)
+	rv.add_child(_race_box)
+	_results_foot = UI.label("", 22, UI.CREAM)
+	_results_foot.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	rv.add_child(_results_foot)
 	_results.visible = false
 	_pause = _panel()
 	var vb := VBoxContainer.new()
@@ -740,7 +1100,11 @@ func _build_hud() -> void:
 	title.add_theme_font_size_override("font_size", 36)
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vb.add_child(title)
-	for b in [["RESUME", _toggle_pause], ["QUIT TO MENU", func(): get_parent().to_menu()]]:
+	var buttons := [["RESUME", _toggle_pause]]
+	if looped:
+		buttons.append(["END RUN", _end_run])          # (a loop has no finish: the run ends when you say)
+	buttons.append(["QUIT TO MENU", func(): get_parent().to_menu()])
+	for b in buttons:
 		var btn := Button.new()
 		btn.text = b[0]
 		btn.add_theme_font_override("font", font)
@@ -774,18 +1138,29 @@ func _build_hud() -> void:
 	_hud.add_child(_flash_label)
 
 
+## A panel in the middle of the screen, in the art's style: the modes' night,
+## or the rally's carbon.
 func _panel() -> PanelContainer:
 	var p := PanelContainer.new()
-	var sb := StyleBoxFlat.new()
-	sb.bg_color = Color(0.06, 0.06, 0.07, 0.88)
-	sb.set_corner_radius_all(14)
-	sb.set_content_margin_all(28)
-	p.add_theme_stylebox_override("panel", sb)
+	p.add_theme_stylebox_override("panel", UI.panel_skin("night" if mode != "" else "rally", 28))
 	p.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
 	p.grow_horizontal = Control.GROW_DIRECTION_BOTH
 	p.grow_vertical = Control.GROW_DIRECTION_BOTH
 	_hud.add_child(p)
 	return p
+
+
+## On a loop (no finish): the run ends here, with its results.
+func _end_run() -> void:
+	if _pause.visible:
+		_toggle_pause()
+	if state != "running":
+		return
+	var args := [stage_time, penalties, resets, jump_start]
+	if Net.online() and not street_online:
+		stage_finished.rpc(args[0], args[1], args[2], args[3])
+	else:
+		stage_finished(args[0], args[1], args[2], args[3])     # (a street session: your own run ends, not theirs)
 
 
 func _toggle_pause() -> void:
@@ -800,7 +1175,12 @@ func _update_hint() -> void:
 	var pad: bool = Controls.has_pad()
 	match state:
 		"grid":
-			if Net.online() and not Net.crew_full():
+			if _waiting:
+				t = "A race is on: you're in the next one (watch this one)"
+			elif street_online and others.is_empty() and Net.is_server():
+				t = "Waiting for friends to join (port %d, your IPs: %s)... or press %s to go now" % [
+					Config.port, ", ".join(_my_ips()), "START" if pad else "ENTER"]
+			elif Net.online() and not Net.crew_full():
 				t = "Waiting for your crew to join...  (port %d, your IPs: %s)" % [Config.port, ", ".join(_my_ips())]
 			elif not all_loaded:
 				t = "Loading the stage..."
@@ -824,8 +1204,9 @@ func _update_hint() -> void:
 func _seat_help(pad: bool) -> String:
 	if my_seat == "driver":
 		var alone := " · F wipers" if Net.peer_in("codriver") == 0 else ""
-		return ("YOU DRIVE: left stick steer · RT gas · LT brake · B handbrake · Y reset · R3 chase cam" if pad
-			else "YOU DRIVE: WASD / arrows · SPACE handbrake · R reset (+5 s) · C chase cam" + alone)
+		return ("YOU DRIVE: left stick steer · RT gas · LT brake · B handbrake · Y reset · R3 chase cam" + (" · LB flash a rival" if rivals else "") if pad
+			else "YOU DRIVE: WASD / arrows · SPACE handbrake · R reset%s · C chase cam%s" % ["" if mode == "cutup" else " (+5 s)",
+				" · H flash a rival" if rivals else ""] + alone)
 	return ("YOU RIDE SHOTGUN: hold LT to look at the map and call the road · A wipers · right stick look" if pad
 		else "YOU RIDE SHOTGUN: hold RIGHT MOUSE (or Q) to look at the map and call the road · F wipers · mouse to look")
 
@@ -836,6 +1217,60 @@ func _my_ips() -> Array:
 		if ip.count(".") == 3 and not ip.begins_with("127.") and not ip.begins_with("169.254"):
 			out.append(ip)
 	return out.slice(0, 3)
+
+
+## (screenshots) The results panel with made-up numbers; race: a street touge's
+## podium too (made-up names).
+func shot_results(race: bool) -> void:
+	state = "finished"
+	result = {"time": 214.37, "penalties": 0.0, "total": 214.37, "resets": 0, "jump_start": false, "stage": stage_no, "seed": seed_value}
+	mode_result = {"lines": ["PASS RECORD  3:31.90   (+2.5 s)"]} if touge else {}
+	if race:
+		street_online = true
+		var names := ["MIKA", "SAMI", "JO"]
+		for k in names.size():
+			Net.players[k + 2] = {"name": names[k], "seat": "racer"}
+		standings = [[3, 211.02], [Net.my_id(), 214.37], [2, 219.8], [4, 230.15]]
+	_show_results()
+
+
+## A street touge's finishers so far, in order: the podium with its badges
+## (assets/ui/badge_1..3), and who's still on the way down.
+func _show_race() -> void:
+	for c in _race_box.get_children():
+		c.queue_free()
+	_race_box.visible = street_online and touge
+	if not _race_box.visible:
+		return
+	var title := UI.label("THE RACE", 26, UI.YELLOW, true)
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_race_box.add_child(title)
+	for k in standings.size():
+		var id := int(standings[k][0])
+		var row := HBoxContainer.new()
+		row.alignment = BoxContainer.ALIGNMENT_CENTER
+		row.add_theme_constant_override("separation", 12)
+		var badge := UI.art("badge_%d" % (k + 1)) if k < 3 else null
+		if badge:
+			var b := TextureRect.new()
+			b.texture = badge
+			b.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+			b.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+			b.custom_minimum_size = Vector2(36, 40)
+			row.add_child(b)
+		else:
+			row.add_child(UI.label("%d." % (k + 1), 24, UI.CREAM, true))
+		row.add_child(UI.label("%s   %s" % ["YOU" if id == Net.my_id() else Net.player_name(id), fmt_time(float(standings[k][1]))],
+			24, UI.YELLOW if id == Net.my_id() else UI.CREAM, k == 0))
+		_race_box.add_child(row)
+	var still: Array = []
+	for id in others:
+		if not standings.any(func(e): return int(e[0]) == id):
+			still.append(Net.player_name(id))
+	if not still.is_empty():
+		var l := UI.label("still racing: " + ", ".join(still), 18, UI.DIM)
+		l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		_race_box.add_child(l)
 
 
 ## Main's lines under the results (credits, rally standings) and what ENTER does.
@@ -849,10 +1284,13 @@ func set_result_extra(lines: Array, next_text: String) -> void:
 func _show_results() -> void:
 	_results.visible = true
 	var r := result
-	var head: String = opts.stage_name + "  COMPLETE" if opts.get("mode") == "story" else "STAGE %d COMPLETE" % r.stage
+	var head: String = opts.stage_name if opts.get("mode") == "story" else "STAGE %d" % r.stage
 	if mode != "":
-		head = Modes.title(opts, st).replace("\n", "  ·  ") + "  COMPLETE"
-	var lines := [head, "", "Time  %s" % fmt_time(r.time)]
+		head = Modes.title(opts, st).replace("\n", "  ·  ")
+	if UI.art("banner_results" if mode != "" else "banner_stage") == null:
+		head += "  COMPLETE"                           # (no banner art to say it)
+	_results_head.text = head
+	var lines := ["Time  %s" % fmt_time(r.time)]
 	lines.append_array(mode_result.get("lines", []))
 	_results_label.add_theme_font_size_override("font_size", 22 if _result_extra.size() > 3 else 28)
 	if r.penalties > 0.0:
@@ -863,13 +1301,15 @@ func _show_results() -> void:
 			why.append("%d reset%s" % [r.resets, "s" if r.resets > 1 else ""])
 		lines.append("Penalties  +%.0f s  (%s)" % [r.penalties, ", ".join(why)])
 	lines.append("TOTAL  %s" % fmt_time(r.total))
-	if not _result_extra.is_empty():
-		lines.append("")
-		lines.append_array(_result_extra)
-	lines.append("")
-	if Net.is_server():
-		lines.append("ENTER  %s     R  retry this one" % _next_text + ("     TAB  swap seats" if Net.online() and Net.crew_full() else ""))
-	else:
-		lines.append("Waiting for the host...")
 	_results_label.text = "\n".join(lines)
+	_show_race()
+	var foot: Array = []
+	if not _result_extra.is_empty():
+		foot.append_array(_result_extra)
+		foot.append("")
+	if Net.is_server():
+		foot.append("ENTER  %s     R  retry this one" % _next_text + ("     TAB  swap seats" if Net.online() and Net.crew_full() else ""))
+	else:
+		foot.append("Waiting for the host...")
+	_results_foot.text = "\n".join(foot)
 	_update_hint()

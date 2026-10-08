@@ -60,6 +60,8 @@ is `docs/VEHICLE_PROGRESS.md`.
 
 - Engine sounds: markeasting/engine-audio (MIT code; its recordings: see `tools/engine_sound/README.md`);
   the electric car's motor, turbo whistles, blow-off and supercharger whine are made in code.
-- The game's own cars (KESTREL, COMET, VORTEX, MARTELLO), the crew's seats and the loading art: Higgsfield,
-  from the owner's account. The crew: the owner's Claude Racer character (Mixamo-rigged).
+- The game's own cars (KESTREL, COMET, VORTEX, MARTELLO) and the crew's seats: Higgsfield, from the owner's
+  account. The menu art (`assets/ui`: the logo, icons, panels and buttons, the start-light gantry, the
+  results banners and podium badges, the three loading-screen key arts): Higgsfield, GPT Image 2.5, from the
+  owner's account (2026-10-07, ~21 credits); made without real brands or badges. The crew: the owner's Claude Racer character (Mixamo-rigged).
 - Co-driver voice: Higgsfield Seed Audio 1.0, preset voice "Fraser". Font: Oswald (SIL OFL).

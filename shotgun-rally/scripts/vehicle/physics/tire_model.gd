@@ -133,6 +133,39 @@ static func arcade(cfg: Resource, rear := false) -> Resource:
 	return t
 
 
+## SIM STREET (Settings > STREET HANDLING: cut up and the touge): a road car on the
+## road tyres it really has, made from its tarmac tyre: on asphalt, the peak grip that
+## gives the car's real skid-pad figure (g, 0.85-1.25 for road cars; STREET_CAL
+## covers what the load transfer takes off the tyres' own peak), braking a little
+## harder than that (brake: x the cornering, as magazine tests show), the grip
+## peaking at a road tyre's slip angle (6-10 deg for production tyres, Milliken;
+## slicks ~4) and falling off past it to what a sliding one keeps (Assetto Corsa's
+## street tyres keep ~85 %), the slip ratio peaking at 10-15 %, and a road tyre's
+## load sensitivity (Milliken: twice the load, ~12 % less grip per newton). On
+## gravel or grass a road tyre is poor (x0.7).
+## kind: "street", "cup" (Cup 2 / R-compound road tyres), "slick".
+const STREET_CAL := 1.08
+const STREET_KINDS := {
+	"street": {"peak_deg": 7.5, "keep": 0.85, "long_peak": 0.12, "keep_long": 0.8, "load": 0.12, "brake": 1.1},
+	"cup": {"peak_deg": 6.0, "keep": 0.82, "long_peak": 0.1, "keep_long": 0.78, "load": 0.15, "brake": 1.05},
+	"slick": {"peak_deg": 4.5, "keep": 0.78, "long_peak": 0.09, "keep_long": 0.75, "load": 0.2, "brake": 1.0},
+}
+static func street(cfg: Resource, g: float, kind := "street") -> Resource:
+	var asphalt: Resource = load("res://scripts/vehicle/physics/surfaces.gd").named("asphalt")
+	var spec: Dictionary = STREET_KINDS.get(kind, STREET_KINDS.street)
+	var t: Resource = cfg.duplicate()
+	var lat := g * STREET_CAL                                 # the peak friction it needs on asphalt
+	t.sealed_grip = lat / (cfg.lateral_mu * asphalt.grip)
+	t.longitudinal_mu = float(spec.brake) * lat / (asphalt.grip * t.sealed_grip)
+	t.sealed_peak = float(spec.peak_deg) / (cfg.lateral_peak_deg * asphalt.peak_scale)
+	t.lateral_shape = shape_keeping(float(spec.keep) / asphalt.slide_grip)
+	t.longitudinal_shape = shape_keeping(float(spec.keep_long) / asphalt.slide_grip)
+	t.longitudinal_peak = float(spec.long_peak) / asphalt.peak_scale
+	t.load_sensitivity = float(spec.load)
+	t.loose_grip = 0.7
+	return t
+
+
 ## The share of its peak grip a Magic Formula curve of shape C keeps far past the peak.
 static func kept(shape: float) -> float:
 	return sin(shape * PI / 2.0)

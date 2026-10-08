@@ -21,6 +21,17 @@ static func all() -> Array:
 	return _all
 
 
+## Handled as no-AI (its licence says so, or it's treated that way): converted and
+## checked by local scripts only; nobody looks at its renders. Screenshot tools
+## leave these out (--seen_cars_only).
+static func no_ai(id: String) -> bool:
+	var e = entry(id)
+	if e == null:
+		return false
+	var text := JSON.stringify(e)
+	return text.contains("no AI") or text.contains("no-AI")
+
+
 static func entry(id: String):
 	for e in all():
 		if e.id == id:

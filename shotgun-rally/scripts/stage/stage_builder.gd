@@ -11,6 +11,7 @@ extends Node3D
 ## Every surface the tyres can touch says what it is (meta "surface").
 
 const MeshBuf = preload("res://scripts/stage/mesh_buf.gd")
+const StreetLamps = preload("res://scripts/stage/street_lamps.gd")
 const Crowd = preload("res://scripts/stage/crowd.gd")
 const WorldMaterials = preload("res://scripts/render/world_materials.gd")   # the materials, sky and sun
 const Graphics = preload("res://scripts/render/graphics.gd")
@@ -45,6 +46,7 @@ const ROAD_X := [[-3.1, -0.03, VERGE], [-2.8, 0.0, GRAVEL], [-1.25, 0.04, TRACK]
 const GROUND_X := [[2.9, -0.03, 0.0], [5.0, -0.05, 0.0], [8.5, -0.04, 0.06], [12.0, 0.05, 0.25],
 	[18.0, 0.15, 0.6], [30.0, 0.35, 1.4], [50.0, 0.7, 2.4], [78.0, 1.2, 3.6], [112.0, 1.8, 4.6], [154.0, 2.4, 5.6]]
 const TREE_LINE := 7.6              # m off the centreline (at the normal width) where the trees start
+const TOUGE_TREE_LINE := 6.4        # (a touge's: closer, they fly past)
 ## The ground's points on a mountain stage (m out, at the normal width): closer
 ## together, the mountainside isn't a straight line between them (_mountain_h).
 const MOUNTAIN_X := [[2.9], [5.0], [6.5], [8.5], [10.5], [13.0], [17.0], [22.0], [30.0], [40.0], [52.0], [66.0],
@@ -54,8 +56,9 @@ var _lowest := INF                  # the lowest the ground goes (the mountainsi
 
 const CHUNK := 160.0                # trees are grouped per this much road ...
 const TREE_DRAW := 520.0            # ... and a group further away than this isn't drawn
-var mood := "day"                  # the light (_environment): set before build
-var time_of_day := -1.0            # ... or the hour (0.0-24.0; the mood then only says overcast or not); < 0: the mood's own
+var mood := "day"                  # the light (_environment): set before build ("night": a touge's street lamps lit)
+var time_of_day := -1.0            # ... or the hour (0-24) to light it for (Modes.with_time; the mood then only says
+                                   # overcast or not); < 0: by its mood. After _environment, mood is the hour's.
 var _range: MeshInstance3D      # the ranges on the horizon (they keep their distance: _process)
 var _mountain_y := 0.0
 var _horizon := Color(0.72, 0.82, 0.9)   # the sky at the horizon (the mountains fade into it)
@@ -64,6 +67,8 @@ const FERN_DRAW := 150.0            # the ferns and undergrowth along the verges
 
 var st
 var start_clocks: Array = []        # the countdown boards at the start line (driver's side, co-driver's side)
+var lamps: Array = []               # a touge's street lamps: [{s, head, ground}] (the posts are built; lit at night)
+var street_lamps                    # StreetLamps (a night touge): the game points it at the player's car
 var tree_count := 0
 var crowd_count := 0
 var people_count := 0
@@ -643,10 +648,12 @@ func _forest() -> void:
 			# [from, to (m off the centreline), chance, how many tries]: a dense wall along
 			# the road, thick forest behind it, and a far belt out to 150 m so it never
 			# opens up into empty grass
-			var slots: Array = [[TREE_LINE, 11.0, 0.95 if inside else 0.75, 2],     # the wall along the road
+			# (a touge: the cedars close to the road, a wall that streams past in the lights)
+			var line: float = TOUGE_TREE_LINE if st.kind == "touge" else TREE_LINE
+			var slots: Array = [[line, 11.0, 0.95 if inside else 0.75, 3 if st.kind == "touge" else 2],     # the wall along the road
 				[11.0, 18.0, 0.9, 5], [18.0, 40.0, 0.85, 7], [40.0, 76.0, 0.85, 5], [76.0, 150.0, 0.8, 8]]
 			if inside:
-				slots.append([TREE_LINE, TREE_LINE + 3.0, 0.8, 1])          # thicker on the inside of bends
+				slots.append([line, line + 3.0, 0.8, 1])                    # thicker on the inside of bends
 			for sl in slots:
 				# (a mountainside: trees here and there, open slopes between)
 				var sparse: float = (0.5 if sl[0] < 18.0 or inside else 0.2) if st.mountain else 1.0
@@ -656,7 +663,7 @@ func _forest() -> void:
 					var d: float = _rng.randf_range(sl[0], sl[1]) + extra
 					var along: Vector3 = st.forward_at(s) * _rng.randf_range(-2.0, 2.0)
 					var p: Vector3 = c + r * (d * side) + along
-					if _near_road(p, TREE_LINE - 0.4 + maxf(extra, 0.0)) or _in_clearing(p):
+					if _near_road(p, line - 0.4 + maxf(extra, 0.0)) or _in_clearing(p):
 						continue
 					p.y = _ground_height(c.y, d - extra, p) - 0.15
 					var kind: String = ["pine", "pine", "pine", "round", "birch", "bush"][_rng.randi() % 6]
@@ -1590,6 +1597,54 @@ func _highway_barriers() -> void:
 	_add(mb, "", "ConcreteBarriers")
 
 
+## A touge's street lamps: one before each tight bend (on its outside, behind the
+## guardrail), the start and the finish, and between them no gap longer than ~120 m
+## (the extra ones side to side); the posts and arms go in mb, and at night the lamps are lit
+## (StreetLamps: the only light on the mountain).
+const LAMP_POST := 7.2
+const LAMP_ARM := 2.1
+
+func _touge_lamps(mb) -> void:
+	var want: Array = []                             # [s, side]
+	want.append([st.START_S + 4.0, 1.0])
+	want.append([st.finish_s + 6.0, -1.0])
+	for c in st.corners:
+		if c.r_min <= 45.0 and c.s0 > st.START_S + 20.0 and c.s0 < st.finish_s - 10.0:
+			want.append([maxf(c.s0 - 8.0, st.START_S + 12.0), -float(c.dir)])
+	want.sort_custom(func(a, b): return a[0] < b[0])
+	# the gaps between them filled: none longer than ~120 m, the new ones side to side
+	var filled: Array = []
+	var side := 1.0
+	for k in range(1, want.size()):
+		var a: float = want[k - 1][0]
+		var gap: float = float(want[k][0]) - a
+		var n := ceili(gap / 120.0) - 1
+		for j in n:
+			filled.append([a + gap * (j + 1) / (n + 1), side])
+			side = -side
+	want.append_array(filled)
+	want.sort_custom(func(a, b): return a[0] < b[0])
+	lamps.clear()
+	var lit := mood == "night"
+	for w in want:
+		var ls: float = clampf(float(w[0]), 2.0, st.length - 2.0)
+		var sd: float = w[1]
+		var half: float = st.width_at(ls) * 0.5
+		var base: Vector3 = st.world_at(ls, sd * (half + 1.6))
+		var inward: Vector3 = -st.right_at(ls) * sd
+		var f: Vector3 = st.forward_at(ls)
+		_box(mb, base, base + Vector3.UP * LAMP_POST, f, 0.15, 0.15, LAMP)
+		_box(mb, base + Vector3.UP * (LAMP_POST - 0.15), base + Vector3.UP * (LAMP_POST - 0.15) + inward * LAMP_ARM, Vector3.UP, 0.09, 0.09, LAMP)
+		var head: Vector3 = base + Vector3.UP * (LAMP_POST - 0.3) + inward * (LAMP_ARM - 0.25)
+		if not lit:                                  # (lit, StreetLamps draws a glowing one)
+			_box(mb, head - inward * 0.3, head + inward * 0.3, Vector3.UP, 0.3, 0.08, Color(0.85, 0.84, 0.8))
+		lamps.append({"s": ls, "head": head, "ground": st.world_at(ls, sd * (half - 1.4))})
+	if lit:
+		street_lamps = StreetLamps.new()
+		add_child(street_lamps)
+		street_lamps.setup(lamps)
+
+
 ## What stands beside the road: a highway's lamp posts and distance gantries; a
 ## touge's curve mirrors and chevrons at the hairpins, kilometre posts, the pass's
 ## name board and a vending machine at the start.
@@ -1707,6 +1762,7 @@ func _touge_props() -> void:
 		km.rotation.y = -st.heading_at(s)
 		add_child(km)
 		s += 500.0
+	_touge_lamps(mb)
 	# the pass's name board and a vending machine by the start
 	_sign(st.START_S - 18.0, -(st.width_at(st.START_S) * 0.5 + 1.6), st.touge_name(), Color(0.45, 0.28, 0.16))
 	var vm_at: Vector3 = st.world_at(st.START_S - 10.0, st.width_at(st.START_S) * 0.5 + 2.4)
@@ -1735,7 +1791,7 @@ func _mountains() -> void:
 	if mood == "overcast":
 		rock = Color(0.34, 0.36, 0.38)
 	elif mood == "night":
-		rock = Color(0.012, 0.015, 0.022)               # (dark against the night sky)
+		rock = Color(0.012, 0.014, 0.02)                   # (black ridges against a sky barely lighter)
 	var verts := PackedVector3Array()
 	var cols := PackedColorArray()
 	var uvs := PackedVector2Array()

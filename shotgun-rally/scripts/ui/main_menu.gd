@@ -1,7 +1,7 @@
 extends Control
 ## The home screen. Behind it, the game itself (MenuBackdrop: your car flat out
-## on a stage, filmed like rally TV). Over it: the title, your credits, and
-## five ways in:
+## on a stage, filmed like rally TV). Over it: the logo, your credits, and six
+## ways in (the logo, icons and panels: Higgsfield art, assets/ui):
 ##   PLAY NOW   a random stage, straight in (the AI co-driver calls)
 ##   MODES      a touge (mountain pass: time attack or drift) or CUT UP (highway traffic) (ModesPanel)
 ##   MAPS       story mode: the championship (MapsPanel)
@@ -33,6 +33,7 @@ var _area: Control                  # where a panel goes
 var _open: Control
 var _credits: Label
 var _sub: Label                     # the line under the title (hidden while a panel's open)
+var _logo: TextureRect              # (smaller while a panel's open: room for it)
 var _name_chip: Button
 var _status: Label
 var _name: LineEdit
@@ -73,27 +74,27 @@ func _ready() -> void:
 	_title()
 	_top_right()
 	_home = VBoxContainer.new()
-	_home.position = Vector2(64, 300)
-	_home.add_theme_constant_override("separation", 14)
+	_home.position = Vector2(56, 244)
+	_home.add_theme_constant_override("separation", 10)
 	add_child(_home)
-	_home.add_child(UI.menu_item("PLAY NOW", "A random stage, straight in. The AI calls the notes.", func(): solo.emit(), true))
-	_home.add_child(UI.menu_item("MODES", "Touge: a Japanese mountain pass. Cut up: a highway full of traffic.", _show.bind("modes")))
-	_home.add_child(UI.menu_item("MAPS", "The Shotgun Series: six rallies, rival crews, prize money.", _show.bind("maps")))
-	_home.add_child(UI.menu_item("CARS", "The garage: buy cars, paint them, upgrade them.", _show.bind("cars")))
+	_home.add_child(UI.menu_item("PLAY NOW", "A random stage, straight in. The AI calls the notes.", func(): solo.emit(), true, "play"))
+	_home.add_child(UI.menu_item("MODES", "Touge at night, or cut up through highway traffic. Alone or online, up to 8.", _show.bind("modes"), false, "modes"))
+	_home.add_child(UI.menu_item("MAPS", "The Shotgun Series: six rallies, rival crews, prize money.", _show.bind("maps"), false, "maps"))
+	_home.add_child(UI.menu_item("CARS", "The garage: buy cars, paint them, upgrade them.", _show.bind("cars"), false, "cars"))
 	if OS.has_feature("web"):
 		# a browser can't connect two machines the way the game does (UDP): online is the download's
 		_home.add_child(UI.menu_item("ONLINE", "Needs the download (Windows, Mac, Linux, Chromebook with Linux).", func():
-			_status.text = "Online play needs the download version: a browser can't connect two machines.\nGet it from the SHOTGUN RALLY download page (Chromebook: the .deb, with Linux turned on)."))
+			_status.text = "Online play needs the download version: a browser can't connect two machines.\nGet it from the SHOTGUN RALLY download page (Chromebook: the .deb, with Linux turned on).", false, "online"))
 	else:
-		_home.add_child(UI.menu_item("ONLINE", "Ride with a friend: one drives, one reads the map.", _show.bind("online")))
-	_home.add_child(UI.menu_item("SETTINGS", "Controls, sound, the co-driver's timing, stage surface, driving aids.", _show.bind("settings")))
+		_home.add_child(UI.menu_item("ONLINE", "Ride with a friend, or join a friend's street session (up to 8).", _show.bind("online"), false, "online"))
+	_home.add_child(UI.menu_item("SETTINGS", "Controls, sound, the co-driver's timing, driving aids, time of day.", _show.bind("settings"), false, "settings"))
 	if not OS.has_feature("web"):                      # (a browser tab is closed, not quit)
 		var quit := UI.button("QUIT", func(): get_tree().quit(), 20, 140)
 		quit.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 		_home.add_child(UI.gap(6))
 		_home.add_child(quit)
 	_area = Control.new()
-	_area.position = Vector2(48, 200)
+	_area.position = Vector2(48, 204)
 	_area.size = Vector2(800, 640)
 	add_child(_area)
 	_status = UI.label("", 20, Color(1.0, 0.7, 0.4))
@@ -131,24 +132,41 @@ func _unhandled_input(e: InputEvent) -> void:
 
 
 func _title() -> void:
-	var t := UI.label("SHOTGUN RALLY", 92, UI.CREAM, true)
-	t.position = Vector2(60, 34)
-	t.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.55))
-	t.add_theme_constant_override("shadow_offset_x", 4)
-	t.add_theme_constant_override("shadow_offset_y", 4)
-	add_child(t)
-	var stripe := HBoxContainer.new()
-	stripe.position = Vector2(66, 172)
-	stripe.add_theme_constant_override("separation", 0)
-	for c in [UI.RED, UI.YELLOW, Color(0.15, 0.35, 0.75)]:
-		var r := ColorRect.new()
-		r.color = c
-		r.custom_minimum_size = Vector2(120, 8)
-		stripe.add_child(r)
-	add_child(stripe)
-	_sub = UI.label("You drive. Your friend rides shotgun with the map.", 24, Color(0.9, 0.88, 0.8))
-	_sub.position = Vector2(66, 190)
+	var logo := UI.art("logo")
+	if logo:
+		_logo = TextureRect.new()
+		_logo.texture = logo
+		_logo.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		_logo.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT
+		_logo.position = Vector2(40, 12)
+		_logo.size = _logo_size(400.0)
+		_logo.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		add_child(_logo)
+	else:
+		var tl := UI.label("SHOTGUN RALLY", 92, UI.CREAM, true)
+		tl.position = Vector2(60, 34)
+		tl.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.55))
+		tl.add_theme_constant_override("shadow_offset_x", 4)
+		tl.add_theme_constant_override("shadow_offset_y", 4)
+		add_child(tl)
+	_sub = UI.label("You drive. Your friend rides shotgun with the map.", 22, Color(0.9, 0.88, 0.8))
+	_sub.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.6))
+	_sub.add_theme_constant_override("shadow_offset_x", 2)
+	_sub.add_theme_constant_override("shadow_offset_y", 2)
+	_sub.position = Vector2(60, 196)
 	add_child(_sub)
+
+
+func _logo_size(w: float) -> Vector2:
+	return Vector2(w, w * _logo.texture.get_height() / _logo.texture.get_width())
+
+
+## The logo big on the home screen, small over a panel (the panel goes higher).
+func _shrink_title(small: bool) -> void:
+	_area.position.y = 150.0 if small and _logo else 204.0
+	if _logo:
+		var tw := _logo.create_tween().set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+		tw.tween_property(_logo, "size", _logo_size(270.0 if small else 400.0), 0.2)
 
 
 ## Top right: your credits and your name (click it: ONLINE, where you change it).
@@ -180,6 +198,7 @@ func _show(which: String) -> void:
 	_back(false)
 	_home.visible = false
 	_sub.visible = false
+	_shrink_title(true)
 	match which:
 		"maps":
 			var m := MapsPanel.new()
@@ -218,12 +237,13 @@ func _back(home := true) -> void:
 	if home:
 		_home.visible = true
 		_sub.visible = true
+		_shrink_title(false)
 		(_home.get_child(0).get_meta("button") as Button).grab_focus()
 	refresh()
 
 
 func _online_panel() -> Control:
-	var p := UI.panel()
+	var p := UI.art_panel("night")
 	p.add_user_signal("back")
 	var v := VBoxContainer.new()
 	v.add_theme_constant_override("separation", 14)
@@ -241,8 +261,8 @@ func _online_panel() -> Control:
 	_name.text_changed.connect(func(t): Config.player_name = t.strip_edges().substr(0, 20); Config.save(); refresh())
 	name_row.add_child(_name)
 	v.add_child(name_row)
-	v.add_child(UI.button("HOST  ·  I DRIVE", func(): host.emit("driver"), 24, 460))
-	v.add_child(UI.button("HOST  ·  I RIDE SHOTGUN", func(): host.emit("codriver"), 24, 460))
+	v.add_child(UI.button("HOST  ·  I DRIVE", func(): host.emit("driver"), 24, 460, "night"))
+	v.add_child(UI.button("HOST  ·  I RIDE SHOTGUN", func(): host.emit("codriver"), 24, 460, "night"))
 	var join_row := HBoxContainer.new()
 	join_row.add_theme_constant_override("separation", 12)
 	_ip = LineEdit.new()
@@ -252,11 +272,11 @@ func _online_panel() -> Control:
 	_ip.add_theme_font_override("font", UI.med())
 	_ip.add_theme_font_size_override("font_size", 22)
 	join_row.add_child(_ip)
-	join_row.add_child(UI.button("JOIN", func(): join.emit(_ip.text.strip_edges()), 24, 148))
+	join_row.add_child(UI.button("JOIN", func(): join.emit(_ip.text.strip_edges()), 24, 148, "night"))
 	v.add_child(join_row)
 	v.add_child(UI.label("Same Wi-Fi: join the host's IP (it's on their screen). Different houses: Tailscale (see the README).\n"
 		+ "The driver's car from their garage is the car on the stage.", 16, UI.DIM))
-	var back := UI.button("BACK", func(): p.emit_signal("back"), 20, 140)
+	var back := UI.button("BACK", func(): p.emit_signal("back"), 20, 140, "night")
 	back.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	v.add_child(back)
 	return p

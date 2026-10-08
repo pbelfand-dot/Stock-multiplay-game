@@ -17,6 +17,13 @@
  ],
  "materials": [
   [
+   "^tail_lens$",
+   {
+    "look": "red_lens",
+    "alpha": 0.85
+   }
+  ],
+  [
    "^dummy_material_0\\.001$",
    "carbon"
   ],
@@ -106,5 +113,62 @@
    ]
   }
  ],
- "decimate_parts": [["^SK_Int", 0.35]],
- "cockpit": {"gearbox": "seq", "wheel": {"box": [-0.52, -0.12, 0.3, 0.5, 0.6, 1.0]}, "shifter": {"box": [-0.09, -0.02, 0.36, 0.44, 0.38, 0.78], "below": 0.0}, "handbrake": {"box": [0.02, 0.07, 0.4, 0.52, 0.27, 0.83], "pivot": "bottom"}}}
+ "decimate_parts": [
+  [
+   "^SK_Int",
+   0.35
+  ]
+ ],
+ "cockpit": {
+  "gearbox": "seq",
+  "wheel": {
+   "box": [
+    -0.52,
+    -0.12,
+    0.3,
+    0.5,
+    0.6,
+    1.0
+   ]
+  },
+  "shifter": {
+   "box": [
+    -0.09,
+    -0.02,
+    0.36,
+    0.44,
+    0.38,
+    0.78
+   ],
+   "below": 0.0
+  },
+  "handbrake": {
+   "box": [
+    0.02,
+    0.07,
+    0.4,
+    0.52,
+    0.27,
+    0.83
+   ],
+   "pivot": "bottom"
+  }
+ },
+ "remat_boxes": [
+  {
+   "box": [
+    -1.0,
+    1.0,
+    -2.3,
+    -1.3,
+    0.45,
+    1.15
+   ],
+   "mats": [
+    "^dummy_material_(9|12)\\.001$"
+   ],
+   "to": "tail_lens",
+   "new": true
+  }
+ ]
+}
