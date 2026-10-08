@@ -475,7 +475,7 @@ func _street_smoke(role: String) -> void:
 	while game.standings.size() < Net.racers().size() and t < 90.0:
 		await get_tree().create_timer(0.5).timeout
 		t += 0.5
-	var names: Array = game.standings.map(func(e): return Net.player_name(int(e[0])))
+	var names: Array = game.standings.map(func(e): return "%s %.3f" % [Net.player_name(int(e[0])), float(e[1])])
 	var least := 1 << 30
 	for id in game.others:
 		least = mini(least, int(game.others[id].states_received))

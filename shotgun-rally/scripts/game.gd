@@ -435,7 +435,9 @@ func racer_finished(id: int, total: float) -> void:
 		if int(e[0]) == id:
 			return
 	standings.append([id, total])
-	standings.sort_custom(func(a, b): return float(a[1]) < float(b[1]))
+	# quickest first; a dead heat (identical times: it happens with identical cars) split
+	# by grid slot, the same on every machine whatever order the finishes arrived in
+	standings.sort_custom(func(a, b): return float(a[1]) < float(b[1]) or (float(a[1]) == float(b[1]) and int(a[0]) < int(b[0])))
 	if state == "finished":
 		_show_results()
 
