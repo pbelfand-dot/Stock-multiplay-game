@@ -17,12 +17,14 @@ const TIPS := [
 	"Moving before the green is a jump start: +10 seconds.",
 	"Driver: press C (right stick click) for the chase camera.",
 	"Stuck? R puts you back on the road for a 5-second penalty.",
+	"Night stage? L switches the dome light on. The dials light up by themselves.",
 	"\"Tightens\": the corner gets slower as you go. Don't commit to the entry speed.",
 ]
 ## The touge and cut up's tips.
 const STREET_TIPS := [
 	"Touge time attack: a split every kilometre against your best on that pass.",
 	"Downhill the brakes do the work: brake early, in a straight line, and the car turns in.",
+	"The BMWs' centre screen shows the map: M (the d-pad right) flips it to the driving data.",
 	"Drift: angle times speed, chained. Straighten up and the chain is banked.",
 	"Cut up: every near miss adds to the combo. Touch a car and the combo's gone.",
 	"Cut up: the slow lanes are walls of traffic. The gaps open between the packs.",

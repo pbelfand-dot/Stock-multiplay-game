@@ -356,6 +356,10 @@ func _test_setup() -> void:
 			game.ai.enabled = false                # keep the mud on for the picture
 			if Config.flag("shot_wipe"):
 				game.cockpit.wipe(int(Config.arg("shot_wipe", 1)))
+		if Config.flag("shot_dome") and game.cockpit.dash:   # the dome light on
+			game.cockpit.dash.toggle_dome()
+		if Config.flag("shot_page") and game.cockpit.dash:   # the centre screen's next page
+			game.cockpit.dash.next_page()
 		if Config.flag("shot_nohud"):
 			game._hud.visible = false
 		if Config.flag("shot_count"):              # the start lights at this count (0: GO)

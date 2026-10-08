@@ -180,6 +180,9 @@ static func set_tuning(car_id: String, key: String, value: String) -> void:
 ## The car you'll drive, as the game builds it (and sends to your crewmate).
 static func setup() -> Dictionary:
 	ensure_loaded()
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--car="):                  # (pictures and tests: that car, whatever's in the garage)
+			return setup_for(a.trim_prefix("--car="))
 	return Catalog.setup(car, paint_of(car), levels.get(car, {}), tuning_of(car))
 
 

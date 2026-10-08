@@ -1,0 +1,37 @@
+{
+	"_about": "BMW M4 Competition (G82): its displays are one texture (the material phong2): the digital cluster across the top, the iDrive screen under it. Pixels of that 512 px texture.",
+	"displays": [
+		{
+			"mat": "^phong2$",
+			"tex": 512,
+			"glow": "all",
+			"screens": [
+				{
+					"page": "cluster",
+					"rect": [0, 6, 512, 188],
+					"layout": {
+						"cover": [[224, 70, 278, 104, "#030304"], [228, 109, 274, 134, "#030304"], [280, 112, 308, 126, "#030304"], [82, 88, 95, 101, "#060609"], [112, 166, 156, 180, "#030306"]],
+						"arc": [
+							{"what": "rpm01", "max": 1.0, "w": 6.0, "pts": [[334, 148], [345, 122], [351, 90], [344, 58], [328, 33]], "color": "#e9eef5", "hot": "#ff2f1a", "hot_from": 0.82},
+							{"what": "kmh", "max": 300.0, "w": 6.0, "pts": [[160, 148], [149, 122], [144, 90], [150, 58], [166, 33]], "color": "#e9eef5", "hot": "#e9eef5"}
+						],
+						"text": [
+							{"what": "gear", "style": "bmw", "at": [251, 87], "size": 30},
+							{"what": "speed", "at": [251, 122], "size": 20},
+							{"what": "unit", "text": "km/h", "at": [295, 119], "size": 8, "bold": false, "color": "#c9ced6"},
+							{"what": "clock", "at": [134, 173], "size": 9, "bold": false, "color": "#e6e9ee"}
+						],
+						"gdot": {"c": [88, 94], "r": 26, "g": 1.2, "dot": 2.6},
+						"lamp": [
+							{"what": "shift", "at": [256, 20], "w": 64, "size": 7},
+							{"what": "handbrake", "at": [226, 174], "size": 8, "color": "#ff3b1f"},
+							{"what": "abs", "at": [254, 174], "size": 8, "color": "#ffb000"},
+							{"what": "tc", "at": [284, 174], "size": 8, "color": "#ffb000"}
+						]
+					}
+				},
+				{"page": "nav", "rect": [8, 195, 352, 328], "accent": "#c8102e", "radio": "SHOTGUN FM 98.6"}
+			]
+		}
+	]
+}

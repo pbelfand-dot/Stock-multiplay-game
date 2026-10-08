@@ -1,0 +1,32 @@
+{
+	"_about": "BMW M8 Gran Coupe (F92): both screens are blank in the model (no texture). The cluster's faces (m8f92_gauges_screen, curved, its UVs slanted) get a panel of their own with a digital cluster; the centre screen (m8f92_screen) shows the iDrive pages on its own UVs (u -0.988..-0.008 left to right, v top to bottom). The warning lamps either side of the cluster are a quad each (their own material): each lights in its colour while it's on. Panel boxes: metres from the steering wheel's centre.",
+	"panels": [
+		{
+			"mat": "^m8f92_gauges_screen$",
+			"box": [-0.16, 0.16, -0.03, 0.09, -0.31, -0.26],
+			"screens": [
+				{"page": "cluster", "rect": [0.0, 0.0, 1.0, 1.0], "accent": "#2f7de1", "style": "bmw"}
+			]
+		}
+	],
+	"displays": [
+		{
+			"mat": "^m8f92_screen$",
+			"units": "uv",
+			"screens": [
+				{"page": "nav", "rect": [-0.93, 0.03, -0.035, 0.97], "aspect": 2.55, "accent": "#2f7de1", "radio": "SHOTGUN FM 98.6"}
+			]
+		},
+		{"mat": "^parkingbrake\\.001$", "warn": [{"what": "handbrake", "color": "#ff2a1a"}]},
+		{"mat": "^abs\\.001$", "warn": [{"what": "abs", "color": "#ffaa00"}]},
+		{"mat": "^checkengine\\.001$", "warn": [{"what": "ignition", "color": "#ffaa00"}]},
+		{"mat": "^temp\\.001$", "warn": [{"what": "ignition", "color": "#ff2a1a"}]},
+		{"mat": "^lowpressure\\.001$", "warn": [{"what": "ignition", "color": "#ffaa00"}]},
+		{"mat": "^lowbeam\\.001$", "warn": [{"what": "lights", "color": "#2fd04a"}]},
+		{"mat": "^highbeam\\.001$", "warn": [{"what": "flash", "color": "#2a7bff"}]},
+		{"mat": "^foglight\\.001$", "warn": [{"what": "ignition", "color": "#2fd04a"}]},
+		{"mat": "^rearfog\\.001$", "warn": [{"what": "ignition", "color": "#ffaa00"}]},
+		{"mat": "^signal_L\\.001$", "warn": [{"what": "ignition", "color": "#2fd04a"}]},
+		{"mat": "^signal_R\\.001$", "warn": [{"what": "ignition", "color": "#2fd04a"}]}
+	]
+}

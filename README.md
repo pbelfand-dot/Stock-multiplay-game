@@ -386,6 +386,8 @@ than the updater needs one download by hand.)
 | Look around | mouse | right stick |
 | Reset car (+5 s) | R | Y |
 | **Driver:** chase camera on / off | C | right stick click |
+| Dome light on / off | L | d-pad up |
+| The car's centre screen: map / driving data (the cars with one) | M | d-pad right |
 | Start / next stage (host) | ENTER | START |
 | Pause | ESC | BACK |
 

@@ -658,6 +658,11 @@ func _process(dt: float) -> void:
 			wipe()
 	if Input.is_action_just_pressed("pause"):
 		_toggle_pause()
+	if cockpit.dash and not _pause.visible:
+		if Input.is_action_just_pressed("dome_light"):
+			cockpit.dash.toggle_dome()
+		if Input.is_action_just_pressed("screen_page"):
+			cockpit.dash.next_page()
 	if state == "finished" and Net.is_server() and not _pause.visible:
 		if Input.is_action_just_pressed("ready"):
 			get_parent().continue_event()
@@ -850,6 +855,8 @@ func _night_lights() -> void:
 	night = str(builder.get("mood")) == "night"
 	if builder.get("street_lamps") != null:
 		builder.street_lamps.target = car
+	if cockpit.dash:
+		cockpit.dash.night = night                   # (its backlit dials and buttons, lit)
 	if not night:
 		return
 	_fit_lamps(car)

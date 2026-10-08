@@ -16,6 +16,9 @@ extends Node
 ##   camera        C (driver: chase cam)  right stick click
 ##   flash lights  H (cut up: challenge   left shoulder
 ##                 the rival ahead)
+##   dome light    L                      d-pad up
+##   screen page   M (the centre screen:  d-pad right
+##                 map / driving data)
 ##   reset car     R (+5 s)               Y
 ##   ready / next  enter                  start
 ##   pause         esc                    back
@@ -36,6 +39,8 @@ func _ready() -> void:
 	_action("pause", [KEY_ESCAPE], [JOY_BUTTON_BACK], [])
 	_action("camera", [KEY_C], [JOY_BUTTON_RIGHT_STICK], [])
 	_action("flash", [KEY_H], [JOY_BUTTON_LEFT_SHOULDER], [])
+	_action("dome_light", [KEY_L], [JOY_BUTTON_DPAD_UP], [])
+	_action("screen_page", [KEY_M], [JOY_BUTTON_DPAD_RIGHT], [])
 
 
 func _action(name: String, keys: Array, buttons: Array, axes: Array, mouse := []) -> void:

@@ -258,6 +258,13 @@ front, banking into the turns), trackside cameras it flashes past, a chase camer
   handbrake comes up. Its own rear-view mirror shows the road behind, and the mud and the wipers
   go on its windshield. Cars whose interior is too rough to sit in (both ROTORAs) and the four on
   the shared body get the rally cockpit above. See [docs/cars.md](docs/cars.md).
+- **The interiors work.** Without changing how they look: the BMWs' screens are live (the M4, M2,
+  M3 Touring and M8: a digital cluster with the speed, the gear, the revs and the warning lamps; the
+  iDrive screen with a map of the road ahead or the driving data, M flips it). The E34 M5's own
+  needles (speedometer, rev counter, fuel) turn, its dials glow orange at night and its console clock
+  tells the time. The warning lamps light for a moment when the engine starts, then each shows what it
+  should (handbrake, ABS, traction control, the shift lamp, the lights). Every car has a dome light (L).
+  What each car's instruments are is in `data/dash/<model>.json` (`scripts/vehicle/dash_live.gd`).
 - **The car outside** has its own wheels now: they steer, spin and move up and down with the
   suspension, and the mud flaps swing behind them.
 - **Drift dirt** (modelled on WRC Sardinia and Finland footage): slide, flick the handbrake or
@@ -471,6 +478,8 @@ Details: [docs/modes.md](docs/modes.md).
 | Reset car (+5 s) | R | Y |
 | **Driver:** chase camera on / off | C | right stick click |
 | **Cut up:** flash your lights (challenge the rival ahead) | H | LB |
+| Dome light on / off | L | d-pad up |
+| The car's centre screen: map / driving data (the cars with one) | M | d-pad right |
 | Start / next stage (host) | ENTER | START |
 | Pause | ESC | BACK |
 

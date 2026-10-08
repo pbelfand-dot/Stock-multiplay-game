@@ -1,0 +1,24 @@
+{
+	"_about": "BMW M5 (E34): the needles are modelled (material gauge_needle, merged into the body): the speedometer's (0-300 km/h), the rev counter's (0-8000 rpm) and the fuel gauge's turn about their dials' hubs; the economy and temperature needles stay. The dials (gauge_emissive) and the console's red displays (boordcomputer) light up at night, the instruments orange; the console clock tells the time. Hubs: metres from the steering wheel's centre; axis: the dials' face (toward the driver).",
+	"needle_meshes": [
+		{
+			"mat": "^gauge_needle$",
+			"needles": [
+				{"value": "kmh", "hub": [-0.0715, 0.0325, -0.2615], "axis": [0.0, 0.4, 0.92], "min": 0, "max": 300, "rest": 0, "sweep": 270},
+				{"value": "rpm", "hub": [0.0365, 0.0325, -0.262], "axis": [0.0, 0.4, 0.92], "min": 0, "max": 8000, "rest": 0, "sweep": 213},
+				{"value": "fuel", "hub": [-0.1455, -0.0025, -0.2465], "axis": [0.0, 0.4, 0.92], "min": 0, "max": 1, "rest": 0, "sweep": 95}
+			]
+		}
+	],
+	"displays": [
+		{"mat": "^gauge_emissive$", "glow": "all", "glow_color": "#ffa565"},
+		{
+			"mat": "^boordcomputer$",
+			"units": "uv",
+			"glow": "all",
+			"screens": [
+				{"page": "lcd", "what": "clock", "rect": [0.097, 2.666, 0.451, 2.867], "aspect": 3.0, "flip_v": true, "color": "#ff2a12"}
+			]
+		}
+	]
+}

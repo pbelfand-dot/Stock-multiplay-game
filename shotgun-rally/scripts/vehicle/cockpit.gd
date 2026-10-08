@@ -32,6 +32,7 @@ const MapBoard = preload("res://scripts/vehicle/map_board.gd")
 const CrewModel = preload("res://scripts/vehicle/crew_model.gd")
 const DriverHands = preload("res://scripts/vehicle/driver_hands.gd")
 const Harness = preload("res://scripts/vehicle/harness.gd")
+const DashLive = preload("res://scripts/vehicle/dash_live.gd")
 
 const RED := Color(0.78, 0.12, 0.1)
 const GREY := Color(0.46, 0.45, 0.43)
@@ -94,6 +95,7 @@ var _shift_leds: Array = []                    # their materials, left to right
 var _trip_label: Label3D
 var _mats := {}
 var own := {}                                  # the car's own interior (parts.json "cockpit"); {}: ours
+var dash                                       # DashLive: its instruments live (data/dash/<model>.json), the dome light, the warning lamps
 var eye_driver := EYE_DRIVER                   # where the crew's eyes are, and the rest of the layout
 var eye_codriver := EYE_CODRIVER
 var wheel_c := WHEEL_C
@@ -147,6 +149,9 @@ func build(the_car, stage) -> void:
 	map_board.rotation = Vector3(deg_to_rad(-52.0), deg_to_rad(4.0) * sx, 0.0)
 	_bake_static()
 	_harnesses()
+	dash = DashLive.new()
+	add_child(dash)
+	dash.setup(car, self, DashLive.spec_for(str(car.setup.get("model", ""))) if not own.is_empty() and car.get("setup") is Dictionary else {})
 
 
 ## The crew's size against ours (x1.2 cartoon): 1 in our cockpit.

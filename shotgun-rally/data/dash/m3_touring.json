@@ -1,0 +1,13 @@
+{
+	"_about": "BMW M3 Touring (G81): the curved display (the cluster on the left, the iDrive screen on the right) is modelled with the interior's material, its UVs all one point: its faces get a panel, the cluster on its left part, the iDrive pages on its right. Box: metres from the steering wheel's centre.",
+	"panels": [
+		{
+			"mat": "BMW_M3TouringRewardRecycled_2022InteriorA_Material$",
+			"box": [-0.18, 0.59, -0.04, 0.13, -0.255, -0.14],
+			"screens": [
+				{"page": "cluster", "rect": [0.0, 0.03, 0.44, 0.97], "accent": "#2f7de1", "style": "bmw"},
+				{"page": "nav", "rect": [0.47, 0.0, 1.0, 1.0], "accent": "#2f7de1", "radio": "SHOTGUN FM 98.6"}
+			]
+		}
+	]
+}
