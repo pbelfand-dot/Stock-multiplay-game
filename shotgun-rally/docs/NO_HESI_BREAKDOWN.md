@@ -7,6 +7,8 @@ as contact sheets):
 
 The owner added a fourth, long-form 1080p60 reference on 2026-10-08: **“I Tried No Hesi's NEW REALISTIC PHYSICS!”**. Its exact MP4 is stored in GitHub-safe parts and documented at [`docs/reference/NO_HESI_REALISTIC_PHYSICS_VIDEO.md`](reference/NO_HESI_REALISTIC_PHYSICS_VIDEO.md). Treat its observable steering, tyre response, weight transfer, recovery, and camera behavior as the primary feel target for cutting-up physics.
 
+The second long-form reference, **“I Fixed the BIGGEST Issue with Racing Games”**, is documented at [`docs/reference/RACING_GAMES_BIGGEST_ISSUE_VIDEO.md`](reference/RACING_GAMES_BIGGEST_ISSUE_VIDEO.md). Use it to identify and measure the input/vehicle/camera disconnect it demonstrates, then validate any physics changes against the game's automated feel checks.
+
 | Clip | What's in it |
 |---|---|
 | "My Best No Hesi Clip" | Night. A white M5 weaving through dense traffic on a Shutoko-style elevated expressway: sodium street lamps, toll booths and gantries, office towers lit up, tail lights glowing. Chase camera. |
