@@ -24,7 +24,8 @@ var _fore_base := Vector3.ONE   # the forearms' scale (slimmed for the gloves: h
 var stretch := [1.0, 1.0]       # how much each forearm is stretched this frame (left, right: 1 = not)
 var _to_skel := Transform3D()   # cockpit space -> skeleton space
 var _head_hidden := false
-var _head_mesh: MeshInstance3D   # the helmet, cut out of the body (see _split_head)
+var _head_mesh: MeshInstance3D   # the helmet and the collar, cut out of the body (see _split_head)
+const COLLAR_W := 0.3               # a vertex this much on the head and neck bones is collar (hidden with the helmet)
 var own_layer := 2              # the render layer this seat's own camera leaves out (2 driver, 3 co-driver)
 var _base_layers := 1
 var _cap: MeshInstance3D        # closes the neck when the helmet's hidden (looking down)
@@ -63,13 +64,16 @@ func load_model(path: String) -> bool:
 
 ## Cut the helmet (the triangles that move with the head bones) into its own
 ## mesh, so a seat camera can leave just that out: your own camera sits inside
-## your helmet. Everything stays skinned to the same skeleton.
+## your helmet. The suit's collar round the neck goes with it (from the eye it was
+## a white ring across the bottom of the view). Everything stays skinned to the
+## same skeleton.
 func _split_head(sk: Skeleton3D) -> void:
 	var heads := []
-	for n in ["Head", "head_end", "headfront", "neck"]:
+	for n in ["Head", "head_end", "headfront"]:
 		var i := sk.find_bone(n)
-		if i >= 0 and n != "neck":
+		if i >= 0:
 			heads.append(i)
+	var neck := sk.find_bone("neck")
 	var body: MeshInstance3D = null
 	for mi in sk.find_children("*", "MeshInstance3D", false, false):
 		body = mi
@@ -90,10 +94,13 @@ func _split_head(sk: Skeleton3D) -> void:
 		is_head.resize(arr[Mesh.ARRAY_VERTEX].size())
 		for v in is_head.size():
 			var w := 0.0
+			var wn := 0.0
 			for j in per:
 				if bones[v * per + j] in heads:
 					w += weights[v * per + j]
-			is_head[v] = 1 if w > 0.5 else 0
+				elif bones[v * per + j] == neck:
+					wn += weights[v * per + j]
+			is_head[v] = 1 if w > 0.5 or w + wn > COLLAR_W else 0
 		var a := PackedInt32Array()
 		var b := PackedInt32Array()
 		for t in range(0, idx.size(), 3):
@@ -126,8 +133,8 @@ func _split_head(sk: Skeleton3D) -> void:
 	_cap = MeshInstance3D.new()
 	var cm := CylinderMesh.new()
 	var u := _unit(sk)                               # m -> skeleton units (a rig in cm has its armature at x0.01)
-	cm.top_radius = 0.065 * u
-	cm.bottom_radius = 0.075 * u
+	cm.top_radius = 0.085 * u                         # (wide enough to close the collar's cut too)
+	cm.bottom_radius = 0.095 * u
 	cm.height = 0.03 * u
 	cm.radial_segments = 10
 	_cap.mesh = cm

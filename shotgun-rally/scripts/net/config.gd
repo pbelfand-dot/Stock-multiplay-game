@@ -4,12 +4,15 @@ extends Node
 ## run: --name=Bob --port=7777 --seed=12.
 
 const PATH := "user://settings.cfg"
+const CHASE_LOW := -0.6        # m: CHASE CAM HEIGHT's range (Settings)
+const CHASE_HIGH := 1.5
 
 var player_name := "Driver"
 var last_ip := "127.0.0.1"
 var port := 7777
 var mouse_sens := 0.0022       # radians per pixel
 var invert_y := false
+var chase_height := 0.0        # m: the chase camera raised (+) or lowered (-) from where it sits
 var call_early := 0.0          # AI co-driver: -1 (late) .. +1 (early)
 var volume := 0.8              # everything
 var sfx_volume := 0.45         # the engine, the gravel, crashes ... (the "SFX" bus)
@@ -56,6 +59,7 @@ func _ready() -> void:
 		port = cf.get_value("net", "port", port)
 		mouse_sens = cf.get_value("controls", "mouse_sens", mouse_sens)
 		invert_y = cf.get_value("controls", "invert_y", invert_y)
+		chase_height = clampf(float(cf.get_value("camera", "chase_height", chase_height)), CHASE_LOW, CHASE_HIGH)
 		call_early = cf.get_value("codriver", "call_early", call_early)
 		volume = cf.get_value("audio", "volume", volume)
 		sfx_volume = cf.get_value("audio", "effects", sfx_volume)
@@ -119,6 +123,7 @@ func save() -> void:
 	cf.set_value("net", "port", port)
 	cf.set_value("controls", "mouse_sens", mouse_sens)
 	cf.set_value("controls", "invert_y", invert_y)
+	cf.set_value("camera", "chase_height", chase_height)
 	cf.set_value("codriver", "call_early", call_early)
 	cf.set_value("audio", "volume", volume)
 	cf.set_value("audio", "effects", sfx_volume)

@@ -59,6 +59,8 @@ echo "== garage + story: credits, buying, upgrades, car setups, championship unl
 run_g 120 --headless --path . -s tests/story_check.gd -- --profile=$T/story.cfg 2>&1 | grep -E "\[story\] (FAIL|STORY)" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
 echo "== settings, again and again: from the home screen and from the pause menu (ESC on a stage), GRAPHICS and the other choices clicked round each time (every click counts), closed by BACK or ESC (back to the pause menu, still paused), one panel, no errors"
 run_g 300 --headless --path . -s tests/pause_settings_check.gd -- --profile=$T/pause.cfg 2>&1 | grep -E "\[pause\] (FAIL|PAUSE)" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
+echo "== the chase camera: the same distance behind at 50, 150 and 250 km/h, CHASE CAM HEIGHT raises and lowers it, it swings round after the car in a turn"
+run_g 120 --headless --fixed-fps 120 --path . -s tests/chase_cam_check.gd 2>&1 | grep -E "\[chase\] (FAIL|CHASE)" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
 echo "== the cars with models of their own: each builds, sits on its wheels, pulls away (the right wheels driven); the garage swaps them"
 run_g 300 --headless --fixed-fps 120 --path . -s tests/car_models_check.gd 2>&1 | grep -E "\[models\] (FAIL|MODELS|ok   .*0-100)" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
 echo "== a rear-drive and a front-drive road car: the autopilot drives a whole stage in each"

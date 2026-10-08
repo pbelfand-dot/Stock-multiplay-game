@@ -55,6 +55,7 @@ func _ready() -> void:
 	left.add_child(UI.label("CONTROLS", 20, UI.YELLOW, true))
 	left.add_child(_slider("MOUSE LOOK", 0.0008, 0.005, config.mouse_sens, func(x): config.mouse_sens = x))
 	left.add_child(_toggle("INVERT MOUSE Y", "", config.invert_y, func(on): config.invert_y = on))
+	left.add_child(_slider("CHASE CAM HEIGHT  (C)", config.CHASE_LOW, config.CHASE_HIGH, config.chase_height, func(x): config.chase_height = x))
 	left.add_child(UI.gap(6))
 	left.add_child(UI.label("SOUND", 20, UI.YELLOW, true))
 	left.add_child(_slider("VOLUME", 0.0, 1.0, config.volume, func(x):
