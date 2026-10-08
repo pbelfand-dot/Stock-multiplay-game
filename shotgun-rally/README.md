@@ -134,7 +134,20 @@ front, banking into the turns), trackside cameras it flashes past, a chase camer
   long as you like (END RUN in the pause menu); on HARD and INSANE the traffic comes in packs
   across all four lanes, cars join and leave by the ramps, the other carriageway has its own.
   **Highway battles**: a rival with a nickname turns up in the traffic; get right behind it and
-  flash your lights (H) to race it 3 km through the traffic to a finish gate.
+  flash your lights (H) to race it 3 km through the traffic to a finish gate. The city's front
+  rows are 22 real apartment and office buildings (their windows lit at night). The traffic is
+  compacts, saloons, crossovers, people movers, SUVs, luxury cars and vans, each driving like
+  one. A **toll plaza** at the lakes (booths, a canopy, lane signals, barrier arms, crash
+  cushions) has three layouts in the menu: ALL OPEN (full speed through), MIXED LANES (the
+  right-hand lane closed, 60 km/h) or EVENT.
+- **The world** (`docs/ENVIRONMENT_INVENTORY.md`): every stage stands in a biome (Japanese cedar
+  mountain, conifer rally forest, broadleaf forest, rocky alpine, wet forest, winter mountain;
+  seasons recolour them) grown from the owner's tree packs. Those are 21 species of conifer,
+  black locust and tall pine, each with a full model up close, a lighter one further off and a
+  card far away, plus mossy boulders, scanned rock cuts on mountain roads, a power line along
+  the touge, and warning signs before tight bends and on wet or icy stages. Nothing ever stands
+  on the road, and the solid things are the same at every graphics level (online, everyone
+  agrees).
 - **ONLINE**: your name, host a crew (pick your seat), or join a crew or a friend's street session
   by IP.
 - **SETTINGS**: mouse look, invert Y, volume, the co-driver's call timing, the driving aids for

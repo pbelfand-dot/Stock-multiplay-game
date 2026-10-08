@@ -1,0 +1,701 @@
+{
+ "_doc": "The world's biomes: species (weights) for the trees ('broad': the broadleaf share's), their scale (x the model), rocks lying about, rock cuts, poles, tints; 'seasons' override per season. Read by scripts/stage/biomes.gd; story rallies name theirs (scripts/game/championship.gd), others follow the stage (Biomes.id_for).",
+ "biomes": {
+  "japan_cedar": {
+   "name": "Japanese cedar and pine mountain",
+   "trees": [
+    [
+     "conifer_01",
+     2
+    ],
+    [
+     "conifer_02",
+     2
+    ],
+    [
+     "conifer_03",
+     1.5
+    ],
+    [
+     "conifer_06",
+     2
+    ],
+    [
+     "conifer_07",
+     2
+    ],
+    [
+     "conifer_08",
+     2
+    ],
+    [
+     "conifer_09",
+     1.5
+    ],
+    [
+     "conifer_12",
+     2
+    ],
+    [
+     "conifer_10",
+     1.2
+    ],
+    [
+     "conifer_05",
+     1
+    ]
+   ],
+   "broad": [
+    [
+     "robinia_a",
+     1
+    ],
+    [
+     "robinia_b",
+     1
+    ],
+    [
+     "robinia_c",
+     1
+    ],
+    [
+     "robinia_d",
+     1
+    ]
+   ],
+   "tree_scale": [
+    0.72,
+    1.0
+   ],
+   "rocks": {
+    "chance": 0.12,
+    "ids": [
+     "rock_moss_01",
+     "rock_moss_02",
+     "rock_moss_03",
+     "rock_moss_04",
+     "rock_moss_05",
+     "rock_moss_06"
+    ],
+    "scale": [
+     0.45,
+     1.1
+    ]
+   },
+   "cliffs": true,
+   "poles": true,
+   "season": "summer",
+   "seasons": {
+    "autumn": {
+     "broad_tint": [
+      1.45,
+      0.78,
+      0.36
+     ],
+     "foliage_tint": [
+      0.98,
+      0.96,
+      0.86
+     ]
+    },
+    "winter": {
+     "broad_tint": [
+      0.62,
+      0.55,
+      0.48
+     ],
+     "foliage_tint": [
+      0.82,
+      0.88,
+      0.9
+     ],
+     "snow": true
+    }
+   },
+   "ground": "forest",
+   "asphalt": "asphalt2"
+  },
+  "temperate_broadleaf": {
+   "name": "Mixed temperate broadleaf forest",
+   "trees": [
+    [
+     "tall_pine_1",
+     1
+    ],
+    [
+     "tall_pine_2",
+     1
+    ],
+    [
+     "tall_pine_3",
+     1
+    ],
+    [
+     "tall_pine_4",
+     1
+    ],
+    [
+     "tall_pine_5",
+     1
+    ],
+    [
+     "conifer_04",
+     1.5
+    ],
+    [
+     "conifer_05",
+     1.5
+    ],
+    [
+     "conifer_11",
+     1
+    ]
+   ],
+   "broad": [
+    [
+     "robinia_a",
+     1
+    ],
+    [
+     "robinia_b",
+     1
+    ],
+    [
+     "robinia_c",
+     1
+    ],
+    [
+     "robinia_d",
+     1
+    ]
+   ],
+   "broad_share": 0.6,
+   "tree_scale": [
+    0.7,
+    1.0
+   ],
+   "rocks": {
+    "chance": 0.05,
+    "ids": [
+     "rock_moss_03",
+     "rock_moss_04",
+     "rock_moss_06"
+    ],
+    "scale": [
+     0.4,
+     0.9
+    ]
+   },
+   "season": "summer",
+   "seasons": {
+    "autumn": {
+     "broad_tint": [
+      1.5,
+      0.82,
+      0.32
+     ]
+    },
+    "winter": {
+     "broad_tint": [
+      0.6,
+      0.53,
+      0.46
+     ],
+     "snow": true
+    }
+   },
+   "ground": "forest"
+  },
+  "conifer_rally": {
+   "name": "Dense conifer rally forest",
+   "trees": [
+    [
+     "conifer_01",
+     2
+    ],
+    [
+     "conifer_02",
+     2
+    ],
+    [
+     "conifer_03",
+     1.5
+    ],
+    [
+     "conifer_06",
+     2
+    ],
+    [
+     "conifer_07",
+     2
+    ],
+    [
+     "conifer_08",
+     2
+    ],
+    [
+     "conifer_09",
+     1.5
+    ],
+    [
+     "conifer_12",
+     2
+    ],
+    [
+     "conifer_04",
+     1.5
+    ],
+    [
+     "conifer_05",
+     1.5
+    ],
+    [
+     "conifer_11",
+     1
+    ],
+    [
+     "tall_pine_1",
+     1
+    ],
+    [
+     "tall_pine_2",
+     1
+    ],
+    [
+     "tall_pine_3",
+     1
+    ],
+    [
+     "tall_pine_4",
+     1
+    ],
+    [
+     "tall_pine_5",
+     1
+    ]
+   ],
+   "broad": [
+    [
+     "robinia_a",
+     1
+    ],
+    [
+     "robinia_b",
+     1
+    ],
+    [
+     "robinia_c",
+     1
+    ],
+    [
+     "robinia_d",
+     1
+    ]
+   ],
+   "tree_scale": [
+    0.62,
+    0.95
+   ],
+   "rocks": {
+    "chance": 0.05,
+    "ids": [
+     "rock_moss_01",
+     "rock_moss_02",
+     "rock_moss_05"
+    ],
+    "scale": [
+     0.4,
+     0.9
+    ]
+   },
+   "season": "summer",
+   "seasons": {
+    "autumn": {
+     "broad_tint": [
+      1.4,
+      0.85,
+      0.4
+     ]
+    },
+    "winter": {
+     "foliage_tint": [
+      0.85,
+      0.9,
+      0.92
+     ],
+     "snow": true
+    }
+   },
+   "ground": "forest"
+  },
+  "alpine_rock": {
+   "name": "Rocky alpine mountain",
+   "trees": [
+    [
+     "conifer_04",
+     1.5
+    ],
+    [
+     "conifer_05",
+     1.5
+    ],
+    [
+     "conifer_11",
+     1
+    ],
+    [
+     "conifer_10",
+     1.5
+    ]
+   ],
+   "broad": [],
+   "tree_scale": [
+    0.55,
+    0.85
+   ],
+   "rocks": {
+    "chance": 0.3,
+    "ids": [
+     "rock_moss_01",
+     "rock_moss_02",
+     "rock_moss_03",
+     "rock_moss_04",
+     "rock_moss_05",
+     "rock_moss_06"
+    ],
+    "scale": [
+     0.5,
+     1.6
+    ],
+    "tint": [
+     0.92,
+     0.9,
+     0.86
+    ]
+   },
+   "cliffs": true,
+   "season": "summer",
+   "seasons": {
+    "winter": {
+     "foliage_tint": [
+      0.82,
+      0.88,
+      0.9
+     ],
+     "snow": true
+    }
+   },
+   "asphalt": "asphalt2"
+  },
+  "wet_forest": {
+   "name": "Wet forest and muddy rally ground",
+   "trees": [
+    [
+     "conifer_01",
+     2
+    ],
+    [
+     "conifer_02",
+     2
+    ],
+    [
+     "conifer_03",
+     1.5
+    ],
+    [
+     "conifer_06",
+     2
+    ],
+    [
+     "conifer_07",
+     2
+    ],
+    [
+     "conifer_08",
+     2
+    ],
+    [
+     "conifer_09",
+     1.5
+    ],
+    [
+     "conifer_12",
+     2
+    ],
+    [
+     "conifer_04",
+     1.5
+    ],
+    [
+     "conifer_05",
+     1.5
+    ],
+    [
+     "conifer_11",
+     1
+    ]
+   ],
+   "broad": [
+    [
+     "robinia_a",
+     1
+    ],
+    [
+     "robinia_b",
+     1
+    ],
+    [
+     "robinia_c",
+     1
+    ],
+    [
+     "robinia_d",
+     1
+    ]
+   ],
+   "tree_scale": [
+    0.65,
+    0.95
+   ],
+   "rocks": {
+    "chance": 0.18,
+    "ids": [
+     "rock_moss_01",
+     "rock_moss_02",
+     "rock_moss_03",
+     "rock_moss_04",
+     "rock_moss_05",
+     "rock_moss_06"
+    ],
+    "scale": [
+     0.45,
+     1.2
+    ]
+   },
+   "foliage_tint": [
+    0.86,
+    0.92,
+    0.84
+   ],
+   "broad_tint": [
+    0.85,
+    0.92,
+    0.8
+   ],
+   "season": "autumn",
+   "seasons": {
+    "autumn": {
+     "broad_tint": [
+      1.1,
+      0.78,
+      0.42
+     ],
+     "foliage_tint": [
+      0.86,
+      0.92,
+      0.84
+     ]
+    }
+   },
+   "ground": "forest"
+  },
+  "winter_mountain": {
+   "name": "Snow-covered winter mountain",
+   "trees": [
+    [
+     "conifer_01",
+     2
+    ],
+    [
+     "conifer_02",
+     2
+    ],
+    [
+     "conifer_03",
+     1.5
+    ],
+    [
+     "conifer_06",
+     2
+    ],
+    [
+     "conifer_07",
+     2
+    ],
+    [
+     "conifer_08",
+     2
+    ],
+    [
+     "conifer_09",
+     1.5
+    ],
+    [
+     "conifer_12",
+     2
+    ],
+    [
+     "conifer_04",
+     1.5
+    ],
+    [
+     "conifer_05",
+     1.5
+    ],
+    [
+     "conifer_11",
+     1
+    ]
+   ],
+   "broad": [],
+   "tree_scale": [
+    0.6,
+    0.95
+   ],
+   "foliage_tint": [
+    0.8,
+    0.86,
+    0.9
+   ],
+   "rocks": {
+    "chance": 0.12,
+    "ids": [
+     "rock_moss_01",
+     "rock_moss_02",
+     "rock_moss_04"
+    ],
+    "scale": [
+     0.5,
+     1.3
+    ],
+    "tint": [
+     0.95,
+     0.97,
+     1.0
+    ]
+   },
+   "cliffs": true,
+   "snow": true,
+   "season": "winter"
+  },
+  "suburban_verge": {
+   "name": "Suburban highway verge",
+   "trees": [
+    [
+     "tall_pine_1",
+     1
+    ],
+    [
+     "tall_pine_2",
+     1
+    ],
+    [
+     "tall_pine_3",
+     1
+    ],
+    [
+     "tall_pine_4",
+     1
+    ],
+    [
+     "tall_pine_5",
+     1
+    ],
+    [
+     "conifer_04",
+     1.5
+    ],
+    [
+     "conifer_05",
+     1.5
+    ],
+    [
+     "conifer_11",
+     1
+    ]
+   ],
+   "broad": [
+    [
+     "robinia_a",
+     1
+    ],
+    [
+     "robinia_b",
+     1
+    ],
+    [
+     "robinia_c",
+     1
+    ],
+    [
+     "robinia_d",
+     1
+    ]
+   ],
+   "broad_share": 0.7,
+   "tree_scale": [
+    0.55,
+    0.85
+   ],
+   "rocks": {
+    "chance": 0.0,
+    "ids": []
+   },
+   "season": "summer",
+   "seasons": {
+    "autumn": {
+     "broad_tint": [
+      1.45,
+      0.8,
+      0.35
+     ]
+    }
+   }
+  },
+  "urban_corridor": {
+   "name": "Urban and industrial highway corridor",
+   "trees": [
+    [
+     "conifer_04",
+     1.5
+    ],
+    [
+     "conifer_05",
+     1.5
+    ],
+    [
+     "conifer_11",
+     1
+    ]
+   ],
+   "broad": [
+    [
+     "robinia_a",
+     1
+    ],
+    [
+     "robinia_b",
+     1
+    ],
+    [
+     "robinia_c",
+     1
+    ],
+    [
+     "robinia_d",
+     1
+    ]
+   ],
+   "broad_share": 0.85,
+   "tree_scale": [
+    0.45,
+    0.7
+   ],
+   "rocks": {
+    "chance": 0.0,
+    "ids": []
+   },
+   "season": "summer"
+  }
+ }
+}

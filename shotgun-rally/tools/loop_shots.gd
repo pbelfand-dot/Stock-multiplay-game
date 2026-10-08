@@ -6,6 +6,8 @@ extends SceneTree
 ## --at: the s of each road-level shot (a car's eye view down the road, 1.3 m up in
 ## the second lane); default: one in each stretch and structure. --air: also views
 ## from above. Prints the build's time and size.
+## --toll=open|mixed|event: the toll plaza's layout; --plaza: shots of it (coming up to it,
+## at the booths, from the other carriageway, from above).
 const LoopGen = preload("res://scripts/stage/loop_gen.gd")
 const LoopBuilder = preload("res://scripts/stage/loop_builder.gd")
 
@@ -14,6 +16,8 @@ var at: Array = []
 var air := false
 var mood := "day"
 var build_only := false
+var toll := ""
+var plaza := false
 
 
 func _initialize() -> void:
@@ -29,6 +33,10 @@ func _initialize() -> void:
 			air = true
 		elif a.begins_with("--mood="):
 			mood = a.trim_prefix("--mood=")
+		elif a.begins_with("--toll="):
+			toll = a.trim_prefix("--toll=")
+		elif a == "--plaza":
+			plaza = true
 	DirAccess.make_dir_recursive_absolute(out_dir)
 	_run.call_deferred()
 
@@ -36,6 +44,8 @@ func _initialize() -> void:
 func _run() -> void:
 	var t0 := Time.get_ticks_msec()
 	var st = LoopGen.new()
+	if toll != "":
+		st.opts = {"toll": toll}
 	st.generate(1)
 	var b = LoopBuilder.new()
 	b.mood = mood
@@ -70,6 +80,18 @@ func _run() -> void:
 		cam.look_at_from_position(eye, look, Vector3.UP)
 		await _shot("road_%02d_s%d" % [k, int(s)])
 		k += 1
+	if plaza and not st.toll.is_empty():
+		var s0: float = st.toll.s
+		var tag: String = st.toll.layout
+		var views := [[s0 - 460.0, 1.8, s0 - 360.0, 1.8, 1.3], [s0 - 160.0, 1.8, s0 - 60.0, 2.0, 1.3],
+			[s0 - 45.0, 2.0, s0, 2.2, 1.3], [s0 - 30.0, 6.0, s0, 6.6, 1.3],
+			[s0 + 70.0, st.ONCOMING_D - 1.8, s0, st.ONCOMING_D - 2.2, 1.3], [s0 - 12.0, 2.2, s0 + 20.0, 2.2, 1.2]]
+		for v in views:
+			cam.look_at_from_position(st.world_at(v[0], v[1]) + Vector3.UP * v[4], st.world_at(v[2], v[3]) + Vector3.UP * 1.6, Vector3.UP)
+			await _shot("plaza_%s_%s_%d" % [tag, mood, int(v[0] - s0)])
+		var p: Vector3 = st.world_at(s0, -9.0)
+		cam.look_at_from_position(p + st.right_at(s0) * 70.0 + st.forward_at(s0) * -90.0 + Vector3.UP * 45.0, p, Vector3.UP)
+		await _shot("plaza_%s_%s_air" % [tag, mood])
 	if air:
 		for s in [0.0, st.length * 0.25, st.length * 0.5, st.length * 0.7]:
 			var p: Vector3 = st.world_at(s, 0.0)

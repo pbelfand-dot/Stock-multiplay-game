@@ -35,6 +35,7 @@
 		"blurb": "BMW's big grand tourer in Competition trim: a 625 PS twin-turbo V8, four-wheel drive that can go rear-only, and a carbon roof. Long legs, short fuse."
 	},
 	"traffic": {
+		"type": "luxury",
 		"weight": 0.08,
 		"paints": [[0.12, 0.14, 0.18], [0.05, 0.05, 0.06], [0.85, 0.85, 0.87]]
 	},

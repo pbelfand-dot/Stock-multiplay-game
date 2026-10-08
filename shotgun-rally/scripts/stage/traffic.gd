@@ -50,6 +50,17 @@ const MOBIL_GAIN := 0.15        # m/s^2 better before it bothers
 const B_SAFE := 3.5             # m/s^2: no change that makes the car behind brake harder than this
 const LANE_CHANGE_T := 3.0      # s to cross a lane
 const PLAYER_HALF_LEN := 2.3
+## How each kind of car drives (its registry entry's traffic "type"): speed (x its lane's), its
+## time gap (s, IDM's T), how much it wants the right-hand lane (MOBIL's keep-right bias), how
+## eager it is to change lanes (how often it looks; how small a gain is worth it).
+const TYPES := {
+	"compact": {"speed": 0.96, "gap": 1.3, "keep_right": 0.3, "eager": 1.0},
+	"sedan": {"speed": 1.0, "gap": 1.3, "keep_right": 0.25, "eager": 1.0},
+	"crossover": {"speed": 0.98, "gap": 1.4, "keep_right": 0.3, "eager": 0.9},
+	"minivan": {"speed": 0.93, "gap": 1.6, "keep_right": 0.45, "eager": 0.7},
+	"suv": {"speed": 1.01, "gap": 1.3, "keep_right": 0.2, "eager": 1.0},
+	"luxury": {"speed": 1.06, "gap": 1.05, "keep_right": 0.05, "eager": 1.4},
+	"van": {"speed": 0.9, "gap": 1.7, "keep_right": 0.5, "eager": 0.6}}
 
 var st
 var diff := {}
@@ -78,6 +89,7 @@ var _net_acc := 0.0
 var _mirror := {}               # (mirror) host car id -> its car here
 var _tick := 0
 var _by_lane := {}              # lane -> the cars in it (or changing into it), each tick: who's ahead of whom
+var _toll := false              # (a loop with a toll plaza: LoopGen.toll) its lanes fan out, kept, closed, slowed
 
 
 func setup(stage, difficulty: Dictionary, seed_value: int, player_s: float) -> void:
@@ -99,9 +111,11 @@ func setup(stage, difficulty: Dictionary, seed_value: int, player_s: float) -> v
 		var box := _bounds(probe)
 		probe.free()
 		_pool.append({"id": e.id, "scene": scene, "weight": float(e.weight), "paints": e.paints,
-			"half_len": box.size.z * 0.5, "half_w": box.size.x * 0.5, "height": box.size.y, "i": _pool.size()})
+			"half_len": box.size.z * 0.5, "half_w": box.size.x * 0.5, "height": box.size.y, "i": _pool.size(),
+			"type": str(e.get("type", "sedan"))})
 	_target = int(round(float(diff.get("density", 12.0)) * (AHEAD + BEHIND) / 1000.0))
 	looped = stage.has_method("wrap_s")
+	_toll = looped and "toll" in stage and not (stage.toll as Dictionary).is_empty()
 	if _pool.is_empty():
 		return
 	_populate(player_s)
@@ -139,6 +153,57 @@ func _ld(lane: int) -> float:
 	return float(lane_d[0]) + st.LANE_W if lane < 0 else float(lane_d[lane])
 
 
+## A lane's d where it is at s: at the toll plaza the lanes fan out (LoopGen.toll_d).
+func _ldx(lane: int, s: float) -> float:
+	return st.toll_d(_ld(lane), s) if _toll else _ld(lane)
+
+
+## THE TOLL PLAZA (LoopGen.toll), for a car at s in a lane:
+##   _toll_keep(s): no changing lanes from the approach on (the islands: a car mid-change
+##     would straddle one)
+##   _toll_shut(lane, s): its lane is closed at the booths (the mixed layout) and it's in the
+##     stretch before them where it has to get out (from TOLL_LEAVE m before the approach)
+##   _toll_wall(c): the closed gate ahead of a car still in a closed lane: {gap, v: 0} (it
+##     stops short of it rather than drive through), else {gap: INF}
+##   _toll_v0(c): the speed it wants there (the layout's through the booths, eased down over
+##     the approach; its own elsewhere)
+const TOLL_LEAVE := 500.0
+
+func _toll_keep(s: float) -> bool:
+	return _toll and st.toll_zone(s) >= 0
+
+
+func _toll_ahead(s: float) -> float:
+	return _ds(float(st.toll.s) - float(st.toll.half), s)   # m to the islands' start (negative: past it)
+
+
+func _toll_shut(lane: int, s: float) -> bool:
+	if not _toll or not st.toll_closed(lane):
+		return false
+	var a := _toll_ahead(s)
+	return a > -float(st.toll.half) * 2.0 and a < float(st.toll.approach) + TOLL_LEAVE
+
+
+func _toll_wall(c: Dictionary) -> Dictionary:
+	var shut := _toll_shut(int(c.lane), float(c.s)) or _toll_shut(int(c.to), float(c.s))
+	if not shut:
+		return {"gap": INF, "v": 0.0}
+	var a := _toll_ahead(float(c.s)) - 3.0 - float(c.half_len)
+	return {"gap": maxf(a, 0.1), "v": 0.0} if a > -2.0 else {"gap": INF, "v": 0.0}
+
+
+func _toll_v0(c: Dictionary) -> float:
+	var v0 := float(c.v0)
+	if not _toll or float(st.toll.speed) <= 0.0:
+		return v0
+	var a := _toll_ahead(float(c.s))
+	var app := float(st.toll.approach)
+	if a > app or a < -float(st.toll.half) * 2.0 - 10.0:
+		return v0
+	var k := clampf(1.0 - (a - 80.0) / (app - 80.0), 0.0, 1.0)   # (0 at the approach's start .. 1 from 80 m before the islands)
+	return minf(v0, lerpf(v0, float(st.toll.speed), smoothstep(0.0, 1.0, k)))
+
+
 ## A pack at s: rows of cars across the lanes, close behind each other, at nearly one
 ## speed (the slowest lane's, give or take): a block to thread.
 func _spawn_pack(s: float) -> float:
@@ -172,12 +237,14 @@ func clear_lane_d(s: float) -> float:
 	var room := -1.0
 	for k in lanes:
 		var near := 1e9
+		if _toll_shut(k, s):
+			continue                                         # (not into a closed lane before the booths)
 		for c in cars:
-			if absf(float(c.d) - float(lane_d[k])) < st.LANE_W * 0.75:
+			if absf(float(c.d) - _ldx(k, s)) < st.LANE_W * 0.75:
 				near = minf(near, absf(float(c.s) - s) - float(c.half_len))
 		if near > room:
 			room = near
-			best = float(lane_d[k])
+			best = _ldx(k, s)
 	return best
 
 
@@ -294,7 +361,7 @@ func _follower(lane: int, s: float, half_len: float, me) -> Dictionary:
 ## Whether a player's car (this machine's if none said) overlaps a lane (straddling the line: both).
 func _player_in(lane: int, p = null) -> bool:
 	var q: Dictionary = p if p != null else player
-	return absf(float(q.d) - _ld(lane)) < st.LANE_W * 0.5 + 0.95
+	return absf(float(q.d) - _ldx(lane, float(q.s))) < st.LANE_W * 0.5 + 0.95
 
 
 func _lane_of(d: float, slack := 0.0) -> int:
@@ -309,11 +376,11 @@ func _lane_of(d: float, slack := 0.0) -> int:
 
 
 ## IDM: the acceleration for speed v wanting v0, gap and closing speed to the car ahead.
-static func idm(v: float, v0: float, gap: float, v_lead: float) -> float:
+static func idm(v: float, v0: float, gap: float, v_lead: float, t_gap := IDM_T) -> float:
 	var free := 1.0 - pow(v / maxf(v0, 0.1), 4.0)
 	if gap == INF:
 		return IDM_A * free
-	var s_star := IDM_S0 + maxf(0.0, v * IDM_T + v * (v - v_lead) / (2.0 * sqrt(IDM_A * IDM_B)))
+	var s_star := IDM_S0 + maxf(0.0, v * t_gap + v * (v - v_lead) / (2.0 * sqrt(IDM_A * IDM_B)))
 	return IDM_A * (free - pow(s_star / maxf(gap, 0.1), 2.0))
 
 
@@ -327,7 +394,11 @@ func _think(c: Dictionary, h: float) -> void:
 		var other := _leader(int(c.lane), float(c.s), float(c.half_len), c)
 		if float(other.gap) < float(lead.gap):
 			lead = other
-	var a := idm(float(c.v), float(c.v0), float(lead.gap), float(lead.v))
+	if _toll:
+		var wall := _toll_wall(c)
+		if float(wall.gap) < float(lead.gap):
+			lead = wall
+	var a := idm(float(c.v), _toll_v0(c), float(lead.gap), float(lead.v), float(c.get("gap_t", IDM_T)))
 	c.v = maxf(float(c.v) + maxf(a, -9.0) * h, 0.0)
 	# the acceleration lane runs out: stop at its end rather than go through the barrier
 	if int(c.lane) == -1 and int(c.to) == -1 and looped and st.extra_lane(float(c.s) + 25.0) < 1.5:
@@ -338,8 +409,12 @@ func _think(c: Dictionary, h: float) -> void:
 		_merge(c)                                            # joining from a ramp: into lane 0 at the first gap
 	elif c.has("exit"):
 		_exit_lane(c)
+	elif _toll_shut(int(c.lane), float(c.s)):
+		_leave_closed(c)                                     # (its lane's booth is shut: over before the plaza)
+	elif _toll_keep(float(c.s)):
+		pass                                                 # (the plaza's approach: lanes kept)
 	else:
-		c.think = float(c.think) - h * float(diff.get("lane_changes", 0.7))
+		c.think = float(c.think) - h * float(diff.get("lane_changes", 0.7)) * float(TYPES.get(str(c.get("type", "sedan")), TYPES.sedan).eager)
 		if float(c.think) <= 0.0:
 			c.think = _rng.randf_range(1.0, 3.0)
 			_mobil(c, a)
@@ -363,24 +438,26 @@ func _move(c: Dictionary, dt: float) -> void:
 
 
 func _mobil(c: Dictionary, a_here: float) -> void:
-	var best_gain := MOBIL_GAIN
+	var tp: Dictionary = TYPES.get(str(c.get("type", "sedan")), TYPES.sedan)
+	var best_gain: float = MOBIL_GAIN / float(tp.eager)
 	var best_lane := -1
 	for to in [int(c.lane) - 1, int(c.lane) + 1]:
-		if to < 0 or to >= lanes:
+		if to < 0 or to >= lanes or _toll_shut(to, float(c.s)):
 			continue
 		var lead := _leader(to, float(c.s), float(c.half_len), c)
 		var back := _follower(to, float(c.s), float(c.half_len), c)
 		if float(lead.gap) < 4.0 or float(back.gap) < 4.0:
 			continue                                         # no room
-		var a_there := idm(float(c.v), float(c.v0), float(lead.gap), float(lead.v))
+		var a_there := idm(float(c.v), float(c.v0), float(lead.gap), float(lead.v), float(c.get("gap_t", IDM_T)))
 		var b_new := 0.0
 		var b_old := 0.0
 		if back.car != null:
-			b_old = idm(float(back.v), float(back.car.v0), INF if lead.gap == INF else float(lead.gap) + float(back.gap), float(lead.v))
-			b_new = idm(float(back.v), float(back.car.v0), float(back.gap), float(c.v))
+			var bt: float = float(back.car.get("gap_t", IDM_T))
+			b_old = idm(float(back.v), float(back.car.v0), INF if lead.gap == INF else float(lead.gap) + float(back.gap), float(lead.v), bt)
+			b_new = idm(float(back.v), float(back.car.v0), float(back.gap), float(c.v), bt)
 			if b_new < -B_SAFE:
 				continue                                     # it'd make them brake hard
-		var keep_right := 0.25 if to < int(c.lane) else -0.1  # (keep right unless overtaking)
+		var keep_right: float = float(tp.keep_right) if to < int(c.lane) else -0.1   # (keep right unless overtaking: some more than others)
 		var gain: float = a_there - a_here + MOBIL_P * (b_new - b_old) + keep_right
 		if gain > best_gain:
 			best_gain = gain
@@ -392,7 +469,7 @@ func _mobil(c: Dictionary, a_here: float) -> void:
 
 func _place(c: Dictionary, dt: float) -> void:
 	var u: float = smoothstep(0.0, 1.0, float(c.t))
-	c.d = lerpf(_ld(int(c.lane)), _ld(int(c.to)), u)
+	c.d = lerpf(_ldx(int(c.lane), float(c.s)), _ldx(int(c.to), float(c.s)), u)
 	_pose(c, dt, u)
 
 
@@ -401,7 +478,10 @@ func _place(c: Dictionary, dt: float) -> void:
 func _pose(c: Dictionary, dt: float, u := 0.0) -> void:
 	var s: float = float(c.s) if looped else clampf(float(c.s), 1.0, st.length - 1.0)
 	var p: Vector3 = st.world_at(s, float(c.d))
-	var ahead: Vector3 = st.world_at(s + 2.0 if looped else minf(s + 2.0, st.length - 0.5), float(c.d))
+	var d_ahead: float = c.d
+	if _toll and st.toll_spread(s) != st.toll_spread(s + 2.0):
+		d_ahead = lerpf(_ldx(int(c.lane), s + 2.0), _ldx(int(c.to), s + 2.0), u)   # (drifting out or in with the lanes)
+	var ahead: Vector3 = st.world_at(s + 2.0 if looped else minf(s + 2.0, st.length - 0.5), d_ahead)
 	var fwd: Vector3 = (ahead - p).normalized()
 	if int(c.to) != int(c.lane):                             # (turned a little toward the lane it's going to)
 		var r: Vector3 = st.right_at(s)
@@ -440,14 +520,19 @@ func _spawn(s: float) -> void:
 func _spawn_at(s: float, lane: int, m := {}) -> Dictionary:
 	if m.is_empty():
 		m = _pick_model()
+	if _toll and (_toll_shut(lane, s) or absf(_ds(s, float(st.toll.s))) < float(st.toll.half) + 25.0):
+		return {}                                            # (none appear among the booths, or in a lane closed ahead)
 	for o in cars:
 		if (int(o.lane) == lane or int(o.to) == lane) and absf(_ds(float(o.s), s)) < float(o.half_len) + float(m.half_len) + 6.0:
 			return {}
 	var body := _body_for(m)
 	var wheels: Array = body.get_meta("wheels")
-	var v0: float = _lane_speed(maxi(lane, 0))
+	var tp: Dictionary = TYPES.get(str(m.get("type", "sedan")), TYPES.sedan)
+	var v_cap: float = float(diff.get("speed", [80.0, 120.0])[1]) / 3.6 * 1.03
+	var v0: float = minf(_lane_speed(maxi(lane, 0)) * float(tp.speed), v_cap)
 	var c := {"id": _next_id, "model": m.id, "body": body, "wheels": wheels, "s": s, "lane": lane, "to": lane, "t": 0.0,
-		"d": _ld(lane), "v": v0 * _rng.randf_range(0.9, 1.0), "v0": v0, "half_len": float(m.half_len),
+		"type": str(m.get("type", "sedan")), "gap_t": float(tp.gap),
+		"d": _ldx(lane, s), "v": v0 * _rng.randf_range(0.9, 1.0), "v0": v0, "half_len": float(m.half_len),
 		"half_w": float(m.half_w), "crashed": false, "think": _rng.randf_range(0.5, 3.0), "m": m,
 		"paint": int(body.get_meta("paint", 0))}
 	_next_id += 1
@@ -535,7 +620,7 @@ func _shuffled(n: int) -> Array:
 func _free_lane(s: float, half_len: float) -> int:
 	var order: Array = _shuffled(lanes)
 	for lane in order:
-		var ok := true
+		var ok := not _toll_shut(lane, s)
 		for o in cars:
 			if (int(o.lane) == lane or int(o.to) == lane) and absf(_ds(float(o.s), s)) < float(o.half_len) + half_len + 12.0:
 				ok = false
@@ -726,6 +811,21 @@ func _top_up() -> void:
 			_spawn(float(p.s) + _rng.randf_range(80.0, AHEAD))
 
 
+## Out of a lane closed at the toll plaza: into the next one over at the first gap (smaller
+## gaps as the gate gets nearer: it has to go; _toll_wall stops it short of the gate if not).
+func _leave_closed(c: Dictionary) -> void:
+	var near := clampf(_toll_ahead(float(c.s)) / (float(st.toll.approach) + TOLL_LEAVE), 0.0, 1.0)
+	for to in [int(c.lane) + 1, int(c.lane) - 1]:
+		if to < 0 or to >= lanes or st.toll_closed(to):
+			continue
+		var lead := _leader(to, float(c.s), float(c.half_len), c)
+		var back := _follower(to, float(c.s), float(c.half_len), c)
+		if float(lead.gap) > lerpf(3.0, 8.0, near) and float(back.gap) > lerpf(3.0, 10.0, near):
+			c.to = to
+			c.t = 0.0
+			return
+
+
 ## Joining from a ramp's acceleration lane: into lane 0 when there's a gap (a smaller
 ## one than a lane change would take: it has to go before the lane ends).
 func _merge(c: Dictionary) -> void:
@@ -821,6 +921,12 @@ func _place_on_path(rc: Dictionary, dt: float) -> void:
 func _spawn_oncoming(s: float) -> void:
 	var m := _pick_model()
 	var lane := _rng.randi() % lanes
+	if _toll and st.toll_closed(lane):
+		# (their closed lane's booth: a car that'd drive through the plaza takes the next lane)
+		var toll_rel := _ds(float(st.toll.s), float(player.s))
+		var spawn_rel := _ds(s, float(player.s))
+		if toll_rel > -220.0 and toll_rel < spawn_rel + float(st.toll.half):
+			lane = (lane + 1) % lanes
 	for o in oncoming:
 		if int(o.lane) == lane and absf(float(o.s) - s) < 26.0:
 			return
@@ -841,8 +947,9 @@ func _oncoming_traffic(dt: float) -> void:
 			_spawn_oncoming(float(player.s) + AHEAD + _rng.randf_range(0.0, 350.0))
 			continue
 		var s: float = o.s
-		var p: Vector3 = st.world_at(s, float(o.d))
-		var back: Vector3 = st.world_at(s - 2.0, float(o.d))
+		var od: float = o.d
+		var p: Vector3 = st.world_at(s, st.toll_d(od, s) if _toll else od)
+		var back: Vector3 = st.world_at(s - 2.0, st.toll_d(od, s - 2.0) if _toll else od)
 		(o.body as Node3D).global_transform = Transform3D(Basis.looking_at((back - p).normalized(), st.up_at(s)), p)
 		var spin := float(o.v) * dt / 0.33
 		for w in o.wheels:
@@ -911,6 +1018,10 @@ func _drive_racer(c: Dictionary, dt: float) -> void:
 		var other := _leader(int(c.lane), float(c.s), float(c.half_len), c)
 		if float(other.gap) < float(lead.gap):
 			lead = other
+	if _toll:
+		var wall := _toll_wall(c)
+		if float(wall.gap) < float(lead.gap):
+			lead = wall
 	var a := a_max
 	if float(lead.gap) < INF:
 		var s_star := 2.5 + maxf(0.0, v * 0.45 + v * (v - float(lead.v)) / (2.0 * sqrt(5.0 * 8.0)))
@@ -924,6 +1035,11 @@ func _drive_racer(c: Dictionary, dt: float) -> void:
 			c.t = 0.0
 		return
 	r.think = float(r.think) - dt
+	if _toll_keep(float(c.s)) and not _toll_shut(int(c.lane), float(c.s)):
+		return                                               # (the plaza's approach: in its lane through the booths)
+	if _toll_shut(int(c.lane), float(c.s)):
+		_leave_closed(c)
+		return
 	# held up: the car ahead is slower than it wants to go (not slower than it's going:
 	# once it's matched that car's speed it would never look for a way past again)
 	if r.think > 0.0 or float(lead.gap) > 140.0 or float(lead.v) > float(r.top_v) - 3.0:
@@ -956,14 +1072,16 @@ func _lane_room(lead: Dictionary) -> float:
 	return float(lead.gap) + float(lead.v) * 3.0
 
 
-## A racer can move into lane `to` now: room ahead and behind, nothing closing fast
-## from behind, the player not alongside.
+## A racer can move into lane `to` now: room ahead (enough to brake for a slower car there)
+## and behind, nothing closing fast from behind, the player not alongside.
 func _racer_can_enter(c: Dictionary, to: int) -> bool:
-	if to < 0 or to >= lanes:
+	if to < 0 or to >= lanes or _toll_shut(to, float(c.s)):
 		return false
 	var ahead := _leader(to, float(c.s), float(c.half_len), c)
 	var back := _follower(to, float(c.s), float(c.half_len), c)
-	if float(back.gap) < 3.0 or float(ahead.gap) < 6.0:
+	# (room ahead to stop in if it's slower there: the closing speed's braking distance at 8 m/s^2)
+	var closing := maxf(float(c.v) - float(ahead.v), 0.0) if float(ahead.gap) < INF else 0.0
+	if float(back.gap) < 3.0 or float(ahead.gap) < maxf(6.0, closing * closing / 16.0 + 4.0):
 		return false
 	if back.car != null and float(back.v) - float(c.v) > 6.0 and float(back.gap) < 25.0:
 		return false

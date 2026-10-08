@@ -109,6 +109,18 @@ from the on-ramps** (merging into a gap in lane 0) and **leave by the off-ramps*
 **oncoming carriageway** has its own traffic (for the view; the median barrier keeps it
 from you).
 
+Each traffic car has a **type** (its registry entry's `traffic.type`), and it drives like one:
+
+| Type | Cars | Speed (x its lane's) | Time gap | Keeps right | Lane changes |
+|---|---|---|---|---|---|
+| compact | MOCHI e | 0.96 | 1.3 s | a little more | as often |
+| sedan | SALOON, KAISER T | 1.0 | 1.3 s | as usual | as often |
+| crossover | CROSSOVER | 0.98 | 1.4 s | a little more | a little less |
+| minivan | PEOPLE MOVER | 0.93 | 1.6 s | more | less |
+| SUV | GRAND SUV 63 | 1.01 | 1.3 s | a little less | as often |
+| luxury | HELLHOUND, KAISER 8 GC | 1.06 (never over the difficulty's top speed) | 1.05 s | hardly | more, for smaller gains |
+| van | KOMBI V8 | 0.9 | 1.7 s | most | least |
+
 **The score** (`scripts/game/cutup_score.gd`): a NEAR MISS is passing a car with less than
 the difficulty's gap between the bodies (1.6 m easy down to 0.7 m insane), at 80 km/h or
 more and 10 km/h faster than it: 100 x closeness (1-3) x speed (1-2), times the combo.
@@ -137,6 +149,43 @@ same lanes, the same cars in the way): power against drag up to their real top s
 picking the most open lane. The results show rivals beaten and lost.
 
 A hit car stops where it is. R (+5 s) puts you back in the lane with the most room.
+
+**THE TOLL PLAZA** (`LoopGen.toll`, `LoopBuilder._toll_plaza`, Traffic's rules there): one
+across both carriageways at 22.7 km (the lakes; the generator finds the first stretch that's
+on the ground, straight from 400 m before to 150 m after, and clear of ramps, overpasses and
+gantries, so it's the same place every time). Real highway plazas widen; this one fans the
+lanes out instead: through the plaza each carriageway's lanes are 1.25 times as far apart
+(eased in over 160 m, about 1.3 m sideways for the outer lanes), so the booths' islands
+(0.9 m wide, a 0.25 m kerb) stand on the lane lines with a full 3.6 m of lane between them.
+The outer ones stand on the shoulders and the middle one on the median, whose barrier gives
+way to it. Nobody has to change lanes for it, the painted lines fan out with the lanes, and
+they're solid for the last 80 m. It has:
+
+- a booth on each lane's driver's side (lit windows at night);
+- a yellow-and-black crash cushion at every nose the traffic comes at;
+- a canopy over both carriageways on columns, with lights over each lane (StreetLamps' pools at night);
+- over each lane, a green arrow or a red X and a board (ETC / CLOSED / GO);
+- cameras on the fascia and readers under the canopy;
+- barrier arms past the booths;
+- gantry signs 1 km and 400 m before it, each way.
+
+Everything solid is solid (islands, booths, columns, crash cushions, a closed lane's gate).
+
+| Layout (cut-up menu: TOLL PLAZA) | Lanes | Gates | Traffic |
+|---|---|---|---|
+| ALL OPEN (the default) | all 8 open | up | full speed through, in lane |
+| MIXED LANES | each way's right-hand lane closed (a red X, CLOSED, a line of cones from 150 m before, its arm down and solid) | the open ones up | out of the closed lane from 820 m before (smaller gaps as it gets close; stopping short of the gate if it can't), slowed to 60 km/h from 80 m before the islands |
+| EVENT | all open, every board GO, the canopy's name SHOTGUN RALLY | up | full speed through |
+
+The traffic's rules (all layouts):
+
+- nobody starts a lane change from 320 m before the islands until past them (one would straddle an island);
+- no car appears among the booths or in a closed lane before them;
+- the other carriageway's cars fan out the same way and keep out of their closed lane;
+- the rivals obey it too;
+- the autopilot (the menu's showcase, the tests) takes the middle of a lane through it, never the line between two.
+
+The layout goes to every machine with the stage (online: the host's).
 
 ## Online: street sessions (up to 8)
 
@@ -215,3 +264,11 @@ lit only at night, the real lights following the car and fading away from the la
 stray car (turns up ahead, keeps its lane, slows for hairpins, stops when hit, goes once
 you're past). `tests/drive_check.gd --kind=touge` has the autopilot drive a pass.
 `tests/sim_check.gd` and `tests/feel_check.gd --cfg=street`: SIM street handling.
+`tests/toll_check.gd`: the toll plaza in each layout:
+
+- where it is, and that it's straight and on the ground;
+- a car-sized box down the middle of every lane both ways touches nothing, while the mixed layout's closed lanes stop it;
+- the islands are solid, with 3.6 m between them;
+- the boards, the lights, the median and the cones;
+- the autopilot's line goes between the islands;
+- a minute of insane traffic through the mixed layout: out of the closed lane beforehand, nobody changing lanes or touching an island at the booths, slowed to 60, and the other carriageway clear of the islands too.

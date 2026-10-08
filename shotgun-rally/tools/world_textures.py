@@ -3,7 +3,8 @@
 from CC0 scans off Poly Haven (https://polyhaven.com, CC0: no attribution needed, but
 docs/CREDITS_WORLD.md credits every one). Re-run to remake them:
 
-    python3 tools/world_textures.py [--cache DIR] [textures] [skies] [foliage] [credits]
+    python3 tools/world_textures.py [--cache DIR] [textures] [local] [skies] [foliage] [credits]
+    (local: the CC0 sets already in assets/environment_packages, no download)
 
 Textures (assets/textures/world/<name>_*.webp, 1024 px):
   <name>_albedo.webp   the colour (sRGB) in RGB, the roughness in A
@@ -119,6 +120,45 @@ def textures(cache):
         }
         print(name, table[name]["size_m"], "m", table[name]["mean_linear"], table[name]["roughness"])
     json.dump(table, open(os.path.join(TEX_OUT, "textures.json"), "w"), indent=1)
+    local_textures()                                 # (the library's own sets kept in the table)
+
+
+# name -> (the CC0 library's folder under assets/environment_packages/cc0/polyhaven, its Poly Haven id,
+# metres one repeat covers: the glTF plane it came with): already in the repository, no download
+LOCAL_TEXTURES = {
+    "forest": ("forrest_ground_01_2k", "forrest_ground_01", 2.0, "Forest Ground 01"),
+    "asphalt2": ("asphalt_02_2k", "asphalt_02", 3.0, "Asphalt 02"),
+}
+
+
+def local_textures():
+    """The library's CC0 sets (assets/environment_packages/cc0/polyhaven) made into the world's
+    textures like the downloaded ones, added to textures.json."""
+    lib = os.path.join(ROOT, "assets", "environment_packages", "cc0", "polyhaven")
+    path = os.path.join(TEX_OUT, "textures.json")
+    table = json.load(open(path)) if os.path.exists(path) else {}
+    for name, (folder, asset, size_m, title) in LOCAL_TEXTURES.items():
+        d = os.path.join(lib, folder, "textures")
+        diff = load_rgb(os.path.join(d, "%s_diff_2k.jpg" % asset))
+        rough = load_rgb(os.path.join(d, "%s_rough_2k.jpg" % asset))[:, :, 0]
+        nor = load_rgb(os.path.join(d, "%s_nor_gl_2k.jpg" % asset))
+        rgba = np.dstack([diff, rough])
+        Image.fromarray((rgba * 255.0 + 0.5).astype(np.uint8), "RGBA").save(
+            os.path.join(TEX_OUT, name + "_albedo.webp"), quality=90, alpha_quality=80, method=6)
+        Image.fromarray((nor * 255.0 + 0.5).astype(np.uint8), "RGB").save(
+            os.path.join(TEX_OUT, name + "_normal.webp"), quality=92, method=6)
+        lin = srgb_to_linear(diff)
+        table[name] = {
+            "size_m": size_m,
+            "mean_linear": [round(float(x), 4) for x in lin.reshape(-1, 3).mean(axis=0)],
+            "roughness": round(float(rough.mean()), 3),
+            "source": "Poly Haven: %s (%s), from the CC0 library in assets/environment_packages" % (title, asset),
+            "url": "https://polyhaven.com/a/" + asset,
+            "authors": {},
+            "licence": "CC0",
+        }
+        print(name, size_m, "m", table[name]["mean_linear"], table[name]["roughness"])
+    json.dump(table, open(path, "w"), indent=1)
 
 
 def read_hdr(path):
@@ -267,11 +307,13 @@ def main():
     a = ap.parse_args()
     if "textures" in a.what:
         textures(a.cache)
+    if "local" in a.what:
+        local_textures()
     if "skies" in a.what:
         skies(a.cache)
     if "foliage" in a.what:
         foliage(a.cache)
-    if set(a.what) & {"credits", "textures", "skies", "foliage"}:
+    if set(a.what) & {"credits", "textures", "local", "skies", "foliage"}:
         credits()
 
 

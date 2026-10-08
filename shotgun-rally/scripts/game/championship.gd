@@ -2,7 +2,8 @@ extends RefCounted
 ## Story mode: the SHOTGUN SERIES, a season of nine rallies driven in order.
 ## Each rally is three stages (fixed seeds, so everyone drives the same roads)
 ## with its own character: the light (mood), how long, narrow roads, puddles,
-## the surface (gravel, mixed, mountain tarmac, snow and ice).
+## the surface (gravel, mixed, mountain tarmac, snow and ice), the land it's in
+## (gen.biome: data/biomes.json; gen.season: its time of year).
 ## Finish a rally to unlock the next. You're timed against five rival crews;
 ## where you finish pays credits (Profile).
 
@@ -17,31 +18,31 @@ const RIVALS := [
 ## full of hairpins, villages and (the Riviera) ice).
 const RALLIES := [
 	{"id": "pine", "name": "PINE VALLEY RALLY", "blurb": "Gentle forest gravel to learn the calls on. Short stages, wide open.",
-		"mood": "day", "pace": 52.0, "reward": 3000, "gen": {},
+		"mood": "day", "pace": 52.0, "reward": 3000, "gen": {"biome": "conifer_rally"},
 		"stages": [["KETTLE HILL", 1112, 2000], ["MILL RUN", 1120, 2000], ["OLD SAWYARD", 1122, 2000]]},
 	{"id": "lakes", "name": "LAKELAND RALLY", "blurb": "Fast, flowing and blind over the crests. Big jumps: flat out and pray.",
-		"mood": "day", "pace": 62.0, "reward": 4000, "gen": {},
+		"mood": "day", "pace": 62.0, "reward": 4000, "gen": {"biome": "conifer_rally"},
 		"stages": [["OUNINPOHJA RIDGE", 2217, 2600], ["SEVEN LAKES", 2223, 2600], ["THE FLYING FINN", 2241, 2600]]},
 	{"id": "golden", "name": "GOLDEN HOUR RALLY", "blurb": "Evening stages, the sun low through the pines. Long shadows hide the ruts.",
-		"mood": "golden", "pace": 58.0, "reward": 5000, "gen": {},
+		"mood": "golden", "pace": 58.0, "reward": 5000, "gen": {"biome": "temperate_broadleaf", "season": "autumn"},
 		"stages": [["AMBER WOODS", 3300, 2400], ["SUNDOWN PASS", 3301, 2400], ["LAST LIGHT", 3302, 2400]]},
 	{"id": "mud", "name": "MUD & MIST RALLY", "blurb": "Grey skies, fog in the trees and puddles everywhere. Keep the wipers busy.",
-		"mood": "overcast", "pace": 52.0, "reward": 6000, "gen": {"puddles": 2.5},
+		"mood": "overcast", "pace": 52.0, "reward": 6000, "gen": {"puddles": 2.5, "biome": "wet_forest"},
 		"stages": [["BOGSIDE", 4400, 2400], ["WET FEET", 4401, 2400], ["THE SWAMP", 4402, 2400]]},
 	{"id": "highland", "name": "HIGHLAND RALLY", "blurb": "Narrow, twisty mountain roads. Every metre of the road book counts.",
-		"mood": "day", "pace": 50.0, "reward": 7000, "gen": {"narrow": 0.8},
+		"mood": "day", "pace": 50.0, "reward": 7000, "gen": {"narrow": 0.8, "biome": "alpine_rock"},
 		"stages": [["CORRIE BENDS", 5504, 2400], ["THE NEEDLE", 5518, 2400], ["DEVIL'S ELBOW", 5528, 2400]]},
 	{"id": "costa", "name": "COSTA MIXTA RALLY", "blurb": "Gravel, then tarmac, then gravel again, in one stage. The grip changes under you at every join.",
-		"mood": "day", "pace": 58.0, "reward": 7500, "gen": {"surface": "mixed"},
+		"mood": "day", "pace": 58.0, "reward": 7500, "gen": {"surface": "mixed", "biome": "temperate_broadleaf"},
 		"stages": [["LA SERRA", 7700, 2600], ["RIERA SECA", 7708, 2600], ["EL COLL", 7717, 2600]]},
 	{"id": "isola", "name": "ISOLA ROSSA RALLY", "blurb": "Dry mountain tarmac, a thousand corners: hairpins up a hillside, villages, armco and a long drop.",
-		"mood": "golden", "pace": 54.0, "reward": 8000, "gen": {"surface": "tarmac"},
+		"mood": "golden", "pace": 54.0, "reward": 8000, "gen": {"surface": "tarmac", "biome": "alpine_rock"},
 		"stages": [["COL DE L'AIGLE", 8803, 2400], ["LES CORNICHES", 8814, 2400], ["MILLE VIRAGES", 8811, 2400]]},
 	{"id": "riviera", "name": "RIVIERA ALPS RALLY", "blurb": "Winter in the Alps: snow on the verges, ice in the shade. The co-driver calls it; you believe it.",
-		"mood": "day", "pace": 46.0, "reward": 9000, "gen": {"surface": "tarmac", "ice": true},
+		"mood": "day", "pace": 46.0, "reward": 9000, "gen": {"surface": "tarmac", "ice": true, "biome": "winter_mountain"},
 		"stages": [["COL DES GIVRES", 9900, 2400], ["NUIT BLANCHE", 9901, 2400], ["LA DESCENTE", 9904, 2400]]},
 	{"id": "final", "name": "GRAND FINAL", "blurb": "Three long stages, big jumps, the season on the line.",
-		"mood": "golden", "pace": 60.0, "reward": 10000, "gen": {},
+		"mood": "golden", "pace": 60.0, "reward": 10000, "gen": {"biome": "conifer_rally"},
 		"stages": [["THE LONG ROAD", 6600, 3600], ["CHAMPION'S LEAP", 6608, 3600], ["FINAL CALL", 6623, 3600]]},
 ]
 

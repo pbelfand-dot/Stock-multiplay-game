@@ -72,7 +72,7 @@ func _ready() -> void:
 		start_solo(seed_value)
 	elif Config.flag("host") and Config.flag("street") and Config.flag("mode"):
 		start_mode({"mode": Config.arg("mode"), "dir": Config.arg("dir", "up"), "rules": Config.arg("rules", "time"),
-			"difficulty": Config.arg("difficulty", "normal"), "online": true, "collide": not Config.flag("ghosts"),
+			"difficulty": Config.arg("difficulty", "normal"), "toll": Config.arg("toll", "open"), "online": true, "collide": not Config.flag("ghosts"),
 			"seed": int(Config.arg("seed", -1))})
 	elif Config.flag("host"):
 		host_game(Config.arg("seat", "driver"))
@@ -110,7 +110,7 @@ func start_solo(s: int) -> void:
 		return
 	if Config.flag("mode"):                          # tests / pictures: --mode=touge|cutup
 		var m := {"mode": Config.arg("mode"), "dir": Config.arg("dir", "up"), "rules": Config.arg("rules", "time"),
-			"difficulty": Config.arg("difficulty", "normal")}
+			"difficulty": Config.arg("difficulty", "normal"), "toll": Config.arg("toll", "open")}
 		load_stage(s, 1, mode_opts(s, m))
 		return
 	load_stage(s, 1, quick_opts(s))
@@ -120,7 +120,7 @@ func start_solo(s: int) -> void:
 func mode_opts(s: int, like: Dictionary) -> Dictionary:
 	var o: Dictionary
 	if like.get("mode") == "cutup":
-		o = Modes.cutup_opts(s, str(like.get("difficulty", "normal")))
+		o = Modes.cutup_opts(s, str(like.get("difficulty", "normal")), str(like.get("toll", "open")))
 	else:
 		o = Modes.touge_opts(s, str(like.get("dir", "up")), str(like.get("rules", "time")))
 	if Config.flag("length") and like.get("mode") != "cutup":

@@ -15,6 +15,8 @@ const Crowd = preload("res://scripts/stage/crowd.gd")
 const WorldMaterials = preload("res://scripts/render/world_materials.gd")   # the materials, sky and sun
 const Graphics = preload("res://scripts/render/graphics.gd")
 const Foliage = preload("res://scripts/render/foliage.gd")              # card trees (HIGH / ULTRA)
+const Biomes = preload("res://scripts/stage/biomes.gd")                 # what grows and lies by the road (data/biomes.json)
+const EnvAssets = preload("res://scripts/stage/env_assets.gd")          # the converted trees, rocks and props
 
 const GRAVEL := Color(0.71, 0.6, 0.44)
 const TRACK := Color(0.6, 0.5, 0.36)
@@ -74,6 +76,17 @@ var people_count := 0
 var _clearings: Array = []          # [Vector2 (x, z), radius]: no trees there (a crowd stands there)
 var _noise := FastNoiseLite.new()
 var _road_grid := {}                # 20 m cells -> [sample indices], to keep trees off the road
+var biome := {}                     # the stage's biome (Biomes.for_stage): species, rocks, tints, by season
+var mesh_tree_count := 0            # trees drawn as the library's real trees (MEDIUM and up)
+## The real trees near the road are grouped (a group's LODs swap together, by the distance to
+## its middle: Godot's visibility ranges are per node): the first NEAR_BAND m off the road per
+## NEAR_CHUNK m of road and side, the forest behind per DEEP_CHUNK m.
+const NEAR_BAND := 12.0             # m off the road's edge: the trees you pass close by (the first rows)
+const NEAR_CHUNK := 32.0
+const DEEP_CHUNK := 48.0
+const LOD0_DRAW := 30.0             # the full tree (the near band only) this near (x the graphics' view distance) ...
+const LOD1_DRAW := 90.0             # ... then the lighter one; beyond, the far card
+const DEEP_LOD1_DRAW := 60.0        # the forest behind: the lighter tree this near, else the card
 var _rng := RandomNumberGenerator.new()
 
 
@@ -99,6 +112,8 @@ func build_async(stage, report: Callable) -> void:
 const STEPS := [["_environment", "Checking the weather"], ["_mountains", "Raising the mountains"], ["_road", "Laying the road"],
 	["_ground", "Shaping the hills"], ["_base", "Shaping the hills"], ["_towns", "Closing the town's streets"], ["_villages", "Building the villages"],
 	["_barriers", "Bolting up the armco"], ["_spectators", "Letting the spectators in"], ["_forest", "Planting ten thousand trees"],
+	["_boulders", "Rolling the boulders into place"], ["_rock_cuts", "Cutting the rock"], ["_poles", "Stringing the power lines"],
+	["_warning_signs", "Putting up the warning signs"],
 	["_puddles", "Filling the puddles"], ["_bridges", "Building the bridges"], ["_roadside", "Putting up the signs"],
 	["_arches", "Putting up the start and finish"]]
 
@@ -106,6 +121,10 @@ const STEPS := [["_environment", "Checking the weather"], ["_mountains", "Raisin
 func _prepare(stage) -> void:
 	st = stage
 	_rng.seed = hash([st.seed_used, "props"])
+	biome = Biomes.for_stage(st)
+	_pick_species()
+	WorldMaterials.ground_style = str(biome.get("ground", ""))      # (the forest floor under a forest; set before any material)
+	WorldMaterials.asphalt_style = str(biome.get("asphalt", ""))
 	_noise.seed = st.seed_used
 	_noise.frequency = 0.012
 	for i in st.pts.size():
@@ -630,6 +649,10 @@ func _forest() -> void:
 	# trees are grouped in chunks of road (CHUNK m) so each chunk can be culled and
 	# faded out by distance: thousands of trees, but only the nearby ones are drawn
 	var chunks := {}                                 # chunk index -> {kind: [Transform3D]}
+	# (MEDIUM and up, the library there: the biome's real trees, in near and far groups)
+	var use_mesh := _mesh_trees()
+	var mesh_chunks := {}                            # near-chunk index -> {"n:<species>": [Transform3D]}
+	var far_chunks := {}                             # chunk index -> {"f:<species>": [Transform3D]}
 	var trunks := StaticBody3D.new()
 	trunks.name = "Trunks"
 	trunks.set_meta("surface", "grass")
@@ -674,18 +697,42 @@ func _forest() -> void:
 					if sl[0] >= 76.0:
 						kind = ((["cedar", "cedar", "round", "pine"] if st.kind == "touge" else ["pine", "pine", "round", "birch"])[_rng.randi() % 4]) + "_far"   # no shadows, drawn nearer
 					var sc := _rng.randf_range(0.85, 1.55)
-					var xf := Transform3D(Basis(Vector3.UP, _rng.randf() * TAU).scaled(Vector3.ONE * sc), p)
+					var rot := _rng.randf() * TAU
+					var xf := Transform3D(Basis(Vector3.UP, rot).scaled(Vector3.ONE * sc), p)
 					var ci := int(s / CHUNK)
-					if not chunks.has(ci):
-						chunks[ci] = {}
-					if not chunks[ci].has(kind):
-						chunks[ci][kind] = []
-					chunks[ci][kind].append(xf)
+					var base_kind := kind.trim_suffix("_far")
+					var sp := _species(base_kind, p)
+					var trunk_r := 0.28 * sc
+					if sp != "":
+						var a := EnvAssets.info(sp)
+						var ts: Array = biome.get("tree_scale", [0.7, 1.0])
+						var msc := lerpf(float(ts[0]), float(ts[1]), clampf((sc - 0.85) / 0.7, 0.0, 1.0))
+						trunk_r = float(a.get("trunk", 0.3)) * msc
+						if use_mesh:
+							var mxf := Transform3D(Basis(Vector3.UP, rot).scaled(Vector3.ONE * msc), p)
+							var near: bool = not kind.ends_with("_far")
+							var band: int = 0 if d - extra < NEAR_BAND else 1
+							# (the near band: both sides one group; the forest behind, each side its own)
+							var key: String = (("n0:" if band == 0 else "n1%s:" % ("L" if side < 0.0 else "R")) if near else "f:") + sp
+							var cj := int(s / (NEAR_CHUNK if band == 0 else DEEP_CHUNK)) if near else ci
+							var bucket: Dictionary = mesh_chunks if near else far_chunks
+							if not bucket.has(cj):
+								bucket[cj] = {}
+							if not bucket[cj].has(key):
+								bucket[cj][key] = []
+							bucket[cj][key].append(mxf)
+							mesh_tree_count += 1
+					if sp == "" or not use_mesh:
+						if not chunks.has(ci):
+							chunks[ci] = {}
+						if not chunks[ci].has(kind):
+							chunks[ci][kind] = []
+						chunks[ci][kind].append(xf)
 					tree_count += 1
 					if d - extra < 12.0 and kind != "bush":
 						var cs := CollisionShape3D.new()
 						var cyl := CylinderShape3D.new()
-						cyl.radius = 0.28 * sc
+						cyl.radius = trunk_r
 						cyl.height = 4.0
 						cs.shape = cyl
 						cs.position = p + Vector3.UP * 2.0
@@ -717,7 +764,7 @@ func _forest() -> void:
 		meshes[kind] = _tree_mesh(kind)
 	var mat := WorldMaterials.foliage()
 	var view := Graphics.view_distance()                 # (the graphics quality: how far they're drawn)
-	var cards := Foliage.enabled()
+	var cards := Foliage.enabled() and not use_mesh
 	for ci in chunks:
 		for kind in chunks[ci]:
 			var list: Array = chunks[ci][kind]
@@ -742,6 +789,123 @@ func _forest() -> void:
 			add_child(mmi)
 			if cards and kind in ["pine", "round", "birch", "cedar"]:
 				_card_trees(mmi, list, kind, view)
+	if use_mesh:
+		_mesh_forest(mesh_chunks, far_chunks, view)
+
+
+## A stage grows a handful of its biome's species, not all of them: each species is its own
+## draw (per group of trees, per level of detail), so a dozen at once costs thousands of draw
+## calls for little more to see. MAX_SPECIES of the conifers (or the biome's main trees) and
+## MAX_BROAD of the broadleaves, picked by the stage's seed (the same on every machine: the
+## trunks' sizes come from the species), by their weights.
+const MAX_SPECIES := 4
+const MAX_BROAD := 2
+
+func _pick_species() -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = hash([st.seed_used, "species"])
+	for key in ["trees", "broad"]:
+		var pool: Array = (biome.get(key, []) as Array).duplicate()
+		var keep: Array = []
+		var n: int = MAX_SPECIES if key == "trees" else MAX_BROAD
+		while not pool.is_empty() and keep.size() < n:
+			var id := Biomes.pick(pool, rng)
+			for e in pool:
+				if str(e[0]) == id:
+					keep.append(e)
+					pool.erase(e)
+					break
+		biome[key] = keep
+
+
+## The library's trees are drawn (MEDIUM and up, the files in the build, the biome has species).
+func _mesh_trees() -> bool:
+	return Graphics.level() != "low" and EnvAssets.available() and not (biome.get("trees", []) as Array).is_empty()
+
+
+## Which of the biome's species a tree of this kind is ("" for the undergrowth): by its spot's
+## hash, not the stage's dice (the forest is laid out the same at any quality: the trunks near
+## the road are solid, and every machine must agree on them).
+func _species(kind: String, p: Vector3) -> String:
+	if not kind in ["pine", "cedar", "round", "birch"]:
+		return ""
+	# broadleaf or conifer: the biome's share if it says, else the kind the forest drew
+	var broad: bool = kind in ["round", "birch"]
+	if biome.has("broad_share"):
+		broad = float(absi(hash([int(p.x * 8.0), int(p.z * 8.0), "broad"])) % 1000) / 1000.0 < float(biome.broad_share)
+	var list: Array = biome.get("broad", []) if broad and not (biome.get("broad", []) as Array).is_empty() else biome.get("trees", [])
+	if list.is_empty():
+		return ""
+	var total := 0.0
+	for e in list:
+		total += float(e[1])
+	var x := float(absi(hash([int(p.x * 8.0), int(p.z * 8.0), "species"])) % 100000) / 100000.0 * total
+	for e in list:
+		x -= float(e[1])
+		if x <= 0.0:
+			return str(e[0])
+	return str(list[list.size() - 1][0])
+
+
+## The real trees: the near band's groups swap the full tree (LOD0), the lighter one (LOD1)
+## and the far card (BB) by distance, the forest behind them only the lighter one and the
+## card, the far belt only ever the card. Shadows: at HIGH and up each tree casts its own; at
+## MEDIUM the full trees' shadows come from their lighter version (a shadow's detail isn't
+## seen; the shadow passes draw every tree once a cascade) and the lighter trees cast none.
+func _mesh_forest(near_chunks: Dictionary, far: Dictionary, view: float) -> void:
+	var tint: Color = Biomes.colour(biome.get("foliage_tint"), Color.WHITE)
+	var broad_tint: Color = Biomes.colour(biome.get("broad_tint"), tint)
+	var web := 0.65 if OS.has_feature("web") else 1.0
+	var d0 := LOD0_DRAW * view * web
+	var d1 := LOD1_DRAW * view * web
+	var dd := DEEP_LOD1_DRAW * view * web
+	var d2 := TREE_DRAW * view * web
+	var shadows_far := Graphics.level() in ["high", "ultra"]
+	for cj in near_chunks:
+		for key in near_chunks[cj]:
+			var sp: String = key.substr(key.find(":") + 1)
+			var tag: String = key.substr(0, key.find(":"))       # n0 (the near band), n1L, n1R (behind)
+			var tt: Color = broad_tint if "broad" in EnvAssets.info(sp).get("tags", []) else tint
+			var list: Array = near_chunks[cj][key]
+			if tag.begins_with("n0"):
+				_tree_mmi("TreesN_%d_%s_%s_0" % [cj, tag, sp], EnvAssets.mesh(sp, "LOD0", tt), list, 0.0, d0, shadows_far)
+				if not shadows_far:
+					var proxy := _tree_mmi("TreesS_%d_%s_%s" % [cj, tag, sp], EnvAssets.mesh(sp, "LOD1", tt), list, 0.0, d0, true)
+					if proxy:
+						proxy.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_SHADOWS_ONLY
+				_tree_mmi("TreesN_%d_%s_%s_1" % [cj, tag, sp], EnvAssets.mesh(sp, "LOD1", tt), list, d0, d1, shadows_far)
+				_tree_mmi("TreesN_%d_%s_%s_b" % [cj, tag, sp], EnvAssets.mesh(sp, "BB", tt), list, d1, d2, false)
+			else:
+				_tree_mmi("TreesN_%d_%s_%s_1" % [cj, tag, sp], EnvAssets.mesh(sp, "LOD1", tt), list, 0.0, dd, shadows_far)
+				_tree_mmi("TreesN_%d_%s_%s_b" % [cj, tag, sp], EnvAssets.mesh(sp, "BB", tt), list, dd, d2, false)
+	for ci in far:
+		for key in far[ci]:
+			var sp: String = key.substr(2)
+			var tt: Color = broad_tint if "broad" in EnvAssets.info(sp).get("tags", []) else tint
+			_tree_mmi("TreesF_%d_%s" % [ci, sp], EnvAssets.mesh(sp, "BB", tt), far[ci][key], 0.0, FAR_DRAW * view * web, false)
+
+
+func _tree_mmi(node_name: String, mesh: Mesh, list: Array, begin: float, end: float, shadows: bool) -> MultiMeshInstance3D:
+	if mesh == null or list.is_empty() or end <= begin:
+		return null
+	var mm := MultiMesh.new()
+	mm.transform_format = MultiMesh.TRANSFORM_3D
+	mm.mesh = mesh
+	mm.instance_count = list.size()
+	for j in list.size():
+		mm.set_instance_transform(j, list[j])
+	var mmi := MultiMeshInstance3D.new()
+	mmi.name = node_name
+	mmi.multimesh = mm
+	mmi.set_meta("xforms", list)                         # (where each one is: the tests read it, headless keeps no instance data)
+	mmi.visibility_range_begin = begin
+	mmi.visibility_range_begin_margin = 6.0 if begin > 0.0 else 0.0
+	mmi.visibility_range_end = end
+	mmi.visibility_range_end_margin = 6.0
+	mmi.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_DISABLED
+	mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON if shadows else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(mmi)
+	return mmi
 
 
 ## HIGH / ULTRA: the near trees as trees of cards (Foliage), the low-poly ones only beyond them.
@@ -805,6 +969,298 @@ func _near_road(p: Vector3, dist: float) -> bool:
 				if Vector2(p.x - q.x, p.z - q.z).length() < dist:
 					return true
 	return false
+
+
+## Warning signs (the owner's highway props pack): a winding-road sign ~60 m before each tight
+## bend (tighter than 55 m radius; one per 160 m at most), and on a wet or icy stage a slippery-
+## road sign at the start and every 1.2 km; on the side the traffic keeps to (the right; a
+## touge's, Japan's, the left), behind its guardrail line, facing the drivers coming up to it.
+## Not solid (a thin post that bends), never on any part of the road. Placed by the road alone:
+## the same stage, the same signs.
+var sign_count := 0
+const SIGN_BEND := 1.0 / 55.0
+
+func _warning_signs() -> void:
+	if not EnvAssets.available() or st.kind == "highway":
+		return
+	var wind := EnvAssets.mesh("sign_winding")
+	var slip := EnvAssets.mesh("sign_slippery")
+	if wind == null:
+		return
+	var side := -1.0 if st.kind == "touge" else 1.0
+	var winding: Array = []
+	var slippery: Array = []
+	var n: int = st.curv.size()
+	var last := -INF
+	var i := int((st.START_S + 80.0) / st.STEP)
+	while i < n - 2 and i * st.STEP < st.finish_s - 40.0:
+		if absf(st.curv[i]) > SIGN_BEND and i * st.STEP - last > 160.0:
+			var xf = _sign_xf(i * st.STEP - 60.0, side)
+			if xf != null:
+				winding.append(xf)
+				last = i * st.STEP
+			while i < n - 2 and absf(st.curv[i]) > SIGN_BEND * 0.4:
+				i += 1                                       # (past this bend)
+		i += 1
+	var wet: bool = st.opts.get("ice", false) or float(st.opts.get("puddles", 1.0)) > 1.5 or str(biome.get("id", "")) in ["wet_forest", "winter_mountain"]
+	if wet and slip != null:
+		var s: float = st.START_S + 50.0
+		while s < st.finish_s - 100.0:
+			var xf = _sign_xf(s, side)
+			if xf != null:
+				slippery.append(xf)
+			s += 1200.0
+	for e in [[wind, winding, "WarnWinding"], [slip, slippery, "WarnSlippery"]]:
+		var list: Array = e[1]
+		if e[0] == null or list.is_empty():
+			continue
+		var mm := MultiMesh.new()
+		mm.transform_format = MultiMesh.TRANSFORM_3D
+		mm.mesh = e[0]
+		mm.instance_count = list.size()
+		for j in list.size():
+			mm.set_instance_transform(j, list[j])
+		var mmi := MultiMeshInstance3D.new()
+		mmi.name = e[2]
+		mmi.multimesh = mm
+		mmi.set_meta("xforms", list)
+		# (no draw distance: a group spread down the whole stage would be judged by its middle,
+		# a kilometre off; a dozen signs cost nothing)
+		add_child(mmi)
+	sign_count = winding.size() + slippery.size()
+
+
+## A warning sign's place at s on a side (null where it would stand on another part of the road).
+func _sign_xf(s: float, side: float):
+	if s < st.START_S + 10.0:
+		return null
+	var i := int(s / st.STEP)
+	var half: float = st.width_at(s) * 0.5
+	var extra: float = st.widths[mini(i, st.widths.size() - 1)] * 0.5 - 2.8
+	var d: float = side * (half + (2.4 if st.kind == "touge" else 1.8))
+	var p: Vector3 = st.world_at(s, d)
+	if _near_road(p, half + 1.2) or _in_clearing(p):
+		return null
+	p.y = _ground_height(st.pts[i].y, absf(d) - extra, p) - 0.05
+	return Transform3D(Basis.looking_at(st.forward_at(s), Vector3.UP), p)   # (its face, +Z, back at the drivers coming)
+
+
+## Boulders off the road (the biome's rocks: data/biomes.json "rocks"), past the tree line,
+## sunk a quarter into the ground; the big ones near the road solid. Their own dice: the forest
+## is laid out as it was. Drawn at every quality (cheap: grouped, LODs, a short draw distance).
+var boulder_count := 0
+const BOULDER_DRAW := 210.0
+
+func _boulders() -> void:
+	var r: Dictionary = biome.get("rocks", {})
+	var ids: Array = r.get("ids", [])
+	var chance := float(r.get("chance", 0.0))
+	if ids.is_empty() or chance <= 0.0 or not EnvAssets.available() or st.kind == "highway":
+		return
+	var rng := RandomNumberGenerator.new()
+	rng.seed = hash([st.seed_used, "boulders"])
+	var body := StaticBody3D.new()
+	body.name = "Boulders"
+	body.set_meta("surface", "gravel")
+	add_child(body)
+	var lists := {}                                       # chunk -> id -> [Transform3D]
+	var line: float = TOUGE_TREE_LINE if st.kind == "touge" else TREE_LINE
+	var scr: Array = r.get("scale", [0.5, 1.2])
+	var n: int = st.pts.size()
+	for i in range(0, n, 4):                              # every 8 m
+		var s: float = i * st.STEP
+		if s < st.START_S - 20.0 or s > st.length - 10.0:
+			continue
+		var c: Vector3 = st.pts[i]
+		var rv: Vector3 = st.right_at(s)
+		var extra: float = st.widths[i] * 0.5 - 2.8
+		for side in [-1.0, 1.0]:
+			if rng.randf() > chance:
+				continue
+			var d: float = rng.randf_range(line + 1.5, 36.0) + extra
+			var p: Vector3 = c + rv * (d * side) + st.forward_at(s) * rng.randf_range(-3.0, 3.0)
+			var id: String = ids[rng.randi() % ids.size()]
+			var sc := rng.randf_range(float(scr[0]), float(scr[1]))
+			var rot := rng.randf() * TAU
+			if _near_road(p, line + 0.6 + maxf(extra, 0.0)) or _in_clearing(p):
+				continue
+			var size: Array = EnvAssets.info(id).get("size", [2.0, 1.3, 2.0])
+			p.y = _ground_height(c.y, d - extra, p) - float(size[1]) * sc * 0.28
+			var xf := Transform3D(Basis(Vector3.UP, rot).scaled(Vector3.ONE * sc), p)
+			var ci := int(s / CHUNK)
+			if not lists.has(ci):
+				lists[ci] = {}
+			if not lists[ci].has(id):
+				lists[ci][id] = []
+			lists[ci][id].append(xf)
+			boulder_count += 1
+			if float(size[1]) * sc > 0.9 and d - extra < 20.0:          # (big and in reach: solid)
+				var cs := CollisionShape3D.new()
+				var bx := BoxShape3D.new()
+				bx.size = Vector3(float(size[0]) * sc * 0.8, float(size[1]) * sc, float(size[2]) * sc * 0.8)
+				cs.shape = bx
+				cs.transform = Transform3D(Basis(Vector3.UP, rot), p + Vector3.UP * float(size[1]) * sc * 0.5)
+				body.add_child(cs)
+	var tint: Color = Biomes.colour(r.get("tint"), Color.WHITE)
+	var view := Graphics.view_distance()
+	for ci in lists:
+		for id in lists[ci]:
+			var mm := MultiMesh.new()
+			mm.transform_format = MultiMesh.TRANSFORM_3D
+			mm.mesh = EnvAssets.mesh(id, "", tint)
+			if mm.mesh == null:
+				continue
+			var list: Array = lists[ci][id]
+			mm.instance_count = list.size()
+			for j in list.size():
+				mm.set_instance_transform(j, list[j])
+			var mmi := MultiMeshInstance3D.new()
+			mmi.name = "Boulders_%d_%s" % [ci, id]
+			mmi.multimesh = mm
+			mmi.set_meta("xforms", list)
+			mmi.visibility_range_end = BOULDER_DRAW * view
+			mmi.visibility_range_end_margin = 20.0
+			mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON if Graphics.level() != "low" else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			add_child(mmi)
+
+
+## Rock cuts (a touge, mountain tarmac: biome "cliffs"): where the hillside rises steeply off
+## the road, a scanned rock face set into the bank, facing the road (visual only: the bank's
+## ground is what's solid).
+var rock_cut_count := 0
+
+func _rock_cuts() -> void:
+	if not biome.get("cliffs", false) or not EnvAssets.available() or not st.mountain:
+		return
+	var mesh := EnvAssets.mesh("rock_face_01", "", Biomes.colour(biome.get("rocks", {}).get("tint"), Color.WHITE))
+	if mesh == null:
+		return
+	var size: Array = EnvAssets.info("rock_face_01").get("size", [4.95, 3.56, 3.83])
+	var rng := RandomNumberGenerator.new()
+	rng.seed = hash([st.seed_used, "cuts"])
+	var lists := {}
+	var s: float = st.START_S
+	while s < st.finish_s:
+		var i := int(s / st.STEP)
+		var half: float = st.width_at(s) * 0.5
+		var extra: float = st.widths[i] * 0.5 - 2.8
+		var c: Vector3 = st.pts[i]
+		for side in [-1.0, 1.0]:
+			var d := half + 4.6
+			var p: Vector3 = st.world_at(s, d * side)
+			var rise := _ground_height(c.y, d - extra, p) - c.y
+			if rise < 2.4:
+				continue
+			var sc := clampf(rise / float(size[1]), 0.8, 2.2) * rng.randf_range(0.9, 1.15)
+			var back := float(size[2]) * sc * 0.5
+			var at: Vector3 = st.world_at(s, (half + 3.4 + back) * side)
+			if _near_road(at, half + 2.6 + back * 0.6):
+				continue
+			at.y = c.y - 0.6
+			var to_road: Vector3 = -st.right_at(s) * side                 # (its scanned face is its +Z)
+			var basis := Basis.looking_at(-to_road, Vector3.UP).rotated(Vector3.UP, rng.randf_range(-0.25, 0.25)).scaled(Vector3.ONE * sc)
+			var ci := int(s / CHUNK)
+			if not lists.has(ci):
+				lists[ci] = []
+			lists[ci].append(Transform3D(basis, at))
+			rock_cut_count += 1
+		s += rng.randf_range(4.0, 6.0)
+	var view := Graphics.view_distance()
+	for ci in lists:
+		var mm := MultiMesh.new()
+		mm.transform_format = MultiMesh.TRANSFORM_3D
+		mm.mesh = mesh
+		mm.instance_count = lists[ci].size()
+		for j in lists[ci].size():
+			mm.set_instance_transform(j, lists[ci][j])
+		var mmi := MultiMeshInstance3D.new()
+		mmi.name = "RockCut_%d" % ci
+		mmi.multimesh = mm
+		mmi.set_meta("xforms", lists[ci])
+		mmi.visibility_range_end = 260.0 * view
+		mmi.visibility_range_end_margin = 20.0
+		add_child(mmi)
+
+
+## A touge's power line (biome "poles"): wooden poles behind the guardrail on the right every
+## ~45 m, three sagging wires between them. The poles are solid (thin), the wires not.
+var pole_count := 0
+
+func _poles() -> void:
+	if not biome.get("poles", false) or not EnvAssets.available() or st.kind != "touge":
+		return
+	var mesh := EnvAssets.mesh("electricity_pole")
+	if mesh == null:
+		return
+	var sc := float(EnvAssets.info("electricity_pole").get("scale", 18.0))
+	var top := mesh.get_aabb().end.y * sc
+	var arm := mesh.get_aabb().size.x * sc * 0.42          # (the crossarm's ends)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = hash([st.seed_used, "poles"])
+	var body := StaticBody3D.new()
+	body.name = "Poles"
+	add_child(body)
+	var xfs: Array = []
+	var tops: Array = []                                     # [left end, middle, right end] of each crossarm, or null (a gap)
+	var s: float = st.START_S + 15.0
+	while s < st.finish_s + 10.0:
+		var i := int(s / st.STEP)
+		var half: float = st.width_at(s) * 0.5
+		var extra: float = st.widths[i] * 0.5 - 2.8
+		var d := half + 3.1
+		var p: Vector3 = st.world_at(s, d)
+		if _near_road(p, half + 2.3) or _in_clearing(p):
+			tops.append(null)
+		else:
+			p.y = _ground_height(st.pts[i].y, d - extra, p) - 0.2
+			var basis := Basis.looking_at(st.forward_at(s), Vector3.UP)
+			xfs.append(Transform3D(basis.scaled(Vector3.ONE * sc), p))
+			var rv: Vector3 = basis.x
+			var head: Vector3 = p + Vector3.UP * top * 0.93
+			tops.append([head - rv * arm, head, head + rv * arm])
+			var cs := CollisionShape3D.new()
+			var cyl := CylinderShape3D.new()
+			cyl.radius = 0.16
+			cyl.height = top
+			cs.shape = cyl
+			cs.position = p + Vector3.UP * top * 0.5
+			body.add_child(cs)
+			pole_count += 1
+		s += rng.randf_range(40.0, 50.0)
+	if xfs.is_empty():
+		return
+	var mm := MultiMesh.new()
+	mm.transform_format = MultiMesh.TRANSFORM_3D
+	mm.mesh = mesh
+	mm.instance_count = xfs.size()
+	for j in xfs.size():
+		mm.set_instance_transform(j, xfs[j])
+	var mmi := MultiMeshInstance3D.new()
+	mmi.name = "PowerPoles"
+	mmi.multimesh = mm
+	mmi.set_meta("xforms", xfs)
+	add_child(mmi)                                           # (no draw distance: see _warning_signs)
+	# the wires: each span a sagging line (thin boxes), skipped across a gap
+	var wires := MeshBuf.new()
+	var dark := Color(0.08, 0.08, 0.09)
+	for k in range(1, tops.size()):
+		if tops[k] == null or tops[k - 1] == null:
+			continue
+		for w in 3:
+			var a: Vector3 = tops[k - 1][w]
+			var b: Vector3 = tops[k][w]
+			if a.distance_to(b) > 70.0:
+				continue
+			var sag := a.distance_to(b) * 0.018
+			var prev := a
+			for q in range(1, 7):
+				var u := q / 6.0
+				var pt := a.lerp(b, u) - Vector3.UP * sag * 4.0 * u * (1.0 - u)
+				_box(wires, prev, pt, Vector3.UP, 0.035, 0.035, dark)
+				prev = pt
+	var wi := _add(wires, "", "PowerWires")
+	wi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	# (no draw distance: the line runs the whole stage, judged by its middle it'd be gone)
 
 
 ## Low-poly tree meshes (origin at the foot of the trunk).

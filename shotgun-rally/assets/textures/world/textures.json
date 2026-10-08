@@ -105,5 +105,31 @@
    "Rob Tuytel": "All"
   },
   "licence": "CC0"
+ },
+ "forest": {
+  "size_m": 2.0,
+  "mean_linear": [
+   0.2938,
+   0.25,
+   0.1215
+  ],
+  "roughness": 0.937,
+  "source": "Poly Haven: Forest Ground 01 (forrest_ground_01), from the CC0 library in assets/environment_packages",
+  "url": "https://polyhaven.com/a/forrest_ground_01",
+  "authors": {},
+  "licence": "CC0"
+ },
+ "asphalt2": {
+  "size_m": 3.0,
+  "mean_linear": [
+   0.1121,
+   0.1103,
+   0.098
+  ],
+  "roughness": 0.77,
+  "source": "Poly Haven: Asphalt 02 (asphalt_02), from the CC0 library in assets/environment_packages",
+  "url": "https://polyhaven.com/a/asphalt_02",
+  "authors": {},
+  "licence": "CC0"
  }
 }

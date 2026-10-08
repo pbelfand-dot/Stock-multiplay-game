@@ -1,0 +1,237 @@
+{
+ "rocks_moss": {
+  "src": "cc0/polyhaven/rock_moss_set_01_2k/rock_moss_set_01_2k.gltf",
+  "out": "rocks/rock_moss_set.glb",
+  "rename": {
+   "rock_moss_set_01_rock01": "rock_moss_01",
+   "rock_moss_set_01_rock02": "rock_moss_02",
+   "rock_moss_set_01_rock03": "rock_moss_03",
+   "rock_moss_set_01_rock04": "rock_moss_04",
+   "rock_moss_set_01_rock05": "rock_moss_05",
+   "rock_moss_set_01_rock06": "rock_moss_06"
+  },
+  "origin": "base",
+  "max_tex": 2048
+ },
+ "rock_face": {
+  "src": "cc0/polyhaven/rock_face_01_2k/rock_face_01_2k.gltf",
+  "out": "rocks/rock_face_01.glb",
+  "origin": "base",
+  "max_tex": 2048
+ },
+ "conifers_test": {
+  "mode": "tree",
+  "srcs": [
+   "conifers/fbx/chvol5_01.fbx"
+  ],
+  "out": "../environment_work/_test/conifers_test.glb",
+  "names": {
+   "chvol5_01": "conifer_01"
+  },
+  "lod0": 26000,
+  "lod1": 5000,
+  "billboard": 512,
+  "max_tex": 1024,
+  "leaf_scale_max": 2.8
+ },
+ "conifers": {
+  "mode": "tree",
+  "srcs": [
+   "conifers/fbx/chvol5_01.fbx",
+   "conifers/fbx/chvol5_02.fbx",
+   "conifers/fbx/chvol5_03.fbx",
+   "conifers/fbx/chvol5_04.fbx",
+   "conifers/fbx/chvol5_05.fbx",
+   "conifers/fbx/chvol5_06.fbx",
+   "conifers/fbx/chvol5_07.fbx",
+   "conifers/fbx/chvol5_08.fbx",
+   "conifers/fbx/chvol5_09.fbx",
+   "conifers/fbx/chvol5_10.fbx",
+   "conifers/fbx/chvol5_11.fbx",
+   "conifers/fbx/chvol5_12.fbx"
+  ],
+  "out": "vegetation/conifers.glb",
+  "names": {
+   "chvol5_01": "conifer_01",
+   "chvol5_02": "conifer_02",
+   "chvol5_03": "conifer_03",
+   "chvol5_04": "conifer_04",
+   "chvol5_05": "conifer_05",
+   "chvol5_06": "conifer_06",
+   "chvol5_07": "conifer_07",
+   "chvol5_08": "conifer_08",
+   "chvol5_09": "conifer_09",
+   "chvol5_10": "conifer_10",
+   "chvol5_11": "conifer_11",
+   "chvol5_12": "conifer_12"
+  },
+  "lod0": 26000,
+  "lod1": 2400,
+  "billboard": 512,
+  "max_tex": 1024,
+  "leaf_scale_max": 2.8
+ },
+ "kenney_props": {
+  "srcs": [
+   "kenney/Models/GLB format/electricity-pole.glb",
+   "kenney/Models/GLB format/electricity-pole-wide.glb",
+   "kenney/Models/GLB format/electricity-pole-single.glb",
+   "kenney/Models/GLB format/electricity-wires.glb",
+   "kenney/Models/GLB format/light-curved.glb",
+   "kenney/Models/GLB format/light-curved-double.glb",
+   "kenney/Models/GLB format/light-square-double.glb",
+   "kenney/Models/GLB format/construction-cone.glb",
+   "kenney/Models/GLB format/construction-barrier.glb",
+   "kenney/Models/GLB format/construction-light.glb",
+   "kenney/Models/GLB format/construction-fence.glb",
+   "kenney/Models/GLB format/road-sign-warning.glb",
+   "kenney/Models/GLB format/road-sign-stop.glb",
+   "kenney/Models/GLB format/road-sign-street.glb",
+   "kenney/Models/GLB format/sign-highway.glb",
+   "kenney/Models/GLB format/sign-highway-wide.glb",
+   "kenney/Models/GLB format/sign-highway-detailed.glb",
+   "kenney/Models/GLB format/traffic-light.glb",
+   "kenney/Models/GLB format/traffic-light-hanging.glb",
+   "kenney/Models/GLB format/bridge-pillar.glb",
+   "kenney/Models/GLB format/bridge-pillar-wide.glb",
+   "kenney/Models/GLB format/dumpster.glb"
+  ],
+  "out": "props/kenney_props.glb",
+  "origin": "base",
+  "scale": 1.0,
+  "max_tex": 512
+ },
+ "robinia": {
+  "mode": "tree",
+  "srcs": [
+   "robinia/Tree_Robinia-pseudoacacia.fbx"
+  ],
+  "out": "vegetation/robinia.glb",
+  "names": {
+   "Tree_Robinia-pseudoacacia_A": "robinia_a",
+   "Tree_Robinia-pseudoacacia_B": "robinia_b",
+   "Tree_Robinia-pseudoacacia_C": "robinia_c",
+   "Tree_Robinia-pseudoacacia_D": "robinia_d"
+  },
+  "leaf_texture": "procedural_robinia",
+  "leaf_like": [
+   "leaf"
+  ],
+  "bark_texture": {
+   "diffuse": "../conifers/fbx/maps/chvol5_trunk_diff.jpg",
+   "normal": "../conifers/fbx/maps/chvol5_trunk_normal.jpg"
+  },
+  "lod0": 20000,
+  "lod1": 2200,
+  "billboard": 512,
+  "max_tex": 1024,
+  "leaf_scale_max": 3.4
+ },
+ "tall_pines": {
+  "mode": "tree",
+  "srcs": [
+   "tall_pines/Tall_Pines.blend"
+  ],
+  "out": "vegetation/tall_pines.glb",
+  "names": {
+   "Tall_Pines_1": "tall_pine_1",
+   "Tall_Pines_2": "tall_pine_2",
+   "Tall_Pines_3": "tall_pine_3",
+   "Tall_Pines_4": "tall_pine_4",
+   "Tall_Pines_5": "tall_pine_5"
+  },
+  "leaf_like": [
+   "leaf"
+  ],
+  "leaf_sets": [
+   "leaf"
+  ],
+  "lod0": 16000,
+  "lod1": 1800,
+  "billboard": 512,
+  "max_tex": 1024,
+  "leaf_scale_max": 2.8
+ },
+ "highway_props": {
+  "src": "highway/Model/Models.blend",
+  "out": "props/highway_props.glb",
+  "objects": [
+   "Pylon_01",
+   "Porcelain_1",
+   "Cable_01",
+   "Metal_Crash_Barrier_01",
+   "Metal_Crash_Barrier_02",
+   "Winding road sign",
+   "Slippery road sign",
+   "Speed*limit sign"
+  ],
+  "join": {
+   "pylon": [
+    "Pylon_01",
+    "Porcelain_1"
+   ]
+  },
+  "rename": {
+   "Cable_01": "pylon_cable",
+   "Metal_Crash_Barrier_01": "crash_barrier_a",
+   "Metal_Crash_Barrier_02": "crash_barrier_b",
+   "Winding road sign": "sign_winding",
+   "Slippery road sign": "sign_slippery",
+   "Speed*limit sign": "sign_speed_limit"
+  },
+  "origin": "base",
+  "max_tex": 1024
+ },
+ "city22": {
+  "mode": "building",
+  "srcs": [
+   "city22/22Buildings_2024/1Original Blender Files/Building2024_1.blend",
+   "city22/22Buildings_2024/1Original Blender Files/Building2024_2.blend",
+   "city22/22Buildings_2024/1Original Blender Files/Building2024_3.blend",
+   "city22/22Buildings_2024/1Original Blender Files/Building2024_4.blend",
+   "city22/22Buildings_2024/1Original Blender Files/Building2024_5.blend",
+   "city22/22Buildings_2024/1Original Blender Files/Building2024_6.blend",
+   "city22/22Buildings_2024/1Original Blender Files/Building2024_7.blend",
+   "city22/22Buildings_2024/1Original Blender Files/Building2024_8.blend",
+   "city22/22Buildings_2024/1Original Blender Files/Building2024_9.blend",
+   "city22/22Buildings_2024/1Original Blender Files/Building2024_10.blend",
+   "city22/22Buildings_2024/1Original Blender Files/Building2024_11.blend",
+   "city22/22Buildings_2024/1Original Blender Files/Building2024_12.blend",
+   "city22/22Buildings_2024/1Original Blender Files/Building2024_13.blend",
+   "city22/22Buildings_2024/1Original Blender Files/Building2024_14.blend",
+   "city22/22Buildings_2024/1Original Blender Files/Building2024_15.blend",
+   "city22/22Buildings_2024/1Original Blender Files/Building2024_16.blend",
+   "city22/22Buildings_2024/1Original Blender Files/Building2024_17.blend",
+   "city22/22Buildings_2024/1Original Blender Files/Building2024_18.blend",
+   "city22/22Buildings_2024/1Original Blender Files/Building2024_19.blend",
+   "city22/22Buildings_2024/1Original Blender Files/Building2024_20_21_22.blend"
+  ],
+  "textures": "city22/22Buildings_2024/Textures",
+  "names": {
+   "Building2024_1": "bld22_01",
+   "Building2024_2": "bld22_02",
+   "Building2024_3": "bld22_03",
+   "Building2024_4": "bld22_04",
+   "Building2024_5": "bld22_05",
+   "Building2024_6": "bld22_06",
+   "Building2024_7": "bld22_07",
+   "Building2024_8": "bld22_08",
+   "Building2024_9": "bld22_09",
+   "Building2024_10": "bld22_10",
+   "Building2024_11": "bld22_11",
+   "Building2024_12": "bld22_12",
+   "Building2024_13": "bld22_13",
+   "Building2024_14": "bld22_14",
+   "Building2024_15": "bld22_15",
+   "Building2024_16": "bld22_16",
+   "Building2024_17": "bld22_17",
+   "Building2024_18": "bld22_18",
+   "Building2024_19": "bld22_19",
+   "Building2024_20_21_22": "bld22_20"
+  },
+  "out": "city",
+  "tris": 60000,
+  "tex": 2048,
+  "ao_samples": 16
+ }
+}

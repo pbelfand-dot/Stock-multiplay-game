@@ -630,7 +630,7 @@ func _battles() -> void:
 	check(r0.spawned and r0.flashed and r0.gate, "battles: a rival shows up in the traffic, flashing it from close behind starts the race (a gate 3 km on)")
 	check(r0.beaten == 1 and r1.lost == 1, "battles: at 300 km/h the player wins it, at 110 the rival does (%s / %s)" % [
 		" · ".join(r0.events.slice(-1)), " · ".join(r1.events.slice(-1))])
-	check(r0.overlaps == 0 and r1.overlaps == 0 and r1.passed >= 5, "battles: the rival races through the traffic (past %d cars), never through one" % r1.passed)
+	check(r0.overlaps == 0 and r1.overlaps == 0 and r1.passed >= 5, "battles: the rival races through the traffic (past %d cars), never through one%s" % [r1.passed, "" if r0.overlaps + r1.overlaps == 0 else " (overlapping a car %d + %d ticks)" % [r0.overlaps, r1.overlaps]])
 	rv.queue_free()
 	tr.queue_free()
 	await process_frame

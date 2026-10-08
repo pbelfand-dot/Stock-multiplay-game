@@ -20,6 +20,7 @@
 		"notes": "Toyota's 2024 Camry LE: 203 hp at 6,600 rpm, 249 Nm at 5,000 rpm, 1,501 kg, FWD, the 8-speed's ratios and 2.80 final drive, 2,819 mm wheelbase. 60 % front, Cd 0.29 on 2.25 m^2 are estimates."
 	},
 	"traffic": {
+		"type": "sedan",
 		"weight": 1.0,
 		"paints": [[0.85, 0.85, 0.86], [0.6, 0.62, 0.64], [0.05, 0.05, 0.06], [0.32, 0.33, 0.35], [0.08, 0.14, 0.3], [0.5, 0.06, 0.06], [0.75, 0.72, 0.62]]
 	},

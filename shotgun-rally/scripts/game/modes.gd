@@ -32,10 +32,16 @@ static func touge_opts(seed_value: int, dir := "up", rules := "time") -> Diction
 		"gen": {"kind": "touge", "dir": dir}}
 
 
-static func cutup_opts(seed_value: int, difficulty := "normal") -> Dictionary:
-	return {"mode": "cutup", "difficulty": difficulty if DIFFICULTIES.has(difficulty) else "normal",
+## toll: the loop's toll plaza (LoopGen.toll): "open" (every lane open, full speed through),
+## "mixed" (each way's right-hand lane closed, the traffic slowed to 60), "event" (all open, the
+## race's boards). In "gen": every machine builds the same plaza.
+const TOLL_LAYOUTS := {"open": "ALL OPEN", "mixed": "MIXED LANES", "event": "EVENT"}
+
+static func cutup_opts(seed_value: int, difficulty := "normal", toll := "open") -> Dictionary:
+	var tl: String = toll if TOLL_LAYOUTS.has(toll) else "open"
+	return {"mode": "cutup", "difficulty": difficulty if DIFFICULTIES.has(difficulty) else "normal", "toll": tl,
 		"length": HIGHWAY_LENGTH, "mood": "golden" if absi(hash([seed_value, "hw_mood"])) % 3 == 0 else "day",
-		"gen": {"kind": "loop"}}
+		"gen": {"kind": "loop", "toll": tl}}
 
 
 ## The light for an hour (0-24): the nearest of the world's moods ("night", "golden"

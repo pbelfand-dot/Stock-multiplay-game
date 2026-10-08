@@ -22,6 +22,7 @@
 		"notes": "FCA's 2016 Challenger SRT spec sheet (the same powertrain 2015-18): the 6.2 supercharged Hemi, 707 hp (527 kW) at 6,000 rpm and 650 lb-ft (881 Nm) at 4,000, 6,200 rpm limit; curb weight 4,469.6 lb (2,027 kg) with the manual; TR-6060 2.26/1.58/1.19/1.00/0.77/0.63, final 3.70; wheelbase 116.2 in; 57/43; Cd 0.380. 199 mph (320 km/h) per Dodge. Frontal area 2.3 m^2 is an estimate."
 	},
 	"traffic": {
+		"type": "luxury",
 		"weight": 0.08,
 		"paints": [[0.6, 0.03, 0.02], [0.05, 0.05, 0.055], [0.85, 0.85, 0.87], [0.05, 0.18, 0.5], [0.3, 0.75, 0.1]]
 	},

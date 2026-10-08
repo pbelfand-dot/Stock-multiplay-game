@@ -106,5 +106,6 @@ static func traffic_pool() -> Array:
 		var t = e.get("traffic")
 		if t is Dictionary and str(e.get("model", "")) != "":
 			out.append({"id": e.id, "model": str(t.get("model", e.model)), "weight": float(t.get("weight", 1.0)),
-				"paints": _colours(t.get("paints", [[0.6, 0.6, 0.62]])), "role": str(e.get("role", "traffic"))})
+				"paints": _colours(t.get("paints", [[0.6, 0.6, 0.62]])), "role": str(e.get("role", "traffic")),
+				"type": str(t.get("type", "sedan"))})
 	return out

@@ -55,6 +55,11 @@ const TEX_DIR := "res://assets/textures/world/"
 const SKY_DIR := "res://assets/textures/sky/"
 
 static var night := false
+## The land's own ground and road (the stage builder sets them from its biome before it builds):
+## ground "forest" lays the forest floor (Poly Haven Forest Ground 01) where the ground is green;
+## asphalt "asphalt2" a fresher, finer asphalt (Poly Haven Asphalt 02). "" the defaults.
+static var ground_style := ""
+static var asphalt_style := ""
 static var _cache := {}
 static var _shaders := {}
 static var _tex_info := {}
@@ -156,10 +161,10 @@ static func terrain(opts := {}) -> Material:
 		var sm := ShaderMaterial.new()
 		sm.shader = _shader(["TERRAIN", "VC_COLOUR"] + _quality_defs())
 		for t in ["grass", "dirt", "rock", "snow"]:
-			sm.set_shader_parameter(t + "_tex", _tex(t + "_albedo"))
-			sm.set_shader_parameter(t + "_nrm", _tex(t + "_normal"))
-			sm.set_shader_parameter(t + "_mean", _mean(t))
-		sm.set_shader_parameter("scales", Vector4(1.0 / _size("grass"), 1.0 / _size("dirt"), 1.0 / _size("rock"), 1.0 / _size("snow")))
+			sm.set_shader_parameter(t + "_tex", _tex(_tex_for(t) + "_albedo"))
+			sm.set_shader_parameter(t + "_nrm", _tex(_tex_for(t) + "_normal"))
+			sm.set_shader_parameter(t + "_mean", _mean(_tex_for(t)))
+		sm.set_shader_parameter("scales", Vector4(1.0 / _size(_tex_for("grass")), 1.0 / _size("dirt"), 1.0 / _size("rock"), 1.0 / _size("snow")))
 		sm.set_shader_parameter("normal_strength", float(opts.get("normal", 1.0)))
 		sm.set_shader_parameter("rough_scale", float(opts.get("rough", 1.15)))
 		sm.set_shader_parameter("spec", 0.35)
@@ -692,7 +697,16 @@ static func _grade_lut(kind: int) -> ImageTexture3D:
 # ── the material machinery ────────────────────────────────────────────────
 
 static func _key(n: String, opts: Dictionary) -> String:
-	return "%s|%s|%s|%s" % [n, str(opts), Graphics.level(), Graphics.forward()]
+	return "%s|%s|%s|%s|%s|%s" % [n, str(opts), Graphics.level(), Graphics.forward(), ground_style, asphalt_style]
+
+
+## The texture a surface uses: its own, or the land's (asphalt_style, ground_style) when that's there.
+static func _tex_for(t: String) -> String:
+	if t == "asphalt" and asphalt_style != "" and _can_texture([asphalt_style]):
+		return asphalt_style
+	if t == "grass" and ground_style != "" and _can_texture([ground_style]):
+		return ground_style
+	return t
 
 
 static func _surface(n: String, opts: Dictionary) -> Material:
@@ -720,10 +734,11 @@ static func _surface(n: String, opts: Dictionary) -> Material:
 			defs.append("FOLIAGE")
 		var sm := ShaderMaterial.new()
 		sm.shader = _shader(defs)
-		sm.set_shader_parameter("albedo_tex", _tex(sd.tex + "_albedo"))
-		sm.set_shader_parameter("normal_tex", _tex(sd.tex + "_normal"))
-		sm.set_shader_parameter("tex_mean", _mean(sd.tex))
-		sm.set_shader_parameter("tex_scale", 1.0 / float(opts.get("scale", sd.get("scale", _size(sd.tex)))))
+		var tx: String = _tex_for(sd.tex) if sd.tex == "asphalt" else str(sd.tex)
+		sm.set_shader_parameter("albedo_tex", _tex(tx + "_albedo"))
+		sm.set_shader_parameter("normal_tex", _tex(tx + "_normal"))
+		sm.set_shader_parameter("tex_mean", _mean(tx))
+		sm.set_shader_parameter("tex_scale", 1.0 / float(opts.get("scale", sd.get("scale", _size(tx)))))
 		sm.set_shader_parameter("normal_strength", float(sd.normal) * float(opts.get("normal", 1.0)))
 		sm.set_shader_parameter("rough_scale", float(sd.rough) * float(opts.get("rough", 1.0)))
 		sm.set_shader_parameter("spec", float(sd.spec))

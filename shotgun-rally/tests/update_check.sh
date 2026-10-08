@@ -26,7 +26,8 @@ bad() { echo "[update] FAIL $1"; fail=1; }
 copy() {   # copy <dir> <build>
   mkdir -p "$1"
   tar --exclude=./docs --exclude=./build --exclude=./assets/car_packages --exclude=./assets/cars_restored \
-    --exclude=./assets/cars_work -cf - . | tar -xf - -C "$1"   # (the car sources: not part of the game)
+    --exclude=./assets/cars_work --exclude=./assets/environment_packages --exclude=./assets/environment_restored \
+    --exclude=./assets/environment_work -cf - . | tar -xf - -C "$1"   # (the car and environment sources: not part of the game)
   sed -i '/^\[application\]/a config/version="'"$2"'"\nconfig/update_base="test-base"\nconfig/use_custom_user_dir=true\nconfig/custom_user_dir_name="ShotgunRallyUpdateTest"' "$1/project.godot"
 }
 copy "$T/installed" 5

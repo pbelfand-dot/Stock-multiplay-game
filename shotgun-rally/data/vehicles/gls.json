@@ -22,6 +22,7 @@
 		"notes": "612 PS (450 kW) at 5,750 rpm and 850 Nm from 2,500 rpm (auto motor und sport; 603 hp US rating), 3,135 mm wheelbase, 250 km/h limited (280 with the Driver's Package), 0-100 km/h in 4.2 s. Published weights conflict (2,700 kg EU kerb with a driver per ADAC and ams; 2,663 kg curb elsewhere): the game uses 2,625 kg, a plausible DIN figure that no official source confirms. The 9-speed's ratios weren't published: generated for the top speed. 4MATIC+ is fully variable: 35 % front used. 53 % front and Cd 0.33 on 3.0 m^2 are estimates."
 	},
 	"traffic": {
+		"type": "suv",
 		"weight": 0.12,
 		"paints": [[0.05, 0.05, 0.06], [0.85, 0.85, 0.87], [0.55, 0.57, 0.6], [0.1, 0.12, 0.2]]
 	},

@@ -20,6 +20,7 @@ extends Node3D
 
 const GeoBuf = preload("res://scripts/stage/geo_buf.gd")
 const LoopGen = preload("res://scripts/stage/loop_gen.gd")
+const EnvAssets = preload("res://scripts/stage/env_assets.gd")
 const WM_PATH := "res://scripts/render/world_materials.gd"
 
 const CH := 100                      # samples a chunk (200 m)
@@ -51,6 +52,7 @@ var street_lamps                     # StreetLamps (lit at night / dusk; else nu
 var lamp_heads: Array = []           # the lamp posts' heads: [{s, head, ground}] (lit at night)
 var tree_count := 0
 var building_count := 0
+var real_building_count := 0         # of them the library's (EnvAssets "building"), the rest drawn boxes
 
 
 func build(stage) -> void:
@@ -76,7 +78,7 @@ func build_async(stage, report: Callable) -> void:
 const STEPS := [["_environment", "Checking the weather"], ["_road", "Laying the highway"],
 	["_barriers", "Pouring the barriers"], ["_viaducts", "Raising the viaducts"],
 	["_bridges", "Spinning the bridge cables"], ["_tunnels", "Boring the tunnels"],
-	["_roadside", "Putting up the signs and lights"], ["_ramps", "Opening the ramps"],
+	["_roadside", "Putting up the signs and lights"], ["_toll_plaza", "Opening the toll booths"], ["_ramps", "Opening the ramps"],
 	["_ribbon", "Shaping the land"], ["_far_land", "Shaping the hills"], ["_water", "Filling the lakes"],
 	["_city", "Building the city"], ["_trees", "Planting the hills"], ["_finish", "Opening the highway"]]
 
@@ -91,6 +93,8 @@ func _prepare(stage) -> void:
 	_rng.seed = hash([st.seed_used, "loop"])
 	if ResourceLoader.exists(WM_PATH):
 		_wm = load(WM_PATH)
+		_wm.ground_style = ""                          # (a stage's forest floor and touge asphalt aren't the highway's)
+		_wm.asphalt_style = ""
 	var n: int = st._n
 	for i in range(0, n, 5):
 		var key := Vector2i(floori(st.pts[i].x / 100.0), floori(st.pts[i].z / 100.0))
@@ -255,6 +259,28 @@ func _fallback(key: String) -> Material:
 		"sign":
 			m.albedo_color = Color(0.04, 0.36, 0.17)
 			m.roughness = 0.5
+		"toll_paint":
+			# (the toll plaza's painted steel and concrete: its colour from each box's)
+			m.albedo_color = Color(1, 1, 1)
+			m.roughness = 0.55
+			m.metallic_specular = 0.4
+		"toll_glass":
+			# (the booths' windows: dark glass, lit from inside at night)
+			m.vertex_color_use_as_albedo = false
+			m.albedo_color = Color(0.1, 0.13, 0.16)
+			m.metallic = 0.4
+			m.roughness = 0.08
+			m.emission_enabled = true
+			m.emission = Color(1.0, 0.86, 0.62)
+			m.emission_energy_multiplier = 0.05 + 1.6 * (_wm.night_amount if _wm else (1.0 if mood == "night" else 0.0))
+		"toll_green", "toll_red":
+			# (the lane signals: lit, day and night)
+			m.vertex_color_use_as_albedo = false
+			var lit := Color(0.15, 1.0, 0.35) if key == "toll_green" else Color(1.0, 0.12, 0.08)
+			m.albedo_color = lit * 0.6
+			m.emission_enabled = true
+			m.emission = lit
+			m.emission_energy_multiplier = 2.2 + 2.0 * (_wm.night_amount if _wm else 0.0)
 		"building":
 			return _building_material()
 		"bark":
@@ -354,7 +380,7 @@ func _finish() -> void:
 			mi.material_override = _mat(key)
 			mi.visibility_range_end = LAND_RANGE if key in land_keys else (9000.0 if key.begins_with("steel") or key == "cable" else ROAD_RANGE)
 			mi.visibility_range_end_margin = 200.0
-			if key in ["paint", "lamp", "post_lamp", "beacon"]:
+			if key in ["paint", "lamp", "post_lamp", "beacon", "toll_green", "toll_red"]:
 				mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 			if key in ["tunnel", "lamp"]:
 				mi.layers = TUNNEL_LAYER
@@ -481,12 +507,19 @@ func _markings(i: int) -> void:
 		if extra > 0.5:
 			lines.append([side + mirror * (st.EDGE + extra + 0.1), 0.2, 0.0])
 	var gb := _buf(i, "paint")
+	# the toll plaza: the lines fan out with the lanes (st.toll_d), solid from 80 m before the
+	# booths (no changing lanes there), none under the islands
+	var toll_ds: float = INF if st.toll.is_empty() else absf(_ds(s0, float(st.toll.s)))
+	var toll_half: float = float(st.toll.get("half", 0.0))
+	var spread: bool = st.toll_spread(s0) != 1.0 or st.toll_spread(s1) != 1.0
 	for l in lines:
 		var d: float = l[0]
 		var w: float = l[1]
 		var a0 := s0
 		var a1 := s1
-		if l[2] == 1.0:
+		if l[2] == 1.0 and toll_ds < toll_half + 0.5:
+			continue
+		if l[2] == 1.0 and toll_ds > toll_half + 80.0:
 			var ph := fposmod(s0, 20.0)
 			if ph >= 8.0:
 				continue
@@ -495,11 +528,25 @@ func _markings(i: int) -> void:
 			if fposmod(s0, 6.0) >= 3.0:
 				continue
 		var lift := Vector3.UP * 0.015
-		var p0 := st.world_at(a0, d - w * 0.5) + lift
-		var p1 := st.world_at(a0, d + w * 0.5) + lift
-		var p2 := st.world_at(a1, d + w * 0.5) + lift
-		var p3 := st.world_at(a1, d - w * 0.5) + lift
+		var d0 := d
+		var d1 := d
+		if spread:
+			d0 = _toll_line_d(d, a0)
+			d1 = _toll_line_d(d, a1)
+		var p0 := st.world_at(a0, d0 - w * 0.5) + lift
+		var p1 := st.world_at(a0, d0 + w * 0.5) + lift
+		var p2 := st.world_at(a1, d1 + w * 0.5) + lift
+		var p3 := st.world_at(a1, d1 - w * 0.5) + lift
 		gb.quad(p0, p1, p2, p3, Vector2(a0, 0), Vector2(a0, w), Vector2(a1, w), Vector2(a1, 0))
+
+
+## A painted line's d at the toll plaza: fanned out with the lanes, the edge lines by the
+## median kept off its kerb.
+func _toll_line_d(d: float, s: float) -> float:
+	var x: float = st.toll_d(d, s)
+	if d > st.MEDIAN_D:
+		return maxf(x, st.MEDIAN_D + st.MEDIAN * 0.5 + 0.25) if d < 0.0 else x
+	return minf(x, st.MEDIAN_D - st.MEDIAN * 0.5 - 0.25) if d > st.ONCOMING_D else x
 
 
 # ── barriers ──────────────────────────────────────────────────────────────
@@ -511,8 +558,9 @@ func _barriers() -> void:
 		var s := i * step
 		var sup: String = st.support_at(s)
 		var zone: String = st.zone_at(s)
-		# the median: concrete, single slope, both carriageways' (in a tunnel it's the wall between the tubes)
-		if sup != "tunnel":
+		# the median: concrete, single slope, both carriageways' (in a tunnel it's the wall between the tubes;
+		# at the toll plaza the booths' middle island takes its place)
+		if sup != "tunnel" and not _toll_island_at(s):
 			_concrete_profile(i, st.MEDIAN_D, [[-0.3, 0.0], [-0.1, st.BARRIER_H], [0.1, st.BARRIER_H], [0.3, 0.0]], "concrete")
 		if sup == "tunnel":
 			continue
@@ -1150,6 +1198,7 @@ func _lamp_posts() -> void:
 		s += 48.0
 	for c in per_chunk:
 		_multimesh(post, per_chunk[c], "Lamps%03d" % c, ROAD_RANGE)
+	lamp_heads.append_array(_toll_lamp_heads())          # (the toll plaza's canopy: a light over each lane)
 	if lit:
 		street_lamps = _wm.street_lights(self, lamp_heads)
 
@@ -1222,14 +1271,308 @@ func _gantries() -> void:
 		var lbl := Label3D.new()
 		lbl.text = "%s\n%s" % [g.text, "%d km" % int(g.km) if float(g.km) > 0.0 else "EXIT"]
 		lbl.font_size = 96
-		lbl.pixel_size = 0.012
+		lbl.pixel_size = 0.0085                         # (two lines inside the 2.6 m board)
 		lbl.outline_size = 0
 		lbl.modulate = Color(0.95, 0.95, 0.92)
 		lbl.double_sided = false
-		# facing the drivers coming up to it (back along the road)
-		lbl.transform = Transform3D(bas * Basis(Vector3.UP, PI), board + st.forward_at(s) * -0.12)
+		# facing the drivers coming up to it (back along the road: a Label3D reads from its +Z,
+		# which the road's basis turns backward)
+		lbl.transform = Transform3D(bas, board + st.forward_at(s) * -0.12)
 		lbl.visibility_range_end = 900.0
 		add_child(lbl)
+
+
+# ── the toll plaza ────────────────────────────────────────────────────────
+
+## Is s within the plaza's islands (the median barrier gives way to the middle island)?
+func _toll_island_at(s: float) -> bool:
+	return not st.toll.is_empty() and absf(_ds(s, float(st.toll.s))) < float(st.toll.half) + 0.5
+
+
+## The road's frame at (s, d): x across (to the right), y its up (banking, grade), -z along.
+func _frame(s: float, d: float) -> Basis:
+	var f := (st.world_at(s + 1.0, d) - st.world_at(s - 1.0, d)).normalized()
+	var r := f.cross(st.up_at(s)).normalized()
+	return Basis(r, r.cross(f).normalized(), -f)
+
+
+## A box standing on the road at (s, d) (lift: its bottom that far up): size = across, up,
+## along; in material `key` (a colour: the toll's painted materials take it), solid if asked.
+func _road_box(s: float, d: float, size: Vector3, key: String, col := Color.WHITE, solid := false, lift := 0.0, turn := 0.0) -> void:
+	var bas := _frame(s, d)
+	var at := st.world_at(s, d) + bas.y * (size.y * 0.5 + lift)
+	if turn != 0.0:
+		bas = bas * Basis(Vector3.BACK, turn)                 # (turned about the road's line: a sign's X, a raised arm)
+	var i := int(st.wrap_s(s) / st.STEP)
+	_buf(i, key).box(at, size, bas, col)
+	if solid:
+		_body(i, "concrete").box(at, size, bas, Color.WHITE, true)
+
+
+## The plaza's islands across both carriageways: [{d, w, ours (a booth for our lane to its
+## right), theirs (for theirs, to its left as we look)}]. They stand on the fanned-out lane
+## lines (LoopGen.toll_d), the outer ones on the shoulders, the middle one on the median.
+func _toll_islands() -> Array:
+	var L: float = st.LANE_W * st.TOLL_SPREAD
+	var o: float = st.ONCOMING_D
+	var w: float = st.TOLL_ISLAND_W
+	return [{"d": 2.0 * L, "w": w, "ours": false, "theirs": false},
+		{"d": L, "w": w, "ours": true, "theirs": false}, {"d": 0.0, "w": w, "ours": true, "theirs": false},
+		{"d": -L, "w": w, "ours": true, "theirs": false},
+		{"d": st.MEDIAN_D, "w": 1.3, "ours": true, "theirs": true},
+		{"d": o + L, "w": w, "ours": false, "theirs": true}, {"d": o, "w": w, "ours": false, "theirs": true},
+		{"d": o - L, "w": w, "ours": false, "theirs": true}, {"d": o - 2.0 * L, "w": w, "ours": false, "theirs": false}]
+
+
+## Each lane's middle at the booths: [{d, lane (0: the slow, right-hand one of its carriageway), dir}].
+func _toll_lanes() -> Array:
+	var out: Array = []
+	var s0: float = st.toll.s
+	for k in 4:
+		var base: float = st.EDGE - st.LANE_W * (k + 0.5)
+		out.append({"d": st.toll_d(base, s0), "base": base, "lane": k, "dir": 1})
+		out.append({"d": st.toll_d(st.ONCOMING_D - base, s0), "base": st.ONCOMING_D - base, "lane": k, "dir": -1})
+	return out
+
+
+## The canopy's lights (StreetLamps' pools at night): one over each lane, both carriageways.
+func _toll_lamp_heads() -> Array:
+	var out: Array = []
+	if st.toll.is_empty():
+		return out
+	var s0: float = st.toll.s
+	for ln in _toll_lanes():
+		var g := st.world_at(s0, float(ln.d))
+		out.append({"s": s0, "head": g + st.up_at(s0) * TOLL_CANOPY_H, "ground": g, "up": st.up_at(s0), "radius": 11.0})
+	return out
+
+
+const TOLL_CANOPY_H := 5.6           # m: the canopy's underside over the road (the trucks' 4.1 m and some)
+const TOLL_CANOPY_L := 15.0          # m along the road
+const TOLL_COLS := {"white": Color(0.9, 0.9, 0.88), "grey": Color(0.55, 0.56, 0.58), "dark": Color(0.08, 0.08, 0.09),
+	"yellow": Color(1.0, 0.78, 0.05), "red": Color(0.8, 0.08, 0.06), "green": Color(0.1, 0.55, 0.3),
+	"purple": Color(0.36, 0.2, 0.55), "kerb": Color(0.78, 0.78, 0.75)}
+
+## THE TOLL PLAZA (LoopGen.toll): islands on the fanned-out lane lines (solid concrete, a
+## yellow crash cushion at each nose the traffic comes at), a booth on each lane's driver's
+## side (lit windows at night), a canopy over both carriageways on columns, over each lane a
+## signal (a green arrow open, a red X closed) and its board (ETC / CASH / CLOSED, or the
+## event's), cameras and readers on the canopy, barrier arms past the booths (up when open;
+## down and solid on a closed lane, a line of cones closing it off before), signs before it
+## both ways, and lights under the canopy. The layouts: "open" (every lane open, the gates
+## up: full speed through), "mixed" (each carriageway's right-hand lane closed, the traffic
+## out of it beforehand and slowed through; Traffic minds it), "event" (all open, the
+## boards and the canopy the race's).
+func _toll_plaza() -> void:
+	if st.toll.is_empty():
+		return
+	var s0: float = st.toll.s
+	var H: float = st.toll.half
+	var layout: String = st.toll.layout
+	var C := TOLL_COLS
+	# the islands: a kerbed concrete slab following the road, its ends tapered; a crash cushion
+	# (yellow and black) at the nose the traffic comes at
+	for isl in _toll_islands():
+		var d: float = isl.d
+		var w: float = isl.w
+		var s := s0 - H
+		while s < s0 + H - 0.01:
+			_road_box(s + 2.0, d, Vector3(w, 0.25, 4.02), "toll_paint", C.kerb, true)
+			s += 4.0
+		for e in [-1.0, 1.0]:
+			_road_box(s0 + e * (H + 0.6), d, Vector3(w * 0.65, 0.22, 1.2), "toll_paint", C.kerb, true)
+		var noses: Array = []
+		if isl.ours or (d > st.MEDIAN_D and d > 0.0):
+			noses.append(-1.0)
+		if isl.theirs or d < st.ONCOMING_D - 1.0:
+			noses.append(1.0)
+		for e in noses:
+			for k in 6:                                      # (striped: 0.5 m bands)
+				var u: float = H + 1.25 + k * 0.5
+				_road_box(s0 + e * u, d, Vector3(minf(w, 0.9) - 0.05, 0.9, 0.5), "toll_paint", C.yellow if k % 2 == 0 else C.dark, true)
+	# the booths: a cabin on each lane's driver's side (left of the lane, for each carriageway's
+	# way), its windows lit at night; before the barrier arm
+	for isl in _toll_islands():
+		for side in [1, -1]:
+			if (side == 1 and not isl.ours) or (side == -1 and not isl.theirs):
+				continue
+			var bs: float = s0 - 3.0 * side
+			_road_box(bs, isl.d, Vector3(0.82, 1.05, 2.2), "toll_paint", C.white, false, 0.25)
+			_road_box(bs, isl.d, Vector3(0.84, 1.0, 2.0), "toll_glass", Color.WHITE, false, 1.3)
+			_road_box(bs, isl.d, Vector3(0.82, 0.25, 2.2), "toll_paint", C.white, false, 2.3)
+			_road_box(bs, isl.d, Vector3(1.1, 0.12, 2.6), "toll_paint", C.grey, false, 2.55)
+			_body(int(st.wrap_s(bs) / st.STEP), "concrete").box(st.world_at(bs, isl.d) + _frame(bs, isl.d).y * 1.55,
+				Vector3(0.82, 2.6, 2.2), _frame(bs, isl.d), Color.WHITE, true)
+	# the canopy on its columns (two on each island), its fascia over each approach
+	var d_l: float = st.ONCOMING_D - 2.0 * st.LANE_W * st.TOLL_SPREAD - 1.0
+	var d_r: float = 2.0 * st.LANE_W * st.TOLL_SPREAD + 1.0
+	var d_mid := (d_l + d_r) * 0.5
+	var span := d_r - d_l
+	for isl in _toll_islands():
+		for e in [-1.0, 1.0]:
+			_road_box(s0 + e * (TOLL_CANOPY_L * 0.5 - 1.2), isl.d, Vector3(0.4, TOLL_CANOPY_H + 0.2, 0.4), "steel", Color.WHITE, true, 0.25)
+	var base_y := TOLL_CANOPY_H + 0.25
+	_road_box(s0, d_mid, Vector3(span, 0.9, TOLL_CANOPY_L), "toll_paint", C.white, false, base_y)
+	for e in [-1.0, 1.0]:
+		_road_box(s0 + e * (TOLL_CANOPY_L * 0.5 - 0.15), d_mid, Vector3(span + 0.2, 1.7, 0.3), "toll_paint", C.white, false, base_y - 0.5)
+		_road_box(s0 + e * (TOLL_CANOPY_L * 0.5 - 0.1), d_mid, Vector3(span + 0.22, 0.32, 0.3),
+			"toll_paint", C.purple if layout != "event" else C.red, false, base_y - 0.45)
+	# its lights: a strip over each lane
+	for ln in _toll_lanes():
+		_road_box(s0, float(ln.d), Vector3(0.5, 0.06, TOLL_CANOPY_L - 3.0), "post_lamp", Color.WHITE, false, base_y - 0.07)
+	# over each lane, on the fascia it's driven at: the signal, the board, a camera; under the
+	# canopy, the reader; past the booth, the barrier arm
+	for ln in _toll_lanes():
+		var dir: int = ln.dir
+		var d: float = ln.d
+		var closed: bool = st.toll_closed(int(ln.lane))
+		var face: float = s0 - dir * (TOLL_CANOPY_L * 0.5 + 0.05)
+		# the signal: a green arrow pointing down (open), a red X (closed)
+		_road_box(face, d + 0.75 * dir, Vector3(0.9, 0.9, 0.12), "toll_paint", C.dark, false, base_y - 0.4)
+		if closed:
+			for a in [PI / 4.0, -PI / 4.0]:
+				_road_box(face - dir * 0.08, d + 0.75 * dir, Vector3(0.75, 0.14, 0.05), "toll_red", Color.WHITE, false, base_y - 0.02, a)
+		else:
+			_road_box(face - dir * 0.08, d + 0.75 * dir, Vector3(0.14, 0.42, 0.05), "toll_green", Color.WHITE, false, base_y - 0.15)
+			for a in [PI / 4.0, -PI / 4.0]:
+				_road_box(face - dir * 0.08, d + 0.75 * dir + (0.09 if a > 0.0 else -0.09) * dir, Vector3(0.36, 0.12, 0.05), "toll_green", Color.WHITE, false, base_y - 0.14, a * dir)
+		# the board: what the lane is
+		var text := "ETC"
+		if layout == "event":
+			text = "GO"
+		elif closed:
+			text = "CLOSED"
+		elif layout == "mixed":
+			text = "ETC · 60"
+		var bcol: Color = C.purple if text.begins_with("ETC") else (C.green if layout == "event" else C.red)
+		_road_box(face, d - 0.55 * dir, Vector3(1.5, 0.75, 0.12), "toll_paint", bcol, false, base_y + 0.1)
+		_toll_label(text, face - dir * 0.09, d - 0.55 * dir, base_y + 0.47, dir, minf(0.0055, 1.35 / (text.length() * 0.58 * 96.0)))
+		# a camera on the fascia, a reader under the canopy
+		_road_box(face - dir * 0.3, d + 1.5 * dir, Vector3(0.25, 0.22, 0.45), "toll_paint", C.dark, false, base_y - 0.72)
+		_road_box(s0 - dir * 4.5, d, Vector3(0.8, 0.5, 0.08), "toll_paint", C.grey, false, base_y - 0.5)
+		# the barrier arm: on the booth's island (to the lane's driver's side), past the booth
+		var gs: float = s0 + dir * 3.5
+		var post_d: float = d - dir * (st.LANE_W * st.TOLL_SPREAD * 0.5)
+		_road_box(gs, post_d, Vector3(0.32, 1.0, 0.32), "toll_paint", C.yellow, true, 0.25)
+		if closed:
+			# down across the lane, solid (and a line of cones closing the lane off before it)
+			for k in 6:
+				_road_box(gs, post_d + dir * (0.35 + 0.5 * k), Vector3(0.5, 0.1, 0.1), "toll_paint", C.red if k % 2 == 0 else C.white, false, 1.0)
+			var gb := _frame(gs, d)                          # (the arm and its posts, solid: a wall across the lane)
+			_body(int(st.wrap_s(gs) / st.STEP), "concrete").box(st.world_at(gs, d) + gb.y * 0.6,
+				Vector3(st.LANE_W * st.TOLL_SPREAD - st.TOLL_ISLAND_W - 0.1, 1.2, 0.3), gb, Color.WHITE, true)
+			_toll_cones(float(ln.base), dir)
+		else:
+			for k in 6:
+				_road_box(gs, post_d, Vector3(0.1, 0.5, 0.1), "toll_paint", C.red if k % 2 == 0 else C.white, false, 1.25 + 0.5 * k)
+	# the signs before it, both ways
+	_toll_signs()
+	# the canopy's name over each carriageway
+	var title := "TOLL" if layout != "event" else "SHOTGUN RALLY"
+	for dir in [1, -1]:
+		var face: float = s0 - dir * (TOLL_CANOPY_L * 0.5 + 0.05)
+		var dc: float = 0.0 if dir == 1 else st.ONCOMING_D
+		_road_box(face, dc, Vector3(10.5, 1.3, 0.25), "toll_paint", C.purple if layout != "event" else C.red, false, base_y + 1.0)
+		_toll_label(title, face - dir * 0.14, dc, base_y + 1.65, dir, 0.009 if title.length() < 6 else 0.0065)
+
+
+## Text on the plaza facing the traffic going `dir`, at (s, d), h up.
+func _toll_label(text: String, s: float, d: float, h: float, dir: int, px: float) -> void:
+	var lbl := Label3D.new()
+	lbl.text = text
+	lbl.font_size = 96
+	lbl.pixel_size = px
+	lbl.outline_size = 0
+	lbl.modulate = Color(0.97, 0.97, 0.95)
+	lbl.double_sided = false
+	var bas := _frame(s, d)                                  # (the road's, as its board's: up with the grade)
+	# (as the gantries' boards: turned to the drivers coming at it; +Z is its readable side)
+	lbl.transform = Transform3D(bas if dir == 1 else bas * Basis(Vector3.UP, PI), st.world_at(s, d) + bas.y * h)
+	lbl.visibility_range_end = 700.0
+	add_child(lbl)
+
+
+## A closed lane's cones (base: its d on the open road): a taper across it from 150 m before
+## the booths, then a line down its middle to the gate (Kenney's cone, if the library's in;
+## else a little orange post).
+func _toll_cones(base: float, dir: int) -> void:
+	var s0: float = st.toll.s
+	var H: float = st.toll.half
+	var xfs: Array = []
+	var u := H + 150.0
+	while u > H + 0.5:
+		var s: float = s0 - dir * u
+		var t := clampf((H + 150.0 - u) / 60.0, 0.0, 1.0)  # (0 at the taper's start, at the lane's edge; 1 across)
+		var dd: float = lerpf(st.toll_d(base + dir * st.LANE_W * 0.5, s), st.toll_d(base, s), t)   # (from its right edge in to its middle)
+		var bas := _frame(s, dd)
+		xfs.append(Transform3D(bas, st.world_at(s, dd)))
+		u -= 6.0 if t < 1.0 else 9.0
+	var mesh: Mesh = null
+	var sc := 1.0
+	if EnvAssets.available():
+		mesh = EnvAssets.mesh("construction_cone")
+		sc = float(EnvAssets.info("construction_cone").get("scale", 1.0))
+	if mesh == null:
+		var gb := GeoBuf.new()
+		gb.box(Vector3(0, 0.36, 0), Vector3(0.3, 0.72, 0.3), Basis(), TOLL_COLS.yellow)
+		mesh = gb.mesh()
+		mesh.surface_set_material(0, _mat("toll_paint"))
+		sc = 1.0
+	for k in xfs.size():
+		xfs[k] = xfs[k].scaled_local(Vector3.ONE * sc)
+	_multimesh(mesh, xfs, "TollCones%d" % (1 if dir == 1 else 0), 900.0)
+
+
+## The signs before the plaza, each way: at 1 km and 400 m, a gantry's board (as the exits'):
+## how far, and in the mixed layout which lane's closed and the speed.
+func _toll_signs() -> void:
+	var s0: float = st.toll.s
+	var H: float = st.toll.half
+	var layout: String = st.toll.layout
+	for dir in [1, -1]:
+		for far in [1000.0, 400.0]:
+			var s: float = s0 - dir * (H + far)
+			# (not on top of an exit's gantry: moved toward the plaza)
+			for k in 6:
+				var clash := false
+				for g in st.gantries:
+					if absf(_ds(s, float(g.s))) < 45.0:
+						clash = true
+				if not clash:
+					break
+				s += dir * 30.0
+			var lines := "TOLL PLAZA\n%s" % ("1 km" if far > 500.0 else "400 m")
+			if layout == "mixed" and far < 500.0:
+				lines = "TOLL · 60 km/h\nRIGHT LANE CLOSED"
+			elif layout == "event":
+				lines = "SHOTGUN RALLY\nTOLL OPEN · %s" % ("1 km" if far > 500.0 else "400 m")
+			_sign_gantry(s, dir, lines)
+
+
+## A sign gantry over one carriageway (dir 1 ours, -1 theirs): two posts, a beam, a green board.
+func _sign_gantry(s: float, dir: int, text: String) -> void:
+	var i := int(st.wrap_s(s) / st.STEP)
+	var bas := Basis(Vector3.UP, -st.heading_at(s))
+	var a := st.world_at(s, st.MEDIAN_D + 0.6 * dir)
+	var b := st.world_at(s, (st.OUTER_R + 0.8) if dir == 1 else (st.OUTER_L - 0.8))
+	for p in [a, b]:
+		_buf(i, "steel").box(p + Vector3.UP * 3.6, Vector3(0.4, 7.2, 0.4), bas)
+		_body(i, "concrete").box(p + Vector3.UP * 3.6, Vector3(0.4, 7.2, 0.4), bas, Color.WHITE, true)
+	var mid := (a + b) * 0.5 + Vector3.UP * 7.0
+	_buf(i, "steel").box(mid, Vector3(a.distance_to(b), 0.6, 0.8), bas)
+	var board := st.world_at(s, st.LANE_W if dir == 1 else st.ONCOMING_D - st.LANE_W)
+	board.y = mid.y - 1.1
+	_buf(i, "sign").box(board, Vector3(9.0, 2.6, 0.2), bas)
+	var lbl := Label3D.new()
+	lbl.text = text
+	lbl.font_size = 96
+	lbl.pixel_size = 0.0085
+	lbl.outline_size = 0
+	lbl.modulate = Color(0.95, 0.95, 0.92)
+	lbl.double_sided = false
+	lbl.transform = Transform3D(bas if dir == 1 else bas * Basis(Vector3.UP, PI), board + st.forward_at(s) * (-0.12 * dir))
+	lbl.visibility_range_end = 900.0
+	add_child(lbl)
 
 
 ## Roads crossing over the highway: a deck on piers (outside the barriers and in the
@@ -1337,11 +1680,17 @@ func _ramp(r: Dictionary) -> void:
 ## The city's towers, both sides of the expressway: blocks of offices and flats,
 ## lower near the road, taller back from it and in the middle of town; none on a
 ## road (this or another part of the loop) or in the water.
+const CITY_FRONT := 190.0            # m from the road's middle: the library's buildings (EnvAssets "building") this near, the drawn towers beyond
+const CITY_REAL_DRAW := 1800.0       # m: a real building drawn this far (its LODs: Godot's, per building)
+
 func _city() -> void:
 	var occupied := {}
 	var xfs := []
 	var cols := []
 	var box := _building_mesh()
+	var lib: Array = EnvAssets.ids("building") if EnvAssets.available() else []
+	var real: Array = []                                     # [[id, Transform3D, radius]]
+	var night: float = _wm.night_amount if _wm else (1.0 if mood == "night" else 0.0)
 	var palette := [Color(0.5, 0.5, 0.48), Color(0.56, 0.53, 0.47), Color(0.44, 0.46, 0.5), Color(0.6, 0.59, 0.56),
 		Color(0.38, 0.4, 0.42), Color(0.53, 0.48, 0.42), Color(0.46, 0.5, 0.53)]
 	for z in st.zones:
@@ -1365,7 +1714,38 @@ func _city() -> void:
 						hgt *= 2.0
 					d += side * (dep + _rng.randf_range(10.0, 24.0))
 					var g := st.land_at(p.x, p.z)
+					# the front rows: one of the library's buildings, its long side to the road (its own
+					# footprint: the next slot further out by its depth)
+					if not lib.is_empty() and absf(off) < CITY_FRONT:
+						var id: String = lib[_rng.randi() % lib.size()]
+						var sz: Array = EnvAssets.info(id).get("size", [30.0, 30.0, 30.0])
+						var along: bool = float(sz[0]) >= float(sz[2])          # (its x the longer: along the road)
+						var across: float = float(sz[2]) if along else float(sz[0])
+						var rad: float = Vector2(float(sz[0]), float(sz[2])).length() * 0.5
+						var q := st.world_at(s, off - side * dep * 0.5 + side * (across * 0.5 + 2.0))   # (from the slot's road side out)
+						var gq := st.land_at(q.x, q.z)
+						d += side * (across - dep + 2.0)
+						if gq < 1.5 or _road_dist(q.x, q.z) < 30.0 + rad or rad > 75.0:
+							continue
+						var clash := false
+						for r in real:
+							if (r[1] as Transform3D).origin.distance_to(Vector3(q.x, gq, q.z)) < float(r[2]) + rad - 4.0:
+								clash = true
+								break
+						if clash:
+							continue
+						var rb := Basis(Vector3.UP, -st.heading_at(s) + (PI * 0.5 if along else 0.0) + (PI if _rng.randf() < 0.5 else 0.0))
+						real.append([id, Transform3D(rb, Vector3(q.x, gq - 0.3, q.z)), rad])
+						occupied[Vector2i(floori(q.x / 30.0), floori(q.z / 30.0))] = true
+						continue
 					if g < 1.5 or _road_dist(p.x, p.z) < 34.0 + maxf(w, dep) * 0.5:
+						continue
+					var clash2 := false
+					for r in real:
+						if (r[1] as Transform3D).origin.distance_to(Vector3(p.x, g, p.z)) < float(r[2]) + maxf(w, dep) * 0.5:
+							clash2 = true
+							break
+					if clash2:
 						continue
 					var key := Vector2i(floori(p.x / 30.0), floori(p.z / 30.0))
 					if occupied.has(key):
@@ -1375,7 +1755,25 @@ func _city() -> void:
 					xfs.append(Transform3D(bas, Vector3(p.x, g + hgt * 0.5 - 0.5, p.z)))
 					cols.append(palette[_rng.randi() % palette.size()])
 			s += _rng.randf_range(40.0, 70.0)
-	building_count = xfs.size()
+	building_count = xfs.size() + real.size()
+	real_building_count = real.size()
+	# the library's buildings: each its own node (Godot picks each one's level of detail by its
+	# distance), its facade material (lit windows at night)
+	var mats := {}
+	for r in real:
+		var m: Mesh = EnvAssets.mesh(str(r[0]))
+		if m == null:
+			continue
+		var mi := MeshInstance3D.new()
+		mi.name = "Building_%s_%d" % [r[0], get_child_count()]
+		mi.mesh = m
+		if not mats.has(r[0]):
+			mats[r[0]] = EnvAssets.building(m.surface_get_material(0), night)
+		mi.material_override = mats[r[0]]
+		mi.transform = r[1]
+		mi.visibility_range_end = CITY_REAL_DRAW
+		mi.visibility_range_end_margin = 100.0
+		add_child(mi)
 	# in a few big batches (each drawn within a range)
 	var batch := 400
 	for k in range(0, xfs.size(), batch):

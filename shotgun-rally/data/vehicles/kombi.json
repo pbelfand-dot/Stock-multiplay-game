@@ -35,6 +35,7 @@
 		"blurb": "A family estate with a twin-turbo V8: 800 N m from just over idle, four-wheel drive and room for the dog. Two tonnes that get to 100 faster than most sports cars."
 	},
 	"traffic": {
+		"type": "van",
 		"weight": 0.15,
 		"paints": [[0.42, 0.45, 0.47], [0.05, 0.05, 0.06], [0.85, 0.85, 0.87], [0.08, 0.18, 0.42]]
 	},

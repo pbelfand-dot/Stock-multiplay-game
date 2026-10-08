@@ -96,9 +96,138 @@ func generate(seed_value: int, _target := 2600.0) -> void:
 					_hill_grid[key] = []
 				_hill_grid[key].append(hl)
 	_extra_lanes()
+	_find_toll()
 	_bumps.seed = 7
 	_bumps.frequency = 1.0 / 260.0
 	_bumps.fractal_octaves = 3
+
+
+## THE TOLL PLAZA: one across both carriageways where the road runs straight on the ground,
+## clear of the ramps, overpasses and gantries (_find_toll: the same spot every time).
+## toll = {s, half (m along, either side of s), approach (m before it where lanes are kept),
+## layout ("open": every lane open, gates up, full speed; "mixed": the right-hand lane of each
+## carriageway closed (a cash booth shut), the traffic out of it beforehand, the open ones
+## slowed; "event": all open, gates up, the lane lights green, for a race), closed: [lanes]}.
+## opts.toll picks the layout ("open" by default: cut up's gameplay first).
+var toll := {}
+const TOLL_HALF := 16.0              # the islands and booths: 32 m along the road
+const TOLL_APPROACH := 320.0         # lanes kept from this far before (and the closed lane emptied before that)
+const TOLL_SPEED := {"open": 0.0, "mixed": 16.7, "event": 0.0}   # m/s the traffic slows to through it (0: not at all)
+
+func _find_toll() -> void:
+	var best := -1.0
+	var best_score := -INF
+	var s := 400.0
+	while s < length - 400.0:
+		var ok := true
+		var x := s - TOLL_APPROACH - 80.0
+		var bend := 0.0
+		while x <= s + TOLL_HALF + 140.0:
+			if support_at(x) != "ground" or tunnel_at(x, 60.0).size() > 0 or span_at(x, 60.0).size() > 0:
+				ok = false
+				break
+			bend = maxf(bend, absf(curv_at(x)))
+			x += 20.0
+		if ok:
+			for r in ramps:
+				if absf(_wrapped_ds(float(r.s), s)) < 600.0:
+					ok = false
+			for o in overpasses:
+				if absf(_wrapped_ds(float(o.s), s)) < 300.0:
+					ok = false
+			for g in gantries:
+				if absf(_wrapped_ds(float(g.s), s)) < 260.0:
+					ok = false
+		if ok and bend < 1.0 / 1500.0:
+			var score := -bend * 10000.0 + (1.0 if zone_at(s) == "lake" else 0.0)
+			if score > best_score:
+				best_score = score
+				best = s
+		s += 25.0
+	if best < 0.0:
+		toll = {}
+		return
+	var layout := str(opts.get("toll", "open"))
+	if not TOLL_SPEED.has(layout):
+		layout = "open"
+	toll = {"s": best, "half": TOLL_HALF, "approach": TOLL_APPROACH, "layout": layout,
+		"closed": [0] if layout == "mixed" else [], "speed": float(TOLL_SPEED[layout])}
+
+
+func _wrapped_ds(a: float, b: float) -> float:
+	return fposmod(a - b + length * 0.5, length) - length * 0.5
+
+
+## Where s is against the toll plaza: -1 none, 0 its approach (lanes kept), 1 at the booths.
+func toll_zone(s: float) -> int:
+	if toll.is_empty():
+		return -1
+	var ds := _wrapped_ds(s, float(toll.s))
+	if absf(ds) <= float(toll.half) + 4.0:
+		return 1
+	if ds < 0.0 and ds > -(float(toll.half) + float(toll.approach)):
+		return 0
+	return -1
+
+
+## This lane shut at the plaza (the mixed layout's cash booth): traffic leaves it beforehand.
+func toll_closed(lane: int) -> bool:
+	return not toll.is_empty() and lane in toll.get("closed", [])
+
+
+## Where s is against the plaza for traffic going `dir` (+1 ours, up s; -1 the other
+## carriageway's, down s): -1 none, 0 its approach, 1 at the booths.
+func toll_zone_dir(s: float, dir: int) -> int:
+	if dir > 0 or toll.is_empty():
+		return toll_zone(s)
+	var ds := _wrapped_ds(s, float(toll.s))
+	if absf(ds) <= float(toll.half) + 4.0:
+		return 1
+	if ds > 0.0 and ds < float(toll.half) + float(toll.approach):
+		return 0
+	return -1
+
+
+## At the plaza the lanes fan out (each carriageway's spread about its middle, TOLL_SPREAD
+## times): the booths' islands stand on the lane lines with a full lane's room between them
+## (3.6 m clear, 0.9 m islands), the outer ones on the shoulder and the median. Eased in over
+## SPREAD_EASE m before and out after (about 1.3 m sideways for the outer lanes over 160 m:
+## the traffic and the lines drift out, nobody has to change lanes).
+const TOLL_SPREAD := 1.25
+const TOLL_ISLAND_W := 0.9
+const SPREAD_HOLD := 40.0            # m past the islands' ends the lanes stay spread
+const SPREAD_EASE := 160.0
+
+func toll_spread(s: float) -> float:
+	if toll.is_empty():
+		return 1.0
+	var x := absf(_wrapped_ds(s, float(toll.s))) - float(toll.half) - SPREAD_HOLD
+	if x <= 0.0:
+		return TOLL_SPREAD
+	if x >= SPREAD_EASE:
+		return 1.0
+	return lerpf(TOLL_SPREAD, 1.0, smoothstep(0.0, 1.0, x / SPREAD_EASE))
+
+
+## A lane's d (where it'd be on the open road) where it really is at s: fanned out at the plaza.
+func toll_d(d: float, s: float) -> float:
+	var k := toll_spread(s)
+	if k == 1.0:
+		return d
+	var mid: float = 0.0 if d > MEDIAN_D else ONCOMING_D
+	return mid + (d - mid) * k
+
+
+## A line at d (the autopilot's, astride a lane line) moved into the middle of the nearest
+## lane where the plaza's islands are (and the lanes spread: toll_d); elsewhere d.
+func toll_lane_d(d: float, s: float) -> float:
+	var sp := toll_spread(s)
+	if sp == 1.0:
+		return d
+	var mid: float = 0.0 if d > MEDIAN_D else ONCOMING_D
+	var k := clampi(int(floor((d - mid) / LANE_W + 2.0)), 0, 3)
+	# (eased over with the lanes' fanning out: no step in the line)
+	return lerpf(d, toll_d(mid + (float(k) - 1.5) * LANE_W, s), (sp - 1.0) / (TOLL_SPREAD - 1.0))
 
 
 func touge_name() -> String:

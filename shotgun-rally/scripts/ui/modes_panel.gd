@@ -17,6 +17,8 @@ const Profile = preload("res://scripts/game/profile.gd")
 var _dir := "up"
 var _rules := "time"
 var _dir_btns := {}
+var _toll := "open"                  # cut up: the toll plaza's layout (Modes.TOLL_LAYOUTS)
+var _toll_btns := {}
 var _rule_btns := {}
 var _online := false
 var _collide := true
@@ -78,13 +80,22 @@ func _ready() -> void:
 	for k in Modes.DIFFICULTIES:
 		var best := Profile.mode_best("cutup/%s" % k)
 		var text: String = Modes.DIFFICULTIES[k].name + ("  ·  %d" % int(best.value) if not best.is_empty() else "")
-		r2.add_child(UI.button(text, func(): start.emit({"mode": "cutup", "difficulty": k, "online": _online, "collide": _collide}), 20, 150, "night"))
+		r2.add_child(UI.button(text, func(): start.emit({"mode": "cutup", "difficulty": k, "toll": _toll, "online": _online, "collide": _collide}), 20, 150, "night"))
+	var r3 := HBoxContainer.new()
+	r3.add_theme_constant_override("separation", 10)
+	cut.add_child(r3)
+	r3.add_child(UI.label("TOLL PLAZA", 17, UI.DIM))
+	for tk in Modes.TOLL_LAYOUTS:
+		var tb := UI.button(Modes.TOLL_LAYOUTS[tk], _set_toll.bind(tk), 17, 150, "night")
+		_toll_btns[tk] = tb
+		r3.add_child(tb)
 	v.add_child(UI.gap(2))
 	var back_btn := UI.button("BACK", func(): back.emit(), 20, 140, "night")
 	back_btn.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	v.add_child(back_btn)
 	_set_dir(_dir)
 	_set_rules(_rules)
+	_set_toll(_toll)
 	_set_online(_online)
 
 
@@ -149,6 +160,12 @@ func _set_dir(d: String) -> void:
 	_dir = d
 	for k in _dir_btns:
 		(_dir_btns[k] as Button).modulate = Color.WHITE if k == d else Color(1, 1, 1, 0.45)
+
+
+func _set_toll(t: String) -> void:
+	_toll = t
+	for k in _toll_btns:
+		(_toll_btns[k] as Button).modulate = Color.WHITE if k == t else Color(1, 1, 1, 0.45)
 
 
 func _set_rules(r: String) -> void:

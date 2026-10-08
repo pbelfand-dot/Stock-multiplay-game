@@ -1,0 +1,1132 @@
+{
+ "_doc": "The converted environment library (tools/import_environment.py, tools/environment_specs.json): what each asset is, where it is, its size; read by scripts/stage/env_assets.gd. Inventory: docs/ENVIRONMENT_INVENTORY.md.",
+ "assets": {
+  "conifer_01": {
+   "kind": "tree",
+   "glb": "res://assets/environment_runtime/vegetation/conifers.glb",
+   "part": "conifer_01",
+   "height": 25.9,
+   "trunk": 0.34,
+   "tags": [
+    "conifer",
+    "pine",
+    "tall"
+   ],
+   "source": "owner's pack: chvegetation vol5 (conifers), chvol5_01.fbx",
+   "leaf_cut": 0.3
+  },
+  "conifer_02": {
+   "kind": "tree",
+   "glb": "res://assets/environment_runtime/vegetation/conifers.glb",
+   "part": "conifer_02",
+   "height": 26.4,
+   "trunk": 0.34,
+   "tags": [
+    "conifer",
+    "pine",
+    "tall"
+   ],
+   "source": "owner's pack: chvegetation vol5 (conifers), chvol5_02.fbx",
+   "leaf_cut": 0.3
+  },
+  "conifer_03": {
+   "kind": "tree",
+   "glb": "res://assets/environment_runtime/vegetation/conifers.glb",
+   "part": "conifer_03",
+   "height": 26.4,
+   "trunk": 0.34,
+   "tags": [
+    "conifer",
+    "pine",
+    "tall"
+   ],
+   "source": "owner's pack: chvegetation vol5 (conifers), chvol5_03.fbx",
+   "leaf_cut": 0.3
+  },
+  "conifer_04": {
+   "kind": "tree",
+   "glb": "res://assets/environment_runtime/vegetation/conifers.glb",
+   "part": "conifer_04",
+   "height": 18.0,
+   "trunk": 0.3,
+   "tags": [
+    "conifer",
+    "pine",
+    "mid"
+   ],
+   "source": "owner's pack: chvegetation vol5 (conifers), chvol5_04.fbx",
+   "leaf_cut": 0.3
+  },
+  "conifer_05": {
+   "kind": "tree",
+   "glb": "res://assets/environment_runtime/vegetation/conifers.glb",
+   "part": "conifer_05",
+   "height": 21.5,
+   "trunk": 0.3,
+   "tags": [
+    "conifer",
+    "pine",
+    "mid"
+   ],
+   "source": "owner's pack: chvegetation vol5 (conifers), chvol5_05.fbx",
+   "leaf_cut": 0.3
+  },
+  "conifer_06": {
+   "kind": "tree",
+   "glb": "res://assets/environment_runtime/vegetation/conifers.glb",
+   "part": "conifer_06",
+   "height": 26.0,
+   "trunk": 0.34,
+   "tags": [
+    "conifer",
+    "pine",
+    "tall"
+   ],
+   "source": "owner's pack: chvegetation vol5 (conifers), chvol5_06.fbx",
+   "leaf_cut": 0.3
+  },
+  "conifer_07": {
+   "kind": "tree",
+   "glb": "res://assets/environment_runtime/vegetation/conifers.glb",
+   "part": "conifer_07",
+   "height": 25.1,
+   "trunk": 0.34,
+   "tags": [
+    "conifer",
+    "pine",
+    "tall"
+   ],
+   "source": "owner's pack: chvegetation vol5 (conifers), chvol5_07.fbx",
+   "leaf_cut": 0.3
+  },
+  "conifer_08": {
+   "kind": "tree",
+   "glb": "res://assets/environment_runtime/vegetation/conifers.glb",
+   "part": "conifer_08",
+   "height": 25.5,
+   "trunk": 0.34,
+   "tags": [
+    "conifer",
+    "pine",
+    "tall"
+   ],
+   "source": "owner's pack: chvegetation vol5 (conifers), chvol5_08.fbx",
+   "leaf_cut": 0.3
+  },
+  "conifer_09": {
+   "kind": "tree",
+   "glb": "res://assets/environment_runtime/vegetation/conifers.glb",
+   "part": "conifer_09",
+   "height": 24.8,
+   "trunk": 0.34,
+   "tags": [
+    "conifer",
+    "pine",
+    "tall"
+   ],
+   "source": "owner's pack: chvegetation vol5 (conifers), chvol5_09.fbx",
+   "leaf_cut": 0.3
+  },
+  "conifer_10": {
+   "kind": "tree",
+   "glb": "res://assets/environment_runtime/vegetation/conifers.glb",
+   "part": "conifer_10",
+   "height": 17.1,
+   "trunk": 0.3,
+   "tags": [
+    "conifer",
+    "pine",
+    "leaning"
+   ],
+   "source": "owner's pack: chvegetation vol5 (conifers), chvol5_10.fbx",
+   "leaf_cut": 0.3
+  },
+  "conifer_11": {
+   "kind": "tree",
+   "glb": "res://assets/environment_runtime/vegetation/conifers.glb",
+   "part": "conifer_11",
+   "height": 21.3,
+   "trunk": 0.3,
+   "tags": [
+    "conifer",
+    "pine",
+    "wide"
+   ],
+   "source": "owner's pack: chvegetation vol5 (conifers), chvol5_11.fbx",
+   "leaf_cut": 0.3
+  },
+  "conifer_12": {
+   "kind": "tree",
+   "glb": "res://assets/environment_runtime/vegetation/conifers.glb",
+   "part": "conifer_12",
+   "height": 27.5,
+   "trunk": 0.34,
+   "tags": [
+    "conifer",
+    "pine",
+    "tall"
+   ],
+   "source": "owner's pack: chvegetation vol5 (conifers), chvol5_12.fbx",
+   "leaf_cut": 0.3
+  },
+  "robinia_a": {
+   "kind": "tree",
+   "glb": "res://assets/environment_runtime/vegetation/robinia.glb",
+   "part": "robinia_a",
+   "height": 6.6,
+   "trunk": 0.22,
+   "tags": [
+    "broad",
+    "deciduous"
+   ],
+   "bark_tint": [
+    0.78,
+    0.74,
+    0.72
+   ],
+   "source": "owner's pack: Robinia pseudoacacia (FBX; leaf texture drawn, bark from the conifer pack)"
+  },
+  "robinia_b": {
+   "kind": "tree",
+   "glb": "res://assets/environment_runtime/vegetation/robinia.glb",
+   "part": "robinia_b",
+   "height": 8.5,
+   "trunk": 0.22,
+   "tags": [
+    "broad",
+    "deciduous"
+   ],
+   "bark_tint": [
+    0.78,
+    0.74,
+    0.72
+   ],
+   "source": "owner's pack: Robinia pseudoacacia (FBX; leaf texture drawn, bark from the conifer pack)"
+  },
+  "robinia_c": {
+   "kind": "tree",
+   "glb": "res://assets/environment_runtime/vegetation/robinia.glb",
+   "part": "robinia_c",
+   "height": 6.7,
+   "trunk": 0.22,
+   "tags": [
+    "broad",
+    "deciduous"
+   ],
+   "bark_tint": [
+    0.78,
+    0.74,
+    0.72
+   ],
+   "source": "owner's pack: Robinia pseudoacacia (FBX; leaf texture drawn, bark from the conifer pack)"
+  },
+  "robinia_d": {
+   "kind": "tree",
+   "glb": "res://assets/environment_runtime/vegetation/robinia.glb",
+   "part": "robinia_d",
+   "height": 9.9,
+   "trunk": 0.22,
+   "tags": [
+    "broad",
+    "deciduous"
+   ],
+   "bark_tint": [
+    0.78,
+    0.74,
+    0.72
+   ],
+   "source": "owner's pack: Robinia pseudoacacia (FBX; leaf texture drawn, bark from the conifer pack)"
+  },
+  "tall_pine_1": {
+   "kind": "tree",
+   "glb": "res://assets/environment_runtime/vegetation/tall_pines.glb",
+   "part": "tall_pine_1",
+   "height": 11.2,
+   "trunk": 0.21,
+   "tags": [
+    "conifer",
+    "pine",
+    "tall"
+   ],
+   "source": "owner's pack: Tall Pines (Blender)",
+   "leaf_cut": 0.2
+  },
+  "tall_pine_2": {
+   "kind": "tree",
+   "glb": "res://assets/environment_runtime/vegetation/tall_pines.glb",
+   "part": "tall_pine_2",
+   "height": 15.1,
+   "trunk": 0.24,
+   "tags": [
+    "conifer",
+    "pine",
+    "tall"
+   ],
+   "source": "owner's pack: Tall Pines (Blender)",
+   "leaf_cut": 0.2
+  },
+  "tall_pine_3": {
+   "kind": "tree",
+   "glb": "res://assets/environment_runtime/vegetation/tall_pines.glb",
+   "part": "tall_pine_3",
+   "height": 18.9,
+   "trunk": 0.27,
+   "tags": [
+    "conifer",
+    "pine",
+    "tall"
+   ],
+   "source": "owner's pack: Tall Pines (Blender)",
+   "leaf_cut": 0.2
+  },
+  "tall_pine_4": {
+   "kind": "tree",
+   "glb": "res://assets/environment_runtime/vegetation/tall_pines.glb",
+   "part": "tall_pine_4",
+   "height": 22.0,
+   "trunk": 0.3,
+   "tags": [
+    "conifer",
+    "pine",
+    "tall"
+   ],
+   "source": "owner's pack: Tall Pines (Blender)",
+   "leaf_cut": 0.2
+  },
+  "tall_pine_5": {
+   "kind": "tree",
+   "glb": "res://assets/environment_runtime/vegetation/tall_pines.glb",
+   "part": "tall_pine_5",
+   "height": 24.4,
+   "trunk": 0.32,
+   "tags": [
+    "conifer",
+    "pine",
+    "tall"
+   ],
+   "source": "owner's pack: Tall Pines (Blender)",
+   "leaf_cut": 0.2
+  },
+  "rock_moss_01": {
+   "kind": "rock",
+   "glb": "res://assets/environment_runtime/rocks/rock_moss_set.glb",
+   "part": "rock_moss_01",
+   "tags": [
+    "moss"
+   ],
+   "source": "Poly Haven rock_moss_set_01 (CC0)",
+   "size": [
+    2.24,
+    1.47,
+    3.37
+   ]
+  },
+  "rock_moss_02": {
+   "kind": "rock",
+   "glb": "res://assets/environment_runtime/rocks/rock_moss_set.glb",
+   "part": "rock_moss_02",
+   "tags": [
+    "moss"
+   ],
+   "source": "Poly Haven rock_moss_set_01 (CC0)",
+   "size": [
+    2.66,
+    1.26,
+    3.26
+   ]
+  },
+  "rock_moss_03": {
+   "kind": "rock",
+   "glb": "res://assets/environment_runtime/rocks/rock_moss_set.glb",
+   "part": "rock_moss_03",
+   "tags": [
+    "moss"
+   ],
+   "source": "Poly Haven rock_moss_set_01 (CC0)",
+   "size": [
+    2.11,
+    1.1,
+    2.08
+   ]
+  },
+  "rock_moss_04": {
+   "kind": "rock",
+   "glb": "res://assets/environment_runtime/rocks/rock_moss_set.glb",
+   "part": "rock_moss_04",
+   "tags": [
+    "moss"
+   ],
+   "source": "Poly Haven rock_moss_set_01 (CC0)",
+   "size": [
+    2.13,
+    1.77,
+    1.96
+   ]
+  },
+  "rock_moss_05": {
+   "kind": "rock",
+   "glb": "res://assets/environment_runtime/rocks/rock_moss_set.glb",
+   "part": "rock_moss_05",
+   "tags": [
+    "moss"
+   ],
+   "source": "Poly Haven rock_moss_set_01 (CC0)",
+   "size": [
+    1.82,
+    1.21,
+    3.0
+   ]
+  },
+  "rock_moss_06": {
+   "kind": "rock",
+   "glb": "res://assets/environment_runtime/rocks/rock_moss_set.glb",
+   "part": "rock_moss_06",
+   "tags": [
+    "moss"
+   ],
+   "source": "Poly Haven rock_moss_set_01 (CC0)",
+   "size": [
+    2.13,
+    1.26,
+    2.76
+   ]
+  },
+  "rock_face_01": {
+   "kind": "cliff",
+   "glb": "res://assets/environment_runtime/rocks/rock_face_01.glb",
+   "part": "rock_face_01",
+   "size": [
+    4.95,
+    3.56,
+    3.83
+   ],
+   "tags": [
+    "cut"
+   ],
+   "source": "Poly Haven rock_face_01 (CC0)"
+  },
+  "electricity_pole": {
+   "kind": "prop",
+   "glb": "res://assets/environment_runtime/props/kenney_props.glb",
+   "part": "electricity_pole",
+   "scale": 18.0,
+   "tags": [
+    "kenney"
+   ],
+   "source": "Kenney City Kit (Roads) 2.1 (CC0)"
+  },
+  "electricity_pole_wide": {
+   "kind": "prop",
+   "glb": "res://assets/environment_runtime/props/kenney_props.glb",
+   "part": "electricity_pole_wide",
+   "scale": 18.0,
+   "tags": [
+    "kenney"
+   ],
+   "source": "Kenney City Kit (Roads) 2.1 (CC0)"
+  },
+  "electricity_pole_single": {
+   "kind": "prop",
+   "glb": "res://assets/environment_runtime/props/kenney_props.glb",
+   "part": "electricity_pole_single",
+   "scale": 18.0,
+   "tags": [
+    "kenney"
+   ],
+   "source": "Kenney City Kit (Roads) 2.1 (CC0)"
+  },
+  "electricity_wires": {
+   "kind": "prop",
+   "glb": "res://assets/environment_runtime/props/kenney_props.glb",
+   "part": "electricity_wires",
+   "scale": 18.0,
+   "tags": [
+    "kenney"
+   ],
+   "source": "Kenney City Kit (Roads) 2.1 (CC0)"
+  },
+  "light_curved": {
+   "kind": "prop",
+   "glb": "res://assets/environment_runtime/props/kenney_props.glb",
+   "part": "light_curved",
+   "scale": 14.0,
+   "tags": [
+    "kenney"
+   ],
+   "source": "Kenney City Kit (Roads) 2.1 (CC0)"
+  },
+  "light_curved_double": {
+   "kind": "prop",
+   "glb": "res://assets/environment_runtime/props/kenney_props.glb",
+   "part": "light_curved_double",
+   "scale": 14.0,
+   "tags": [
+    "kenney"
+   ],
+   "source": "Kenney City Kit (Roads) 2.1 (CC0)"
+  },
+  "light_square_double": {
+   "kind": "prop",
+   "glb": "res://assets/environment_runtime/props/kenney_props.glb",
+   "part": "light_square_double",
+   "scale": 14.0,
+   "tags": [
+    "kenney"
+   ],
+   "source": "Kenney City Kit (Roads) 2.1 (CC0)"
+  },
+  "construction_cone": {
+   "kind": "prop",
+   "glb": "res://assets/environment_runtime/props/kenney_props.glb",
+   "part": "construction_cone",
+   "scale": 8.0,
+   "tags": [
+    "kenney"
+   ],
+   "source": "Kenney City Kit (Roads) 2.1 (CC0)"
+  },
+  "construction_barrier": {
+   "kind": "prop",
+   "glb": "res://assets/environment_runtime/props/kenney_props.glb",
+   "part": "construction_barrier",
+   "scale": 8.0,
+   "tags": [
+    "kenney"
+   ],
+   "source": "Kenney City Kit (Roads) 2.1 (CC0)"
+  },
+  "construction_light": {
+   "kind": "prop",
+   "glb": "res://assets/environment_runtime/props/kenney_props.glb",
+   "part": "construction_light",
+   "scale": 8.0,
+   "tags": [
+    "kenney"
+   ],
+   "source": "Kenney City Kit (Roads) 2.1 (CC0)"
+  },
+  "construction_fence": {
+   "kind": "prop",
+   "glb": "res://assets/environment_runtime/props/kenney_props.glb",
+   "part": "construction_fence",
+   "scale": 8.0,
+   "tags": [
+    "kenney"
+   ],
+   "source": "Kenney City Kit (Roads) 2.1 (CC0)"
+  },
+  "road_sign_warning": {
+   "kind": "prop",
+   "glb": "res://assets/environment_runtime/props/kenney_props.glb",
+   "part": "road_sign_warning",
+   "scale": 6.0,
+   "tags": [
+    "kenney"
+   ],
+   "source": "Kenney City Kit (Roads) 2.1 (CC0)"
+  },
+  "road_sign_stop": {
+   "kind": "prop",
+   "glb": "res://assets/environment_runtime/props/kenney_props.glb",
+   "part": "road_sign_stop",
+   "scale": 6.0,
+   "tags": [
+    "kenney"
+   ],
+   "source": "Kenney City Kit (Roads) 2.1 (CC0)"
+  },
+  "road_sign_street": {
+   "kind": "prop",
+   "glb": "res://assets/environment_runtime/props/kenney_props.glb",
+   "part": "road_sign_street",
+   "scale": 6.0,
+   "tags": [
+    "kenney"
+   ],
+   "source": "Kenney City Kit (Roads) 2.1 (CC0)"
+  },
+  "sign_highway": {
+   "kind": "prop",
+   "glb": "res://assets/environment_runtime/props/kenney_props.glb",
+   "part": "sign_highway",
+   "scale": 9.0,
+   "tags": [
+    "kenney"
+   ],
+   "source": "Kenney City Kit (Roads) 2.1 (CC0)"
+  },
+  "sign_highway_wide": {
+   "kind": "prop",
+   "glb": "res://assets/environment_runtime/props/kenney_props.glb",
+   "part": "sign_highway_wide",
+   "scale": 9.0,
+   "tags": [
+    "kenney"
+   ],
+   "source": "Kenney City Kit (Roads) 2.1 (CC0)"
+  },
+  "sign_highway_detailed": {
+   "kind": "prop",
+   "glb": "res://assets/environment_runtime/props/kenney_props.glb",
+   "part": "sign_highway_detailed",
+   "scale": 9.0,
+   "tags": [
+    "kenney"
+   ],
+   "source": "Kenney City Kit (Roads) 2.1 (CC0)"
+  },
+  "traffic_light": {
+   "kind": "prop",
+   "glb": "res://assets/environment_runtime/props/kenney_props.glb",
+   "part": "traffic_light",
+   "scale": 10.0,
+   "tags": [
+    "kenney"
+   ],
+   "source": "Kenney City Kit (Roads) 2.1 (CC0)"
+  },
+  "traffic_light_hanging": {
+   "kind": "prop",
+   "glb": "res://assets/environment_runtime/props/kenney_props.glb",
+   "part": "traffic_light_hanging",
+   "scale": 10.0,
+   "tags": [
+    "kenney"
+   ],
+   "source": "Kenney City Kit (Roads) 2.1 (CC0)"
+  },
+  "bridge_pillar": {
+   "kind": "prop",
+   "glb": "res://assets/environment_runtime/props/kenney_props.glb",
+   "part": "bridge_pillar",
+   "scale": 16.0,
+   "tags": [
+    "kenney"
+   ],
+   "source": "Kenney City Kit (Roads) 2.1 (CC0)"
+  },
+  "bridge_pillar_wide": {
+   "kind": "prop",
+   "glb": "res://assets/environment_runtime/props/kenney_props.glb",
+   "part": "bridge_pillar_wide",
+   "scale": 16.0,
+   "tags": [
+    "kenney"
+   ],
+   "source": "Kenney City Kit (Roads) 2.1 (CC0)"
+  },
+  "dumpster": {
+   "kind": "prop",
+   "glb": "res://assets/environment_runtime/props/kenney_props.glb",
+   "part": "dumpster",
+   "scale": 7.0,
+   "tags": [
+    "kenney"
+   ],
+   "source": "Kenney City Kit (Roads) 2.1 (CC0)"
+  },
+  "pylon": {
+   "kind": "prop",
+   "glb": "res://assets/environment_runtime/props/highway_props.glb",
+   "part": "pylon",
+   "size": [
+    4.0,
+    11.51,
+    0.65
+   ],
+   "scale": 1.0,
+   "tags": [
+    "power"
+   ],
+   "source": "owner's pack: highway props (Models.blend)"
+  },
+  "pylon_cable": {
+   "kind": "prop",
+   "glb": "res://assets/environment_runtime/props/highway_props.glb",
+   "part": "pylon_cable",
+   "size": [
+    40.37,
+    2.0,
+    3.46
+   ],
+   "scale": 1.0,
+   "tags": [
+    "power"
+   ],
+   "source": "owner's pack: highway props (Models.blend)"
+  },
+  "crash_barrier_a": {
+   "kind": "prop",
+   "glb": "res://assets/environment_runtime/props/highway_props.glb",
+   "part": "crash_barrier_a",
+   "size": [
+    4.36,
+    1.22,
+    0.41
+   ],
+   "scale": 1.0,
+   "tags": [
+    "barrier"
+   ],
+   "source": "owner's pack: highway props (Models.blend)"
+  },
+  "crash_barrier_b": {
+   "kind": "prop",
+   "glb": "res://assets/environment_runtime/props/highway_props.glb",
+   "part": "crash_barrier_b",
+   "size": [
+    4.36,
+    1.22,
+    0.41
+   ],
+   "scale": 1.0,
+   "tags": [
+    "barrier"
+   ],
+   "source": "owner's pack: highway props (Models.blend)"
+  },
+  "sign_winding": {
+   "kind": "prop",
+   "glb": "res://assets/environment_runtime/props/highway_props.glb",
+   "part": "sign_winding",
+   "size": [
+    0.83,
+    2.22,
+    0.08
+   ],
+   "scale": 1.0,
+   "tags": [
+    "sign",
+    "bends"
+   ],
+   "source": "owner's pack: highway props (Models.blend)"
+  },
+  "sign_slippery": {
+   "kind": "prop",
+   "glb": "res://assets/environment_runtime/props/highway_props.glb",
+   "part": "sign_slippery",
+   "size": [
+    0.64,
+    2.2,
+    0.08
+   ],
+   "scale": 1.0,
+   "tags": [
+    "sign",
+    "wet"
+   ],
+   "source": "owner's pack: highway props (Models.blend)"
+  },
+  "sign_speed_limit": {
+   "kind": "prop",
+   "glb": "res://assets/environment_runtime/props/highway_props.glb",
+   "part": "sign_speed_limit",
+   "size": [
+    0.69,
+    2.17,
+    0.08
+   ],
+   "scale": 1.0,
+   "tags": [
+    "sign"
+   ],
+   "source": "owner's pack: highway props (Models.blend)"
+  },
+  "bld22_01": {
+   "kind": "building",
+   "glb": "res://assets/environment_runtime/city/bld22_01.glb",
+   "part": "bld22_01",
+   "size": [
+    90.2,
+    73.8,
+    115.1
+   ],
+   "tris": 59997,
+   "texture_px": 2048,
+   "px_per_m": 7.7,
+   "tags": [
+    "city",
+    "tower"
+   ],
+   "source": "owner's pack: 22 Buildings 2024 (Blender), 237426 triangles in the source"
+  },
+  "bld22_02": {
+   "kind": "building",
+   "glb": "res://assets/environment_runtime/city/bld22_02.glb",
+   "part": "bld22_02",
+   "size": [
+    47.4,
+    42.0,
+    32.5
+   ],
+   "tris": 46682,
+   "texture_px": 2048,
+   "px_per_m": 17.9,
+   "tags": [
+    "city",
+    "mid"
+   ],
+   "source": "owner's pack: 22 Buildings 2024 (Blender), 46682 triangles in the source"
+  },
+  "bld22_03": {
+   "kind": "building",
+   "glb": "res://assets/environment_runtime/city/bld22_03.glb",
+   "part": "bld22_03",
+   "size": [
+    32.3,
+    55.1,
+    50.8
+   ],
+   "tris": 13952,
+   "texture_px": 2048,
+   "px_per_m": 18.4,
+   "tags": [
+    "city",
+    "mid"
+   ],
+   "source": "owner's pack: 22 Buildings 2024 (Blender), 13952 triangles in the source"
+  },
+  "bld22_04": {
+   "kind": "building",
+   "glb": "res://assets/environment_runtime/city/bld22_04.glb",
+   "part": "bld22_04",
+   "size": [
+    58.0,
+    49.9,
+    34.6
+   ],
+   "tris": 12691,
+   "texture_px": 2048,
+   "px_per_m": 15.8,
+   "tags": [
+    "city",
+    "mid"
+   ],
+   "source": "owner's pack: 22 Buildings 2024 (Blender), 12691 triangles in the source"
+  },
+  "bld22_05": {
+   "kind": "building",
+   "glb": "res://assets/environment_runtime/city/bld22_05.glb",
+   "part": "bld22_05",
+   "size": [
+    39.7,
+    49.9,
+    32.3
+   ],
+   "tris": 27652,
+   "texture_px": 2048,
+   "px_per_m": 19.3,
+   "tags": [
+    "city",
+    "mid"
+   ],
+   "source": "owner's pack: 22 Buildings 2024 (Blender), 27659 triangles in the source"
+  },
+  "bld22_06": {
+   "kind": "building",
+   "glb": "res://assets/environment_runtime/city/bld22_06.glb",
+   "part": "bld22_06",
+   "size": [
+    49.7,
+    55.3,
+    47.6
+   ],
+   "tris": 11741,
+   "texture_px": 2048,
+   "px_per_m": 13.9,
+   "tags": [
+    "city",
+    "mid"
+   ],
+   "source": "owner's pack: 22 Buildings 2024 (Blender), 11741 triangles in the source"
+  },
+  "bld22_07": {
+   "kind": "building",
+   "glb": "res://assets/environment_runtime/city/bld22_07.glb",
+   "part": "bld22_07",
+   "size": [
+    56.5,
+    47.6,
+    35.1
+   ],
+   "tris": 56838,
+   "texture_px": 2048,
+   "px_per_m": 15.9,
+   "tags": [
+    "city",
+    "mid"
+   ],
+   "source": "owner's pack: 22 Buildings 2024 (Blender), 56838 triangles in the source"
+  },
+  "bld22_08": {
+   "kind": "building",
+   "glb": "res://assets/environment_runtime/city/bld22_08.glb",
+   "part": "bld22_08",
+   "size": [
+    104.8,
+    98.8,
+    139.7
+   ],
+   "tris": 15426,
+   "texture_px": 2048,
+   "px_per_m": 6.0,
+   "tags": [
+    "city",
+    "tower"
+   ],
+   "source": "owner's pack: 22 Buildings 2024 (Blender), 15426 triangles in the source"
+  },
+  "bld22_09": {
+   "kind": "building",
+   "glb": "res://assets/environment_runtime/city/bld22_09.glb",
+   "part": "bld22_09",
+   "size": [
+    44.0,
+    64.6,
+    42.5
+   ],
+   "tris": 60000,
+   "texture_px": 2048,
+   "px_per_m": 15.6,
+   "tags": [
+    "city",
+    "tower"
+   ],
+   "source": "owner's pack: 22 Buildings 2024 (Blender), 82564 triangles in the source"
+  },
+  "bld22_10": {
+   "kind": "building",
+   "glb": "res://assets/environment_runtime/city/bld22_10.glb",
+   "part": "bld22_10",
+   "size": [
+    35.5,
+    56.0,
+    36.7
+   ],
+   "tris": 15949,
+   "texture_px": 2048,
+   "px_per_m": 18.1,
+   "tags": [
+    "city",
+    "mid"
+   ],
+   "source": "owner's pack: 22 Buildings 2024 (Blender), 15949 triangles in the source"
+  },
+  "bld22_11": {
+   "kind": "building",
+   "glb": "res://assets/environment_runtime/city/bld22_11.glb",
+   "part": "bld22_11",
+   "size": [
+    50.0,
+    49.0,
+    35.6
+   ],
+   "tris": 25410,
+   "texture_px": 2048,
+   "px_per_m": 16.6,
+   "tags": [
+    "city",
+    "mid"
+   ],
+   "source": "owner's pack: 22 Buildings 2024 (Blender), 25410 triangles in the source"
+  },
+  "bld22_12": {
+   "kind": "building",
+   "glb": "res://assets/environment_runtime/city/bld22_12.glb",
+   "part": "bld22_12",
+   "size": [
+    30.9,
+    39.7,
+    33.4
+   ],
+   "tris": 8559,
+   "texture_px": 2048,
+   "px_per_m": 21.8,
+   "tags": [
+    "city",
+    "mid"
+   ],
+   "source": "owner's pack: 22 Buildings 2024 (Blender), 8559 triangles in the source"
+  },
+  "bld22_13": {
+   "kind": "building",
+   "glb": "res://assets/environment_runtime/city/bld22_13.glb",
+   "part": "bld22_13",
+   "size": [
+    47.4,
+    148.1,
+    47.3
+   ],
+   "tris": 59982,
+   "texture_px": 2048,
+   "px_per_m": 10.4,
+   "tags": [
+    "city",
+    "tower"
+   ],
+   "source": "owner's pack: 22 Buildings 2024 (Blender), 365086 triangles in the source"
+  },
+  "bld22_14": {
+   "kind": "building",
+   "glb": "res://assets/environment_runtime/city/bld22_14.glb",
+   "part": "bld22_14",
+   "size": [
+    48.7,
+    38.7,
+    26.5
+   ],
+   "tris": 13931,
+   "texture_px": 2048,
+   "px_per_m": 19.8,
+   "tags": [
+    "city",
+    "mid"
+   ],
+   "source": "owner's pack: 22 Buildings 2024 (Blender), 13931 triangles in the source"
+  },
+  "bld22_15": {
+   "kind": "building",
+   "glb": "res://assets/environment_runtime/city/bld22_15.glb",
+   "part": "bld22_15",
+   "size": [
+    115.9,
+    44.6,
+    102.2
+   ],
+   "tris": 10315,
+   "texture_px": 2048,
+   "px_per_m": 9.3,
+   "tags": [
+    "city",
+    "mid"
+   ],
+   "source": "owner's pack: 22 Buildings 2024 (Blender), 10315 triangles in the source"
+  },
+  "bld22_16": {
+   "kind": "building",
+   "glb": "res://assets/environment_runtime/city/bld22_16.glb",
+   "part": "bld22_16",
+   "size": [
+    81.9,
+    54.0,
+    37.3
+   ],
+   "tris": 29158,
+   "texture_px": 2048,
+   "px_per_m": 12.9,
+   "tags": [
+    "city",
+    "mid"
+   ],
+   "source": "owner's pack: 22 Buildings 2024 (Blender), 29158 triangles in the source"
+  },
+  "bld22_17": {
+   "kind": "building",
+   "glb": "res://assets/environment_runtime/city/bld22_17.glb",
+   "part": "bld22_17",
+   "size": [
+    68.4,
+    88.0,
+    64.2
+   ],
+   "tris": 28676,
+   "texture_px": 2048,
+   "px_per_m": 10.2,
+   "tags": [
+    "city",
+    "tower"
+   ],
+   "source": "owner's pack: 22 Buildings 2024 (Blender), 28676 triangles in the source"
+  },
+  "bld22_18": {
+   "kind": "building",
+   "glb": "res://assets/environment_runtime/city/bld22_18.glb",
+   "part": "bld22_18",
+   "size": [
+    150.0,
+    64.5,
+    110.3
+   ],
+   "tris": 24268,
+   "texture_px": 2048,
+   "px_per_m": 7.8,
+   "tags": [
+    "city",
+    "tower"
+   ],
+   "source": "owner's pack: 22 Buildings 2024 (Blender), 24268 triangles in the source"
+  },
+  "bld22_19": {
+   "kind": "building",
+   "glb": "res://assets/environment_runtime/city/bld22_19.glb",
+   "part": "bld22_19",
+   "size": [
+    54.6,
+    44.9,
+    40.9
+   ],
+   "tris": 26592,
+   "texture_px": 2048,
+   "px_per_m": 15.4,
+   "tags": [
+    "city",
+    "mid"
+   ],
+   "source": "owner's pack: 22 Buildings 2024 (Blender), 26592 triangles in the source"
+  },
+  "bld22_20a": {
+   "kind": "building",
+   "glb": "res://assets/environment_runtime/city/bld22_20a.glb",
+   "part": "bld22_20a",
+   "size": [
+    39.0,
+    66.1,
+    25.2
+   ],
+   "tris": 59999,
+   "texture_px": 2048,
+   "px_per_m": 15.6,
+   "tags": [
+    "city",
+    "tower"
+   ],
+   "source": "owner's pack: 22 Buildings 2024 (Blender), 87742 triangles in the source"
+  },
+  "bld22_20b": {
+   "kind": "building",
+   "glb": "res://assets/environment_runtime/city/bld22_20b.glb",
+   "part": "bld22_20b",
+   "size": [
+    39.9,
+    34.7,
+    21.3
+   ],
+   "tris": 8676,
+   "texture_px": 2048,
+   "px_per_m": 24.5,
+   "tags": [
+    "city",
+    "mid"
+   ],
+   "source": "owner's pack: 22 Buildings 2024 (Blender), 8692 triangles in the source"
+  },
+  "bld22_20c": {
+   "kind": "building",
+   "glb": "res://assets/environment_runtime/city/bld22_20c.glb",
+   "part": "bld22_20c",
+   "size": [
+    19.8,
+    33.0,
+    21.6
+   ],
+   "tris": 3319,
+   "texture_px": 2048,
+   "px_per_m": 30.7,
+   "tags": [
+    "city",
+    "mid"
+   ],
+   "source": "owner's pack: 22 Buildings 2024 (Blender), 3320 triangles in the source"
+  }
+ }
+}

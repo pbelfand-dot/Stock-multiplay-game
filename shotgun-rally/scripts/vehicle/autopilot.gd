@@ -75,6 +75,8 @@ func drive(car, s: float, d: float) -> Dictionary:
 	var line_d := clampf(bend * 30.0, -0.6, 0.6)         # + curvature = a right turn, whose inside is d > 0
 	if lane < INF:
 		line_d = lane
+	if st.has_method("toll_lane_d"):
+		line_d = st.toll_lane_d(line_d, s)                # (the toll plaza: through a lane between the islands)
 	# where the front axle is on the road
 	var front: Vector3 = car.global_position + fwd * -car.config.front_axle
 	var fs: float = s + fwd.dot(st.forward_at(s)) * -car.config.front_axle

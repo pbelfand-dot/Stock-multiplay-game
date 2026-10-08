@@ -56,6 +56,7 @@
   "blurb": "A tiny electric hatch with cameras for mirrors and screens across the dash: silent, instant torque to the rear wheels, and done at 145 km/h. Hilarious on a touge."
  },
  "traffic": {
+  "type": "compact",
   "weight": 0.1,
   "paints": [
    [

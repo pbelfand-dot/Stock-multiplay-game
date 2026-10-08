@@ -20,6 +20,7 @@
 		"notes": "Honda's Odyssey 3.5 V6: 280 hp at 6,000 rpm, 355 Nm at 4,700 rpm, 2,053 kg, FWD, 55.5 % front, the 10-speed's ratios and 3.61 final drive, 3,000 mm wheelbase. Cd 0.33 on 2.9 m^2 is an estimate."
 	},
 	"traffic": {
+		"type": "minivan",
 		"weight": 0.6,
 		"paints": [[0.85, 0.85, 0.86], [0.6, 0.62, 0.64], [0.05, 0.05, 0.06], [0.32, 0.33, 0.35], [0.08, 0.14, 0.3], [0.5, 0.06, 0.06], [0.75, 0.72, 0.62]]
 	},
