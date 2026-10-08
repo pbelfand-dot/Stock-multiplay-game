@@ -104,17 +104,18 @@ func _next() -> void:
 			var side := -1.0 if k > 0.0 else 1.0
 			_anchor = st.world_at(at, side * (st.width_at(at) * 0.5 + 3.5)) + Vector3.UP * 1.3
 		"lamp":
-			# just past the next street lamp ahead (the touge at night), on its side of the road
-			# between the edge and its post (the other side can be the mountain), looking back
-			var lamp_s: float = s + v * 2.0
+			# just past the next street lamp a second or so ahead (the touge at night), at the
+			# road's edge on the lamp's side (the other side can be the mountain), a little up:
+			# the car comes through the lamp's light close by, the trees not in the way
+			var lamp_s: float = s + v * 1.2
 			var side := 1.0
 			var lamps: Array = game.builder.get("lamps") if game.builder.get("lamps") != null else []
 			for l in lamps:
-				if float(l.s) > s + v * 1.6:
+				if float(l.s) > s + v * 0.9:
 					lamp_s = float(l.s)
 					side = signf(((l.head as Vector3) - st.world_at(lamp_s, 0.0)).dot(st.right_at(lamp_s)))
 					break
-			_anchor = st.world_at(lamp_s + 7.0, side * (st.width_at(lamp_s + 7.0) * 0.5 + 0.7)) + Vector3.UP * 1.4
+			_anchor = st.world_at(lamp_s + 4.0, side * (st.width_at(lamp_s + 4.0) * 0.5 - 0.4)) + Vector3.UP * 2.3
 	if kind == "touge" and type == "front" and game.stray:
 		game.stray.spawn_at(s + v * 4.5 + 40.0, -1)  # (a local coming up the other lane, lamps lit)
 	game.view_override = "chase"                       # (the car seen from outside, the cockpit hidden)
