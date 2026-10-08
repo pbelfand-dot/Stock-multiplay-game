@@ -107,7 +107,13 @@ Three things brought it down:
   - The autopilot's line goes between the islands.
   - A minute of insane traffic through the mixed layout behaves.
 
-GitHub CI on `main`: see the last section (filled in once the run finished).
+GitHub CI on `main` ([run 200](https://github.com/pbelfand-dot/Stock-multiplay-game/actions/runs/37805627472), commit `8dbc9af`): **passed**.
+
+- **test:** every suite green in 24.5 min.
+- **export:** Windows, Linux, Linux ARM64, macOS, Web, the Chromebook packages and the updater's pack.
+- **Release:** the `shotgun-latest` download updated to build 200; its update pack is 672 MB, up from 499 MB.
+- **Checkout:** now takes about 1 minute instead of 18+: it leaves out the owner's source packs.
+- **The two earlier runs** on `185ea68` (197 and 198) were stuck in that slow checkout and superseded by run 200; they can't be cancelled from here and will time out.
 
 ## Not done (yet)
 
