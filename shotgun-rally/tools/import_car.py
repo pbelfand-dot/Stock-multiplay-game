@@ -73,6 +73,7 @@ The spec (tools/cars/<id>.json) says what's what in the model:
     (the loose pieces wholly inside it; "cut": true, every face whose middle
     is) or {"mats": [material patterns], "box": ...} (those faces, in the box),
     + "axis": [x, y, z] its column, toward the driver, where its shape misleads,
+    "radius": m its rim's (where the hands hold it), where the cut caught more than the wheel,
     "shifter": the same (+ "below": m its pivot is below its foot,
     0.08), or, for an interior modelled without one, {"add": {"at": [x, y],
     "height": m, "lean": degrees}}: a lever made for it (rod, knob, leather
@@ -337,8 +338,9 @@ if len(uv_names) > 8:
 for pat, new in spec.get("rename", []):
     for mat in list(bpy.data.materials):
         if re.search(pat, mat.name, re.I):
-            print("renamed %s -> %s" % (mat.name, new))
-            mat.name = new
+            was = mat.name
+            mat.name = re.sub(pat, new, mat.name, flags=re.I)       # (the match replaced: a prefix, or all of it)
+            print("renamed %s -> %s" % (was, mat.name))
 if spec.get("pre_scale", 1.0) != 1.0:
     for o in meshes:
         xform(o, Matrix.Scale(spec["pre_scale"], 4))
@@ -1231,7 +1233,8 @@ if cockpit:
     centre = Vector(c0) + u * float((pu.max() + pu.min()) * 0.5) + t * float((pt.max() + pt.min()) * 0.5) \
         + n * float(along[rim].mean())
     rr = np.linalg.norm((v[rim] - np.array(centre)) - np.outer((v[rim] - np.array(centre)) @ np.array(n), np.array(n)), axis=1)
-    cock["wheel"] = {"centre": game(centre), "axis": gdir(n), "radius": float(rr.mean())}
+    rim_r = float(cockpit["wheel"].get("radius", rr.mean()))     # (given: a cut that caught the stalks too)
+    cock["wheel"] = {"centre": game(centre), "axis": gdir(n), "radius": rim_r}
     cock_parts["SteeringWheel"] = (w, centre)
     # the gear lever: it pivots below its boot, on the line from the knob down through its foot
     if "shifter" in cockpit and "add" in cockpit["shifter"]:

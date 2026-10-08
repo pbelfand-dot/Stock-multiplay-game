@@ -1,0 +1,13 @@
+{"id": "durango392",
+ "front": "-Y",
+ "wheelbase": 3.043,
+ "wheel_islands": {"tyre_mats": ["^Meshpart[235]Mtl$"]},
+ "rename": [["^Hb1Mtl$", "headlight_inner"], ["^Meshpart114Mtl$", "grille_mesh"], ["^Rleft1Mtl$", "taillight_red"], ["^Meshpart160Mtl$", "screen_centre"], ["^Meshpart26[03]Mtl$", "gauge_face"], ["^Meshpart261Mtl$", "gauge_glass"], ["^Meshpart60Mtl$", "front_lip"]],
+ "paint": ["^Meshpart12Mtl$"],
+ "glass": ["^Meshpart19Mtl$", "^01Mtl$", "^05Mtl$", "^Meshpart26[67]Mtl$"],
+ "rims": ["^Meshpart1Mtl$"],
+ "materials": [["^Meshpart3Mtl$", "rubber"], ["^Meshpart1Mtl$", "rim"], ["^SteeringWheel1Mtl$", {"color": [0.035, 0.035, 0.037], "rough": 0.6}], ["^Meshpart24Mtl$", "interior"], ["^headlight_inner$", "clear_lens"], ["^front_lip$", "black"], ["^Meshpart86Mtl$", {"color": [0.03, 0.03, 0.035], "rough": 0.45}], ["^Meshpart(85|70)Mtl$", "black"], ["^Meshpart19Mtl$", "glass"], ["^05Mtl$", "glass"], ["^Meshpart26[67]Mtl$", "glass"], ["^01Mtl$", {"look": "glass", "color": [0.01, 0.01, 0.012], "alpha": 0.7}], ["^Brake1Mtl$", {"color": [0.03, 0.03, 0.033], "rough": 0.55}], ["^Meshpart2Mtl$", "rubber"], ["^Meshpart5Mtl$", "rubber"], ["^Meshpart(71|17|201|95|196|192|33|36|22|39|37|198|105|146|156)Mtl$", "interior"], ["^Meshpart(103|194)Mtl$", {"color": [0.07, 0.07, 0.075], "rough": 0.5}], ["^Meshpart(87|49|188|89|110|124)Mtl$", "black"], ["^Meshpart21Mtl$", "gloss_black"], ["^Boot0031Mtl$", "gloss_black"], ["^Union[12]Mtl$", "dark_metal"], ["^Union3Mtl$", "dark_metal"], ["^Caliper1Mtl$", {"color": [0.55, 0.04, 0.03], "rough": 0.35}], ["^grille_mesh$", "black"], ["^taillight_red$", "red_lens"], ["^screen_centre$", "gloss_black"], ["^Meshpart197Mtl$", "gloss_black"], ["^gauge_face", {"color": [0.05, 0.05, 0.055], "rough": 0.4}], ["^gauge_glass$", {"look": "glass", "alpha": 0.25}], ["^Meshpart84Mtl$", "black"]],
+ "wheel_faces": 9000,
+ "body_faces": 170000,
+ "tex_max": 1024,
+ "cockpit": {"gearbox": "auto", "wheel": {"box": [-0.6, -0.19, 0.28, 0.56, 0.98, 1.37], "axis": [0.0, -0.89, 0.45]}}}

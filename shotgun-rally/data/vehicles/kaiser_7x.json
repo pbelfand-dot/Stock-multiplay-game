@@ -1,0 +1,92 @@
+{
+	"id": "kaiser_7x",
+	"name": "KAISER 7X",
+	"order": 268,
+	"model": "x7_g07",
+	"category": "euro",
+	"role": "player_road",
+	"real": {
+		"manufacturer": "BMW",
+		"model": "X7 M50i (G07)",
+		"year": 2020,
+		"trim": "N63 4.4 twin-turbo V8, xDrive"
+	},
+	"specs": {
+		"power_hp": 523,
+		"weight_kg": 2480,
+		"drivetrain": "AWD",
+		"transmission": "8-speed Steptronic Sport",
+		"wheelbase_mm": 3105,
+		"top_speed_kmh": 250,
+		"front_weight": 0.51,
+		"notes": "530 PS (390 kW, 523 hp) at 5,500-6,000 rpm, 750 N m from 1,800 to 4,600, 0-100 km/h in 4.7 s, 250 km/h limited, 2,480 kg DIN (2,555 EU), 3,105 mm wheelbase (BMW press kit). The fast trim of the X7 (the M50i) is used. Air springs: softer, slower body control than the X5 M."
+	},
+	"garage": {
+		"price": 46000,
+		"engine_sound": "v8_turbo",
+		"livery": "plain",
+		"number": 7,
+		"colours": [[0.06, 0.06, 0.07], [0.85, 0.85, 0.87], [0.2, 0.24, 0.3], [0.32, 0.22, 0.14]],
+		"wheels": "silver",
+		"power": 1.0,
+		"grip": 1.0,
+		"brakes": 1.0,
+		"drive_front": 0.4,
+		"blurb": "Three rows of leather and a twin-turbo V8. Soft and quiet on the highway, and still quick enough to embarrass sports cars in a straight line."
+	},
+	"traffic": {
+		"type": "suv",
+		"weight": 0.25,
+		"paints": [[0.05, 0.05, 0.06], [0.85, 0.85, 0.87], [0.5, 0.52, 0.55], [0.08, 0.1, 0.18]]
+	},
+	"physics": {
+		"chassis": "suv",
+		"mass": 2480.0,
+		"front": 0.51,
+		"torque": 750.0,
+		"curve": [[1000, 0.5], [1400, 0.75], [1800, 1.0], [4600, 1.0], [5500, 0.903], [6000, 0.828], [6500, 0.7]],
+		"idle": 650.0,
+		"limiter": 6500.0,
+		"turbo": 0.4,
+		"spool": [1300.0, 2200.0],
+		"spool_time": 0.3,
+		"anti_lag": false,
+		"gears": [5.0, 3.2, 2.143, 1.72, 1.313, 1.0, 0.823, 0.64],
+		"final": 3.15,
+		"drive": "awd",
+		"front_share": 0.4,
+		"centre": ["lsd", 0.25, 0.15, 30.0],
+		"front_diff": ["open", 0.0, 0.0, 0.0],
+		"rear": ["lsd", 0.3, 0.15, 30.0],
+		"cd": 0.35,
+		"area": 3.2,
+		"down": 0.0,
+		"brake": 0.95
+	},
+	"checks": {
+		"zero_100_max": 7.0
+	},
+	"interior": {
+		"own": true,
+		"camera": true,
+		"notes": "The model's own cabin (three rows, dash screens); steering wheel cut out to turn, lever animated."
+	},
+	"source": {
+		"package": "Internet_New_Cars/bmw-x7-2020.zip (MDL14030_reversed.glb + textures)",
+		"author": "ItsDiyor (Sketchfab)",
+		"license": "CC BY 4.0",
+		"url": "https://sketchfab.com/3d-models/bmw-x7-2020-3524d3cfb92443f596be10e5fde78677",
+		"attribution": "\"BMW X7 2020\" by ItsDiyor, CC BY 4.0",
+		"candidate": 48
+	},
+	"research": [
+		"https://www.press.bmwgroup.com/global/article/attachment/T0305969EN/446649",
+		"https://bmw.com.mt/en/all-models/m-series/x7-m50i-m50d/2019/bmw-x7-m-automobile-technical-data.html",
+		"https://www.hagerty.com/media/?p=72689"
+	],
+	"limitations": [
+		"The M50i's gear ratios are taken as the ZF 8HP's (BMW didn't publish the X7's); weight distribution and drag area are estimates.",
+		"A game-rip cabin: simple shapes in one black palette (lifted to dark grey so it reads); BMW badges remain in its texture.",
+		"No live gauges yet (data/dash): the dome light."
+	]
+}

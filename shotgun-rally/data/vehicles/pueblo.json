@@ -1,0 +1,85 @@
+{
+	"id": "pueblo",
+	"name": "PUEBLO 392",
+	"order": 148,
+	"model": "durango392",
+	"category": "american",
+	"role": "player_road",
+	"real": {
+		"manufacturer": "Dodge",
+		"model": "Durango SRT 392",
+		"year": 2021,
+		"trim": "6.4 HEMI V8 (naturally aspirated), AWD"
+	},
+	"specs": {
+		"power_hp": 475,
+		"weight_kg": 2439,
+		"drivetrain": "AWD",
+		"transmission": "8-speed automatic (TorqueFlite)",
+		"wheelbase_mm": 3043,
+		"top_speed_kmh": 254,
+		"front_weight": 0.55,
+		"notes": "475 hp and 637 N m (470 lb-ft) from the 6.4 naturally aspirated HEMI, 0-60 mph in 4.4 s (Dodge), 1/4 mile 12.9 s, 2,439 kg (5,378 lb) curb, 3,043 mm wheelbase; ~158 mph top (a 3.70 axle). AWD with an open front axle; 35 % front used."
+	},
+	"garage": {
+		"price": 38000,
+		"engine_sound": "v8",
+		"livery": "plain",
+		"number": 392,
+		"colours": [[0.06, 0.06, 0.07], [0.82, 0.83, 0.85], [0.08, 0.16, 0.42], [0.5, 0.06, 0.06]],
+		"wheels": "black",
+		"power": 1.0,
+		"grip": 1.0,
+		"brakes": 1.0,
+		"drive_front": 0.35,
+		"blurb": "A three-row family hauler with a 6.4-litre V8 and no turbos. Long, heavy and calm at speed: it pulls hard and steady and settles like a big car should."
+	},
+	"traffic": {
+		"type": "suv",
+		"weight": 0.15,
+		"paints": [[0.05, 0.05, 0.06], [0.85, 0.85, 0.87], [0.5, 0.52, 0.55], [0.08, 0.1, 0.18]]
+	},
+	"physics": {
+		"chassis": "suv",
+		"mass": 2439.0,
+		"front": 0.55,
+		"torque": 637.0,
+		"curve": [[1000, 0.62], [2000, 0.78], [3000, 0.9], [4300, 1.0], [5200, 0.98], [6000, 0.885], [6400, 0.8]],
+		"idle": 650.0,
+		"limiter": 6400.0,
+		"turbo": 0.0,
+		"gears": [4.71, 3.14, 2.1, 1.67, 1.29, 1.0, 0.84, 0.67],
+		"final": 3.7,
+		"drive": "awd",
+		"front_share": 0.35,
+		"centre": ["lsd", 0.25, 0.15, 30.0],
+		"front_diff": ["open", 0.0, 0.0, 0.0],
+		"rear": ["lsd", 0.25, 0.15, 30.0],
+		"cd": 0.38,
+		"area": 3.1,
+		"down": 0.0,
+		"brake": 0.95
+	},
+	"checks": {
+		"zero_100_max": 7.0
+	},
+	"interior": {
+		"own": true,
+		"camera": true,
+		"notes": "The model's dark cabin kept as it is (no textures in the package); steering wheel cut out to turn."
+	},
+	"source": {
+		"package": "Internet_New_Cars/dodge-durango-srt-392.zip (OBJ)",
+		"author": "fvrenbld (Sketchfab)",
+		"license": "CC BY 4.0",
+		"url": "https://sketchfab.com/3d-models/dodge-durango-srt-392-ff66f958267b479ebe8fd0780277bcba",
+		"attribution": "\"Dodge Durango SRT 392\" by fvrenbld, CC BY 4.0",
+		"candidate": 46
+	},
+	"research": ["https://media.stellantisnorthamerica.com/text.do?id=27598", "https://www.motormatchup.com/catalog/Dodge/Durango/2021/SRT-392-4DR-AWD"],
+	"limitations": [
+		"The package has no texture images: its materials are plain colours.",
+		"The top speed, the torque curve's shape, weight distribution and drag are estimates.",
+		"No live gauges yet (data/dash): plain dials, the dome light."
+	]
+}

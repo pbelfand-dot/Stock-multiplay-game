@@ -61,3 +61,51 @@ the touge and cut-up modes, then test everything. This is where it ended up.
 20. **Known look issues to polish:** carbon cockpits pick up a green cast from the grass in the
     ambient light; the Jesko's package came with no textures (plain looks); the Alfa's eye sits
     a little high; the Honda e's 0-100 on gravel (10.7 s) is slower than its real 8.3 s on tarmac.
+
+## Six SUVs (October 2026)
+
+The owner's six internet packages (`assets/car_packages/Internet_New_Cars/`): all six are in the
+garage and in highway traffic, each with its own cockpit. The registry now has 50 entries:
+45 in the garage, 15 that appear as traffic, 46 with a model of their own, 45 with their own cockpit.
+
+| Garage name | Based on | Role | Drive | Weight | Power | 0-100 in the game (gravel) | Traffic |
+|---|---|---|---|---|---|---|---|
+| STROMER 4 (`stromer`) | VW ID.4 Pro Performance (2021) | heavy EV crossover | rear | 2,049 kg | 201 hp, 310 N m, one gear, regen | 8.9 s (real 8.5 s) | crossover, common (0.3) |
+| WARHAWK 707 (`warhawk`) | Jeep Grand Cherokee Trackhawk (2018) | brutal supercharged SUV | all | 2,433 kg | 707 hp, 875 N m, 8-speed | 3.1 s (real ~3.7 s) | luxury, rare (0.06) |
+| PUEBLO 392 (`pueblo`) | Dodge Durango SRT 392 (2021) | heavy, stable, naturally aspirated V8 | all | 2,439 kg | 475 hp, 637 N m, 8-speed | 4.5 s (real ~4.6 s) | SUV (0.15) |
+| KAISER 5X (`kaiser_5x`) | BMW X5 M F85 (2016) | sharp but heavy | all | 2,275 kg | 567 hp, 750 N m, 8-speed | 3.4 s (real 4.2 s) | luxury, rare (0.06) |
+| KAISER 7X (`kaiser_7x`) | BMW X7 M50i G07 (2020) | luxury, soft but quick | all | 2,480 kg | 523 hp, 750 N m, 8-speed | 3.9 s (real 4.7 s) | SUV, common (0.25) |
+| KASTEN 63 (`kasten`) | Mercedes-AMG G 63 W463 (2020) | tall, rolls, twin-turbo V8 | all | 2,560 kg | 577 hp, 850 N m, 9-speed | 3.5 s (real 4.5 s) | luxury, rare (0.07) |
+
+- **Physics:** two new chassis classes (`car_specs.gd`): `sport_suv` (Trackhawk, X5 M: firmer, more
+  anti-roll, sharper steering) and `tall_suv` (G 63: soft, slow springs, a high centre of mass, so it
+  rolls and pitches). The Durango, X7 and ID.4 use the existing `suv`. The ID.4 is the second EV: a
+  constant-torque-then-constant-power motor curve, one 13:1 gear (160 km/h at its limit),
+  regenerative braking when you lift (`"regen"` in its physics: the engine model's new
+  `regen_torque`), and the electric sound. Like the other cars, the SUVs run 0-100 quicker on the
+  test's gravel pad than the real cars do on tarmac (the cut-up handling work will look at it).
+- **Interiors kept whole** (none deleted or replaced): the crew sit in each one's own seats, the
+  gloves on its own wheel (which turns about its own column), automatics (no lever: both hands stay
+  on the wheel). The ID.4 and X7 are game rips with simple, all-black cabins (one palette
+  texture): their pure blacks are lifted to dark grey (`"lift"`) and a wrong occlusion map dropped
+  (`glb_patch` `"no_occlusion"`), or the cabins rendered solid black. The Durango's package has no
+  textures: its white and black materials got plain looks (leather wheel, trims, gauges, a black
+  grille). The G 63's four spinning-wheel shells (from its game) hung 3 cm below the road: dropped.
+- **Driver fit:** the Trackhawk's wheel cut caught its stalks (it read the rim as 267 mm: the arms
+  stretched x1.87): the rim radius is given (`"radius"`, a new converter option) and its eye moved;
+  the ID.4's seat was found too low: its eye is given. Both now stretch x1.25-1.36, like the rest.
+- **Lamps:** the Trackhawk's French material names renamed so the lamp finder knows them; the G 63's
+  every material name held "Recycled" (it found "led" in it: its grilles glowed): the prefix is cut
+  (`"rename"` now takes a regex); the ID.4's and X7's lamps are painted into their one atlas: their
+  lamp areas are copied into lamp materials (`remat_boxes`), the same texture, so only the bright
+  lamp graphics glow.
+- **Converter (`tools/import_car.py`) learned:** `wheel_islands` (one-piece models: the tyres find
+  the wheels and calipers), `rotate`, `rename` (regex), `lift`, a given rim `radius`.
+- **Tests:** registry, the models check (all six build, sit on their wheels, clear the ground, pull
+  away on the right wheels), the interiors check (seats, gloves on the rims, the wheel turning,
+  sleeves), the live-dash check (the dome light in all 45), the look check, the modes check
+  (traffic with them in it) and the three-player online cut up all pass.
+- **Left to do:** real badges remain in some textures (the VW, BMW, Jeep and Mercedes emblems on
+  grilles and steering wheels), like the earlier cars; live gauges (`data/dash/`) for the six aren't
+  written yet (they have the dome light and their own static dials); the ID.4 and X7 cabins are
+  low-detail by nature.

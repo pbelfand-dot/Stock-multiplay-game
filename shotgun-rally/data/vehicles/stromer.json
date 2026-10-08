@@ -1,0 +1,90 @@
+{
+	"id": "stromer",
+	"name": "STROMER 4",
+	"order": 266,
+	"model": "id4",
+	"category": "euro",
+	"role": "player_road",
+	"real": {
+		"manufacturer": "Volkswagen",
+		"model": "ID.4",
+		"year": 2021,
+		"trim": "Pro Performance / 1st Edition (77 kWh, rear motor)"
+	},
+	"specs": {
+		"power_hp": 201,
+		"weight_kg": 2049,
+		"drivetrain": "RWD",
+		"transmission": "single-speed (electric)",
+		"wheelbase_mm": 2771,
+		"top_speed_kmh": 160,
+		"front_weight": 0.47,
+		"notes": "150 kW (204 PS, 201 hp) and 310 N m from the rear motor, 0-100 km/h in 8.5 s, 160 km/h limited, 2,049 kg DIN (2,124 kg EU with a driver), 2,771 mm wheelbase (VW newsroom, zeperfs). The motor's curve is modelled as constant torque to ~4,600 rpm then constant power to 16,000; one gear (13:1, 160 km/h at the limiter); regenerative braking when you lift (55 N m at the motor), a motor-and-inverter whine for the sound."
+	},
+	"garage": {
+		"price": 26000,
+		"engine_sound": "ev",
+		"livery": "plain",
+		"number": 4,
+		"colours": [[0.12, 0.24, 0.45], [0.9, 0.9, 0.9], [0.45, 0.47, 0.5], [0.06, 0.06, 0.07]],
+		"wheels": "black",
+		"power": 1.0,
+		"grip": 1.0,
+		"brakes": 1.0,
+		"drive_front": 0.0,
+		"blurb": "A heavy electric crossover: all its torque the instant you touch the pedal, one gear, a whine instead of a roar, and it slows itself when you lift."
+	},
+	"traffic": {
+		"type": "crossover",
+		"weight": 0.3,
+		"paints": [[0.12, 0.24, 0.45], [0.9, 0.9, 0.9], [0.45, 0.47, 0.5], [0.06, 0.06, 0.07], [0.55, 0.12, 0.1]]
+	},
+	"physics": {
+		"chassis": "suv",
+		"mass": 2049.0,
+		"front": 0.47,
+		"torque": 310.0,
+		"curve": [[500, 1.0], [4620, 1.0], [6000, 0.77], [8000, 0.578], [10000, 0.462], [12000, 0.385], [15000, 0.308]],
+		"idle": 500.0,
+		"limiter": 15000.0,
+		"turbo": 0.0,
+		"gears": [1.0],
+		"final": 13.0,
+		"drive": "rwd",
+		"rear": ["lsd", 0.2, 0.1, 20.0],
+		"regen": 55.0,
+		"motor_loss": 0.001,
+		"cd": 0.28,
+		"area": 2.56,
+		"down": 0.0,
+		"brake": 0.85
+	},
+	"checks": {
+		"zero_100_max": 10.5
+	},
+	"interior": {
+		"own": true,
+		"camera": true,
+		"notes": "The model's own cabin (seats, dash, centre screen, steering wheel); the steering wheel is cut out to turn."
+	},
+	"source": {
+		"package": "Internet_New_Cars/volkswagen-id4-2021.zip (MDL15030_reversed.glb + textures)",
+		"author": "ItsDiyor (Sketchfab)",
+		"license": "CC BY 4.0",
+		"url": "https://sketchfab.com/3d-models/volkswagen-id4-2021-502c1a0c911b4dfbaae57a7b25ec890f",
+		"attribution": "\"Volkswagen ID.4 2021\" by ItsDiyor, CC BY 4.0",
+		"candidate": 44
+	},
+	"research": [
+		"https://www.volkswagen-newsroom.com/en/the-id4-from-volkswagen-15712/models-15717",
+		"https://zeperfs.com/fiche9179-vw-id-4-pro-performance.htm",
+		"https://www.evspecs.org/tech-specs/volkswagen/id-4/pro-performance",
+		"https://greencarscompare.com/car/vw-id-4/"
+	],
+	"limitations": [
+		"The motor's torque curve, the regen strength, weight distribution and drag area are estimates.",
+		"No gear lever: the ID.4 has a drive selector on the instrument pod (the hand stays on the wheel).",
+		"A game-rip cabin: simple shapes in one black palette (lifted to dark grey so it reads); VW badges remain in its texture.",
+		"No live gauges yet (data/dash): its own static display, the dome light."
+	]
+}

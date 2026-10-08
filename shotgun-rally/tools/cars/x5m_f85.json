@@ -1,0 +1,10 @@
+{"id": "x5m_f85", "front": "-Y", "wheelbase": 2.933,
+ "wheel": ["M_Tire_High", "M_Rim_High", "M_BrakeDisc_High"], "caliper": ["M_Caliper_High"],
+ "drop": ["M_LicensePlate_High"], "drop_mats": ["Badges$"],
+ "rename": [["^red_glas$", "taillight_red_glass"], ["^lights$", "light_cluster"]],
+ "paint": ["^carpaint$"], "glass": ["^glass$"],
+ "materials": [["^glass$", "glass"], ["black_glass$", {"look": "glass", "color": [0.01, 0.01, 0.012], "alpha": 0.85}],
+               ["^pchrome$", "chrome"], ["^plastic_S$", "black"], ["^chassis$", "black"], ["^glass_surr$", "gloss_black"],
+               ["^taillight_red_glass$", "red_lens"]],
+ "wheel_faces": 6000, "body_faces": 60000, "tex_max": 1024,
+ "cockpit": {"gearbox": "auto", "wheel": {"box": [-0.64, -0.18, 0.24, 0.48, 0.92, 1.40]}}}

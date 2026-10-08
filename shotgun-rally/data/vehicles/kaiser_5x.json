@@ -1,0 +1,93 @@
+{
+	"id": "kaiser_5x",
+	"name": "KAISER 5X",
+	"order": 267,
+	"model": "x5m_f85",
+	"category": "euro",
+	"role": "player_road",
+	"real": {
+		"manufacturer": "BMW",
+		"model": "X5 M (F85)",
+		"year": 2016,
+		"trim": "S63 4.4 twin-turbo V8, xDrive"
+	},
+	"specs": {
+		"power_hp": 567,
+		"weight_kg": 2275,
+		"drivetrain": "AWD",
+		"transmission": "8-speed M Steptronic",
+		"wheelbase_mm": 2933,
+		"top_speed_kmh": 250,
+		"front_weight": 0.54,
+		"notes": "575 PS (423 kW, 567 hp) at 6,000 rpm, 750 N m from 2,200 to 5,000, 0-100 km/h in 4.2 s, 250 km/h limited, 2,275 kg DIN kerb (2,350 EU), 2,933 mm wheelbase. ZF 8HP ratios (5.0 ... 0.64), 3.15 final; xDrive rear-biased (40 % front used)."
+	},
+	"garage": {
+		"price": 52000,
+		"engine_sound": "v8_turbo",
+		"livery": "plain",
+		"number": 5,
+		"colours": [[0.08, 0.2, 0.55], [0.06, 0.06, 0.07], [0.88, 0.88, 0.9], [0.45, 0.47, 0.5]],
+		"wheels": "black",
+		"power": 1.0,
+		"grip": 1.0,
+		"brakes": 1.0,
+		"drive_front": 0.4,
+		"blurb": "The first SUV BMW's M division built from scratch. Sharp steering and a twin-turbo V8 in a tall, heavy body: quicker than it has any right to be, until physics catches up."
+	},
+	"traffic": {
+		"type": "luxury",
+		"weight": 0.06,
+		"paints": [[0.05, 0.05, 0.06], [0.85, 0.85, 0.87], [0.5, 0.52, 0.55], [0.08, 0.1, 0.18]]
+	},
+	"physics": {
+		"chassis": "sport_suv",
+		"mass": 2275.0,
+		"front": 0.54,
+		"torque": 750.0,
+		"curve": [[1000, 0.45], [1600, 0.75], [2200, 1.0], [5000, 1.0], [6000, 0.898], [6500, 0.8], [7000, 0.66]],
+		"idle": 700.0,
+		"limiter": 7000.0,
+		"turbo": 0.4,
+		"spool": [1500.0, 2600.0],
+		"spool_time": 0.3,
+		"anti_lag": false,
+		"gears": [5.0, 3.2, 2.143, 1.72, 1.313, 1.0, 0.823, 0.64],
+		"final": 3.15,
+		"drive": "awd",
+		"front_share": 0.4,
+		"centre": ["lsd", 0.25, 0.15, 30.0],
+		"front_diff": ["open", 0.0, 0.0, 0.0],
+		"rear": ["lsd", 0.35, 0.15, 35.0],
+		"cd": 0.37,
+		"area": 2.9,
+		"down": 0.0,
+		"brake": 1.05
+	},
+	"checks": {
+		"zero_100_max": 6.0
+	},
+	"interior": {
+		"own": true,
+		"camera": true,
+		"notes": "The model's M interior mesh (diffuse, normal and material maps); steering wheel cut out to turn, lever animated."
+	},
+	"source": {
+		"package": "Internet_New_Cars/2016-bmw-x5-m.zip (FBX + textures)",
+		"author": "Ddiaz Design (Sketchfab)",
+		"license": "CC BY-NC-SA 4.0",
+		"url": "https://sketchfab.com/3d-models/2016-bmw-x5-m-349f567cc7614acabd91a297a8e4dc75",
+		"attribution": "\"2016 BMW X5 M\" by Ddiaz Design, CC BY-NC-SA 4.0",
+		"candidate": 47
+	},
+	"research": [
+		"https://en.wikipedia.org/wiki/BMW_X5_(F85)",
+		"https://www.automoli.com/au/vehicles/bmw/x5-m/x5-m-f85-5041/",
+		"https://www.vehiclesizes.com/cars/bmw/x5-m/x5-m-f85-suv-2015/combined-view"
+	],
+	"limitations": [
+		"Non-commercial, share-alike licence (CC BY-NC-SA 4.0): fine for a free game; a paid release would need it replaced or licensed.",
+		"Weight distribution and drag area are estimates.",
+		"The BMW roundel remains on its steering wheel texture.",
+		"No live gauges yet (data/dash): its own textured cluster and screen, the dome light."
+	]
+}

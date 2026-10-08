@@ -277,3 +277,20 @@ wrong and how each was put right (in its `tools/cars/<id>.json`):
   (the alpha fixer had treated every WebP-textured car's materials as opaque: it couldn't read
   WebP images; fixed). Parts that are never see-through (rims, tyres, chrome, carbon) stay opaque
   whatever their texture's alpha holds (often a shine mask in game rips).
+
+## The SUVs (October 2026)
+
+Six more garage cars, each also uncommon-to-rare highway traffic (details, numbers and test results:
+`docs/VEHICLE_REPORT.md`, "Six SUVs"; sources: `docs/CREDITS.md`):
+
+| Garage name | Based on | Interior | Driver sits | Gears (the hand) |
+|---|---|---|---|---|
+| STROMER 4 | VW ID.4 Pro Performance (2021), electric | the model's, simple (one black palette, lifted to dark grey) | left | one gear (EV): both hands on the wheel |
+| WARHAWK 707 | Jeep Grand Cherokee Trackhawk (2018) | the model's, full (textured dash, GPS screen, dials) | left | automatic: both hands on the wheel |
+| PUEBLO 392 | Dodge Durango SRT 392 (2021) | the model's, full (no textures in the package: plain dark looks) | left | automatic |
+| KAISER 5X | BMW X5 M F85 (2016) | the model's M interior (textured) | left | automatic |
+| KAISER 7X | BMW X7 M50i G07 (2020) | the model's, simple (as the ID.4: same author) | left | automatic |
+| KASTEN 63 | Mercedes-AMG G 63 W463 (2020) | the model's, full (diamond-stitched seats, wide screen) | left | automatic |
+
+Their chassis: `sport_suv` (WARHAWK, KAISER 5X: firm, sharp), `suv` (PUEBLO, KAISER 7X, STROMER:
+heavy, calm), `tall_suv` (KASTEN: soft and tall, it rolls and pitches).

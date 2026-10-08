@@ -1,0 +1,93 @@
+{
+	"id": "kasten",
+	"name": "KASTEN 63",
+	"order": 269,
+	"model": "g63_w463",
+	"category": "euro",
+	"role": "player_road",
+	"real": {
+		"manufacturer": "Mercedes-AMG",
+		"model": "G 63 (W463)",
+		"year": 2020,
+		"trim": "M177 4.0 twin-turbo V8, 4MATIC"
+	},
+	"specs": {
+		"power_hp": 577,
+		"weight_kg": 2560,
+		"drivetrain": "AWD",
+		"transmission": "9-speed AMG SPEEDSHIFT TCT 9G",
+		"wheelbase_mm": 2890,
+		"top_speed_kmh": 220,
+		"front_weight": 0.53,
+		"notes": "585 PS (430 kW, 577 hp) at 6,000 rpm, 850 N m from 2,500 to 3,500, 0-100 km/h in 4.5 s, 220 km/h limited (240 with the Driver's Package), 2,560 kg kerb, 2,890 mm wheelbase, 1,966 mm tall. 4MATIC splits 40:60; three locking diffs off-road (lightly locked here)."
+	},
+	"garage": {
+		"price": 64000,
+		"engine_sound": "v8_turbo",
+		"livery": "plain",
+		"number": 63,
+		"colours": [[0.06, 0.06, 0.07], [0.9, 0.9, 0.9], [0.32, 0.36, 0.28], [0.55, 0.57, 0.6]],
+		"wheels": "black",
+		"power": 1.0,
+		"grip": 1.0,
+		"brakes": 1.0,
+		"drive_front": 0.4,
+		"blurb": "A brick with a twin-turbo V8. Tall and upright: it rolls, it pitches, it shoves air out of the way, and it goes much faster than a box should."
+	},
+	"traffic": {
+		"type": "luxury",
+		"weight": 0.07,
+		"paints": [[0.05, 0.05, 0.06], [0.85, 0.85, 0.87], [0.5, 0.52, 0.55], [0.08, 0.1, 0.18]]
+	},
+	"physics": {
+		"chassis": "tall_suv",
+		"mass": 2560.0,
+		"front": 0.53,
+		"torque": 850.0,
+		"curve": [[1000, 0.45], [1800, 0.8], [2500, 1.0], [3500, 1.0], [4500, 0.95], [6000, 0.805], [6500, 0.7]],
+		"idle": 650.0,
+		"limiter": 6500.0,
+		"turbo": 0.4,
+		"spool": [1500.0, 2500.0],
+		"spool_time": 0.35,
+		"anti_lag": false,
+		"gears": [5.35, 3.24, 2.25, 1.64, 1.21, 1.0, 0.87, 0.72, 0.6],
+		"final": 3.6,
+		"drive": "awd",
+		"front_share": 0.4,
+		"centre": ["lsd", 0.3, 0.2, 40.0],
+		"front_diff": ["lsd", 0.1, 0.05, 10.0],
+		"rear": ["lsd", 0.3, 0.15, 30.0],
+		"cd": 0.54,
+		"area": 3.5,
+		"down": 0.0,
+		"brake": 0.95
+	},
+	"checks": {
+		"zero_100_max": 7.0
+	},
+	"interior": {
+		"own": true,
+		"camera": true,
+		"notes": "The model's own cabin (seats, dash, wide screen); steering wheel cut out to turn, lever animated."
+	},
+	"source": {
+		"package": "Internet_New_Cars/2020-mercedes-benz-g-class-amg-g63.zip (GLB + textures)",
+		"author": "Outlaw Games (Sketchfab listing in the package README); the GLB's own metadata names Ddiaz Design",
+		"license": "CC BY-NC 4.0 (README); the GLB's metadata says CC BY 4.0",
+		"url": "https://sketchfab.com/3d-models/2020-mercedes-benz-g-class-amg-g63-52296f1a65d54a85a2ed7cb67604e554",
+		"attribution": "\"2020 Mercedes-Benz G-Class AMG G63\" by Outlaw Games (CC BY-NC 4.0); file metadata: \"2020 Mercedes-Benz G-Class AMG G 63\" by Ddiaz Design (https://sketchfab.com/3d-models/2020-mercedes-benz-g-class-amg-g-63-64db1862be754722bbf4f23695bf06a5), CC BY 4.0",
+		"candidate": 49
+	},
+	"research": [
+		"https://bonbanh.com/chi-tiet-thong-so-ky-thuat-xe-mercedes-benz-g-class-g63-amg-2020-12146",
+		"https://www.fichacompleta.com.br/en/carros/mercedes-benz/g63-amg-4-0-v8-2020",
+		"https://www.auto-motor-und-sport.de/fahrbericht/mercedes-g-63-amg-fahrbericht-hier-kommt-der-ballermann/technische-daten/"
+	],
+	"limitations": [
+		"The package README and the GLB's metadata disagree on the author and licence (both credited; the stricter, non-commercial one assumed).",
+		"The 9-speed's ratios are approximate (AMG doesn't publish all of them); weight distribution and drag area are estimates.",
+		"Mercedes stars remain in its textures (grille, wheels, steering wheel, spare cover).",
+		"No live gauges yet (data/dash): its own textured screens, the dome light."
+	]
+}

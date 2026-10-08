@@ -1,0 +1,90 @@
+{
+	"id": "warhawk",
+	"name": "WARHAWK 707",
+	"order": 147,
+	"model": "trackhawk",
+	"category": "american",
+	"role": "player_road",
+	"real": {
+		"manufacturer": "Jeep",
+		"model": "Grand Cherokee Trackhawk (WK2)",
+		"year": 2018,
+		"trim": "6.2 supercharged HEMI V8, Quadra-Trac AWD"
+	},
+	"specs": {
+		"power_hp": 707,
+		"weight_kg": 2433,
+		"drivetrain": "AWD",
+		"transmission": "8-speed automatic (TorqueFlite 8HP95)",
+		"wheelbase_mm": 2916,
+		"top_speed_kmh": 290,
+		"front_weight": 0.56,
+		"notes": "707 hp at 6,000 rpm and 875 N m (645 lb-ft) at 4,800 from the supercharged 6.2, 0-60 mph in 3.5 s, 180 mph, 2,433 kg (5,363 lb) curb, 2,916 mm wheelbase. The 8HP95's ratios (4.71 ... 0.67) and the 3.70 axle; Quadra-Trac sends up to 40 % forward in its track mode (40 % used)."
+	},
+	"garage": {
+		"price": 58000,
+		"engine_sound": "v8_sc",
+		"livery": "plain",
+		"number": 707,
+		"colours": [[0.05, 0.05, 0.06], [0.62, 0.05, 0.05], [0.85, 0.85, 0.87], [0.28, 0.3, 0.32]],
+		"wheels": "black",
+		"power": 1.0,
+		"grip": 1.0,
+		"brakes": 1.0,
+		"drive_front": 0.4,
+		"blurb": "Seven hundred supercharged horsepower in a family SUV. Brutal off the line, heavy in the bends: it leans, squats and nods, and it wants the brakes early."
+	},
+	"traffic": {
+		"type": "luxury",
+		"weight": 0.06,
+		"paints": [[0.05, 0.05, 0.06], [0.85, 0.85, 0.87], [0.5, 0.52, 0.55], [0.08, 0.1, 0.18]]
+	},
+	"physics": {
+		"chassis": "sport_suv",
+		"mass": 2433.0,
+		"front": 0.56,
+		"torque": 875.0,
+		"curve": [[1000, 0.45], [2000, 0.7], [3000, 0.85], [4000, 0.95], [4800, 1.0], [6000, 0.958], [6500, 0.86]],
+		"idle": 700.0,
+		"limiter": 6500.0,
+		"turbo": 0.0,
+		"gears": [4.71, 3.14, 2.1, 1.67, 1.29, 1.0, 0.84, 0.67],
+		"final": 3.7,
+		"drive": "awd",
+		"front_share": 0.4,
+		"centre": ["lsd", 0.3, 0.15, 40.0],
+		"front_diff": ["lsd", 0.15, 0.1, 20.0],
+		"rear": ["lsd", 0.35, 0.15, 40.0],
+		"cd": 0.4,
+		"area": 3.0,
+		"down": 0.0,
+		"brake": 1.0
+	},
+	"checks": {
+		"zero_100_max": 6.0
+	},
+	"interior": {
+		"own": true,
+		"camera": true,
+		"notes": "The model's own cabin (InteriorA textures, gauges, GPS screen); steering wheel cut out to turn, the lever animated."
+	},
+	"source": {
+		"package": "Internet_New_Cars/jeep-grand-cherokee-trackhawk.zip (OBJ + textures)",
+		"author": "David_Holiday (Sketchfab)",
+		"license": "CC BY 4.0 (the Sketchfab listing); the OBJ's readme says 'free for private use, do not resell or redistribute'",
+		"url": "https://sketchfab.com/3d-models/jeep-grand-cherokee-trackhawk-f8024595e11c48119877c9c7cc554abc",
+		"attribution": "\"Jeep Grand Cherokee Trackhawk\" by David_Holiday, CC BY 4.0",
+		"candidate": 45
+	},
+	"research": [
+		"https://wjla.com/news/auto-matters/gallery-2018-jeep-grand-cherokee-trackhawk",
+		"https://www.motormatchup.com/catalog/Jeep/Grand-Cherokee/2019/Trackhawk-4DR-4X4",
+		"https://www.carexpert.co.nz/jeep/grand-cherokee/2020/trackhawk/exterior-and-dimensions"
+	],
+	"limitations": [
+		"The torque curve's shape, weight distribution and drag are estimates.",
+		"The OBJ's readme (in the package) restricts redistribution while the Sketchfab listing says CC BY 4.0; the owner cleared it ('i made it').",
+		"Jeep badges remain in its textures (grille, steering wheel).",
+		"No live gauges yet (data/dash): its own textured dials, the dome light."
+	]
+}
