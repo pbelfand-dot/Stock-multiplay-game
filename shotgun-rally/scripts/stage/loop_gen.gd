@@ -41,6 +41,8 @@ var _n := 0                          # samples round the loop (pts has one more:
 var _bumps := FastNoiseLite.new()
 var extra_r := PackedFloat32Array()  # per sample: an acceleration/deceleration lane's width on our right (0..LANE_W)
 var extra_l := PackedFloat32Array()  # ... on the other carriageway's right (our left)
+var ramp_r := PackedFloat32Array()   # per sample: a ramp's middle's d where its lane's still on our widened edge (0: none)
+var ramp_l := PackedFloat32Array()   # ... on the other carriageway's
 var _ramp_paths := {}
 var _hill_grid := {}                 # 500 m cells -> the hills that reach into them (land_at)
 const HILL_CELL := 500.0
@@ -418,18 +420,29 @@ func in_city(x: float, z: float) -> bool:
 	return false
 
 
-## A ramp's road: {pts, heads, len}, from its gore (where it meets the highway, in the
-## middle of its extra lane) out to where it ends, 4 m a point. It runs alongside
-## the highway at first, then curves away (260 m radius) and down to the ground (6 %).
-## An exit's traffic drives it from the gore out; an entry's from the end in.
+## A ramp's road: {pts, heads, len, nose, nose_s, nose_d, on_road}, from its gore (where it
+## meets the highway, in the middle of its extra lane) out to where it ends, 4 m a point. It
+## curves away from the gore (260 m radius, eased in over RAMP_EASE m), on the highway's
+## surface while it's still on the highway's widened edge (_extra_lanes), until its barrier's
+## clear of the highway's: its nose (pts[nose]; nose_s: the highway's sample there or just past
+## it, nose_d: the ramp's middle's d there). From there it's a road of its own, down to the
+## ground (RAMP_GRADE); it ends RAMP_LEN out. on_road: up to the nose, each point's (m from the
+## gore the way it walks, d). An exit's traffic drives it from the gore out; an entry's from
+## the end in.
+const RAMP_LEN := 264.0              # m: an exit's and the next entry's ramps the same side (a junction's two,
+                                     # their gores 520 m apart) come together ~280 m out: they end ~40 m apart
+const RAMP_EASE := 44.0
+const RAMP_W := 3.2                  # half the ramp's road (its lane and shoulders)
+const RAMP_GRADE := 0.07
+
 func ramp_path(r: Dictionary) -> Dictionary:
 	var key := "%s/%s/%.1f" % [r.side, r.kind, r.s]
 	if _ramp_paths.has(key):
 		return _ramp_paths[key]
 	var right: bool = r.side == "right"
 	var gore: float = r.s
-	var d0: float = (EDGE + LANE_W * 0.5 + SHOULDER_R - LANE_W * 0.5) if right else (ONCOMING_D - EDGE - SHOULDER_R + LANE_W * 0.5 - LANE_W * 0.5)
-	d0 = (EDGE + LANE_W * 0.5) if right else (ONCOMING_D - EDGE - LANE_W * 0.5)
+	var mid: float = 0.0 if right else ONCOMING_D   # its carriageway's middle
+	var d0: float = (EDGE + LANE_W * 0.5) if right else (ONCOMING_D - EDGE - LANE_W * 0.5)
 	var travel := 1.0 if right else -1.0          # which way round the loop its carriageway's traffic goes
 	var walk := travel * (1.0 if r.kind == "off" else -1.0)   # which way the path walks from the gore
 	var away := 1.0 if right else -1.0            # which way (in d) it leaves
@@ -438,29 +451,58 @@ func ramp_path(r: Dictionary) -> Dictionary:
 	var y := p.y
 	var pts := PackedVector3Array()
 	var heads := PackedFloat32Array()
-	var n := 90
+	var on_road := PackedVector2Array()
+	var n := int(RAMP_LEN / 4.0)
+	var hint := int(wrap_s(gore) / STEP)
+	var nose := -1
 	for k in n + 1:
+		if nose < 0 or k == nose + 1:
+			var loc := locate(p, hint)
+			hint = int(loc.i)
+			on_road.append(Vector2(gore_ds(float(loc.s), gore) * walk, float(loc.d)))
+			if nose < 0:
+				# on the highway's edge: on its surface, until its barrier's (the inside one's foot,
+				# RAMP_W + 0.45 in) clear of the highway's (0.75 out from the road's edge) by 0.1 m
+				y = world_at(float(loc.s), float(loc.d)).y
+				if absf(float(loc.d) - mid) - RAMP_W - 0.45 >= EDGE + SHOULDER_R + 0.85:
+					nose = k
 		pts.append(Vector3(p.x, y, p.z))
 		heads.append(h)
-		var u := float(k) / n
 		# turning away from the road: right of travel for our ramps, left for theirs, either way the walk goes
-		h += (1.0 / 260.0) * smoothstep(0.08, 0.35, u) * away * signf(walk) * 4.0
+		h += (1.0 / 260.0) * smoothstep(0.0, RAMP_EASE, k * 4.0) * away * signf(walk) * 4.0
 		p += Vector3(sin(h), 0.0, -cos(h)) * 4.0
-		var g := maxf(land_at(p.x, p.z), city_ground if in_city(p.x, p.z) else -1.0)
-		y = move_toward(y, maxf(g, 0.5) + 0.3, 0.06 * 4.0 * smoothstep(0.1, 0.3, u))
-	var out := {"pts": pts, "heads": heads, "len": n * 4.0}
+		if nose >= 0:
+			var g := maxf(land_at(p.x, p.z), city_ground if in_city(p.x, p.z) else -1.0)
+			y = move_toward(y, maxf(g, 0.5) + 0.3, RAMP_GRADE * 4.0 * smoothstep(0.0, 40.0, (k + 1 - nose) * 4.0))
+	if nose < 0 or nose > on_road.size() - 2:
+		nose = on_road.size() - 2
+	# the highway's sample at the nose (or just past it, the way it walks), and the ramp's middle there
+	var s_n := wrap_s(gore + walk * on_road[nose].x)
+	var nose_s := wrap_s((ceilf(s_n / STEP) if walk > 0.0 else floorf(s_n / STEP)) * STEP)
+	var a_s := gore_ds(nose_s, gore) * walk
+	var t := clampf((a_s - on_road[nose].x) / maxf(on_road[nose + 1].x - on_road[nose].x, 0.01), 0.0, 1.0)
+	var out := {"pts": pts, "heads": heads, "len": n * 4.0, "nose": nose, "nose_s": nose_s,
+		"nose_d": lerpf(on_road[nose].y, on_road[nose + 1].y, t), "on_road": on_road}
 	_ramp_paths[key] = out
 	return out
 
 
 ## The ramps' extra lanes, sample by sample: a deceleration lane before an exit (a 60 m
 ## taper, then full), an acceleration lane after an entry (full, then an 80 m taper),
-## on the right of whichever carriageway the ramp is on, the way its traffic goes.
+## on the right of whichever carriageway the ramp is on, the way its traffic goes. Between
+## the gore and the ramp's nose (past an exit's gore, before an entry's) the ramp's lane is
+## still on the highway, curving away: the edge goes out with it (the ramp's outer edge 0.2 m
+## in from its road's: the highway's barrier, 0.4 m out, stands where the ramp's own does), and
+## ramp_r / ramp_l say where its middle is.
 func _extra_lanes() -> void:
 	extra_r.resize(_n)
 	extra_l.resize(_n)
 	extra_r.fill(0.0)
 	extra_l.fill(0.0)
+	ramp_r.resize(_n)
+	ramp_l.resize(_n)
+	ramp_r.fill(0.0)
+	ramp_l.fill(0.0)
 	for r in ramps:
 		var len_: float = r.len
 		var travel := 1.0 if r.side == "right" else -1.0
@@ -480,6 +522,31 @@ func _extra_lanes() -> void:
 					extra_r[j] = maxf(extra_r[j], w * LANE_W)
 				else:
 					extra_l[j] = maxf(extra_l[j], w * LANE_W)
+		# from the gore to the nose: the ramp's lane on the widened edge
+		var path := ramp_path(r)
+		var on: PackedVector2Array = path.on_road
+		var walk := travel * (1.0 if r.kind == "off" else -1.0)
+		var mid: float = 0.0 if r.side == "right" else ONCOMING_D
+		var a_nose := gore_ds(float(path.nose_s), float(r.s)) * walk
+		var i := int((ceilf(float(r.s) / STEP) if walk > 0.0 else floorf(float(r.s) / STEP)))
+		var k := 0
+		while true:
+			var a := gore_ds(i * STEP, float(r.s)) * walk
+			if a > a_nose + 0.01:
+				break
+			while k < on.size() - 2 and on[k + 1].x < a:
+				k += 1
+			var t := clampf((a - on[k].x) / maxf(on[k + 1].x - on[k].x, 0.01), 0.0, 1.0)
+			var d := lerpf(on[k].y, on[k + 1].y, t)
+			var w := maxf(LANE_W, absf(d - mid) + RAMP_W - 0.2 - EDGE - SHOULDER_R)
+			var j := posmod(i, _n)
+			if r.side == "right":
+				extra_r[j] = maxf(extra_r[j], w)
+				ramp_r[j] = d
+			else:
+				extra_l[j] = maxf(extra_l[j], w)
+				ramp_l[j] = d
+			i += int(walk)
 
 
 ## s - s0 the nearest way round the loop (-length/2 .. length/2).

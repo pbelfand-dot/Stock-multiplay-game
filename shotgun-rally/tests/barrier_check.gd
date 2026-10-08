@@ -60,7 +60,7 @@ func _loop() -> void:
 			var ok: bool = true
 			for k in 9:
 				var at: float = x - 40.0 + k * 20.0
-				ok = ok and st.support_at(at) == want and absf(st.curv_at(at)) < 1.0 / 800.0 and not b._ramp_gap(at, 1.0) \
+				ok = ok and st.support_at(at) == want and absf(st.curv_at(at)) < 1.0 / 800.0 and not b._ramp_at(at, 1.0) \
 					and b._extra_r[posmod(int(at / st.STEP), st._n)] <= 0.0 and not b._toll_island_at(at)
 			if ok:
 				s = x
