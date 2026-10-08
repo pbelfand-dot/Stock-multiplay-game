@@ -24,12 +24,18 @@ extends RefCounted
 ## quality change; the stage builder builds fresh each stage).
 ##
 ## LIGHT:
-##   setup(parent, mood) -> {env, sun, mood, horizon}: adds a WorldEnvironment and the sun to
-##     parent for "day" | "golden" | "overcast" | "night" and applies the quality to the screen
-##     (a --mood=... command line overrides the mood, for pictures)
+##   setup(parent, mood, hour = -1) -> {env, sun, world_environment, mood, horizon, hour, night}:
+##     adds a WorldEnvironment and the sun to parent for "day" | "golden" | "overcast" |
+##     "night" (or the hour) and applies the quality to the screen (a --mood=... / --hour=...
+##     command line overrides, for pictures)
 ##   environment(mood) -> Environment;  sun(mood) -> DirectionalLight3D (shadows set up)
 ##   horizon_colour(mood) -> Color: the sky at the horizon (for things that fade into it)
-##   night: true while a dark mood is up (the cars' lamps read it)
+##   night: true while a dark mood is up; night_amount: 0 (day) .. 1 (night), fading
+##     through dusk and dawn (the cars' lamps, street lights, lit windows read it)
+## TIME OF DAY: setup(parent, mood, hour) with hour 0.0-24.0 lights the world for that
+##   hour (the sun on its arc: up ~06:00, 60 degrees at 13:00, down ~19:30; the moon at
+##   night), the mood then only saying "overcast" or not. state(mood, hour) -> the numbers;
+##   environment_at(hour, overcast), sun_at(hour, overcast), sun_arc(hour) -> (elev, yaw).
 ## NIGHT (a highway, a town):
 ##   street_lights(parent, [{"head": Vector3, "ground": Vector3, "up"?, "radius"?, "colour"?}, ...])
 ##     the lit heads, glare halos and faked pools of light on the road (no real lights:
@@ -169,7 +175,7 @@ static func buildings(opts := {}) -> Material:
 	var o := opts.duplicate()
 	o["vertex"] = "colour"
 	o["glass"] = true
-	o["night"] = night                              # (lit windows at night)
+	o["night"] = snappedf(night_amount, 0.05)       # (lit windows at night, fading in at dusk)
 	return _surface("buildings", o)
 
 
@@ -256,16 +262,17 @@ static func props(opts := {}) -> Material:
 
 ## A street lamp's head (the glass under it): sodium orange, lit at night.
 static func street_lamp_head(opts := {}) -> Material:
-	var key := _key("lamp_head", opts) + str(night)
+	var lit := snappedf(night_amount, 0.05)
+	var key := _key("lamp_head", opts) + str(lit)
 	if _cache.has(key):
 		return _cache[key]
 	var m := StandardMaterial3D.new()
 	var col: Color = opts.get("colour", SODIUM)
 	m.albedo_color = Color(0.85, 0.82, 0.75)
 	m.roughness = 0.3
-	m.emission_enabled = night
+	m.emission_enabled = lit > 0.0
 	m.emission = col
-	m.emission_energy_multiplier = 14.0
+	m.emission_energy_multiplier = 14.0 * lit
 	_cache[key] = m
 	return m
 
@@ -278,13 +285,16 @@ const SODIUM := Color(1.0, 0.58, 0.22)
 ## head, a glare halo round it (the glow blooms it), and a pool of light on the road, faked
 ## (a flat disc that brightens what's under it, as a lamp would, without a real light:
 ## hundreds of them cost next to nothing). All batched (three MultiMeshes). Returns the
-## node holding them, or null by day.
+## node holding them, or null by day; at dusk / dawn (night_amount between) they're dimmer.
 static func street_lights(parent: Node3D, lamps: Array) -> Node3D:
-	if not night or lamps.is_empty():
+	if night_amount < 0.05 or lamps.is_empty():
 		return null
+	var lit := clampf(night_amount, 0.0, 1.0)
 	var holder := Node3D.new()
 	holder.name = "StreetLights"
+	holder.add_to_group("street_lights")                 # (CarLook lights the car from the nearest)
 	parent.add_child(holder)
+	var at := PackedVector3Array()
 	var heads := _instances(lamps.size(), _lamp_head_mesh(), street_lamp_head())
 	var glare := _instances(lamps.size(), _glare_mesh(), _glare_material())
 	var pools := _instances(lamps.size(), _pool_mesh(), _pool_material())
@@ -295,6 +305,7 @@ static func street_lights(parent: Node3D, lamps: Array) -> Node3D:
 		var up: Vector3 = (l.get("up", Vector3.UP) as Vector3).normalized()
 		var r := float(l.get("radius", 9.0))
 		heads.multimesh.set_instance_transform(i, Transform3D(Basis(), head))
+		at.append(head)
 		glare.multimesh.set_instance_transform(i, Transform3D(Basis().scaled(Vector3.ONE * 2.6), head - Vector3.UP * 0.12))
 		var x := up.cross(Vector3.FORWARD if absf(up.z) < 0.9 else Vector3.RIGHT).normalized()
 		var z := x.cross(up).normalized()
@@ -302,6 +313,11 @@ static func street_lights(parent: Node3D, lamps: Array) -> Node3D:
 	for mmi in [heads, glare, pools]:
 		mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		holder.add_child(mmi)
+	holder.set_meta("heads", at)
+	(glare.material_override as StandardMaterial3D).albedo_color = Color(1.6, 1.6, 1.6) * lit
+	var pool := pools.material_override as ShaderMaterial
+	pool.set_shader_parameter("gain", 40.0 * lit)
+	pool.next_pass.set_shader_parameter("gain", 40.0 * lit)
 	return holder
 
 
@@ -374,7 +390,7 @@ static func _pool_material() -> Material:
 	m.set_shader_parameter("colour", SODIUM)
 	var add := ShaderMaterial.new()
 	var sh2 := Shader.new()
-	sh2.code = POOL_SHADER.replace("blend_mul", "blend_add").replace("vec3 lit = 1.0 + colour.rgb * gain * f;", "vec3 lit = colour.rgb * 0.012 * f;")
+	sh2.code = POOL_SHADER.replace("blend_mul", "blend_add").replace("vec3 lit = 1.0 + colour.rgb * gain * f;", "vec3 lit = colour.rgb * 0.0003 * gain * f;")
 	add.shader = sh2
 	add.set_shader_parameter("colour", SODIUM)
 	m.next_pass = add
@@ -453,33 +469,185 @@ static func clear_cache() -> void:
 
 # ── light ─────────────────────────────────────────────────────────────────
 
-## A WorldEnvironment and the sun for the mood, added to parent; the quality applied to the screen.
-static func setup(parent: Node, mood := "day") -> Dictionary:
-	for a in OS.get_cmdline_user_args():                  # pictures: --mood=night
+## The hours (time of day): [hour, sky photo ("" = the drawn night sky), sky energy, the
+## sun's colour, its energy (the moon's at night), exposure, fog, sun scatter in the fog,
+## colour grade (_grade_lut), night (0..1: the street lamps, the cars' lamps, lit windows)].
+## Between two the light blends; the sun's place comes from its arc (sun_arc). 13.0 is the
+## "day" mood's light, 18.3 the "golden" one's, 23.0 "night".
+const HOURS := [
+	[0.0, "", 1.0, Color(0.55, 0.66, 0.95), 0.07, 1.6, 0.004, 0.0, 3, 1.0],
+	[4.8, "", 1.0, Color(0.55, 0.66, 0.95), 0.07, 1.6, 0.004, 0.0, 3, 1.0],
+	[5.9, "golden", 0.14, Color(1.0, 0.5, 0.3), 0.0, 1.6, 0.0032, 0.15, 1, 0.75],
+	[6.7, "golden", 0.5, Color(1.0, 0.56, 0.32), 2.2, 1.18, 0.0028, 0.35, 1, 0.0],
+	[8.6, "day", 0.7, Color(1.0, 0.88, 0.74), 4.6, 0.74, 0.0016, 0.12, 0, 0.0],
+	[13.0, "day", 0.75, Color(1.0, 0.96, 0.89), 5.5, 0.66, 0.0012, 0.08, 0, 0.0],
+	[16.6, "day", 0.75, Color(1.0, 0.92, 0.8), 5.1, 0.68, 0.0014, 0.12, 0, 0.0],
+	[18.3, "golden", 0.85, Color(1.0, 0.7, 0.42), 3.0, 1.0, 0.0021, 0.3, 1, 0.0],
+	[19.4, "golden", 0.42, Color(1.0, 0.46, 0.22), 1.4, 1.3, 0.0026, 0.4, 1, 0.12],
+	[20.2, "golden", 0.09, Color(0.9, 0.5, 0.35), 0.0, 1.6, 0.003, 0.1, 3, 0.75],
+	[21.0, "", 1.0, Color(0.55, 0.66, 0.95), 0.07, 1.6, 0.004, 0.0, 3, 1.0],
+	[24.0, "", 1.0, Color(0.55, 0.66, 0.95), 0.07, 1.6, 0.004, 0.0, 3, 1.0],
+]
+const MOOD_HOURS := {"day": 13.0, "golden": 18.3, "overcast": 13.0, "night": 23.0}
+const MOON := Vector2(38.0, 150.0)       # the moon: elevation, yaw (degrees)
+
+static var night_amount := 0.0           # 0 day .. 1 night: the night pieces fade with it
+
+
+## A WorldEnvironment and the sun for the mood, or for an hour (0.0-24.0: the time of day;
+## the mood then only says whether it's overcast), added to parent; the quality applied to
+## the screen. A --mood=... or --hour=... command line overrides (pictures). Returns {env,
+## sun, world_environment, mood (the nearest mood, for things built per mood: the far
+## mountains' colours), horizon (Color), hour, night (0..1)}.
+static func setup(parent: Node, mood := "day", hour := -1.0) -> Dictionary:
+	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--mood="):
 			mood = a.trim_prefix("--mood=")
+		elif a.begins_with("--hour="):
+			hour = float(a.trim_prefix("--hour="))
 	if not MOODS.has(mood):
 		mood = "day"
-	night = mood == "night"
-	var env := environment(mood)
+	var s := state(mood, hour)
+	night_amount = s.night
+	night = s.night > 0.5
+	var env := _environment(s)
 	var we := WorldEnvironment.new()
 	we.name = "WorldEnvironment"
 	we.environment = env
 	parent.add_child(we)
-	var s := sun(mood)
-	s.name = "Sun"
-	parent.add_child(s)
-	if parent.is_inside_tree():
+	var light := _sun(s)
+	light.name = "Sun"
+	parent.add_child(light)
+	_screen_setup.call_deferred(parent, we)
+	return {"env": env, "sun": light, "world_environment": we, "mood": s.mood, "horizon": s.horizon_srgb, "hour": hour,
+		"night": s.night}
+
+
+## The quality on the screen, the speed blur: once parent is in the tree (a frame later, if need be).
+static func _screen_setup(parent: Node, we: WorldEnvironment) -> void:
+	if is_instance_valid(parent) and parent.is_inside_tree():
 		Graphics.apply_viewport(parent.get_viewport())
 		SpeedBlur.attach(parent, we)
-	return {"env": env, "sun": s, "world_environment": we, "mood": mood, "horizon": horizon_colour(mood)}
+
+
+## The light for a mood (hour < 0) or an hour of the day, as numbers (environment / sun build from it).
+static func state(mood := "day", hour := -1.0) -> Dictionary:
+	if hour < 0.0:
+		return _mood_state(mood)
+	return _hour_state(fposmod(hour, 24.0), mood == "overcast")
 
 
 static func environment(mood := "day") -> Environment:
+	return _environment(state(mood))
+
+
+static func sun(mood := "day") -> DirectionalLight3D:
+	return _sun(state(mood))
+
+
+## The same for an hour (0.0-24.0), clear or overcast.
+static func environment_at(hour: float, overcast := false) -> Environment:
+	return _environment(state("overcast" if overcast else "day", hour))
+
+
+static func sun_at(hour: float, overcast := false) -> DirectionalLight3D:
+	return _sun(state("overcast" if overcast else "day", hour))
+
+
+## The sky at the horizon (sRGB, as the scene draws it before the exposure): the far
+## mountains and the fog fade into it.
+static func horizon_colour(mood := "day", hour := -1.0) -> Color:
+	return state(mood, hour).horizon_srgb
+
+
+## The sun's place at an hour: Vector2(elevation, yaw) in degrees: up at about 06:00, 60
+## degrees at 13:00, down at about 19:30; below the horizon at night.
+static func sun_arc(hour: float) -> Vector2:
+	var h := fposmod(hour, 24.0)
+	var el := -12.0
+	if h >= 6.0 and h <= 13.0:
+		el = 60.0 * sin(PI * 0.5 * (h - 6.0) / 7.0)
+	elif h > 13.0 and h <= 19.5:
+		el = 60.0 * sin(PI * 0.5 * (19.5 - h) / 6.5)
+	elif h > 19.5 and h < 21.0:
+		el = -8.0 * (h - 19.5) / 1.5
+	elif h > 5.0 and h < 6.0:
+		el = -8.0 * (6.0 - h)
+	return Vector2(el, lerpf(-75.0, 105.0, clampf((h - 6.0) / 13.5, 0.0, 1.0)))
+
+
+static func _mood_state(mood: String) -> Dictionary:
 	var md: Dictionary = _mood(mood)
+	var s := {"mood": mood, "sky_a": md.sky, "sky_b": "", "mix": 0.0, "energy": float(md.sky_energy),
+		"elev": _sun_elevation(mood), "yaw": float(md.sun_yaw), "sun_color": md.sun_color, "sun_energy": float(md.sun_energy),
+		"exposure": float(md.exposure), "fog": float(md.fog), "scatter": float(md.scatter), "shadow": float(md.shadow),
+		"grade": md.grade, "night": 1.0 if mood == "night" else 0.0, "sun_disc": 0.0 if mood == "overcast" else 60.0,
+		"zenith": md.zenith, "horizon": md.horizon}
+	s.horizon_srgb = _horizon_of(s)
+	return s
+
+
+static func _hour_state(h: float, overcast: bool) -> Dictionary:
+	var i := 0
+	while i < HOURS.size() - 2 and float(HOURS[i + 1][0]) <= h:
+		i += 1
+	var a: Array = HOURS[i]
+	var b: Array = HOURS[i + 1]
+	var t := clampf((h - float(a[0])) / maxf(float(b[0]) - float(a[0]), 1e-4), 0.0, 1.0)
+	var arc := sun_arc(h)
+	var sun_up := arc.x > -1.5
+	var nt := lerpf(float(a[9]), float(b[9]), t)
+	var s := {"sky_a": a[1], "sky_b": b[1], "mix": t, "energy": lerpf(float(a[2]), float(b[2]), t),
+		"elev": maxf(arc.x, 0.5) if sun_up else MOON.x, "yaw": arc.y if sun_up else MOON.y,
+		"sun_color": (a[3] as Color).lerp(b[3], t), "sun_energy": lerpf(float(a[4]), float(b[4]), t),
+		"exposure": lerpf(float(a[5]), float(b[5]), t), "fog": lerpf(float(a[6]), float(b[6]), t),
+		"scatter": lerpf(float(a[7]), float(b[7]), t), "shadow": 1.0, "night": nt,
+		"grade": MOODS.day.grade if (a[8] if t < 0.5 else b[8]) == 0 else (MOODS.golden.grade if (a[8] if t < 0.5 else b[8]) == 1 else MOODS.night.grade),
+		"sun_disc": 60.0 if sun_up else 14.0, "zenith": MOODS.night.zenith, "horizon": MOODS.night.horizon,
+		"sky_yaw": arc.y}
+	if sun_up:
+		s.sun_energy *= smoothstep(-1.5, 3.0, arc.x)          # (the sun's light fades as it sets)
+	else:
+		s.sun_energy = 0.07 * nt                               # (the moon)
+		s.sun_color = MOODS.night.sun_color
+	s.mood = "night" if nt > 0.5 else ("golden" if arc.x < 22.0 else "day")
+	if overcast:
+		var day := 1.0 - nt
+		for k in ["sky_a", "sky_b"]:
+			if s[k] != "":
+				s[k] = "overcast"
+		s.energy *= 1.3 / 0.75
+		s.sun_energy *= lerpf(1.0, 0.09, day) if sun_up else 1.0
+		s.fog = lerpf(s.fog, 0.011, day)
+		s.exposure = lerpf(s.exposure, 1.05, day * 0.8)
+		s.shadow = 0.55
+		s.sun_disc = 0.0
+		s.scatter = 0.0
+		if day > 0.5:
+			s.grade = MOODS.overcast.grade
+			s.mood = "overcast"
+	s.horizon_srgb = _horizon_of(s)
+	return s
+
+
+## A sky slot's horizon colour (linear): its photo's, or the drawn sky's.
+static func _slot_horizon(sky_name: String, s: Dictionary) -> Color:
+	var info := _sky(sky_name)
+	if not info.is_empty():
+		var h: Array = info.horizon_linear
+		return Color(h[0], h[1], h[2])
+	return s.horizon if sky_name == "" else MOODS.day.horizon
+
+
+static func _horizon_of(s: Dictionary) -> Color:
+	var lin := _slot_horizon(s.sky_a, s).lerp(_slot_horizon(s.sky_b, s), float(s.mix)) * float(s.energy)
+	return Color(lin.r, lin.g, lin.b).linear_to_srgb()
+
+
+static func _environment(s: Dictionary) -> Environment:
 	var env := Environment.new()
 	var sky := Sky.new()
-	sky.sky_material = _sky_material(mood)
+	sky.sky_material = _sky_material(s)
 	sky.radiance_size = Sky.RADIANCE_SIZE_256
 	env.background_mode = Environment.BG_SKY
 	env.sky = sky
@@ -495,17 +663,17 @@ static func environment(mood := "day") -> Environment:
 		elif a == "--look_filmic":
 			env.tonemap_mode = Environment.TONE_MAPPER_FILMIC
 			env.tonemap_white = 6.0
-	env.tonemap_exposure = md.exposure
+	env.tonemap_exposure = s.exposure
 	env.tonemap_agx_white = 12.0
 	env.tonemap_agx_contrast = 1.22
 	env.fog_enabled = true
 	env.fog_mode = Environment.FOG_MODE_EXPONENTIAL
-	env.fog_density = md.fog
-	env.fog_light_color = horizon_colour(mood)
+	env.fog_density = s.fog
+	env.fog_light_color = s.horizon_srgb
 	env.fog_light_energy = 1.0
-	env.fog_sun_scatter = md.scatter
+	env.fog_sun_scatter = s.scatter
 	env.fog_sky_affect = 0.0
-	var g: Array = md.grade
+	var g: Array = s.grade
 	env.adjustment_enabled = true
 	env.adjustment_contrast = g[1]
 	env.adjustment_saturation = g[2]
@@ -519,34 +687,20 @@ static func environment(mood := "day") -> Environment:
 	return env
 
 
-## The sun (or the moon, at night): where the sky photo has it (or the mood says), its
-## colour, energy and shadows for the quality.
-static func sun(mood := "day") -> DirectionalLight3D:
-	var md: Dictionary = _mood(mood)
-	var s := DirectionalLight3D.new()
-	s.rotation = Vector3(deg_to_rad(-_sun_elevation(mood)), deg_to_rad(md.sun_yaw), 0.0)
-	s.light_color = md.sun_color
-	s.light_energy = md.sun_energy
-	s.shadow_enabled = not (OS.has_feature("web") and Graphics.level() == "low")
-	s.shadow_opacity = md.shadow if Graphics.level() != "low" else minf(md.shadow, 0.85)
-	s.shadow_bias = 0.03
-	s.shadow_normal_bias = 1.4
-	s.shadow_blur = 1.2
-	Graphics.apply_sun(s)
-	return s
-
-
-## The sky at the horizon (sRGB, as the scene draws it before the exposure): the far
-## mountains and the fog fade into it.
-static func horizon_colour(mood := "day") -> Color:
-	var md: Dictionary = _mood(mood)
-	var lin: Color = md.horizon
-	var info := _sky(md.sky)
-	if not info.is_empty():
-		var h: Array = info.horizon_linear
-		lin = Color(h[0], h[1], h[2])
-	lin = lin * float(md.sky_energy)
-	return Color(lin.r, lin.g, lin.b).linear_to_srgb()
+## The sun (or the moon, at night): its place, colour, energy and shadows for the quality.
+static func _sun(s: Dictionary) -> DirectionalLight3D:
+	var light := DirectionalLight3D.new()
+	light.rotation = Vector3(deg_to_rad(-float(s.elev)), deg_to_rad(float(s.yaw)), 0.0)
+	light.light_color = s.sun_color
+	light.light_energy = s.sun_energy
+	# (no shadows from the moon: too faint to see, and the shadow map's passes saved at night)
+	light.shadow_enabled = not (OS.has_feature("web") and Graphics.level() == "low") and float(s.night) < 0.9
+	light.shadow_opacity = s.shadow if Graphics.level() != "low" else minf(s.shadow, 0.85)
+	light.shadow_bias = 0.03
+	light.shadow_normal_bias = 1.4
+	light.shadow_blur = 1.2
+	Graphics.apply_sun(light)
+	return light
 
 
 ## A mood's settings; a command line --look_<key>=<number> overrides one (for tuning).
@@ -578,35 +732,39 @@ static func _sky(sky_name: String) -> Dictionary:
 	return _sky_info[sky_name]
 
 
-static func _sky_material(mood: String) -> ShaderMaterial:
-	var md: Dictionary = _mood(mood)
+## The sky: one photo (a mood), or two blended (an hour between two), or the drawn sky (night,
+## or no photos: the web build); each photo turned so its sun is where the light comes from.
+static func _sky_material(s: Dictionary) -> ShaderMaterial:
 	var m := ShaderMaterial.new()
 	m.shader = _sky_shader()
-	var info := _sky(md.sky)
-	var zen: Color = md.zenith
-	var hor: Color = md.horizon
-	if not info.is_empty():
-		m.set_shader_parameter("sky_tex", load(SKY_DIR + md.sky + ".webp"))
-		m.set_shader_parameter("has_tex", true)
-		m.set_shader_parameter("lo", float(info.lo))
-		m.set_shader_parameter("hi", float(info.hi))
-		m.set_shader_parameter("v_max", (90.0 + float(info.below_deg)) / 180.0)
-		var h: Array = info.horizon_linear
-		hor = Color(h[0], h[1], h[2])
-		# turn the photo so its sun is where the light comes from: the light's azimuth
-		# (as the shader measures it: atan(x, -z)) against the photo's
-		var elev := _sun_elevation(mood)
-		var to_sun := Basis.from_euler(Vector3(deg_to_rad(-elev), deg_to_rad(md.sun_yaw), 0.0)) * Vector3(0, 0, 1)
-		var phi_light := atan2(to_sun.x, -to_sun.z)
-		var phi_photo := (float(info.sun_u) - 0.5) * TAU
-		m.set_shader_parameter("yaw", phi_photo - phi_light)
-	m.set_shader_parameter("energy", float(md.sky_energy))
-	m.set_shader_parameter("zenith_lin", Vector3(zen.r, zen.g, zen.b))
-	m.set_shader_parameter("horizon_lin", Vector3(hor.r, hor.g, hor.b))
-	var ground := Color(0.07, 0.075, 0.055) * (0.02 if mood == "night" else 1.0)
+	# (turned by the sun's own azimuth, even below the horizon: the moon's would swing the sunset round)
+	var sky_yaw := float(s.get("sky_yaw", s.yaw))
+	var to_light := Basis.from_euler(Vector3(deg_to_rad(-float(s.elev)), deg_to_rad(sky_yaw), 0.0)) * Vector3(0, 0, 1)
+	var phi_light := atan2(to_light.x, -to_light.z)
+	for slot in [["sky_a", ""], ["sky_b", "_b"]]:
+		var nm: String = s[slot[0]]
+		var info := _sky(nm)
+		var sfx: String = slot[1]
+		m.set_shader_parameter("has_tex" + sfx, not info.is_empty())
+		var zen: Color = s.zenith if nm == "" else MOODS.day.zenith
+		var hor: Color = s.horizon if nm == "" else MOODS.day.horizon
+		if not info.is_empty():
+			m.set_shader_parameter("sky_tex" + sfx, load(SKY_DIR + nm + ".webp"))
+			m.set_shader_parameter("lo", float(info.lo))
+			m.set_shader_parameter("hi", float(info.hi))
+			m.set_shader_parameter("v_max", (90.0 + float(info.below_deg)) / 180.0)
+			# the light's azimuth (as the shader measures it: atan(x, -z)) against the photo's sun
+			m.set_shader_parameter("yaw" + sfx, (float(info.sun_u) - 0.5) * TAU - phi_light)
+			var h: Array = info.horizon_linear
+			hor = Color(h[0], h[1], h[2])
+		m.set_shader_parameter("zenith_lin" + sfx, Vector3(zen.r, zen.g, zen.b))
+		m.set_shader_parameter("horizon_lin" + sfx, Vector3(hor.r, hor.g, hor.b))
+	m.set_shader_parameter("mix_b", float(s.mix) if s.sky_b != s.sky_a else 0.0)
+	m.set_shader_parameter("energy", float(s.energy))
+	var ground := Color(0.07, 0.075, 0.055) * lerpf(1.0, 0.02, float(s.night))
 	m.set_shader_parameter("ground_lin", Vector3(ground.r, ground.g, ground.b))
-	m.set_shader_parameter("sun_disc", 0.0 if mood == "overcast" else 60.0)
-	m.set_shader_parameter("stars", 1.0 if mood == "night" else 0.0)
+	m.set_shader_parameter("sun_disc", float(s.sun_disc))
+	m.set_shader_parameter("stars", float(s.night))
 	return m
 
 
@@ -684,7 +842,7 @@ static func _surface(n: String, opts: Dictionary) -> Material:
 		if opts.get("foliage", false):
 			sm.set_shader_parameter("backlight", Vector3(0.12, 0.16, 0.05))
 		if opts.get("glass", false):
-			sm.set_shader_parameter("night_lit", 2.5 if night else 0.0)
+			sm.set_shader_parameter("night_lit", 2.5 * float(opts.get("night", 0.0)))
 		if n == "asphalt" and opts.get("uv", false):
 			sm.set_shader_parameter("streaks", float(opts.get("streaks", 0.18)))
 		m = sm
@@ -1100,14 +1258,20 @@ shader_type sky;
 render_mode use_debanding;
 
 uniform sampler2D sky_tex : filter_linear_mipmap, repeat_enable, hint_default_black;
+uniform sampler2D sky_tex_b : filter_linear_mipmap, repeat_enable, hint_default_black;
 uniform bool has_tex = false;
+uniform bool has_tex_b = false;
 uniform float lo = 0.04;
 uniform float hi = 48.0;
 uniform float v_max = 0.5556;
 uniform float yaw = 0.0;
+uniform float yaw_b = 0.0;
+uniform float mix_b = 0.0;
 uniform float energy = 1.0;
 uniform vec3 zenith_lin = vec3(0.25, 0.42, 0.85);
 uniform vec3 horizon_lin = vec3(0.75, 0.85, 1.0);
+uniform vec3 zenith_lin_b = vec3(0.25, 0.42, 0.85);
+uniform vec3 horizon_lin_b = vec3(0.75, 0.85, 1.0);
 uniform vec3 ground_lin = vec3(0.07, 0.075, 0.055);
 uniform float sun_disc = 60.0;
 uniform float stars = 0.0;
@@ -1116,25 +1280,35 @@ float hash3(vec3 p) {
 	return fract(sin(dot(p, vec3(127.1, 311.7, 74.7))) * 43758.5453);
 }
 
+vec3 photo(sampler2D t, float yw, vec3 d, float lod) {
+	float u = fract(atan(d.x, -d.z) / TAU + 0.5 + yw / TAU);
+	float v = acos(clamp(d.y, -1.0, 1.0)) / PI;
+	vec3 e = textureLod(t, vec2(u, min(v / v_max, 0.995)), lod).rgb;
+	return lo * exp2(e * log2(hi / lo));
+}
+
+vec3 drawn(vec3 zen, vec3 hor, vec3 d) {
+	vec3 col = mix(hor, zen, pow(clamp(d.y, 0.0, 1.0), 0.45));
+	if (stars > 0.0 && d.y > 0.0) {
+		vec3 cell = floor(d * 300.0);
+		float s = step(0.9985, hash3(cell));
+		col += vec3(s * hash3(cell + 3.1) * 0.08 * stars) * smoothstep(0.0, 0.25, d.y);
+	}
+	return col;
+}
+
 void sky() {
 	vec3 d = normalize(EYEDIR);
-	vec3 col;
-	if (has_tex) {
-		float u = fract(atan(d.x, -d.z) / TAU + 0.5 + yaw / TAU);
-		float v = acos(clamp(d.y, -1.0, 1.0)) / PI;
-		float lod = AT_CUBEMAP_PASS ? 1.5 : 0.0;
-		vec3 e = textureLod(sky_tex, vec2(u, min(v / v_max, 0.995)), lod).rgb;
-		col = lo * exp2(e * log2(hi / lo));
-	} else {
-		col = mix(horizon_lin, zenith_lin, pow(clamp(d.y, 0.0, 1.0), 0.45));
-		if (stars > 0.0 && d.y > 0.0) {
-			vec3 cell = floor(d * 300.0);
-			float s = step(0.9985, hash3(cell));
-			col += vec3(s * hash3(cell + 3.1) * 0.08 * stars) * smoothstep(0.0, 0.25, d.y);
-		}
+	float lod = AT_CUBEMAP_PASS ? 1.5 : 0.0;
+	vec3 col = has_tex ? photo(sky_tex, yaw, d, lod) : drawn(zenith_lin, horizon_lin, d);
+	vec3 hor = horizon_lin;
+	if (mix_b > 0.0) {
+		vec3 b = has_tex_b ? photo(sky_tex_b, yaw_b, d, lod) : drawn(zenith_lin_b, horizon_lin_b, d);
+		col = mix(col, b, mix_b);
+		hor = mix(horizon_lin, horizon_lin_b, mix_b);
 	}
 	float below = smoothstep(0.0, -0.06, d.y);
-	col = mix(col, mix(horizon_lin, ground_lin, smoothstep(-0.02, -0.3, d.y)), below);
+	col = mix(col, mix(hor, ground_lin, smoothstep(-0.02, -0.3, d.y)), below);
 	col *= energy;
 	if (LIGHT0_ENABLED && sun_disc > 0.0) {
 		float c = dot(d, LIGHT0_DIRECTION);

@@ -4,6 +4,7 @@ extends SceneTree
 ## graphics level; pictures from fixed cameras. Quicker than a whole stage for tuning.
 ##   xvfb-run -a -s "-screen 0 1600x900x24" godot --path . --resolution 1600x900 --fixed-fps 30 \
 ##     -s tools/gfx_lab.gd -- --out=/tmp/lab --mood=day --gfx=high [--car=raiden] [--views=0,1,2] [--frames=40]
+##     [--speed=60] (m/s: the camera and the car drive down the road together: the speed blur as in a game)
 ## Each view: <out>/lab_<mood>_<level>_<view>.png.
 const WorldMaterials = preload("res://scripts/render/world_materials.gd")
 const Graphics = preload("res://scripts/render/graphics.gd")
@@ -25,6 +26,7 @@ var mood := "day"
 var car_id := "raiden"
 var views := [0, 1, 2]
 var frames := 40
+var speed := 0.0
 var _cam: Camera3D
 var _car
 
@@ -38,6 +40,7 @@ func _initialize() -> void:
 			"car": car_id = kv[1]
 			"views": views = Array(kv[1].split(",")).map(func(x): return int(x))
 			"frames": frames = int(kv[1])
+			"speed": speed = float(kv[1])
 	DirAccess.make_dir_recursive_absolute(out_dir)
 	var world := Node3D.new()
 	root.add_child(world)
@@ -64,8 +67,14 @@ func _run() -> void:
 		var vw: Array = VIEWS[v]
 		_cam.global_position = vw[0]
 		_cam.look_at(vw[1])
+		var start: Vector3 = _car.global_position
 		for i in frames:
 			await process_frame
+			if speed > 0.0:                         # (both down the road: the world streams past)
+				var step := Vector3(0.0, 0.0, -speed / 30.0)     # (a frame: run with --fixed-fps 30)
+				_cam.global_position += step
+				_car.global_position += step
+		_car.global_position = start
 		var path := "%s/lab_%s_%s_%d.png" % [out_dir, mood, Graphics.level(), v]
 		root.get_texture().get_image().save_png(path)
 		print("[lab] ", path)

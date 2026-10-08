@@ -11,8 +11,13 @@ extends Node3D
 ## red glass ...; never a screen, a dial, an indicator, a reverse or fog lamp), by already
 ## glowing, and by where on the car they are (the front or the back quarter). They get
 ## emission masked by their own texture: dim running lights by day, the tail lamps bright
-## when braking, both full at night. Real lights (two spot headlights, two small red tail
-## lights) when it's dark (WorldMaterials.night) or Settings says CAR LIGHTS ON.
+## when braking, both full at night (fading in at dusk: WorldMaterials.night_amount). Real
+## lights (two spot headlights, two small red tail lights) when it's dark or Settings says
+## CAR LIGHTS ON. The tyres matte rubber.
+## MEDIUM and up: a soft contact shadow under the car (the sky can't reach under it: ambient
+## occlusion, faked by a darkening quad on the ground, gone when it flies); at night the two
+## nearest street lamps light the car (only the car: lights on its own layer, no shadows),
+## so their glow slides over the paint.
 ## LOW quality leaves the materials as they are (the lamps still glow).
 
 const Graphics = preload("res://scripts/render/graphics.gd")
@@ -21,6 +26,8 @@ const WorldMaterials = preload("res://scripts/render/world_materials.gd")
 ## the car's model meshes go on this render layer (as well as no other), so its own
 ## reflection probe doesn't see it from inside
 const CAR_LAYER := 1 << 10
+
+const TYRE_WORDS := ["tire", "tyre", "rubber", "pneumatic", "tread", "sidewall", "sidetyre"]
 
 const LAMP_WORDS := ["light", "lamp", "lens", "glow", "led", "beam", "xenon", "drl", "luminus", "emis", "tail",
 	"brakel", "brake l", "brake_l", "lcover", "redglass", "red_glass", "glassred", "glass_red", "red glass", "headl"]
@@ -41,10 +48,13 @@ var _tail_at: Array = []
 var _lights: Array = []              # the real lights: [SpotLight3D x2, OmniLight3D x2]
 var _probe: ReflectionProbe
 var _brake := 0.0
-var _night := false
+var _nt := 0.0                       # how dark it is (WorldMaterials.night_amount when last looked)
 var _real := false
 var _mirror_done := false
 var _mirror_tries := 0
+var _blob: MeshInstance3D            # the contact shadow
+var _blob_amount := 0.0
+var _lamp_lights: Array = []         # [OmniLight3D x2]: the nearest street lamps' light on the car
 
 
 static func dress(owner_car: Node3D, owner_model: Node3D, info: Dictionary) -> Node3D:
@@ -66,6 +76,7 @@ static func dress(owner_car: Node3D, owner_model: Node3D, info: Dictionary) -> N
 
 func _ready() -> void:
 	add_to_group("graphics")
+	_nt = WorldMaterials.night_amount
 	_graphics_changed()
 
 
@@ -75,11 +86,17 @@ func _scan() -> void:
 	var gloss := Graphics.level() != "low"
 	for mi in model.find_children("*", "MeshInstance3D", true, false):
 		var m3 := mi as MeshInstance3D
-		if m3.mesh == null or _skip(m3):
+		if m3.mesh == null:
+			continue
+		if _skip(m3):
+			if gloss:
+				_rubber(m3)
 			continue
 		m3.gi_mode = GeometryInstance3D.GI_MODE_DYNAMIC         # (it moves: not part of SDFGI's world)
 		m3.layers = CAR_LAYER
 		var xf := _model_xf(m3)
+		if lamps_ok:
+			_split_both(m3, xf, _box)
 		for i in m3.mesh.get_surface_count():
 			var src := m3.get_surface_override_material(i)
 			if src == null:
@@ -107,6 +124,27 @@ func _scan() -> void:
 				m3.set_surface_override_material(i, c)
 
 
+## The tyres: matte rubber (the rips' tyres are often as shiny as the paint).
+func _rubber(m3: MeshInstance3D) -> void:
+	for i in m3.mesh.get_surface_count():
+		var src := m3.get_surface_override_material(i)
+		if src == null:
+			src = m3.mesh.surface_get_material(i)
+		if not (src is BaseMaterial3D):
+			continue
+		var n := String(src.resource_name).to_lower()
+		var tyre := false
+		for w in TYRE_WORDS:
+			tyre = tyre or w in n
+		if tyre:
+			var r := (src as BaseMaterial3D).duplicate() as BaseMaterial3D
+			r.roughness = maxf(r.roughness, 0.86)
+			r.metallic = 0.0
+			r.metallic_specular = minf(r.metallic_specular, 0.3)
+			r.clearcoat_enabled = false
+			m3.set_surface_override_material(i, r)
+
+
 ## The wheels and the cockpit's moving parts aren't lamps.
 func _skip(mi: Node) -> bool:
 	var n: Node = mi
@@ -128,16 +166,93 @@ func _model_xf(n: Node3D) -> Transform3D:
 	return xf
 
 
+## A surface's box (the vertices its triangles use: a split surface shares its vertex arrays).
 static func _surface_box(mesh: Mesh, i: int) -> AABB:
-	var v: PackedVector3Array = mesh.surface_get_arrays(i)[Mesh.ARRAY_VERTEX]
+	var arr := mesh.surface_get_arrays(i)
+	var v: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
 	if v.is_empty():
 		return AABB()
-	var lo := v[0]
-	var hi := v[0]
-	for p in v:
-		lo = lo.min(p)
-		hi = hi.max(p)
+	var idx = arr[Mesh.ARRAY_INDEX]
+	var lo := Vector3.INF
+	var hi := -Vector3.INF
+	if idx is PackedInt32Array and not (idx as PackedInt32Array).is_empty():
+		for k in idx:
+			lo = lo.min(v[k])
+			hi = hi.max(v[k])
+	else:
+		for p in v:
+			lo = lo.min(p)
+			hi = hi.max(p)
 	return AABB(lo, hi - lo)
+
+
+## One lamp material over both ends of the car (the head and the tail lamps in one: some
+## rips): that surface split in two, front and back, so the tail lamps can glow red (and
+## brighten on the brakes) and the headlamps white. The split mesh is shared by every car
+## of the model (the same vertex arrays, two index lists); the material overrides kept.
+static var _split_cache := {}
+
+static func _split_both(m3: MeshInstance3D, xf: Transform3D, box: AABB) -> void:
+	var mesh := m3.mesh
+	if not (mesh is ArrayMesh) or (mesh as ArrayMesh).get_blend_shape_count() > 0:
+		return
+	var key := "%d|%s|%s" % [mesh.get_instance_id(), str(xf), str(box)]
+	if not _split_cache.has(key):
+		var both: Array = []
+		for i in mesh.get_surface_count():
+			var src := m3.get_surface_override_material(i)
+			if src == null:
+				src = mesh.surface_get_material(i)
+			if src is BaseMaterial3D and mesh.surface_get_primitive_type(i) == Mesh.PRIMITIVE_TRIANGLES \
+					and _lamp_candidate(String(src.resource_name).to_lower(), src) and _kind_in(box, xf * _surface_box(mesh, i)) == "both":
+				both.append(i)
+		_split_cache[key] = _split_mesh(mesh as ArrayMesh, xf, both, box) if not both.is_empty() else null
+	var out: ArrayMesh = _split_cache[key]
+	if out == null:
+		return
+	var keep := []
+	for i in mesh.get_surface_count():
+		keep.append(m3.get_surface_override_material(i))
+	m3.mesh = out
+	for i in keep.size():
+		m3.set_surface_override_material(i, keep[i])
+
+
+## The mesh again, each of the surfaces `both` split by where its triangles are: the front
+## half's in its place, the back half's added at the end (the other surfaces' places kept).
+static func _split_mesh(mesh: ArrayMesh, xf: Transform3D, both: Array, box: AABB):
+	var out := ArrayMesh.new()
+	var backs: Array = []
+	var mid := box.get_center().z
+	for j in mesh.get_surface_count():
+		var arr := mesh.surface_get_arrays(j)
+		var mat := mesh.surface_get_material(j)
+		var flags := 0                                     # (the custom channels' formats, if any)
+		for k in 4:
+			flags |= mesh.surface_get_format(j) & (Mesh.ARRAY_FORMAT_CUSTOM_MASK << (Mesh.ARRAY_FORMAT_CUSTOM_BASE + k * Mesh.ARRAY_FORMAT_CUSTOM_BITS))
+		if j in both:
+			var v: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
+			var idx: PackedInt32Array = arr[Mesh.ARRAY_INDEX] if arr[Mesh.ARRAY_INDEX] != null else PackedInt32Array(range(v.size()))
+			var front := PackedInt32Array()
+			var rear := PackedInt32Array()
+			for t in range(0, idx.size() - 2, 3):
+				var cz := (xf * ((v[idx[t]] + v[idx[t + 1]] + v[idx[t + 2]]) / 3.0)).z
+				if cz < mid:
+					front.append_array([idx[t], idx[t + 1], idx[t + 2]])
+				else:
+					rear.append_array([idx[t], idx[t + 1], idx[t + 2]])
+			if not front.is_empty() and not rear.is_empty():
+				var b := arr.duplicate()
+				b[Mesh.ARRAY_INDEX] = rear
+				backs.append([b, mat, flags])
+				arr[Mesh.ARRAY_INDEX] = front
+		out.add_surface_from_arrays(mesh.surface_get_primitive_type(j), arr, [], {}, flags)
+		out.surface_set_material(out.get_surface_count() - 1, mat)
+		out.surface_set_name(out.get_surface_count() - 1, mesh.surface_get_name(j))
+	for e in backs:
+		out.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, e[0], [], {}, e[2])
+		out.surface_set_material(out.get_surface_count() - 1, e[1])
+	return out
 
 
 ## A lamp by its name, or glowing already, and not anything that only sounds like one.
@@ -196,7 +311,9 @@ static func _emissive(src: BaseMaterial3D, kind: String) -> BaseMaterial3D:
 
 ## Traffic and other plain car models (not a RallyCar): their lamps glow, running lights by
 ## day, full at night (no brake lights, no real lights). The lamps are found once per mesh
-## and the glowing copies shared by every car of that model. Call it after painting.
+## and the glowing copies shared by every car of that model. Call it after painting. Where
+## they are goes on root's meta "lamp_boxes" ({"head"/"tail": AABB, root's space}: CarLamps
+## puts its beams there and leaves out its glow sprites).
 static var _model_lamps := {}
 
 
@@ -213,25 +330,47 @@ static func glow_model(root: Node3D) -> void:
 		var b := xf * m3.mesh.get_aabb()
 		box = b if box.size == Vector3.ZERO else box.merge(b)
 		meshes.append([m3, xf])
-	var night := WorldMaterials.night
-	var energy := {"head": 7.0 if night else 1.8, "tail": 3.0 if night else 0.8, "both": 4.0 if night else 1.1}
+	var nt := snappedf(WorldMaterials.night_amount, 0.1)
+	var energy := {"head": lerpf(1.8, 7.0, nt), "tail": lerpf(0.8, 3.0, nt), "both": lerpf(1.1, 4.0, nt)}
+	var boxes := {}
 	for e in meshes:
 		var m3: MeshInstance3D = e[0]
-		var key := "%d|%s" % [m3.mesh.get_instance_id(), night]
+		_split_both(m3, e[1], box)
+		var key := "%d|%s" % [m3.mesh.get_instance_id(), nt]
 		if not _model_lamps.has(key):
 			var found := {}
 			for i in m3.mesh.get_surface_count():
 				var src := m3.mesh.surface_get_material(i)
 				if not (src is BaseMaterial3D) or not _lamp_candidate(String(src.resource_name).to_lower(), src):
 					continue
-				var kind := _kind_in(box, (e[1] as Transform3D) * _surface_box(m3.mesh, i))
+				var at := (e[1] as Transform3D) * _surface_box(m3.mesh, i)
+				var kind := _kind_in(box, at)
 				if kind != "":
 					var lm := _emissive(src, kind)
 					lm.emission_energy_multiplier = energy[kind]
+					lm.set_meta("at", at)
+					lm.set_meta("kind", kind)
 					found[i] = lm
 			_model_lamps[key] = found
 		for i in _model_lamps[key]:
-			m3.set_surface_override_material(i, _model_lamps[key][i])
+			var lm: BaseMaterial3D = _model_lamps[key][i]
+			m3.set_surface_override_material(i, lm)
+			var kind: String = lm.get_meta("kind")
+			var at: AABB = lm.get_meta("at")
+			if kind != "both":
+				boxes[kind] = at if not boxes.has(kind) else (boxes[kind] as AABB).merge(at)
+	root.set_meta("lamp_boxes", boxes)
+
+
+## Where this car's lamps are ({"head"/"tail": AABB in the model's space}; a kind left out
+## where none was found): CarLamps puts its beams there.
+func lamp_boxes() -> Dictionary:
+	var out := {}
+	if not _head_at.is_empty():
+		out["head"] = _merge(_head_at)
+	if not _tail_at.is_empty():
+		out["tail"] = _merge(_tail_at)
+	return out
 
 
 static func _xf_in(n: Node3D, root: Node3D) -> Transform3D:
@@ -259,11 +398,34 @@ func _lamp_material(src: BaseMaterial3D, kind: String, at: AABB) -> BaseMaterial
 
 
 func _graphics_changed() -> void:
-	_night = WorldMaterials.night
-	var want_real := (Graphics.car_lights() == "on" or (Graphics.car_lights() == "auto" and _night)) and not Graphics.headless()
+	_nt = WorldMaterials.night_amount
+	var want_real := (Graphics.car_lights() == "on" or (Graphics.car_lights() == "auto" and _nt > 0.3)) and not Graphics.headless()
 	if want_real != _real:
 		_real = want_real
 		_set_real_lights(want_real)
+	var fancy := Graphics.level() != "low" and not Graphics.headless()
+	if fancy and _blob == null:
+		_add_blob()
+	elif not fancy and _blob:
+		_blob.queue_free()
+		_blob = null
+	var want_lamps := fancy and _nt > 0.05
+	if want_lamps and _lamp_lights.is_empty():
+		for i in 2:
+			var o := OmniLight3D.new()
+			o.top_level = true
+			o.omni_range = 16.0
+			o.omni_attenuation = 1.2
+			o.light_color = WorldMaterials.SODIUM
+			o.light_cull_mask = CAR_LAYER
+			o.light_specular = 1.0
+			o.visible = false
+			add_child(o)
+			_lamp_lights.append(o)
+	elif not want_lamps:
+		for o in _lamp_lights:
+			o.queue_free()
+		_lamp_lights.clear()
 	var want_probe := bool(Graphics.get_value("probe")) and Graphics.forward() and not Graphics.headless()
 	if want_probe and _probe == null:
 		_add_probe()
@@ -278,9 +440,13 @@ func _process(dt: float) -> void:
 	if car and "inp" in car:
 		want = clampf(float(car.inp.get("brake", 0.0)) * 1.5, 0.0, 1.0)
 	_brake = move_toward(_brake, want, dt * 12.0)
-	if WorldMaterials.night != _night:
+	if not is_equal_approx(WorldMaterials.night_amount, _nt):
 		_graphics_changed()
 	_glow(_brake)
+	if _blob:
+		_place_blob(dt)
+	if not _lamp_lights.is_empty() and Engine.get_process_frames() % 3 == 0:
+		_follow_lamps()
 	if not _mirror_done and Engine.get_process_frames() % 15 == 0:
 		_mirror_tries += 1
 		_mirror_done = _mirror_tries > 20                 # (no cockpit mirror: the menu's car)
@@ -308,18 +474,21 @@ func _light_mirror() -> void:
 
 ## The lamps' glow: running lights by day, full at night; the tail lamps brighter as the brake goes on.
 func _glow(brake: float) -> void:
-	var head := 7.0 if _night else 2.2
-	var tail := (3.0 if _night else 0.9) + brake * 7.0
+	var head := lerpf(2.2, 7.0, _nt)
+	var tail := lerpf(0.9, 3.0, _nt) + brake * 7.0
 	for m in _head:
 		m.emission_energy_multiplier = head
 	for m in _tail:
 		m.emission_energy_multiplier = tail
 	for m in _both:
-		m.emission_energy_multiplier = 4.0 if _night else 1.2
+		m.emission_energy_multiplier = lerpf(1.2, 4.0, _nt)
 	if _real:
+		var beams := 1.0 if Graphics.car_lights() == "on" else clampf((_nt - 0.2) / 0.5, 0.0, 1.0)
 		for l in _lights:
 			if l is OmniLight3D:
-				(l as OmniLight3D).light_energy = 0.25 + brake * 0.9
+				(l as OmniLight3D).light_energy = 0.12 + brake * 0.5
+			elif l is SpotLight3D:
+				(l as SpotLight3D).light_energy = 9.0 * beams
 
 
 func _set_real_lights(on: bool) -> void:
@@ -354,13 +523,107 @@ func _set_real_lights(on: bool) -> void:
 	for side in [-1.0, 1.0]:
 		var o := OmniLight3D.new()
 		o.position = off + Vector3(side * _box.size.x * 0.36, rear_y, rear_z + 0.25)
-		o.omni_range = 2.2
+		o.omni_range = 2.4
 		o.omni_attenuation = 1.5
 		o.light_color = Color(1.0, 0.08, 0.04)
-		o.light_energy = 0.25
+		o.light_energy = 0.12
 		o.light_specular = 0.2
+		o.light_cull_mask = 0xFFFFF & ~CAR_LAYER              # (a red glow on the road, not on the car)
 		add_child(o)
 		_lights.append(o)
+
+
+## The contact shadow: a quad the car's footprint (a little more), darkening the ground
+## under it most in the middle (blend_mul); top_level, laid on the plane of the tyres'
+## contacts each frame.
+func _add_blob() -> void:
+	var q := QuadMesh.new()
+	q.size = Vector2(1.0, 1.0)
+	q.orientation = PlaneMesh.FACE_Y
+	var sh := Shader.new()
+	sh.code = BLOB_SHADER
+	var m := ShaderMaterial.new()
+	m.shader = sh
+	m.set_shader_parameter("aspect", _box.size.z / maxf(_box.size.x, 0.5))
+	_blob = MeshInstance3D.new()
+	_blob.name = "ContactShadow"
+	_blob.mesh = q
+	_blob.material_override = m
+	_blob.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_blob.top_level = true
+	_blob.visible = false
+	add_child(_blob)
+
+
+func _place_blob(dt: float) -> void:
+	var ws: Array = car.get("wheels") if car and "wheels" in car else []
+	var n := 0
+	var at := Vector3.ZERO
+	var up := Vector3.ZERO
+	for w in ws:
+		if w and w.grounded:
+			n += 1
+			at += w.contact
+			up += w.normal
+	var want := 1.0 if n >= 2 else 0.0
+	_blob_amount = move_toward(_blob_amount, want, dt * (6.0 if want > _blob_amount else 4.0))
+	_blob.visible = _blob_amount > 0.01
+	if n < 2 or not _blob.visible:
+		return
+	at /= n
+	up = up.normalized()
+	var xf := model.global_transform
+	var fwd := -xf.basis.z
+	fwd = (fwd - up * fwd.dot(up)).normalized()
+	var right := fwd.cross(up).normalized()
+	var c := xf * _box.get_center()
+	c = c - up * (c - at).dot(up)                          # (the body's middle, on the ground's plane)
+	var w := _box.size.x * 1.25
+	var l := _box.size.z * 1.12
+	_blob.global_transform = Transform3D(Basis(right * w, up, -fwd * l), c + up * 0.03)
+	(_blob.material_override as ShaderMaterial).set_shader_parameter("amount", _blob_amount * (0.62 if Graphics.forward() else 0.5))
+
+
+const BLOB_SHADER := """
+shader_type spatial;
+render_mode blend_mul, unshaded, depth_draw_never, cull_back, shadows_disabled, fog_disabled;
+uniform float amount = 0.6;
+uniform float aspect = 2.4;
+void fragment() {
+	vec2 p = abs(UV * 2.0 - 1.0);
+	// a rounded rectangle, soft all round, darkest in the middle
+	vec2 q = max(p - vec2(0.55, 0.7), 0.0) / vec2(0.45, 0.3);
+	float d = length(q);
+	float f = (1.0 - smoothstep(0.0, 1.0, d)) * (1.0 - 0.35 * max(p.x, p.y * 0.6));
+	ALBEDO = vec3(1.0 - amount * f);
+}
+"""
+
+
+## At night, the two nearest street lamps (WorldMaterials.street_lights) as real lights on
+## the car's layer only: the paint shows them, nothing else is lit twice.
+func _follow_lamps() -> void:
+	var here := global_position
+	var best: Array = []                                   # [[d2, pos, colour]]
+	for holder in get_tree().get_nodes_in_group("street_lights"):
+		var h := holder as Node3D
+		if h == null or not h.is_inside_tree():
+			continue
+		var heads: PackedVector3Array = h.get_meta("heads", PackedVector3Array())
+		var xf := h.global_transform
+		for p in heads:
+			var g: Vector3 = xf * p
+			var d2 := g.distance_squared_to(here)
+			if d2 > 900.0:
+				continue
+			best.append([d2, g])
+	best.sort_custom(func(a, b): return a[0] < b[0])
+	for i in _lamp_lights.size():
+		var o: OmniLight3D = _lamp_lights[i]
+		o.visible = i < best.size()
+		if o.visible:
+			o.global_position = best[i][1]
+			o.light_energy = 3.0 * _nt
 
 
 static func _merge(boxes: Array) -> AABB:

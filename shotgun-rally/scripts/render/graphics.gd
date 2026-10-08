@@ -213,7 +213,7 @@ static func apply_viewport(vp: Viewport) -> void:
 	if vp == null or headless():
 		return
 	var f := forward()
-	vp.msaa_3d = get_value("msaa")
+	vp.msaa_3d = Viewport.MSAA_DISABLED if "--look_nomsaa" in OS.get_cmdline_user_args() else get_value("msaa")
 	vp.use_taa = f and bool(get_value("taa"))
 	vp.screen_space_aa = Viewport.SCREEN_SPACE_AA_DISABLED
 	var s := render_scale()

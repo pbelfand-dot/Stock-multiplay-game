@@ -6,9 +6,12 @@ extends Node
 ## environment (SpeedBlurEffect: two compute passes after the transparent objects); its
 ## strength follows the looking camera's speed: from ~90 km/h, all of it by ~220 km/h (the
 ## motion part is there at any speed, a short exposure's worth). MEDIUM (6 taps) and up,
-## Forward+ only.
+## Forward+ only. While it's on, the screen has no MSAA (its depth and motion vectors read
+## as empty to the pass): MEDIUM smooths the edges with FXAA instead, HIGH / ULTRA with
+## their TAA; the menu's garage keeps its MSAA.
 ##   SpeedBlur.attach(parent, world_environment)   once per scene (WorldMaterials.setup does it)
-## A --look_blur=<0..1> command line holds the pull at that strength (pictures of a still car).
+## A --look_blur=<0..1> command line holds the pull at that strength (pictures of a still car);
+## --look_blur_debug draws what the pass reads instead (red: depth, green: distance, blue: motion).
 
 const Graphics = preload("res://scripts/render/graphics.gd")
 const Effect = preload("res://scripts/render/speed_blur_effect.gd")
@@ -48,6 +51,15 @@ func _graphics_changed() -> void:
 	effect.enabled = on
 	effect.taps = 6 if Graphics.level() == "medium" else 10
 	set_process(on)
+	var vp := get_viewport()
+	if on and vp and vp.msaa_3d != Viewport.MSAA_DISABLED:
+		vp.msaa_3d = Viewport.MSAA_DISABLED
+		if not vp.use_taa:
+			vp.screen_space_aa = Viewport.SCREEN_SPACE_AA_FXAA
+
+
+func _exit_tree() -> void:
+	Graphics.apply_viewport(get_viewport())                    # (back to the level's own AA: the menu)
 
 
 func _process(dt: float) -> void:
@@ -64,11 +76,14 @@ func _process(dt: float) -> void:
 	_speed = lerpf(_speed, v.length(), clampf(dt * 6.0, 0.0, 1.0))
 	var amount := smoothstep(FROM, FULL, _speed) * 0.85
 	effect.held = _hold >= 0.0
+	effect.sharp_near = 16.0 if effect.held else 9.0             # (held: sharp by distance: the whole car, the chase cam's 10 m to its nose)
 	if effect.held:
 		amount = _hold
 	effect.amount = maxf(amount, 0.011) if _speed > 2.0 or effect.held else 0.0    # (the motion part: at any speed)
 	effect.per_60 = (1.0 / 60.0) / maxf(dt, 1e-4)
 	effect.shutter = 0.75
+	effect.near = cam.near
+	effect.far = cam.far
 	# where the world streams out from: the direction of travel, as the camera sees it
 	var heading := v.normalized() if v.length() > 1.0 else -cam.global_transform.basis.z
 	var ahead := p + heading * 200.0

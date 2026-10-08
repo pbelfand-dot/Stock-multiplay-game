@@ -55,6 +55,7 @@ var _lowest := INF                  # the lowest the ground goes (the mountainsi
 const CHUNK := 160.0                # trees are grouped per this much road ...
 const TREE_DRAW := 520.0            # ... and a group further away than this isn't drawn
 var mood := "day"                  # the light (_environment): set before build
+var time_of_day := -1.0            # ... or the hour (0.0-24.0; the mood then only says overcast or not); < 0: the mood's own
 var _range: MeshInstance3D      # the ranges on the horizon (they keep their distance: _process)
 var _mountain_y := 0.0
 var _horizon := Color(0.72, 0.82, 0.9)   # the sky at the horizon (the mountains fade into it)
@@ -1814,8 +1815,8 @@ func _process(_dt: float) -> void:
 ## The light: "day" (high sun, blue sky), "golden" (an evening sun low through
 ## the trees, warm and long-shadowed), "overcast" (grey sky, soft light, fog): a
 ## photographed sky, the sun where it is in the photo, the graphics quality's shadows
-## and effects (WorldMaterials.setup).
+## and effects (WorldMaterials.setup). Or the light of an hour (time_of_day).
 func _environment() -> void:
-	var w: Dictionary = WorldMaterials.setup(self, mood)
+	var w: Dictionary = WorldMaterials.setup(self, mood, time_of_day)
 	mood = w.mood
 	_horizon = w.horizon
