@@ -6,7 +6,7 @@
 	"category": "rally",
 	"role": "rally",
 	"specs": {
-		"power_hp": 300,
+		"power_hp": 331,
 		"weight_kg": 1230,
 		"drivetrain": "AWD",
 		"transmission": "6-speed sequential",

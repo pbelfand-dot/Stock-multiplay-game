@@ -13,6 +13,7 @@
 	},
 	"specs": {
 		"power_hp": 360,
+		"power_rating": "SAE gross",
 		"weight_kg": 1633,
 		"drivetrain": "RWD",
 		"transmission": "4-speed manual (Muncie M21 close-ratio)",

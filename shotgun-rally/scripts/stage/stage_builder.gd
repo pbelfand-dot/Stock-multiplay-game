@@ -1372,6 +1372,8 @@ func _barriers() -> void:
 	add_child(body)
 	var steel := MeshBuf.new()
 	var stone := MeshBuf.new()
+	var walls := MeshBuf.new()                         # (only its collision faces: the whole run's one solid)
+	var pieces := 0
 	for side in [-1.0, 1.0]:
 		var need := PackedByteArray()
 		need.resize(n)
@@ -1398,14 +1400,16 @@ func _barriers() -> void:
 			if (b - a) * st.STEP >= 14.0:
 				var walled: bool = not st.village_at(a * st.STEP, 30.0).is_empty() or _rng.randf() < (0.15 if touge else 0.3)
 				for k in range(a, b):
-					_barrier_bit(k * st.STEP, (k + 1) * st.STEP, side, walled, stone if walled else steel, body)
+					_barrier_bit(k * st.STEP, (k + 1) * st.STEP, side, walled, stone if walled else steel, walls)
+					pieces += 1
 			i = j + 1
+	_solid(body, walls, pieces)
 	_add(steel, "", "Armco", WorldMaterials.steel({"painted": touge}))
 	_add(stone, "", "StoneWalls")
 
 
 ## One 2 m piece of barrier, from s0 to s1 on `side`: armco or a stone wall, and its collision.
-func _barrier_bit(s0: float, s1: float, side: float, walled: bool, mb, body: StaticBody3D) -> void:
+func _barrier_bit(s0: float, s1: float, side: float, walled: bool, mb, walls) -> void:
 	var d0: float = side * (st.width_at(s0) * 0.5 + 0.6)
 	var d1: float = side * (st.width_at(s1) * 0.5 + 0.6)
 	var e0: Vector3 = st.world_at(s0, d0) - Vector3.UP * 0.05
@@ -1417,12 +1421,41 @@ func _barrier_bit(s0: float, s1: float, side: float, walled: bool, mb, body: Sta
 		var stone_col: Color = CONCRETE if touge else STONE     # (a touge's: a concrete parapet)
 		_box(mb, e0 + Vector3.UP * 0.32, e1 + Vector3.UP * 0.32, r, 0.45, 0.8, _shade(stone_col, shade))
 		_box(mb, e0 + Vector3.UP * 0.76, e1 + Vector3.UP * 0.76, r, 0.5, 0.1, _shade(stone_col, shade * 1.08))    # the coping
-		_wall(body, (e0 + e1) * 0.5 + Vector3.UP * 0.4, e1 - e0, r, 0.45, 0.85)
+		_wall_faces(walls, e0, e1, r, st.right_at(s1) * side, 0.45, 0.825)
 	else:
 		_box(mb, e0 - Vector3.UP * 0.3, e0 + Vector3.UP * 0.72, st.forward_at(s0), 0.1, 0.12, RAIL_WHITE if touge else POST)
 		var beam := -r * 0.09                                  # the beam's on the road side of the posts
 		_box(mb, e0 + beam + Vector3.UP * 0.58, e1 + beam + Vector3.UP * 0.58, r, 0.06, 0.32, RAIL_WHITE if touge else ARMCO)
-		_wall(body, (e0 + e1) * 0.5 + Vector3.UP * 0.45, e1 - e0, r, 0.25, 0.9)
+		_wall_faces(walls, e0, e1, r, st.right_at(s1) * side, 0.25, 0.9)
+
+
+## A barrier's solid from a0 to a1 (its middle line at the foot; r0 / r1 point away
+## from the road there): the face toward the road, the top and the back, `thick` apart,
+## from under the road to `top` over a0. Faces in one mesh for the whole run, the
+## pieces meeting at the very same points: as boxes, a piece each, the car's body
+## caught on their seams scraping along and stopped dead (the physics' "ghost" edges).
+func _wall_faces(walls, a0: Vector3, a1: Vector3, r0: Vector3, r1: Vector3, thick: float, top: float) -> void:
+	var h := thick * 0.5
+	var lo := Vector3.UP * -0.25
+	var hi := Vector3.UP * top
+	var i0 := a0 - r0 * h
+	var i1 := a1 - r1 * h
+	var o0 := a0 + r0 * h
+	var o1 := a1 + r1 * h
+	walls.quad(i0 + lo, i1 + lo, i1 + hi, i0 + hi, Color.WHITE, true)
+	walls.quad(i0 + hi, i1 + hi, o1 + hi, o0 + hi, Color.WHITE, true)
+	walls.quad(o0 + lo, o1 + lo, o1 + hi, o0 + hi, Color.WHITE, true)
+
+
+## The barrier's solid on its body (one shape), and how many pieces of it there are
+## (meta "pieces": the tests count them).
+func _solid(body: StaticBody3D, walls, pieces: int) -> void:
+	body.set_meta("pieces", pieces)
+	if walls.faces.is_empty():
+		return
+	var cs := CollisionShape3D.new()
+	cs.shape = walls.shape()
+	body.add_child(cs)
 
 
 ## The villages (StageGen.villages): houses close to the road on both sides, two
@@ -1593,6 +1626,8 @@ func _towns() -> void:
 	body.name = "Town"
 	body.set_meta("surface", "gravel")
 	add_child(body)
+	var walls := MeshBuf.new()                         # (the crowd barriers' solid, one for all of them)
+	var pieces := 0
 	for t in st.towns:
 		var at: float = t.s0 - 26.0
 		_sign(at, st.width_at(at) * 0.5 + 1.4, t.name, Color(0.96, 0.96, 0.94))
@@ -1604,7 +1639,8 @@ func _towns() -> void:
 			while s < t.s1 + 8.0 - 0.01:
 				var s2: float = minf(s + st.STEP, t.s1 + 8.0)
 				_pavement_bit(s, s2, side, pave)
-				_fence_bit(s, s2, side, mb, body)
+				_fence_bit(s, s2, side, mb, walls)
+				pieces += 1
 				s = s2
 			# the buildings, shoulder to shoulder, the gaps left open
 			s = t.s0
@@ -1634,6 +1670,7 @@ func _towns() -> void:
 				var p: Vector3 = st.world_at(cs, side * (st.width_at(cs) * 0.5 + 9.0))
 				_clearings.append([Vector2(p.x, p.z), 12.0])
 			cs += 8.0
+	_solid(body, walls, pieces)
 	_add(pave, "asphalt", "Pavements")
 	_add(squares, "asphalt", "TownSquares")
 	var mi := _add(mb, "", "TownBuildings")
@@ -1663,7 +1700,7 @@ func _pavement_bit(s0: float, s1: float, side: float, mb) -> void:
 
 
 ## 2 m of crowd barrier on the pavement (steel rails and bars between posts), solid.
-func _fence_bit(s0: float, s1: float, side: float, mb, body: StaticBody3D) -> void:
+func _fence_bit(s0: float, s1: float, side: float, mb, walls) -> void:
 	var e0 := _tp(s0, side * (st.width_at(s0) * 0.5 + 0.35), PAVE_H)
 	var e1 := _tp(s1, side * (st.width_at(s1) * 0.5 + 0.35), PAVE_H)
 	var r: Vector3 = st.right_at(s0) * side
@@ -1673,7 +1710,7 @@ func _fence_bit(s0: float, s1: float, side: float, mb, body: StaticBody3D) -> vo
 	for k in range(1, 4):                                # the bars between (you see through it)
 		var b: Vector3 = e0.lerp(e1, k / 4.0)
 		_box(mb, b + Vector3.UP * 0.15, b + Vector3.UP * 1.05, st.forward_at(s0), 0.025, 0.025, FENCE)
-	_wall(body, (e0 + e1) * 0.5 + Vector3.UP * 0.55, e1 - e0, r, 0.2, 1.1)
+	_wall_faces(walls, e0, e1, r, st.right_at(s1) * side, 0.2, 1.1)
 
 
 ## The town square at s on `side`: cobbles behind the pavement, 24 m along the
@@ -1745,6 +1782,8 @@ func _bridges() -> void:
 		rails.name = "BridgeRails%d" % bi
 		rails.set_meta("surface", "wood")
 		add_child(rails)
+		var walls := MeshBuf.new()
+		var pieces := 0
 		# the planks
 		var s: float = b.s0
 		var k := 0
@@ -1778,9 +1817,12 @@ func _bridges() -> void:
 					_box(frame, post + Vector3.UP * y, post2 + Vector3.UP * y, r, 0.08, 0.13, TIMBER)
 				var joist: Vector3 = r * side * 0.5
 				_box(frame, edge - joist - Vector3.UP * (DECK_DEPTH + 0.12), edge2 - joist - Vector3.UP * (DECK_DEPTH + 0.12), r, 0.2, 0.24, _shade(TIMBER, 0.8))
-				# the rail's collision: a 1 m wall along the segment, and the wheel guard
-				_wall(rails, (post + post2) * 0.5 + Vector3.UP * 0.55, post2 - post, r, 0.16, 1.0)
-				_wall(rails, (edge + edge2) * 0.5 - guard + Vector3.UP * 0.09, edge2 - edge, r, 0.2, 0.18)
+				# the rail's collision: a 1 m wall along the segment, and the wheel guard (one solid
+				# for the bridge: _wall_faces)
+				var r2: Vector3 = st.right_at(sb) * side
+				_wall_faces(walls, post, post2, r * side, r2, 0.16, 1.05)
+				_wall_faces(walls, edge - guard, edge2 - r2 * 0.12, r * side, r2, 0.2, 0.18)
+				pieces += 1
 			# a trestle every 4 m where the gully is deep enough
 			if j % 2 == 1 and st.gully_depth(sa, 0.0) > 0.6:
 				var half := _deck_half(sa) - 0.5
@@ -1802,6 +1844,7 @@ func _bridges() -> void:
 			var ha: float = st.width_at(sa) * 0.5 + 0.1
 			var hb: float = st.width_at(sb) * 0.5 + 0.1
 			floor_mb.quad(_gully_floor(sa, -ha), _gully_floor(sa, ha), _gully_floor(sb, hb), _gully_floor(sb, -hb), MUD, true)
+		_solid(rails, walls, pieces)
 		var dm := _add(deck, "wood", "BridgeDeck%d" % bi)
 		dm.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 		_add(frame, "", "BridgeFrame%d" % bi)
@@ -2029,13 +2072,15 @@ func _sign(s: float, d: float, text: String, col: Color) -> void:
 # ── highway and touge roadside ────────────────────────────────────────────
 
 ## A highway's concrete barriers (New Jersey profile: a wide foot, a narrower
-## wall), both sides the whole way, just past the shoulders; solid in 8 m pieces.
+## wall), both sides the whole way, just past the shoulders; 8 m pieces, one solid.
 func _highway_barriers() -> void:
 	var body := StaticBody3D.new()
 	body.name = "Barriers"
 	body.set_meta("surface", "gravel")
 	add_child(body)
 	var mb := MeshBuf.new()
+	var walls := MeshBuf.new()
+	var pieces := 0
 	var n: int = st.pts.size()
 	for side in [-1.0, 1.0]:
 		var i := 0
@@ -2048,8 +2093,10 @@ func _highway_barriers() -> void:
 			var r: Vector3 = st.right_at(s0) * side
 			_box(mb, e0 + Vector3.UP * 0.14, e1 + Vector3.UP * 0.14, r, 0.62, 0.28, CONCRETE)
 			_box(mb, e0 + Vector3.UP * 0.56, e1 + Vector3.UP * 0.56, r, 0.26, 0.56, _shade(CONCRETE, 1.05))
-			_wall(body, (e0 + e1) * 0.5 + Vector3.UP * 0.45, e1 - e0, r, 0.5, 0.9)
+			_wall_faces(walls, e0, e1, r, st.right_at(s1) * side, 0.5, 0.9)
+			pieces += 1
 			i = j
+	_solid(body, walls, pieces)
 	_add(mb, "", "ConcreteBarriers")
 
 

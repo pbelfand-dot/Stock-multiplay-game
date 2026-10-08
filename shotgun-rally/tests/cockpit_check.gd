@@ -14,6 +14,9 @@ extends SceneTree
 ##     on the lever too)
 ##   * the dials have their numbers (revs 0-8, km/h 0-200), the shift lights
 ##     come on with the revs
+##   * hand over hand to full lock and held there, at 60 fps and at 8 (a slow
+##     machine: the wheel goes round a long way between frames), the gloves stay
+##     apart (they used to end up bunched on one spot on top of the rim)
 ## Run: godot --headless --path . -s tests/cockpit_check.gd
 ## Prints [cockpit] lines; exits 1 on any FAIL.
 
@@ -66,6 +69,7 @@ func _initialize() -> void:
 	fails += _check(cd != null and cd._hand_mesh == null, "the co-driver keeps their own hands")
 	_harnesses()
 	_dials()
+	_hand_spread()
 	_next()
 
 
@@ -211,6 +215,34 @@ func _harnesses() -> void:
 		var typical: float = offs[n * 9 / 10] if n > 0 else INF      # 9 in 10 closer than this (a tight strap bridges hollows)
 		fails += _check(n > 30 and typical < 0.025, "%s: the chest straps lie on the body (%d vertices, 90 %% within %.1f cm of it, the furthest %.1f)" % [
 			seat, n, typical * 100.0, (offs[n - 1] if n > 0 else 0.0) * 100.0])
+
+
+## Hand over hand to full lock and held, at 60 and 8 fps: the gloves never on top
+## of each other, and apart once it's held (then back to straight, hands home).
+func _hand_spread() -> void:
+	cockpit.set_process(false)
+	var lock := deg_to_rad(30.0)
+	for fps in [60.0, 8.0]:
+		var dt: float = 1.0 / fps
+		var closest := INF
+		var held := INF
+		var t := 0.0
+		while t < 3.0:
+			car.steer = lock * clampf(t / 0.6, 0.0, 1.0)
+			cockpit._process(dt)
+			var gap: float = (cockpit.hands._gloves[0] as Node3D).position.distance_to((cockpit.hands._gloves[1] as Node3D).position)
+			closest = minf(closest, gap)
+			if t > 2.5:
+				held = minf(held, gap)
+			t += dt
+		fails += _check(closest > 0.05 and held > 0.13,
+			"hand over hand to full lock at %.0f fps: the gloves never on top of each other (closest %.2f m), apart while it's held (%.2f m)" % [fps, closest, held])
+		car.steer = 0.0
+		for i in 120:
+			cockpit._process(1.0 / 60.0)
+		for k in 2:
+			cockpit.hands._hand[k] = {"mode": "grip", "g": cockpit.hands._home(k)}
+	cockpit.set_process(true)
 
 
 ## The dials' numbers and the shift lights.

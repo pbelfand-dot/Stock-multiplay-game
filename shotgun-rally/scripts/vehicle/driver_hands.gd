@@ -238,7 +238,11 @@ func update(dt: float, wheel_turn: float, handbrake: bool, gear := 0) -> void:
 		var h: Dictionary = _hand[k]
 		match h.mode:
 			"grip":
-				var off := _offset(k, h.g - w)
+				# how far round from home the wheel's carried it since it took hold: not wrapped
+				# (carried most of a turn is too far for an arm, though the hand's back near
+				# where it started; wrapped, a big jump of the wheel read as turning the other
+				# way and both hands ended up bunched on one spot)
+				var off: float = h.g - w - _home(k)
 				var other: Dictionary = _hand[1 - k]
 				var lo := -1.4 if k == RIGHT else -1.75     # how far round an arm goes (rad from home)
 				var hi := 1.75 if k == RIGHT else 1.4
@@ -249,9 +253,9 @@ func update(dt: float, wheel_turn: float, handbrake: bool, gear := 0) -> void:
 						to_off = 1.1 if off < 0.0 else -0.9
 					else:
 						to_off = -1.1 if off > 0.0 else 0.9
-					_start_move(h, k, w, to_off)
+					_start_move(h, k, w, _clear_of(k, to_off, other.g - w))
 				elif other.mode == "grip" and absf(w) < 0.6 and absf(off) > 0.7 and turning == 0.0:
-					_start_move(h, k, w, 0.0)                # wheel's back near straight: hands home
+					_start_move(h, k, w, _clear_of(k, 0.0, other.g - w))   # wheel's back near straight: hands home
 			"move":
 				h.t += dt / MOVE_TIME
 				if h.t >= 1.0:
@@ -296,13 +300,23 @@ func _start_move(h: Dictionary, k: int, w: float, to_off: float) -> void:
 	h.to = _home(k) + to_off + w
 
 
+## Where hand k takes its new grip (from its home, rad): `to_off`, or if that's on top of
+## the other hand (at plane angle other_a), its home or the other side: never both on one spot.
+func _clear_of(k: int, to_off: float, other_a: float) -> float:
+	var best := to_off
+	var best_gap := -1.0
+	for c in [to_off, 0.0, -to_off]:
+		var gap := absf(wrapf(_home(k) + c - other_a, -PI, PI))
+		if gap >= 0.9:
+			return c
+		if gap > best_gap:
+			best_gap = gap
+			best = c
+	return best
+
+
 func _home(k: int) -> float:
 	return PI if k == LEFT else 0.0
-
-
-## How far a hand is from its home (rad), wrapped to -PI..PI.
-func _offset(k: int, plane_angle: float) -> float:
-	return wrapf(plane_angle - _home(k), -PI, PI)
 
 
 ## Put glove k where its hand is, and the wrist target behind it.

@@ -300,7 +300,7 @@ func _highway() -> void:
 	root.add_child(builder)
 	builder.build(st)
 	var body: StaticBody3D = builder.get_node_or_null("Barriers")
-	var pieces := body.get_child_count() if body else 0
+	var pieces: int = int(body.get_meta("pieces", 0)) if body and body.get_child_count() > 0 else 0
 	check(builder.get_node_or_null("ConcreteBarriers") != null and pieces > st.length / 8.0 * 2.0 * 0.9,
 		"highway built: concrete barriers both sides the whole way (%d solid pieces), lamp posts, gantries" % pieces)
 	builder.queue_free()

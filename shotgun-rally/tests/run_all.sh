@@ -82,6 +82,8 @@ echo "== modes: a touge (hairpins, the climb, guardrail) and a highway (lanes, b
 run_g 300 --headless --fixed-fps 120 --path . -s tests/modes_check.gd 2>&1 | grep -E "\[modes\]" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
 echo "== the loop's toll plaza (open, mixed, event): the lanes fan out round the islands, a car down every lane touches nothing, the closed lane's gate stops it; traffic out of the closed lane, kept in lane and slowed through"
 run_g 300 --headless --fixed-fps 120 --path . -s tests/toll_check.gd 2>&1 | grep -E "\[toll\]" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
+echo "== barriers: scraping the loop's guardrail and parapet, a touge's guardrail, a mountain stage's armco, the wheels stay on the road (not on the barrier's face, not in a slot beside it) and steering away leaves it"
+run_g 300 --headless --fixed-fps 120 --path . -s tests/barrier_check.gd 2>&1 | grep -E "\[barrier\]" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
 echo "== the environment library and biomes: every tree's LODs and far card, rocks and props load; each stage in its land; nothing on the road; the solid things the same at LOW and MEDIUM"
 run_g 300 --headless --fixed-fps 120 --path . -s tests/environment_check.gd 2>&1 | grep -E "\[env\]" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
 echo "== a touge: the autopilot drives a pass in the GT-R"

@@ -5,7 +5,13 @@ extends Node3D
 ##   * where the sphere first touches is where the tyre is: the compression is
 ##     how far up the travel that is, the contact point and the ground's normal
 ##     come with it. A sphere, not a ray: a ray drops into every crack between
-##     the road's panels and snags on edges; a sphere rolls over them like a tyre
+##     the road's panels and snags on edges; a sphere rolls over them like a tyre.
+##     But the sphere is wider than the tyre: beside a barrier its side touches
+##     the barrier's face first, so a steep contact gets a second look with a
+##     sphere inside the tread, then a ray down the strut's line; a wall with no
+##     ground under it isn't ground (before, both wheels on that side stood on
+##     the wall with no load and no grip, and the car stuck to it: steering away
+##     did nothing)
 ##   * the spring + damper + bump stop (suspension.gd), and the anti-roll bar's
 ##     push (the car works it out from both corners of the axle), push the body
 ##     up at the contact point, along the ground's normal, by the strut force's
@@ -36,6 +42,8 @@ extends Node3D
 const Suspension = preload("res://scripts/vehicle/physics/suspension.gd")
 const TireModel = preload("res://scripts/vehicle/physics/tire_model.gd")
 const Surfaces = preload("res://scripts/vehicle/physics/surfaces.gd")
+const STEEP := 0.7                 # a contact more than ~45 deg off the strut gets a second look ...
+const WALL := 0.35                 # ... and more than ~70 deg off it is a wall, not ground
 
 @export var front := true
 
@@ -59,6 +67,7 @@ var anti_roll := 0.0               # N the anti-roll bar pushes this corner up w
 var i_eff := 1.1                   # kg m²: how heavy the wheel feels (its inertia + the tyre's grip resisting)
 var resist_torque := 0.0           # N m of friction holding it (brake + rolling resistance)
 var cast: ShapeCast3D
+var narrow: ShapeCast3D            # the second look: a small sphere inside the tread, its bottom where the tyre's is
 var mesh: Node3D
 
 # this tick (read by the car, the telemetry, the tests)
@@ -116,6 +125,22 @@ func setup(the_car: RigidBody3D, suspension: Resource, tyre: Resource, tyre_radi
 	cast.enabled = false                             # swept on demand, in step(), so it's this tick's
 	cast.clear_exceptions()
 	cast.add_exception(car)
+	narrow = get_node_or_null("NarrowCast")
+	if narrow == null:
+		narrow = ShapeCast3D.new()
+		narrow.name = "NarrowCast"
+		add_child(narrow)
+	var small := SphereShape3D.new()
+	small.radius = clampf(width * 0.25, 0.04, radius)       # (inside the tread: a sidewall on the barrier still finds the road)
+	narrow.shape = small
+	narrow.position = Vector3(0.0, small.radius - radius, 0.0)
+	narrow.target_position = Vector3(0.0, -cfg.travel, 0.0)
+	narrow.collision_mask = 1
+	narrow.max_results = 1
+	narrow.margin = 0.0
+	narrow.enabled = false
+	narrow.clear_exceptions()
+	narrow.add_exception(car)
 	mesh = get_node_or_null("WheelMesh")
 	if mesh == null:
 		mesh = Node3D.new()
@@ -131,27 +156,22 @@ func setup(the_car: RigidBody3D, suspension: Resource, tyre: Resource, tyre_radi
 ## changing (the car then works out the anti-roll bars from both corners and
 ## calls settle()).
 func step(dt: float) -> void:
-	cast.force_shapecast_update()
 	var axis := -global_transform.basis.y            # down the strut
-	if cast.is_colliding():
-		contact = cast.get_collision_point(0)
-		normal = cast.get_collision_normal(0)
-		collider = cast.get_collider(0)
-		# How far down the travel the sphere touches. The cast's own answer comes
-		# in ~2 mm steps (each step would read as a jolt of suspension speed), so
-		# solve it exactly: the centre on the strut's line, one radius off the
-		# ground's plane at the contact. At an edge, where the plane guess is off,
-		# fall back to the cast's. Already in the ground at the top of the travel (bottomed
-		# out on a big landing), the sweep doesn't see what it starts inside and says
-		# "free": the plane says fully squashed, and that's what it is.
-		var rough: float = cfg.travel * cast.get_closest_collision_safe_fraction()
-		var down := rough
-		var across := axis.dot(normal)
-		if across < -0.2:
-			var exact := (radius - (global_position - contact).dot(normal)) / across
-			if absf(exact - rough) < 0.02 or exact <= 0.0:
-				down = exact
-		down = clampf(down, 0.0, cfg.travel)
+	var hit := _sweep(cast, radius, 0.0, axis)
+	if not hit.is_empty() and -axis.dot(hit.normal) < STEEP:
+		# steep: the sphere's side on a barrier's face or a kerb's edge? A sphere inside
+		# the tread finds the road under it (a slope that steep stays the sphere's)
+		var r_n: float = (narrow.shape as SphereShape3D).radius
+		var under := _sweep(narrow, r_n, radius - r_n, axis)
+		if not under.is_empty() and -axis.dot(under.normal) > -axis.dot(hit.normal):
+			hit = under
+		if -axis.dot(hit.normal) < WALL:
+			hit = _ray(axis)                         # still the wall: the strut's own line down (or nothing under it)
+	if not hit.is_empty():
+		contact = hit.contact
+		normal = hit.normal
+		collider = hit.collider
+		var down: float = hit.down
 		compression = cfg.travel - down
 		wheel_center = global_position + axis * down
 		grounded = true
@@ -171,6 +191,42 @@ func step(dt: float) -> void:
 		compression_velocity = 0.0
 	_prev_compression = compression
 	_was_grounded = grounded
+
+
+## One sweep down the travel: a sphere of radius r whose centre starts s0 below the
+## mount ({} if it touches nothing): the contact, its normal, what it is, and how
+## far down the travel the wheel's centre is. The cast's own answer comes in ~2 mm
+## steps (each step would read as a jolt of suspension speed), so solve it exactly:
+## the centre on the strut's line, one radius off the ground's plane at the
+## contact. At an edge, where the plane guess is off, fall back to the cast's.
+## Already in the ground at the top of the travel (bottomed out on a big landing),
+## the sweep doesn't see what it starts inside and says "free": the plane says
+## fully squashed, and that's what it is.
+func _sweep(c: ShapeCast3D, r: float, s0: float, axis: Vector3) -> Dictionary:
+	c.force_shapecast_update()
+	if not c.is_colliding():
+		return {}
+	var p := c.get_collision_point(0)
+	var n := c.get_collision_normal(0)
+	var rough: float = cfg.travel * c.get_closest_collision_safe_fraction()
+	var down := rough
+	var across := axis.dot(n)
+	if across < -0.2:
+		var exact := (r - (global_position + axis * s0 - p).dot(n)) / across
+		if absf(exact - rough) < 0.02 or exact <= 0.0:
+			down = exact
+	return {"contact": p, "normal": n, "collider": c.get_collider(0), "down": clampf(down, 0.0, cfg.travel)}
+
+
+## The last look: a ray down the strut's line (the tyre's middle is never in the barrier;
+## a ray drops into cracks, so it's only for beside one): {} if there's no ground under it.
+func _ray(axis: Vector3) -> Dictionary:
+	var q := PhysicsRayQueryParameters3D.create(global_position, global_position + axis * (cfg.travel + radius), 1, [car.get_rid()])
+	var r := get_world_3d().direct_space_state.intersect_ray(q)
+	if r.is_empty() or -axis.dot(r.normal) < WALL:
+		return {}
+	return {"contact": r.position, "normal": r.normal, "collider": r.collider,
+		"down": clampf((r.position - global_position).dot(axis) - radius, 0.0, cfg.travel)}
 
 
 ## Once a tick, second: the load (the spring, damper, bump stop and anti-roll

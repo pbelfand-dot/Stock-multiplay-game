@@ -550,6 +550,8 @@ func _reward(r: Dictionary) -> void:
 	if Profile.record_stage(seed_value, length, r.total):
 		lines.append("NEW BEST ON THIS STAGE")
 	var next := "next stage"
+	if Modes.is_mode(opts):                          # (continue_event: another pass, another run on the loop)
+		next = "new pass" if opts.get("mode") == "touge" else "new run"
 	if story:
 		var i: int = opts.rally
 		var j: int = opts.stage

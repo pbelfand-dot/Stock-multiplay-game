@@ -575,6 +575,22 @@ func _barriers() -> void:
 				_parapet(i, d0, d1, side, zone == "city" and sup == "viaduct")
 			else:
 				_guardrail(i, d0, d1, side)
+			_ledge(i, e, e2, d0, d1, side)
+
+
+## The 0.4 m between the road's edge and its barrier, paved and solid (a little under the
+## barrier too). It was a slot: a car pushed against the barrier dropped its outside
+## wheels into it and hung on the road's edge, and steering couldn't pull it off.
+func _ledge(i: int, e: Vector2, e2: Vector2, d0: float, d1: float, side: float) -> void:
+	var s0: float = i * st.STEP
+	var s1: float = s0 + st.STEP
+	var a := PackedFloat32Array([e.y, d0 + 0.05]) if side > 0.0 else PackedFloat32Array([d0 - 0.05, e.x])
+	var b := PackedFloat32Array([e2.y, d1 + 0.05]) if side > 0.0 else PackedFloat32Array([d1 - 0.05, e2.x])
+	var ra := PackedVector3Array([st.world_at(s0, a[0]), st.world_at(s0, a[1])])
+	var rb := PackedVector3Array([st.world_at(s1, b[0]), st.world_at(s1, b[1])])
+	var cols := PackedColorArray([Color(1.08, 1.08, 1.06), Color(1.08, 1.08, 1.06)])   # (the shoulders' tone)
+	_buf(i, "asphalt").ribbon(ra, rb, s0, s1, a, Color.WHITE, false, cols, cols)
+	_body(i, "asphalt").ribbon(ra, rb, s0, s1, a, Color.WHITE, true)
 
 
 ## Is the outer barrier open here (a ramp leaving or joining between its gore and its end)?

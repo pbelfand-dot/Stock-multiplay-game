@@ -258,6 +258,7 @@ func _mirror_glass(mirror: Node3D, size := Vector2(0.266, 0.052), lift := 0.0095
 	_mirror_cam.near = 0.05
 	_mirror_cam.far = 220.0
 	_mirror_cam.cull_mask = 0xFFFFF & ~(1 << 1)        # not the driver's own helmet
+	_mirror_cam.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF   # (placed every frame from the car's drawn spot)
 	_mirror_vp.add_child(_mirror_cam)
 	var glass := MeshInstance3D.new()
 	var q := QuadMesh.new()

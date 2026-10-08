@@ -92,7 +92,10 @@ func _rebuild() -> void:
 	var e = VehicleRegistry.entry(car.id)
 	var sp: Dictionary = e.get("specs", {}) if e else {}
 	if sp.has("power_hp"):
-		var bits := ["%d hp" % roundi(float(sp.power_hp)), "%s kg" % _money(int(sp.get("weight_kg", 0))), str(sp.get("drivetrain", ""))]
+		var hp := "%d hp" % roundi(float(sp.power_hp))
+		if sp.get("power_rating"):
+			hp += " " + str(sp.power_rating)              # (a 1970 car's: gross, more than the engine gives in the game)
+		var bits := [hp, "%s kg" % _money(int(sp.get("weight_kg", 0))), str(sp.get("drivetrain", ""))]
 		if sp.get("transmission"):
 			bits.append(str(sp.transmission).split(" (")[0])
 		var yr = e.get("real", {}).get("year") if e.get("real") else null
