@@ -55,22 +55,20 @@ The links never change. Every change to this folder on `main` replaces the files
   School Chromebooks often have Linux switched off: for those there's a browser version,
   [ShotgunRally-Web.zip](https://github.com/pbelfand-dot/Stock-multiplay-game/releases/download/shotgun-latest/ShotgunRally-Web.zip)
   (solo play: a browser can't connect two machines), which has to be put on a web host first:
-  upload the zip to [itch.io](https://itch.io) as an HTML game (free), or GitHub Pages once the repo is public.
+  upload the zip to [itch.io](https://itch.io) as an HTML game (free), or GitHub Pages (possible now the repo is public; not tried yet).
 - All of them on one page: [releases/shotgun-latest](https://github.com/pbelfand-dot/Stock-multiplay-game/releases/tag/shotgun-latest)
 - **itch.io:** set-up steps in [`docs/ITCH.md`](docs/ITCH.md)
 
-> While this repo is **private**, the links only work for people with access to it.
+> The repo is **public**: the links work for anyone, no GitHub account needed.
 
 **It updates itself.** The menu shows your build number top right. Every time you open the game
-it checks for a newer build, downloads it in the background (a few MB), checks it's complete, and
+it checks for a newer build, downloads it in the background (the whole game, ~270 MB), checks it's complete, and
 shows **RESTART TO UPDATE** (or it switches over by itself the next time you start it). If an
 update ever fails to start, the game drops it and starts as you installed it. Some changes (a
 new Godot version, new project settings) can't be sent that way: then the button says
 **OPEN DOWNLOAD PAGE** and you download the zip again.
 - **The first build with the updater has to be downloaded by hand once** (older copies don't
   have it).
-- **While the repo is private** the game can't reach the update files: it says so and the button
-  opens the download page instead. Once the repo is public, updates just work, nothing to change.
 - Playing together: both of you need the same build. If you're on different builds the game tells
   the one who joined who needs to update.
 

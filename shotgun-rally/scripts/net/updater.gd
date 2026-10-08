@@ -16,8 +16,8 @@ extends Node
 ##     background, check its size and SHA-256, then RESTART TO UPDATE (or it
 ##     applies by itself next launch). A newer build on another base needs the
 ##     new download: the button opens the download page
-##   * while the GitHub repo is private the check can't reach the files: the
-##     button opens the download page instead (works with no change once it's public)
+##   * no answer (offline, GitHub down): it says so and the button opens the
+##     download page
 
 signal status_changed(text: String, action: String)   # action: "" | "restart" | "download_page"
 
@@ -202,7 +202,7 @@ func _url() -> String:
 
 
 func _cant_check() -> void:
-	_post("Can't check for updates here (the download page is private, or you're offline)", "download_page")
+	_post("Can't check for updates right now (offline?): the download page has the newest build", "download_page")
 
 
 ## Start again as the new version.

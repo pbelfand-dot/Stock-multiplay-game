@@ -1,6 +1,9 @@
 # SHOTGUN RALLY: how to work on it
 
 ## Standing instructions from the owner
+- **The repository is public, on purpose** (the owner made it public on 2026-10-08). Don't treat
+  it as private: anything committed is published (downloads, the updater's files and the whole
+  history are open to anyone). The download links and the in-game updater work without access.
 - **Merge after every piece of work**: fast-forward `main` to the work branch, then check that
   main's CI run (`.github/workflows/shotgun-rally.yml`) passes and the `shotgun-latest` release
   (the download) has the new build.

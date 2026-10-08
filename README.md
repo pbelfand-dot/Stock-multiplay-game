@@ -335,7 +335,7 @@ The links never change. Every update to `shotgun-rally/` on `main` replaces the 
   [the game's page](shotgun-rally/README.md#-download-always-the-newest-build)
 - All of them on one page: [releases/shotgun-latest](https://github.com/pbelfand-dot/Stock-multiplay-game/releases/tag/shotgun-latest)
 
-> While this repo is **private**, the links only work for people signed in to GitHub with access to it.
+> The repo is **public**: the links work for anyone, no GitHub account needed.
 
 The first time you open it:
 - **Mac:** unzip it and double-click **SHOTGUN RALLY.app**. macOS says it "could not verify" the app:
@@ -344,9 +344,10 @@ The first time you open it:
 - **Linux:** run `chmod +x ShotgunRally.x86_64`, then `./ShotgunRally.x86_64`.
 
 **It updates itself:** the menu shows your build number (top right), checks for a newer build each
-time you open the game, downloads it in the background and offers **RESTART TO UPDATE**. Download
-the zip by hand once more to get the first build that has this. While the repo is private the
-game can't reach the update files, so the button opens the download page instead.
+time you open the game, downloads it in the background (the whole game, ~270 MB) and offers
+**RESTART TO UPDATE**. A build that changes the engine or the project settings can't arrive that
+way: then the button says **OPEN DOWNLOAD PAGE** and you download the zip once more. (A copy older
+than the updater needs one download by hand.)
 
 | | |
 |---|---|
