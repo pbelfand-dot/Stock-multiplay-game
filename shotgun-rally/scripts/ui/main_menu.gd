@@ -96,6 +96,9 @@ func _ready() -> void:
 	_area = Control.new()
 	_area.position = Vector2(48, 204)
 	_area.size = Vector2(800, 640)
+	# (it lies over the home buttons, empty while they're up: a plain Control stops the
+	# mouse, and it took every click and hover meant for them. The panels in it still get theirs.)
+	_area.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_area)
 	_status = UI.label("", 20, Color(1.0, 0.7, 0.4))
 	_status.set_anchors_and_offsets_preset(Control.PRESET_CENTER_BOTTOM)

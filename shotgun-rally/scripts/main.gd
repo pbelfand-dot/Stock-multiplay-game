@@ -19,6 +19,7 @@ extends Node
 ##                         --shot_jump (at 120 km/h onto the stage's first (big) jump: the picture is taken mid-air)
 ##                         --shot_shift (with --autostart --autopilot: the picture is taken mid gear change)
 ##                         --shot_count=N (the start lights at N, 0 = GO) --shot_results [--shot_race] (the results panel)
+##                         --shot_pause[=settings] (the pause menu; =settings: its SETTINGS open over the stage)
 ##                         --shot_stray=M (a touge's stray car M up the road, coming the other way)]
 ##   --menu_shot=out.png [--menu_panel=maps|cars|online|settings --garage_tab=setup --shot_wait=6]   a picture of the home screen
 ##   --showcase=rally|touge|cutup [--autostart --autopilot --stray --shot_s=M]   film a mode for a showcase
@@ -368,6 +369,10 @@ func _test_setup() -> void:
 			game.stray.spawn_at(game.car_s + float(Config.arg("shot_stray", 30.0)), -1)
 		if Config.flag("shot_results"):            # the results panel (made-up numbers; --shot_race: a podium)
 			game.shot_results(Config.flag("shot_race"))
+		if Config.flag("shot_pause"):              # the pause menu (--shot_pause=settings: its SETTINGS open)
+			game._toggle_pause()
+			if Config.arg("shot_pause") == "settings":
+				game._open_settings()
 		if Config.flag("shot_cam"):
 			var v := Array(Config.arg("shot_cam").split(",")).map(func(t): return float(t))
 			var cam := Camera3D.new()
