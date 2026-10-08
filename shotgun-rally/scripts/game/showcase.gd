@@ -5,7 +5,8 @@ extends Node
 ## comes past, the driver's seat, a helicopter, low on a wheel, ahead looking back.
 ## On the touge a lamp is picked to film under and a local car is sent up the other
 ## lane; in cut up it weaves the car through the traffic (the autopilot holds the
-## lane with the most room, never faster than the gap ahead allows).
+## lane with the most room, never faster than the gap ahead allows) and lets it slip
+## through a car it can't get round (no crash and reset mid-film).
 ## Prints "[showcase] rolling at frame N" when the first shot starts and "[showcase]
 ## cut at frame N" when it's done (then quits), for trimming the movie.
 
@@ -27,6 +28,7 @@ var _anchor := Vector3.ZERO     # where a roadside camera stands
 var _smooth := Vector3.ZERO
 var _weave_t := 0.0
 var _s0 := 0.0
+var _ghosted := {}              # (cut up) traffic bodies the car passes through
 
 
 func setup(g, k: String) -> void:
@@ -168,6 +170,13 @@ func _weave(dt: float) -> void:
 	var s: float = game.car_s
 	var d: float = game.car_d
 	_weave_t -= dt
+	# (for the cameras the car slips through a car it can't get round, rather than
+	# a crash and a reset in the middle of the film: the game itself is unchanged)
+	for c in tr.cars:
+		var b = c.body
+		if is_instance_valid(b) and not _ghosted.has(b) and absf(tr._ds(float(c.s), s)) < 40.0:
+			_ghosted[b] = true
+			game.car.add_collision_exception_with(b)
 	var lanes: Array = tr.lane_d
 	var mine := 0
 	for k in lanes.size():
