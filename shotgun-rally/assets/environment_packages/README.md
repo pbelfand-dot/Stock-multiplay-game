@@ -12,6 +12,15 @@ The `cc0/` directory contains assets that may be used, modified, and processed b
 - Poly Haven `asphalt_02` at 2K: asphalt PBR material for roads and shoulders.
 - Kenney City Kit (Roads): modular road, sign, and traffic-light pieces for layout and collision foundations.
 
+The packaged CC0 source library adds:
+
+- 21 Poly Haven 2K glTF packs: full fir and pine trees, saplings, undergrowth, roots, deadwood, stumps, rocks, concrete barriers, chain-link fencing, electricity poles, street lamps, security cameras, and road debris.
+- Kenney City Kits for commercial, industrial, and suburban districts.
+- OpenGameArt traffic and road assets in GLB and FBX formats.
+- Quaternius Downtown City MegaKit (Standard) and Universal Base Characters (Standard).
+
+These source archives live under `cc0/source_packs/`. They are intentionally not auto-imported by Godot. Restore them with the same command used for the owner-provided packages, unzip only the packs needed for a scene, then create optimized game-ready derivatives.
+
 See `CC0_SOURCES.md` for source URLs and license details.
 
 ## Packaged user-provided sources
@@ -25,7 +34,7 @@ The `user_sources/` directory contains the strongest portable assets found in th
 - 31 separate background-building models in FBX, OBJ, and 3ds Max formats.
 - Highway prop collection containing roads, barriers, pylons, and signs.
 
-Large source archives are stored as ordered 90,000,000-byte chunks solely to remain below GitHub's normal single-file limit. There is no 30 MB runtime-asset limit.
+Large CC0 and user-provided source archives are stored as ordered 90,000,000-byte chunks solely to remain below GitHub's normal single-file limit. There is no 30 MB runtime-asset limit.
 
 Restore and verify these sources from the repository root:
 
@@ -39,7 +48,11 @@ To restore somewhere else:
 shotgun-rally/tools/restore_environment_assets.sh /absolute/output/path
 ```
 
-The manifest records each source's original size, SHA-256 checksum, storage location, and license-review status.
+The manifest records each source's original size, SHA-256 checksum, storage location, and license status. Use `--only` with the Python restorer to fetch a subset, for example:
+
+```sh
+python3 shotgun-rally/tools/restore_environment_assets.py --only pine_tree downtown traffic
+```
 
 ## License boundary
 
