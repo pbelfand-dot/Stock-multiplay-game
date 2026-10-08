@@ -145,8 +145,7 @@ func _spawn_pack(s: float) -> float:
 	var row_s := s
 	var placed := 0
 	while placed < n:
-		var row: Array = range(lanes)
-		row.shuffle()
+		var row: Array = _shuffled(lanes)
 		var in_row := mini(_rng.randi_range(2, lanes), n - placed)
 		for k in in_row:
 			var c := _spawn_at(row_s + _rng.randf_range(-5.0, 5.0), int(row[k]))
@@ -517,9 +516,20 @@ func _respawn(c: Dictionary) -> void:
 		_spawn(s)
 
 
+## 0..n-1 in a random order, from the traffic's own seeded dice (Array.shuffle() uses
+## the global ones: the same seed wouldn't give the same traffic).
+func _shuffled(n: int) -> Array:
+	var a: Array = range(n)
+	for i in range(n - 1, 0, -1):
+		var j := _rng.randi_range(0, i)
+		var t = a[i]
+		a[i] = a[j]
+		a[j] = t
+	return a
+
+
 func _free_lane(s: float, half_len: float) -> int:
-	var order: Array = range(lanes)
-	order.shuffle()
+	var order: Array = _shuffled(lanes)
 	for lane in order:
 		var ok := true
 		for o in cars:

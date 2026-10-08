@@ -48,6 +48,7 @@ var _test_t := 0.0
 var _smoke_done := false
 var _smoke_ok := false
 var _run_t := 0.0
+var _traffic_counts: Array = []     # (online cut-up test) cars round us, once a second
 var _loading := false
 var _air_t := 0.0
 var _shot_jumped := false                  # (--shot_s --autostart: jumped up the road at GO)
@@ -397,6 +398,8 @@ func _process(dt: float) -> void:
 	# an online cut-up test (no finish on the loop): check after --smoke_after s of driving
 	if Config.flag("smoke") and not _smoke_done and game.built and game.street_online and game.looped and game.state == "running":
 		_run_t += dt
+		if _run_t > 8.0 and int(_run_t) != int(_run_t - dt):     # (the traffic round us, once a second: the check looks at the spread)
+			_traffic_counts.append(game.traffic._mirror.size() if game.traffic.mirror else game.traffic.cars.size())
 		if _run_t > float(Config.arg("smoke_after", 40.0)):
 			_smoke_done = true
 			_street_cutup_smoke(Config.arg("smoke"))
@@ -500,15 +503,23 @@ func _street_cutup_smoke(role: String) -> void:
 	for id in game.others:
 		least = mini(least, int(game.others[id].states_received))
 	var ok: bool = game.others.size() == Net.racers().size() - 1 and least > 100
+	# the traffic's size swings by a whole pack as one leaves behind and the next comes in
+	# ahead: judged on its average over the run, its low noted
+	var lo := 0
+	var mean := 0.0
+	if not _traffic_counts.is_empty():
+		lo = int(_traffic_counts.min())
+		mean = float(_traffic_counts.reduce(func(a, b): return a + b, 0)) / _traffic_counts.size()
+	var spread := "(over %d s: %d-%d, %.0f on average)" % [_traffic_counts.size(), lo, int(_traffic_counts.max()) if not _traffic_counts.is_empty() else 0, mean]
 	if multiplayer.is_server():
-		print("[smoke] %s: the traffic: %d cars round %d players (the others' %d), sending to %d machines" % [
-			role, tr.cars.size(), tr.others_p.size() + 1, tr.others_p.size(), tr.net_peers.size()])
+		print("[smoke] %s: the traffic: %d cars round %d players (the others' %d), sending to %d machines %s" % [
+			role, tr.cars.size(), tr.others_p.size() + 1, tr.others_p.size(), tr.net_peers.size(), spread])
 		ok = ok and not tr.mirror and tr.others_p.size() == Net.racers().size() - 1 and tr.net_peers.size() == tr.others_p.size() \
-			and tr.cars.size() > 20
+			and mean > 20.0
 	else:
-		print("[smoke] %s: the host's traffic mirrored here: %d of its cars round me, %d hits reported" % [
-			role, tr._mirror.size(), tr.hits_sent])
-		ok = ok and tr.mirror and tr._mirror.size() >= 8
+		print("[smoke] %s: the host's traffic mirrored here: %d of its cars round me, %d hits reported %s" % [
+			role, tr._mirror.size(), tr.hits_sent, spread])
+		ok = ok and tr.mirror and mean >= 8.0
 	print("[smoke] %s: %d other cars, fewest updates from one %d, %.0f km driven" % [role, game.others.size(), least, (game.car_s - game.st.START_S) / 1000.0])
 	print("[smoke] %s: %s" % [role, "OK" if ok else "FAIL"])
 	_smoke_ok = ok
