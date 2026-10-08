@@ -108,7 +108,18 @@ the biome's own, and recolours the leaves (autumn: the broadleaves turn).
 
 Measured with `tools/stage_perf.gd` (a driver's-eye view down the road at several places; xvfb's software renderer, so the counts are right but the times aren't a real GPU's).
 
-[filled in from the last measurement: see the report]
+| Where (graphics level) | Triangles in view | Draw calls | Shadow triangles | Video memory |
+|---|---|---|---|---|
+| Gravel stage, LOW (the old cone trees) | 0.40-0.59 M | 62-74 | 0.34 M | 253 MB |
+| Gravel stage, MEDIUM, **before** (the first real trees) | 13.5-14.9 M | 1,237-1,430 | 41-48 M | 362 MB |
+| Gravel stage, MEDIUM, **now** | 1.73-2.27 M | 877-1,058 | 0.32-0.53 M | 401 MB |
+| Gravel stage, HIGH, before | 15.5-19.2 M | 1,282-1,573 | 63-80 M | 418 MB |
+| Gravel stage, HIGH, now (each tree its own shadow) | 1.95-2.47 M | 972-1,187 | 8.1-9.9 M | 455 MB |
+| Touge, MEDIUM, by day | 0.84-0.87 M | 535-677 | 0.51-0.53 M | 458 MB |
+| The loop's city, MEDIUM (the real buildings) | 2.03-2.05 M | 221-224 | 0.24-0.38 M | 760 MB |
+| The loop's toll plaza, MEDIUM | 0.24 M | 165 | 0.11 M | 760 MB |
+
+Building a stage takes 3.4-5.6 s here, the loop 17.6 s (the loading screen covers it).
 
 ## Not done yet
 

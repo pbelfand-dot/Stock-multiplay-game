@@ -24,6 +24,15 @@ jobs:
     timeout-minutes: 45                # every test has its own limit too (run_all.sh): a hang fails with a log
     steps:
       - uses: actions/checkout@v4
+        with:
+          # (not the owner's source packs: gigabytes the game doesn't use; the tests and the
+          # exports need only the converted assets. Blobs fetched as the checkout needs them.)
+          filter: blob:none
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            /*
+            !/shotgun-rally/assets/car_packages/
+            !/shotgun-rally/assets/environment_packages/user_sources/
       - name: Install Godot (outside the project folder)
         run: |
           curl -sSL -o "$RUNNER_TEMP/godot.zip" "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable/Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip"
@@ -49,6 +58,15 @@ jobs:
       ITCH_PROJECT: ${{ vars.ITCH_PROJECT }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          # (not the owner's source packs: gigabytes the game doesn't use; the tests and the
+          # exports need only the converted assets. Blobs fetched as the checkout needs them.)
+          filter: blob:none
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            /*
+            !/shotgun-rally/assets/car_packages/
+            !/shotgun-rally/assets/environment_packages/user_sources/
       - name: Install Godot + export templates
         run: |
           curl -sSL -o "$RUNNER_TEMP/godot.zip" "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable/Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip"
