@@ -2,9 +2,9 @@ extends Node
 ## Films a mode for a showcase video (main.gd --showcase=rally|touge|cutup, run with
 ## Godot's --write-movie out.avi --fixed-fps 30): the autopilot drives, and this cuts
 ## between cameras like a broadcast: the chase cam, a camera by the road the car
-## comes past, the driver's seat, a helicopter, low on a wheel, ahead looking back.
-## On the touge a lamp is picked to film under and a local car is sent up the other
-## lane; in cut up it weaves the car through the traffic (the autopilot holds the
+## comes past, the driver's seat, a helicopter, low on a wheel or a flank (the trees
+## and the lamps flying by), ahead looking back. On the touge a local car is sent up
+## the other lane; in cut up it weaves the car through the traffic (the autopilot holds the
 ## lane with the most room, never faster than the gap ahead allows) and lets it slip
 ## through a car it can't get round (no crash and reset mid-film).
 ## Prints "[showcase] rolling at frame N" when the first shot starts and "[showcase]
@@ -12,7 +12,7 @@ extends Node
 
 const SHOTS := {
 	"rally": [["chase", 4.5], ["trackside", 4.5], ["seat", 4.5], ["heli", 3.5], ["wheel", 3.0], ["chase", 3.0]],
-	"touge": [["chase", 4.0], ["lamp", 4.5], ["seat", 4.5], ["front", 3.5], ["heli", 3.5], ["chase", 3.0]],
+	"touge": [["chase", 4.0], ["side", 4.5], ["seat", 4.5], ["front", 3.5], ["heli", 3.5], ["chase", 3.0]],
 	"cutup": [["chase", 4.5], ["side", 4.0], ["heli", 4.0], ["seat", 4.0], ["chase", 4.5]],
 }
 const WEAVE_CAP := 44.0         # m/s (158 km/h): cut up's pace through the traffic
@@ -103,19 +103,6 @@ func _next() -> void:
 			var k: float = st.curv[clampi(int(at / st.STEP), 0, st.curv.size() - 1)]
 			var side := -1.0 if k > 0.0 else 1.0
 			_anchor = st.world_at(at, side * (st.width_at(at) * 0.5 + 3.5)) + Vector3.UP * 1.3
-		"lamp":
-			# just past the next street lamp a second or so ahead (the touge at night), at the
-			# road's edge on the lamp's side (the other side can be the mountain), a little up:
-			# the car comes through the lamp's light close by, the trees not in the way
-			var lamp_s: float = s + v * 1.2
-			var side := 1.0
-			var lamps: Array = game.builder.get("lamps") if game.builder.get("lamps") != null else []
-			for l in lamps:
-				if float(l.s) > s + v * 0.9:
-					lamp_s = float(l.s)
-					side = signf(((l.head as Vector3) - st.world_at(lamp_s, 0.0)).dot(st.right_at(lamp_s)))
-					break
-			_anchor = st.world_at(lamp_s + 4.0, side * (st.width_at(lamp_s + 4.0) * 0.5 - 0.4)) + Vector3.UP * 2.3
 	if kind == "touge" and type == "front" and game.stray:
 		game.stray.spawn_at(s + v * 4.5 + 40.0, -1)  # (a local coming up the other lane, lamps lit)
 	game.view_override = "chase"                       # (the car seen from outside, the cockpit hidden)
@@ -133,7 +120,7 @@ func _film(dt: float) -> void:
 	var fwd: Vector3 = -xf.basis.z
 	var right: Vector3 = xf.basis.x
 	match type:
-		"trackside", "lamp":
+		"trackside":
 			_cam.global_position = _anchor
 			_look(p + Vector3.UP * 0.7)
 			var dist := _anchor.distance_to(p)
