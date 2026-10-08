@@ -344,7 +344,7 @@ The first time you open it:
 - **Linux:** run `chmod +x ShotgunRally.x86_64`, then `./ShotgunRally.x86_64`.
 
 **It updates itself:** the menu shows your build number (top right), checks for a newer build each
-time you open the game, downloads it in the background (the whole game, ~490 MB) and offers
+time you open the game, downloads it in the background (the whole game, ~500 MB) and offers
 **RESTART TO UPDATE**. A build that changes the engine or the project settings can't arrive that
 way: then the button says **OPEN DOWNLOAD PAGE** and you download the zip once more. (A copy older
 than the updater needs one download by hand.)
