@@ -58,16 +58,21 @@ func _refresh() -> void:
 
 
 ## A setting with a few choices ([key, label]): a button that steps through them.
+## (The choice it's on is kept on the button: a lambda gets its own copy of a local
+## each time it runs, so a local `at` stepped on every click would start from the
+## same choice every time, and the second click in a row would change nothing.)
 func _cycle(title: String, choices: Array, current: String, apply: Callable) -> Control:
 	var box := HBoxContainer.new()
 	box.add_theme_constant_override("separation", 10)
 	var l := UI.label(title, 16, UI.CREAM)
 	l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	box.add_child(l)
-	var at := maxi(0, choices.map(func(c): return c[0]).find(current))
-	var b := UI.button(choices[at][1], func(): pass, 15, 150)
+	var first := maxi(0, choices.map(func(c): return c[0]).find(current))
+	var b := UI.button(choices[first][1], func(): pass, 15, 150)
+	b.set_meta("at", first)
 	b.pressed.connect(func():
-		at = (at + 1) % choices.size()
+		var at: int = (int(b.get_meta("at")) + 1) % choices.size()
+		b.set_meta("at", at)
 		b.text = choices[at][1]
 		apply.call(choices[at][0])
 		_refresh())

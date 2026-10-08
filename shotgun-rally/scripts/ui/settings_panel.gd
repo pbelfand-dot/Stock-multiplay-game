@@ -111,17 +111,21 @@ func _toggle(title: String, what: String, on: bool, apply: Callable) -> Control:
 
 
 ## A setting with a few choices ([key, label]): a button that steps through them;
-## apply(key) is called, then the settings are saved.
+## apply(key) is called, then the settings are saved. (The choice it's on is kept on
+## the button, as in GraphicsSettings._cycle: a lambda's own copy of a local would
+## start from the same choice on every click.)
 func _cycle(title: String, choices: Array, current: String, apply: Callable) -> Control:
 	var box := HBoxContainer.new()
 	box.add_theme_constant_override("separation", 12)
 	var l := UI.label(title, 18, UI.CREAM)
 	l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	box.add_child(l)
-	var at := maxi(0, choices.map(func(c): return c[0]).find(current))
-	var b := UI.button(choices[at][1], func(): pass, 17, 300)
+	var first := maxi(0, choices.map(func(c): return c[0]).find(current))
+	var b := UI.button(choices[first][1], func(): pass, 17, 300)
+	b.set_meta("at", first)
 	b.pressed.connect(func():
-		at = (at + 1) % choices.size()
+		var at: int = (int(b.get_meta("at")) + 1) % choices.size()
+		b.set_meta("at", at)
 		b.text = choices[at][1]
 		apply.call(choices[at][0])
 		get_node("/root/Config").save())
@@ -141,6 +145,7 @@ func _slider(title: String, lo: float, hi: float, value: float, apply: Callable)
 	s.value = value
 	s.custom_minimum_size = Vector2(280, 24)
 	s.focus_mode = Control.FOCUS_ALL
+	s.scrollable = false                               # (the wheel scrolls the page down to GRAPHICS, not the volume it passes)
 	s.value_changed.connect(func(x: float):
 		apply.call(x)
 		get_node("/root/Config").save())
@@ -167,6 +172,7 @@ func _time_slider(config) -> Control:
 	s.value = config.time_of_day if config.time_of_day >= 0.0 else -0.5
 	s.custom_minimum_size = Vector2(280, 24)
 	s.focus_mode = Control.FOCUS_ALL
+	s.scrollable = false                               # (as the other sliders: the wheel scrolls the page)
 	s.value_changed.connect(func(x: float):
 		config.time_of_day = x if x >= 0.0 else -1.0
 		shown.text = _hour_text(config.time_of_day)

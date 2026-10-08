@@ -32,6 +32,7 @@ const Autopilot = preload("res://scripts/vehicle/autopilot.gd")
 const EngineSound = preload("res://scripts/vehicle/engine_sound.gd")
 const StartLights = preload("res://scripts/ui/start_lights.gd")
 const UI = preload("res://scripts/ui/ui_kit.gd")
+const SettingsPanel = preload("res://scripts/ui/settings_panel.gd")
 const Catalog = preload("res://scripts/game/catalog.gd")
 const Modes = preload("res://scripts/game/modes.gd")
 const Profile = preload("res://scripts/game/profile.gd")
@@ -103,6 +104,8 @@ var _results_label: Label
 var _race_box: VBoxContainer         # a street race's finishers, badges on the podium
 var _results_foot: Label             # Main's lines and what ENTER does
 var _pause: PanelContainer
+var _pause_settings: Button          # the pause menu's SETTINGS (the focus comes back to it)
+var _settings: Control               # SETTINGS opened from the pause menu (null: shut)
 var _t_alive := 0.0
 var _sfx := {}
 var _engine                        # EngineSound
@@ -467,7 +470,8 @@ func _physics_process(dt: float) -> void:
 			car.stream_ok = false
 	match state:
 		"grid":
-			if Net.is_server() and crew_ready() and _all_in() and (Input.is_action_just_pressed("ready") or
+			# (not ENTER while paused: in the pause menu and its settings, ENTER presses the button in focus)
+			if Net.is_server() and crew_ready() and _all_in() and ((Input.is_action_just_pressed("ready") and not paused()) or
 					(Config.flag("autostart") and (not street_online or Net.racers().size() >= int(Config.arg("min_racers", 1))))):
 				if Net.online():
 					begin_countdown.rpc()
@@ -572,7 +576,7 @@ func _drive_inputs() -> void:
 	if state == "grid":
 		inp.handbrake = true                         # parked at the line until the countdown
 		inp.brake = maxf(inp.brake, 0.6)
-	if _pause.visible:
+	if paused():
 		inp = {"steer": 0.0, "throttle": 0.0, "brake": 0.4, "handbrake": false}
 	if Config.flag("screenshot"):                    # pictures: hold a steering angle / the handbrake
 		inp.steer = float(Config.arg("shot_steer", 0.0))
@@ -583,7 +587,7 @@ func _drive_inputs() -> void:
 			inp.brake = 0.0
 			inp.throttle = 0.5
 	car.inp = inp
-	if Input.is_action_just_pressed("reset_car") and state == "running":
+	if Input.is_action_just_pressed("reset_car") and state == "running" and not paused():
 		reset_car()
 
 
@@ -657,8 +661,11 @@ func _process(dt: float) -> void:
 		else:
 			wipe()
 	if Input.is_action_just_pressed("pause"):
-		_toggle_pause()
-	if state == "finished" and Net.is_server() and not _pause.visible:
+		if _settings:
+			_close_settings()                        # (ESC in the settings: back to the pause menu, still paused)
+		else:
+			_toggle_pause()
+	if state == "finished" and Net.is_server() and not paused():
 		if Input.is_action_just_pressed("ready"):
 			get_parent().continue_event()
 		elif Input.is_action_just_pressed("reset_car"):
@@ -1099,7 +1106,7 @@ func _build_hud() -> void:
 	title.add_theme_font_size_override("font_size", 36)
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vb.add_child(title)
-	var buttons := [["RESUME", _toggle_pause]]
+	var buttons := [["RESUME", _toggle_pause], ["SETTINGS", _open_settings]]
 	if looped:
 		buttons.append(["END RUN", _end_run])          # (a loop has no finish: the run ends when you say)
 	buttons.append(["QUIT TO MENU", func(): get_parent().to_menu()])
@@ -1111,6 +1118,8 @@ func _build_hud() -> void:
 		btn.custom_minimum_size = Vector2(320, 56)
 		btn.pressed.connect(b[1])
 		vb.add_child(btn)
+		if b[0] == "SETTINGS":
+			_pause_settings = btn
 	_pause.visible = false
 	# the modes' numbers: top right, and a flash in the middle for the moments
 	_mode_label = Label.new()
@@ -1165,6 +1174,41 @@ func _end_run() -> void:
 func _toggle_pause() -> void:
 	_pause.visible = not _pause.visible
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE if _pause.visible else Input.MOUSE_MODE_CAPTURED
+
+
+## Paused: the pause menu is up, or the settings opened from it (the car held on the
+## brake, the mouse free). (The stage itself goes on: online, the others still drive.)
+func paused() -> bool:
+	return _pause.visible or _settings != null
+
+
+## SETTINGS from the pause menu: the main menu's own panel (graphics, sound, the aids ...)
+## over the stage, still paused. What changes at once from the main menu (the graphics,
+## the sound, the mouse) changes here at once too. BACK or ESC: back to the pause menu.
+func _open_settings() -> void:
+	if _settings != null:
+		return
+	_pause.visible = false
+	_settings = ColorRect.new()                      # a shade over the stage, the panel in the middle
+	_settings.name = "PauseSettings"
+	_settings.color = Color(0, 0, 0, 0.35)
+	_settings.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_hud.add_child(_settings)
+	var p := SettingsPanel.new()
+	p.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
+	p.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	p.grow_vertical = Control.GROW_DIRECTION_BOTH
+	p.back.connect(_close_settings)
+	_settings.add_child(p)
+
+
+func _close_settings() -> void:
+	if _settings == null:
+		return
+	_settings.queue_free()
+	_settings = null
+	_pause.visible = true
+	_pause_settings.grab_focus()
 
 
 func _update_hint() -> void:
