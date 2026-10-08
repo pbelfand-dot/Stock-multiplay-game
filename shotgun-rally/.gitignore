@@ -6,4 +6,7 @@ __pycache__/
 
 # restored car sources (tools/restore_car_assets.py) and the converter scratch: never committed
 /assets/cars_restored/
+# restored environment sources (tools/restore_environment_assets.py) and their converter scratch: never committed
+/assets/environment_restored/
+/assets/environment_work/
 /assets/cars_work/
