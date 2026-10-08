@@ -70,7 +70,7 @@ garage and in highway traffic, each with its own cockpit. The registry now has 5
 
 | Garage name | Based on | Role | Drive | Weight | Power | 0-100 in the game (gravel) | Traffic |
 |---|---|---|---|---|---|---|---|
-| STROMER 4 (`stromer`) | VW ID.4 Pro Performance (2021) | heavy EV crossover | rear | 2,049 kg | 201 hp, 310 N m, one gear, regen | 8.9 s (real 8.5 s) | crossover, common (0.3) |
+| STROMER 4 (`stromer`) | VW ID.4 Pro Performance (2021) | heavy EV crossover; free (every profile owns it, like the rally car) | rear | 2,049 kg | 201 hp, 310 N m, one gear, regen | 8.9 s (real 8.5 s) | crossover, common (0.3) |
 | WARHAWK 707 (`warhawk`) | Jeep Grand Cherokee Trackhawk (2018) | brutal supercharged SUV | all | 2,433 kg | 707 hp, 875 N m, 8-speed | 3.1 s (real ~3.7 s) | luxury, rare (0.06) |
 | PUEBLO 392 (`pueblo`) | Dodge Durango SRT 392 (2021) | heavy, stable, naturally aspirated V8 | all | 2,439 kg | 475 hp, 637 N m, 8-speed | 4.5 s (real ~4.6 s) | SUV (0.15) |
 | KAISER 5X (`kaiser_5x`) | BMW X5 M F85 (2016) | sharp but heavy | all | 2,275 kg | 567 hp, 750 N m, 8-speed | 3.4 s (real 4.2 s) | luxury, rare (0.06) |

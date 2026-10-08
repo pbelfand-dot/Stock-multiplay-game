@@ -22,7 +22,7 @@
 		"notes": "150 kW (204 PS, 201 hp) and 310 N m from the rear motor, 0-100 km/h in 8.5 s, 160 km/h limited, 2,049 kg DIN (2,124 kg EU with a driver), 2,771 mm wheelbase (VW newsroom, zeperfs). The motor's curve is modelled as constant torque to ~4,600 rpm then constant power to 16,000; one gear (13:1, 160 km/h at the limiter); regenerative braking when you lift (55 N m at the motor), a motor-and-inverter whine for the sound."
 	},
 	"garage": {
-		"price": 26000,
+		"price": 0,
 		"engine_sound": "ev",
 		"livery": "plain",
 		"number": 4,

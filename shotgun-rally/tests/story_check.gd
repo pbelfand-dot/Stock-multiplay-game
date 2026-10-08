@@ -7,6 +7,7 @@ extends SceneTree
 ##   * the car setup: the paint you chose, its own livery free, the drive split
 ##   * the championship: rally 2 opens when rally 1 is finished; the standings
 ##     put a quick crew first and a slow one last; prizes by position
+##   * the free cars: the rally car and the STROMER 4 owned from the start (an older save gets them)
 ##   * the save survives a reload
 ## Run: godot --headless --path . -s tests/story_check.gd -- --profile=/tmp/some.cfg (a save it may wipe)
 ## Prints [story] lines; exits 1 on any FAIL.
@@ -29,6 +30,11 @@ func _initialize() -> void:
 	fails += _check(quick.total > slow.total and quick.pace > 0 and quick.clean > 0, "a quick clean one pays more: %d" % quick.total)
 	fails += _check(story.total == int(quick.total * 1.5), "story mode pays x1.5: %d" % story.total)
 	fails += _check(longer.total > slow.total, "a longer stage pays more: %d" % longer.total)
+	# the free cars: the rally car and the STROMER 4 are yours from the start
+	fails += _check("kestrel" in Profile.owned.cars and "stromer" in Profile.owned.cars, "a new save owns the rally car and the STROMER 4")
+	Profile.select_car("stromer")
+	fails += _check(Profile.car == "stromer", "the STROMER 4 can be driven without buying it")
+	Profile.select_car("kestrel")
 	# buying
 	var comet := Catalog.car("comet")
 	fails += _check(not Profile.buy("cars", "comet", comet.price) and Profile.credits == 0, "can't buy the Comet with 0 CR")
@@ -76,6 +82,14 @@ func _initialize() -> void:
 	Profile.credits = -1
 	Profile.ensure_loaded()
 	fails += _check(Profile.credits == keep and Profile.car == "comet" and "comet" in Profile.owned.cars, "it all reloads from the save")
+	# a save from before the STROMER 4 was free gets it on load
+	var cf := ConfigFile.new()
+	cf.load(Profile.path())
+	cf.set_value("garage", "owned", {"cars": ["kestrel", "comet"], "liveries": [], "wheels": ["silver"]})
+	cf.save(Profile.path())
+	Profile._loaded = false
+	Profile.ensure_loaded()
+	fails += _check("stromer" in Profile.owned.cars and "comet" in Profile.owned.cars, "an older save gets the STROMER 4 too (and keeps what it had)")
 	print("[story] %s" % ("STORY OK" if fails == 0 else "STORY FAIL"))
 	quit(1 if fails > 0 else 0)
 

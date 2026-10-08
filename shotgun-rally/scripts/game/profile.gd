@@ -12,9 +12,13 @@ extends RefCounted
 
 const Catalog = preload("res://scripts/game/catalog.gd")
 
+## Cars every profile owns from the start: the rally car, and the electric STROMER 4
+## for the road (the owner's ask: drivable without saving up for it)
+const FREE_CARS := ["kestrel", "stromer"]
+
 static var credits := 0
 static var car := "kestrel"                 # the one you drive
-static var owned := {"cars": ["kestrel"], "liveries": [], "wheels": ["silver"]}
+static var owned := {"cars": FREE_CARS.duplicate(), "liveries": [], "wheels": ["silver"]}
 static var paint := {}                      # car id -> {colours, livery, wheels, number}
 static var levels := {}                     # car id -> {engine, tyres, brakes}: upgrade steps bought
 static var tuning := {}                     # car id -> {tyre, preset}: "auto", "gravel" or "tarmac"
@@ -51,8 +55,9 @@ static func ensure_loaded() -> void:
 	for k in ["cars", "liveries", "wheels"]:              # an old or hand-edited file
 		if not owned.has(k):
 			owned[k] = []
-	if not "kestrel" in owned.cars:
-		owned.cars.append("kestrel")
+	for free in FREE_CARS:                                # (a save from before a car was free gets it too)
+		if not free in owned.cars:
+			owned.cars.append(free)
 	if not car in owned.cars:
 		car = "kestrel"
 
@@ -253,7 +258,7 @@ static func record_mode(key: String, value: float, lower_better: bool, splits :=
 static func reset() -> void:
 	credits = 0
 	car = "kestrel"
-	owned = {"cars": ["kestrel"], "liveries": [], "wheels": ["silver"]}
+	owned = {"cars": FREE_CARS.duplicate(), "liveries": [], "wheels": ["silver"]}
 	paint = {}
 	levels = {}
 	tuning = {}
