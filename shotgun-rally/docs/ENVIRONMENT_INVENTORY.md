@@ -10,10 +10,10 @@ up in the game and what it costs to draw. (The cars have their own: `VEHICLE_REP
 |---|---|---|
 | Restore a pack from its 90 MB parts and check its size and SHA-256 against the manifest (from the working tree, or straight from git in a sparse checkout) | `tools/restore_environment_assets.py [--only TEXT] [--list]` | `assets/environment_restored/` (git- and Godot-ignored) |
 | Unpack it: each archive into its own new folder, paths checked, scripts never run | Python `zipfile` / `unrar` | `assets/environment_work/` (ignored) |
-| Convert, one spec at a time (`tools/environment_specs.json`); sources are only read, opened with scripts off | `blender -b -Y --python tools/import_environment.py -- <spec> [files]` (modes: props, `tree` → `tools/vegetation.py`, `building` → `tools/buildings.py`) | `assets/environment_runtime/` (committed: the GLBs and the textures Godot takes out of them) |
+| Convert, one spec at a time (`tools/environment_specs.json`); sources are only read, opened with scripts off | `blender -b -Y --python tools/import_environment.py -- <spec> [files] [--work DIR]` (modes: props, `tree` → `tools/vegetation.py`, `building` → `tools/buildings.py`, `skyline` → `tools/skyline.py`; `--work`: the packs unpacked in another checkout) | `assets/environment_runtime/` (committed: the GLBs and the textures Godot takes out of them) |
 | Register what each part is (kind, size, trunk, tags, source) | `data/environment_assets.json` | read by `scripts/stage/env_assets.gd` |
 | Group it into lands with seasons | `data/biomes.json` | `scripts/stage/biomes.gd` |
-| Place it | `scripts/stage/stage_builder.gd` (rally and touge), `scripts/stage/loop_builder.gd` (the highway loop) | |
+| Place it | `scripts/stage/stage_builder.gd` (rally and touge), `scripts/stage/loop_builder.gd` (the highway loop; its city's far tier: `scripts/stage/city_skyline.gd`) | |
 | Check it | `tests/environment_check.gd`, `tests/toll_check.gd`; pictures: `tools/env_preview.gd`, `tools/loop_shots.gd`; costs: `tools/stage_perf.gd`; numbers: `tools/env_stats.gd` | |
 
 ## The owner's packs
@@ -28,7 +28,7 @@ converted runtime files are committed; the restored and unpacked sources stay ou
 | `vegetation/tree_robinia_pseudoacacia_fbx.zip` | 89 MB | FBX | 4 black locusts (Robinia), 0.2-0.5 M triangles; its leaf texture didn't come in the pack | all 4 as `robinia_a..d` (6.6-9.9 m); the leaflets drawn by the converter, the bark the conifer pack's, tinted | `vegetation/robinia.glb` | in the game |
 | `vegetation/tall_pines_blend.zip` | 40 MB | .blend | 5 tall pines, 59-274 k triangles | all 5 as `tall_pine_1..5` (11.2-24.4 m) | `vegetation/tall_pines.glb` | in the game |
 | `city/22_buildings_2024_v2.zip` | 1.16 GB | .blend (+ FBX, OBJ, GLB copies, 143 textures) | 22 European apartment and office buildings, 3 k-365 k triangles, 7-34 materials each | the .blend files, each building made light (60 k triangles at most, Godot's LODs below that) with one facade image (its colour x its ambient occlusion, its glass in the alpha for lit windows at night) | `city/bld22_*.glb` | in the game: the loop city's front rows |
-| `city/31_model_separate_files.rar` | 220 MB | 31 FBX | 31 buildings, 166-534 k triangles each, geometry only (no materials or UVs) | not yet: planned as the far tier (decimated silhouettes, a world-space window shader) | | not converted |
+| `city/31_model_separate_files.rar` | 220 MB | 31 FBX (124 MB unpacked) | 30 files of apartment and office buildings, 61-534 k triangles each, geometry only (no materials, no UVs worth having), in millimetres; `01.FBX` holds two buildings side by side; the 31st file, `Rooftop.FBX`, is a kit of 18 roof props (tanks, masts, a billboard) | all 31 buildings, as `bld31_01a`, `bld31_01b`, `bld31_02..30`: silhouettes for far off in three levels (voxel-remeshed: 1.0-3.4 k triangles, 250-680 beyond 650 m, 120-240 beyond 1.8 km), real size (18-141 m tall in the source, 17-138 m as silhouettes: the masts go; floors measured at 2.7-4.1 m), no textures: a shader draws the facade and windows. The roof-prop kit isn't taken (too small to see from the far tier) | `city/bld31.glb` (2.3 MB) | in the game: the loop city's far tier |
 | `highway/highway_props_model.rar` | 42 MB | .blend | a pylon and its cable insulator, two crash barriers, three road signs (winding road, slippery road, speed limit) | all 7 | `props/highway_props.glb` | converted and registered; the loop's barriers, signs and pylons are still its own procedural ones |
 
 ## The CC0 library (`assets/environment_packages/cc0/`, `CC0_SOURCES.md`)
@@ -71,6 +71,17 @@ Every tree in a pack shares one bark and one or two leaf materials. In the game 
 
 In the game (`EnvAssets.building`) the glass is glossy, and at night some windows are lit, warm or cold-white, one per window-sized cell of the wall.
 
+**Far-tier buildings** (`tools/skyline.py`, the 31-building pack: geometry only):
+
+- each file's meshes in metres (the pack is in millimetres), grouped into buildings by their footprints (`01.FBX` gives two);
+- closed at the foot (the models have no floor), voxel-remeshed at 0.5 m: the window reveals, balcony rails and sills close up, the masts go, what's left is the outline you see from 200 m and more;
+- collapsed to 6x the budget, its near-flat faces dissolved into the walls' planes, collapsed to the budget (2.4 k triangles per 100 m of height, 1 k to 4 k: kept low, a whole district of them is drawn at once), normals smooth within 30 degrees and sharp at the corners;
+- two lighter copies, each remeshed again from the full model with coarser voxels (1 m, 2 m: that closes the gaps behind balconies and round the roof's plant, which a collapse can't take away), the loose pieces under 3 / 6 m left out: LOD1 a fifth of the full one (250 at least) for beyond 650 m, LOD2 a third of that (120 at least) for beyond 1.8 km;
+- the full model's floor height and window bay measured (the strongest repeat of its sills' heights and its reveals' sides), and its main roof's height (the pack's `Roof_*` meshes are the plant on it), into the registry for the shader;
+- all 93 meshes in one GLB, no material, no UVs; imported without Godot's own LODs (its simplifier crumpled them far off: the copies are the levels), tangents or shadow meshes (they cast none).
+
+In the game (`CitySkyline.material`) one shader draws them all, from where a pixel is on the building (its own space, in metres): the instance's facade colour; on each wall a window grid at the building's own floors and bays (each building its own window shape); the glass dark and bluish by day with the sky in it at a glancing angle and a few blinds drawn; at night a share of the windows lit (16-42 % by building), warm or cold-white, by the same night signal as the towers (`WorldMaterials.night_amount`); the roof and the plant on it plain; far off, where a floor is a pixel or two, the grid fades to its average by day (no shimmer) and at night each lit window's whole cell glows (points of light, not a glowing wall). No textures; it runs on Forward+ and Compatibility.
+
 ## The lands (biomes, `data/biomes.json`)
 
 | Biome | Trees (a stage takes 4 of these + 2 broadleaves, by its seed) | Broadleaf share | Rocks | Rock cuts | Other | Seasons | Ground / road |
@@ -102,7 +113,7 @@ the biome's own, and recolours the leaves (autumn: the broadleaves turn).
 - **Boulders, rock cuts and poles** each use their own seeded dice: the same stage gives the same dressing.
 - **The loop's city:**
   - the library's buildings in the front rows (to 190 m from the road's middle), each its own node with its LODs, long side to the road, never overlapping or on a road;
-  - the drawn towers behind, to 420 m.
+  - the far tier behind (`scripts/stage/city_skyline.gd`), from 200 m to the city's edge (645 m): the 31-building pack, in place of the drawn towers that stood there. Each building on the ground as drawn (the land's own triangles under its footprint, flat to 0.8 m, its foot 0.1 m under the lowest of it), on the city's ground (none in the water), 40 m and more from the road and its ramps, never on another building, long side to the road (a square one any way round). Each kilometre of road (a district, both sides) is built from 6 of the designs (2 towers, 3 mid-rises, a low block), mixed: the taller likelier further out and in the middle of town, now and then a tower anywhere, gaps between the blocks: about 1,100 buildings in all. The ground steps where the road's land ribbons end (about 300-345 m out), so that band stays open. One MultiMesh per design and district, by the distance to the district's middle: the full silhouettes to 650 m, LOD1 to 1.8 km, LOD2 to 4 km x the level's view distance (the low blocks from LOD1); no shadows (past the sun's shadow map anyway). Their own dice: the rest of the city and the trees come out as before. `--no_skyline` (stage_perf, loop_shots) builds the city without it, for a comparison.
 
 ## What it costs to draw
 
@@ -118,18 +129,23 @@ Measured with `tools/stage_perf.gd` (a driver's-eye view down the road at severa
 | Touge, MEDIUM, by day | 0.84-0.87 M | 535-677 | 0.51-0.53 M | 458 MB |
 | The loop's city, MEDIUM (the real buildings) | 2.03-2.05 M | 221-224 | 0.24-0.38 M | 760 MB |
 | The loop's toll plaza, MEDIUM | 0.24 M | 165 | 0.11 M | 760 MB |
+| The loop's city at s 1500, 3600, 5200, 26600, MEDIUM, **before** the far tier (the drawn towers behind) | 1.56-2.05 M | 185-228 | 0.24-0.41 M | 793 MB |
+| The same, MEDIUM, **with the far tier** (about 1,100 of the 31-building pack) | 1.74-2.35 M (+11-17 %) | 192-246 (+7-21) | 0.20-0.40 M | 795 MB |
+| The same, ULTRA, before | 1.56-2.05 M | 185-229 | 0.45-0.77 M | 1,266 MB |
+| The same, ULTRA, with the far tier (drawn 1.3x further) | 1.74-2.37 M (+11-19 %) | 192-254 (+7-27) | 0.42-0.76 M | 1,267 MB |
 
-Building a stage takes 3.4-5.6 s here, the loop 17.6 s (the loading screen covers it).
+Building a stage takes 3.4-5.6 s here, the loop 17.6 s (the loading screen covers it); the far tier adds next to nothing to that (the city's step took 3.1-3.2 s before it, 3.0-3.5 s with it, on a loaded machine).
+
+The far tier's triangles in view are mostly the district round the camera at full detail (about 100 buildings, 200-300 k triangles); the light and lightest copies further on add 50-130 k. Godot's own LODs are off for it: on these meshes they crumpled the far silhouettes (and without them the first try drew 3.2 M triangles: hence the light copies, the lower budget and the 650 m switch).
 
 ## Not done yet
 
-- The 31-building pack (the far tier).
 - The highway props pack placed on the loop (its barriers, signs and pylons are still procedural).
 - Signs on the touge and rally stages (the winding-road sign before bends, the slippery one on wet and ice).
 
 ## Every asset in the library
 
-From `tools/env_stats.gd` (triangles as loaded in Godot; sizes in metres, x the registry's scale for the props; a building's LOD0, Godot's own LODs below it).
+From `tools/env_stats.gd` (triangles as loaded in Godot; sizes in metres, x the registry's scale for the props; a building's LOD0, Godot's own LODs below it; a far-tier building's silhouette / LOD1 / LOD2).
 
 | Asset | Kind | Runtime file | Triangles (LOD0 / LOD1 / far card) | Size (m) | Source |
 |---|---|---|---|---|---|
@@ -155,6 +171,37 @@ From `tools/env_stats.gd` (triangles as loaded in Godot; sizes in metres, x the 
 | `bld22_20a` | building | bld22_20a.glb | 59999 | 39.0 x 66.1 x 25.2 | owner's pack: 22 Buildings 2024 (Blender), 87742 triangles in the source |
 | `bld22_20b` | building | bld22_20b.glb | 8676 | 39.9 x 34.7 x 21.3 | owner's pack: 22 Buildings 2024 (Blender), 8692 triangles in the source |
 | `bld22_20c` | building | bld22_20c.glb | 3319 | 19.8 x 33.0 x 20.0 | owner's pack: 22 Buildings 2024 (Blender), 3320 triangles in the source |
+| `bld31_01a` | skyline | bld31.glb | 1046 / 248 / 120 | 17.2 x 40.9 x 8.4 | owner's pack: 31 Model separate Files (FBX), 01.FBX, 94381 triangles in the source |
+| `bld31_01b` | skyline | bld31.glb | 1000 / 250 / 120 | 17.2 x 27.4 x 8.4 | owner's pack: 31 Model separate Files (FBX), 01.FBX, 72151 triangles in the source |
+| `bld31_02` | skyline | bld31.glb | 1006 / 250 / 120 | 11.0 x 38.9 x 6.1 | owner's pack: 31 Model separate Files (FBX), 02.FBX, 76885 triangles in the source |
+| `bld31_03` | skyline | bld31.glb | 1246 / 250 / 120 | 14.6 x 49.1 x 18.4 | owner's pack: 31 Model separate Files (FBX), 03.FBX, 168601 triangles in the source |
+| `bld31_04` | skyline | bld31.glb | 1000 / 250 / 120 | 17.8 x 23.5 x 10.3 | owner's pack: 31 Model separate Files (FBX), 04.FBX, 534253 triangles in the source |
+| `bld31_05` | skyline | bld31.glb | 1662 / 332 / 120 | 21.7 x 66.3 x 14.0 | owner's pack: 31 Model separate Files (FBX), 05.FBX, 88524 triangles in the source |
+| `bld31_06` | skyline | bld31.glb | 2234 / 446 / 156 | 30.3 x 85.7 x 47.2 | owner's pack: 31 Model separate Files (FBX), 06.FBX, 305923 triangles in the source |
+| `bld31_07` | skyline | bld31.glb | 1000 / 250 / 120 | 25.0 x 26.2 x 17.1 | owner's pack: 31 Model separate Files (FBX), 07.FBX, 90865 triangles in the source |
+| `bld31_08` | skyline | bld31.glb | 1000 / 250 / 120 | 15.9 x 18.1 x 21.4 | owner's pack: 31 Model separate Files (FBX), 08.FBX, 71848 triangles in the source |
+| `bld31_09` | skyline | bld31.glb | 1000 / 250 / 120 | 24.1 x 27.0 x 10.6 | owner's pack: 31 Model separate Files (FBX), 09.FBX, 74577 triangles in the source |
+| `bld31_10` | skyline | bld31.glb | 1000 / 250 / 120 | 41.0 x 35.1 x 20.5 | owner's pack: 31 Model separate Files (FBX), 10.FBX, 205439 triangles in the source |
+| `bld31_11` | skyline | bld31.glb | 3295 / 658 / 230 | 50.3 x 129.8 x 38.5 | owner's pack: 31 Model separate Files (FBX), 11.FBX, 451157 triangles in the source |
+| `bld31_12` | skyline | bld31.glb | 2334 / 466 / 162 | 35.6 x 89.7 x 27.1 | owner's pack: 31 Model separate Files (FBX), 12.FBX, 335336 triangles in the source |
+| `bld31_13` | skyline | bld31.glb | 3214 / 642 / 224 | 25.7 x 126.7 x 25.7 | owner's pack: 31 Model separate Files (FBX), 13.FBX, 209480 triangles in the source |
+| `bld31_14` | skyline | bld31.glb | 3393 / 678 / 236 | 25.2 x 134.2 x 25.3 | owner's pack: 31 Model separate Files (FBX), 14.FBX, 271658 triangles in the source |
+| `bld31_15` | skyline | bld31.glb | 998 / 250 / 120 | 19.6 x 36.6 x 11.2 | owner's pack: 31 Model separate Files (FBX), 15.FBX, 114029 triangles in the source |
+| `bld31_16` | skyline | bld31.glb | 1000 / 250 / 118 | 21.0 x 20.4 x 9.1 | owner's pack: 31 Model separate Files (FBX), 16.FBX, 60895 triangles in the source |
+| `bld31_17` | skyline | bld31.glb | 998 / 250 / 118 | 13.9 x 34.5 x 14.4 | owner's pack: 31 Model separate Files (FBX), 17.FBX, 130998 triangles in the source |
+| `bld31_18` | skyline | bld31.glb | 1000 / 250 / 120 | 15.6 x 30.0 x 14.8 | owner's pack: 31 Model separate Files (FBX), 18.FBX, 85856 triangles in the source |
+| `bld31_19` | skyline | bld31.glb | 1000 / 250 / 120 | 15.2 x 30.4 x 11.2 | owner's pack: 31 Model separate Files (FBX), 19.FBX, 108485 triangles in the source |
+| `bld31_20` | skyline | bld31.glb | 1000 / 250 / 120 | 16.5 x 27.1 x 25.4 | owner's pack: 31 Model separate Files (FBX), 20.FBX, 112081 triangles in the source |
+| `bld31_21` | skyline | bld31.glb | 1886 / 376 / 130 | 41.4 x 70.9 x 21.3 | owner's pack: 31 Model separate Files (FBX), 21.FBX, 308902 triangles in the source |
+| `bld31_22` | skyline | bld31.glb | 1676 / 334 / 120 | 20.1 x 66.9 x 26.8 | owner's pack: 31 Model separate Files (FBX), 22.FBX, 111417 triangles in the source |
+| `bld31_23` | skyline | bld31.glb | 1800 / 360 / 124 | 46.5 x 67.9 x 18.3 | owner's pack: 31 Model separate Files (FBX), 23.FBX, 251454 triangles in the source |
+| `bld31_24` | skyline | bld31.glb | 3306 / 657 / 229 | 51.1 x 137.5 x 41.9 | owner's pack: 31 Model separate Files (FBX), 24.FBX, 491733 triangles in the source |
+| `bld31_25` | skyline | bld31.glb | 1000 / 250 / 120 | 47.0 x 17.9 x 56.0 | owner's pack: 31 Model separate Files (FBX), 25.FBX, 225795 triangles in the source |
+| `bld31_26` | skyline | bld31.glb | 1172 / 250 / 118 | 15.7 x 46.3 x 18.1 | owner's pack: 31 Model separate Files (FBX), 26.FBX, 111773 triangles in the source |
+| `bld31_27` | skyline | bld31.glb | 1000 / 248 / 120 | 11.8 x 30.9 x 29.1 | owner's pack: 31 Model separate Files (FBX), 27.FBX, 102639 triangles in the source |
+| `bld31_28` | skyline | bld31.glb | 998 / 250 / 120 | 12.8 x 31.1 x 22.8 | owner's pack: 31 Model separate Files (FBX), 28.FBX, 110557 triangles in the source |
+| `bld31_29` | skyline | bld31.glb | 998 / 248 / 120 | 30.3 x 18.0 x 25.9 | owner's pack: 31 Model separate Files (FBX), 29.FBX, 112259 triangles in the source |
+| `bld31_30` | skyline | bld31.glb | 1204 / 250 / 120 | 25.3 x 47.4 x 15.5 | owner's pack: 31 Model separate Files (FBX), 30.FBX, 152883 triangles in the source |
 | `bridge_pillar` | prop | kenney_props.glb | 38 | 1.6 x 8.0 x 1.6 | Kenney City Kit (Roads) 2.1 (CC0) |
 | `bridge_pillar_wide` | prop | kenney_props.glb | 38 | 2.2 x 8.0 x 2.2 | Kenney City Kit (Roads) 2.1 (CC0) |
 | `conifer_01` | tree | conifers.glb | 18770 / 1866 / 8 | 7.9 x 25.9 x 9.6 | owner's pack: chvegetation vol5 (conifers), chvol5_01.fbx |

@@ -1771,7 +1771,10 @@ func _city() -> void:
 					xfs.append(Transform3D(bas, Vector3(p.x, g + hgt * 0.5 - 0.5, p.z)))
 					cols.append(palette[_rng.randi() % palette.size()])
 			s += _rng.randf_range(40.0, 70.0)
-	building_count = xfs.size() + real.size()
+	# the far tier: the 31-building pack behind the front rows, out to the city's edge (the drawn
+	# towers out there give way to it): scripts/stage/city_skyline.gd
+	var far: int = preload("res://scripts/stage/city_skyline.gd").build(self, xfs, cols, real, night)
+	building_count = xfs.size() + real.size() + far
 	real_building_count = real.size()
 	# the library's buildings: each its own node (Godot picks each one's level of detail by its
 	# distance), its facade material (lit windows at night)

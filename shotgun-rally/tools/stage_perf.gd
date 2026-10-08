@@ -5,6 +5,7 @@ extends SceneTree
 ##   xvfb-run -a -s "-screen 0 1600x900x24" godot --path . --resolution 1600x900 -s tools/stage_perf.gd -- \
 ##     --out=/abs/dir [--opts={"kind":"touge","dir":"down"}] [--seed=5] [--len=2400] [--gfx=medium]
 ##     [--loop] (the highway loop instead of a stage) [--at=300,900,1500] [--mood=day] [--frames=3]
+##     [--no_skyline] (the loop's city without its far tier: scripts/stage/city_skyline.gd)
 ## One "[perf]" line a view (JSON), then a summary line. Under xvfb the GPU is the CPU
 ## (llvmpipe): the frame times aren't a real machine's, the counts are.
 

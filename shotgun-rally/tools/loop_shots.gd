@@ -8,6 +8,10 @@ extends SceneTree
 ## from above. Prints the build's time and size.
 ## --toll=open|mixed|event: the toll plaza's layout; --plaza: shots of it (coming up to it,
 ## at the booths, from the other carriageway, from above).
+## --skyline: the city's skyline (its far tier behind the front rows): from the road looking
+## out across the city each side, from 80 m up over the road, and from outside the city.
+## --gfx=medium|high|ultra (Graphics reads it); --no_skyline: the city without its far tier
+## (scripts/stage/city_skyline.gd), for a comparison. No traffic is built (nothing but the map).
 const LoopGen = preload("res://scripts/stage/loop_gen.gd")
 const LoopBuilder = preload("res://scripts/stage/loop_builder.gd")
 
@@ -18,6 +22,7 @@ var mood := "day"
 var build_only := false
 var toll := ""
 var plaza := false
+var skyline := false
 
 
 func _initialize() -> void:
@@ -37,6 +42,8 @@ func _initialize() -> void:
 			toll = a.trim_prefix("--toll=")
 		elif a == "--plaza":
 			plaza = true
+		elif a == "--skyline":
+			skyline = true
 	DirAccess.make_dir_recursive_absolute(out_dir)
 	_run.call_deferred()
 
@@ -55,7 +62,7 @@ func _run() -> void:
 	if build_only:
 		quit(0)
 		return
-	if at.is_empty():
+	if at.is_empty() and not skyline:
 		var picks := [300.0]
 		for sp in st.spans:
 			picks.append(float(sp.s0) - 250.0)
@@ -92,6 +99,27 @@ func _run() -> void:
 		var p: Vector3 = st.world_at(s0, -9.0)
 		cam.look_at_from_position(p + st.right_at(s0) * 70.0 + st.forward_at(s0) * -90.0 + Vector3.UP * 45.0, p, Vector3.UP)
 		await _shot("plaza_%s_%s_air" % [tag, mood])
+	if skyline:
+		# from the road (a car's eye, 1.3 m up), looking out 40 degrees off the road each side
+		for s in [1500.0, 3600.0, 5200.0, 26600.0]:
+			var eye: Vector3 = st.world_at(s, 1.8) + Vector3.UP * 1.3
+			for side in [1.0, -1.0]:
+				var dir: Vector3 = (st.forward_at(s) * cos(deg_to_rad(40.0)) + st.right_at(s) * side * sin(deg_to_rad(40.0)))
+				cam.look_at_from_position(eye, eye + dir * 100.0 + Vector3.UP * 6.0, Vector3.UP)
+				await _shot("skyline_%s_s%d_%s" % [mood, int(s), "right" if side > 0.0 else "left"])
+		# 80 m up over the road, down it
+		for s in [2400.0, 27000.0]:
+			var p: Vector3 = st.world_at(s, -9.0) + Vector3.UP * 80.0
+			cam.look_at_from_position(p, st.world_at(s + 700.0, -9.0) + Vector3.UP * 20.0, Vector3.UP)
+			await _shot("skyline_%s_s%d_high" % [mood, int(s)])
+		# from outside the city: the hills road looking back at it, and from 1.3 km off its side
+		var c0: Vector3 = st.world_at(3000.0, 0.0)
+		var out: Vector3 = st.world_at(7400.0, 0.0) + Vector3.UP * 12.0
+		cam.look_at_from_position(out, c0 + Vector3.UP * 40.0, Vector3.UP)
+		await _shot("skyline_%s_from_hills" % mood)
+		var side_eye: Vector3 = c0 + st.right_at(3000.0) * 1300.0 + Vector3.UP * 25.0
+		cam.look_at_from_position(side_eye, c0 + Vector3.UP * 30.0, Vector3.UP)
+		await _shot("skyline_%s_from_side" % mood)
 	if air:
 		for s in [0.0, st.length * 0.25, st.length * 0.5, st.length * 0.7]:
 			var p: Vector3 = st.world_at(s, 0.0)

@@ -8,10 +8,10 @@ extends RefCounted
 ##   EnvAssets.info(id) -> Dictionary: an asset's entry in data/environment_assets.json (glb, part,
 ##     kind, height, radius, trunk, tags...)
 ##   EnvAssets.ids(kind, tag = "") -> Array: the assets of a kind ("tree", "rock", "cliff", "prop",
-##     "building"), with the tag if given
+##     "building", "skyline": the city's far tier, scripts/stage/city_skyline.gd), with the tag if given
 ##   EnvAssets.building(material, night) -> Material: a building's (its facade, lit windows at night)
 ##   EnvAssets.mesh(id, lod = "", tint = white) -> Mesh: an asset's mesh ("" its only one; a tree's
-##     "LOD0", "LOD1" or "BB"), the materials made right for the game (leaves: cut out, both sides,
+##     "LOD0", "LOD1" or "BB"; a far-tier building's "LOD1"), the materials made right for the game (leaves: cut out, both sides,
 ##     the sun through them, times the tint: a season's colour; see foliage()); cached
 ## Meshes come out of the GLBs by part name (a node of each part in the GLB, made by the
 ## converter); each GLB is loaded once.

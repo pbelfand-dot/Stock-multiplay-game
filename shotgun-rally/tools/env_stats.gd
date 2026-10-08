@@ -29,6 +29,10 @@ func _initialize() -> void:
 			var m0: Mesh = EnvAssets.mesh(id, "LOD0")
 			tris = "%d / %d / %d" % [_tris(m0), _tris(EnvAssets.mesh(id, "LOD1")), _tris(EnvAssets.mesh(id, "BB"))]
 			size = m0.get_aabb().size if m0 else Vector3.ZERO
+		elif str(a.kind) == "skyline":                     # (the city's far tier: the silhouette and its two lighter copies)
+			var m1: Mesh = EnvAssets.mesh(id)
+			tris = "%d / %d / %d" % [_tris(m1), _tris(EnvAssets.mesh(id, "LOD1")), _tris(EnvAssets.mesh(id, "LOD2"))]
+			size = m1.get_aabb().size if m1 else Vector3.ZERO
 		else:
 			var m: Mesh = EnvAssets.mesh(id)
 			tris = str(_tris(m))
