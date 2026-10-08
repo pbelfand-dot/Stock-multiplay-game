@@ -7,13 +7,21 @@ game. One of you drives, blind past the next crest. The other sits in the passen
 map of the road ahead, works out what's coming and yells it: "LEFT! TIGHT LEFT! OVER THE CREST!"
 No friend online? The **AI co-driver** takes the seat.
 
+Plus **MODES**, alone or with **up to 8 friends online**, each in their own car: the **TOUGE**, a
+Japanese mountain pass at night lit only by its street lamps and your headlights (time attack
+against your ghost, drift, or online a race to the bottom), and **CUT UP**, weaving through
+heavy highway traffic on an endless 28 km loop ([docs/modes.md](docs/modes.md)).
+
 > SHOTGUN RALLY lives in this `shotgun-rally/` folder, next to BAGHOLDERS on `main`. It's its own Godot
 > project with its own build, so the two games never touch each other. Both games' downloads are on
 > the [repo's front page](../README.md).
 
 | | |
 |---|---|
-| ![The home screen: your car flat out on a stage behind the menu](docs/screens/home.jpg) | ![The garage: buy, paint, upgrade](docs/screens/garage.jpg) |
+| ![The home screen: the logo and menu over your car flat out on a stage](docs/screens/home.jpg) | ![MODES: the touge and cut up, alone or online up to 8](docs/screens/modes.jpg) |
+| ![The touge at night: street lamps, your headlights, a local coming up the other lane](docs/screens/touge_night.jpg) | ![Cut up: the LAKESHORE LOOP full of traffic](docs/screens/cutup.jpg) |
+| ![An online touge's results: the podium](docs/screens/results.jpg) | ![GO: the start lights](docs/screens/start_lights.jpg) |
+| ![The garage: buy, paint, upgrade](docs/screens/garage.jpg) | ![The loading screen: the night touge's key art](docs/screens/loading.jpg) |
 | ![The realistic cars: Rotora FD in the garage, real power and weight](docs/screens/garage_fd.jpg) | ![The nine realistic cars](docs/screens/cars_lineup.jpg) |
 | ![Story mode: the Shotgun Series](docs/screens/maps.jpg) | ![Mountains on the horizon, the Mud & Mist rally's fog](docs/screens/mud_mist.jpg) |
 | ![Driver](docs/screens/driver.jpg) | ![Co-driver looking at the map](docs/screens/codriver.jpg) |
