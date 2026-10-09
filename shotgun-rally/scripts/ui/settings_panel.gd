@@ -23,7 +23,8 @@ const AIDS := [
 	["countersteer_help", "COUNTERSTEER HELP", "When the tail slides, the front wheels point where you're going (drift assist does it when on)."],
 	["speed_sensitive_steering", "SPEED-SENSITIVE STEERING", "Steering asks for a share of the tyres' grip: precise at any speed, never past it."],
 	["drift_assist", "DRIFT ASSIST", "In a drift your steering sets the angle; let go and it straightens. No spins."],
-	["high_speed_stability", "HIGH-SPEED STABILITY", "At speed, wobbles and a clipped tail are damped at once."],
+	["high_speed_stability", "HIGH-SPEED STABILITY", "Rally stages: at speed, wobbles and a clipped tail are damped at once."],
+	["street_high_speed_stability", "HIGH-SPEED STABILITY  (CUT UP, TOUGE)", "Off: the car's own stability control catches slides, as in the real car. On: an invisible hand damps every wobble."],
 ]
 
 

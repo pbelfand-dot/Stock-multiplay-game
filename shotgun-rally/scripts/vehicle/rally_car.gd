@@ -47,6 +47,9 @@ extends RigidBody3D
 ## The car faces -Z; the origin is the middle of the chassis at mount height.
 
 signal hit(impact: float)          # ran into something (m/s of speed lost)
+signal rub(body: Node)             # leaning on a traffic car, too gently for a hit (last_hit_dv / _v say how)
+var last_hit_dv := Vector3.ZERO     # what the last hit did to its velocity (after - before, m/s, flat)
+var last_hit_v := Vector3.ZERO      # ... and its velocity just before it
 signal landed(impact: float)       # came down onto its wheels (m/s downward)
 
 const RallyWheel = preload("res://scripts/vehicle/physics/rally_wheel.gd")
@@ -537,10 +540,10 @@ func _street_brakes() -> void:
 
 ## The driver aids for how it's driving: Settings' (assists), but in SIM STREET
 ## without the arcade's drift helpers (drift assist, countersteer help): the car
-## slides as the tyres let it, as in Assetto Corsa; HIGH-SPEED STABILITY stays the
-## Settings switch's (on out of the box: it catches a clip in traffic, the owner's
-## call); ABS and traction control on if the real car has them as standard
-## (Catalog.street_grip's factory aids).
+## slides as the tyres let it, as in Assetto Corsa; high-speed stability is the
+## street's own switch (off out of the box: the owner's call after the video study);
+## ABS, traction control and stability control on if the real car has them as
+## standard (Catalog.street_grip's factory aids).
 func _set_aids() -> void:
 	if assist == null or assists == null:
 		return
@@ -550,11 +553,20 @@ func _set_aids() -> void:
 	var a: Resource = assists.duplicate()
 	for k in ["drift_assist", "countersteer_help"]:
 		a.set(k, false)
+	a.high_speed_stability = a.street_high_speed_stability     # (the street's own switch: off out of the box)
 	if street.size() > 2 and bool(street[2]):
 		a.anti_lock = true                               # (its factory ABS)
 	if street.size() > 3 and bool(street[3]):
-		a.traction_control = true                        # (its factory traction control)
+		a.traction_control = true                        # (its factory traction control ...
+		a.stability_control = true                       # ... and stability control: brakes, not a hand on the body)
 	assist.setup(a)
+
+
+## Change its velocity from outside (a traffic car sharing a hit: game.gd) without that
+## change reading as another hit.
+func nudge(dv: Vector3) -> void:
+	linear_velocity += dv
+	_prev_v += dv
 
 
 ## Put the car down at (pos, yaw), still, sitting at its ride height above pos.
@@ -747,7 +759,17 @@ func _simulate(dt: float) -> void:
 	var dv := v_before - linear_velocity
 	dv.y = 0.0
 	if dv.length() > 240.0 * dt and v_before.length() > 6.0:
+		last_hit_dv = -dv
+		last_hit_v = v_before
 		hit.emit(dv.length())
+	elif dv.length() > 30.0 * dt and contact_monitor:
+		# (more than the tyres can do: a car alongside pushing back, a rub)
+		for b in get_colliding_bodies():
+			if b.has_meta("traffic"):
+				last_hit_dv = -dv
+				last_hit_v = v_before
+				rub.emit(b)
+				break
 
 
 ## How hard the tyres are sliding, 0..1 (the sound and the dust): each tyre past

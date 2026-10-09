@@ -110,7 +110,7 @@ const Surfaces = preload("res://scripts/vehicle/physics/surfaces.gd")
 const Aero = preload("res://scripts/vehicle/physics/aero.gd")
 const AssistConfig = preload("res://scripts/vehicle/physics/config/assist_config.gd")
 const AIDS := ["anti_lock", "traction_control", "stability_control", "steering_smoothing", "steering_damping",
-	"countersteer_help", "speed_sensitive_steering", "drift_assist", "high_speed_stability"]
+	"countersteer_help", "speed_sensitive_steering", "drift_assist", "high_speed_stability", "street_high_speed_stability"]
 
 var car: RigidBody3D
 var fails := 0

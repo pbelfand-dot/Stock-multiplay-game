@@ -24,11 +24,14 @@ extends Node
 ##   pause         esc                    back
 
 const STICK_DEADZONE := 0.12
+## The steering stick's deadzone: small, so a little stick is a little steering (at 0.2 the
+## first fifth of the stick did nothing: the video study). The other actions keep 0.2.
+const STEER_DEADZONE := 0.07
 
 
 func _ready() -> void:
-	_action("steer_left", [KEY_A, KEY_LEFT], [], [[JOY_AXIS_LEFT_X, -1.0]])
-	_action("steer_right", [KEY_D, KEY_RIGHT], [], [[JOY_AXIS_LEFT_X, 1.0]])
+	_action("steer_left", [KEY_A, KEY_LEFT], [], [[JOY_AXIS_LEFT_X, -1.0]], [], STEER_DEADZONE)
+	_action("steer_right", [KEY_D, KEY_RIGHT], [], [[JOY_AXIS_LEFT_X, 1.0]], [], STEER_DEADZONE)
 	_action("throttle", [KEY_W, KEY_UP], [], [[JOY_AXIS_TRIGGER_RIGHT, 1.0]])
 	_action("brake", [KEY_S, KEY_DOWN], [], [[JOY_AXIS_TRIGGER_LEFT, 1.0]])
 	_action("handbrake", [KEY_SPACE], [JOY_BUTTON_B, JOY_BUTTON_X], [])
@@ -43,10 +46,10 @@ func _ready() -> void:
 	_action("screen_page", [KEY_M], [JOY_BUTTON_DPAD_RIGHT], [])
 
 
-func _action(name: String, keys: Array, buttons: Array, axes: Array, mouse := []) -> void:
+func _action(name: String, keys: Array, buttons: Array, axes: Array, mouse := [], deadzone := 0.2) -> void:
 	if InputMap.has_action(name):
 		InputMap.erase_action(name)
-	InputMap.add_action(name, 0.2)
+	InputMap.add_action(name, deadzone)
 	for k in keys:
 		var e := InputEventKey.new()
 		e.physical_keycode = k

@@ -27,9 +27,13 @@ var quick_surface := "any"     # PLAY NOW / online stages: "gravel", "tarmac", "
 ## angle and never spin (tests/drift_check.gd), and high-speed stability damps
 ## wobbles and clips in traffic (tests/feel_check.gd). The rest are off (a rally
 ## car has no ABS).
+## In SIM street handling (cut up, the touge) high-speed stability is its own switch,
+## off out of the box: there the car's factory stability control (its brakes) catches
+## a slide, as in a real modern car, and a clip shows (the video study: an invisible
+## hand that snapped every slide straight in 0.1 s felt fake).
 const AIDS_DEFAULT := {"anti_lock": false, "traction_control": false, "stability_control": false,
 	"steering_smoothing": true, "steering_damping": false, "countersteer_help": true, "speed_sensitive_steering": true,
-	"drift_assist": true, "high_speed_stability": true}
+	"drift_assist": true, "high_speed_stability": true, "street_high_speed_stability": false}
 const AIDS_VERSION := 2         # settings saved before this (the old car) take the new defaults once
 var aids := AIDS_DEFAULT.duplicate()
 ## Extra tyre grip on top of the real tyres (TireModel.grippy): 0 = REAL, 1 = GRIPPY,

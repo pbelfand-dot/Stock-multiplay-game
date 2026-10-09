@@ -46,25 +46,27 @@ static var SPECS: Dictionary = VehicleRegistry.physics()
 ## roll_front: the front axle's share of the roll stiffness (55-65 % on road cars: they
 ## push before they slide); cog: the centre of mass's height above the road (m); zeta:
 ## the dampers' share of critical, bump / rebound; room: the travel above the car at rest
-## before the bump stop (m). An SUV leans and nods and settles in a bob or two; a sports
+## before the bump stop (m); us: its understeer gradient to start from (deg of steering per g
+## past the geometry: SIM street steering goes through it and learns the car's own as it's
+## driven, DriverAssist._learn). An SUV leans and nods and settles in a bob or two; a sports
 ## car leans a little; a GT3 hardly at all.
 const CHASSIS := {
 	"rally": {},
-	"road": {"travel": 0.17, "ride": [1.4, 1.5], "roll": 2.8, "roll_front": 0.62, "cog": 0.52, "zeta": [0.32, 0.62], "room": 0.09,
+	"road": {"travel": 0.17, "us": 0.7, "ride": [1.4, 1.5], "roll": 2.8, "roll_front": 0.62, "cog": 0.52, "zeta": [0.32, 0.62], "room": 0.09,
 		"mu": 1.0, "peak": 0.95, "loose": 0.85, "steer": 34.0},
-	"suv": {"travel": 0.2, "ride": [1.25, 1.35], "roll": 4.0, "roll_front": 0.66, "cog": 0.66, "zeta": [0.32, 0.62], "room": 0.1,
+	"suv": {"travel": 0.2, "us": 1.0, "ride": [1.25, 1.35], "roll": 4.0, "roll_front": 0.66, "cog": 0.66, "zeta": [0.32, 0.62], "room": 0.1,
 		"mu": 0.97, "peak": 1.0, "loose": 0.9, "steer": 36.0},
 	# a performance SUV (X5 M, Trackhawk): stiffer and lower than a plain one, on wider tyres; still tall
-	"sport_suv": {"travel": 0.18, "ride": [1.45, 1.55], "roll": 3.2, "roll_front": 0.63, "cog": 0.62, "zeta": [0.36, 0.68], "room": 0.09,
+	"sport_suv": {"travel": 0.18, "us": 0.8, "ride": [1.45, 1.55], "roll": 3.2, "roll_front": 0.63, "cog": 0.62, "zeta": [0.36, 0.68], "room": 0.09,
 		"mu": 1.02, "peak": 0.96, "loose": 0.88, "steer": 35.0},
 	# a tall, boxy one (the G-Class): soft, high, rolls and pitches more, on a ladder frame's steering
-	"tall_suv": {"travel": 0.22, "ride": [1.2, 1.3], "roll": 4.8, "roll_front": 0.64, "cog": 0.74, "zeta": [0.3, 0.58], "room": 0.11,
+	"tall_suv": {"travel": 0.22, "us": 1.2, "ride": [1.2, 1.3], "roll": 4.8, "roll_front": 0.64, "cog": 0.74, "zeta": [0.3, 0.58], "room": 0.11,
 		"mu": 0.96, "peak": 1.04, "loose": 0.95, "steer": 33.0},
-	"sport": {"travel": 0.14, "ride": [1.65, 1.75], "roll": 2.1, "roll_front": 0.62, "cog": 0.46, "zeta": [0.36, 0.7], "room": 0.07,
+	"sport": {"travel": 0.14, "us": 0.4, "ride": [1.65, 1.75], "roll": 2.1, "roll_front": 0.62, "cog": 0.46, "zeta": [0.36, 0.7], "room": 0.07,
 		"mu": 1.06, "peak": 0.9, "loose": 0.8, "steer": 33.0},
-	"track": {"travel": 0.09, "ride": [2.4, 2.6], "roll": 1.2, "roll_front": 0.52, "cog": 0.4, "zeta": [0.45, 0.8], "room": 0.04,
+	"track": {"travel": 0.09, "us": 0.3, "ride": [2.4, 2.6], "roll": 1.2, "roll_front": 0.52, "cog": 0.4, "zeta": [0.45, 0.8], "room": 0.04,
 		"mu": 1.3, "peak": 0.8, "loose": 0.55, "steer": 27.0},
-	"prototype": {"travel": 0.07, "ride": [2.9, 3.1], "roll": 0.8, "roll_front": 0.5, "cog": 0.34, "zeta": [0.5, 0.85], "room": 0.03,
+	"prototype": {"travel": 0.07, "us": 0.2, "ride": [2.9, 3.1], "roll": 0.8, "roll_front": 0.5, "cog": 0.34, "zeta": [0.5, 0.85], "room": 0.03,
 		"mu": 1.4, "peak": 0.75, "loose": 0.45, "steer": 24.0},
 }
 
@@ -132,6 +134,7 @@ static func _road_suspension(c: Resource, k: Dictionary) -> void:
 		sus.anti_roll_rate = maxf(share * roll_k / (track * track) - sus.spring_rate * 0.5, 0.0)
 		sus.max_force = maxf(sus.max_force, sus.spring_rate * sus.travel * 3.0)
 	c.road_suspension = true
+	c.understeer = float(k.get("us", 0.0))
 
 
 ## The rally car (the shared body) at a weight of its own (kg; 0: the rally car's

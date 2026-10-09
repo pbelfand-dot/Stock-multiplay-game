@@ -187,6 +187,7 @@ func start(seed_in: int, stage_in: int, o := {}) -> void:
 	_start_yaw = spot[1]
 	car.place(_start_pos, _start_yaw)
 	car.hit.connect(_on_hit)
+	car.rub.connect(_on_rub)
 	car.landed.connect(_on_landed)
 	var fx := DriftFx.new()                       # dirt + stones off the tyres when it slides
 	fx.name = "DriftFx"
@@ -572,7 +573,7 @@ func _drive_inputs() -> void:
 		_brake_eased = move_toward(_brake_eased, brake_in, dt * (4.0 if brake_in > _brake_eased else 10.0))
 	var inp := {"steer": steer, "throttle": Input.get_action_strength("throttle"),
 		"brake": _brake_eased, "handbrake": Input.is_action_pressed("handbrake"),
-		"analog": absf(Input.get_joy_axis(0, JOY_AXIS_LEFT_X)) > 0.2}   # (a stick: the steering aids treat it as analog)
+		"analog": absf(Input.get_joy_axis(0, JOY_AXIS_LEFT_X)) > Controls.STEER_DEADZONE}   # (a stick: the steering aids treat it as analog)
 	if state == "grid":
 		inp.handbrake = true                         # parked at the line until the countdown
 		inp.brake = maxf(inp.brake, 0.6)
@@ -800,21 +801,40 @@ func _engine_audio() -> void:
 
 
 func _on_hit(impact: float) -> void:
+	# a traffic car: the two share the hit by weight (Traffic.shove): it's shoved, the
+	# player keeps its share of the speed (it had bounced off as off a wall)
+	var hit_car := {}
+	if traffic and state == "running":
+		for c in traffic.cars:
+			if absf(float(c.s) - car_s) < float(c.half_len) + 3.0 and absf(float(c.d) - car_d) < float(c.half_w) + 1.6:
+				var r: Dictionary = traffic.shove(c.body, car.last_hit_dv, car.last_hit_v, float(car.mass), car.linear_velocity)
+				if not r.is_empty():
+					car.nudge(r.back)
+					impact *= float(r.share)
+					hit_car = c
+				break
 	_play("crash", clampf(-20.0 + impact, -18.0, 0.0))
 	cam.bump(clampf(impact / 15.0, 0.2, 1.0))
 	if state != "running":
 		return
 	if cutup and impact > CRASH_DV:
 		cutup.crash()                                # (a traffic car, or the barrier: hard enough is a crash)
-		for c in traffic.cars:                       # the car that was hit stops where it is
-			if absf(float(c.s) - car_s) < float(c.half_len) + 3.0 and absf(float(c.d) - car_d) < float(c.half_w) + 1.6:
-				traffic.hit(c.body)
+		if not hit_car.is_empty():
+			traffic.hit(hit_car.body)                # the car that was hit hard stops (hazards on)
 		_flash("CRASH  -%d" % CutupScore.CRASH_PENALTY, Color(1.0, 0.3, 0.25))
 	if stray:
 		stray.bump(car.global_position)
 	if touge and touge.chain > 0.0:
 		touge.lose()
 		_flash("CHAIN LOST", Color(1.0, 0.3, 0.25))
+
+
+## Leaning on a traffic car (too gently for a hit): the two share the push by weight too.
+func _on_rub(body: Node) -> void:
+	if traffic and state == "running":
+		var r: Dictionary = traffic.shove(body, car.last_hit_dv, car.last_hit_v, float(car.mass), car.linear_velocity)
+		if not r.is_empty():
+			car.nudge(r.back)
 
 
 func _on_landed(impact: float) -> void:
@@ -828,6 +848,8 @@ func _setup_mode(o: Dictionary) -> void:
 	match mode:
 		"cutup":
 			traffic = Traffic.new()
+			car.contact_monitor = true               # (what it's touching: a rub against a traffic car, _on_rub)
+			car.max_contacts_reported = 4
 			traffic.name = "Traffic"                # (the same path everywhere: the host's traffic finds it)
 			traffic.mirror = street_online and not multiplayer.is_server()   # (online: the host's traffic, played back)
 			add_child(traffic)

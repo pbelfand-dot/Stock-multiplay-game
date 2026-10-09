@@ -34,6 +34,7 @@ var abs_ease := [1.0, 1.0, 1.0, 1.0]   # each wheel's share of its pedal brake A
 var tc_cut := 1.0                  # the throttle share traction control leaves
 var esc_wheel := -1                # the wheel stability control is braking (-1: none) ...
 var esc_torque := 0.0              # ... with this much (N m)
+var esc_cut := 1.0                 # the throttle share stability control leaves (sliding round)
 var countersteer := 0.0            # rad the countersteer help turned the wheels (+ = right)
 var drift_hold := 0.0              # N m the drift assist is turning the body with (+ = to the left)
 var stability_hold := 0.0          # N m high-speed stability is turning the body with (+ = to the left)
@@ -46,6 +47,10 @@ var _drift_boost := 1.0            # countersteering: straighten up quicker
 var _drift_slow := 1.0             # 0: a slow handbrake turn, left alone .. 1: the assist's own
 
 var _smooth := 0.0
+var _key_held := 0.0               # (SIM street keys) how long the key's been held this way (s)
+var _counter_k := 0.0              # (SIM street) how much countersteering room is open (0..1)
+var understeer := -1.0             # (SIM street) the car's understeer gradient as driven (rad per g; learned, _learn)
+var _lat_prev := 0.0               # (its lateral g a tick ago: steady cornering only)
 
 
 func setup(assists: Resource) -> void:
@@ -58,6 +63,10 @@ func reset() -> void:
 	tc_cut = 1.0
 	esc_wheel = -1
 	esc_torque = 0.0
+	esc_cut = 1.0
+	_key_held = 0.0
+	_counter_k = 0.0
+	_lat_prev = 0.0
 	countersteer = 0.0
 	drift_hold = 0.0
 	stability_hold = 0.0
@@ -81,7 +90,8 @@ func any() -> bool:
 ## and how fast they may turn there (a share of the rack's speed).
 func steering(car, dt: float, input: float) -> Vector2:
 	var v := absf(float(car.speed))
-	var s := _ease(input, v, bool(car.inp.get("analog", false)), dt)
+	var street := _street(car)
+	var s := _ease(input, v, bool(car.inp.get("analog", false)), dt, street)
 	var lock := deg_to_rad(car.config.steering.max_angle_deg)
 	var target := angle_for(car, s)
 	var rate := 1.0
@@ -89,6 +99,16 @@ func steering(car, dt: float, input: float) -> Vector2:
 		rate = clampf(cfg.damping_speed / maxf(v, 0.1), 0.35, 1.0)
 	countersteer = 0.0
 	var align := _front_travel(car, lock)
+	if street:
+		_learn(car, dt, v)
+		# sliding, steering toward the slide may reach where the front axle's going plus the
+		# front tyres' peak slip angle (the driver catches it: nothing steers for them)
+		var beta := absf(body_slip(car))
+		var open := clampf((beta - deg_to_rad(cfg.counter_from_deg)) / maxf(deg_to_rad(cfg.counter_full_deg - cfg.counter_from_deg), 0.001), 0.0, 1.0)
+		_counter_k = move_toward(_counter_k, open, dt / cfg.counter_time)
+		if _counter_k > 0.0 and absf(s) > 0.0 and signf(s) == signf(align):
+			var room: float = absf(align) + deg_to_rad(car.wheels[0].surface_tire.lateral_peak_deg)
+			target = signf(s) * minf(maxf(absf(target), lerpf(absf(target), absf(s) * room, _counter_k)), lock)
 	_drift_state(car, dt, s, v)
 	if drifting:
 		# drift assist steers: the fronts a little inside where the front axle's going
@@ -245,6 +265,20 @@ func angle_for(car, s: float) -> float:
 		return s * lock
 	var t: Resource = car.wheels[0].surface_tire
 	var base: float = car.config.rear_axle - car.config.front_axle
+	if _street(car):
+		# SIM street: the stick asks for that share of the grip, through the turn's geometry
+		# and the car's understeer; the last of the travel adds the front tyres' peak slip
+		var most: float = t.lateral_mu                  # (the most it corners at: its tyres, or the real car's skid pad if less)
+		var st = car.get("street")
+		if st != null and (st as Array).size() > 0:
+			most = minf(most, float(st[0]))
+		var a: float = clampf(absf(s), 0.0, 1.0) * cfg.street_grip_share * most * 9.8
+		if understeer < 0.0:
+			understeer = deg_to_rad(float(car.config.understeer))
+		var d: float = atan(base * a / (v * v)) + understeer * a / 9.8
+		var last: float = clampf((absf(s) - cfg.street_peak_from) / maxf(1.0 - cfg.street_peak_from, 0.01), 0.0, 1.0)
+		d += last * deg_to_rad(t.lateral_peak_deg)
+		return signf(s) * minf(d, lock)
 	var f: float = clampf(absf(s), 0.0, 1.0) * cfg.speed_sensitive_grip
 	var geometry: float = atan(base * t.lateral_mu * 9.8 * f / (v * v))
 	var c: float = t.lateral_shape
@@ -256,7 +290,7 @@ func angle_for(car, s: float) -> float:
 ## a touch; keys ramp in at key_rate_slow per second up to key_rate_from m/s,
 ## easing to key_rate_fast by key_rate_to (a tap is a small, quick correction at
 ## 200 km/h, all of it at a hairpin), and back out key_return times quicker.
-func _ease(input: float, v: float, analog: bool, dt: float) -> float:
+func _ease(input: float, v: float, analog: bool, dt: float, street := false) -> float:
 	if not cfg.steering_smoothing:
 		_smooth = input
 	elif analog:
@@ -264,9 +298,46 @@ func _ease(input: float, v: float, analog: bool, dt: float) -> float:
 	else:
 		var up: float = lerpf(cfg.key_rate_slow, cfg.key_rate_fast,
 			clampf((v - cfg.key_rate_from) / maxf(cfg.key_rate_to - cfg.key_rate_from, 1.0), 0.0, 1.0))
-		var outward := absf(input) > absf(_smooth) and (signf(input) == signf(_smooth) or absf(_smooth) < 1e-4)
-		_smooth = move_toward(_smooth, input, (up if outward else up * cfg.key_return) * dt)
+		var goal := input
+		if street:
+			# SIM street at speed: a held key first asks for a lane change's worth, all of it
+			# only if it's held on (a long bend)
+			_key_held = _key_held + dt if absf(input) > 0.5 and signf(input) == signf(_smooth) else 0.0
+			var fast: float = clampf((v - cfg.key_stage_from) / maxf(cfg.key_stage_to - cfg.key_stage_from, 1.0), 0.0, 1.0)
+			var rise: float = clampf((_key_held - cfg.key_stage_hold) / cfg.key_stage_rise, 0.0, 1.0)
+			goal = input * lerpf(1.0, lerpf(cfg.key_stage_share, 1.0, rise), fast)
+		var outward := absf(goal) > absf(_smooth) and (signf(goal) == signf(_smooth) or absf(_smooth) < 1e-4)
+		_smooth = move_toward(_smooth, goal, (up if outward else up * cfg.key_return) * dt)
 	return _smooth
+
+
+## (SIM street) Learns the car's understeer as it's driven: in a steady corner (gripping,
+## not braking, its cornering g barely changing) the front wheels' angle past the turn's
+## geometry, per g, eased toward over learn_time. Every car's is its own (its tyres, its
+## weight split, its bars: a GT3 ~0.3 deg/g, an SUV more), and it grows near the limit;
+## steering through it, half a stick is half the grip whatever the car.
+func _learn(car, dt: float, v: float) -> void:
+	if understeer < 0.0:
+		understeer = deg_to_rad(float(car.config.understeer))
+	var r: float = car.angular_velocity.dot(car.global_transform.basis.y)
+	var lat := v * absf(r) / 9.8                      # its cornering g (steady: v x yaw rate)
+	var steady: bool = absf(lat - _lat_prev) < float(cfg.learn_steady) * dt
+	_lat_prev = lat
+	if int(car.grounded) < 4 or v < 12.0 or lat < cfg.learn_from_g or not steady or float(car.inp.brake) > 0.1 \
+			or float(car.inp.handbrake) > 0.05 or absf(body_slip(car)) > deg_to_rad(4.0):
+		return
+	var steer := absf(float(car.steer))
+	if signf(float(car.steer)) != -signf(r):         # (steering the way it's turning: + steer = right, + r = left)
+		return
+	var base: float = car.config.rear_axle - car.config.front_axle
+	var seen := clampf((steer - atan(base * lat * 9.8 / (v * v))) / lat, 0.0, deg_to_rad(cfg.learn_most_deg))
+	understeer += (seen - understeer) * clampf(dt / cfg.learn_time, 0.0, 1.0)
+
+
+## SIM street handling on for this car (its own road tyres: Catalog.street_grip)?
+static func _street(car) -> bool:
+	var st = car.get("street")
+	return st != null and not (st as Array).is_empty()
 
 
 ## The steering input that gets the wheels to `target` (a share of the lock,
@@ -294,8 +365,10 @@ func input_for(car, target: float, dt: float) -> float:
 	return clampf(_smooth + (want - _smooth) / a, -1.0, 1.0)
 
 
-## The throttle after traction control.
+## The throttle after traction control (and stability control's cut while it catches a slide).
 func throttle(car, dt: float, thr: float) -> float:
+	if cfg.stability_control:
+		thr *= esc_cut
 	if not cfg.traction_control or car.drivetrain == null:
 		tc_cut = 1.0
 		return thr
@@ -306,6 +379,15 @@ func throttle(car, dt: float, thr: float) -> float:
 			continue
 		var spin: float = dir * (w.omega * w.radius - w.v_long) / maxf(absf(w.v_long), cfg.tc_low_speed)
 		worst = maxf(worst, spin - w.surface_tire.longitudinal_peak)
+	# (and a driven axle sliding sideways past its peak: power oversteer, the tail stepping out
+	# on the throttle, as the real systems count it; tc_side_band of a peak's worth past it cuts it all)
+	var front: float = car.drivetrain.split()
+	for k in 4:
+		var w = car.wheels[k]
+		if not w.grounded or (front <= 0.01 and k < 2) or (front >= 0.99 and k >= 2):
+			continue
+		var past: float = absf(w.slip_angle_deg()) / maxf(w.surface_tire.lateral_peak_deg, 0.5) - 1.0
+		worst = maxf(worst, past * cfg.tc_band / cfg.tc_side_band)
 	var want := clampf(1.0 - worst / cfg.tc_band, 0.0, 1.0)
 	tc_cut = move_toward(tc_cut, want, dt * (20.0 if want < tc_cut else 8.0))
 	return thr * tc_cut
@@ -328,11 +410,17 @@ func brakes(car, dt: float, pedal: Array) -> Array:
 	return out
 
 
+## Stability control: the yaw rate the steering asks for (as far as the grip allows)
+## against the car's, plus the body's slip angle past esc_slip_deg (a wide slide the yaw
+## rate misses); off by more than the deadband, one wheel's brake turns it back (sliding
+## round: the outside front; not turning enough: the inside rear), harder on a heavier
+## car, and sliding round it cuts the engine too, as a real ESC does.
 func _stability(car) -> void:
 	esc_wheel = -1
 	esc_torque = 0.0
 	var v := float(car.speed)
 	if not cfg.stability_control or v < 5.0 or float(car.inp.handbrake) > 0.05:
+		esc_cut = 1.0
 		return
 	var base: float = car.config.rear_axle - car.config.front_axle
 	var mu: float = 0.5 * (car.wheels[0].surface_tire.lateral_mu + car.wheels[2].surface_tire.lateral_mu)
@@ -340,10 +428,16 @@ func _stability(car) -> void:
 	var want := clampf(-v * tan(float(car.steer)) / base, -r_max, r_max)   # yaw rate it asks for (+ = left)
 	var r: float = car.angular_velocity.dot(car.global_transform.basis.y)
 	var e := want - r                               # the yaw it needs to add (+ = to the left)
+	var beta := body_slip(car)                      # (+ = going right of where it points: the nose swung left)
+	var past := absf(beta) - deg_to_rad(cfg.esc_slip_deg)
+	if past > 0.0:
+		e -= signf(beta) * past * cfg.esc_slip_gain
 	var dead: float = cfg.esc_deadband + 0.1 * absf(want)
+	var sliding := absf(r) > absf(want) or signf(r) != signf(want) or past > 0.0   # round more than asked, or the wrong way
+	esc_cut = clampf(1.0 - (absf(e) - dead) / cfg.esc_cut_band, cfg.esc_cut_floor, 1.0) if sliding else 1.0
 	if absf(e) < dead:
 		return
-	var sliding := absf(r) > absf(want) or signf(r) != signf(want)   # round more than asked, or the wrong way
+	var heavy: float = float(car.mass) / 1500.0
 	var left := e > 0.0                             # braking a left wheel turns it left
 	esc_wheel = (0 if left else 1) if sliding else (2 if left else 3)
-	esc_torque = minf(cfg.esc_gain * (absf(e) - dead), cfg.esc_max)
+	esc_torque = minf(cfg.esc_gain * heavy * (absf(e) - dead), cfg.esc_max * heavy)

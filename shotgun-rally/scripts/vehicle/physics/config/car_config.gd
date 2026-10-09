@@ -16,6 +16,10 @@ extends Resource
 ## A road car's own suspension (CarSpecs: worked out from its weight for a ride frequency and
 ## a roll gradient): never stiffened into the rally tarmac setup (RallyCar._tune).
 @export var road_suspension := false
+## How much more steering it needs per g of cornering than the turn's geometry (its
+## understeer gradient, deg per g): SIM street steering asks for a share of the grip
+## through it (DriverAssist.angle_for). 0: the rally car's (not used there).
+@export var understeer := 0.0
 
 @export_group("Wheels")
 ## Front axle position along the car (car-space z, negative = forward).

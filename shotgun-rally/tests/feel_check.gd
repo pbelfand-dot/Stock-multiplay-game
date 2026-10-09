@@ -143,6 +143,7 @@ func _aids() -> void:
 		car.assists.countersteer_help = false
 	if diag.has("scale"):
 		car.assists.speed_sensitive_steering = false
+	car._set_aids()                                     # (SIM STREET runs a copy: hand it the switches)
 
 
 func _next() -> void:
@@ -309,8 +310,14 @@ func _drive(beta: float, yaw: float, hv: float, heading: float) -> Dictionary:
 				var y: float = car.global_position.x - _x0.x
 				var psi := -deg_to_rad(heading)                   # + = pointing right
 				var r: float = -car.angular_velocity.y           # + = turning right
-				var r_full: float = 15.0 / maxf(hv, 5.0)          # about what full input turns it by (1.5 g)
-				var r_want := clampf((clampf((3.5 - y) * 0.05, -0.09, 0.09) - psi) * 2.5, -r_full, r_full)
+				# about what full input turns it by: 1.5 g (ARCADE); in SIM street the stick asks for
+				# a share of the car's own grip (DriverAssist.angle_for), so the driver knows that
+				var full_g: float = float(Catalog.street_grip(car_id)[0]) * 9.8 if cfg == "street" else 15.0
+				var r_full: float = full_g / maxf(hv, 5.0)
+				# (aiming at the lane: rad of heading per m off it; in SIM street smaller corrections the
+				# faster it goes, as a driver makes at 200: a fixed gain there hunts without yaw damping)
+				var aim: float = minf(0.05, 2.2 / maxf(hv, 5.0)) if cfg == "street" else 0.05
+				var r_want := clampf((clampf((3.5 - y) * aim, -0.09, 0.09) - psi) * 2.5, -r_full, r_full)
 				var u := clampf(r_want / r_full + 2.0 * (r_want - r) / r_full, -1.0, 1.0)
 				s = (signf(u) if absf(u) > 0.3 else 0.0) if c.dev == "kb" else u
 		"sine":
@@ -655,7 +662,11 @@ func _street_summary() -> void:
 			# (keys: the test's on-off driver hunts round the lane for a while without the
 			# arcade's yaw damping, so on keys it's judged on staying in control: no
 			# slide, no big overshoot; on a pad, settled too)
-			_lim([ln], func(): return r[ln].beta <= 5.0 and r[ln].over <= 1.5 and (dev == "kb" or (r[ln].done <= 4.0 and r[ln].wobble <= 3)),
+			# (SIM street has no yaw-damping aid out of the box any more: the test's on-off key
+			# driver overshoots up to ~2 m at 200 km/h, though the car itself settles in ~0.6 s
+			# with no rebound after an open-loop key lane change: /root/srwork/feel's harness)
+			var most_over: float = 2.0 if dev == "kb" and v >= 200 else 1.5
+			_lim([ln], func(): return r[ln].beta <= 5.0 and r[ln].over <= most_over and (dev == "kb" or (r[ln].done <= 4.0 and r[ln].wobble <= 3)),
 				func(): return "street %s: a lane change at %d km/h done in %.2f s, %.2f m overshoot, %.1f deg slip, %d wobbles" % [dev, v, r[ln].done, r[ln].over, r[ln].beta, int(r[ln].wobble)])
 	_lim(["flick 200 kb"], func(): return r["flick 200 kb"].beta <= 6.0,
 		func(): return "street keys: a quick flick at 200 km/h: %.1f deg slip, turned %.1f deg" % [r["flick 200 kb"].beta, r["flick 200 kb"].turned])
@@ -666,8 +677,9 @@ func _street_summary() -> void:
 			func(): return "street: emergency braking from %d km/h: %.0f m (at most %.0f), straight (%.1f deg/s yaw)" % [v, r[bk].dist, most, r[bk].yaw])
 	_lim(["brake 150 steer pad"], func(): return r["brake 150 steer pad"].beta <= 12.0,
 		func(): return "street: braking from 150 and steering: it steers, no spin (%.1f deg slip)" % r["brake 150 steer pad"].beta)
-	# (a clip on the rear corner at 150, hands off: HIGH-SPEED STABILITY, on out of the
-	# box, catches it; with it switched off it spins, as a real car would. Printed)
+	# (a hard clip on the rear corner at 150, hands off: in SIM street the car's own
+	# stability control (its brakes) fights it, as a real car's would; HIGH-SPEED STABILITY
+	# (CUT UP, TOUGE), off out of the box, catches it. Printed)
 	if results.has("clip 150"):
 		print("[feel] info %-8s street: clipped on the rear corner at 150, hands off: %.0f deg slip at most%s" % [car_id, r["clip 150"].beta,
 			" (spun)" if r["clip 150"].beta > 90.0 else ", straight again in %.2f s" % r["clip 150"].back])

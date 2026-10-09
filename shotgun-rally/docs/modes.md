@@ -234,16 +234,39 @@ SIM is Assetto Corsa-like: each car on the road tyres it really has (`TireModel.
   the tyres, and the brake balance follows the weight at the stop (a 911 brakes on its rear
   tyres too);
 - **the aids**: no drift assist, no countersteer help (the car slides as the tyres let it);
-  HIGH-SPEED STABILITY as its Settings switch says (on out of the box: it catches a clip in
-  traffic); factory ABS and traction control where the real car has them as standard (the
-  classics, the prototypes and the rally cars without; their switches still force them on;
-  no traction control in the touge's DRIFT rules).
+  HIGH-SPEED STABILITY has its own street switch, HIGH-SPEED STABILITY (CUT UP, TOUGE), off out
+  of the box (the video study: an invisible hand that snapped every slide straight in 0.1 s felt
+  fake); factory ABS, and traction control and stability control (ESC) where the real car has
+  them as standard (the classics, the prototypes and the rally cars without; their switches
+  still force them on; no traction control in the touge's DRIFT rules). Its ESC brakes one
+  wheel (harder on a heavier car), counts a wide slide as well as the yaw, and cuts the engine
+  while it catches one; traction control counts the driven tyres sliding sideways too (power
+  oversteer);
+- **the steering** (with SPEED-SENSITIVE STEERING on, out of the box): the stick asks for that
+  share of the car's grip, in proportion (a quarter of the stick a quarter, half half), through
+  the turn's geometry and the car's understeer, which it learns as it's driven (every car's is
+  its own); the last tenth of the stick adds the front tyres' peak slip (full lock pushes wide,
+  never spins it). Sliding, steering toward the slide may turn the wheels to where the front
+  axle's going and past (a slide can be caught by hand; nothing steers for you). Keys at speed:
+  a held key first asks for a lane change's worth, all of it only if held on for a bend. The
+  stick's deadzone is 0.07 (it was 0.2: the first fifth of the stick did nothing);
+- **traffic has weight**: running into a car shares the hit by weight as two real cars do
+  (`Traffic.shove`): a rear-ender at 133 into 100 km/h costs you 17 km/h (it was ~50, as off a
+  wall) with a ~5 g jolt, the car is shoved on, hard enough it's a crash and it pulls up; a rub
+  alongside shoves it off its line and it steers back into its lane;
+- **the camera** shivers a hair at speed and with the revs (~0.08 deg rms at 200 km/h flat out),
+  more on gravel than asphalt.
 
 Measured (`tests/sim_check.gd`, a 76 km/h ramp-steer skid pad and 100-0 km/h): the Supra
 1.06 g and 37 m, the GT-R 1.00 g and 36 m, the AE86 0.80 g and 43 m, the GT3 RS 1.28 g and
 29 m; ARCADE gives the same road cars 1.4-1.6 g (the GT3 RS 1.96). What SIM means at the wheel: real cars slide
-earlier and need smoother hands; with HIGH-SPEED STABILITY switched off, a clip on the rear
-corner at 150 km/h spins the car, as it would in Assetto Corsa. ARCADE is there for those who'd
+earlier and need smoother hands. Measured with the study's harness (GR Supra, at 200 km/h):
+a quarter / half / three-quarters / all of the stick gives 26 / 51 / 76 / 98 % of its grip (it
+was 71 / 91 / 98 / 99 %); lane changes settle in 0.3-0.7 s with no rebound and no hidden push on
+the body (the old aid pushed with 7-22 kN m); a clip the size a hit with traffic now is (1.5 m/s
+at the rear axle) peaks at 8-9 deg of slide and is straight again in under a second, by the
+car's own ESC; a hard one (3 m/s) slides 40-57 deg but no longer spins the Supra or the G 63;
+flooring it out of a 60 km/h corner no longer spins the Supra. ARCADE is there for those who'd
 rather.
 
 ## Tests
