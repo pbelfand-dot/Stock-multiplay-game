@@ -171,7 +171,8 @@ const NO_ABS := ["brawler", "hako", "hachi", "kitsune", "rotora_fc", "nimbus", "
 ## TRACTION CONTROL still turns it on for every car.
 const FACTORY_TC := ["akatsuki", "raiden", "hellhound", "hellhound_s", "kaiser_2", "kaiser_4", "kaiser_8", "kaiser_t",
 	"kombi", "gls", "mochi", "traffic_sedan", "traffic_crossover", "traffic_minivan", "elfer_rs", "uno", "ghost",
-	"centuria", "vento", "bolt16", "elfer_r", "elfer_evo", "gtp963", "vsr"]
+	"centuria", "vento", "bolt16", "elfer_r", "elfer_evo", "gtp963", "vsr",
+	"stromer", "warhawk", "pueblo", "kaiser_5x", "kaiser_7x", "kasten"]
 
 
 ## [g, tyre kind, factory ABS, factory TC] for this car in SIM STREET (STREET, else

@@ -380,8 +380,10 @@ and a car tipped; and the squeal only came on at the limit. Now:
 - **ARCADE on tarmac**: x1.1 instead of x1.3 (1.44-1.51 g on tarmac tyres), a sliding or
   spinning rear keeps 85 % (the throttle holds a drift), the grip peaks later on asphalt
   (progressive); gravel x1.65 (1.44 g).
-- **HIGH-SPEED STABILITY** (its own switch, on out of the box): from ~90 km/h, yaw the steering
-  didn't ask for (a wobble, a clipped tail) is damped; it stays out of a drift you're steering.
+- **HIGH-SPEED STABILITY** (its own switch, on out of the box on rally stages): from ~90 km/h, yaw
+  the steering didn't ask for (a wobble, a clipped tail) is damped; it stays out of a drift you're
+  steering. In cut up and the touge it's its own switch, off out of the box: the car's own
+  stability control catches slides there (docs/modes.md).
 - **The squeal warns**: it follows how much of each tyre's grip is in use: 0.3 at 80 % of the
   limit, 0.6 at 90 %, full in a slide (it was 0.1 at 90 %, then full on).
 - REAL tyres with every aid off is the pure sim, unchanged (1.36 g, no aid holds anything).
@@ -459,8 +461,10 @@ has. Its asphalt grip is set so it holds its real skid-pad figure (measured wher
 published one: GR Supra 1.07 g, GT-R 1.00, Hellcat ~0.93, 911 GT3 RS 1.24; estimated by age
 and tyre otherwise), the grip peaks at a road tyre's 7.5 deg and a sliding one keeps 85 %, it
 brakes at ~1.1x its cornering grip with the balance following the weight, and there's no drift
-assist or countersteer help (factory ABS and traction control where the real car has them;
-HIGH-SPEED STABILITY stays a Settings switch).
+assist or countersteer help (factory ABS, traction and stability control where the real car has
+them; HIGH-SPEED STABILITY has its own street switch, off out of the box). The stick asks for a
+share of the car's grip in proportion, a slide can be caught by hand, and traffic you hit has
+weight (it's shoved, you keep your share of the speed).
 `tests/sim_check.gd` measures nine cars on a skid pad and from 100 km/h: all within 6 % of their
 real figures (the Supra 1.06 g and 37 m). ARCADE keeps the rally's grip for those who'd rather.
 Details: [docs/modes.md](docs/modes.md).

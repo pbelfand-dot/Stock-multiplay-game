@@ -30,6 +30,10 @@ extends Resource
 ## High-speed stability: at speed, yaw the steering didn't ask for (a wobble, a
 ## clipped tail) is damped (an arcade aid: a turning force on the body).
 @export var high_speed_stability := false
+## The same aid in SIM street handling (cut up, the touge), its own switch, off out of
+## the box: there a modern car's own stability control (brakes, Catalog.FACTORY_TC)
+## catches a slide instead, so a clip or a twitch shows and can be caught by hand.
+@export var street_high_speed_stability := false
 
 @export_group("ABS")
 ## How far past the tyre's peak slip a wheel may lock before its brake is fully off
@@ -41,14 +45,25 @@ extends Resource
 @export_range(0.01, 1.0, 0.01) var tc_band := 0.15
 ## Below this speed the spin is measured against it instead (so it can pull away).
 @export_range(0.5, 10.0, 0.1, "suffix:m/s") var tc_low_speed := 3.0
+## A driven wheel sliding sideways past its tyre's peak slip angle counts too (power
+## oversteer): this many peaks past it and the throttle's fully cut.
+@export_range(0.05, 2.0, 0.01) var tc_side_band := 0.35
 
 @export_group("Stability control")
 ## Brake torque per rad/s the car yaws off what the steering asks for (N m).
-@export_range(0.0, 20000.0, 100.0, "suffix:N m/(rad/s)") var esc_gain := 4000.0
+@export_range(0.0, 20000.0, 100.0, "suffix:N m/(rad/s)") var esc_gain := 8000.0   # (per 1,500 kg)
 ## The most it brakes one wheel with (N m).
-@export_range(0.0, 5000.0, 50.0, "suffix:N m") var esc_max := 1500.0
+@export_range(0.0, 5000.0, 50.0, "suffix:N m") var esc_max := 3000.0   # (per 1,500 kg: about what a front tyre can take)
 ## How far off (rad/s) before it steps in.
 @export_range(0.0, 1.0, 0.01, "suffix:rad/s") var esc_deadband := 0.1
+## The body's slip angle past this counts too (a wide, slow slide the yaw rate misses),
+## as this much yaw rate per radian past it.
+@export_range(0.0, 30.0, 0.5, "suffix:deg") var esc_slip_deg := 5.0
+@export_range(0.0, 10.0, 0.1) var esc_slip_gain := 2.0
+## Sliding round, it also cuts the engine (as a real ESC does): fully back to
+## esc_cut_floor of the throttle by this much yaw error past the deadband.
+@export_range(0.05, 2.0, 0.01, "suffix:rad/s") var esc_cut_band := 0.5
+@export_range(0.0, 1.0, 0.01) var esc_cut_floor := 0.2
 
 @export_group("Steering")
 ## Smoothing a stick: its time constant (s). A stick is analog already: just a touch.
@@ -77,6 +92,36 @@ extends Resource
 ## input asked for their peak and a fifth of a stick already had most of it at
 ## 200 km/h: a stick was all or nothing at speed.
 @export_range(0.5, 1.0, 0.01) var speed_sensitive_grip := 0.98
+## SIM street steering (cut up, the touge): the stick asks for a share of the grip in
+## proportion (half a stick, half of street_grip_share of it), through the turn's
+## geometry and the car's understeer; past street_peak_from of the travel the front
+## tyres' peak slip angle comes in too (full lock pushes the nose wide, never spins it).
+@export_range(0.5, 1.0, 0.01) var street_grip_share := 0.95
+@export_range(0.5, 1.0, 0.01) var street_peak_from := 0.9
+## The car's understeer (that steering goes through) is learned as it's driven: in steady
+## corners past learn_from_g (its cornering g changing less than learn_steady g a second),
+## eased in over learn_time s, at most learn_most_deg per g. It starts from its chassis
+## class's (CarSpecs "us").
+@export_range(0.02, 1.0, 0.01, "suffix:g") var learn_from_g := 0.1
+@export_range(0.05, 5.0, 0.05, "suffix:g/s") var learn_steady := 0.6
+@export_range(0.1, 10.0, 0.1, "suffix:s") var learn_time := 0.8
+@export_range(0.5, 10.0, 0.5, "suffix:deg/g") var learn_most_deg := 5.0
+## SIM street, sliding (the body's slip past counter_from_deg, fully by counter_full_deg,
+## eased in over counter_time): steering toward the slide may turn the wheels to where
+## the front axle's going plus their peak slip angle, so a slide can be caught by hand
+## (speed-sensitive steering's limit had allowed 6 deg at 150 km/h). Nothing steers for you.
+@export_range(0.0, 20.0, 0.5, "suffix:deg") var counter_from_deg := 2.0
+@export_range(0.5, 30.0, 0.5, "suffix:deg") var counter_full_deg := 5.0
+@export_range(0.01, 1.0, 0.01, "suffix:s") var counter_time := 0.1
+## SIM street keys at speed (fully from key_stage_to, not at all below key_stage_from): a
+## held key first asks for key_stage_share of the steering (a lane change), all of it only
+## once held key_stage_hold s (over key_stage_rise s): a held key used to ask for all the
+## grip at 200 km/h.
+@export_range(0.1, 1.0, 0.01) var key_stage_share := 0.55
+@export_range(0.0, 3.0, 0.05, "suffix:s") var key_stage_hold := 0.6
+@export_range(0.05, 3.0, 0.05, "suffix:s") var key_stage_rise := 0.4
+@export_range(0.0, 80.0, 0.5, "suffix:m/s") var key_stage_from := 16.5
+@export_range(1.0, 100.0, 0.5, "suffix:m/s") var key_stage_to := 25.0
 
 @export_group("Drift assist")
 ## A drift: the body's slip angle (between where it points and where it's going)

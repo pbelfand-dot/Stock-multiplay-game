@@ -219,9 +219,14 @@ func _report() -> void:
 		r.want = g_want * brake
 		r.ok = absf(r.g / r.want - 1.0) <= BRAKE_TOL
 	if c.sim:
-		r.aids_ok = not car.assist.cfg.drift_assist and not car.assist.cfg.countersteer_help and car.assist.cfg.high_speed_stability \
+		# (no drift helpers; high-speed stability its own street switch, off out of the box; the
+		# factory ABS, and traction and stability control where the real car has them)
+		r.aids_ok = not car.assist.cfg.drift_assist and not car.assist.cfg.countersteer_help and not car.assist.cfg.high_speed_stability \
 			and car.assist.cfg.anti_lock == (bool(Catalog.street_grip(c.car)[2]) or c.k == "brake") \
-			and car.assist.cfg.traction_control == bool(Catalog.street_grip(c.car)[3])
+			and car.assist.cfg.traction_control == bool(Catalog.street_grip(c.car)[3]) \
+			and car.assist.cfg.stability_control == bool(Catalog.street_grip(c.car)[3])
+		if not r.aids_ok:
+			print("[sim] FAIL %s: its street aids aren't the car's own" % c.car)
 		if not r.ok or not r.aids_ok:
 			fails += 1
 	results.append(r)

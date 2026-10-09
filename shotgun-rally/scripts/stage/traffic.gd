@@ -61,6 +61,11 @@ const TYPES := {
 	"suv": {"speed": 1.01, "gap": 1.3, "keep_right": 0.2, "eager": 1.0},
 	"luxury": {"speed": 1.06, "gap": 1.05, "keep_right": 0.05, "eager": 1.4},
 	"van": {"speed": 0.9, "gap": 1.7, "keep_right": 0.5, "eager": 0.6}}
+## What each kind weighs (kg): a hit shares the speed between the two cars by weight (shove).
+const TYPE_MASS := {"compact": 1250.0, "sedan": 1500.0, "crossover": 1700.0, "minivan": 1950.0, "suv": 2200.0,
+	"luxury": 2000.0, "van": 2400.0}
+const PUSH_K := 2.5             # 1/s²: a shoved car steering back into its lane (a soft spring) ...
+const PUSH_C := 2.6             # 1/s: ... damped (it settles in ~2 s, no swerving back past it)
 
 var st
 var diff := {}
@@ -469,7 +474,19 @@ func _mobil(c: Dictionary, a_here: float) -> void:
 
 func _place(c: Dictionary, dt: float) -> void:
 	var u: float = smoothstep(0.0, 1.0, float(c.t))
-	c.d = lerpf(_ldx(int(c.lane), float(c.s)), _ldx(int(c.to), float(c.s)), u)
+	var push: float = float(c.get("push_d", 0.0))
+	if push != 0.0 or float(c.get("push_v", 0.0)) != 0.0:
+		# shoved sideways (shove): it slides off its line, then steers back into its lane
+		# (a crashed one only slows)
+		var pv: float = float(c.push_v)
+		pv += ((0.0 if c.crashed else -PUSH_K * push) - PUSH_C * pv) * dt
+		push += pv * dt
+		if absf(push) < 0.01 and absf(pv) < 0.01 and not c.crashed:
+			push = 0.0
+			pv = 0.0
+		c.push_d = push
+		c.push_v = pv
+	c.d = lerpf(_ldx(int(c.lane), float(c.s)), _ldx(int(c.to), float(c.s)), u) + push
 	_pose(c, dt, u)
 
 
@@ -638,7 +655,55 @@ func _lane_speed(lane: int) -> float:
 	return lerpf(float(sp[0]), float(sp[1]), (lane + _rng.randf()) / lanes) / 3.6   # (lane 0, the right-hand one, slowest)
 
 
-## The player hit this car: it stops (and the score knows).
+## The player ran into this car: the two share the hit by weight, as two real cars do.
+## The physics bounced the player off the car as off a wall (its body is kinematic),
+## sometimes over two ticks, so the hit is worked out again here as a crash between the
+## two weights: along the push (the way the wall bounced the player: dv_wall, its velocity
+## after - before), both end at their shared speed (a crash, not a bounce), from the
+## player's velocity before it (v_player) and the car's. The car gets its side of it (along
+## the road: its speed; across: a shove off its line that it steers back from); "back" is
+## what to hand the player back, "share" the part of the wall's hit the player really took.
+## On a guest's machine the host's car takes it (net_shove).
+func shove(body: Node, dv_wall: Vector3, v_player: Vector3, m_player: float, v_now: Vector3) -> Dictionary:
+	if dv_wall.length() < 0.01:
+		return {}
+	for c in cars:
+		if c.body != body:
+			continue
+		var m_car: float = float(TYPE_MASS.get(str(c.get("type", "sedan")), 1500.0))
+		var s: float = float(c.s) if looped else clampf(float(c.s), 1.0, st.length - 1.0)
+		var fwd: Vector3 = st.forward_at(s)
+		var right: Vector3 = st.right_at(s)
+		var v_car: Vector3 = fwd * float(c.v) + right * float(c.get("push_v", 0.0))
+		var n: Vector3 = dv_wall.normalized()               # (the push: from the car toward the player)
+		var shared: float = (m_player * v_player.dot(n) + m_car * v_car.dot(n)) / (m_player + m_car)
+		var dv_car: Vector3 = n * (shared - v_car.dot(n))
+		_push(c, dv_car.dot(fwd), dv_car.dot(right))
+		if mirror and multiplayer.has_multiplayer_peer():
+			net_shove.rpc_id(1, int(c.id), dv_car.dot(fwd), dv_car.dot(right))
+		var took: float = absf(shared - v_player.dot(n))    # (the player's real speed change)
+		return {"car": c, "back": n * (shared - v_now.dot(n)), "share": clampf(took / dv_wall.length(), 0.0, 1.0)}
+	return {}
+
+
+func _push(c: Dictionary, along: float, across: float) -> void:
+	c.v = maxf(float(c.v) + along, 0.0)
+	c.push_v = float(c.get("push_v", 0.0)) + across
+	c.push_d = float(c.get("push_d", 0.0))
+
+
+## (host) A machine's player shoved one of our cars.
+@rpc("any_peer", "reliable")
+func net_shove(id: int, along: float, across: float) -> void:
+	if mirror:
+		return
+	for c in cars:
+		if int(c.id) == id:
+			_push(c, along, across)
+			return
+
+
+## The player hit this car hard (a crash): it stops (and the score knows).
 func hit(body: Node) -> Dictionary:
 	for c in cars:
 		if c.body == body:

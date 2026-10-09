@@ -43,6 +43,9 @@ var _acc_local := Vector3.ZERO
 var _bump := 0.0
 var _orbit := 0.6               # rad around the car
 var _buzz_t := 0.0
+var _rev_t := 0.0                    # (the engine's shiver through the body: its own clock)
+const JITTER_DEG := 0.08             # deg rms the view shivers at 200 km/h, flat out (the video study:
+                                     # a real dash cam at speed ~0.2 deg; a game's often none)
 var _neck_v := 0.0
 var _chase_dir := Vector3.FORWARD    # the way the chase camera looks (smoothed)
 var _chase_y := 0.0                   # the height it follows (smoothed)
@@ -125,10 +128,17 @@ func _process(dt: float) -> void:
 	# the gravel through the seat: a fine buzz that grows with speed (more off the road),
 	# and the view opens up a little when you're quick
 	var spd: float = car.linear_velocity.length()
-	var rough := 1.0 if car.on_surface == "gravel" else 1.8
+	var rough := 1.8 if car.on_surface == "gravel" else 1.0      # (gravel shakes more than asphalt)
 	_buzz_t += dt * (14.0 + spd * 0.4)
 	var buzz := clampf(spd / 30.0, 0.0, 1.0) * 0.0022 * rough
 	shake += Vector3(sin(_buzz_t * 1.7) + sin(_buzz_t * 3.1) * 0.5, sin(_buzz_t * 2.3) + sin(_buzz_t * 4.7) * 0.4, 0.0) * buzz
+	# and a shiver that turns the view a hair (not just moves it): the road at speed and the
+	# engine's revs through the body, more on the throttle; at 200 km/h flat out ~JITTER_DEG rms
+	var revs: float = clampf(float(car.get("rpm") if car.get("rpm") != null else 0.0), 0.0, 1.0)
+	var thr: float = clampf(float(car.inp.get("throttle", 0.0)) if "inp" in car else 0.0, 0.0, 1.0)
+	_rev_t += dt * (9.0 + revs * 9.0)
+	var shiver := deg_to_rad(JITTER_DEG) * 1.41 * (clampf(spd / 55.0, 0.0, 1.0) * 0.7 * rough + revs * (0.15 + 0.35 * thr))
+	var jitter := Vector2(sin(_rev_t * 2.1) * 0.6 + sin(_buzz_t * 3.7) * 0.4, sin(_rev_t * 1.3) * 0.5 + sin(_buzz_t * 2.9) * 0.5) * shiver
 	var street_chase := view == "chase" and chase_style == "street"
 	# (the chase view barely widens: widening it with speed made the car shrink away, as
 	# if the camera fell back)
@@ -137,7 +147,7 @@ func _process(dt: float) -> void:
 		fov_want = (70.0 if street_chase else 74.0) + clampf(spd / 70.0, 0.0, 1.0) * 4.0
 	fov = lerpf(fov, fov_want, clampf(dt * 2.0, 0.0, 1.0))
 
-	var head := Transform3D(Basis.from_euler(Vector3(look_pitch, look_yaw, 0.0), EULER_ORDER_YXZ), eye + _lean + shake)
+	var head := Transform3D(Basis.from_euler(Vector3(look_pitch + jitter.x, look_yaw, jitter.y), EULER_ORDER_YXZ), eye + _lean + shake)
 	match view:
 		"orbit":
 			_orbit += dt * 0.22
@@ -166,6 +176,7 @@ func _process(dt: float) -> void:
 			var base := Vector3(xf.origin.x, _chase_y, xf.origin.z)
 			var look := base + (Vector3.UP * 0.8 + _chase_dir * 14.0 if street_chase else Vector3.UP * 0.9 + _chase_dir * 3.0)
 			global_transform = Transform3D(Basis(), base - _chase_dir * back + Vector3.UP * up + shake * (2.0 if street_chase else 1.0)).looking_at(look, Vector3.UP)
+			global_transform.basis = global_transform.basis * Basis.from_euler(Vector3(jitter.x, 0.0, jitter.y) * 0.6)
 		_:
 			global_transform = xf * head
 			_chase_ready = false
