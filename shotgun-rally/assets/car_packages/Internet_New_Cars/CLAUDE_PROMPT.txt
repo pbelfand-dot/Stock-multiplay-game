@@ -1,13 +1,14 @@
-Continue the SHOTGUN RALLY vehicle integration autonomously. I am going to bed, so do not stop to ask me to choose implementation details. Make sensible decisions, work one vehicle at a time, test each one, and continue until all six are either working in the game or have a precise technical blocker documented.
+Continue the SHOTGUN RALLY vehicle integration autonomously. I am going to bed, so do not stop to ask me to choose implementation details. Make sensible decisions, work one vehicle at a time, test each one, and continue until all seven are either working in the game or have a precise technical blocker documented.
 
-The six new source packages are in `shotgun-rally/assets/car_packages/Internet_New_Cars/`:
+The seven new source packages are in `shotgun-rally/assets/car_packages/Internet_New_Cars/`:
 
-1. `volkswagen-id4-2021.zip` — Volkswagen ID.4 2021, original GLB.
-2. `jeep-grand-cherokee-trackhawk.zip` — Jeep Grand Cherokee Trackhawk, original OBJ package.
-3. `dodge-durango-srt-392.zip` — Dodge Durango SRT 392, original OBJ package nested inside the download zip.
-4. `2016-bmw-x5-m.zip` — BMW X5 M 2016, original FBX package nested inside the download zip.
-5. `bmw-x7-2020.zip` — BMW X7 2020, original GLB.
-6. `2020-mercedes-benz-g-class-amg-g63.zip` — Mercedes-AMG G63 2020, original GLB.
+1. `2023-bmw-320i-xdrive-source.zip` plus `2023-bmw-320i-xdrive-2k.glb` — 2023 BMW 320i xDrive G20, original editable Blender source and 2K Sketchfab GLB. The full mesh is 2.7M triangles: preserve it for close garage views and create optimized driving LODs without removing its interior.
+2. `volkswagen-id4-2021.zip` — Volkswagen ID.4 2021, original GLB.
+3. `jeep-grand-cherokee-trackhawk.zip` — Jeep Grand Cherokee Trackhawk, original OBJ package.
+4. `dodge-durango-srt-392.zip` — Dodge Durango SRT 392, original OBJ package nested inside the download zip.
+5. `2016-bmw-x5-m.zip` — BMW X5 M 2016, original FBX package nested inside the download zip.
+6. `bmw-x7-2020.zip` — BMW X7 2020, original GLB.
+7. `2020-mercedes-benz-g-class-amg-g63.zip` — Mercedes-AMG G63 2020, original GLB.
 
 Read `Internet_New_Cars/README.md`, `docs/VEHICLE_PROGRESS.md`, `docs/CREDITS.md`, the vehicle registry, existing conversion scripts, and tests before changing code. Do not delete or flatten cabin geometry. Each vehicle must retain a usable, good-looking interior for first-person driving: seats, dashboard, steering wheel, console, door cards, glass, gauges/screens, and sensible materials. Put the player character in a believable driving pose, align hands to the steering wheel, keep head/limbs out of the roof and doors, and set a good first-person eye position. Preserve separated wheels, brakes, steering wheel, and gear controls wherever the source permits. Avoid making the entire car one rotating wheel mesh.
 
