@@ -1,0 +1,5 @@
+source	license	storage_path	size_bytes	sha256	notes
+https://icemaan.itch.io/free-low-poly-car3-3-body-kits-4-rims	CC0	Free_Wheels/ice-maan-cc96-four-rim-pack.zip	622631	136331440fead223b1ee69c4773a1cde212f768bd2a220e0efd0f3406f173922	Four paired FBX rim designs; license is included in the ZIP.
+https://www.innerscene.com/tools/library/3d-parts/17-inch-five-spoke-alloy-wheel-and-tyre-x3d-50c20c60	CC0	Free_Wheels/innerscene-17in-five-spoke-wheel-tyre.x3d	3037191	43b7e45a020c82380d3b2400c988d53b17f002b8e0a905ecf96c3164ca876e28	Real-scale 225/45 R17 assembly with wheel, tyre, disc, and caliper.
+https://github.com/usd-wg/assets/tree/3b75c2dad6a494897557dcca0098257bcf42a8c6/full_assets/Vehicles/USD_Mini_Car_Kit	CC0	Free_Wheels/USD_Mini_Car_Kit			Source tree copied at commit 3b75c2dad6a494897557dcca0098257bcf42a8c6; contains six USD wheel variants and a Formula example vehicle.
+
