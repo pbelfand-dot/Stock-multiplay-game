@@ -614,6 +614,14 @@ func set_simulating(on: bool) -> void:
 	freeze = not on
 
 
+## Parked for show (the menu's garage): held where place() put it, nothing simulated, its
+## wheels at the squash they have standing on flat ground (the model's rest pose).
+func park_still() -> void:
+	set_simulating(false)
+	for k in 4:
+		comp[k] = _static_comp[0 if k < 2 else 1]
+
+
 ## Where each tyre is on the road (car at road position s, d) -> its grip: on
 ## gravel the clean wheel tracks or the loose stuff, on asphalt the same all
 ## across (stage_gen.lane_mu).

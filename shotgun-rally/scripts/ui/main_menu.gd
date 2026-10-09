@@ -1,11 +1,12 @@
 extends Control
-## The home screen. Behind it, the game itself (MenuBackdrop: your car flat out
-## on a stage, filmed like rally TV). Over it: the logo, your credits, and six
-## ways in (the logo, icons and panels: Higgsfield art, assets/ui):
+## The home screen. Behind it, the garage (MenuGarage: your car parked under a light
+## box, a slow camera round it; --menu_stage brings back the old backdrop, MenuBackdrop:
+## your car flat out on a stage, filmed like rally TV). Over it: the logo, your
+## credits, and six ways in (the logo, icons and panels: Higgsfield art, assets/ui):
 ##   PLAY NOW   a random stage, straight in (the AI co-driver calls)
 ##   MODES      a touge (mountain pass: time attack or drift) or CUT UP (highway traffic) (ModesPanel)
 ##   MAPS       story mode: the championship (MapsPanel)
-##   CARS       the garage: buy, paint, upgrade (GaragePanel)
+##   CARS       the garage: buy, paint, upgrade (GaragePanel; the car on the spot swaps as you browse)
 ##   ONLINE     your name, host a crew (pick your seat) or join one by IP
 ##   SETTINGS   controls, sound, the co-driver's timing, driving aids (SettingsPanel)
 ## ESC (or BACK) goes back to the home buttons. The build and updates are top
@@ -19,6 +20,7 @@ signal mode(m: Dictionary)
 
 const UI = preload("res://scripts/ui/ui_kit.gd")
 const Backdrop = preload("res://scripts/ui/menu_backdrop.gd")
+const Garage = preload("res://scripts/ui/menu_garage.gd")
 const GaragePanel = preload("res://scripts/ui/garage_panel.gd")
 const MapsPanel = preload("res://scripts/ui/maps_panel.gd")
 const SettingsPanel = preload("res://scripts/ui/settings_panel.gd")
@@ -47,12 +49,12 @@ var _upd_action := ""
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)   # (plain set_anchors_preset keeps the old, zero size)
 	Profile.ensure_loaded()
-	backdrop = Backdrop.new()
+	backdrop = (Backdrop if Config.flag("menu_stage") else Garage).new()
 	add_child(backdrop)
 	backdrop.show_car(Profile.setup())
 	backdrop.ready_to_show.connect(_on_backdrop_ready)
 	_cover = ColorRect.new()
-	_cover.color = Color(0.07, 0.1, 0.08)
+	_cover.color = Color(0.015, 0.015, 0.018)          # (the garage's dark: it fades up out of it)
 	_cover.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_cover.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_cover)
@@ -202,6 +204,8 @@ func _show(which: String) -> void:
 	_home.visible = false
 	_sub.visible = false
 	_shrink_title(true)
+	if backdrop.has_method("set_mood"):
+		backdrop.set_mood(which)                        # (the garage's door frame takes the panel's colour)
 	match which:
 		"maps":
 			var m := MapsPanel.new()
@@ -237,6 +241,8 @@ func _back(home := true) -> void:
 		_open = null
 	backdrop.set_showroom(false)
 	backdrop.show_car(Profile.setup())
+	if home and backdrop.has_method("set_mood"):
+		backdrop.set_mood("")
 	if home:
 		_home.visible = true
 		_sub.visible = true

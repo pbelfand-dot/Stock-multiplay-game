@@ -97,6 +97,7 @@ func _ready() -> void:
 	_set_rules(_rules)
 	_set_toll(_toll)
 	_set_online(_online)
+	(_play_btns[false] as Button).grab_focus.call_deferred()     # (keys and pads start on ALONE)
 
 
 ## A mode's card: its key art behind (covering the card, darkened on the left

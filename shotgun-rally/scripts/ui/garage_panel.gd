@@ -5,8 +5,11 @@ extends PanelContainer
 ## you own can be painted (main, accent and stripe colours: free), given a
 ## livery and wheels (bought once, then yours on any car), a race number,
 ## upgrades (engine, tyres, brakes: three steps each), and its tyres and setup
-## for gravel or tarmac (free; AUTO matches the stage). The car behind the menu
-## parks and shows every change as you make it. Everything is in Profile.
+## for gravel or tarmac (free; AUTO matches the stage). The car on the garage's spot
+## behind the menu (MenuGarage) is the one you're looking at and shows every change as you
+## make it; DRIVE THIS ONE (or buying it) makes it yours to drive, saved, and it's the car
+## on the spot from then on. A pad's LB / RB flip through the cars too; the button you were
+## on keeps the focus as the panel redraws (keys and pads). Everything is in Profile.
 
 signal back
 signal changed                      # credits or the car changed: the menu redraws its chips
@@ -39,6 +42,32 @@ func _ready() -> void:
 			_i = k
 	_tab = get_node("/root/Config").arg("garage_tab", _tab)      # (pictures: --garage_tab=setup)
 	_rebuild()
+	_first_focus.call_deferred()
+
+
+## Opened from the home screen with keys or a pad: start on ▶ (or DRIVE THIS ONE).
+func _first_focus() -> void:
+	if not is_inside_tree() or get_viewport().gui_get_focus_owner() != null:
+		return
+	var buttons := _buttons()
+	if buttons.size() > 1:
+		(buttons[1] as Button).grab_focus()
+
+
+func _unhandled_input(e: InputEvent) -> void:
+	if e is InputEventJoypadButton and e.pressed:
+		match (e as InputEventJoypadButton).button_index:
+			JOY_BUTTON_LEFT_SHOULDER:
+				_flip(-1)
+				get_viewport().set_input_as_handled()
+			JOY_BUTTON_RIGHT_SHOULDER:
+				_flip(1)
+				get_viewport().set_input_as_handled()
+
+
+## The panel's buttons, top to bottom.
+func _buttons() -> Array:
+	return _body.find_children("*", "Button", true, false)
 
 
 func _car() -> Dictionary:
@@ -55,6 +84,13 @@ func _shown() -> Array:
 
 
 func _rebuild() -> void:
+	# the button in focus (keys, a pad): the same one gets it back once the panel's redrawn
+	var had := get_viewport().gui_get_focus_owner() if is_inside_tree() else null
+	var focus_at := -1
+	var focus_text := ""
+	if had is Button and is_ancestor_of(had):
+		focus_at = _buttons().find(had)
+		focus_text = (had as Button).text
 	for c in _body.get_children():
 		_body.remove_child(c)
 		c.queue_free()
@@ -163,6 +199,27 @@ func _rebuild() -> void:
 	_note = UI.label("", 18, UI.YELLOW)
 	bottom.add_child(_note)
 	_body.add_child(bottom)
+	if focus_at >= 0:
+		_refocus(focus_at, focus_text)
+
+
+## After a redraw: focus the button with the same words in the same place, else one with
+## the same words, else the one in the same place.
+func _refocus(at: int, text: String) -> void:
+	var buttons := _buttons()
+	if buttons.is_empty():
+		return
+	var pick: Button = null
+	if at < buttons.size() and (buttons[at] as Button).text == text:
+		pick = buttons[at]
+	if pick == null:
+		for b in buttons:
+			if (b as Button).text == text and text != "":
+				pick = b
+				break
+	if pick == null:
+		pick = buttons[mini(at, buttons.size() - 1)]
+	pick.grab_focus()
 
 
 func _flip(d: int) -> void:
