@@ -294,3 +294,35 @@ Six more garage cars, each also uncommon-to-rare highway traffic (details, numbe
 
 Their chassis: `sport_suv` (WARHAWK, KAISER 5X: firm, sharp), `suv` (PUEBLO, KAISER 7X, STROMER:
 heavy, calm), `tall_suv` (KASTEN: soft and tall, it rolls and pitches).
+
+## Suspension: how the road cars lean (October 2026)
+
+The road cars (every chassis class but the rally cars' own) work out their suspension from their own
+weight instead of scaling the rally car's (`CarSpecs._road_suspension`, the numbers in `CHASSIS`):
+
+- **springs** for a ride frequency on each corner's share of the weight: 1.15-1.35 Hz on the SUVs,
+  1.4-1.5 a road car, 1.65-1.75 a sports car, 2.4-2.6 a GT3, ~3 a prototype;
+- **dampers** a share of critical on those springs (softer in bump than in rebound), so a bump or a
+  lane change settles in a bob or two;
+- **anti-roll bars** for a roll gradient (how far the body leans per g of cornering) with the centre
+  of mass at a real height (0.74 m the G 63, 0.62-0.66 the other SUVs, 0.52 a road car, 0.46 a
+  sports car, 0.40 a GT3), the front axle taking 58-66 % of the roll stiffness (road cars push
+  before they slide);
+- room to lean and nod before the bump stops.
+
+In street mode the road cars no longer get the rally car's tarmac setup (springs and bars x1.5,
+for gravel cars on asphalt); the rally cars keep it. Measured (`/root/srwork/feel` harness, steady
+0.6 g at 100 km/h; braking at 0.6 g):
+
+| Car | Body roll (deg per g), before -> after | Braking nose dive (deg per g), before -> after |
+|---|---|---|
+| KASTEN 63 (G 63) | 1.5 -> 5.1 | 1.4 -> 3.3 |
+| KAISER 7X, PUEBLO 392, STROMER 4, GLS | 1.3-1.7 -> 4.1-4.3 | 1.0-1.2 -> 2.3-2.7 |
+| KAISER 5X, WARHAWK 707 | 1.1 -> 3.3 | 0.8 -> 1.9 |
+| BRAWLER 70 (road) | 1.2 -> 2.9 | 0.7 -> 1.9 |
+| Sports cars (Supra, M4, Hellcat) | 0.6-0.7 -> 2.1 | 0.4-0.5 -> 1.1-1.5 |
+| ELFER RS (GT3 RS) | 0.3 -> 1.1 | 0.2 -> 0.7 |
+
+Real cars lean about 3.5-5 deg/g (an SUV), 2-3 (a sports car) and 1-1.5 (a GT3). The skid-pad grip
+and the 100-0 stops are unchanged (`tests/sim_check.gd`), and the street feel checks, drifting,
+the touge drive, tyre setups and handling tests all pass.
