@@ -15,7 +15,7 @@ extends Node3D
 ## The light (Godot has no area lights): the light box's glowing underside and a soft
 ## spotlight straight down from it onto the car (its shadow under the car), weak lights
 ## under the trusses for the walls, near the door frame's foot and at the workbench (MEDIUM
-## and up), glowing LED strips, a very dark ambient, AgX; one box-projected reflection probe
+## and up), glowing LED strips, a dark ambient, AgX; one box-projected reflection probe
 ## for the room (the floor and the paint show the light box and the strips); SSAO from MEDIUM,
 ## SSR from HIGH (Graphics). LOW: the spot and two fills only, no glow. Compatibility (the
 ## web, Chromebooks) gets LOW's lights whatever the level (it draws a pass a light).
@@ -243,7 +243,7 @@ func _environment() -> void:
 	env.background_color = Color(0.0, 0.0, 0.0)
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	env.ambient_light_color = Color(0.6, 0.62, 0.66)
-	env.ambient_light_energy = 0.1
+	env.ambient_light_energy = 0.35                  # (dark, but the walls and the furniture read: the reference views)
 	env.reflected_light_source = Environment.REFLECTION_SOURCE_BG
 	env.tonemap_mode = Environment.TONE_MAPPER_AGX
 	env.tonemap_exposure = 1.0
@@ -262,7 +262,8 @@ func _lights() -> void:
 	_spot.position = Vector3(SPOT.x, 3.55, SPOT.z)
 	_spot.rotation.x = -PI * 0.5
 	_spot.light_color = GarageRoom.BOX_GLOW
-	_spot.light_energy = 9.0
+	_spot.light_energy = 6.5
+	_spot.light_specular = 0.45                      # (a soft sheen on the paint, not a blown spot on the roof)
 	_spot.spot_range = 7.5
 	_spot.spot_angle = 52.0
 	_spot.spot_angle_attenuation = 0.7
@@ -276,10 +277,10 @@ func _lights() -> void:
 		var o := OmniLight3D.new()
 		o.position = at
 		o.light_color = GarageRoom.LED
-		o.omni_range = 6.5
-		o.omni_attenuation = 1.4
-		o.light_energy = 0.9
-		o.light_specular = 0.3
+		o.omni_range = 7.5
+		o.omni_attenuation = 1.2
+		o.light_energy = 1.8
+		o.light_specular = 0.25
 		add_child(o)
 		_fills.append(o)
 	# the door frame's feet (a glow on the floor), the workbench's frame
@@ -313,10 +314,10 @@ func _graphics_changed() -> void:
 	var low := Graphics.level() == "low" or not f
 	env.fog_enabled = false
 	env.glow_enabled = Graphics.level() != "low" and not Graphics.headless()
-	env.glow_intensity = 0.6
+	env.glow_intensity = 0.45
 	env.glow_strength = 1.0
 	env.glow_bloom = 0.0
-	env.glow_hdr_threshold = 1.0
+	env.glow_hdr_threshold = 1.6                     # (the LED strips and the light box bloom; a lit roof doesn't)
 	env.glow_blend_mode = Environment.GLOW_BLEND_MODE_SCREEN
 	env.ssao_radius = 0.8
 	env.ssao_intensity = 1.8
@@ -326,7 +327,7 @@ func _graphics_changed() -> void:
 	for k in _fills.size():
 		(_fills[k] as Light3D).visible = k < (2 if low else 6)
 		# (LOW's two stand in for all six: a little stronger)
-		(_fills[k] as Light3D).light_energy = 1.4 if low else 0.9
+		(_fills[k] as Light3D).light_energy = 2.6 if low else 1.8
 	for l in _extras:
 		(l as Light3D).visible = not low
 	_spot.shadow_enabled = not Graphics.headless() and not (OS.has_feature("web") and Graphics.level() == "low")
