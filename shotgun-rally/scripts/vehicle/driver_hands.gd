@@ -2,7 +2,12 @@ extends Node3D
 ## The driver's hands: gloves that wrap round the steering wheel rim (the
 ## rigged crew model has no finger bones, so its own hands are hidden and these
 ## take their place), hand-over-hand steering, and the handbrake.
-##   * the gloves are racing gloves: black, pre-curved fingers round the rim,
+##   * the gloves are a model (GLOVES: red racing gloves with white panels, padded knuckles
+##     and a long gauntlet, as in the owner's Assetto Corsa clip; made with Higgsfield from a
+##     generated photo, fitted to the rim by tools/fit_glove.py: the hand round the rim in glove
+##     space, the gauntlet apart so it can follow the forearm; the left hand is the right one
+##     mirrored). Without the file, the gloves below, built here:
+##   * the built gloves are racing gloves: black, pre-curved fingers round the rim,
 ##     the thumb across its face, padded knuckles, a panel in the suit's colour
 ##     on the back, and a flared gauntlet with a strap that goes over the sleeve
 ##     (it turns to follow the forearm: aim_cuffs())
@@ -46,6 +51,8 @@ const ROAD_PULL := 0.42         # rad a road car's handbrake comes up
 const RIM_R := 0.0155           # thickness of the rim / lever handle the fingers wrap (a ~30 mm grip)
 const GRIP_ROLL := 0.55         # rad: the hand rolled round the rim toward the driver (you see the backs of your hands)
 const WRIST := Vector3(0.0, 0.01, 0.085)    # glove space (before the roll): where the forearm meets the hand
+const GLOVES := "res://assets/models/gloves/gloves.glb"   # the model: its "Glove" (the right hand) and "Cuff"
+const MODEL_WRIST := Vector3(0.0121, 0.0059, 0.1029)     # its wrist (the right hand's; glove space, before the roll)
 ## The gauntlet's outline, from inside the glove out over the sleeve (the crew's suit
 ## sleeve ends ~8 cm up the forearm, where its own glove's cuff was: crew_model.gd
 ## cuts that out), long like a racing glove's, then a lip turning in to the
@@ -59,6 +66,8 @@ var wrists: Array = [Vector3.ZERO, Vector3.ZERO]   # where the arms reach (cockp
 var _plane: Node3D               # the wheel's plane (tilted, not turned)
 var _gloves: Array = []
 var _cuffs: Array = []
+var _wrist: Array = [WRIST, WRIST]  # each hand's wrist in its glove's space (the model's, or the built gloves')
+var model_gloves := false        # the model's gloves are on (not the built ones)
 var _elbows: Array = []          # where the forearms come from (cockpit space; empty: a guess)
 var _lever: Node3D               # the handbrake (pivots at its foot; +Y along it)
 var _lever_base: Node3D
@@ -117,6 +126,7 @@ func setup(wheel_centre: Vector3, wheel_tilt: float, rim_radius: float, axis := 
 		c.mesh = _gauntlet(mats)
 		add_child(c)
 		_cuffs.append(c)
+	_model_gloves()
 	_build_lever()
 	_build_gear()
 
@@ -342,7 +352,7 @@ func _place(k: int, w: float) -> void:
 		"shift":
 			xf = (h.from_xf as Transform3D).interpolate_with(_gear_grip(), _ease(minf(h.t / SHIFT_REACH, 1.0)))
 	(_gloves[k] as Node3D).transform = xf
-	wrists[k] = xf * (Basis(Vector3.RIGHT, GRIP_ROLL) * WRIST)
+	wrists[k] = xf * (Basis(Vector3.RIGHT, GRIP_ROLL) * (_wrist[k] as Vector3))
 	_aim_cuff(k)
 
 
@@ -407,6 +417,63 @@ static func _ease(u: float) -> float:
 
 
 # ── models ────────────────────────────────────────────────────────────────
+
+## The model's gloves in place of the built ones (if it's there): the right hand's as it is, the
+## left's mirrored; each gauntlet from the wrist up the forearm.
+func _model_gloves() -> void:
+	if not ResourceLoader.exists(GLOVES):
+		return
+	var scene: Node = (load(GLOVES) as PackedScene).instantiate()
+	var glove: Mesh = null
+	var cuff: Mesh = null
+	for mi in scene.find_children("*", "MeshInstance3D", true, false):
+		if str(mi.name).begins_with("Glove"):
+			glove = (mi as MeshInstance3D).mesh
+		elif str(mi.name).begins_with("Cuff"):
+			cuff = (mi as MeshInstance3D).mesh
+	scene.free()
+	if glove == null or cuff == null:
+		return
+	model_gloves = true
+	for k in 2:
+		var right := k == RIGHT
+		(_gloves[k] as MeshInstance3D).mesh = glove if right else _mirror_x(glove)
+		(_cuffs[k] as MeshInstance3D).mesh = cuff if right else _mirror_x(cuff)
+		_wrist[k] = Vector3(MODEL_WRIST.x * (1.0 if right else -1.0), MODEL_WRIST.y, MODEL_WRIST.z)
+
+
+## The same mesh mirrored left to right (x -> -x), its faces turned back outward: the left
+## hand's glove from the right's (the textures shared).
+static func _mirror_x(src: Mesh) -> ArrayMesh:
+	var out := ArrayMesh.new()
+	for si in src.get_surface_count():
+		var arr := src.surface_get_arrays(si)
+		var v: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
+		for i in v.size():
+			v[i].x = -v[i].x
+		arr[Mesh.ARRAY_VERTEX] = v
+		if arr[Mesh.ARRAY_NORMAL] != null:
+			var nm: PackedVector3Array = arr[Mesh.ARRAY_NORMAL]
+			for i in nm.size():
+				nm[i].x = -nm[i].x
+			arr[Mesh.ARRAY_NORMAL] = nm
+		if arr[Mesh.ARRAY_TANGENT] != null:
+			var tg: PackedFloat32Array = arr[Mesh.ARRAY_TANGENT]
+			for i in range(0, tg.size(), 4):
+				tg[i] = -tg[i]
+				tg[i + 3] = -tg[i + 3]                   # (mirrored: the bitangent's side flips too)
+			arr[Mesh.ARRAY_TANGENT] = tg
+		if arr[Mesh.ARRAY_INDEX] != null:
+			var ix: PackedInt32Array = arr[Mesh.ARRAY_INDEX]
+			for i in range(0, ix.size() - 2, 3):
+				var t := ix[i + 1]
+				ix[i + 1] = ix[i + 2]
+				ix[i + 2] = t
+			arr[Mesh.ARRAY_INDEX] = ix
+		out.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arr)
+		out.surface_set_material(si, src.surface_get_material(si))
+	return out
+
 
 func _mat(c: Color, rough := 0.8) -> StandardMaterial3D:
 	var m := StandardMaterial3D.new()

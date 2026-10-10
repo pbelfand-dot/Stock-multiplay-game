@@ -63,6 +63,8 @@ echo "== settings, again and again: from the home screen and from the pause menu
 run_g 300 --headless --path . -s tests/pause_settings_check.gd -- --profile=$T/pause.cfg 2>&1 | grep -E "\[pause\] (FAIL|PAUSE)" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
 echo "== cut up's traffic has weight: a rear-ender at 150 into 100 costs the player its share by weight (not ~50 km/h as off a wall), the car is shoved on; a side swipe shoves it off its line and it steers back"
 run_g 300 --headless --fixed-fps 120 --path . -s tests/traffic_hit_check.gd 2>&1 | grep -E "\[traffic\] (ok|FAIL|TRAFFIC)" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
+echo "== cut up's start: the gas station (where it is, solid, open to its ramps; the autopilot drives out)"
+run_g 400 --headless --fixed-fps 120 --path . -s tests/station_check.gd 2>&1 | grep -E "\[station\] (ok|FAIL|STATION)" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
 echo "== the chase camera: the same distance behind at 50, 150 and 250 km/h, CHASE CAM HEIGHT raises and lowers it, it swings round after the car in a turn"
 run_g 120 --headless --fixed-fps 120 --path . -s tests/chase_cam_check.gd 2>&1 | grep -E "\[chase\] (FAIL|CHASE)" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
 echo "== the cars with models of their own: each builds, sits on its wheels, pulls away (the right wheels driven); the garage swaps them"

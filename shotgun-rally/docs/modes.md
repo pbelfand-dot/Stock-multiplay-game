@@ -99,12 +99,16 @@ provides it, noise-textured fallbacks otherwise.
 **The traffic** (`scripts/stage/traffic.gd`): the registry's traffic cars
 (`VehicleRegistry.traffic_pool()`), painted from their palettes, their wheels turning.
 Only the stretch round the player is populated (160 m back to 650 m ahead); cars that
-drop out come back in a gap. They're kinematic (solid to your car, not simulated) and
-drive with **IDM** (Treiber et al. 2000: their own desired speeds, a 1.3 s gap, smooth
-braking) and **MOBIL** (Kesting et al. 2007: they change lane when it pays, politely, never
-making the car behind brake harder than 3.5 m/s²). On INSANE they come in
-**packs**: 6-12 cars across all four lanes, close together, with
-80-160 m of open road between packs: thread the pack, breathe, the next one. Cars **join
+drop out come back in a gap (their bodies put away and used again: a pack of 20 doesn't
+load 20 models at once). They're kinematic (solid to your car, not simulated) and
+drive with **IDM** (Treiber et al. 2000: their own desired speeds, a 1.3 s gap (closer
+on HARD and INSANE: x0.85, x0.75), smooth braking) and **MOBIL** (Kesting et al. 2007:
+they change lane when it pays, politely, never making the car behind brake harder than
+3.5 m/s²). On INSANE they come in **packs**: 14-26 cars across all four lanes, bumper to
+bumper, with 40-90 m between packs (one coming up behind you from the start). Cars further
+than 160 m from every player are moved every other tick and their wheels don't turn, and
+past 300 m they think every 8th tick (nobody sees either from there): 2.6x the cars of the
+old INSANE cost 1.5x the time. Cars **join
 from the on-ramps** (merging into a gap in lane 0) and **leave by the off-ramps**. The
 **oncoming carriageway** has its own traffic (for the view; the median barrier keeps it
 from you).
@@ -121,6 +125,22 @@ Each traffic car has a **type** (its registry entry's `traffic.type`), and it dr
 | luxury | HELLHOUND, KAISER 8 GC | 1.06 (never over the difficulty's top speed) | 1.05 s | hardly | more, for smaller gains |
 | van | KOMBI V8 | 0.9 | 1.7 s | most | least |
 
+**The start: a gas station** (`LoopGen.station`, built by `LoopBuilder._station`). A run
+starts at the pumps of a services forecourt off the highway, where one of our side's
+junctions ends up (its exit's and the next entry's ramps, 59 m apart, joined by the
+forecourt; `_find_station` picks the flattest, nearest the start line: just before the
+loop's 0 km, in the city), and you drive out yourself: across the forecourt, up the entry
+ramp and merge into the traffic from its acceleration lane. 68 x 48 m of asphalt (the land
+under it flattened, the towers and trees kept off it), a canopy on six columns over three
+pump islands (two pumps each, lit screens, a red band, lights under it that light the
+forecourt at night), the shop at the back (glass front lit at night, SHOTGUN FUEL over it,
+24/7), parking bays, a price pylon facing the highway, and a planter wall round it, open
+where the two ramps come in. No brands. Eight pumps' places (two rows of four lanes between
+the islands): online, everyone starts at their own. The traffic starts round the station's
+stretch of highway; R puts you on the highway. The autopilot (tests) follows a route out
+(`LoopGen.station_route`) before it takes the highway's line. `--highway_start`: the old grid
+on the highway. `tests/station_check.gd`.
+
 **The score** (`scripts/game/cutup_score.gd`): a NEAR MISS is passing a car with less than
 the difficulty's gap between the bodies (1.6 m easy down to 0.7 m insane), at 80 km/h or
 more and 10 km/h faster than it: 100 x closeness (1-3) x speed (1-2), times the combo.
@@ -132,11 +152,15 @@ throws the unbanked pot away and costs 500. Bests are kept per difficulty.
 |---|---|---|---|---|---|
 | EASY | 7 | 70-110 km/h | 1.6 m | rarely | no |
 | NORMAL | 15 | 80-120 km/h | 1.2 m | sometimes | no |
-| HARD | 30 | 85-130 km/h | 0.9 m | often | no: busy all the way |
-| INSANE | 45 | 90-140 km/h | 0.7 m | a lot | 6-12 cars across the lanes, 80-160 m between |
+| HARD | 70 | 85-130 km/h | 0.9 m | often | no: every lane busy all the way |
+| INSANE | 100 | 90-140 km/h | 0.7 m | a lot | 14-26 cars across the lanes, 40-90 m between |
 
-HARD and INSANE are as busy as Assetto Corsa's No Hesi servers in the owner's clips (counted
-from the frames: ~35 cars a km by day, ~45 at night, across the lanes).
+HARD and INSANE are a real highway's rush hour (the owner: "the cars should legit be in
+traffic"), measured by the Highway Capacity Manual's levels of service for a basic freeway
+segment (density in cars a km a lane: A up to 7, B 11, C 16, D 22, E 28, the road's capacity;
+F past it, a queue): HARD ~17.6 a km a lane (LOS D: busy, flowing), INSANE ~26 (LOS E: at
+capacity, in waves). `tests/modes_check.gd` checks both. They were 30 and 45 (Assetto
+Corsa's No Hesi servers in the owner's clips: ~7.5 and ~11 a km a lane, LOS B).
 
 **HIGHWAY BATTLES** (`scripts/game/rivals.gd`, like Tokyo Xtreme Racer's): now and then a
 RIVAL shows up in the traffic, a garage car with a nickname ("BLUE THUNDER", "TOFU

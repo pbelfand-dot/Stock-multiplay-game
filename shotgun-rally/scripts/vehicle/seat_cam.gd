@@ -27,7 +27,7 @@ var car
 var seat := "driver"
 var eye := Vector3.ZERO
 var yaw := 0.0
-var pitch := -0.06
+var pitch := -0.12                # (a little down: the wheel, your hands and their gauntlets in view, as Assetto Corsa's)
 var reading := false
 var view := "seat"              # "seat" | "chase" | "orbit"
 ## The chase camera's style: "rally" (high and back, looking down on the road ahead)
@@ -47,6 +47,9 @@ var _rev_t := 0.0                    # (the engine's shiver through the body: it
 const JITTER_DEG := 0.08             # deg rms the view shivers at 200 km/h, flat out (the video study:
                                      # a real dash cam at speed ~0.2 deg; a game's often none)
 var _neck_v := 0.0
+var _slide_look := 0.0               # rad the head's turned toward where the car's going (LOOK INTO SLIDES)
+const SLIDE_LOOK_K := 0.7            # of the slide's angle (the way it's going vs the way it points) ...
+const SLIDE_LOOK_MAX := 0.7          # ... up to 40 deg, as far as a neck turns comfortably
 var _chase_dir := Vector3.FORWARD    # the way the chase camera looks (smoothed)
 var _chase_y := 0.0                   # the height it follows (smoothed)
 var _chase_ready := false
@@ -100,7 +103,17 @@ func _process(dt: float) -> void:
 	reading = force_read or (seat == "codriver" and Input.is_action_pressed("read_notes"))
 	_read_blend = move_toward(_read_blend, 1.0 if reading else 0.0, dt * 5.0)
 	var b := smoothstep(0.0, 1.0, _read_blend)
-	var look_yaw := lerpf(yaw, BOOK_LOOK.x, b)
+	# (a slide: the head turns toward where the car's going, the way a drifting driver looks
+	# through the side window at the corner, eased so it doesn't swing with every twitch)
+	var want_look := 0.0
+	if seat == "driver" and Config.look_into_slide and view == "seat":
+		var v_loc: Vector3 = car.global_transform.basis.inverse() * car.linear_velocity
+		if v_loc.length() > 5.0 and -v_loc.z > 1.0:
+			var beta := atan2(v_loc.x, -v_loc.z)            # + : going to the right of where it points
+			var past := signf(beta) * maxf(absf(beta) - deg_to_rad(4.0), 0.0)   # (no turn for a road car's few degrees)
+			want_look = clampf(-past * SLIDE_LOOK_K, -SLIDE_LOOK_MAX, SLIDE_LOOK_MAX)
+	_slide_look = lerpf(_slide_look, want_look, clampf(dt * 4.0, 0.0, 1.0))
+	var look_yaw := lerpf(yaw + _slide_look, BOOK_LOOK.x, b)
 	var look_pitch := lerpf(pitch, BOOK_LOOK.y, b)
 
 	# g-forces: the head lags the car (car-local acceleration -> lean the other way).
@@ -142,7 +155,9 @@ func _process(dt: float) -> void:
 	var street_chase := view == "chase" and chase_style == "street"
 	# (the chase view barely widens: widening it with speed made the car shrink away, as
 	# if the camera fell back)
-	var fov_want := 76.0 + clampf(spd / 45.0, 0.0, 1.0) * 8.0
+	# (the seat: COCKPIT FOV (Settings, vertical degrees; Assetto Corsa-like by default), a hair
+	# wider at speed)
+	var fov_want: float = Config.cockpit_fov + clampf(spd / 45.0, 0.0, 1.0) * 3.0
 	if view == "chase":
 		fov_want = (70.0 if street_chase else 74.0) + clampf(spd / 70.0, 0.0, 1.0) * 4.0
 	fov = lerpf(fov, fov_want, clampf(dt * 2.0, 0.0, 1.0))

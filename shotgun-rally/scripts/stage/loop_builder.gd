@@ -83,6 +83,7 @@ const STEPS := [["_environment", "Checking the weather"], ["_road", "Laying the 
 	["_barriers", "Pouring the barriers"], ["_viaducts", "Raising the viaducts"],
 	["_bridges", "Spinning the bridge cables"], ["_tunnels", "Boring the tunnels"],
 	["_roadside", "Putting up the signs and lights"], ["_toll_plaza", "Opening the toll booths"], ["_ramps", "Opening the ramps"],
+	["_station", "Opening the gas station"],
 	["_ribbon", "Shaping the land"], ["_far_land", "Shaping the hills"], ["_water", "Filling the lakes"],
 	["_city", "Building the city"], ["_trees", "Planting the hills"], ["_finish", "Opening the highway"]]
 
@@ -120,6 +121,20 @@ func _prepare(stage) -> void:
 			if not _ramp_grid.has(key):
 				_ramp_grid[key] = []
 			_ramp_grid[key].append(p)
+	if not st.station.is_empty():
+		# (the gas station's forecourt: nothing's built on it either, the towers and trees kept off)
+		var H: Vector2 = st.STATION_HALF
+		var a := -H.x
+		while a <= H.x + 0.01:
+			var b := -H.y
+			while b <= H.y + 0.01:
+				var p: Vector3 = st.station_at(a, b)
+				var key := Vector2i(floori(p.x / 50.0), floori(p.z / 50.0))
+				if not _ramp_grid.has(key):
+					_ramp_grid[key] = []
+				_ramp_grid[key].append(p)
+				b += 4.0
+			a += 4.0
 
 
 ## s - s0 round the loop, the nearest way (-L/2 .. L/2).
@@ -284,6 +299,13 @@ func _fallback(key: String) -> Material:
 			m.emission_enabled = true
 			m.emission = Color(1.0, 0.86, 0.62)
 			m.emission_energy_multiplier = 0.05 + 1.6 * (_wm.night_amount if _wm else (1.0 if mood == "night" else 0.0))
+		"station_screen":
+			# (the pumps' screens: lit, day and night)
+			m.vertex_color_use_as_albedo = false
+			m.albedo_color = Color(0.1, 0.2, 0.3)
+			m.emission_enabled = true
+			m.emission = Color(0.35, 0.75, 1.0)
+			m.emission_energy_multiplier = 1.2 + 1.5 * (_wm.night_amount if _wm else 0.0)
 		"toll_green", "toll_red":
 			# (the lane signals: lit, day and night)
 			m.vertex_color_use_as_albedo = false
@@ -1545,6 +1567,7 @@ func _lamp_posts() -> void:
 	for c in per_chunk:
 		_multimesh(post, per_chunk[c], "Lamps%03d" % c, ROAD_RANGE)
 	lamp_heads.append_array(_toll_lamp_heads())          # (the toll plaza's canopy: a light over each lane)
+	lamp_heads.append_array(_station_lamp_heads())       # (the gas station's canopy and its car park)
 	if lit:
 		street_lamps = _wm.street_lights(self, lamp_heads)
 
@@ -2008,6 +2031,8 @@ func _ramp(r: Dictionary) -> void:
 		cs.append(pts[k])
 		rvs.append(Vector3(sin(heads[k]), 0, -cos(heads[k])).cross(Vector3.UP).normalized())
 	# the deck / road: 6.4 m of asphalt, its edge lines, a barrier each side, its collision
+	# (a ramp that ends at the gas station: none of it on the forecourt, which takes over)
+	var to_station: bool = not st.station.is_empty() and (r == st.station.off or r == st.station.on)
 	var along := 0.0
 	for j in cs.size() - 1:
 		var a: Vector3 = cs[j]
@@ -2016,6 +2041,8 @@ func _ramp(r: Dictionary) -> void:
 		var rb: Vector3 = rvs[j + 1]
 		var u0 := along
 		along += a.distance_to(b)
+		if to_station and st.on_station(a.x, a.z, -1.0) and st.on_station(b.x, b.z, -1.0):
+			continue
 		var row_a := PackedVector3Array([a - ra * w, a + ra * w])
 		var row_b := PackedVector3Array([b - rb * w, b + rb * w])
 		var vv := PackedFloat32Array([-w, w])
@@ -2062,10 +2089,188 @@ func _ramp(r: Dictionary) -> void:
 		for k in 6:
 			_road_box(nose_s - walk * (0.25 + 0.5 * k), (hw + rw) * 0.5, Vector3(absf(rw - hw) + 0.5, 0.9, 0.5), "toll_paint",
 				TOLL_COLS.yellow if k % 2 == 0 else TOLL_COLS.dark, true)
-	# the closed gate at its far end
+	# the closed gate at its far end (none where it runs into the gas station)
+	if to_station:
+		return
 	var e := pts[n]
 	_buf(i, "concrete").box(e + Vector3.UP * 0.6, Vector3(7.0, 1.2, 0.8), Basis(Vector3.UP, -heads[n]))
 	_body(i, "concrete").box(e + Vector3.UP * 0.6, Vector3(7.0, 1.2, 0.8), Basis(Vector3.UP, -heads[n]), Color.WHITE, true)
+
+
+## THE GAS STATION (LoopGen.station): cut up starts at its pumps. A forecourt joining a
+## junction's two ramps' ends (asphalt on the plane they're on, solid, its sides down into the
+## land), a canopy on six columns over three pump islands (two pumps each, lit screens, a red
+## band round the canopy, lights under it), the shop at the back (glass front lit at night, its
+## sign), parking bays at the shop, a price pylon towards the highway, and a planter wall round
+## it (solid: open where the two ramps come in). No brands: SHOTGUN FUEL. In the forecourt's own
+## frame: a across (u, from the exit's end to the entry's), b out (w, away from the highway).
+const STATION_COLS := {"white": Color(0.92, 0.92, 0.9), "red": Color(0.82, 0.1, 0.07), "grey": Color(0.42, 0.43, 0.45),
+	"dark": Color(0.1, 0.1, 0.11), "kerb": Color(0.78, 0.78, 0.75), "yellow": Color(1.0, 0.78, 0.05),
+	"wall": Color(0.8, 0.78, 0.73), "hedge": Color(0.18, 0.34, 0.14)}
+const STATION_CANOPY_H := 5.4        # m: its underside over the forecourt
+const STATION_CANOPY := Rect2(-9.0, -15.5, 18.0, 25.0)   # its roof (a, b, along a, along b)
+const STATION_ISLANDS := [-9.0, -3.0, 3.0]               # b of each pump island (the lanes between)
+const STATION_SHOP := Rect2(-14.0, 15.0, 28.0, 8.0)      # the shop's walls (a, b, sizes)
+
+func _station() -> void:
+	var S: Dictionary = st.station
+	if S.is_empty():
+		return
+	var i := int(st.wrap_s(float(S.s)) / st.STEP)
+	var u: Vector3 = S.u
+	var B := Basis(u, Vector3.UP, u.cross(Vector3.UP))      # (boxes square to the forecourt)
+	var H: Vector2 = st.STATION_HALF
+	var C := STATION_COLS
+	# the forecourt: 4 m squares of asphalt (solid), its sides down 1.5 m into the land
+	var a := -H.x
+	while a < H.x - 0.01:
+		var b := -H.y
+		while b < H.y - 0.01:
+			var c0: Vector3 = st.station_at(a, b)
+			var c1: Vector3 = st.station_at(a, b + 4.0)
+			var c2: Vector3 = st.station_at(a + 4.0, b + 4.0)
+			var c3: Vector3 = st.station_at(a + 4.0, b)
+			var uv := [Vector2(c0.x, c0.z), Vector2(c1.x, c1.z), Vector2(c2.x, c2.z), Vector2(c3.x, c3.z)]
+			_quad_to(_buf(i, "asphalt"), c0, c1, c2, c3, Vector3.UP, uv[0], uv[1], uv[2], uv[3])
+			_quad_to(_body(i, "asphalt"), c0, c1, c2, c3, Vector3.UP, uv[0], uv[1], uv[2], uv[3], true)
+			b += 4.0
+		a += 4.0
+	for e in [[-H.x, -H.y, H.x, -H.y], [H.x, -H.y, H.x, H.y], [H.x, H.y, -H.x, H.y], [-H.x, H.y, -H.x, -H.y]]:
+		var t0: Vector3 = st.station_at(e[0], e[1])
+		var t1: Vector3 = st.station_at(e[2], e[3])
+		var out: Vector3 = (t1 - t0).cross(Vector3.UP).normalized()
+		if out.dot(t0 - (S.c as Vector3)) < 0.0:
+			out = -out
+		_quad_to(_buf(i, "concrete"), t0, t1, t1 + Vector3.DOWN * 1.5, t0 + Vector3.DOWN * 1.5, out,
+			Vector2(0, 0), Vector2(t0.distance_to(t1), 0), Vector2(t0.distance_to(t1), 1.5), Vector2(0, 1.5))
+	# the way through: the lanes past the pumps, arrows, the bays at the shop
+	for b in [-15.0, 9.0]:
+		_station_line(i, -26.0, b, 26.0, b, 0.12)
+	var x := -13.0
+	while x <= 13.01:
+		_station_line(i, x, 10.4, x, 14.6, 0.12)
+		x += 2.6
+	# the islands: kerbed, bollards at the ends; two pumps on each
+	for ib in STATION_ISLANDS:
+		_sbox(i, B, "toll_paint", 0.0, ib, 0.0, Vector3(12.0, 0.22, 1.5), C.kerb, true)
+		for ea in [-6.3, 6.3]:
+			_sbox(i, B, "toll_paint", ea, ib, 0.0, Vector3(0.22, 1.0, 0.22), C.yellow, true)
+		for pa in [-2.4, 2.4]:
+			_sbox(i, B, "toll_paint", pa, ib, 0.22, Vector3(1.0, 0.12, 0.75), C.grey, true)
+			_sbox(i, B, "toll_paint", pa, ib, 0.34, Vector3(0.82, 1.55, 0.58), C.white, true)
+			_sbox(i, B, "toll_paint", pa, ib, 1.89, Vector3(0.86, 0.32, 0.62), C.red)
+			for side in [-1.0, 1.0]:
+				_sbox(i, B, "station_screen", pa, ib + side * 0.3, 1.25, Vector3(0.46, 0.34, 0.02), Color.WHITE)
+				_sbox(i, B, "toll_paint", pa + 0.3, ib + side * 0.32, 0.55, Vector3(0.06, 0.9, 0.06), C.dark)   # (the hose)
+	# the canopy: columns at the islands' ends, the roof, its red band, lights under it
+	var R := STATION_CANOPY
+	for ib in STATION_ISLANDS:
+		for ca in [-5.7, 5.7]:
+			_sbox(i, B, "toll_paint", ca, ib, 0.22, Vector3(0.45, STATION_CANOPY_H - 0.22, 0.45), C.white, true)
+	var cm := R.get_center()
+	_sbox(i, B, "toll_paint", cm.x, cm.y, STATION_CANOPY_H, Vector3(R.size.x, 0.9, R.size.y), C.white)
+	for sd in [-1.0, 1.0]:
+		_sbox(i, B, "toll_paint", cm.x + sd * (R.size.x * 0.5 + 0.02), cm.y, STATION_CANOPY_H + 0.25, Vector3(0.06, 0.36, R.size.y + 0.1), C.red)
+		_sbox(i, B, "toll_paint", cm.x, cm.y + sd * (R.size.y * 0.5 + 0.02), STATION_CANOPY_H + 0.25, Vector3(R.size.x + 0.1, 0.36, 0.06), C.red)
+	for la in [-4.5, 0.0, 4.5]:
+		for lb in [-12.0, -6.0, 0.0, 6.0]:
+			_sbox(i, B, "lamp", la, lb, STATION_CANOPY_H - 0.04, Vector3(1.6, 0.05, 0.6), Color.WHITE)
+	# the shop: walls, a glass front (lit at night), a door, its roof's red band and sign
+	var sh := STATION_SHOP
+	var sc := sh.get_center()
+	_sbox(i, B, "toll_paint", sc.x, sc.y, 0.0, Vector3(sh.size.x, 4.2, sh.size.y), C.wall, true)
+	_sbox(i, B, "toll_glass", sc.x, sh.position.y - 0.03, 0.4, Vector3(sh.size.x - 4.0, 2.6, 0.06), Color.WHITE)
+	_sbox(i, B, "toll_paint", sc.x + 6.0, sh.position.y - 0.06, 0.0, Vector3(2.2, 2.5, 0.08), C.dark)
+	_sbox(i, B, "toll_paint", sc.x, sc.y, 4.2, Vector3(sh.size.x + 0.4, 0.8, sh.size.y + 0.4), C.red)
+	_sbox(i, B, "toll_paint", sc.x, sh.position.y - 0.4, 0.0, Vector3(sh.size.x, 0.18, 0.8), C.kerb, true)   # (its step)
+	_station_label(st.station_at(sc.x, sh.position.y - 0.24, 4.6), B, "SHOTGUN FUEL", 0.011)
+	_station_label(st.station_at(sc.x - 9.0, sh.position.y - 0.08, 3.25), B, "24/7", 0.006)
+	# the price pylon, between the ramps' ends, its face to the highway
+	var pa := 0.0
+	var pb := -H.y + 2.5
+	_sbox(i, B, "toll_paint", pa, pb, 0.0, Vector3(1.4, 0.6, 1.4), C.grey, true)
+	_sbox(i, B, "toll_paint", pa, pb, 0.6, Vector3(0.5, 7.4, 0.5), C.grey, true)
+	_sbox(i, B, "toll_paint", pa, pb, 8.0, Vector3(3.4, 4.6, 0.5), C.white)
+	_sbox(i, B, "toll_paint", pa, pb, 11.4, Vector3(3.5, 1.3, 0.56), C.red)
+	_station_label(st.station_at(pa, pb - 0.3, 11.7), B, "FUEL", 0.012)
+	var prices := ["REG   3.49", "PLUS  3.79", "PREM  4.09"]
+	for k in prices.size():
+		_station_label(st.station_at(pa, pb - 0.27, 10.3 - k * 1.05), B, prices[k], 0.006, Color(0.08, 0.08, 0.09))
+	# the planter wall round it (open where the ramps come in): a low wall, a hedge on it
+	var openings: Array = []
+	for rmp in [S.off, S.on]:
+		var path := st.ramp_path(rmp)
+		var pts: PackedVector3Array = path.pts
+		for k in range(pts.size() - 1, -1, -1):
+			if not st.on_station(pts[k].x, pts[k].z, 3.0):
+				break
+			openings.append(pts[k])
+	for e in [[-H.x, -H.y, H.x, -H.y], [H.x, -H.y, H.x, H.y], [H.x, H.y, -H.x, H.y], [-H.x, H.y, -H.x, -H.y]]:
+		var elen := Vector2(e[2] - e[0], e[3] - e[1]).length()
+		var n := int(elen / 2.0)
+		for k in n:
+			var t := (k + 0.5) / n
+			var wa: float = lerpf(e[0], e[2], t)
+			var wb: float = lerpf(e[1], e[3], t)
+			var wp: Vector3 = st.station_at(wa, wb)
+			var gap := false
+			for o in openings:
+				if Vector2(o.x - wp.x, o.z - wp.z).length() < st.RAMP_W + 2.2:
+					gap = true
+					break
+			if gap:
+				continue
+			var along_a := absf(e[2] - e[0]) > 0.1
+			var piece := elen / n + 0.02
+			_sbox(i, B, "toll_paint", wa, wb, 0.0, Vector3(piece, 0.75, 0.6) if along_a else Vector3(0.6, 0.75, piece), C.wall, true)
+			_sbox(i, B, "toll_paint", wa, wb, 0.75, Vector3(piece, 0.6, 0.42) if along_a else Vector3(0.42, 0.6, piece), C.hedge)
+
+
+## A box on the forecourt (chunk i, square to it: B): its foot at (a, b) h up, its size along
+## a, up, along b; solid: a car hits it.
+func _sbox(i: int, B: Basis, key: String, a: float, b: float, h: float, size: Vector3, col: Color, solid := false) -> void:
+	var at: Vector3 = st.station_at(a, b, h + size.y * 0.5)
+	_buf(i, key).box(at, size, B, col)
+	if solid:
+		_body(i, "concrete").box(at, size, B, Color.WHITE, true)
+
+
+## A painted line on the forecourt from (a0, b0) to (a1, b1), w wide.
+func _station_line(i: int, a0: float, b0: float, a1: float, b1: float, w: float) -> void:
+	var p0: Vector3 = st.station_at(a0, b0, 0.015)
+	var p1: Vector3 = st.station_at(a1, b1, 0.015)
+	var side: Vector3 = (p1 - p0).cross(Vector3.UP).normalized() * w * 0.5
+	var L := p0.distance_to(p1)
+	_quad_to(_buf(i, "paint"), p0 - side, p1 - side, p1 + side, p0 + side, Vector3.UP, Vector2(0, 0), Vector2(L, 0), Vector2(L, w), Vector2(0, w))
+
+
+## Text on the gas station at p, square to the forecourt, facing the highway's side (-w: the
+## shop's front looks at the pumps that way, the pylon at the highway).
+func _station_label(p: Vector3, B: Basis, text: String, px: float, col := Color(0.97, 0.97, 0.95)) -> void:
+	var lbl := Label3D.new()
+	lbl.text = text
+	lbl.font_size = 96
+	lbl.pixel_size = px
+	lbl.outline_size = 0
+	lbl.modulate = col
+	lbl.double_sided = false
+	# (a Label3D reads from its +Z: B's z is u x up, which is +w or -w)
+	var face: Vector3 = -(st.station.w as Vector3)
+	var bas := B if B.z.dot(face) > 0.0 else B * Basis(Vector3.UP, PI)
+	lbl.transform = Transform3D(bas, p)
+	lbl.visibility_range_end = 700.0
+	add_child(lbl)
+
+
+## The gas station's lights (StreetLamps' pools at night): under the canopy, over its lanes.
+func _station_lamp_heads() -> Array:
+	var out: Array = []
+	if st.station.is_empty():
+		return out
+	for lb in [-12.0, -6.0, 0.0, 6.0]:
+		var g: Vector3 = st.station_at(0.0, lb)
+		out.append({"s": float(st.station.s), "head": g + Vector3.UP * (STATION_CANOPY_H - 0.1), "ground": g, "up": Vector3.UP, "radius": 9.0})
+	return out
 
 
 ## The city's towers, both sides of the expressway: blocks of offices and flats,

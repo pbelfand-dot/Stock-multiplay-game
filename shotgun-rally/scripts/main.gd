@@ -351,7 +351,7 @@ func _test_setup() -> void:
 				game.traffic.restart_at(s)               # (the traffic round the car, not back at the start)
 		game.cam.force_read = Config.flag("shot_read")
 		game.cam.yaw = float(Config.arg("shot_yaw", 0.0))
-		game.cam.pitch = float(Config.arg("shot_pitch", -0.06))
+		game.cam.pitch = float(Config.arg("shot_pitch", game.cam.pitch))
 		if Config.flag("shot_mud"):
 			game.cockpit.splat(0.9, 7)
 			game.ai.enabled = false                # keep the mud on for the picture

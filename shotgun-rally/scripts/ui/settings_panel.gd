@@ -56,7 +56,10 @@ func _ready() -> void:
 	left.add_child(UI.label("CONTROLS", 20, UI.YELLOW, true))
 	left.add_child(_slider("MOUSE LOOK", 0.0008, 0.005, config.mouse_sens, func(x): config.mouse_sens = x))
 	left.add_child(_toggle("INVERT MOUSE Y", "", config.invert_y, func(on): config.invert_y = on))
+	left.add_child(_toggle("LOOK INTO SLIDES", "In the seat your head turns toward where the car's going, as a drifting driver's does.",
+		config.look_into_slide, func(on): config.look_into_slide = on))
 	left.add_child(_slider("CHASE CAM HEIGHT  (C)", config.CHASE_LOW, config.CHASE_HIGH, config.chase_height, func(x): config.chase_height = x))
+	left.add_child(_slider("COCKPIT FOV", config.FOV_LOW, config.FOV_HIGH, config.cockpit_fov, func(x): config.cockpit_fov = x))
 	left.add_child(UI.gap(6))
 	left.add_child(UI.label("SOUND", 20, UI.YELLOW, true))
 	left.add_child(_slider("VOLUME", 0.0, 1.0, config.volume, func(x):

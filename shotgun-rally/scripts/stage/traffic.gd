@@ -86,6 +86,16 @@ var _joined := {}               # on-ramp -> the player's lap it last fed (one c
 const NET_HZ := 10.0            # the host's traffic sent to each machine, a second
 const NET_FIELDS := 7           # floats a car: id, model (pool index), paint, s (round the loop), d, v, crashed
 const STAGGER_OVER := 60        # more cars than this (several players' stretches): each thinks every 4th tick
+const ONCOMING_MAX := 40        # the other carriageway's (only seen): no more than this round a player
+## A busy road's cost (HARD and INSANE: 60-100 cars round the player, 2.7 ms a tick before): a car
+## further than POSE_NEAR m from every player is put where it is every other tick and its wheels
+## don't turn (nobody sees either from there); further than THINK_FAR m it thinks every 8th tick
+## (when they're staggered at all), not every 4th.
+const POSE_NEAR := 160.0
+const THINK_FAR := 300.0
+## Cars that leave the stretch are put away and used again for the next ones (a model's scene
+## instantiated and painted is the costly part: a pack of 20 at once was a hitch), up to this many.
+const SPARE_MAX := 60
 var others_p: Array = []        # (host) the other players: [{s, d, v}]: the traffic fills in round them and minds them
 var net_peers := {}             # (host) peer id -> {s, d, v}: their player; they're sent the cars round them
 var mirror := false             # (not the host) play the host's traffic back, drive none here
@@ -93,6 +103,8 @@ var hits_sent := 0              # (mirror) hits reported to the host (tests)
 var _net_acc := 0.0
 var _mirror := {}               # (mirror) host car id -> its car here
 var _tick := 0
+var _spare := {}                 # "model/solid" -> bodies put away, to use again
+var _spares := 0
 var _by_lane := {}              # lane -> the cars in it (or changing into it), each tick: who's ahead of whom
 var _toll := false              # (a loop with a toll plaza: LoopGen.toll) its lanes fan out, kept, closed, slowed
 
@@ -133,17 +145,19 @@ func _populate(player_s: float) -> void:
 	if mirror:
 		pass                                             # (the highway's cars are the host's: only the other carriageway here)
 	elif _packs():
-		# packs ahead, open road between (the first a little way up the road)
-		var s := player_s + 140.0
+		# packs ahead, open road between (the first a little way up the road), and one coming up
+		# from behind (its front row short of the player): it's rush hour from the start
+		var s := player_s + 60.0
 		while s < player_s + AHEAD:
 			s = _spawn_pack(s) + _rng.randf_range(float(diff.pack_gap[0]), float(diff.pack_gap[1]))   # (the gap from its back)
+		_spawn_pack(player_s - BEHIND - 20.0, player_s - 20.0)
 	else:
 		# the first lot: ahead of the start, spread out (none right beside the grid)
 		for k in _target:
 			var s: float = player_s + 70.0 + (AHEAD - 70.0) * (k + _rng.randf()) / _target
 			_spawn(s)
 	if looped:
-		var n_on := int(_target * 0.6)
+		var n_on := mini(int(_target * 0.6), ONCOMING_MAX)
 		for k in n_on:
 			_spawn_oncoming(player_s - 150.0 + (AHEAD + 450.0) * (k + _rng.randf()) / maxf(n_on, 1))
 
@@ -210,13 +224,13 @@ func _toll_v0(c: Dictionary) -> float:
 
 
 ## A pack at s: rows of cars across the lanes, close behind each other, at nearly one
-## speed (the slowest lane's, give or take): a block to thread.
-func _spawn_pack(s: float) -> float:
+## speed (the slowest lane's, give or take): a block to thread (no row at or past `stop`).
+func _spawn_pack(s: float, stop := INF) -> float:
 	var n := _rng.randi_range(int(diff.pack[0]), int(diff.pack[1]))
 	var pack_v := lerpf(float(diff.speed[0]), float(diff.speed[1]), _rng.randf_range(0.15, 0.6)) / 3.6
 	var row_s := s
 	var placed := 0
-	while placed < n:
+	while placed < n and row_s < stop:
 		var row: Array = _shuffled(lanes)
 		var in_row := mini(_rng.randi_range(2, lanes), n - placed)
 		for k in in_row:
@@ -256,6 +270,7 @@ func clear_lane_d(s: float) -> float:
 func _physics_process(dt: float) -> void:
 	if st == null:
 		return
+	_tick += 1
 	if mirror:
 		_mirror_tick(dt)
 		if looped:
@@ -263,12 +278,14 @@ func _physics_process(dt: float) -> void:
 		return
 	if not running:
 		return
-	_tick += 1
 	_index_lanes()
 	var stagger := cars.size() > STAGGER_OVER
 	for c in cars:
-		if not stagger or (_tick + int(c.id)) % 4 == 0:
-			_think(c, dt * (4.0 if stagger else 1.0))
+		var every := 1
+		if stagger:
+			every = 8 if _nearest(float(c.s)) > THINK_FAR else 4
+		if (_tick + int(c.id)) % every == 0:
+			_think(c, dt * every)
 	for c in cars:
 		_move(c, dt)
 	for c in cars:
@@ -472,7 +489,7 @@ func _mobil(c: Dictionary, a_here: float) -> void:
 		c.t = 0.0
 
 
-func _place(c: Dictionary, dt: float) -> void:
+func _place(c: Dictionary, dt: float, force := false) -> void:
 	var u: float = smoothstep(0.0, 1.0, float(c.t))
 	var push: float = float(c.get("push_d", 0.0))
 	if push != 0.0 or float(c.get("push_v", 0.0)) != 0.0:
@@ -487,12 +504,14 @@ func _place(c: Dictionary, dt: float) -> void:
 		c.push_d = push
 		c.push_v = pv
 	c.d = lerpf(_ldx(int(c.lane), float(c.s)), _ldx(int(c.to), float(c.s)), u) + push
-	_pose(c, dt, u)
+	var near := _nearest(float(c.s)) < POSE_NEAR
+	if near or force or (_tick + int(c.id)) % 2 == 0:
+		_pose(c, dt, u, near)
 
 
 ## A car's body where it is (c.s, c.d), turned along the road (and toward the lane
 ## it's crossing to, u of the way), its wheels rolling.
-func _pose(c: Dictionary, dt: float, u := 0.0) -> void:
+func _pose(c: Dictionary, dt: float, u := 0.0, wheels := true) -> void:
 	var s: float = float(c.s) if looped else clampf(float(c.s), 1.0, st.length - 1.0)
 	var p: Vector3 = st.world_at(s, float(c.d))
 	var d_ahead: float = c.d
@@ -506,9 +525,19 @@ func _pose(c: Dictionary, dt: float, u := 0.0) -> void:
 		fwd = (fwd + r * side * 0.06 * sin(u * PI)).normalized()
 	var basis := Basis.looking_at(fwd, st.up_at(s) if looped else Vector3.UP)
 	(c.body as AnimatableBody3D).global_transform = Transform3D(basis, p)
+	if not wheels:
+		return
 	var spin := float(c.v) * dt / 0.33
 	for w in c.wheels:
 		(w as Node3D).rotate_object_local(Vector3.RIGHT, -spin)
+
+
+## How far s is from the nearest player along the road (m, either way).
+func _nearest(s: float) -> float:
+	var best := absf(_ds(s, float(player.s)))
+	for q in others_p:
+		best = minf(best, absf(_ds(s, float(q.s))))
+	return best
 
 
 func _pick_model() -> Dictionary:
@@ -548,18 +577,26 @@ func _spawn_at(s: float, lane: int, m := {}) -> Dictionary:
 	var v_cap: float = float(diff.get("speed", [80.0, 120.0])[1]) / 3.6 * 1.03
 	var v0: float = minf(_lane_speed(maxi(lane, 0)) * float(tp.speed), v_cap)
 	var c := {"id": _next_id, "model": m.id, "body": body, "wheels": wheels, "s": s, "lane": lane, "to": lane, "t": 0.0,
-		"type": str(m.get("type", "sedan")), "gap_t": float(tp.gap),
+		"type": str(m.get("type", "sedan")), "gap_t": float(tp.gap) * float(diff.get("gap_k", 1.0)),
 		"d": _ldx(lane, s), "v": v0 * _rng.randf_range(0.9, 1.0), "v0": v0, "half_len": float(m.half_len),
 		"half_w": float(m.half_w), "crashed": false, "think": _rng.randf_range(0.5, 3.0), "m": m,
 		"paint": int(body.get_meta("paint", 0))}
 	_next_id += 1
 	cars.append(c)
-	_place(c, 0.0)
+	_place(c, 0.0, true)
+	body.reset_physics_interpolation()                     # (a body used again: not streaking in from where it was)
 	return c
 
 
 ## A traffic car's body: the model, painted, in a kinematic box the player hits.
 func _body_for(m: Dictionary, solid := true, paint := -1) -> Node3D:
+	var key := "%s/%d" % [m.id, int(solid)]
+	if paint < 0 and not (_spare.get(key, []) as Array).is_empty():
+		var again: Node3D = _spare[key].pop_back()
+		_spares -= 1
+		again.visible = true
+		again.process_mode = Node.PROCESS_MODE_INHERIT
+		return again
 	var body: Node3D = AnimatableBody3D.new() if solid else Node3D.new()
 	body.name = "Traffic%d" % _next_id
 	if solid:
@@ -605,7 +642,23 @@ func restart_at(s: float) -> void:
 
 func _remove(c: Dictionary) -> void:
 	cars.erase(c)
-	(c.body as Node).queue_free()
+	_put_away(c.body, "%s/1" % c.model, not mirror and not c.has("rival"))
+
+
+## A car's body off the road: hidden, out of the physics, kept to be used again (or freed: a
+## rival's has its name tag; online mirrors' are the host's paint; enough are kept already).
+func _put_away(body: Node, key: String, keep := true) -> void:
+	if not is_instance_valid(body):
+		return
+	if not keep or _spares >= SPARE_MAX:
+		body.queue_free()
+		return
+	(body as Node3D).visible = false
+	body.process_mode = Node.PROCESS_MODE_DISABLED     # (a disabled body leaves the physics space)
+	if not _spare.has(key):
+		_spare[key] = []
+	_spare[key].append(body)
+	_spares += 1
 
 
 func _respawn(c: Dictionary) -> void:
@@ -1000,7 +1053,10 @@ func _spawn_oncoming(s: float) -> void:
 	var v := lerpf(float(sp[0]), float(sp[1]), (lane + _rng.randf()) / lanes) / 3.6
 	# their lane 0, the slow one, is on their right: our far left
 	var d: float = st.ONCOMING_D - (st.EDGE - st.LANE_W * (lane + 0.5))
-	oncoming.append({"body": body, "wheels": body.get_meta("wheels"), "s": s, "d": d, "v": v, "lane": lane})
+	var o := {"body": body, "wheels": body.get_meta("wheels"), "s": s, "d": d, "v": v, "lane": lane, "model": m.id}
+	oncoming.append(o)
+	_pose_oncoming(o)
+	body.reset_physics_interpolation()
 
 
 func _oncoming_traffic(dt: float) -> void:
@@ -1008,17 +1064,28 @@ func _oncoming_traffic(dt: float) -> void:
 		o.s = float(o.s) - float(o.v) * dt
 		if float(o.s) < float(player.s) - 220.0:
 			oncoming.erase(o)
-			(o.body as Node).queue_free()
+			_put_away(o.body, "%s/0" % o.get("model", ""), o.has("model"))
 			_spawn_oncoming(float(player.s) + AHEAD + _rng.randf_range(0.0, 350.0))
 			continue
 		var s: float = o.s
-		var od: float = o.d
-		var p: Vector3 = st.world_at(s, st.toll_d(od, s) if _toll else od)
-		var back: Vector3 = st.world_at(s - 2.0, st.toll_d(od, s - 2.0) if _toll else od)
-		(o.body as Node3D).global_transform = Transform3D(Basis.looking_at((back - p).normalized(), st.up_at(s)), p)
+		var near := absf(_ds(s, float(player.s))) < POSE_NEAR
+		if not near and (_tick + int(o.lane)) % 2 != 0:
+			continue                                         # (far off: every other tick, as the highway's)
+		_pose_oncoming(o)
+		if not near:
+			continue
 		var spin := float(o.v) * dt / 0.33
 		for w in o.wheels:
 			(w as Node3D).rotate_object_local(Vector3.RIGHT, -spin)
+
+
+## An oncoming car's body where it is (on the other carriageway, heading back down the road).
+func _pose_oncoming(o: Dictionary) -> void:
+	var s: float = o.s
+	var od: float = o.d
+	var p: Vector3 = st.world_at(s, st.toll_d(od, s) if _toll else od)
+	var back: Vector3 = st.world_at(s - 2.0, st.toll_d(od, s - 2.0) if _toll else od)
+	(o.body as Node3D).global_transform = Transform3D(Basis.looking_at((back - p).normalized(), st.up_at(s)), p)
 
 
 # ── rivals (Rivals: the highway battles) ──────────────────────────────────

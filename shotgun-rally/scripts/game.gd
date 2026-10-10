@@ -218,6 +218,8 @@ func start(seed_in: int, stage_in: int, o := {}) -> void:
 	_setup_mode(o)
 	_night_lights()
 	autopilot = Autopilot.new(st)
+	if _at_station():
+		autopilot.route = st.station_route(maxi(Net.racers().find(Net.my_id()), 0) if street_online else 0)   # (out of the gas station, up its ramp)
 	cam = SeatCam.new()
 	cam.chase_style = "street" if mode != "" else "rally"   # (cut up, the touge: low and close)
 	add_child(cam)
@@ -252,6 +254,8 @@ func _apply_roster() -> void:
 	var driver_here: bool = seat == "driver"
 	var spot := _grid_spot(Net.my_id())
 	var moved: bool = spot[0] != _start_pos
+	if moved and autopilot and _at_station():
+		autopilot.route = st.station_route(maxi(Net.racers().find(Net.my_id()), 0) if street_online else 0)
 	_start_pos = spot[0]
 	_start_yaw = spot[1]
 	var setup := _car_setup()                    # the driver's car from their garage, its tyres for this stage
@@ -273,9 +277,12 @@ func _apply_roster() -> void:
 
 
 ## A car's place on the grid (its driver's slot in a street session: two abreast on a
-## touge, four on the highway, rows 9 m apart): [position, heading].
+## touge, four on the highway, rows 9 m apart; cut up on the loop: at the gas station's
+## pumps, LoopGen.station_spot): [position, heading].
 func _grid_spot(id: int) -> Array:
 	var k := maxi(Net.racers().find(id), 0) if street_online else 0
+	if _at_station():
+		return st.station_spot(k)
 	var across: Array = [0.0]
 	if mode == "cutup":
 		across = [st.LANE_W * 0.5, -st.LANE_W * 0.5, st.LANE_W * 1.5, -st.LANE_W * 1.5]   # (in a lane, not astride two)
@@ -283,6 +290,18 @@ func _grid_spot(id: int) -> Array:
 		across = [1.6, -1.6]
 	var s: float = st.START_S - 3.0 - float(k / across.size()) * 9.0
 	return [st.world_at(s, float(across[k % across.size()])), st.heading_at(s)]
+
+
+## Does this run start at the gas station (cut up on the LAKESHORE LOOP; --highway_start: on the
+## highway, as it used to)?
+func _at_station() -> bool:
+	return mode == "cutup" and "station" in st and not (st.station as Dictionary).is_empty() and not Config.flag("highway_start")
+
+
+## Where the run starts along the road: the highway's s nearest the gas station (unwrapped
+## near 0, as car_s will be), or the start line.
+func _start_s() -> float:
+	return st.unwrap(float(st.station.s), 0.0) if _at_station() else st.START_S
 
 
 ## The other drivers' cars (a street session): one per racer in the roster, played
@@ -598,6 +617,8 @@ func reset_car() -> void:
 		print("[stage] reset at s=%.0f d=%.1f, %.0f km/h" % [car_s, car_d, car.kmh()])
 	var d: float = traffic.clear_lane_d(s) if traffic else 0.0
 	car.place(st.world_at(s, d), st.heading_at(s))
+	if autopilot:
+		autopilot.route = PackedVector3Array()           # (back on the highway: no way out of the gas station to follow)
 	resets += 1
 	penalties += RESET_PENALTY
 	_sync_penalties()
@@ -854,7 +875,7 @@ func _setup_mode(o: Dictionary) -> void:
 			traffic.mirror = street_online and not multiplayer.is_server()   # (online: the host's traffic, played back)
 			add_child(traffic)
 			var diff := Modes.difficulty(o)
-			traffic.setup(st, diff, seed_value, st.START_S)
+			traffic.setup(st, diff, seed_value, _start_s())
 			cutup = CutupScore.new()
 			cutup.near = float(diff.near)
 			if looped and not street_online:          # (online: your friends are the rivals)

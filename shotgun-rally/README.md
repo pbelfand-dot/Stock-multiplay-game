@@ -132,9 +132,13 @@ the old backdrop: your car flat out on a stage, filmed like rally TV.
   your record as a ghost) or DRIFT (points for sliding, chained); online, a race to the bottom;
   **CUT UP**, the **LAKESHORE LOOP**: one endless 28 km loop of divided highway (a city expressway
   on viaducts, three tunnels through the hills, three suspension bridges over the lakes, the
-  longest with a 1,100 m main span) full of traffic. Weave through it as close as you dare, as
-  long as you like (END RUN in the pause menu); on HARD and INSANE the traffic comes in packs
-  across all four lanes, cars join and leave by the ramps, the other carriageway has its own.
+  longest with a 1,100 m main span) full of traffic. You start at the pumps of a **gas station**
+  off the highway (SHOTGUN FUEL: a canopy over three pump islands, the shop, a price pylon; up to 8
+  at the pumps online) and drive out up its ramp into the traffic. Weave through it as close as
+  you dare, as long as you like (END RUN in the pause menu); HARD and INSANE are a real highway's
+  rush hour (by the Highway Capacity Manual's levels of service: HARD ~18 cars a km in every
+  lane, INSANE ~26, the road at capacity, in packs of 14-26 across all four lanes, bumper to
+  bumper), cars join and leave by the ramps, the other carriageway has its own.
   **Highway battles**: a rival with a nickname turns up in the traffic; get right behind it and
   flash your lights (H) to race it 3 km through the traffic to a finish gate. The city's front
   rows are 22 real apartment and office buildings (their windows lit at night). The traffic is
@@ -226,9 +230,12 @@ the old backdrop: your car flat out on a stage, filmed like rally TV.
 
 ### Inside the car
 
-- **Hands that drive.** Racing gloves wrap round the rim: pre-curved fingers, the thumb across the
-  rim, padded knuckles, a panel in the suit's colour on the back, and a gauntlet with a strap and a
-  white edge that goes over the sleeve and turns with the forearm. Turn and the hands go with
+- **Hands that drive.** Red and white racing gloves wrap round the rim (a model made with
+  Higgsfield from a generated photo, fitted to the rim: stitched panels, padded knuckles, a dark
+  palm), each long gauntlet over the sleeve, turning with the forearm. The seat's view is
+  Assetto Corsa's (a 58 deg COCKPIT FOV, a slider in Settings), so the wheel and your hands fill
+  the bottom of the screen, and in a slide your head turns toward where the car's going (LOOK
+  INTO SLIDES, a switch in Settings). Turn and the hands go with
   the wheel; past where an arm can go, one hand lets go and takes a new grip further round
   (hand-over-hand, never two at once, so the driver's arms never twist), and back near straight
   they drift home to 9 and 3. **Handbrake:** the right hand drops off the wheel, grabs the tall

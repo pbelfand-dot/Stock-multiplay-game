@@ -25,6 +25,8 @@ var st                           # StageGen
 var _vmax := PackedFloat32Array()  # corner speed limit per centerline sample
 var lane := INF                  # (a showcase weaving through traffic) the d to hold instead of its own line
 var cap := 60.0                  # m/s: never faster than this (the showcase holds it behind traffic)
+var route := PackedVector3Array()  # (cut up's start at the gas station) points to follow first: across the forecourt, up the ramp to the highway
+var route_v := 15.0              # m/s along them
 
 
 func _init(stage, pace := 1.0) -> void:
@@ -68,6 +70,10 @@ func drive(car, s: float, d: float) -> Dictionary:
 	var fwd: Vector3 = -xf.basis.z
 	var base: float = car.config.rear_axle - car.config.front_axle
 	var lock: float = deg_to_rad(car.config.steering.max_angle_deg)
+	if not route.is_empty():
+		var r := _follow(car, spd, fwd, base, lock)
+		if not r.is_empty():
+			return r
 	# its line: toward the inside of what's coming
 	var look := 6.0 + spd * 0.45
 	var ahead_i := clampi(int((s + look) / st.STEP), 0, st.curv.size() - 1)
@@ -124,6 +130,46 @@ func drive(car, s: float, d: float) -> Dictionary:
 		brk = clampf((spd - want) / 5.0, 0.2, 0.85) * (1.0 - 0.45 * absf(steer_cmd))
 		brk *= clampf(1.0 - absf(tail) / 0.15, 0.3, 1.0)   # the tail's stepping out: ease off, like a driver
 	# (pressed, as a stick, so that it gets there through the steering aids, if they're on)
+	var press: float = car.assist.input_for(car, steer_cmd, 1.0 / Engine.physics_ticks_per_second)
+	return {"steer": press, "throttle": thr, "brake": brk, "handbrake": false, "analog": true}
+
+
+## Along `route` (the gas station's way out): steers for the point on it a little ahead (pure
+## pursuit) at route_v. {} once it's at the end, or far off it (put somewhere else): the route's
+## cleared and the highway's own line takes over.
+func _follow(car, spd: float, fwd: Vector3, base: float, lock: float) -> Dictionary:
+	var p: Vector3 = car.global_position
+	var best := 0
+	var bd := INF
+	for i in route.size():
+		var dd := Vector2(route[i].x - p.x, route[i].z - p.z).length_squared()
+		if dd < bd:
+			bd = dd
+			best = i
+	if best >= route.size() - 2 or bd > 30.0 * 30.0:
+		route = PackedVector3Array()
+		return {}
+	var look := 5.0 + spd * 0.5
+	var tgt := route[route.size() - 1]
+	var acc := 0.0
+	for i in range(best, route.size() - 1):
+		acc += Vector2(route[i + 1].x - route[i].x, route[i + 1].z - route[i].z).length()
+		if acc >= look:
+			tgt = route[i + 1]
+			break
+	var to := Vector3(tgt.x - p.x, 0.0, tgt.z - p.z)
+	var f := Vector3(fwd.x, 0.0, fwd.z).normalized()
+	var t := to.normalized()
+	var alpha := atan2(-f.cross(t).y, f.dot(t))         # + : the point's to the right
+	var k := 2.0 * sin(alpha) / maxf(to.length(), 1.0)
+	var steer_cmd := clampf(atan(base * k) / lock, -1.0, 1.0)
+	var thr := 0.0
+	var brk := 0.0
+	var want := route_v * clampf(1.2 - absf(alpha), 0.45, 1.0)   # (slower round the turn onto the ramp)
+	if spd < want - 1.0:
+		thr = clampf((want - spd) / 4.0, 0.25, 0.8)
+	elif spd > want + 1.5:
+		brk = clampf((spd - want) / 5.0, 0.2, 0.7)
 	var press: float = car.assist.input_for(car, steer_cmd, 1.0 / Engine.physics_ticks_per_second)
 	return {"steer": press, "throttle": thr, "brake": brk, "handbrake": false, "analog": true}
 

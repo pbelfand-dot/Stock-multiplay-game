@@ -540,6 +540,17 @@ func _loop() -> void:
 	packs += 1 if in_pack >= 5 else 0
 	biggest = maxi(biggest, in_pack)
 	check(packs >= 2 and biggest >= 8, "loop traffic, insane: packs (%d of 5+ cars, the biggest %d) with open road between" % [packs, biggest])
+	# rush hour (the owner's "legit in traffic"): cars a km a lane round the player, against the
+	# Highway Capacity Manual's levels of service for a freeway (LOS D 16-22, E 22-28 a km a lane)
+	var per_lane := func(t) -> float: return float(t.count()) / ((t.AHEAD + t.BEHIND) / 1000.0) / float(t.lanes)
+	var dens_i: float = per_lane.call(tr)
+	var trh = Traffic.new()
+	root.add_child(trh)
+	trh.setup(st, Modes.DIFFICULTIES.hard, 3, start)
+	var dens_h: float = per_lane.call(trh)
+	trh.queue_free()
+	check(dens_h >= 14.0 and dens_i >= 20.0 and dens_i > dens_h,
+		"rush hour: HARD %.1f, INSANE %.1f cars a km a lane (LOS D from 16, E from 22; they were ~7.5 and ~11)" % [dens_h, dens_i])
 	check(tr.oncoming.size() >= 6, "loop traffic: %d cars on the other carriageway" % tr.oncoming.size())
 	var on0: float = tr.oncoming[0].s if not tr.oncoming.is_empty() else 0.0
 	# drive the player up the road at 140 km/h for 40 s, past ramps: the oncoming go the other way,
@@ -879,7 +890,10 @@ func _game(m: String) -> void:
 			g.reset_car()
 			stuck = 0.0
 	if g.looped:
-		check(g.car_s > g.st.START_S + 300.0, "game: on the loop the run goes on (%.0f m in a minute, %d resets; no finish)" % [g.car_s - g.st.START_S, g.resets])
+		# (cut up starts at the gas station off the highway: its way out first, then on round)
+		var s0: float = g._start_s()
+		check(g.car_s > s0 + 300.0, "game: on the loop the run goes on (%.0f m in a minute from %s, %d resets; no finish)" % [
+			g.car_s - s0, "the gas station" if g._at_station() else "the start line", g.resets])
 		g._end_run()                                   # (no finish on a loop: the player ends the run)
 	if m == "cutup":
 		check(g.cutup != null and most > 0, "game: cut up's score and up to %d traffic cars running (score %d, %d near misses, %d crashes)" % [

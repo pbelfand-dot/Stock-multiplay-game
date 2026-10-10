@@ -69,3 +69,6 @@ is `docs/VEHICLE_PROGRESS.md`.
 - The game's own cars (KESTREL, COMET, VORTEX, MARTELLO), the crew's seats and the loading art: Higgsfield,
   from the owner's account. The crew: the owner's Claude Racer character (Mixamo-rigged).
 - Co-driver voice: Higgsfield Seed Audio 1.0, preset voice "Fraser". Font: Oswald (SIL OFL).
+- The driver's gloves (`assets/models/gloves/gloves.glb`): Higgsfield, from the owner's account: a photo
+  made with GPT Image 2.5 (a red and white racing glove gripping a bar), made 3D with Tripo H3.1, fitted
+  to the steering wheel rim by `tools/fit_glove.py` (Blender).

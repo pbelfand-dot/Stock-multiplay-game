@@ -99,6 +99,7 @@ func generate(seed_value: int, _target := 2600.0) -> void:
 				_hill_grid[key].append(hl)
 	_extra_lanes()
 	_find_toll()
+	_find_station()
 	_bumps.seed = 7
 	_bumps.frequency = 1.0 / 260.0
 	_bumps.fractal_octaves = 3
@@ -154,6 +155,136 @@ func _find_toll() -> void:
 		layout = "open"
 	toll = {"s": best, "half": TOLL_HALF, "approach": TOLL_APPROACH, "layout": layout,
 		"closed": [0] if layout == "mixed" else [], "speed": float(TOLL_SPEED[layout])}
+
+
+## THE GAS STATION (cut up starts at its pumps): a services forecourt where one of our side's
+## junctions ends up, its exit's and its next entry's ramps (their ends ~60 m apart: the
+## forecourt joins them), on the ground (the city's, mostly: the towers keep off it), out of the
+## lakes, clear of the highway
+## (_find_station: the same one every time). station = {off, on (the two ramps), c (the
+## forecourt's middle, on its plane), u (across it: from the exit's end to the entry's), w (out:
+## away from the highway), gy (the plane's rise a metre of u), s (the highway's s nearest it),
+## flat (how far the land's off the plane)}. land_at flattens the ground under it.
+var station := {}
+const STATION_HALF := Vector2(34.0, 24.0)    # m: half the forecourt, across (u) and out (w)
+const STATION_EASE := 24.0                   # m round it where the land eases back to its own
+const STATION_SINK := 0.2                    # m: the land under it, below its top (its kerb)
+## The pumps' places (u, w from the middle): two rows of four lanes between the islands, the
+## first row at the pumps, every car nosed towards the entry's side; a racer's slot picks one.
+const STATION_SPOTS := [[3.0, -6.0], [3.0, 0.0], [3.0, -12.0], [3.0, 6.0], [-6.0, -6.0], [-6.0, 0.0], [-6.0, -12.0], [-6.0, 6.0]]
+
+func _find_station() -> void:
+	station = {}
+	var best := -INF
+	for off in ramps:
+		if off.side != "right" or off.kind != "off":
+			continue
+		for on in ramps:
+			if on.side != "right" or on.kind != "on":
+				continue
+			var gap := gore_ds(float(on.s), float(off.s))
+			if gap < 300.0 or gap > 800.0:
+				continue
+			var c := _station_at(off, on)
+			if c.is_empty():
+				continue
+			# flattest, least tilted; then the nearest the start
+			var score := -float(c.flat) * 2.0 - absf(float(c.gy)) * 60.0 - absf(gore_ds(float(on.s), START_S)) * 0.0005
+			if score > best:
+				best = score
+				station = c
+
+
+## A forecourt where these two ramps end, or {} if there's no room for one there.
+func _station_at(off: Dictionary, on: Dictionary) -> Dictionary:
+	var po := ramp_path(off)
+	var pn := ramp_path(on)
+	var eo: Vector3 = po.pts[po.pts.size() - 1]
+	var en: Vector3 = pn.pts[pn.pts.size() - 1]
+	var span := Vector2(en.x - eo.x, en.z - eo.z)
+	if span.length() < 20.0 or span.length() > 70.0:
+		return {}
+	var u := Vector3(span.x, 0.0, span.y).normalized()
+	var w := u.cross(Vector3.UP)
+	var ho: float = po.heads[po.heads.size() - 1]
+	var hn: float = pn.heads[pn.heads.size() - 1]
+	if Vector3(sin(ho) + sin(hn), 0.0, -cos(ho) - cos(hn)).dot(w) < 0.0:
+		w = -w                                          # (out: the way both ramps' ends head)
+	var mid := (eo + en) * 0.5
+	var out := {"off": off, "on": on, "c": mid + w * (STATION_HALF.y - 4.0), "u": u, "w": w,
+		"gy": (en.y - eo.y) / span.length(), "flat": 0.0}
+	out.c.y = mid.y
+	if absf(float(out.gy)) > 0.05:
+		return {}
+	# the land under it and round it: no water, no city, not far off the plane; the highway
+	# (any part of the loop) well clear
+	var flat := 0.0
+	var hx: float = STATION_HALF.x + 8.0
+	var hy: float = STATION_HALF.y + 8.0
+	var a := -hx
+	while a <= hx + 0.01:
+		var b := -hy
+		while b <= hy + 0.01:
+			var p: Vector3 = out.c + u * a + w * b
+			var g := land_at(p.x, p.z)
+			if g < 1.0:
+				return {}                               # (in a lake)
+			flat = maxf(flat, absf(g - (float(out.c.y) + float(out.gy) * a - 0.3)))
+			b += 8.0
+		a += 9.0
+	if flat > 3.0:
+		return {}
+	for q in [[-1, -1], [0, -1], [1, -1], [-1, 0], [1, 0], [-1, 1], [0, 1], [1, 1]]:
+		var at := locate(out.c + u * hx * q[0] + w * hy * q[1])
+		var dd: float = float(at.d)
+		if absf(dd - (0.0 if dd > ONCOMING_D * 0.5 else ONCOMING_D)) < EDGE + 30.0:
+			return {}
+	out.flat = flat
+	out.s = float(locate(out.c).s)
+	return out
+
+
+## A point on the forecourt: across (a) and out (b) from its middle, on its plane, `up` over it.
+func station_at(a: float, b: float, up := 0.0) -> Vector3:
+	var p: Vector3 = station.c + station.u * a + station.w * b
+	p.y = float(station.c.y) + float(station.gy) * a + up
+	return p
+
+
+## Slot k's place at the pumps: [position, heading] (headings as heading_at's).
+func station_spot(k: int) -> Array:
+	var q: Array = STATION_SPOTS[posmod(k, STATION_SPOTS.size())]
+	var f: Vector3 = station.u
+	return [station_at(float(q[0]), float(q[1])), atan2(f.x, -f.z)]
+
+
+## The way out from slot k's place to the highway (Autopilot.route): on past the pumps, round
+## onto the entry ramp's line, up it to its gore (on the highway's edge).
+func station_route(k: int) -> PackedVector3Array:
+	var out := PackedVector3Array()
+	if station.is_empty():
+		return out
+	var q: Array = STATION_SPOTS[posmod(k, STATION_SPOTS.size())]
+	for t in [0.0, 8.0, 14.0]:
+		out.append(station_at(float(q[0]) + t, float(q[1])))
+	var path := ramp_path(station.on)
+	var pts: PackedVector3Array = path.pts
+	var e := pts[pts.size() - 1]
+	var h: float = path.heads[pts.size() - 1]
+	var dir := Vector3(sin(h), 0.0, -cos(h))         # (out of the ramp, into the forecourt)
+	out.append(e + dir * 12.0)
+	out.append(e + dir * 6.0)
+	for i in range(pts.size() - 1, -1, -1):
+		out.append(pts[i])
+	return out
+
+
+## Is (x, z) on the forecourt (within `margin` m of it)?
+func on_station(x: float, z: float, margin := 0.0) -> bool:
+	if station.is_empty():
+		return false
+	var rel := Vector3(x - float(station.c.x), 0.0, z - float(station.c.z))
+	return absf(rel.dot(station.u)) < STATION_HALF.x + margin and absf(rel.dot(station.w)) < STATION_HALF.y + margin
 
 
 func _wrapped_ds(a: float, b: float) -> float:
@@ -409,6 +540,13 @@ func land_at(x: float, z: float) -> float:
 		if e < 1.6:
 			var sh := clampf((1.3 - e) / 0.3, 0.0, 1.0)
 			h = lerpf(h, -float(lk.depth), sh)
+	if not station.is_empty():
+		# (the gas station's forecourt: the land flat under it, easing back to its own round it)
+		var rel := Vector3(x - float(station.c.x), 0.0, z - float(station.c.z))
+		var a := rel.dot(station.u)
+		var e := Vector2(maxf(absf(a) - STATION_HALF.x, 0.0), maxf(absf(rel.dot(station.w)) - STATION_HALF.y, 0.0)).length()
+		if e < STATION_EASE:
+			h = lerpf(float(station.c.y) + float(station.gy) * a - STATION_SINK, h, smoothstep(0.0, STATION_EASE, e))
 	return h
 
 

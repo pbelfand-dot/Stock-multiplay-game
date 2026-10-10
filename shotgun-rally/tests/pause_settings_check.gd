@@ -339,7 +339,8 @@ func _visible(c: Control) -> bool:
 
 
 func _sliders_now() -> Array:
-	return [config.mouse_sens, config.volume, config.sfx_volume, config.voice_volume, config.call_early, config.time_of_day]
+	return [config.mouse_sens, config.volume, config.sfx_volume, config.voice_volume, config.call_early, config.time_of_day,
+		config.chase_height, config.cockpit_fov]
 
 
 func _others_now() -> Array:

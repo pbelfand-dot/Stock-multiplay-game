@@ -11,15 +11,18 @@ extends RefCounted
 ##     (END RUN in the pause menu). Four difficulties.
 
 const DIFFICULTIES := {
-	# cars a km (all lanes), their speeds (km/h), how close a near miss is (m), how often they change lanes.
-	# HARD and INSANE: as busy as Assetto Corsa's No Hesi servers in the owner's clips (counted:
-	# ~35 cars a km by day, ~45 at night, across the lanes)
+	# cars a km (all lanes), their speeds (km/h), how close a near miss is (m), how often they change lanes,
+	# gap_k: their time gap x (a busy road's drivers sit closer).
+	# HARD and INSANE are a real highway's rush hour (the owner: "legit in traffic"), by the Highway
+	# Capacity Manual's levels of service for a basic freeway segment (cars a km a lane: C up to 16,
+	# D up to 22, E up to 28, its capacity): HARD ~LOS D (70 a km over the four lanes, every lane busy,
+	# ~1.1 s gaps), INSANE ~LOS E (100 a km, at capacity: waves of 14-26 cars across all four lanes
+	# bumper to bumper, 40-90 m between them, ~1 s gaps). They were 30 and 45 (No Hesi's servers).
 	"easy": {"name": "EASY", "density": 7.0, "speed": [70.0, 110.0], "near": 1.6, "lane_changes": 0.4},
 	"normal": {"name": "NORMAL", "density": 15.0, "speed": [80.0, 120.0], "near": 1.2, "lane_changes": 0.7},
-	"hard": {"name": "HARD", "density": 30.0, "speed": [85.0, 130.0], "near": 0.9, "lane_changes": 1.0},
-	# insane: that much traffic again, in packs of 6-12 across all four lanes, 80-160 m of open road between
-	"insane": {"name": "INSANE", "density": 45.0, "speed": [90.0, 140.0], "near": 0.7, "lane_changes": 1.4,
-		"pack": [6, 12], "pack_gap": [80.0, 160.0]},
+	"hard": {"name": "HARD", "density": 70.0, "speed": [85.0, 130.0], "near": 0.9, "lane_changes": 1.0, "gap_k": 0.85},
+	"insane": {"name": "INSANE", "density": 100.0, "speed": [90.0, 140.0], "near": 0.7, "lane_changes": 1.4,
+		"pack": [14, 26], "pack_gap": [40.0, 90.0], "gap_k": 0.75},
 }
 const TOUGE_LENGTH := 5000.0
 const HIGHWAY_LENGTH := 8000.0
