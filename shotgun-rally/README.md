@@ -20,6 +20,7 @@ heavy highway traffic on an endless 28 km loop ([docs/modes.md](docs/modes.md)).
 |---|---|
 | ![The home screen: the logo and menu over your car flat out on a stage](docs/screens/home.jpg) | ![MODES: the touge and cut up, alone or online up to 8](docs/screens/modes.jpg) |
 | ![The touge at night: sodium street lamps, your headlights, the cedars close](docs/screens/touge_night.jpg) | ![Cut up at night: the LAKESHORE LOOP's towers lit, lamps along the highway](docs/screens/cutup.jpg) |
+| ![Cut up starts at a gas station: your car at the pumps under the canopy, the city behind](docs/screens/gas_station.jpg) | ![First person in the KAISER 4 WB: the gloves at 9 and 3, Assetto Corsa's 58 deg view](docs/screens/seat_m4.jpg) |
 | ![An online touge's results: the podium](docs/screens/results.jpg) | ![GO: the start lights](docs/screens/start_lights.jpg) |
 | ![The garage: buy, paint, upgrade](docs/screens/garage.jpg) | ![The loading screen: the night touge's key art](docs/screens/loading.jpg) |
 | ![The realistic cars: Rotora FD in the garage, real power and weight](docs/screens/garage_fd.jpg) | ![The nine realistic cars](docs/screens/cars_lineup.jpg) |
@@ -36,7 +37,7 @@ heavy highway traffic on an endless 28 km loop ([docs/modes.md](docs/modes.md)).
 | ![A narrow, technical section (4.6 m): two worn wheel tracks, looser gravel at the edges](docs/screens/road_narrow.jpg) | ![A wide, fast section (6.8 m)](docs/screens/road_wide.jpg) |
 | ![A wooden bridge over a gully: plank deck, rails, timber trestles, the stream below](docs/screens/bridge.jpg) | ![Onto the bridge from the driver's seat](docs/screens/bridge_seat.jpg) |
 | ![Spectators behind the tape at a jump, waving flags](docs/screens/crowd.jpg) | ![The crowds at the start](docs/screens/crowd_start.jpg) |
-| ![Racing gloves on the wheel, gauntlets over the sleeves](docs/screens/gloves.jpg) | ![Numbered dials, shift lights and the gear](docs/screens/dials.jpg) |
+| ![Racing gloves on the wheel (life size: padded knuckles, stitched panels), gauntlets over the sleeves](docs/screens/gloves.jpg) | ![Numbered dials, shift lights and the gear](docs/screens/dials.jpg) |
 | ![The cockpit from the co-driver's seat: the driver belted in, the wheel, switch panel, sequential lever and handbrake](docs/screens/interior.jpg) | ![Driving in third: a shift light on, the wipers clearing a mud splat](docs/screens/dash.jpg) |
 | ![Belted in: six-point harness, padded shoulder straps, steel adjusters, the cam-lock buckle](docs/screens/belts.jpg) | ![A gear change: the right hand on the sequential lever, pulling it back](docs/screens/shift.jpg) |
 | ![The rear-view mirror works: the road behind, framed by the cage](docs/screens/mirror.jpg) | ![The deep-dish suede wheel, the gloves at 9 and 3](docs/screens/wheel.jpg) |
@@ -232,10 +233,11 @@ the old backdrop: your car flat out on a stage, filmed like rally TV.
 
 - **Hands that drive.** Red and white racing gloves wrap round the rim (a model made with
   Higgsfield from a generated photo, fitted to the rim: stitched panels, padded knuckles, a dark
-  palm), each long gauntlet over the sleeve, turning with the forearm. The seat's view is
-  Assetto Corsa's (a 58 deg COCKPIT FOV, a slider in Settings), so the wheel and your hands fill
-  the bottom of the screen, and in a slide your head turns toward where the car's going (LOOK
-  INTO SLIDES, a switch in Settings). Turn and the hands go with
+  palm; life size, 11 cm across the grip), each long gauntlet over the sleeve, turning with the
+  forearm. The seat's view is Assetto Corsa's (a 58 deg COCKPIT FOV, a slider in Settings), aimed
+  in every car so the wheel sits low in the view with your hands at 9 and 3 in it, and in a slide
+  your head turns toward where the car's going (LOOK INTO SLIDES, a switch in Settings). Turn and
+  the hands go with
   the wheel; past where an arm can go, one hand lets go and takes a new grip further round
   (hand-over-hand, never two at once, so the driver's arms never twist), and back near straight
   they drift home to 9 and 3. **Handbrake:** the right hand drops off the wheel, grabs the tall
