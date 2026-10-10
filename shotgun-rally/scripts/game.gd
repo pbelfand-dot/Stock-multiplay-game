@@ -264,6 +264,8 @@ func _apply_roster() -> void:
 	cockpit.set_paint(setup.colours[0])
 	car.set_simulating(driver_here)
 	cam.attach(car, seat, cockpit.eye_for(seat))
+	if seat == "driver":
+		cam.aim_at_wheel(cockpit.wheel_c)
 	cockpit.set_my_seat(seat)
 	ai.enabled = not street_online and Net.peer_in("codriver") == 0 and mode == ""
 	if street_online:

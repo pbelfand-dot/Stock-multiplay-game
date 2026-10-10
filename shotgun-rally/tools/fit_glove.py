@@ -13,6 +13,9 @@ argv = sys.argv[sys.argv.index("--") + 1:]
 SRC, OUT = argv[0], argv[1]
 RIM_R = 0.0155
 GRIP_ROLL = 0.55
+HAND_W = 0.112        # m across the grip along the rim: a gloved hand ~9 cm over the knuckles, the thumb
+                      # round the rim beside it (the generated bar is thinner than a wheel's rim for the
+                      # hand round it, so scaling to the bar alone made a hand ~1.4x life size)
 bpy.ops.wm.read_factory_settings(use_empty=True)
 bpy.ops.import_scene.gltf(filepath=SRC)
 ob = [o for o in bpy.context.scene.objects if o.type == "MESH"][0]
@@ -95,9 +98,25 @@ roll = np.array([[1, 0, 0], [0, math.cos(GRIP_ROLL), -math.sin(GRIP_ROLL)], [0, 
 def to_glove(p):
     return roll @ (M @ (np.array(p) - origin))
 
-# the wrist: along B, the narrowest cross-section between the hand and the gauntlet's flare
-G = np.array([to_glove(p) for p in P])
 Gpre = (M @ (P - origin).T).T                    # (before the roll)
+# life size: the hand's width along the rim to HAND_W, shrunk toward the rim's surface (not its
+# middle: the fingers stay round a rim of RIM_R) and along it, the same factor both ways
+near_bar = Gpre[(np.sqrt(Gpre[:, 1] ** 2 + Gpre[:, 2] ** 2) > RIM_R * 1.3) & (Gpre[:, 2] < 0.04)][:, 0]
+K = min(1.0, HAND_W / float(near_bar.max() - near_bar.min()))
+print("[fit] hand width", round(float(near_bar.max() - near_bar.min()), 4), "-> life size x", round(K, 3))
+
+def shrink(Q):
+    """Points in glove space (either side of the roll: it's about x) shrunk K toward the rim."""
+    Q = np.array(Q, dtype=float).copy()
+    Q[:, 0] *= K
+    r = np.sqrt(Q[:, 1] ** 2 + Q[:, 2] ** 2)
+    f = np.where(r > RIM_R, (RIM_R + (r - RIM_R) * K) / np.maximum(r, 1e-9), 1.0)
+    Q[:, 1] *= f
+    Q[:, 2] *= f
+    return Q
+
+Gpre = shrink(Gpre)
+# the wrist: along B, the narrowest cross-section between the hand and the gauntlet's flare
 dag = np.sqrt(Gpre[:, 0] ** 0 * 0 + Gpre[:, 1] ** 2 + Gpre[:, 2] ** 2)
 offbar = np.sqrt(Gpre[:, 1] ** 2 + Gpre[:, 2] ** 2) > RIM_R * 1.3
 Gg = Gpre[offbar]
@@ -126,6 +145,11 @@ A = mat_g2b @ roll @ M
 Mx = Matrix(((A[0, 0], A[0, 1], A[0, 2], 0), (A[1, 0], A[1, 1], A[1, 2], 0), (A[2, 0], A[2, 1], A[2, 2], 0), (0, 0, 0, 1)))
 ob.matrix_world = Mx @ Matrix.Translation(Vector(-origin))
 bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
+# (Blender's (x, -z, y) of glove space: the same distance from the x axis, so the same shrink)
+V = np.array([v.co[:] for v in ob.data.vertices])
+V = shrink(V)
+for v, c in zip(ob.data.vertices, V):
+    v.co = Vector(c)
 if np.linalg.det(A) < 0:
     bpy.ops.object.mode_set(mode="EDIT")
     bpy.ops.mesh.select_all(action="SELECT")
@@ -231,6 +255,6 @@ bpy.ops.export_scene.gltf(filepath=OUT + "/gloves.glb", export_format="GLB", use
                           export_yup=True, export_image_format="JPEG", export_jpeg_quality=85)
 print("[fit] wrote", OUT + "/gloves.glb")
 json.dump({"wrist": [float(x) for x in wrist_g], "wrist_pre_roll": [float(x) for x in wrist_pre],
-           "forearm": [float(x) for x in fore_g], "scale": float(scale), "bar_radius_model": float(bar_r)},
+           "forearm": [float(x) for x in fore_g], "scale": float(scale), "life_size": K, "bar_radius_model": float(bar_r)},
           open(OUT + "/glove.json", "w"), indent=1)
 print("[fit] done")

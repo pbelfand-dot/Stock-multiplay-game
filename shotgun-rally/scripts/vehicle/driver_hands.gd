@@ -52,7 +52,7 @@ const RIM_R := 0.0155           # thickness of the rim / lever handle the finger
 const GRIP_ROLL := 0.55         # rad: the hand rolled round the rim toward the driver (you see the backs of your hands)
 const WRIST := Vector3(0.0, 0.01, 0.085)    # glove space (before the roll): where the forearm meets the hand
 const GLOVES := "res://assets/models/gloves/gloves.glb"   # the model: its "Glove" (the right hand) and "Cuff"
-const MODEL_WRIST := Vector3(0.0121, 0.0059, 0.1029)     # its wrist (the right hand's; glove space, before the roll)
+const MODEL_WRIST := Vector3(0.0086, 0.0051, 0.0793)     # its wrist (the right hand's; glove space, before the roll)
 ## The gauntlet's outline, from inside the glove out over the sleeve (the crew's suit
 ## sleeve ends ~8 cm up the forearm, where its own glove's cuff was: crew_model.gd
 ## cuts that out), long like a racing glove's, then a lip turning in to the

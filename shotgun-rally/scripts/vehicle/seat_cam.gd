@@ -16,6 +16,9 @@ extends Camera3D
 const YAW_MAX := 2.0            # rad: almost over your shoulder
 const PITCH_MIN := -1.25
 const PITCH_MAX := 0.5
+const WHEEL_IN_VIEW := 0.62       # the driver's view puts the wheel's centre this far from the middle to the bottom edge
+                                  # (the rim, your hands at 9 and 3 and their gauntlets in view, as Assetto Corsa's seat)
+const AIM_PITCH := Vector2(-0.21, 0.0)   # rad: the most it looks down for that (the road still in view), and up
 const BOOK_LOOK := Vector2(0.06, -0.98)   # yaw, pitch that puts the map board in view
 const NECK_K := 380.0           # the neck's spring (1/s^2): ~3 Hz
 const NECK_C := 30.0            # ... and damping: it settles in a bob or two
@@ -68,6 +71,15 @@ func attach(the_car, seat_name: String, eye_pos: Vector3) -> void:
 	# don't draw the inside of your own helmet
 	cull_mask = 0xFFFFF & ~(1 << (1 if seat == "driver" else 2))
 	current = true
+
+
+## The driver looks down far enough to have the wheel (its centre, in the car's space) where
+## Assetto Corsa's seat has it, whatever the car's eye and wheel: one pitch for every car left a low
+## wheel's hands (the AE86's) out of the bottom of the view.
+func aim_at_wheel(wheel_c: Vector3) -> void:
+	var d := wheel_c - eye
+	var below := atan2(-d.y, maxf(-d.z, 0.05))         # rad under level, from the eye
+	pitch = clampf(deg_to_rad(Config.cockpit_fov) * 0.5 * WHEEL_IN_VIEW - below, AIM_PITCH.x, AIM_PITCH.y)
 
 
 func _unhandled_input(e: InputEvent) -> void:
