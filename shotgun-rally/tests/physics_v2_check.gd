@@ -1623,22 +1623,24 @@ func _judge_settings_panel() -> void:
 	var panel: Node = _p8.panel
 	var config := root.get_node_or_null("Config")
 	var toggles := _buttons(panel).filter(func(b): return b.toggle_mode)
-	var ok: bool = config != null and toggles.size() == AIDS.size() + 1      # (+ invert mouse Y)
+	var ok: bool = config != null and toggles.size() == AIDS.size() + 2      # (+ invert mouse Y, look into slides)
 	var abs_on := false
 	if ok:
 		var saved: Dictionary = config.aids.duplicate()
 		var was_invert: bool = config.invert_y
-		toggles[1].button_pressed = true                 # the first aid: ABS (after invert Y)
+		var was_look: bool = config.look_into_slide
+		toggles[2].button_pressed = true                 # the first aid: ABS (after invert Y and look into slides)
 		var other: RigidBody3D = (load(Lab.CAR_SCENE) as PackedScene).instantiate()
 		root.add_child(other)
 		abs_on = config.aids.anti_lock and other.assists.anti_lock
 		other.queue_free()
 		config.aids = saved                              # (put the settings back)
 		config.invert_y = was_invert
+		config.look_into_slide = was_look
 		config.save()
 	panel.queue_free()
 	fails += _check(ok and abs_on,
-		"the Settings panel: %d switches (the %d aids and invert mouse Y); ABS switched on there, a new car comes with ABS on" % [toggles.size(), AIDS.size()])
+		"the Settings panel: %d switches (the %d aids, invert mouse Y, look into slides); ABS switched on there, a new car comes with ABS on" % [toggles.size(), AIDS.size()])
 
 
 func _judge_telemetry_record() -> void:

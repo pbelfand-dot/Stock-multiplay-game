@@ -53,6 +53,7 @@ const SLIDE_LOOK_MAX := 0.7          # ... up to 40 deg, as far as a neck turns 
 var _chase_dir := Vector3.FORWARD    # the way the chase camera looks (smoothed)
 var _chase_y := 0.0                   # the height it follows (smoothed)
 var _chase_ready := false
+var _fov_view := ""            # the view the field of view was last set for (a new view: no zoom into it)
 
 
 func attach(the_car, seat_name: String, eye_pos: Vector3) -> void:
@@ -60,7 +61,8 @@ func attach(the_car, seat_name: String, eye_pos: Vector3) -> void:
 	seat = seat_name
 	eye = eye_pos
 	physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
-	fov = 78.0
+	fov = Config.cockpit_fov
+	_fov_view = ""
 	near = 0.03
 	far = 900.0
 	# don't draw the inside of your own helmet
@@ -160,7 +162,10 @@ func _process(dt: float) -> void:
 	var fov_want: float = Config.cockpit_fov + clampf(spd / 45.0, 0.0, 1.0) * 3.0
 	if view == "chase":
 		fov_want = (70.0 if street_chase else 74.0) + clampf(spd / 70.0, 0.0, 1.0) * 4.0
-	fov = lerpf(fov, fov_want, clampf(dt * 2.0, 0.0, 1.0))
+	# (straight to it in a new view: easing from the chase cam's 74 deg read as a slow zoom
+	# into the cockpit every time you got in)
+	fov = lerpf(fov, fov_want, clampf(dt * 2.0, 0.0, 1.0)) if view == _fov_view else fov_want
+	_fov_view = view
 
 	var head := Transform3D(Basis.from_euler(Vector3(look_pitch + jitter.x, look_yaw, jitter.y), EULER_ORDER_YXZ), eye + _lean + shake)
 	match view:
