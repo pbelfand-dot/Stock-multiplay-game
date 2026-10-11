@@ -1,0 +1,11 @@
+{"id": "amg_gt3", "front": "+X", "wheelbase": 2.63,
+ "wheel_mats": ["_Rim_Inst$", "_Tyre_Inst$", "_Brake_Disc_Inst$"], "caliper_mats": ["_Caliper_Inst$"],
+ "drop_mats": ["_Grille_Logo$", "_Interior_Stickers$", "^MI_Vehicle_Windows_Stickers$", "^WorldGridMaterial$"],
+ "paint": ["_Evo_Livery$"], "glass": ["_windows_Glass_Inst$"],
+ "materials": [["_windows_Glass_Inst$", "glass"], ["_Lights_Glass_Inst$", "glass"]],
+ "finish": [["^MI_Carbon_Fiber_Tile_Tow_", {"metal": 0.0, "rough": 0.42}], ["_(Interior_Chassis|Interior_Details|Cockpit_Console|Interior_Seat)$", {"metal": 0.15, "rough": 0.55}],
+            ["^(Net_Share|Screws_Share)$", {"metal": 0.6, "rough": 0.45}]],
+ "wheel_faces": 12000, "caliper_faces": 3000, "body_faces": 160000, "body_least": 0.25, "tex_max": 1024, "tex_format": "webp",
+ "decimate_parts": [["_Engine_Components_Inst$", 0.15], ["_Normalmap_Engine_Components$", 0.2], ["_Suspension_Inst$", 0.25],
+                    ["_Interior_Chassis$", 0.35], ["_Interior_Details$", 0.35], ["_Cockpit_Console$", 0.4]],
+ "cockpit": {"gearbox": "auto", "wheel": {"parts": ["^Object_(43|154|157)$"]}}}

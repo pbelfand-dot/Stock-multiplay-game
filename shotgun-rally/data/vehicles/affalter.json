@@ -1,0 +1,81 @@
+{
+	"id": "affalter",
+	"name": "AFFALTER GT3",
+	"order": 485,
+	"model": "amg_gt3",
+	"category": "race",
+	"role": "track",
+	"real": {
+		"manufacturer": "Mercedes-AMG",
+		"model": "GT3 Evo",
+		"year": 2020,
+		"trim": "6.2 V8 (M159), 6-speed sequential transaxle",
+		"race_class": "GT3"
+	},
+	"specs": {
+		"power_hp": 550,
+		"weight_kg": 1285,
+		"drivetrain": "RWD",
+		"transmission": "6-speed sequential (Hewland transaxle, paddles)",
+		"wheelbase_mm": 2630,
+		"top_speed_kmh": 280,
+		"front_weight": 0.47,
+		"notes": "Mercedes-AMG's GT3 customer car (the Evo: 2020 on): the naturally aspirated 6,208 cc M159 V8 carried over from the SLS GT3, about 550 bhp with restrictors, a 1,285 kg homologated race weight (1,265 kg dry), a six-speed Hewland sequential transaxle (Motorsport Magazine's 2016 track test of the AMG GT3); its wheelbase 50 mm shorter than the SLS's 2,680 mm, so 2,630 mm, the road AMG GT's; 4,746 mm long, 2,049 mm wide (conceptcarz). The model's own tyres measure 680 mm front and 710 mm rear, 300 / 310 mm wide: GT3's 30/68-18 and 31/71-18. Torque, the rpm of the peaks, the limiter, the ratios, weight split (front-mid engine, rear transaxle: ~47 % front) and aero are estimates; the power is BoP-dependent."
+	},
+	"garage": {
+		"price": 105000,
+		"engine_sound": "v8",
+		"livery": "stripes",
+		"number": 48,
+		"colours": [[0.74, 0.76, 0.78], [0.05, 0.05, 0.06], [0.0, 0.62, 0.58], [0.95, 0.95, 0.94]],
+		"wheels": "black",
+		"power": 1.0,
+		"grip": 1.0,
+		"brakes": 1.0,
+		"drive_front": 0.0,
+		"blurb": "A GT3 car with a big naturally aspirated V8 sat behind the front axle and the gearbox at the back: heavy, stable, enormous traction, and a thunderous noise."
+	},
+	"physics": {
+		"chassis": "track",
+		"mass": 1285.0,
+		"front": 0.47,
+		"torque": 620.0,
+		"curve": [[1000, 0.55], [3000, 0.82], [5000, 1.0], [6000, 0.98], [7000, 0.9], [7500, 0.8]],
+		"idle": 1000.0,
+		"limiter": 7500.0,
+		"turbo": 0.0,
+		"gears": [2.6, 2.0, 1.6, 1.3, 1.07, 0.89],
+		"final": 4.0,
+		"drive": "rwd",
+		"rear": ["lsd", 0.35, 0.15, 30.0],
+		"cd": 0.45,
+		"area": 2.0,
+		"down": 2.4,
+		"brake": 1.25
+	},
+	"checks": {
+		"zero_100_max": 7.0
+	},
+	"interior": {
+		"own": true,
+		"camera": true,
+		"notes": "The model's race cockpit (carbon tub, wheel with screen, seat, pedals): its racing wheel cut out by part; paddles: the hands stay on the wheel."
+	},
+	"source": {
+		"package": "Track_Mode_Cars/mercedes-amg-gt3-red-bull-racing.zip (source/mercedes_benz_amg_gt3_red_bull.glb)",
+		"author": "VTX (Sketchfab); the listing credits toddeppe",
+		"license": "CC BY-NC-SA 4.0",
+		"url": "https://sketchfab.com/3d-models/mercedes-amg-gt3-red-bull-racing-035f061cb6624effbc483d5f9b5ecaba",
+		"attribution": "Mercedes-AMG GT3 Red Bull Racing by VTX (Sketchfab), CC BY-NC-SA 4.0"
+	},
+	"research": [
+		"https://www.motorsportmagazine.com/archive/article/september-2016/116/mercedes-amg-gt3-track-test/",
+		"https://www.conceptcarz.com/s29876/mercedes-benz-amg-gt3-evo.aspx",
+		"https://sportscar365.com/sro/world-challenge-europe/mercedes-amg-handed-extra-weight-in-post-qualifying-bop/"
+	],
+	"limitations": [
+		"Torque, the peaks' rpm, the limiter, top speed, the ratios, weight distribution and aero are estimates; the power and weight are BoP-dependent (SRO set 1,350 kg at one 2025 race).",
+		"Provenance: its materials are Unreal material instances named like Assetto Corsa Competizione's ('MI_Mercedes_AMG_GT3_Evo_...'): a game-asset port; fine among friends, replace before any public release.",
+		"Its sponsor livery is gone: the body is the game's paint (the garage's livery on it); the grille badge, the cabin and window stickers dropped. The three-pointed stars on the steering wheel, the boot lid and in the grille's texture stay (part of the model's mesh and textures, as the GLS's grille star is)."
+	]
+}

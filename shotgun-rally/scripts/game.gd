@@ -22,6 +22,7 @@ const LoopGen = preload("res://scripts/stage/loop_gen.gd")
 const CircuitGen = preload("res://scripts/stage/circuit_gen.gd")
 const CircuitBuilder = preload("res://scripts/stage/circuit_builder.gd")
 const TrackSession = preload("res://scripts/game/track_session.gd")
+const RaceHud = preload("res://scripts/ui/race_hud.gd")
 const LoopBuilder = preload("res://scripts/stage/loop_builder.gd")
 const StageBuilder = preload("res://scripts/stage/stage_builder.gd")
 const Notes = preload("res://scripts/stage/pacenotes.gd")
@@ -124,6 +125,9 @@ var looped := false                  # the map's a loop (cut up's LAKESHORE LOOP
 var circuit := false                 # Track Mode's circuit (CircuitGen)
 var session                          # TrackSession (Track Mode)
 var _track_box := 0                  # the pit box the car started from (Track Mode)
+var _race_hud                        # Track Mode's car panel (RaceHud)
+var fuel_per_lap := 0.0              # the litres the last timed lap burnt (Track Mode)
+var _fuel_at_line := -1.0
 var traffic                          # Traffic (cut up)
 var cutup                            # CutupScore
 var rivals                           # Rivals (cut up on the loop: the highway battles)
@@ -259,6 +263,11 @@ func _car_setup() -> Dictionary:
 			if Config.flag("wheel_type"):              # (pictures: --wheel_type=X follows the car)
 				base["wheel_type"] = wt
 	var s := Catalog.for_stage(base, st)
+	if mode == "track":
+		# (a race car's state: its tyres warm from cold on a medium, practice's half tank, the
+		# car's own ABS and TC; the air by the hour)
+		s["race_sim"] = true
+		s["race"] = Modes.race_opts(opts)
 	if s.has("street") and mode == "touge" and opts.get("rules", "time") == "drift":
 		s.street = s.street.duplicate()
 		s.street[3] = false
@@ -1480,6 +1489,18 @@ func _pit_out_route(k: int) -> PackedVector3Array:
 ## Every running tick in Track Mode: the session's timing (your car), its news as flashes.
 func _track_tick(dt: float) -> void:
 	var pit: bool = st.in_pit_lane(car_s, car_d)
+	if car.race:
+		if Input.is_action_just_pressed("pit_limiter") and my_seat == "driver":
+			car.race.limiter = not car.race.limiter
+			_flash("PIT LIMITER %s" % ("ON" if car.race.limiter else "OFF"), Color(1.0, 0.85, 0.2))
+		if use_autopilot:                              # (the autopilot drives the lane on the limiter, as a driver would)
+			car.race.limiter = st.in_pit_limit(car_s, car_d) or (pit and st.around_line(car_s) < float(st.pit.s_lim0) + 20.0 and st.around_line(car_s) > float(st.pit.s_in1))
+		car.race.limiter_kmh = float(st.pit.limit_kmh)
+		if _race_hud == null and _hud:                  # (the car's panel: once the HUD is up)
+			_race_hud = RaceHud.new()
+			_hud.add_child(_race_hud)
+		if _race_hud:
+			_race_hud.show_state(car.race.readout(), car.race, fuel_per_lap)
 	session.tick(dt, {Net.my_id(): {"s": car_s, "d": car_d, "pit": pit}})
 	for ev in session.events:
 		if ev.id != Net.my_id():
@@ -1490,6 +1511,10 @@ func _track_tick(dt: float) -> void:
 				_flash("S%d   %s%s" % [int(ev.sector) + 1, fmt_lap(float(ev.time)), "" if dl == INF else "   %+.3f" % dl],
 					Color(0.75, 0.4, 1.0) if ev.purple else (Color(0.4, 1.0, 0.45) if dl < 0.0 else (Color(1.0, 0.85, 0.3) if dl != INF else Color.WHITE)))
 			"lap":
+				if car.race:
+					if _fuel_at_line >= 0.0 and not ev.get("in_lap", false):
+						fuel_per_lap = _fuel_at_line - float(car.race.fuel_l)
+					_fuel_at_line = float(car.race.fuel_l)
 				var tag := ""
 				if not ev.valid:
 					tag = "   INVALID"

@@ -4,7 +4,7 @@
   "name": "GT",
   "series": "APEX GT CHALLENGE",
   "blurb": "Closed-wheel GT3 machinery: heavy, electronic aids (ABS, traction control), rolling starts.",
-  "cars": ["elfer_r", "elfer_evo"],
+  "cars": ["elfer_r", "elfer_evo", "affalter"],
   "default": "elfer_r",
   "start": "rolling",
   "available": true

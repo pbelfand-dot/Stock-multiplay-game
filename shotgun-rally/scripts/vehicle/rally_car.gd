@@ -64,6 +64,7 @@ const CarLook = preload("res://scripts/render/car_look.gd")    # its lamps, glas
 const WheelMesh = preload("res://scripts/vehicle/wheel_mesh.gd")
 const CarSpecs = preload("res://scripts/vehicle/car_specs.gd")
 const WheelPresets = preload("res://scripts/vehicle/wheel_presets.gd")
+const RaceSim = preload("res://scripts/vehicle/physics/race_sim.gd")
 const DEFAULT_CONFIG := "res://data/cars/awd_rally.tres"
 const TICKS := 120                 # physics ticks per second (see the plan: the wheels are stiff)
 const NAMES := ["FL", "FR", "RL", "RR"]
@@ -136,6 +137,7 @@ var _model_wheels: Array = []      # [pivot, spinner, rest position] per corner 
 var _model_scale := MODEL_SCALE    # m per model unit (a car's own model: 1)
 var _model_info := {}              # its parts.json
 var wheel_type := "stock"          # the garage's wheel preset on it (WheelPresets: "stock" = its own wheels)
+var race = null                    # RaceSim: Track Mode's race state (tyre heat and wear, brakes, fuel, limiter), or null
 var _wheel_parts: Array = []       # a preset's [spinning assembly, fixed caliper] per corner ([] on its own wheels)
 var cockpit_nodes := {}            # its own model's interior that moves: "wheel" (the steering wheel), "shifter",
                                    # "handbrake" (children of body_model, each with its origin at its pivot)
@@ -435,6 +437,7 @@ func apply_setup(s: Dictionary) -> bool:
 	if config.drivetrain:
 		config.drivetrain.front_share = float(s.get("drive_front", _base.front))
 	street = s.get("street", [])
+	_race_state(s)
 	_tune(str(s.get("tyre", "gravel")), str(s.get("preset", "gravel")))
 	_street_brakes()
 	_set_aids()
@@ -462,6 +465,19 @@ func apply_setup(s: Dictionary) -> bool:
 		for mw in _model_wheels:
 			((mw[1] as Node3D).get_child(0) as MeshInstance3D).set_surface_override_material(1, rim)
 	return swapped
+
+
+## Track Mode's race state (setup "race_sim": true, "race": RaceSim.setup's opts) on or off.
+func _race_state(s: Dictionary) -> void:
+	if bool(s.get("race_sim", false)):
+		if race == null:
+			race = RaceSim.new()
+		race.setup(self, s.get("race", {}))
+	elif race != null:
+		race = null
+		mass = config.mass
+		for w in wheels:
+			w.race_mu = 1.0
 
 
 ## The garage's wheel type on the car's own model (WheelPresets): each corner's preset assembly
@@ -586,18 +602,22 @@ func _street_brakes() -> void:
 func _set_aids() -> void:
 	if assist == null or assists == null:
 		return
-	if street.is_empty():
+	if street.is_empty() and race == null:
 		assist.setup(assists)
 		return
 	var a: Resource = assists.duplicate()
 	for k in ["drift_assist", "countersteer_help"]:
 		a.set(k, false)
-	a.high_speed_stability = a.street_high_speed_stability     # (the street's own switch: off out of the box)
+	if not street.is_empty():
+		a.high_speed_stability = a.street_high_speed_stability     # (the street's own switch: off out of the box)
 	if street.size() > 2 and bool(street[2]):
 		a.anti_lock = true                               # (its factory ABS)
 	if street.size() > 3 and bool(street[3]):
 		a.traction_control = true                        # (its factory traction control ...
 		a.stability_control = true                       # ... and stability control: brakes, not a hand on the body)
+	if race:
+		race.apply_aids(a)                               # (a race car: its own ABS / TC maps, no stability control)
+		a.stability_control = false
 	assist.setup(a)
 
 
@@ -732,6 +752,10 @@ func _simulate(dt: float) -> void:
 	var pedals := _pedals(dt)
 	var foot := pedals.x
 	pedals.x = assist.throttle(self, dt, pedals.x)
+	if race:
+		pedals.x = race.throttle(self, pedals.x)         # (the pit limiter, the tank)
+		for k in 4:
+			wheels[k].race_mu = race.grip(k)
 	_brakes(dt, pedals.y)
 	var was := grounded
 	grounded = 0
@@ -779,6 +803,8 @@ func _simulate(dt: float) -> void:
 		react += w.global_transform.basis.x * (w.inertia * (w.omega - spin_before[k]) / dt)
 	apply_torque(react)
 	apply_torque(global_transform.basis.y * (assist.drift_torque(self) + assist.stability_torque(self)))   # (drift assist, high-speed stability)
+	if race:
+		race.tick(self, dt)
 	_tip_guard()
 	_aero()
 	slip = _slip()
@@ -887,6 +913,9 @@ func _brakes(dt: float, pedal: float) -> void:
 	var front: float = config.brake_torque * config.brake_bias * 0.5 * pedal
 	var rear: float = config.brake_torque * (1.0 - config.brake_bias) * 0.5 * pedal
 	var t: Array = assist.brakes(self, dt, [front, front, rear, rear])   # (ABS, stability control)
+	if race:
+		for k in 4:
+			t[k] *= race.brake_mul(k)                    # (cold or cooked discs)
 	for k in 4:
 		wheels[k].brake_torque = t[k] + (config.handbrake_torque * 0.5 * hb if k >= 2 else 0.0)
 	if drivetrain:

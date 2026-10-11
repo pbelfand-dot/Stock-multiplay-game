@@ -13,7 +13,8 @@ extends SceneTree
 ##     the pit lane ends a lap as an in-lap; bests and the classification
 ##   game: the circuit builds (track, kerbs, barriers, pits, garages, grid, gantry, stands), the car
 ##     starts in its box in the pit lane, the autopilot drives it out down the lane at the limit, onto
-##     the track, round a whole timed lap (sectors and lap flashed) and the results show the best lap
+##     the track, round a whole timed lap (sectors and lap flashed) and the results show the best lap;
+##     the race state (RaceSim) warms its tyres from cold and burns its fuel
 ## Prints one [track] line per check; exits 1 on any FAIL.
 
 var CircuitGen
@@ -349,6 +350,19 @@ func _game() -> void:
 		" / ".join(secs.map(func(x): return "%.2f" % x)), "valid" if lap.get("valid", false) else "invalid", off, t,
 		(Time.get_ticks_msec() - t_wall) / 1000.0])
 	check(float(sc.best) == lt if lap.get("valid", false) else true, "game: (a valid lap is the session's best: %s)" % g.fmt_lap(float(sc.best)))
+	# the race state: the tyres up from cold over the out-lap and the lap, the fuel burnt, the panel up
+	var race = g.car.race
+	if race:
+		var temps: Array = race.tyres.map(func(x): return float(x.surface) * 0.6 + float(x.core) * 0.4)
+		var used: float = 60.0 - float(race.fuel_l)
+		# (the autopilot laps ~30 % off race pace: far less slip heat, so the slicks warm but stay
+		# under their window, as real ones driven gently do; at pace they come in)
+		check(temps.min() > race.ambient + 10.0 and temps.max() < float(race.c.window[1]) and g._race_hud != null,
+			"game: the race state: mediums from %.0f C to %s C over the out-lap and a gentle lap (the window %s), the panel showing them" % [
+			race.ambient, "/".join(temps.map(func(x): return "%.0f" % x)), str(race.c.window)])
+		check(used > 2.0 and used < 9.0, "game: %.1f l burnt over the out-lap and the lap (a GT3 on 5 km: ~2.5-3 l a lap)" % used)
+	else:
+		check(false, "game: the race state is on the Track Mode car")
 	g._end_run()
 	var lines: Array = g.mode_result.get("lines", [])
 	check(g.state == "finished" and not lines.is_empty() and str(lines[0]).begins_with("BEST LAP"), "game: END RUN shows the results (%s)" % " / ".join(lines))

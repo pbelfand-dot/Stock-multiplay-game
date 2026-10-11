@@ -53,6 +53,7 @@ var tire: Resource                 # TireConfig (on its reference surface, grave
 var surface: Resource              # SurfaceConfig: what it's on (or was, last on the ground)
 var surface_tire: Resource         # the tyre on that surface (TireModel.on_surface)
 var surface_mu := 1.0              # grip x this on top of the surface's (the game's grip across the road; a test's ice patch)
+var race_mu := 1.0                 # grip x this from a race car's tyre state (RaceSim: heat, pressure, wear; 1 for every other car)
 var surface_override: Resource     # a SurfaceConfig to be on whatever it touches (a puddle: mud), or null
 var radius := 0.32
 var width := 0.2
@@ -259,8 +260,8 @@ func settle() -> void:
 		v_lat = vc.dot(heading.cross(normal))
 		var t := surface_tire
 		var lf := TireModel.load_mu_factor(t, load)      # a heavily loaded tyre grips less per newton
-		_mu_y = t.lateral_mu * surface_mu * lf
-		_mu_x = t.longitudinal_mu * surface_mu * lf
+		_mu_y = t.lateral_mu * surface_mu * lf * race_mu
+		_mu_x = t.longitudinal_mu * surface_mu * lf * race_mu
 		resist_torque = brake_torque + t.rolling_resistance * load * radius
 	_fx = 0.0
 	_fy = 0.0

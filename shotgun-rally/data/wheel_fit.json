@@ -1413,6 +1413,28 @@
     "clear_mm": 1.8,
     "why": "the tyre touches the body: 87 points, front left, half lock, half bump"
    }
+  },
+  "amg_gt3": {
+   "strada_5": {
+    "ok": true,
+    "clear_mm": 0.0,
+    "why": ""
+   },
+   "torre_10": {
+    "ok": true,
+    "clear_mm": 0.0,
+    "why": ""
+   },
+   "kaze_split": {
+    "ok": true,
+    "clear_mm": 0.0,
+    "why": ""
+   },
+   "apex_cl6": {
+    "ok": true,
+    "clear_mm": 0.0,
+    "why": ""
+   }
   }
  }
 }

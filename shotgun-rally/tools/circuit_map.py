@@ -38,7 +38,9 @@ Writes data/maps/cinder_ridge.json:
   stands               [{s0, s1, side, rows}] grandstands
   lights               [{s, side}] floodlight towers (night)
   hills                [{x, z, r, h}] the land's mounds round the circuit
-  lap_estimate         a GT3's lap (s), from the speed profile below (a sanity check)
+  lap_estimate         a GT3's lap (s) on the racing line, from the speed profile below (a sanity check)
+  line, line_curv      the racing line: its offset from the centreline (m, + right) and its curvature, every
+                       STEP m (minimum curvature inside the white lines; the racing AI drives it)
 """
 import json
 import math
@@ -203,6 +205,62 @@ def speed_profile(curv):
             v[j] = min(v[j], math.sqrt(v[i] ** 2 + 2 * dec * STEP))
     t = sum(STEP / max(x, 1.0) for x in v)
     return v, t
+
+
+def racing_line(xs, zs, hs, half, kerbs, n):
+    """The racing line: offsets d (m, + right) from the centreline every STEP m that bend the
+    path as little as the track allows (minimum curvature: out wide, clip the apex, out wide
+    again), the car's middle at least CAR_HALF + a margin inside the white lines (a little more
+    on a corner's inside kerb, where a driver puts two wheels). Solved as bounded least squares:
+    the path's second differences (its curvature) as small as the track's width allows. Returns
+    (d, the line's curvature, its length per sample)."""
+    import numpy as np
+    C = np.stack([np.array(xs), np.array(zs)], 1)
+    R = np.stack([np.cos(hs), np.sin(hs)], 1)                # right of the way round
+    hw = np.array(half)
+    lo = -(hw - 1.4)
+    hi = hw - 1.4
+    for kb in kerbs:                                         # (two wheels on an inside kerb: 0.6 m more room)
+        if kb["kind"] not in ("apex", "chicane"):
+            continue
+        i0, i1 = int(kb["s0"] / STEP), int(kb["s1"] / STEP)
+        idx = [(i0 + k) % n for k in range((i1 - i0) % n + 1)]
+        if kb["side"] > 0:
+            hi[idx] = hw[idx] - 0.8
+        else:
+            lo[idx] = -(hw[idx] - 0.8)
+    # minimise the sum of the path's squared second differences (its curvature x STEP^2), the
+    # offsets bounded: a sparse bounded least-squares problem (scipy), solved exactly
+    import scipy.sparse as sp
+    from scipy.optimize import lsq_linear
+    rows, cols, vals = [], [], []
+    bx = np.zeros(n)
+    bz = np.zeros(n)
+    for i in range(n):
+        for j, w in ((i - 1, 1.0), (i, -2.0), (i + 1, 1.0)):
+            jj = j % n
+            rows += [i, n + i]
+            cols += [jj, jj]
+            vals += [w * R[jj, 0], w * R[jj, 1]]
+            bx[i] += w * C[jj, 0]
+            bz[i] += w * C[jj, 1]
+    A = sp.csr_matrix((vals, (rows, cols)), shape=(2 * n, n))
+    b = -np.concatenate([bx, bz])
+    res = lsq_linear(A, b, bounds=(lo, hi), method="bvls" if n < 500 else "trf", lsmr_tol="auto", max_iter=5000, tol=1e-10)
+    d = res.x
+    P = C + R * d[:, None]
+    # the line's curvature (signed: + right, as the centreline's)
+    a = np.roll(P, -1, 0) - P
+    b = P - np.roll(P, 1, 0)
+    cross = b[:, 0] * a[:, 1] - b[:, 1] * a[:, 0]
+    la = np.linalg.norm(a, axis=1)
+    lb = np.linalg.norm(b, axis=1)
+    ang = np.arcsin(np.clip(cross / np.maximum(la * lb, 1e-9), -1, 1))
+    k = ang / np.maximum((la + lb) * 0.5, 1e-6)
+    # (ease it: the sampled path's curvature is noisy)
+    k = np.convolve(np.concatenate([k[-4:], k, k[:4]]), np.ones(9) / 9.0, mode="valid")
+    seg = la                                                 # (the line's own length per sample: shorter on the inside)
+    return [float(x) for x in d], [float(x) for x in k], [float(x) for x in seg]
 
 
 def find_corners(curv, v, pieces):
@@ -630,6 +688,11 @@ def main():
     print("height %.1f to %.1f m, steepest grade %.1f %%" % (min(y), max(y), 100 * g))
     bank = banking(curv)
     kerbs, runoff, barriers, pit, grid, sectors, drs, marshals, boards, stands, lights = design(n, curv, v, corners, half, length)
+    line_d, line_k, line_seg = racing_line(xs, zs, hs, half, kerbs, n)
+    lv, _ = speed_profile(line_k)
+    line_lap = sum(sg / max(x, 1.0) for sg, x in zip(line_seg, lv))
+    print("racing line: offsets %.1f to %.1f m, a GT3 lap on it ~%d:%04.1f (the centreline's %d:%04.1f)" % (
+        min(line_d), max(line_d), int(line_lap // 60), line_lap % 60, int(lap // 60), lap % 60))
     for c in corners:
         del c["_idx"]
     data = {"name": NAME, "length": length, "step": STEP,
@@ -639,7 +702,8 @@ def main():
             "corners": corners, "kerbs": [{k: (round(v2, 1) if isinstance(v2, float) else v2) for k, v2 in kb.items()} for kb in kerbs],
             "runoff_l": runoff[0], "runoff_r": runoff[1], "barrier_l": barriers[0], "barrier_r": barriers[1],
             "pit": pit, "grid": grid, "sectors": sectors, "drs": drs, "marshals": marshals, "boards": boards,
-            "stands": stands, "lights": lights, "hills": hills(xs, zs, n), "lap_estimate": round(lap, 1),
+            "stands": stands, "lights": lights, "hills": hills(xs, zs, n), "lap_estimate": round(line_lap, 1),
+            "line": [round(a, 2) for a in line_d], "line_curv": [round(a, 6) for a in line_k],
             "description": "A 5 km permanent circuit on a wooded ridge: a long pit straight into the CINDER HAIRPIN, the climbing ESSES, "
                            "fast sweepers over the SKYLINE, a plunging back straight to the CHICANE, the MILLER double-apex and THE HOOK onto the straight."}
     print("sectors at %.0f / %.0f m; DRS zones %s" % (sectors[0], sectors[1], [(z["s0"], z["s1"]) for z in drs]))

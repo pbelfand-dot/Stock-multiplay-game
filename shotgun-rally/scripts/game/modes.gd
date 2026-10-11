@@ -63,6 +63,17 @@ static func track_opts(seed_value: int, cls := "gt", session := "practice", laps
 		"gen": {"kind": "circuit", "circuit": circuit, "biome": "temperate_broadleaf"}}
 
 
+## A Track Mode car's race state (RaceSim.setup's opts): mediums from cold, practice on half a
+## tank (a race: enough for its laps, P5), the car's own ABS and TC at their middle maps, the air
+## by the hour (cooler at night) and the track a little warmer in the sun.
+static func race_opts(o: Dictionary) -> Dictionary:
+	var hour := float(o.get("time", 13.0))
+	var day := clampf(1.0 - absf(hour - 14.0) / 9.0, 0.0, 1.0)
+	var air := lerpf(14.0, 24.0, day)
+	return {"compound": str(o.get("compound", "slick_medium")), "fuel": float(o.get("fuel", 60.0)), "tank": 120.0,
+		"ambient": air, "track": air + 14.0 * day, "wet": float(o.get("wet", 0.0)), "abs": 4, "tc": 4}
+
+
 ## The car a class runs a driver in: theirs if it's one of the class's, else the class's own.
 static func track_car(o: Dictionary, garage_car: String) -> String:
 	var c: Dictionary = track_classes().get(str(o.get("class", "gt")), {})

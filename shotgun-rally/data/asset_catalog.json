@@ -2,6 +2,24 @@
  "_doc": "Every 3D asset and its status (tools/asset_audit.py writes this; docs/ASSET_INTEGRATION_STATUS.md is the readable copy).",
  "assets": [
   {
+   "name": "AFFALTER GT3 (affalter)",
+   "category": "car",
+   "source": "car_packages/Track_Mode_Cars/mercedes-amg-gt3-red-bull-racing.zip",
+   "runtime": "assets/models/cars/amg_gt3/amg_gt3.glb",
+   "licence": "CC BY-NC-SA 4.0",
+   "conversion": "GLB: tools/import_car.py",
+   "materials": "30 materials, 34 textures",
+   "tris": 244542,
+   "collision": "physics in code (RallyCar: chassis box + 4 suspension shape casts)",
+   "lod": "Godot importer LODs (generate_lods)",
+   "interior": "own interior, crew fitted (driver_seat)",
+   "modes": "rally, touge, cut up, track (track)",
+   "catalog": "garage: for sale",
+   "verified": "tests/car_models_check.gd (builds, sits on its wheels, pulls away); interior_check",
+   "status": "In game",
+   "problems": "Torque, the peaks' rpm, the limiter, top speed, the ratios, weight distribution and aero are estimates; the power and weight are BoP-dependent (SRO set 1,350 kg at one 2025 race).; Provenance: its materials are Unreal material instances named like Assetto Corsa Competizione's ('MI_Mercedes_AMG_GT3_E"
+  },
+  {
    "name": "AKATSUKI V (akatsuki)",
    "category": "car",
    "source": "car_packages/toyota-supra-mk5-a90.zip",
@@ -1800,24 +1818,6 @@
    "verified": "no",
    "status": "Alternate (unused)",
    "problems": "compared with ELFER R's model (Track P4): the same car, and the same lineage (both are racing-sim ports: this one's materials are ACC-style 'MI_Tyre_Flex_Dry', 'EXT_Carpaint_Inst', 'PHISICS_DASH'). It has per-corner rims, tyres, discs and calipers and a full cockpit (489k triangles), but ELFER R's CGTrader file already imports with its own wheels and cockpit, and its licence is the less restrictive (this one is CC BY-NC-SA 4.0). Kept as the source to fall back on"
-  },
-  {
-   "name": "mercedes-amg-gt3-red-bull-racing",
-   "category": "car",
-   "source": "car_packages/Track_Mode_Cars/mercedes-amg-gt3-red-bull-racing.zip (file, 1 file)",
-   "runtime": "-",
-   "licence": "CC BY-NC-SA 4.0",
-   "conversion": "-",
-   "materials": "-",
-   "tris": 0,
-   "collision": "-",
-   "lod": "-",
-   "interior": "-",
-   "modes": "-",
-   "catalog": "data/asset_catalog.json (pending)",
-   "verified": "no",
-   "status": "Pending",
-   "problems": "Track P4: the GT class's second car (497k triangles, cockpit, screen, pedals; CC BY-NC-SA 4.0, VTX). Real sponsor marks to be removed and a fictional name given"
   },
   {
    "name": "free-hyper-realistic-bmw-m8-competition-model",

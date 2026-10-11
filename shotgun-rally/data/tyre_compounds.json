@@ -1,0 +1,11 @@
+{
+ "_doc": "Race tyres for Track Mode (scripts/vehicle/physics/race_sim.gd). grip: x the car's own tyre at its best (the window); window: [lo, hi] surface temperature (C) where it's at its best; cold: its grip at 20 C, x grip (a cold slick: about 15-20 % down); hot: lost per 10 C past the window's top; wear: x the base wear rate (the soft wears fastest); heat: x the base heating (the soft comes in quickest); wet: x grip on a wet track (a slick aquaplanes, a wet tyre bites); dry_wear: a wet tyre on a dry track wears and overheats this much faster. Figures in the range Pirelli and Michelin publish for GT3 slicks (an optimal window roughly 80-110 C; cold pressure ~1.35-1.45 bar, hot ~1.9-2.0 bar); the rest are the game's, balanced so a soft is a few tenths a lap quicker and lasts about half as long as a hard.",
+ "base": {"wear_per_mj": 0.022, "pressure_cold_bar": 1.4, "pressure_ideal_bar": 1.95, "pressure_loss_per_bar": 0.18,
+  "wear_soft_from": 0.7, "worn_grip": 0.82, "flat_spot_from": 0.18},
+ "compounds": {
+  "slick_soft": {"name": "SOFT", "short": "S", "colour": [0.9, 0.15, 0.12], "grip": 1.03, "window": [75, 100], "cold": 0.83, "hot": 0.025, "wear": 1.6, "heat": 1.25, "wet": 0.5, "dry_wear": 1.0},
+  "slick_medium": {"name": "MEDIUM", "short": "M", "colour": [0.95, 0.82, 0.15], "grip": 1.0, "window": [82, 108], "cold": 0.82, "hot": 0.02, "wear": 1.0, "heat": 1.0, "wet": 0.48, "dry_wear": 1.0},
+  "slick_hard": {"name": "HARD", "short": "H", "colour": [0.92, 0.92, 0.92], "grip": 0.975, "window": [90, 118], "cold": 0.8, "hot": 0.016, "wear": 0.6, "heat": 0.8, "wet": 0.45, "dry_wear": 1.0},
+  "wet": {"name": "WET", "short": "W", "colour": [0.15, 0.45, 0.95], "grip": 0.86, "window": [45, 75], "cold": 0.85, "hot": 0.03, "wear": 1.3, "heat": 1.4, "wet": 0.92, "dry_wear": 2.5}
+ }
+}

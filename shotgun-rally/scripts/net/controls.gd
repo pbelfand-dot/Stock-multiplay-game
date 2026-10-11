@@ -44,6 +44,7 @@ func _ready() -> void:
 	_action("flash", [KEY_H], [JOY_BUTTON_LEFT_SHOULDER], [])
 	_action("dome_light", [KEY_L], [JOY_BUTTON_DPAD_UP], [])
 	_action("screen_page", [KEY_M], [JOY_BUTTON_DPAD_RIGHT], [])
+	_action("pit_limiter", [KEY_P], [JOY_BUTTON_DPAD_DOWN], [])
 
 
 func _action(name: String, keys: Array, buttons: Array, axes: Array, mouse := [], deadzone := 0.2) -> void:

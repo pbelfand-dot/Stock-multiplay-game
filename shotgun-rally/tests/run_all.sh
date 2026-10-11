@@ -100,6 +100,8 @@ echo "== Track Mode: CINDER RIDGE (closed, 4.5-6 km, its corners, kerbs, barrier
 run_g 600 --headless --fixed-fps 120 --path . -s tests/track_check.gd 2>&1 | grep -E "\[track\] (ok|FAIL|TRACK)" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
 echo "== wheels: the WheelPreset system (every preset complete, the converted CC0 wheels true to size, every preset at every corner of three cars: on the hub, round, on the ground at the physics radius, face outwards both sides, the caliper inside the barrel; the fit table current and honest; on a car: rolls, steers, STOCK back)"
 run_g 400 --headless --fixed-fps 120 --path . -s tests/wheel_check.gd 2>&1 | grep -E "\[wheels\] (ok|FAIL|WHEELS)" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
+echo "== race physics (Track Mode): tyre heat, gas-law pressure, wear by compound and the cliff, flat spots, brake heat and fade, fuel and weight, a pit stop; on a car: the pit limiter holds 60, a stop heats the front discs most, cornering warms the tyres, the car's own ABS / TC levels, a car without it untouched"
+run_g 400 --headless --fixed-fps 120 --path . -s tests/race_check.gd 2>&1 | grep -E "\[race\] (ok|FAIL|RACE)" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
 echo "== barriers: scraping the loop's guardrail and parapet, a touge's guardrail, a mountain stage's armco, the wheels stay on the road (not on the barrier's face, not in a slot beside it) and steering away leaves it"
 run_g 300 --headless --fixed-fps 120 --path . -s tests/barrier_check.gd 2>&1 | grep -E "\[barrier\]" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
 echo "== the environment library and biomes: every tree's LODs and far card, rocks and props load; each stage in its land; nothing on the road; the solid things the same at LOW and MEDIUM"

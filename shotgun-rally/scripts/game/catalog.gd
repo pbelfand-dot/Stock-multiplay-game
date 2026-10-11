@@ -152,7 +152,7 @@ const STREET := {
 	"gls": [0.88, "street"], "mochi": [0.86, "street"],
 	"traffic_sedan": [0.86, "street"], "traffic_crossover": [0.84, "street"], "traffic_minivan": [0.84, "street"],
 	"elfer_rs": [1.24, "cup"], "uno": [1.22, "cup"], "ghost": [1.2, "cup"], "vento": [1.12, "cup"], "centuria": [1.12, "cup"],
-	"elfer_r": [1.6, "slick"], "elfer_evo": [1.6, "slick"], "biscione": [1.45, "slick"], "bolt16": [1.6, "slick"],
+	"elfer_r": [1.6, "slick"], "elfer_evo": [1.6, "slick"], "affalter": [1.6, "slick"], "biscione": [1.45, "slick"], "bolt16": [1.6, "slick"],
 	"gtp963": [1.7, "slick"], "vsr": [1.7, "slick"],
 	# rally cars on tarmac rally tyres (near-slicks today, narrower then)
 	"ocelot": [1.25, "cup"], "kestrel": [1.18, "cup"], "comet": [1.2, "cup"], "vortex": [1.2, "cup"],
@@ -172,7 +172,7 @@ const NO_ABS := ["brawler", "hako", "hachi", "kitsune", "rotora_fc", "nimbus", "
 ## TRACTION CONTROL still turns it on for every car.
 const FACTORY_TC := ["akatsuki", "raiden", "hellhound", "hellhound_s", "kaiser_2", "kaiser_4", "kaiser_8", "kaiser_t",
 	"kombi", "gls", "mochi", "traffic_sedan", "traffic_crossover", "traffic_minivan", "elfer_rs", "uno", "ghost",
-	"centuria", "vento", "bolt16", "elfer_r", "elfer_evo", "gtp963", "vsr",
+	"centuria", "vento", "bolt16", "elfer_r", "elfer_evo", "affalter", "gtp963", "vsr",
 	"stromer", "warhawk", "pueblo", "kaiser_5x", "kaiser_7x", "kasten"]
 
 
