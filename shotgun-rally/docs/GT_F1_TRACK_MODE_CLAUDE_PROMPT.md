@@ -26,6 +26,8 @@ Read these before doing anything:
 - `shotgun-rally/assets/car_packages/Track_Mode_Cars/mercedes-amg-gt3-red-bull-racing.zip`
 - `shotgun-rally/assets/car_packages/Track_Mode_Cars/Formula/`
 - `shotgun-rally/assets/car_packages/Track_Mode_Cars/GT3/`
+- `shotgun-rally/assets/car_packages/Track_Mode_Cars/Street/`
+- `shotgun-rally/assets/car_packages/Track_Mode_Cars/USER_CAR_BATCH_MANIFEST.tsv`
 - `shotgun-rally/assets/environment_packages/Track_Mode_Props/`
 - `shotgun-rally/assets/TRACK_MODE_ASSET_MANIFEST.tsv`
 - `shotgun-rally/docs/VEHICLE_PROGRESS.md`
@@ -48,6 +50,20 @@ generic closed-cockpit race cars to diversify the AI grid, and the pit/marshal p
 the circuit. Their presence in the repository is not integration: import them through Godot,
 create appropriate collisions/LODs/materials, register the cars, fit the player/camera, tune
 physics, place the props, and verify the results in a running build.
+
+There is also a private user-download batch, sorted for you under the same three car folders.
+The authoritative inventory is `USER_CAR_BATCH_MANIFEST.tsv`: 3 Formula archives, 7 new
+GT/circuit archives, and 16 street-car archives. The three GT archives stored in `.parts`
+directories must be reassembled in filename order before extraction; the manifest gives the
+expected original size and SHA-256. The project restore script can rebuild the complete set.
+
+These branded archives did not contain licence or attribution documents. They are private
+source candidates, not cleared public assets. Before using one in a redistributed build,
+identify its original page and licence, reject game-ripped material, preserve required credit,
+and replace real logos/sponsors with fictional branding. Do not let provenance work block the
+CC0 vertical slice: establish Formula and GT first with the generic CC0 cars, then evaluate the
+private candidates one at a time. For every chosen archive, inspect and import it rather than
+assuming it is game-ready; preserve the cabin and correctly fit the existing player model.
 
 ## Product goal
 

@@ -28,3 +28,29 @@ none carries a `No AI` restriction.
 
 The upstream JSON responses are preserved beside the cars. These GLBs are source candidates,
 not proof that a vehicle is registered, physically tuned, or selectable in the game.
+
+## Private user-download batch (2026-10-11)
+
+The newest source archives are sorted for Claude as follows:
+
+- `Formula/`: three 2026 open-wheel cars (`RB22`, `MAC-26`, `W17`).
+- `GT3/`: seven new circuit cars (BMW M4 GT3, Huracan GT3, two McLaren GT3 packages,
+  AMG GT3, Porsche GT2 RS Clubsport, and CLK DTM).
+- `Street/`: sixteen road cars, including the 540i E34, Urus, McLarens, Mercedes road cars,
+  Audi RS7, and BMW road cars.
+
+`USER_CAR_BATCH_MANIFEST.tsv` is the authoritative list with category, original byte size,
+SHA-256, storage path, and review status. Files over GitHub's 100 MB single-file ceiling are
+stored as ordered 25,000,000-byte parts. Reassemble one with `cat <part-prefix>* > car.zip`,
+or use `tools/restore_car_assets.sh` for the full collection.
+
+These archives contained no license or attribution documents. They are private source inputs,
+not cleared redistributable assets. Before publishing a build or repository, identify each
+source page and license, reject game-ripped packages, remove disallowed branding, and comply
+with attribution/share-alike terms. Importing is also pending: do not claim a car works until
+its model, materials, wheels, interior, driver fit, collision, LODs, and gameplay tests pass.
+
+Skipped rather than uploaded again: the two identical 2024 Porsche 992 GT3 R downloads,
+Mercedes-AMG GT3 Red Bull Racing, CC96 wheels, and the 2023 BMW 3 Series download (identical
+to `Internet_New_Cars/2023-bmw-320i-xdrive-source.zip`). The Audi RS6 `.crdownload` was
+incomplete and was not added.

@@ -1,8 +1,9 @@
 # Car asset source packages
 
-This directory stores the owner's SHOTGUN RALLY source assets. GitHub reported this
-repository as **PUBLIC** on 2026-10-09, so only redistributable packages should be added
-while that remains true. Make the repository private before adding restricted source files.
+This directory stores the owner's SHOTGUN RALLY source assets. The GitHub repository was
+changed to **PRIVATE** on 2026-10-11 before the unlicensed user-download batch was added.
+Do not make it public again until every package has been audited for redistribution rights
+and any disallowed sources have been removed from the complete Git history.
 
 - There is no project-level 30 MB asset limit.
 - Originals below GitHub's 100 MB single-file limit are stored directly.
@@ -21,10 +22,12 @@ To restore somewhere else:
 shotgun-rally/tools/restore_car_assets.sh /absolute/output/path
 ```
 
-Treat the full collection as private-use source material. Some older third-party packages may
-prohibit redistribution even though the repository is currently public; audit or remove those
-packages before treating the repository as a public asset library.
+Treat the full collection as private-use source material. Some third-party packages may
+prohibit redistribution; audit or remove those packages and their Git history before ever
+treating the repository as a public asset library.
 
-`Track_Mode_Cars/` contains separately attributed non-commercial/share-alike GT candidates
-plus public-repo-safe CC0 Formula and generic GT race-car candidates in subdirectories.
+`Track_Mode_Cars/` contains separately attributed non-commercial/share-alike GT candidates,
+public-repo-safe CC0 Formula and generic GT race-car candidates, and a private user-download
+batch sorted into `Formula/`, `GT3/`, and `Street/`. See its README and
+`USER_CAR_BATCH_MANIFEST.tsv` before using or redistributing that batch.
 `../wheel_packages/` contains the wheel/tyre source library and its own license manifest.

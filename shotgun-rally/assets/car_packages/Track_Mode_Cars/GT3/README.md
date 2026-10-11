@@ -17,3 +17,11 @@ contributor (Claude Fable 5.1); none carries a `No AI` restriction.
 `upstream-pack-manifest.json` preserves the machine-readable upstream record. These files are
 source candidates and still need vehicle registration, physics, collision, cockpit/player-fit,
 LOD, audio, and multiplayer work before they are playable.
+
+## Private branded source candidates
+
+Seven user-downloaded circuit-car archives are stored here. They contained no license or
+attribution documents and are pending provenance review. Three archives over 100 MB are split
+into ordered `.parts` directories; `USER_CAR_BATCH_MANIFEST.tsv` records the original hashes.
+Do not redistribute these packages or call them game-ready until their provenance and full
+vehicle integration have both been verified.

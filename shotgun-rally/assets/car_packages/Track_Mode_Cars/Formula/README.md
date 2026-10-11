@@ -14,3 +14,10 @@ finished driving rigs, physics, collision, or player-fit implementations.
 
 `upstream-pack-manifest.json` and `modern-halo-open-wheel-racer.source.json` preserve the
 machine-readable upstream descriptions, dimensions, geometry counts, license, and CDN URLs.
+
+## Private branded source candidates
+
+The 2026 RB22, Cadillac MAC-26, and Mercedes W17 archives are the user's private downloads.
+They contained no source or license documents, so they are pending provenance review and must
+not be redistributed from a public repository. Treat team names, liveries, and logos as source
+identification only; create fictional branding for any released game build.

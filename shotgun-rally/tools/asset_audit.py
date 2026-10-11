@@ -388,6 +388,14 @@ def leftover_rows(pk, used):
         status, why, runtime = PENDING, "", ""
         if key in NOTES:
             status, why, runtime = NOTES[key]
+        elif key in tm:
+            why = TRACK_PLAN.get(tm[key].get("category", ""), "Track P7") + "; source %s" % tm[key].get("source_url", "-")
+        elif key.startswith("car_packages/Track_Mode_Cars/Formula/"):
+            why = "Private 2026 Formula source candidate: no licence or provenance document was present in the archive; review before redistribution, replace real branding, then complete the full vehicle integration"
+        elif key.startswith("car_packages/Track_Mode_Cars/GT3/"):
+            why = "Private GT/DTM source candidate: no licence or provenance document was present in the archive; review before redistribution, replace real branding, then complete the full vehicle integration"
+        elif key.startswith("car_packages/Track_Mode_Cars/Street/"):
+            why = "Private street-car source candidate: no licence or provenance document was present in the archive; review before redistribution, replace real branding, then complete the full vehicle integration"
         elif key.startswith("wheel_packages/"):
             if "USD_Mini_Car_Kit" in key and "/vehicles/" in key:
                 nm = key.split("/")[-1]
@@ -407,13 +415,19 @@ def leftover_rows(pk, used):
             why = "Track P9: %s (Poly Haven, CC0, glTF 2k)" % POLYHAVEN_PLAN.get(nm, "dressing")
         elif key.startswith("environment_packages/user_sources/"):
             why = "an owner's pack not converted yet: review it in docs/ENVIRONMENT_INVENTORY.md"
-        elif key in tm:
-            why = TRACK_PLAN.get(tm[key].get("category", ""), "Track P7") + "; source %s" % tm[key].get("source_url", "-")
         else:
             status, why = REPAIR, "not accounted for: inspect it, then add it to tools/asset_audit.py's NOTES"
-        lic = "CC0" if ("cc0" in key or "wheel_packages" in key) else ("CC BY-NC-SA 4.0" if "Track_Mode_Cars" in key else "see the package's README / manifest")
         if key in tm:
-            lic = tm[key].get("license", lic).replace("CC0-1.0", "CC0")
+            lic = tm[key].get("license", "see the package's README / manifest").replace("CC0-1.0", "CC0")
+        elif "cc0" in key or "wheel_packages" in key:
+            lic = "CC0"
+        elif key in ("car_packages/Track_Mode_Cars/2024-porsche-992-gt3-r.zip",
+                     "car_packages/Track_Mode_Cars/mercedes-amg-gt3-red-bull-racing.zip"):
+            lic = "CC BY-NC-SA 4.0"
+        elif key.startswith("car_packages/Track_Mode_Cars/"):
+            lic = "unknown (private source; review required)"
+        else:
+            lic = "see the package's README / manifest"
         cat = "car" if key.startswith("car_packages/") else ("wheel" if key.startswith("wheel_packages/") else "environment")
         if "/vehicles/" in key:
             cat = "car (low-poly reference)"
