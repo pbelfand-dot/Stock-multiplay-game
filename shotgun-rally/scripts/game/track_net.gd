@@ -94,10 +94,10 @@ func drop(id) -> void:
 ## Every car where race control is to judge it, all at the same moment: DELAY s back on the host's
 ## clock (a guest's position can't be any fresher than that, so neither is anyone's: nobody's judged
 ## a little ahead of the others). live: the host's own car and the AI as they are now ({id: {s, d, v,
-## pit}}), kept a moment; the guests from the positions their machines sent. Each with its clock's
-## time ("t": the host's, or a guest's own, which its laps are timed on) and that clock's offset from
-## the session's ("toff": its line crossings on the session's clock, the race's finish). A guest
-## silent for STALE s (still connected) is retired.
+## pit}}), kept a moment; the guests from the positions their machines sent. Each with the time on
+## the clock its laps are timed on ("t": the session's for ours and the AI's, a guest's own for a
+## guest's, with "toff", that clock's offset from the session's: its line crossings on the session's
+## clock, the race's finish). A guest silent for STALE s (still connected) is retired.
 func judged(now: float, live: Dictionary) -> Dictionary:
 	var to_session: float = float(game.session.time) - now
 	var want := now - DELAY
@@ -110,7 +110,7 @@ func judged(now: float, live: Dictionary) -> Dictionary:
 			b.pop_front()
 		_local[id] = b
 		out[id] = _at(b, want)
-		out[id]["toff"] = to_session
+		out[id]["t"] = float(out[id].t) + to_session    # (on the session's clock itself: the HUD's running lap is session.time - lap_t0)
 	for id in _remote.keys():
 		var r: Dictionary = _remote[id]
 		if now - float(r.seen) > STALE and game.race_ctl:

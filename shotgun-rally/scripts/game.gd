@@ -2445,7 +2445,7 @@ func _track_text() -> String:
 		if st.in_pit_lane(car_s, car_d):
 			rl.append("PIT LANE  %d KM/H" % int(st.pit.limit_kmh))
 		return "\n".join(rl) + "\n%.0f km/h" % car.kmh()
-	var t: float = session.lap_time(Net.my_id(), _t_alive if net and not net.host else -1.0)   # (online, a guest: our laps are timed on our own clock)
+	var t: float = running_lap()
 	var lines := []
 	lines.append("%s   %s" % ["OUT LAP" if t == INF else "LAP %d" % (int(c.laps) + 1), "" if t == INF else fmt_lap(t)])
 	if not c.valid and t != INF:
@@ -2455,6 +2455,13 @@ func _track_text() -> String:
 	if st.in_pit_lane(car_s, car_d):
 		lines.append("PIT LANE  %d KM/H" % int(st.pit.limit_kmh))
 	return "\n".join(lines) + "\n%.0f km/h" % car.kmh()
+
+
+## Your lap so far (INF on an out-lap): online, a guest's laps are timed on its own clock.
+func running_lap() -> float:
+	if session == null or not session.cars.has(Net.my_id()):
+		return INF
+	return session.lap_time(Net.my_id(), _t_alive if net and not net.host else -1.0)
 
 
 ## A lap time: 1:47.312.

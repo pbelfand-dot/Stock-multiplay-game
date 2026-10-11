@@ -69,6 +69,8 @@ var _replay_rx := 0                        # stream updates in when it opened
 var _moved := {}                           # (online Track Mode test) car id -> m it's moved here
 var _moved_at := {}
 var _rx := {}                              # (online Track Mode test) player id -> stream updates its car's had here
+var _lap_lo := INF                         # (online Track Mode test) the HUD's running lap clock, its least and most
+var _lap_hi := -INF
 
 
 func _ready() -> void:
@@ -632,6 +634,7 @@ func _track_smoke(role: String) -> void:
 		role, game.race_ctl.kind, players.size() + 1, ai.size(), least, driven, "%.0f m" % ai_driven if not ai.is_empty() else "-",
 		str(game.lights_seen), str(pens) if not pens.is_empty() else "none"])
 	print("[smoke] %s: track order %s" % [role, " > ".join(names)])
+	print("[smoke] %s: the HUD's lap clock ran %.2f-%.2f s" % [role, _lap_lo, _lap_hi])
 	var timing_err := 0.0
 	if game.own_timing:
 		# (a guest: its own laps timed on its own clock against the host's timing of them: the same to
@@ -653,7 +656,7 @@ func _track_smoke(role: String) -> void:
 			game.fmt_lap(best_here), game.fmt_lap(float(row.get("last", INF))), game.fmt_lap(float(row.get("best", INF))), timing_err * 1000.0])
 	var ok: bool = game.race_ctl.phase == "done" and all_in and not players.is_empty() and least > 100 and driven > 1000.0 \
 		and (ai.is_empty() or ai_driven > 1000.0) and (game.lights_seen == [1, 2, 3, 4, 5, "go"] or game._from_pits or game.race_ctl.kind != "race") \
-		and (multiplayer.is_server() or game.net.final) and timing_err < 0.005
+		and (multiplayer.is_server() or game.net.final) and timing_err < 0.005 and _lap_lo >= -0.05 and _lap_hi < 300.0
 	print("[smoke] %s: %s" % [role, "OK" if ok else "FAIL"])
 	_smoke_ok = ok
 	# (the host goes last: a guest still checking would take the host leaving for a failure; a guest
@@ -680,6 +683,10 @@ func _track_moved() -> void:
 		_moved_at[id] = p
 		if game.others.has(id):
 			_rx[id] = int(c.states_received)
+	var lap: float = game.running_lap()               # (the HUD's lap clock: never negative, never past a slow lap)
+	if lap != INF and game.state == "running":
+		_lap_lo = minf(_lap_lo, lap)
+		_lap_hi = maxf(_lap_hi, lap)
 
 
 ## An online cut-up test: the host's traffic round every player, mirrored on each

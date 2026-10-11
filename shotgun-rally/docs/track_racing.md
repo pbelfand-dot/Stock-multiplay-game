@@ -338,7 +338,8 @@ laps (a standing start) with 2 AI cars filling the grid. Each must:
 - be shown the five lights and the green;
 - see the two other players' cars and the AI moving;
 - have the same classification as the host, which has every car classified and every player at the flag;
-- (a guest) have its laps timed by the host within 5 ms of its own timing of them (0.0-1.5 ms in the runs here).
+- (a guest) have its laps timed by the host within 5 ms of its own timing of them (0.0-1.5 ms in the runs here);
+- show a sane running lap clock on its HUD (never below 0, never past 300 s).
 
 Tried by hand, not in the suite (each run takes minutes on four machines' worth of CPU):
 
