@@ -69,6 +69,8 @@ echo "== cut up's start: the gas station (where it is, solid, open to its ramps;
 run_g 400 --headless --fixed-fps 120 --path . -s tests/station_check.gd 2>&1 | grep -E "\[station\] (ok|FAIL|STATION)" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
 echo "== the chase camera: the same distance behind at 50, 150 and 250 km/h, CHASE CAM HEIGHT raises and lowers it, it swings round after the car in a turn"
 run_g 120 --headless --fixed-fps 120 --path . -s tests/chase_cam_check.gd 2>&1 | grep -E "\[chase\] (FAIL|CHASE)" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
+echo "== the replay: 20 s of a stage recorded (60 samples a second, its memory), played back where the car was (to the mm), scrubbing, the speed, rewind, every camera a sane view (the free cam above the ground, a placed camera on the car, the director's cuts), out of it the cars exactly as they were and the run going on; cut up's traffic, the touge, Track Mode"
+run_g 600 --headless --fixed-fps 120 --path . -s tests/replay_check.gd -- --profile=$T/replay.cfg 2>&1 | grep -E "\[replay\] (FAIL|REPLAY|info)" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
 echo "== the cars with models of their own: each builds, sits on its wheels, pulls away (the right wheels driven); the garage swaps them"
 run_g 300 --headless --fixed-fps 120 --path . -s tests/car_models_check.gd 2>&1 | grep -E "\[models\] (FAIL|MODELS|ok   .*0-100)" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
 echo "== a rear-drive and a front-drive road car: the autopilot drives a whole stage in each"
@@ -112,13 +114,13 @@ echo "== AI co-driver: every call said in time, from where the car is"
 run_g 480 --headless --fixed-fps 120 --path . -- --aicheck --autostart --autopilot --seed=8 --timeout=400 --profile=$T/ai.cfg 2>&1 | grep -E "\[ai\]" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
 for case in "driver codriver gravel" "codriver driver mixed"; do
   set -- $case
-  echo "== 2 players: host $1, guest $2 (the driver's machine streams the car), a $3 stage: both build the same surfaces"
+  echo "== 2 players: host $1, guest $2 (the driver's machine streams the car), a $3 stage: both build the same surfaces; each watches a replay mid-run (local: the stream goes on)"
   hp_ap=""; cl_ap=""
   [ "$1" = driver ] && hp_ap="--autopilot" || cl_ap="--autopilot"
-  run_g 260 --headless --path . -- --host --seat=$1 --autostart $hp_ap --smoke=host --port=$P --seed=5 --surface=$3 --length=900 --timeout=180 --profile=$T/host.cfg > $T/host.log 2>&1 &
+  run_g 260 --headless --path . -- --host --seat=$1 --autostart $hp_ap --smoke=host --smoke_replay=8 --port=$P --seed=5 --surface=$3 --length=900 --timeout=180 --profile=$T/host.cfg > $T/host.log 2>&1 &
   hp=$!
   sleep 3
-  run_g 260 --headless --path . -- --join=127.0.0.1 --port=$P --name=Bob $cl_ap --smoke=client --length=900 --timeout=180 --profile=$T/client.cfg > $T/client.log 2>&1; c=$?
+  run_g 260 --headless --path . -- --join=127.0.0.1 --port=$P --name=Bob $cl_ap --smoke=client --smoke_replay=11 --length=900 --timeout=180 --profile=$T/client.cfg > $T/client.log 2>&1; c=$?
   wait $hp; h=$?
   grep -h "\[smoke\]" $T/host.log $T/client.log
   hs=$(grep -ho "surfaces .*" $T/host.log); cs=$(grep -ho "surfaces .*" $T/client.log)
@@ -127,11 +129,11 @@ for case in "driver codriver gravel" "codriver driver mixed"; do
   [ $c -eq 0 ] && [ $h -eq 0 ] || fail=1
   P=$((P + 1))
 done
-echo "== online street session: three players race a downhill touge, each in their own car (collisions on): everyone sees everyone's car, all agree on the order"
+echo "== online street session: three players race a downhill touge, each in their own car (collisions on): everyone sees everyone's car, all agree on the order (one watches a replay mid-race)"
 run_g 300 --headless --path . -- --host --street --mode=touge --dir=down --min_racers=3 --autostart --autopilot --smoke=host --port=$P --seed=5 --length=1200 --timeout=240 --name=Ann --profile=$T/sh.cfg > $T/sh.log 2>&1 &
 hp=$!
 sleep 4
-run_g 300 --headless --path . -- --join=127.0.0.1 --port=$P --name=Bob --autopilot --smoke=guest1 --timeout=240 --profile=$T/s1.cfg > $T/s1.log 2>&1 &
+run_g 300 --headless --path . -- --join=127.0.0.1 --port=$P --name=Bob --autopilot --smoke=guest1 --smoke_replay=11 --timeout=240 --profile=$T/s1.cfg > $T/s1.log 2>&1 &
 g1=$!
 sleep 1
 run_g 300 --headless --path . -- --join=127.0.0.1 --port=$P --name=Cid --autopilot --smoke=guest2 --timeout=240 --profile=$T/s2.cfg > $T/s2.log 2>&1; c2=$?
@@ -143,11 +145,11 @@ orders=$(grep -ho "race order .*" $T/sh.log $T/s1.log $T/s2.log | sort -u | wc -
 if grep -hE -A2 "^(SCRIPT ERROR|ERROR: Node not found|ERROR: Invalid packet)" $T/sh.log $T/s1.log $T/s2.log; then echo "!! engine errors above"; fail=1; fi
 [ $c1 -eq 0 ] && [ $c2 -eq 0 ] && [ $h -eq 0 ] || fail=1
 P=$((P + 1))
-echo "== online cut up: three players on the loop (insane): the host's traffic round everyone, mirrored on each guest's machine, hits reported back"
+echo "== online cut up: three players on the loop (insane): the host's traffic round everyone, mirrored on each guest's machine, hits reported back (a guest watches a replay meanwhile)"
 run_g 400 --headless --path . -- --host --street --ghosts --mode=cutup --difficulty=insane --min_racers=3 --autostart --autopilot --smoke=host --smoke_after=32 --port=$P --seed=5 --timeout=320 --name=Ann --profile=$T/ch.cfg > $T/ch.log 2>&1 &
 hp=$!
 sleep 6
-run_g 400 --headless --path . -- --join=127.0.0.1 --port=$P --name=Bob --autopilot --smoke=guest1 --smoke_after=36 --timeout=320 --profile=$T/c1.cfg > $T/cg1.log 2>&1 &
+run_g 400 --headless --path . -- --join=127.0.0.1 --port=$P --name=Bob --autopilot --smoke=guest1 --smoke_after=36 --smoke_replay=12 --timeout=320 --profile=$T/c1.cfg > $T/cg1.log 2>&1 &
 g1=$!
 sleep 1
 run_g 400 --headless --path . -- --join=127.0.0.1 --port=$P --name=Cid --autopilot --smoke=guest2 --smoke_after=36 --timeout=320 --profile=$T/c2.cfg > $T/cg2.log 2>&1; c2=$?

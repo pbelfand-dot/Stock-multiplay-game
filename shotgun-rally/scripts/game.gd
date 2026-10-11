@@ -48,6 +48,7 @@ const StrayCar = preload("res://scripts/game/stray_car.gd")
 const CarLamps = preload("res://scripts/vehicle/car_lamps.gd")
 const Ghost = preload("res://scripts/game/ghost.gd")
 const FitDebug = preload("res://scripts/vehicle/fit_debug.gd")
+const Replay = preload("res://scripts/game/replay.gd")
 
 signal progress(fraction: float, what: String)
 signal stage_generated
@@ -151,6 +152,8 @@ var _waiting := false                # (joined mid-race on the touge: in the nex
 var _pos_t := 0.0
 var _place := 0                      # the touge race: where you are (1 = leading), 0 = not racing
 var _hints := {}                     # peer id -> its car's last road index (locating them)
+var replay                           # Replay: the run recorded, played back from the results / the pause menu
+var _pause_replay: Button            # the pause menu's REPLAY (the focus comes back to it)
 
 
 ## Build the stage, a step a frame (await it): progress(fraction, what) feeds the
@@ -239,6 +242,9 @@ func start(seed_in: int, stage_in: int, o := {}) -> void:
 	add_child(cam)
 	_audio()
 	_build_hud()
+	replay = Replay.new()                         # (records every tick of the run; plays it back: replay.gd)
+	add_child(replay)
+	replay.setup(self)
 	_apply_roster()
 	Net.roster_changed.connect(_apply_roster)
 	built = true
@@ -386,6 +392,27 @@ func _sync_racers() -> void:
 		c.add_child(tag)
 		others[id] = c
 		_fit_lamps(c)
+
+
+## The cars a replay records and can follow (replay.gd): yours, the other drivers' (online), and
+## a RaceField's if one's on the track (Track Mode's AI cars: a "RaceField" node with a `cars`
+## dict of RallyCars). Any RallyCar can join the list: the replay keeps a recording per car,
+## keyed by its path under the Game.
+func replay_targets() -> Array:
+	var out: Array = []
+	if is_instance_valid(car):
+		out.append(car)
+	for id in others:
+		if is_instance_valid(others[id]):
+			out.append(others[id])
+	var field := get_node_or_null("RaceField")
+	if field and "cars" in field:
+		var cs = field.get("cars")
+		var list: Array = (cs as Dictionary).values() if cs is Dictionary else (cs if cs is Array else [])
+		for c in list:
+			if is_instance_valid(c) and c is RigidBody3D and not c in out:
+				out.append(c)
+	return out
 
 
 # ── loading handshake (host) ──────────────────────────────────────────────
@@ -708,8 +735,8 @@ func _input(e: InputEvent) -> void:
 
 
 func _process(dt: float) -> void:
-	if not built:
-		return
+	if not built or replay.active:
+		return                                    # (a replay is on: its own keys, its own camera)
 	# wipers: the co-driver's job (the driver's when alone)
 	if Input.is_action_just_pressed("wipers") and (my_seat == "codriver" or Net.peer_in("codriver") == 0):
 		if Net.online() and not street_online:
@@ -734,6 +761,8 @@ func _process(dt: float) -> void:
 		elif Input.is_key_pressed(KEY_TAB) and Net.online() and Net.crew_full():
 			Net.swap_seats()
 			get_parent().retry_stage()
+	if Input.is_action_just_pressed("replay") and _settings == null and (_pause.visible or (state == "finished" and not paused())):
+		replay.open("pause" if _pause.visible else "results")
 	# the camera: circling the car before the countdown and after the finish; in the
 	# seat for the stage (the driver can press C for the chase cam)
 	if state == "running" and my_seat == "driver" and Input.is_action_just_pressed("camera"):
@@ -1198,6 +1227,11 @@ func _build_hud() -> void:
 	_results_foot = UI.label("", 22, UI.CREAM)
 	_results_foot.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	rv.add_child(_results_foot)
+	var rb := UI.button("REPLAY", func(): replay.open("results"), 24, 220, "night" if mode != "" else "rally")
+	rb.name = "ReplayButton"
+	rb.focus_mode = Control.FOCUS_NONE                 # (ENTER stays "next": V or this button for the replay)
+	rb.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	rv.add_child(rb)
 	_results.visible = false
 	_pause = _panel()
 	var vb := VBoxContainer.new()
@@ -1209,7 +1243,7 @@ func _build_hud() -> void:
 	title.add_theme_font_size_override("font_size", 36)
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vb.add_child(title)
-	var buttons := [["RESUME", _toggle_pause], ["SETTINGS", _open_settings]]
+	var buttons := [["RESUME", _toggle_pause], ["REPLAY", func(): replay.open("pause")], ["SETTINGS", _open_settings]]
 	if looped:
 		buttons.append(["END RUN", _end_run])          # (a loop has no finish: the run ends when you say)
 	buttons.append(["QUIT TO MENU", func(): get_parent().to_menu()])
@@ -1223,6 +1257,8 @@ func _build_hud() -> void:
 		vb.add_child(btn)
 		if b[0] == "SETTINGS":
 			_pause_settings = btn
+		elif b[0] == "REPLAY":
+			_pause_replay = btn
 	_pause.visible = false
 	# the modes' numbers: top right, and a flash in the middle for the moments
 	_mode_label = Label.new()
@@ -1276,13 +1312,15 @@ func _end_run() -> void:
 
 func _toggle_pause() -> void:
 	_pause.visible = not _pause.visible
-	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE if _pause.visible else Input.MOUSE_MODE_CAPTURED
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE if _pause.visible or state == "finished" else Input.MOUSE_MODE_CAPTURED
+	if _pause_replay:
+		_pause_replay.disabled = replay == null or not replay.can_open()     # (nothing recorded yet: the grid)
 
 
-## Paused: the pause menu is up, or the settings opened from it (the car held on the
-## brake, the mouse free). (The stage itself goes on: online, the others still drive.)
+## Paused: the pause menu is up, or the settings opened from it, or a replay's playing (the
+## car held on the brake, the mouse free). (The stage itself goes on: online, the others still drive.)
 func paused() -> bool:
-	return _pause.visible or _settings != null
+	return _pause.visible or _settings != null or (replay != null and replay.active)
 
 
 ## SETTINGS from the pause menu: the main menu's own panel (graphics, sound, the aids ...)
@@ -1429,6 +1467,8 @@ func set_result_extra(lines: Array, next_text: String) -> void:
 
 func _show_results() -> void:
 	_results.visible = true
+	if not Config.flag("headless_ui") and not paused():
+		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE    # (its REPLAY button)
 	var r := result
 	var head: String = opts.stage_name if opts.get("mode") == "story" else "STAGE %d" % r.stage
 	if mode != "":
@@ -1454,9 +1494,9 @@ func _show_results() -> void:
 		foot.append_array(_result_extra)
 		foot.append("")
 	if Net.is_server():
-		foot.append("ENTER  %s     R  retry this one" % _next_text + ("     TAB  swap seats" if Net.online() and Net.crew_full() else ""))
+		foot.append("ENTER  %s     R  retry this one" % _next_text + ("     TAB  swap seats" if Net.online() and Net.crew_full() else "") + "     V  replay")
 	else:
-		foot.append("Waiting for the host...")
+		foot.append("Waiting for the host...     V  replay")
 	_results_foot.text = "\n".join(foot)
 	_update_hint()
 

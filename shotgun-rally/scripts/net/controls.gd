@@ -22,6 +22,14 @@ extends Node
 ##   reset car     R (+5 s)               Y
 ##   ready / next  enter                  start
 ##   pause         esc                    back
+##   replay        V (the results, the    X
+##                 pause menu)
+## In a replay (replay.gd; docs/replay.md has the whole list): space / A play, left and right
+## (d-pad) step 5 s or held rewind and fast-forward, up and down (d-pad) the speed, home / end
+## (start) the ends, tab / Y the next car, C / X the next camera, P / R3 place a camera, G the
+## director, H / L3 the bar, backspace / B (or esc / back) out; the free cam flies on WASD,
+## Q / E (LB / RB) down and up, shift / RT fast, ctrl / LT slow, the right mouse button held
+## (right stick) to look.
 
 const STICK_DEADZONE := 0.12
 ## The steering stick's deadzone: small, so a little stick is a little steering (at 0.2 the
@@ -45,6 +53,33 @@ func _ready() -> void:
 	_action("dome_light", [KEY_L], [JOY_BUTTON_DPAD_UP], [])
 	_action("screen_page", [KEY_M], [JOY_BUTTON_DPAD_RIGHT], [])
 	_action("pit_limiter", [KEY_P], [JOY_BUTTON_DPAD_DOWN], [])
+	# the replay (replay.gd): opened from the results or the pause menu, its own keys while it's on
+	_action("replay", [KEY_V], [JOY_BUTTON_X], [])
+	_action("replay_play", [KEY_SPACE], [JOY_BUTTON_A], [])
+	_action("replay_exit", [KEY_BACKSPACE], [JOY_BUTTON_B], [])
+	_action("replay_back", [KEY_LEFT], [JOY_BUTTON_DPAD_LEFT], [])
+	_action("replay_fwd", [KEY_RIGHT], [JOY_BUTTON_DPAD_RIGHT], [])
+	_action("replay_faster", [KEY_UP, KEY_EQUAL, KEY_KP_ADD], [JOY_BUTTON_DPAD_UP], [])
+	_action("replay_slower", [KEY_DOWN, KEY_MINUS, KEY_KP_SUBTRACT], [JOY_BUTTON_DPAD_DOWN], [])
+	_action("replay_start", [KEY_HOME], [JOY_BUTTON_START], [])
+	_action("replay_end", [KEY_END], [], [])
+	_action("replay_car_next", [KEY_TAB, KEY_PAGEDOWN], [JOY_BUTTON_Y], [])
+	_action("replay_car_prev", [KEY_PAGEUP], [], [])
+	_action("replay_cam_next", [KEY_C], [JOY_BUTTON_X], [])
+	_action("replay_cam_prev", [KEY_X], [], [])
+	_action("replay_hud", [KEY_H], [JOY_BUTTON_LEFT_STICK], [])
+	_action("replay_place", [KEY_P], [JOY_BUTTON_RIGHT_STICK], [])
+	_action("replay_director", [KEY_G], [], [])
+	_action("replay_clear", [KEY_DELETE], [], [])
+	_action("replay_look", [], [], [], [MOUSE_BUTTON_RIGHT])
+	_action("replay_fly_forward", [KEY_W], [], [[JOY_AXIS_LEFT_Y, -1.0]], [], STICK_DEADZONE)
+	_action("replay_fly_back", [KEY_S], [], [[JOY_AXIS_LEFT_Y, 1.0]], [], STICK_DEADZONE)
+	_action("replay_fly_left", [KEY_A], [], [[JOY_AXIS_LEFT_X, -1.0]], [], STICK_DEADZONE)
+	_action("replay_fly_right", [KEY_D], [], [[JOY_AXIS_LEFT_X, 1.0]], [], STICK_DEADZONE)
+	_action("replay_fly_up", [KEY_E], [JOY_BUTTON_RIGHT_SHOULDER], [])
+	_action("replay_fly_down", [KEY_Q], [JOY_BUTTON_LEFT_SHOULDER], [])
+	_action("replay_fly_fast", [KEY_SHIFT], [], [[JOY_AXIS_TRIGGER_RIGHT, 1.0]], [], 0.1)
+	_action("replay_fly_slow", [KEY_CTRL], [], [[JOY_AXIS_TRIGGER_LEFT, 1.0]], [], 0.1)
 
 
 func _action(name: String, keys: Array, buttons: Array, axes: Array, mouse := [], deadzone := 0.2) -> void:

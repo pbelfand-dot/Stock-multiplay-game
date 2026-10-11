@@ -152,6 +152,9 @@ var _net_acc := 0.0
 var _net_handbrake := false
 var _buf: Array = []               # [{t, pos, rot, vel, steer, rpm, gear, comp, slip, surf, hb}]
 var _offset := INF                 # local ms - sender ms (latency + clock difference)
+## A replay is showing the car (replay.gd): nothing is simulated or streamed here while it's on;
+## replay_pose() puts it where the recording says.
+var replay_held := false
 
 
 func _ready() -> void:
@@ -723,6 +726,8 @@ func contact_point(k: int) -> Vector3:
 
 
 func _physics_process(dt: float) -> void:
+	if replay_held:
+		return                                       # (a replay is posing it: replay_pose)
 	if simulate:
 		_simulate(dt)
 		_net_acc += dt
@@ -1068,6 +1073,40 @@ func _play_stream(dt: float) -> void:
 	for k in 4:
 		comp[k] = a.comp[k] if a.comp.size() > k else comp[k]
 		wheels[k].show_remote(comp[k], speed, dt)
+
+
+## A replay (replay.gd) poses the car from its recording, the way the stream's played back
+## above but from the replay's own clock: where it is and how it's turned, its velocity, the
+## steering, the revs and the gear, each spring's squash and each wheel's spin (a locked or
+## spinning wheel shows), the pedals (the brake lights, the engine's sound), the slide (the
+## dust) and the surface. f: {xf, vel, steer, rpm, gear, comp [4], spin [4], throttle, brake,
+## steer_in, handbrake, slip, surface}; dt: the replay's time since the last pose (the mud
+## flaps swing by it; 0 holds them). The drivetrain, the tyres' slip state and the driver aids
+## are left alone: the replay puts back everything it changed when it ends.
+func replay_pose(f: Dictionary, dt := 0.0) -> void:
+	global_transform = f.xf
+	linear_velocity = f.vel
+	speed = linear_velocity.dot(-global_transform.basis.z)
+	steer = float(f.steer)
+	_wheel_angles()
+	rpm = float(f.rpm)
+	gear = int(f.gear)
+	slip = float(f.slip)
+	on_surface = str(f.surface)
+	inp = {"steer": float(f.get("steer_in", 0.0)), "throttle": float(f.throttle), "brake": float(f.brake),
+		"handbrake": bool(f.handbrake)}
+	net_throttle = float(f.throttle)
+	_net_handbrake = bool(f.handbrake)
+	grounded = 0
+	for k in 4:
+		comp[k] = float(f.comp[k])
+		wheels[k].compression = comp[k]
+		wheels[k].grounded = comp[k] > 0.005
+		wheels[k].spin = float(f.spin[k])
+		if wheels[k].grounded:
+			grounded += 1
+	if dt > 0.0:
+		_flaps_swing(dt)
 
 
 func _online() -> bool:
