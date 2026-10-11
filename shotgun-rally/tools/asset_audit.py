@@ -355,9 +355,31 @@ def other_runtime_rows():
     return rows
 
 
+# The owner's CC0 Track Mode uploads (assets/TRACK_MODE_ASSET_MANIFEST.tsv: source, licence, hash):
+# what each is for until it's in the game.
+TRACK_PLAN = {"formula": "Track P7: the FORMULA class's car (CC0, halo open-wheeler)",
+              "gt": "Track P7: a GT class car for the AI grid (CC0, generic closed-cockpit racer)",
+              "prop": "Track P7: pit lane and marshal dressing for CINDER RIDGE (CC0)"}
+
+
+def track_manifest():
+    """{path under assets/: {category, license, source_url, ...}} from TRACK_MODE_ASSET_MANIFEST.tsv."""
+    out = {}
+    mf = os.path.join(ROOT, "assets", "TRACK_MODE_ASSET_MANIFEST.tsv")
+    if os.path.exists(mf):
+        with open(mf) as f:
+            head = f.readline().rstrip("\n").split("\t")
+            for line in f:
+                row = dict(zip(head, line.rstrip("\n").split("\t")))
+                if row.get("file"):
+                    out[row["file"]] = row
+    return out
+
+
 def leftover_rows(pk, used):
     """Every package not yet joined to a runtime asset: from NOTES, or a row of its own."""
     rows = []
+    tm = track_manifest()
     wheel_plan = "Track P3: the WheelPreset system converts it into separate rim, tyre, disc and caliper meshes with LODs, offered as garage wheel options"
     for key in sorted(pk):
         if key in used:
@@ -385,9 +407,13 @@ def leftover_rows(pk, used):
             why = "Track P9: %s (Poly Haven, CC0, glTF 2k)" % POLYHAVEN_PLAN.get(nm, "dressing")
         elif key.startswith("environment_packages/user_sources/"):
             why = "an owner's pack not converted yet: review it in docs/ENVIRONMENT_INVENTORY.md"
+        elif key in tm:
+            why = TRACK_PLAN.get(tm[key].get("category", ""), "Track P7") + "; source %s" % tm[key].get("source_url", "-")
         else:
             status, why = REPAIR, "not accounted for: inspect it, then add it to tools/asset_audit.py's NOTES"
         lic = "CC0" if ("cc0" in key or "wheel_packages" in key) else ("CC BY-NC-SA 4.0" if "Track_Mode_Cars" in key else "see the package's README / manifest")
+        if key in tm:
+            lic = tm[key].get("license", lic).replace("CC0-1.0", "CC0")
         cat = "car" if key.startswith("car_packages/") else ("wheel" if key.startswith("wheel_packages/") else "environment")
         if "/vehicles/" in key:
             cat = "car (low-poly reference)"
