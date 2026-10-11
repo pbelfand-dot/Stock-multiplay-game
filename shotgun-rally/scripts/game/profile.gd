@@ -26,6 +26,7 @@ static var tuning := {}                     # car id -> {tyre, preset}: "auto", 
 static var story := {}                      # rally id -> {done, best_pos, best_total}
 static var bests := {}                      # "seed/length" -> best total (s)
 static var mode_bests := {}                 # Modes.best_key -> {value, splits} (touge time, drift / cut-up score)
+static var track_results := {}              # Track Mode: "<best key>/race" | ".../qualifying" -> the last 10 classifications
 static var _loaded := false
 
 
@@ -53,6 +54,7 @@ static func ensure_loaded() -> void:
 	story = cf.get_value("story", "rallies", story)
 	bests = cf.get_value("story", "bests", bests)
 	mode_bests = cf.get_value("modes", "bests", mode_bests)
+	track_results = cf.get_value("modes", "track_results", track_results)
 	for k in ["cars", "liveries", "wheels", "wheel_types"]:   # an old or hand-edited file
 		if not owned.has(k):
 			owned[k] = []
@@ -74,6 +76,7 @@ static func save() -> void:
 	cf.set_value("story", "rallies", story)
 	cf.set_value("story", "bests", bests)
 	cf.set_value("modes", "bests", mode_bests)
+	cf.set_value("modes", "track_results", track_results)
 	cf.save(path())
 
 
@@ -248,6 +251,17 @@ static func record_stage(seed_value: int, length: float, total: float) -> bool:
 static func mode_best(key: String) -> Dictionary:
 	ensure_loaded()
 	return mode_bests.get(key, {})
+
+
+## Keep a Track Mode classification (rows: [{pos, name, total, best, status}]), the last 10 a kind.
+static func record_track_result(key: String, rows: Array) -> void:
+	ensure_loaded()
+	var list: Array = track_results.get(key, [])
+	list.append({"rows": rows, "at": Time.get_unix_time_from_system()})
+	while list.size() > 10:
+		list.pop_front()
+	track_results[key] = list
+	save()
 
 
 ## Keep a mode's result if it's the best (a time: lower; a score: higher); true if it was.

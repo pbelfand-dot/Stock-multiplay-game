@@ -22,6 +22,11 @@ const LoopGen = preload("res://scripts/stage/loop_gen.gd")
 const CircuitGen = preload("res://scripts/stage/circuit_gen.gd")
 const CircuitBuilder = preload("res://scripts/stage/circuit_builder.gd")
 const TrackSession = preload("res://scripts/game/track_session.gd")
+const RaceControl = preload("res://scripts/game/race_control.gd")
+const RaceField = preload("res://scripts/game/race_field.gd")
+const RaceTower = preload("res://scripts/ui/race_tower.gd")
+const RaceDriver = preload("res://scripts/vehicle/race_driver.gd")
+const RaceLine = preload("res://scripts/game/race_line.gd")
 const RaceHud = preload("res://scripts/ui/race_hud.gd")
 const LoopBuilder = preload("res://scripts/stage/loop_builder.gd")
 const StageBuilder = preload("res://scripts/stage/stage_builder.gd")
@@ -48,6 +53,7 @@ const StrayCar = preload("res://scripts/game/stray_car.gd")
 const CarLamps = preload("res://scripts/vehicle/car_lamps.gd")
 const Ghost = preload("res://scripts/game/ghost.gd")
 const FitDebug = preload("res://scripts/vehicle/fit_debug.gd")
+const Graphics = preload("res://scripts/render/graphics.gd")
 
 signal progress(fraction: float, what: String)
 signal stage_generated
@@ -127,6 +133,17 @@ var session                          # TrackSession (Track Mode)
 var _track_box := 0                  # the pit box the car started from (Track Mode)
 var _race_hud                        # Track Mode's car panel (RaceHud)
 var fuel_per_lap := 0.0              # the litres the last timed lap burnt (Track Mode)
+var race_ctl                         # RaceControl (Track Mode's qualifying and races)
+var field                            # RaceField: the AI cars
+var field_entries: Array = []        # Modes.track_field: who's in it
+var grid_ids: Array = []             # the race's grid, pole first (your id among the AI's)
+var race_rows: Array = []            # the classification at the end
+var next_grid: Array = []            # (a weekend's qualifying) the race's grid, from its result
+var _tower                           # RaceTower
+var _my_driver                       # (--autopilot in a race or qualifying) a RaceDriver at your wheel
+var _end_t := -1.0                   # s until the results after you've taken the flag
+var _pit_stop := 0.0                 # s left of your pit stop (held in the box)
+var _green_flash := false
 var _fuel_at_line := -1.0
 var traffic                          # Traffic (cut up)
 var cutup                            # CutupScore
@@ -262,6 +279,11 @@ func _car_setup() -> Dictionary:
 			base = Profile.setup_for(want)
 			if Config.flag("wheel_type"):              # (pictures: --wheel_type=X follows the car)
 				base["wheel_type"] = wt
+	if mode == "track":
+		# (every car at its homologated spec, as the AI's: the garage's paint and wheels, no upgrades)
+		base = Catalog.setup(str(base.get("car", "")), {"colours": base.get("colours", []), "livery": base.get("livery", "plain"),
+			"wheels": base.get("wheels", "silver"), "wheel_type": base.get("wheel_type", "stock"), "number": base.get("number", 7)}, {},
+			{"tyre": base.get("tyre", "auto"), "preset": base.get("preset", "auto")})
 	var s := Catalog.for_stage(base, st)
 	if mode == "track":
 		# (a race car's state: its tyres warm from cold on a medium, practice's half tank, the
@@ -316,6 +338,10 @@ func _grid_spot(id: int) -> Array:
 	if circuit:
 		# (practice: everyone from their own box, the solo driver from the one by the line)
 		_track_box = (8 + k) % int(st.pit.boxes)
+		if str(opts.get("session", "practice")) == "race":
+			_plan_field()
+			var sd := _start_sd(id)
+			return [st.world_at(sd.x, sd.y) + Vector3.UP * 0.6, st.heading_at(sd.x)]
 		return st.box_spot(_track_box)
 	var across: Array = [0.0]
 	if mode == "cutup":
@@ -462,6 +488,14 @@ func _all_in() -> bool:
 func begin_countdown() -> void:
 	if state != "grid" or not built:
 		return
+	if race_ctl and race_ctl.kind == "race":
+		state = "running"                          # (the race's own start: the lights, or the rolling start)
+		stage_time = 0.0
+		race_ctl.begin()
+		for drv in field.drivers if field else []:
+			drv.task = "formation" if race_ctl.start_type == "rolling" else "hold"
+		_update_hint()
+		return
 	state = "countdown"
 	countdown = COUNTDOWN
 	_last_count = -1
@@ -605,6 +639,18 @@ func _physics_process(dt: float) -> void:
 
 
 func _drive_inputs() -> void:
+	if _pit_stop > 0.0:
+		car.inp = {"steer": 0.0, "throttle": 0.0, "brake": 1.0, "handbrake": false}
+		return
+	if use_autopilot and state != "grid" and race_ctl:
+		if _my_driver == null:
+			_my_driver = _make_my_driver()
+		_my_driver.s = car_s
+		_my_driver.d = car_d
+		car.inp = _my_driver.drive(car, get_physics_process_delta_time())
+		if car.race:
+			car.race.limiter = st.in_pit_limit(car_s, car_d) or (_my_driver.task == "pit" and _my_driver.pit_phase == "in" and st.around_line(car_s) > float(st.pit.s_lim0) - 15.0)
+		return
 	if use_autopilot and state != "grid":
 		car.inp = autopilot.drive(car, car_s, car_d)
 		if state == "countdown":
@@ -790,6 +836,14 @@ func _process(dt: float) -> void:
 		_lights.pen_text = " · ".join(pens)
 	else:
 		_lights.pen_text = "+%d s  %s" % [int(penalties), " · ".join(pens)] if penalties > 0.0 else ""
+	if race_ctl and race_ctl.kind == "race" and state in ["running", "finished"]:
+		# (a race: the five red lights, then the race's clock and your penalties)
+		_lights.state = "race"
+		_lights.race_lit = race_ctl.lights if race_ctl.phase == "lights" else 0
+		_lights.since_go = race_ctl.race_t if race_ctl.phase in ["green", "chequered", "done"] else 99.0
+		_lights.time_text = fmt_time(race_ctl.race_t) if race_ctl.race_t > 0.0 else ""
+		var pt: float = race_ctl.penalty_time(Net.my_id())
+		_lights.pen_text = "+%d s" % int(pt) if pt > 0.0 else ""
 	_engine_audio()
 	if _t_alive > 12.0 and _hint_label.text.begins_with("YOU"):
 		_update_hint()
@@ -870,6 +924,8 @@ func _on_hit(impact: float) -> void:
 				break
 	_play("crash", clampf(-20.0 + impact, -18.0, 0.0))
 	cam.bump(clampf(impact / 15.0, 0.2, 1.0))
+	if car.race and state == "running":
+		car.race.hit(impact)                         # (Track Mode: damage, if the session has it on)
 	if state != "running":
 		return
 	if cutup and impact > CRASH_DV:
@@ -919,9 +975,13 @@ func _setup_mode(o: Dictionary) -> void:
 				rivals.setup(traffic, st, seed_value)
 		"track":
 			session = TrackSession.new()
-			session.setup(st, str(o.get("session", "practice")))
-			var sd: Vector2 = st.box_sd(_track_box)
-			session.add_car(Net.my_id(), str(car.setup.get("name", "YOU")), st.unwrap(sd.x, 0.0))
+			var ses := str(o.get("session", "practice"))
+			session.setup(st, ses)
+			if ses == "practice":
+				var sd: Vector2 = st.box_sd(_track_box)
+				session.add_car(Net.my_id(), str(car.setup.get("name", "YOU")), st.unwrap(sd.x, 0.0))
+			else:
+				_setup_race(o, ses)
 		"touge":
 			touge = TougeRules.new()
 			var best := Profile.mode_best(Modes.best_key(o, seed_value))
@@ -1023,8 +1083,14 @@ func _mode_tick(dt: float) -> void:
 		traffic.running = state != "grid"
 		if street_online and multiplayer.is_server():
 			_traffic_for_everyone()
-	if session and state == "running":
+	if session and (state == "running" or (state == "finished" and race_ctl and race_ctl.phase != "done")):
 		_track_tick(dt)
+		if state == "finished" and race_ctl:
+			_rows_t -= dt
+			if _rows_t <= 0.0:
+				_rows_t = 1.0
+				race_rows = race_ctl.results(_last_pos)
+				_show_race()
 	if state == "running":
 		if cutup:
 			for nm in cutup.update(dt, {"s": car_s, "d": car_d, "v": v_along}, traffic.snapshot()):
@@ -1114,6 +1180,28 @@ func _finish_mode() -> void:
 			("   (record %s)" % fmt_lap(float(old.value)) if not old.is_empty() else "")],
 			"%d laps · %d invalidated" % [int(c.get("laps", 0)), int(c.get("cuts", 0))]]
 		mode_result = {"time": best_lap, "best": rec}
+		if race_ctl:
+			race_rows = race_ctl.results(_last_pos)
+			var me = Net.my_id()
+			var pos := 0
+			for r in race_rows:
+				if r.id == me:
+					pos = int(r.pos)
+			var race: bool = race_ctl.kind == "race"
+			var fl: Array = race_ctl.fastest_lap()
+			lines.insert(0, "%s  P%d OF %d%s" % ["RACE" if race else "QUALIFYING", pos, race_rows.size(),
+				("   +%d s penalties" % int(race_ctl.penalty_time(me))) if race_ctl.penalty_time(me) > 0.0 else ""])
+			if fl[0] != null:
+				lines.append("fastest lap  %s  %s" % [_car_name(fl[0]), fmt_lap(float(fl[1]))])
+			var pk := key + ("/race" if race else "/qualifying")
+			var best_pos := pos > 0 and str(race_ctl.dnf.get(me, "")) == "" and Profile.record_mode(pk, float(pos), true)
+			if best_pos:
+				lines.append("YOUR BEST %s FINISH" % ("RACE" if race else "QUALIFYING"))
+			Profile.record_track_result(pk, race_rows.map(func(r): return {"pos": r.pos, "name": "YOU" if r.id == me else _car_name(r.id),
+				"total": r.total, "best": r.best, "status": r.status}))
+			mode_result["pos"] = pos
+			if not race and bool(opts.get("weekend", false)):
+				next_grid = race_rows.map(func(r): return r.id)
 	elif cutup:
 		var sc: int = cutup.finish()
 		var best := sc > 0 and Profile.record_mode(key, float(sc), false)
@@ -1385,6 +1473,10 @@ func shot_results(race: bool) -> void:
 func _show_race() -> void:
 	for c in _race_box.get_children():
 		c.queue_free()
+	if race_ctl and not race_rows.is_empty():
+		_race_box.visible = true
+		_track_table()
+		return
 	_race_box.visible = street_online and touge
 	if not _race_box.visible:
 		return
@@ -1415,6 +1507,33 @@ func _show_race() -> void:
 			still.append(Net.player_name(id))
 	if not still.is_empty():
 		var l := UI.label("still racing: " + ", ".join(still), 18, UI.DIM)
+		l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		_race_box.add_child(l)
+
+
+## A Track Mode session's classification under the results: place, number, name, laps, time (a
+## race: the winner's and the gaps, penalties added; qualifying: best laps), its status.
+func _track_table() -> void:
+	var race: bool = race_ctl.kind == "race"
+	var win := float(race_rows[0].total) if not race_rows.is_empty() else INF
+	for r in race_rows.slice(0, 16):
+		var t := ""
+		if str(r.status) in ["DNF", "DSQ"]:
+			t = str(r.status)
+		elif race:
+			if float(r.total) == INF:
+				t = "RUNNING"
+			elif int(r.pos) == 1:
+				t = fmt_lap(float(r.total))
+			else:
+				var lapped := int(race_rows[0].laps) - int(r.laps)
+				t = ("+%d LAP%s" % [lapped, "" if lapped == 1 else "S"]) if lapped > 0 else "+%.3f" % (float(r.total) - win)
+		else:
+			t = fmt_lap(float(r.best)) if float(r.best) != INF else "NO TIME"
+		var me: bool = r.id == Net.my_id()
+		var txt := "%2d.  #%-2d  %-12s  %s%s" % [int(r.pos), _car_number(r.id), "YOU" if me else _car_name(r.id), t,
+			("   +%d s" % int(r.pens)) if float(r.pens) > 0.0 else ""]
+		var l := UI.label(txt, 19, UI.YELLOW if me else UI.CREAM, me)
 		l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		_race_box.add_child(l)
 
@@ -1493,7 +1612,7 @@ func _track_tick(dt: float) -> void:
 		if Input.is_action_just_pressed("pit_limiter") and my_seat == "driver":
 			car.race.limiter = not car.race.limiter
 			_flash("PIT LIMITER %s" % ("ON" if car.race.limiter else "OFF"), Color(1.0, 0.85, 0.2))
-		if use_autopilot:                              # (the autopilot drives the lane on the limiter, as a driver would)
+		if use_autopilot and race_ctl == null:         # (the autopilot drives the lane on the limiter, as a driver would)
 			car.race.limiter = st.in_pit_limit(car_s, car_d) or (pit and st.around_line(car_s) < float(st.pit.s_lim0) + 20.0 and st.around_line(car_s) > float(st.pit.s_in1))
 		car.race.limiter_kmh = float(st.pit.limit_kmh)
 		if _race_hud == null and _hud:                  # (the car's panel: once the HUD is up)
@@ -1501,7 +1620,25 @@ func _track_tick(dt: float) -> void:
 			_hud.add_child(_race_hud)
 		if _race_hud:
 			_race_hud.show_state(car.race.readout(), car.race, fuel_per_lap)
-	session.tick(dt, {Net.my_id(): {"s": car_s, "d": car_d, "pit": pit}})
+	var me = Net.my_id()
+	var pos := {me: {"s": car_s, "d": car_d, "v": car.linear_velocity.length(), "pit": pit}}
+	if field:
+		field.me = {"id": me, "s": car_s, "d": car_d, "v": car.linear_velocity.length(), "pos": car.global_position}
+		_drivers_rules()
+		field.tick(dt)
+		pos.merge(field.positions())
+		_field_events()
+	session.tick(dt, pos)
+	if race_ctl:
+		race_ctl.tick(dt, pos)
+		_last_pos = pos
+		_race_events()
+		_update_tower(pos)
+		_my_pit(dt, pit)
+		if _end_t > 0.0:
+			_end_t -= dt
+			if _end_t <= 0.0:
+				_end_race()
 	for ev in session.events:
 		if ev.id != Net.my_id():
 			continue
@@ -1535,12 +1672,371 @@ func _track_tick(dt: float) -> void:
 
 
 var _pit_warn_t := 0.0
+var _last_pos := {}
+var _rows_t := 0.0
+var _bw_t := 0.0
+var _pit_done := false
+var _my_service := {}
+
+
+# ── Track Mode's qualifying and races ──────────────────────────────────────
+
+const ROLL_BACK := 350.0             # m behind the grid the rolling start's double file sets off from
+
+## The race's field and grid, worked out once (before your car's put on its grid box).
+func _plan_field() -> void:
+	if not field_entries.is_empty():
+		return
+	var num := int(car.setup.get("number", 0)) if car and car.setup else 0
+	field_entries = Modes.track_field(opts, seed_value, num)
+	grid_ids = Modes.track_grid(opts, field_entries, Net.my_id(), seed_value)
+
+
+## Where a car starts a race (s unwrapped, d): its grid box, or (a rolling start) the double file
+## ROLL_BACK m further back.
+func _start_sd(id) -> Vector2:
+	var k := maxi(grid_ids.find(id), 0)
+	var g: Dictionary = st.grid[mini(k, st.grid.size() - 1)]
+	var s := float(g.s)
+	if s > st.length * 0.5:
+		s -= st.length
+	if str(opts.get("start", "rolling")) == "rolling":
+		s -= ROLL_BACK
+	return Vector2(s, float(g.d))
+
+
+## A qualifying session or a race: the AI field (RaceField) and race control (RaceControl); everyone
+## timed from where they start (a race: the grid; qualifying: the pit boxes).
+func _setup_race(o: Dictionary, ses: String) -> void:
+	_plan_field()
+	race_ctl = RaceControl.new()
+	race_ctl.setup(st, session, o, seed_value)
+	var me = Net.my_id()
+	var entries: Array = []
+	for e in field_entries:
+		var en: Dictionary = e.duplicate()
+		var sd := _start_sd(e.id) if ses == "race" else _box_sd(int(e.box))
+		en["s"] = sd.x
+		en["d"] = sd.y
+		en["task"] = "hold"
+		entries.append(en)
+	field = RaceField.new()
+	field.name = "RaceField"
+	add_child(field)
+	field.player_car = car
+	field.setup(st, entries, {"collide": bool(o.get("collide", true)), "near_max": _near_max()}, Modes.race_opts(o), seed_value)
+	var order: Array = grid_ids if ses == "race" else [me] + field_entries.map(func(e): return e.id)
+	for id in order:
+		var sd: Vector2 = _start_sd(id) if ses == "race" else (_box_sd(_track_box) if id == me else _box_sd(int(field.driver(id).pit_box)))
+		session.add_car(id, "YOU" if id == me else str(field.driver(id).driver_name), sd.x, ses != "race")
+		race_ctl.add_car(id, sd.x, sd.y)
+	if ses != "race":
+		race_ctl.begin()                              # (qualifying's clock runs from the start)
+
+
+## How many AI cars near you run the full physics (RaceField.near_max): by the graphics level, as
+## the frame has room (LOW 2, MEDIUM 3, HIGH 4, ULTRA 6); --near_max=N says outright.
+func _near_max() -> int:
+	if Config.flag("near_max"):
+		return int(Config.arg("near_max"))
+	return {"low": 2, "medium": 3, "high": 4, "ultra": 6}.get(Graphics.level(), 3)
+
+
+func _box_sd(k: int) -> Vector2:
+	var b: Vector2 = st.box_sd(k)
+	return Vector2(st.unwrap(b.x, 0.0), b.y)
+
+
+## The rules onto the AI drivers (and yours, driven by the tests' autopilot): their laps, the flags
+## where they are, the formation, qualifying's runs (out of the box one by one, three flying laps,
+## back to the box).
+func _drivers_rules() -> void:
+	var red: bool = race_ctl.phase == "red"
+	var form: bool = race_ctl.phase == "formation"
+	var quali: bool = race_ctl.kind != "race"
+	var all: Array = field.drivers.duplicate()
+	if _my_driver:
+		all.append(_my_driver)
+	var k := 0
+	for drv in all:
+		var c: Dictionary = session.cars.get(drv.id, {})
+		drv.laps = int(c.get("laps", 0))
+		drv.yellow = race_ctl.in_yellow(drv.s)
+		drv.blue = race_ctl.blue.has(drv.id)
+		drv.blue_d = float(race_ctl.blue.get(drv.id, 0.0))
+		drv.no_passing = form or red
+		drv.limit_v = RaceControl.PACE_V if (form or red) else INF
+		if race_ctl.spots.has(drv.id):
+			var gi: int = race_ctl.grid_order.find(drv.id)
+			drv.follow_id = race_ctl.grid_order[gi - 1] if gi > 0 else null
+			drv.slot = Vector2(8.0, float(race_ctl.spots[drv.id].y))
+		if quali:
+			drv.pace_mul = 0.86 if bool(c.get("out_lap", true)) else 1.0
+			if drv.task == "hold" and session.time >= 3.0 + k * 7.0 and race_ctl.phase == "open":
+				drv.task = "pit"
+				drv.pit_phase = "out"
+			var done: bool = race_ctl.finished.has(drv.id) or drv.laps >= 3
+			if drv.task == "race" and done and drv.pit_lap < 0:
+				drv.pit_lap = drv.laps
+				drv.pit_service = {"park": true}
+		elif race_ctl.finished.has(drv.id) and drv.task == "race":
+			drv.task = "cool"
+		k += 1
+	if _my_driver:
+		var others: Array = []
+		for id in _last_pos:
+			if id != _my_driver.id:
+				var p: Dictionary = _last_pos[id]
+				others.append({"id": id, "s": p.s, "d": p.d, "v": p.v, "stricken": race_ctl.dnf.has(id)})
+		_my_driver.plan(others, get_physics_process_delta_time())
+		_my_driver.pit_tick(get_physics_process_delta_time())
+
+
+## The field's news: retirements, pit stops.
+func _field_events() -> void:
+	for ev in field.events:
+		match str(ev[1]):
+			"retired":
+				race_ctl.retire(ev[0], "DNF")
+	field.events.clear()
+
+
+## Race control's news: the lights, the flags, penalties, the finish.
+func _race_events() -> void:
+	var me = Net.my_id()
+	for ev in race_ctl.events:
+		match str(ev.kind):
+			"light":
+				if builder.has_method("set_lights"):
+					builder.set_lights(int(ev.n))
+				_play("tick", -2.0)
+			"green":
+				if builder.has_method("set_lights"):
+					builder.set_lights(0)
+				_play("bell", -6.0)                    # (the gantry says GO, the tower's banner GREEN FLAG)
+				var drivers: Array = field.drivers.duplicate() if field else []
+				if _my_driver:
+					drivers.append(_my_driver)
+				for drv in drivers:
+					drv.lights_out = true
+					if drv.task == "formation":
+						drv.task = "race"
+			"chequered":
+				_flash("CHEQUERED FLAG", Color.WHITE)
+			"red":
+				_flash("RED FLAG", Color(1.0, 0.25, 0.2))
+			"regrid":
+				_regrid(ev)
+			"finish":
+				if ev.id == me:
+					_flash("FINISHED  P%d" % race_ctl.position(me, _last_pos) if race_ctl.kind == "race" else "SESSION OVER", Color(1.0, 0.85, 0.3))
+					_end_t = 4.0
+			"penalty", "warning":
+				if ev.id == me:
+					_flash(str(ev.text), Color(1.0, 0.65, 0.2))
+			"flag":
+				if ev.id == me and str(ev.flag) == "bw":
+					_bw_t = 6.0
+			"dnf":
+				if ev.id == me:
+					_flash("DISQUALIFIED" if str(ev.text) == "DSQ" else "RETIRED", Color(1.0, 0.3, 0.25))
+					_end_t = 3.0
+				elif field and field.driver(ev.id):
+					field.driver(ev.id).task = "out"
+	race_ctl.events.clear()
+	if race_ctl.phase == "done" and _end_t < 0.0 and state == "running":
+		_end_t = 2.0
+
+
+## A red flag's restart: everyone into their grid box in the order the race was in.
+func _regrid(ev: Dictionary) -> void:
+	var spots: Dictionary = ev.spots
+	for id in spots:
+		var sp: Vector2 = spots[id]
+		if id == Net.my_id():
+			car.place(st.world_at(sp.x, sp.y) + Vector3.UP * 0.6, st.heading_at(sp.x))
+			car_s = sp.x
+			car_d = sp.y
+			_hint = -1
+			if _my_driver:
+				_my_driver.s = sp.x
+				_my_driver.task = "hold"
+				_my_driver.lights_out = false
+				_my_driver.hold_t = 0.0
+		elif field:
+			field.place(id, sp.x, sp.y, "hold")
+
+
+## The end of your session: the results (a race: once you've taken the flag; the others race on).
+func _end_race() -> void:
+	_end_t = -1.0
+	if state != "running":
+		return
+	var me = Net.my_id()
+	var t: float = float(race_ctl.finished.get(me, race_ctl.race_t if race_ctl.kind == "race" else session.time))
+	stage_finished(t, race_ctl.penalty_time(me), 0, race_ctl._has_pen(me, "jump"))
+
+
+## Your pit stop: stopped in your box in the pit lane, the crew's work (new tyres if they're worn,
+## repairs, the fuel to finish), held there till it's done.
+func _my_pit(dt: float, pit: bool) -> void:
+	if not pit:
+		_pit_done = false
+	if _pit_stop > 0.0:
+		_pit_stop -= dt
+		if _pit_stop <= 0.0:
+			var sv := _my_service
+			car.race.service(car, str(car.race.compound) if bool(sv.get("tyres", false)) else "", float(sv.get("fuel", 0.0)))
+			if float(sv.get("repair", 0.0)) > 0.0:
+				car.race.repair()
+			_flash("GO GO GO", Color(0.3, 1.0, 0.4))
+		return
+	if use_autopilot or _pit_done or not pit or car.race == null or car.linear_velocity.length() > 0.6:
+		return
+	var b: Vector2 = st.box_sd(_track_box)
+	if absf(st.around_line(car_s) - st.around_line(b.x)) > 3.5 or absf(car_d - b.y) > 2.5:
+		return
+	var worn := 0.0
+	for t in car.race.tyres:
+		worn = maxf(worn, float(t.wear))
+	var laps_left: int = race_ctl.laps_total - int(session.cars[Net.my_id()].laps) if race_ctl.kind == "race" else 0
+	var need := maxf((laps_left + 1) * maxf(fuel_per_lap, 3.4) - float(car.race.fuel_l), 0.0)
+	_my_service = {"tyres": worn > 0.3 or race_ctl.kind != "race", "fuel": need, "repair": car.race.damage_level()}
+	_pit_stop = RaceDriver.service_time(_my_service)
+	_pit_done = true
+	_flash("PIT STOP  %.1f s" % _pit_stop, Color(1.0, 0.85, 0.3))
+
+
+## The timing tower and the flag shown to you.
+func _update_tower(pos: Dictionary) -> void:
+	if _tower == null and _hud:
+		_tower = RaceTower.new()
+		_hud.add_child(_tower)
+	if _tower == null:
+		return
+	var me = Net.my_id()
+	var race: bool = race_ctl.kind == "race"
+	var ord: Array = race_ctl.order(pos) if race else session.classification().map(func(r): return r[0])
+	var n := ord.size()
+	var mine := ord.find(me) + 1
+	var lead = ord[0] if n > 0 else null
+	var c: Dictionary = session.cars[me]
+	if race:
+		_tower.head = "P%d / %d   LAP %d / %d" % [mine, n, clampi(int(c.laps) + (0 if c.out_lap else 1), 1, race_ctl.laps_total), race_ctl.laps_total]
+	else:
+		var left := maxf(race_ctl.time_limit - session.time, 0.0)
+		_tower.head = "P%d / %d   %d:%02d" % [mine, n, int(left) / 60, int(left) % 60]
+	_tower.sub = "%s  ·  %s" % [str(Modes.track_classes().get(str(opts.get("class", "gt")), {}).get("series", "GT")),
+		"RACE" if race else "QUALIFYING"]
+	var show: Array = []
+	if n <= RaceTower.ROWS:
+		show = range(n)
+	else:
+		show = [0, 1, 2]
+		var a := clampi(mine - 1 - 4, 3, n - (RaceTower.ROWS - 3))
+		for i in range(a, a + RaceTower.ROWS - 3):
+			show.append(i)
+	var rows: Array = []
+	for i in show:
+		var id = ord[i]
+		var txt := ""
+		if race:
+			if race_ctl.dnf.has(id):
+				txt = str(race_ctl.dnf[id])
+			elif i == 0:
+				txt = "LEADER"
+			elif pos.has(id) and pos.has(lead):
+				var down := floori((float(pos[lead].s) - float(pos[id].s)) / st.length)
+				if down >= 1:
+					txt = "+%d LAP%s" % [down, "" if down == 1 else "S"]
+				else:
+					var g: float = race_ctl.gap(lead, id, pos)
+					txt = "+%.3f" % g if g != INF else ""
+		else:
+			var b := float(session.cars[id].best)
+			txt = fmt_lap(b) if b != INF else "NO TIME"
+		rows.append({"pos": i + 1, "number": _car_number(id), "name": "YOU" if id == me else _car_name(id), "text": txt, "you": id == me,
+			"pit": pos.has(id) and bool(pos[id].get("pit", false)), "pens": race_ctl.penalty_time(id), "out": race_ctl.dnf.has(id)})
+	_tower.rows = rows
+	_tower.ahead = ""
+	_tower.behind = ""
+	if race and mine > 1:
+		var a_id = ord[mine - 2]
+		var g: float = race_ctl.gap(a_id, me, pos)
+		_tower.ahead = "AHEAD  %s  %s" % [("+%.1f" % g) if g != INF else "", _car_name(a_id)]
+	if race and mine < n:
+		var b_id = ord[mine]
+		var g2: float = race_ctl.gap(me, b_id, pos)
+		_tower.behind = "BEHIND  %s  %s" % [("-%.1f" % g2) if g2 != INF else "", _car_name(b_id)]
+	_bw_t -= get_physics_process_delta_time()
+	_tower.set_flag(_player_flag())
+
+
+func _player_flag() -> String:
+	var me = Net.my_id()
+	if str(race_ctl.dnf.get(me, "")) == "DSQ":
+		return "black"
+	if race_ctl.phase == "red":
+		return "red"
+	if race_ctl.phase in ["chequered", "done"]:
+		return "chequered"
+	if race_ctl.in_yellow(car_s) or race_ctl.in_yellow(car_s + 200.0):
+		return "yellow"
+	if race_ctl.blue.has(me):
+		return "blue"
+	if _bw_t > 0.0:
+		return "bw"
+	if race_ctl.phase == "green" and race_ctl.race_t > 1.7 and race_ctl.race_t < 5.5:
+		return "green"                                   # (once the gantry's GO has gone: not over it)
+	return ""
+
+
+func _car_name(id) -> String:
+	if id == Net.my_id():
+		return "YOU"
+	var drv = field.driver(id) if field else null
+	return str(drv.driver_name) if drv else str(id)
+
+
+func _car_number(id) -> int:
+	if id == Net.my_id():
+		return int(car.setup.get("number", 0))
+	for e in field_entries:
+		if e.id == id:
+			return int(e.number)
+	return 0
+
+
+## (the tests, --autopilot) A RaceDriver at your wheel in a race or qualifying.
+func _make_my_driver():
+	var drv = RaceDriver.new()
+	drv.id = Net.my_id()
+	drv.driver_name = "YOU"
+	drv.pit_box = _track_box
+	drv.setup(st, RaceLine.params(car), {"pace": float(Config.arg("my_pace", 0.95)), "consistency": 0.95, "aggression": 0.5, "reaction": 0.2},
+		seed_value * 977 + 1)
+	drv.s = car_s
+	drv.d = car_d
+	if race_ctl.kind == "race":
+		drv.task = "formation" if race_ctl.start_type == "rolling" and race_ctl.phase == "formation" else ("race" if race_ctl.phase in ["green", "chequered"] else "hold")
+		drv.lights_out = race_ctl.phase in ["green", "chequered"]
+	else:
+		drv.task = "pit"
+		drv.pit_phase = "out"
+	return drv
 
 
 func _track_text() -> String:
 	var c: Dictionary = session.cars.get(Net.my_id(), {})
 	if c.is_empty():
 		return ""
+	if race_ctl and race_ctl.kind == "race":
+		# (a race: the tower has the place and the lap; here the lap times and the speed)
+		var rl := ["LAST  %s" % (fmt_lap(float(c.last)) if float(c.last) != INF else "--"),
+			"BEST  %s" % (fmt_lap(float(c.best)) if float(c.best) != INF else "--")]
+		if st.in_pit_lane(car_s, car_d):
+			rl.append("PIT LANE  %d KM/H" % int(st.pit.limit_kmh))
+		return "\n".join(rl) + "\n%.0f km/h" % car.kmh()
 	var t: float = session.lap_time(Net.my_id())
 	var lines := []
 	lines.append("%s   %s" % ["OUT LAP" if t == INF else "LAP %d" % (int(c.laps) + 1), "" if t == INF else fmt_lap(t)])

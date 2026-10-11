@@ -29,6 +29,22 @@ var _class := "gt"                   # track: the class (Modes.track_classes)
 var _class_btns := {}
 var _session := "practice"           # track: the session (Modes.TRACK_SESSIONS)
 var _session_btns := {}
+var _laps := 5                       # track: a race's laps (3, 5, 10 or any 1-99)
+var _lap_btns := {}
+var _laps_label: Label
+var _opponents := 9                  # track: the AI field (0-15)
+var _opp_label: Label
+var _ai := "medium"                  # track: the AI's skill (Modes.TRACK_DIFFICULTY)
+var _ai_btns := {}
+var _start_type := ""                # track: "" (the class's own), "rolling", "standing"
+var _start_btn: Button
+var _minutes := 10                   # track: qualifying's length
+var _min_btn: Button
+var _grid := "middle"                # track: a quick race's place for you
+var _grid_btn: Button
+var _damage := true
+var _damage_btn: Button
+var _race_rows: Array = []           # the race options' rows (hidden for practice)
 
 
 func _ready() -> void:
@@ -121,8 +137,9 @@ func _ready() -> void:
 	(_play_btns[false] as Button).grab_focus.call_deferred()     # (keys and pads start on ALONE)
 
 
-## TRACK: the circuit, a class (those not ready yet greyed), a session, START (alone: online
-## Track Mode comes with its races).
+## TRACK: the circuit, a class (those not ready yet greyed), a session (PRACTICE, QUALIFYING,
+## QUICK RACE, RACE WEEKEND), its options (laps, the AI field, the start, qualifying's length, your
+## grid place, damage), START (alone for now: online Track Mode comes with P8).
 func _track_card(v: Control) -> void:
 	var trk := _card(v, "key_track")
 	var head := HBoxContainer.new()
@@ -154,14 +171,121 @@ func _track_card(v: Control) -> void:
 		_session_btns[sk] = sb
 		r.add_child(sb)
 	r.add_child(UI.gap(10))
-	var go := UI.button("START", func(): start.emit({"mode": "track", "class": _class, "session": _session, "laps": 5,
-		"online": false, "collide": _collide}), 22, 160, "night")
+	var go := UI.button("START", _start_track, 22, 160, "night")
 	r.add_child(go)
+	# a race's options: laps, the field, its start, qualifying's length, your grid place, damage
+	var r2 := HBoxContainer.new()
+	r2.add_theme_constant_override("separation", 8)
+	trk.add_child(r2)
+	r2.add_child(UI.label("LAPS", 18, UI.DIM, true))
+	for n in Modes.TRACK_LAPS:
+		var lb := UI.button(str(n), _set_laps.bind(n), 18, 56, "night")
+		_lap_btns[n] = lb
+		r2.add_child(lb)
+	r2.add_child(UI.button("-", func(): _set_laps(_laps - 1), 18, 40, "night"))
+	_laps_label = UI.label("", 18, UI.CREAM, true)
+	_laps_label.custom_minimum_size = Vector2(36, 0)
+	_laps_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	r2.add_child(_laps_label)
+	r2.add_child(UI.button("+", func(): _set_laps(_laps + 1), 18, 40, "night"))
+	r2.add_child(UI.gap(14))
+	r2.add_child(UI.label("CARS", 18, UI.DIM, true))
+	r2.add_child(UI.button("-", func(): _set_opponents(_opponents - 1), 18, 40, "night"))
+	_opp_label = UI.label("", 18, UI.CREAM, true)
+	_opp_label.custom_minimum_size = Vector2(36, 0)
+	_opp_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	r2.add_child(_opp_label)
+	r2.add_child(UI.button("+", func(): _set_opponents(_opponents + 1), 18, 40, "night"))
+	r2.add_child(UI.gap(14))
+	r2.add_child(UI.label("AI", 18, UI.DIM, true))
+	for ak in Modes.TRACK_DIFFICULTY:
+		var ab := UI.button(str(Modes.TRACK_DIFFICULTY[ak].name), _set_ai.bind(ak), 18, 92, "night")
+		_ai_btns[ak] = ab
+		r2.add_child(ab)
+	var r3 := HBoxContainer.new()
+	r3.add_theme_constant_override("separation", 8)
+	trk.add_child(r3)
+	_start_btn = UI.button("", _cycle_start, 18, 210, "night")
+	r3.add_child(_start_btn)
+	_min_btn = UI.button("", _cycle_minutes, 18, 230, "night")
+	r3.add_child(_min_btn)
+	_grid_btn = UI.button("", _cycle_grid, 18, 200, "night")
+	r3.add_child(_grid_btn)
+	_damage_btn = UI.button("", func(): _damage = not _damage; _refresh_race(), 18, 170, "night")
+	r3.add_child(_damage_btn)
+	_race_rows = [r2, r3]
+	_set_laps(_laps)
+	_set_opponents(_opponents)
+	_set_ai(_ai)
 	var best := Profile.mode_best("track/%s/%s/%s" % [Modes.CIRCUITS.keys()[0], _class, Modes.track_car({"class": _class}, _garage_car())])
-	var note := "Practice: as many laps as you like (END RUN in the pause menu). Alone for now: online races come with the race weekend."
+	var note := "Practice: as many laps as you like (END RUN in the pause menu). Qualifying: the clock, the field on track, your best lap sets your place. Quick race: the grid, the lights or the rolling start, flags and penalties. Race weekend: qualifying, then the race from where you qualified."
 	if not best.is_empty():
 		note = "Your best: %s.   " % _fmt_lap(float(best.value)) + note
-	trk.add_child(UI.label(note, 15, UI.DIM))
+	var nl := UI.label(note, 15, UI.DIM)
+	nl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	nl.custom_minimum_size = Vector2(860, 0)
+	trk.add_child(nl)
+	_refresh_race()
+
+
+## START on the TRACK card: the class, the session and the race's options.
+func _start_track() -> void:
+	start.emit({"mode": "track", "class": _class, "session": _session, "laps": _laps, "opponents": _opponents,
+		"track_difficulty": _ai, "start": _start_type, "minutes": float(_minutes), "grid": _grid, "damage": _damage,
+		"online": false, "collide": _collide})
+
+
+func _set_laps(n: int) -> void:
+	_laps = clampi(n, 1, 99)
+	for k in _lap_btns:
+		(_lap_btns[k] as Button).modulate = Color.WHITE if k == _laps else Color(1, 1, 1, 0.45)
+	if _laps_label:
+		_laps_label.text = str(_laps)
+
+
+func _set_opponents(n: int) -> void:
+	_opponents = clampi(n, 0, 15)
+	if _opp_label:
+		_opp_label.text = str(_opponents)
+
+
+func _set_ai(k: String) -> void:
+	_ai = k
+	for a in _ai_btns:
+		(_ai_btns[a] as Button).modulate = Color.WHITE if a == k else Color(1, 1, 1, 0.45)
+
+
+func _cycle_start() -> void:
+	_start_type = {"": "rolling", "rolling": "standing", "standing": ""}[_start_type]
+	_refresh_race()
+
+
+func _cycle_minutes() -> void:
+	var opts := [5, 10, 15, 20]
+	_minutes = opts[(opts.find(_minutes) + 1) % opts.size()]
+	_refresh_race()
+
+
+func _cycle_grid() -> void:
+	var opts := ["front", "middle", "back", "random"]
+	_grid = opts[(opts.find(_grid) + 1) % opts.size()]
+	_refresh_race()
+
+
+## The race options' buttons say what's set; practice hides them, and each session shows its own.
+func _refresh_race() -> void:
+	if _start_btn == null:
+		return
+	var own := str(Modes.track_classes().get(_class, {}).get("start", "rolling"))
+	_start_btn.text = "START: %s" % (("%s (CLASS)" % own.to_upper()) if _start_type == "" else _start_type.to_upper())
+	_min_btn.text = "QUALIFYING: %d MIN" % _minutes
+	_grid_btn.text = "GRID: %s" % _grid.to_upper()
+	_damage_btn.text = "DAMAGE: %s" % ("ON" if _damage else "OFF")
+	for row in _race_rows:
+		(row as Control).visible = _session != "practice"
+	_min_btn.visible = _session in ["qualifying", "weekend"]
+	_grid_btn.visible = _session == "race"
+	_start_btn.visible = _session in ["race", "weekend"]
 
 
 static func _garage_car() -> String:
@@ -185,6 +309,7 @@ func _set_session(sk: String) -> void:
 	_session = sk
 	for k in _session_btns:
 		(_session_btns[k] as Button).modulate = Color.WHITE if k == sk else Color(1, 1, 1, 0.45)
+	_refresh_race()
 
 
 ## A mode's card: its key art behind (covering the card, darkened on the left

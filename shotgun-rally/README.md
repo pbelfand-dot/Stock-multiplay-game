@@ -161,7 +161,14 @@ the old backdrop: your car flat out on a stage, filmed like rally TV.
   PRACTICE in the GT class: out of your pit box onto an out-lap, then laps timed to the
   millisecond in three sectors (purple, green or yellow against the bests). All four wheels
   over the white line invalidates the lap; the pit lane makes an in-lap. Your best lap is
-  saved per car.
+  saved per car. QUALIFYING, QUICK RACE and RACE WEEKEND against up to 15 AI drivers (EASY to
+  PRO) in the GT3 cars:
+  - the standing start's five lights or the GT class's rolling start;
+  - the timing tower, flags (yellow, blue, black and white, black, red, chequered) and escalating penalties (track limits, corner cutting, pit lane speeding, the pit exit line, jump starts);
+  - pit stops for tyres, fuel and repairs;
+  - the slipstream and damage.
+  The AI race on the same physics as you, overtaking, defending and pitting
+  (`docs/track_racing.md`).
 - **The world** (`docs/ENVIRONMENT_INVENTORY.md`): every stage stands in a biome (Japanese cedar
   mountain, conifer rally forest, broadleaf forest, rocky alpine, wet forest, winter mountain;
   seasons recolour them) grown from the owner's tree packs. Those are 21 species of conifer,

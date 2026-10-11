@@ -31,6 +31,8 @@ var boards: Array = []
 var stands: Array = []
 var lights: Array = []
 var half := PackedFloat32Array()     # the half-width to the white lines, every STEP m
+var line := PackedFloat32Array()     # the racing line's offset from the centreline (+ right), every STEP m (tools/circuit_map.py)
+var line_curv := PackedFloat32Array()  # its own curvature (1/m, + a right turn)
 var lap_estimate := 0.0
 var description := ""
 var _kerb_idx := []                  # per sample: the kerbs there (indices into kerbs), for kerb_at
@@ -121,6 +123,15 @@ func generate(seed_value: int, _target := 0.0) -> void:
 	stands = data.stands
 	lights = data.lights
 	lap_estimate = float(data.get("lap_estimate", 0.0))
+	var la: Array = data.get("line", [])
+	var lc: Array = data.get("line_curv", [])
+	line = PackedFloat32Array()
+	line_curv = PackedFloat32Array()
+	line.resize(_n + 1)
+	line_curv.resize(_n + 1)
+	for i in _n + 1:
+		line[i] = float(la[i % _n]) if la.size() == _n else 0.0
+		line_curv[i] = float(lc[i % _n]) if lc.size() == _n else curv[i]
 	description = str(data.get("description", ""))
 	toll = {}
 	station = {}

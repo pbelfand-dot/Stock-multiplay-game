@@ -13,6 +13,7 @@ extends RefCounted
 ##     class (data/track_classes.json: GT, FORMULA): PRACTICE (laps, sectors, track limits, your
 ##     bests: TrackSession), QUALIFYING and RACE weekends on top.
 
+const VehicleRegistry = preload("res://scripts/game/vehicle_registry.gd")
 const DIFFICULTIES := {
 	# cars a km (all lanes), their speeds (km/h), how close a near miss is (m), how often they change lanes,
 	# gap_k: their time gap x (a busy road's drivers sit closer).
@@ -29,7 +30,17 @@ const DIFFICULTIES := {
 }
 const TOUGE_LENGTH := 5000.0
 const CIRCUITS := {"cinder_ridge": "CINDER RIDGE"}
-const TRACK_SESSIONS := {"practice": "PRACTICE"}
+const TRACK_SESSIONS := {"practice": "PRACTICE", "qualifying": "QUALIFYING", "race": "QUICK RACE", "weekend": "RACE WEEKEND"}
+## The AI field's skill (RaceDriver): pace (a share of its car's limit: never more grip or power
+## than the car has), its spread across the field, consistency (fewer mistakes), aggression.
+const TRACK_DIFFICULTY := {
+	"easy": {"name": "EASY", "pace": 0.88, "spread": 0.025, "consistency": 0.8, "aggression": 0.3},
+	"medium": {"name": "MEDIUM", "pace": 0.93, "spread": 0.02, "consistency": 0.87, "aggression": 0.5},
+	"hard": {"name": "HARD", "pace": 0.965, "spread": 0.015, "consistency": 0.93, "aggression": 0.65},
+	"pro": {"name": "PRO", "pace": 0.99, "spread": 0.01, "consistency": 0.97, "aggression": 0.8},
+}
+const TRACK_LAPS := [3, 5, 10]
+const DRIVERS_PATH := "res://data/track_drivers.json"
 const CLASSES_PATH := "res://data/track_classes.json"
 static var _classes := {}
 static var _circuit_info := {}
@@ -55,12 +66,113 @@ static func track_classes() -> Dictionary:
 
 
 ## A Track Mode session's settings: its circuit (every machine builds it from the same data),
-## class, session and lap count; daylight unless Settings' TIME OF DAY says otherwise.
-static func track_opts(seed_value: int, cls := "gt", session := "practice", laps := 5, circuit := "cinder_ridge") -> Dictionary:
+## class, session and lap count; daylight unless Settings' TIME OF DAY says otherwise. extra: the
+## race's options: opponents (0-15), difficulty, start ("rolling" | "standing": the class's own by
+## default), minutes (qualifying), grid ("front" | "middle" | "back" | "random": a quick race's
+## place for you), damage, weekend (qualifying sets the race's grid), grid_order (the weekend's race).
+static func track_opts(seed_value: int, cls := "gt", session := "practice", laps := 5, circuit := "cinder_ridge", extra := {}) -> Dictionary:
 	var c: String = cls if track_classes().has(cls) else "gt"
-	return {"mode": "track", "class": c, "session": session if TRACK_SESSIONS.has(session) else "practice",
+	var ses: String = session if TRACK_SESSIONS.has(session) else "practice"
+	var weekend := ses == "weekend" or bool(extra.get("weekend", false))
+	if ses == "weekend":
+		ses = "qualifying"
+	var o := {"mode": "track", "class": c, "session": ses, "weekend": weekend,
 		"laps": clampi(laps, 1, 99), "circuit": circuit, "length": 0.0, "mood": "day",
+		"opponents": clampi(int(extra.get("opponents", 9)), 0, 15), "difficulty": str(extra.get("difficulty", "medium")),
+		"start": str(extra.get("start", track_classes().get(c, {}).get("start", "rolling"))),
+		"minutes": float(extra.get("minutes", 10.0)), "grid": str(extra.get("grid", "middle")),
+		"damage": bool(extra.get("damage", true)),
 		"gen": {"kind": "circuit", "circuit": circuit, "biome": "temperate_broadleaf"}}
+	if extra.has("grid_order"):
+		o["grid_order"] = extra.grid_order
+	return o
+
+
+static var _drivers: Array = []
+
+
+## Track Mode's AI field for a session (RaceField's entries), the same for the same seed (a weekend's
+## qualifying and race: the same drivers): its drivers (data/track_drivers.json), each in one of the
+## class's cars, in its own colours and number, with a skill round the difficulty's; their pit boxes
+## (yours is 8, as in practice). Each entry: {id, car, name, first, number, colours, livery, skill, box}.
+## Ids are 1000 + k (the players' are their network ids).
+static func track_field(o: Dictionary, seed_value: int, my_number := 0) -> Array:
+	if _drivers.is_empty():
+		var dd = JSON.parse_string(FileAccess.get_file_as_string(DRIVERS_PATH))
+		_drivers = dd.drivers if dd is Dictionary else []
+	var rng := RandomNumberGenerator.new()
+	rng.seed = hash("track_field") + seed_value * 7919
+	var cars: Array = (track_classes().get(str(o.get("class", "gt")), {}).get("cars", []) as Array).duplicate()
+	if OS.get_cmdline_user_args().has("--seen_cars_only"):                  # (screenshots: no no-AI cars)
+		cars = cars.filter(func(c): return not VehicleRegistry.no_ai(str(c)))
+	if cars.is_empty() or _drivers.is_empty():
+		return []
+	var names: Array = _drivers.duplicate()
+	for i in range(names.size() - 1, 0, -1):
+		var j := rng.randi_range(0, i)
+		var tmp = names[i]
+		names[i] = names[j]
+		names[j] = tmp
+	var diff: Dictionary = TRACK_DIFFICULTY.get(str(o.get("difficulty", "medium")), TRACK_DIFFICULTY.medium)
+	var colours := [Color(0.78, 0.12, 0.1), Color(0.95, 0.95, 0.94), Color(0.07, 0.07, 0.08), Color(0.07, 0.2, 0.6),
+		Color(0.3, 0.62, 0.9), Color(1.0, 0.8, 0.1), Color(0.95, 0.42, 0.06), Color(0.45, 0.8, 0.12), Color(0.06, 0.32, 0.16),
+		Color(0.38, 0.12, 0.55), Color(0.66, 0.67, 0.7), Color(0.85, 0.2, 0.45)]
+	var liveries := ["plain", "stripes", "two_tone", "comet", "vortex", "charge", "goldline", "tricolore"]
+	var used := {my_number: true}
+	var out: Array = []
+	var n := int(o.get("opponents", 9))
+	var box := 0
+	for k in n:
+		var num := rng.randi_range(2, 99)
+		while used.has(num):
+			num = rng.randi_range(2, 99)
+		used[num] = true
+		if box == 8:
+			box += 1                                      # (yours)
+		var nm: Array = names[k % names.size()]
+		var pace: float = clampf(float(diff.pace) + rng.randfn(0.0, float(diff.spread)), 0.82, 1.0)
+		out.append({"id": 1000 + k, "car": str(cars[rng.randi_range(0, cars.size() - 1)]),
+			"name": str(nm[1]).to_upper(), "first": str(nm[0]), "number": num,
+			"colours": [colours[rng.randi_range(0, colours.size() - 1)], colours[rng.randi_range(0, colours.size() - 1)]],
+			"livery": liveries[rng.randi_range(0, liveries.size() - 1)],
+			"skill": {"pace": pace, "consistency": clampf(float(diff.consistency) + rng.randfn(0.0, 0.03), 0.6, 0.995),
+				"aggression": clampf(float(diff.aggression) + rng.randfn(0.0, 0.1), 0.0, 1.0), "reaction": rng.randf_range(0.18, 0.4)},
+			"box": box % 20})
+		box += 1
+	return out
+
+
+## The race's grid: ids in order, from pole. A weekend: qualifying's order (o.grid_order); a quick
+## race: the field by pace (the quickest on pole) with you put where o.grid says.
+static func track_grid(o: Dictionary, field: Array, me, seed_value: int) -> Array:
+	if o.has("grid_order"):
+		var g: Array = (o.grid_order as Array).duplicate()
+		for e in field:
+			if not e.id in g:
+				g.append(e.id)
+		if not me in g:
+			g.append(me)
+		return g.filter(func(x): return x == me or field.any(func(e): return e.id == x))
+	var by := field.duplicate()
+	by.sort_custom(func(a, b): return float(a.skill.pace) > float(b.skill.pace))
+	var ids: Array = by.map(func(e): return e.id)
+	var at := ids.size() / 2
+	match str(o.get("grid", "middle")):
+		"front":
+			at = 0
+		"back":
+			at = ids.size()
+		"random":
+			var rng := RandomNumberGenerator.new()
+			rng.seed = seed_value * 31 + 5
+			at = rng.randi_range(0, ids.size())
+	ids.insert(at, me)
+	return ids
+
+
+## The fuel a race needs (l): its laps at the line's burn and a lap and a half more.
+static func race_fuel(laps: int, lap_l: float, tank: float) -> float:
+	return minf(tank, (laps + 1.5) * lap_l)
 
 
 ## A Track Mode car's race state (RaceSim.setup's opts): mediums from cold, practice on half a
@@ -70,8 +182,15 @@ static func race_opts(o: Dictionary) -> Dictionary:
 	var hour := float(o.get("time", 13.0))
 	var day := clampf(1.0 - absf(hour - 14.0) / 9.0, 0.0, 1.0)
 	var air := lerpf(14.0, 24.0, day)
-	return {"compound": str(o.get("compound", "slick_medium")), "fuel": float(o.get("fuel", 60.0)), "tank": 120.0,
-		"ambient": air, "track": air + 14.0 * day, "wet": float(o.get("wet", 0.0)), "abs": 4, "tc": 4}
+	var fuel := float(o.get("fuel", 60.0))
+	match str(o.get("session", "practice")):
+		"qualifying":
+			fuel = 30.0                                   # (light: a few flying laps)
+		"race":
+			fuel = race_fuel(int(o.get("laps", 5)), 3.4, 120.0)   # (a GT3: ~3.4 l a lap here: tools' estimate, tests check it)
+	return {"compound": str(o.get("compound", "slick_medium")), "fuel": fuel, "tank": 120.0,
+		"ambient": air, "track": air + 14.0 * day, "wet": float(o.get("wet", 0.0)), "abs": 4, "tc": 4,
+		"damage": bool(o.get("damage", true))}
 
 
 ## The car a class runs a driver in: theirs if it's one of the class's, else the class's own.
@@ -140,7 +259,13 @@ static func title(o: Dictionary, st) -> String:
 			return "CUT UP\n%s · %s · %.0f km" % [st.touge_name() if st.has_method("wrap_s") else "HIGHWAY", difficulty(o).name, st.length / 1000.0]
 		"track":
 			var c: Dictionary = track_classes().get(str(o.get("class", "gt")), {})
-			return "%s\n%s · %s" % [st.touge_name(), str(c.get("series", "GT")), TRACK_SESSIONS.get(str(o.get("session", "practice")), "PRACTICE")]
+			var ses := str(o.get("session", "practice"))
+			var what: String = TRACK_SESSIONS.get(ses, "PRACTICE")
+			if ses == "race":
+				what = "%s · %d LAPS" % ["RACE" if bool(o.get("weekend", false)) else "QUICK RACE", int(o.get("laps", 5))]
+			elif ses == "qualifying":
+				what = "QUALIFYING · %d MIN" % int(o.get("minutes", 10.0))
+			return "%s\n%s · %s" % [st.touge_name(), str(c.get("series", "GT")), what]
 	return ""
 
 

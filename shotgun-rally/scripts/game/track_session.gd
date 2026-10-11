@@ -21,6 +21,7 @@ var events: Array = []               # [{id, kind: "sector" | "lap" | "invalid" 
 var session_best := INF
 var session_best_id = null
 var session_best_sectors := [INF, INF, INF]
+var stopped := {}                    # id -> true: no longer timed (it's taken the flag: RaceControl)
 
 
 func setup(stage, session_kind := "practice") -> void:
@@ -40,7 +41,7 @@ func add_car(id, car_name: String, s_start: float, in_pits := true) -> void:
 func tick(dt: float, positions: Dictionary) -> void:
 	time += dt
 	for id in positions:
-		if cars.has(id):
+		if cars.has(id) and not stopped.has(id):
 			_advance(id, cars[id], positions[id], dt)
 
 
@@ -130,6 +131,20 @@ func _sector(id, c: Dictionary, k: int, tc: float) -> void:
 	c.delta = t - best_k if best_k != INF else INF
 	events.append({"id": id, "kind": "sector", "sector": k, "time": t, "delta": c.delta, "valid": c.valid,
 		"purple": t < float(session_best_sectors[k])})
+
+
+## (a red flag's restart) The car back in a grid box at s (unwrapped), with `laps` done: the line's
+## next crossing starts its lap rather than counting one.
+func reposition(id, s: float, laps: int) -> void:
+	var c: Dictionary = cars[id]
+	c.s_last = s
+	c.s_max = s
+	c.laps = laps
+	c.lap_t0 = -1.0
+	c.sector_t0 = -1.0
+	c.out_lap = false
+	c.cur = []
+	c.valid = true
 
 
 ## The current lap's running time for a car (INF on an out-lap).

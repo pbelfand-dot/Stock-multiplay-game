@@ -69,6 +69,7 @@ const DEFAULT_CONFIG := "res://data/cars/awd_rally.tres"
 const TICKS := 120                 # physics ticks per second (see the plan: the wheels are stiff)
 const NAMES := ["FL", "FR", "RL", "RR"]
 const SUBSTEPS := 8                # tyre / wheel-spin / drivetrain steps per tick
+var substeps := SUBSTEPS           # (Track Mode's AI cars: fewer, RaceField: four fifths of a car's physics are these steps)
 const PARTS := "res://assets/models/car_parts/"
 const MODEL_SCALE := 1.95          # model units -> m
 const MODEL_GROUND := 0.56         # m below its origin the model's tyres touch, placed at y 0.205
@@ -655,6 +656,40 @@ func set_speed(v: float) -> void:
 		w.omega = v / w.radius
 
 
+## Set it rolling at v m/s already in the gear for that speed, the engine at the revs to match
+## (Track Mode's AI car coming onto the physics at speed: RaceField).
+func set_rolling(v: float) -> void:
+	set_speed(v)
+	angular_velocity = Vector3.ZERO
+	if drivetrain == null or v < 1.0:
+		return
+	var r: float = wheels[3].radius                  # (the driven wheels' own: a model's tyres, not the config's default)
+	var best: int = drivetrain.gears()
+	for g in range(1, drivetrain.gears() + 1):
+		var rpm_g: float = v / r * drivetrain.ratio_for(g) * 60.0 / TAU
+		if rpm_g < config.drivetrain.upshift_rpm:
+			best = g
+			break
+	drivetrain.gear = best
+	drivetrain._next_gear = best
+	drivetrain._shift_t = 0.0
+	drivetrain.clutch = 1.0
+	drivetrain.omega_e = v / r * drivetrain.ratio_for(best)
+
+
+## Drawn where something else moves it (Track Mode's far-away AI car: RaceField), not simulated:
+## its pose, its speed for the wheels to roll at, the front wheels' angle (rad).
+func puppet(xf: Transform3D, vel: Vector3, steer_angle: float, dt: float) -> void:
+	global_transform = xf
+	linear_velocity = vel
+	speed = vel.length()
+	steer = steer_angle
+	_wheel_angles()
+	for k in 4:
+		comp[k] = _static_comp[0 if k < 2 else 1]
+		wheels[k].show_remote(comp[k], speed, dt)
+
+
 ## How high the mounts sit above flat ground with the car standing still (m),
 ## from the springs and the weight on them.
 func ride_height() -> float:
@@ -782,8 +817,8 @@ func _simulate(dt: float) -> void:
 	var spin_before: Array = []
 	for w in wheels:
 		spin_before.append(w.omega)
-	var h := dt / SUBSTEPS
-	for i in SUBSTEPS:
+	var h := dt / substeps
+	for i in substeps:
 		for w in wheels:
 			w.tyre_predict(h)
 		if drivetrain:
@@ -925,9 +960,13 @@ func _brakes(dt: float, pedal: float) -> void:
 ## The air: drag against the motion (at the centre of mass), downforce at each axle.
 func _aero() -> void:
 	var drag := Aero.drag(config, linear_velocity)
+	if race:
+		drag *= race.drag_mul()                      # (Track Mode: a slipstream, a damaged nose)
 	apply_central_force(drag)
 	aero_drag = drag.length()
 	aero_down = Aero.downforce(config, speed)
+	if race:
+		aero_down *= race.down_mul()                 # (dirty air behind another car, damage)
 	var b := global_transform.basis
 	var down := -b.y
 	var h: float = config.center_of_mass.y

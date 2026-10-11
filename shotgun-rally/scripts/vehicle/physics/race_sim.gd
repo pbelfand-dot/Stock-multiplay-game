@@ -54,6 +54,11 @@ var wet := 0.0                       # 0 dry ... 1 standing water
 var cold_bar := 1.4                  # the pressure set cold
 var abs_level := 4                   # 0 off, 1 (least) ... 10 (most): the car's ABS map
 var tc_level := 4                    # the same for traction control
+var tow := 0.0                       # (RaceField) 0..1: how deep in another car's slipstream it is
+var damage := {"aero": 0.0, "engine": 0.0, "susp": 0.0}   # 0..1 each
+var damage_on := true                # (the session's DAMAGE option)
+const TOW_DRAG := 0.3                # the drag a car loses right behind another (a GT3: ~25-35 % at a length or two)
+const DIRTY_DOWN := 0.15             # the downforce it loses there (the wake: a GT3's ~10-20 %)
 
 
 static func data() -> Dictionary:
@@ -82,6 +87,8 @@ func setup(car, opts := {}) -> void:
 	cold_bar = float(d.base.get("pressure_cold_bar", 1.4))
 	abs_level = int(opts.get("abs", abs_level))
 	tc_level = int(opts.get("tc", tc_level))
+	damage_on = bool(opts.get("damage", true))
+	repair()
 	base_mass = float(car.config.mass) if car and car.config else 1300.0
 	_fresh_tyres()
 	disc = [ambient + 10.0, ambient + 10.0, ambient + 10.0, ambient + 10.0]
@@ -131,6 +138,7 @@ func grip(k: int) -> float:
 		g *= lerpf(0.96, float(b.get("worn_grip", 0.82)), clampf((w - w0) / (1.0 - w0), 0.0, 1.0))
 	g *= 1.0 - minf(float(t.flat), 0.25) * 0.2                   # a flat spot: a little less, and it shakes
 	g *= lerpf(1.0, float(c.get("wet", 0.5)), wet) if wet > 0.0 else 1.0
+	g *= 1.0 - 0.12 * float(damage.susp)                          # (a bent arm, the alignment out)
 	return g * float(c.get("grip", 1.0))
 
 
@@ -148,6 +156,7 @@ func brake_mul(k: int) -> float:
 func throttle(car, t: float) -> float:
 	if fuel_l <= 0.0:
 		return 0.0
+	t *= 1.0 - 0.35 * float(damage.engine)                        # (a damaged engine: less power)
 	if limiter:
 		var lim := limiter_kmh / 3.6
 		t = minf(t, clampf((lim - absf(float(car.speed))) * 0.9, 0.0, 1.0))
@@ -212,10 +221,62 @@ func tick(car, dt: float) -> void:
 	car.mass = base_mass + fuel_l * FUEL_KG_L
 
 
+## The drag x: the slipstream (less behind another car), a damaged nose (more).
+func drag_mul() -> float:
+	return (1.0 - TOW_DRAG * tow) * (1.0 + 0.1 * float(damage.aero))
+
+
+## The downforce x: the wake behind another car, a damaged splitter or wing.
+func down_mul() -> float:
+	return (1.0 - DIRTY_DOWN * tow) * (1.0 - 0.35 * float(damage.aero))
+
+
+## A hit (m/s of speed lost against a wall or a car): bodywork past 4 m/s, the suspension past 7,
+## the engine past 14 (the session's DAMAGE option off: nothing).
+func hit(impact: float) -> void:
+	if not damage_on:
+		return
+	damage.aero = clampf(float(damage.aero) + maxf(impact - 4.0, 0.0) * 0.035, 0.0, 1.0)
+	damage.susp = clampf(float(damage.susp) + maxf(impact - 7.0, 0.0) * 0.03, 0.0, 1.0)
+	damage.engine = clampf(float(damage.engine) + maxf(impact - 14.0, 0.0) * 0.03, 0.0, 1.0)
+
+
+## The damage's worst part (0..1).
+func damage_level() -> float:
+	return maxf(float(damage.aero), maxf(float(damage.engine), float(damage.susp)))
+
+
+## The pit crew's repairs: all of it.
+func repair() -> void:
+	damage = {"aero": 0.0, "engine": 0.0, "susp": 0.0}
+
+
+## Off the physics (RaceField's far car): the fuel by an average lap's throttle, the tyres at a
+## racing temperature and wearing at an average lap's rate, the brakes at theirs.
+func coast(car, dt: float, v: float, task: String) -> void:
+	var racing := task == "race" and v > 10.0
+	var thr := 0.62 if racing else (0.25 if v > 1.0 else 0.0)
+	var burn := (IDLE_FUEL_LPS + FULL_FUEL_LPS * thr * 0.85) * dt
+	fuel_l = maxf(0.0, fuel_l - burn)
+	fuel_used += burn
+	var win: Array = c.get("window", [82, 108])
+	var run := lerpf(float(win[0]), float(win[1]), 0.45) if racing else ambient + 20.0
+	for k in 4:
+		var t: Dictionary = tyres[k]
+		t.surface = move_toward(float(t.surface), run + (4.0 if k < 2 else 0.0), dt * 0.6)
+		t.core = move_toward(float(t.core), run - 6.0, dt * 0.25)
+		t.pressure = (cold_bar + ATM) * (float(t.core) + 273.15) / (ambient + 273.15) - ATM
+		# a medium's ~3 % a racing lap of ~5 km (the physics' own rate at race pace)
+		t.wear = minf(1.0, float(t.wear) + (6.0e-6 * float(c.get("wear", 1.0)) * v * dt if racing else 0.0))
+		disc[k] = move_toward(float(disc[k]), 420.0 if racing else ambient + 40.0, dt * 8.0)
+	if car:
+		car.mass = base_mass + fuel_l * FUEL_KG_L
+
+
 ## The numbers for the HUD and the telemetry.
 func readout() -> Dictionary:
 	var out := {"compound": compound, "short": str(c.get("short", "?")), "fuel": fuel_l, "tank": tank_l, "limiter": limiter,
-		"abs": abs_level, "tc": tc_level, "tyres": [], "discs": disc.duplicate()}
+		"abs": abs_level, "tc": tc_level, "tyres": [], "discs": disc.duplicate(), "damage": damage.duplicate(), "tow": tow}
 	for k in 4:
 		var t: Dictionary = tyres[k]
 		out.tyres.append({"surface": float(t.surface), "core": float(t.core), "pressure": float(t.pressure), "wear": float(t.wear),

@@ -1,0 +1,10 @@
+{
+ "_doc": "Track Mode's AI drivers (Modes.track_field): made-up names (none is a real racing driver's), shown in the timing tower by surname. Each race draws its field from here by the seed; their skill comes from the difficulty (Modes.TRACK_DIFFICULTY) with a spread round it, so the same driver can be quick in one race and off it in another.",
+ "drivers": [
+  ["Jonas", "Halvorsen"], ["Ade", "Okonjo"], ["Kristof", "Varga"], ["Lena", "Brenner"], ["Mathis", "Delorme"],
+  ["Dragan", "Kostic"], ["Sofia", "Aranda"], ["Erik", "Lindqvist"], ["Paolo", "Ferrante"], ["Ren", "Takeda"],
+  ["Hugh", "Fairclough"], ["Tereza", "Novak"], ["Tobi", "Oyelaran"], ["Claire", "Desroches"], ["Piotr", "Kaminski"],
+  ["Diego", "Espinoza"], ["Irina", "Volkova"], ["Bram", "Achterberg"], ["Luca", "Santoro"], ["Kaito", "Ihara"],
+  ["Rory", "McAllister"], ["Nils", "Bjorkman"], ["Ines", "Castellanos"], ["Remy", "Reynaud"]
+ ]
+}

@@ -214,9 +214,12 @@ The layout goes to every machine with the stage (online: the host's).
 
 ## Track Mode: CINDER RIDGE (a permanent circuit)
 
-MODES > **TRACK**: a class (**GT** now; **FORMULA** shows greyed until its car is in) and a
-session (**PRACTICE** now; qualifying and race weekends are the next phases), then START.
-The full plan is `docs/GT_F1_TRACK_MODE_CLAUDE_PROMPT.md`.
+MODES > **TRACK**: a class (**GT** now; **FORMULA** shows greyed until its car is in), a
+session (**PRACTICE**, **QUALIFYING**, **QUICK RACE**, **RACE WEEKEND**) and, for the last three,
+the race's options (laps, the AI field and its skill, the start, qualifying's length, your grid
+place, damage), then START. Qualifying, races, flags, penalties, pit stops and the AI field are
+in `docs/track_racing.md`; the cars and their race physics in `docs/track_cars.md`. The full plan
+is `docs/GT_F1_TRACK_MODE_CLAUDE_PROMPT.md`.
 
 **The circuit** is designed once, offline, by `tools/circuit_map.py` (run it to change the
 layout: `python3 -I tools/circuit_map.py --png map.png --profile profile.png`) into
@@ -227,7 +230,7 @@ exactly. The numbers:
 - **5.03 km** clockwise, **17 corners**, from a 24 m hairpin to 260 m sweepers;
 - 45 m of climb over the ridge, grades up to 6.4 %, banking up to 3 %;
 - **12 m** wide (15 m on the pit straight);
-- a GT3's lap on the design's speed profile is about **1:47** (the test's cautious autopilot does 2:37).
+- a GT3's lap on its racing line is about **1:34** at the limit (RaceLine: `docs/track_racing.md`), 1:47 on the centreline; the AI's own laps on the physics ~1:43, the practice test's cautious autopilot 2:37.
 
 `scripts/stage/circuit_gen.gd` (CircuitGen, on LoopGen's road API, so the car, autopilot,
 HUD and builder work as on the highway loop) answers what's across the track at any s:
@@ -265,9 +268,9 @@ directly) works like real timing loops:
 - END RUN (pause menu) shows the best lap and saves it per circuit, class and car: the TRACK card shows your best.
 - Crossing times are interpolated between physics ticks, so laps are timed to the millisecond.
 
-The GT class runs the **ELFER R** (or the ELFER EVO if that's your garage car; the class list
-is `data/track_classes.json`). Track Mode is alone for now: online practice and races come
-with the race weekend.
+The GT class runs the **ELFER R**, the **AFFALTER GT3**, or the ELFER EVO if that's your garage
+car (the class list is `data/track_classes.json`), at its homologated spec (no garage upgrades).
+Track Mode is alone for now: online practice and races come with P8.
 
 ## Online: street sessions (up to 8)
 

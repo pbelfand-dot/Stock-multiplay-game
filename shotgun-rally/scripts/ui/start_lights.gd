@@ -26,6 +26,7 @@ var _medium: Font
 var _box := StyleBoxFlat.new()
 var _gantry: Texture2D
 var hold := {}                  # (screenshots) {"state", "count"}: shown whatever the game says
+var race_lit := 0               # (Track Mode's race, state "race") the red lights lit: they come on one a second and go out together
 
 
 func _ready() -> void:
@@ -50,6 +51,9 @@ func _process(_dt: float) -> void:
 
 func _draw() -> void:
 	var cx := size.x * 0.5
+	if state == "race":
+		_race_draw(cx)
+		return
 	var counting := state == "countdown" or (state == "running" and since_go < 1.6)
 	if state == "grid" or counting:
 		var go := state == "running" or count <= 0
@@ -80,6 +84,34 @@ func _draw() -> void:
 					draw_circle(c - Vector2(7, 7), 7.0, Color(1, 1, 1, 0.35))
 			_text(big, Vector2(cx, panel.position.y + 205.0), size_px, col_txt, _bold)
 	if state in ["running", "finished"] and time_text != "":
+		_text(time_text, Vector2(cx, 54.0), 40, Color.WHITE, _bold)
+		if pen_text != "":
+			_text(pen_text, Vector2(cx, 88.0), 22, AMBER, _medium)
+
+
+## A race's start: the gantry with its red lights coming on, then out (GO!); then the race clock.
+func _race_draw(cx: float) -> void:
+	var go := since_go < 1.6
+	if race_lit > 0 or go:
+		if _gantry:
+			var k := GANTRY_W / _gantry.get_width()
+			var top := size.y * 0.08
+			var at := Vector2(cx - GANTRY_W * 0.5, top)
+			draw_texture_rect(_gantry, Rect2(at, _gantry.get_size() * k), false)
+			for i in race_lit:
+				_lamp(at + (LENS0 + Vector2(LENS_STEP * i, 0.0)) * k, LENS_R * k, RED)
+			if go:
+				_text("GO!", Vector2(cx, top + _gantry.get_height() * k + 128.0), 130, GREEN, _bold)
+		else:
+			var panel := Rect2(cx - 230.0, size.y * 0.1, 460.0, 140.0)
+			draw_style_box(_box, panel)
+			for i in 5:
+				var c := Vector2(cx + (i - 2) * 76.0, panel.position.y + 52.0)
+				draw_circle(c, 28.0, Color(0, 0, 0, 0.6))
+				draw_circle(c, 24.0, RED if i < race_lit else OFF)
+			if go:
+				_text("GO!", Vector2(cx, panel.position.y + 125.0), 64, GREEN, _bold)
+	if time_text != "":
 		_text(time_text, Vector2(cx, 54.0), 40, Color.WHITE, _bold)
 		if pen_text != "":
 			_text(pen_text, Vector2(cx, 88.0), 22, AMBER, _medium)

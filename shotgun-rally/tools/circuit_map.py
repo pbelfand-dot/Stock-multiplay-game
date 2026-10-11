@@ -396,10 +396,14 @@ def design(n, curv, v, corners, half, length):
     for i in range(n):
         s = i * STEP
         ss = s if s < length / 2 else s - length
-        if pit["s_in0"] - 40 <= ss <= pit["s_out1"] + 40:
+        if pit["s_in0"] <= ss <= pit["s_out1"]:
+            # (the pit side: the pits' own ground from the entry's taper to the exit's end, where the
+            # builder puts the pit wall; past the exit the lane runs onto the track, so the
+            # straight's usual run-off and barrier start there, clear of the lane's end)
             out_kind[1][i] = "pit"
             out_w[1][i] = 2.0
             bar_kind[1][i] = "wall"
+        if pit["s_in0"] - 40 <= ss <= pit["s_out1"] + 40:
             out_kind[0][i] = "grass"
             out_w[0][i] = 12.0
             bar_kind[0][i] = "wall"

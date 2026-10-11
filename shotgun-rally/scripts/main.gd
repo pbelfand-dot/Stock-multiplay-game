@@ -112,7 +112,9 @@ func start_solo(s: int) -> void:
 	if Config.flag("mode"):                          # tests / pictures: --mode=touge|cutup
 		var m := {"mode": Config.arg("mode"), "dir": Config.arg("dir", "up"), "rules": Config.arg("rules", "time"),
 			"difficulty": Config.arg("difficulty", "normal"), "toll": Config.arg("toll", "open"),
-			"class": Config.arg("track_class", "gt"), "session": Config.arg("session", "practice"), "laps": int(Config.arg("laps", 5))}
+			"class": Config.arg("track_class", "gt"), "session": Config.arg("session", "practice"), "laps": int(Config.arg("laps", 5)),
+			"opponents": int(Config.arg("opponents", 9)), "start": Config.arg("start", ""), "minutes": float(Config.arg("minutes", 10.0)),
+			"grid": Config.arg("grid", "middle"), "track_difficulty": Config.arg("track_difficulty", "medium")}
 		load_stage(s, 1, mode_opts(s, m))
 		return
 	load_stage(s, 1, quick_opts(s))
@@ -124,7 +126,12 @@ func mode_opts(s: int, like: Dictionary) -> Dictionary:
 	if like.get("mode") == "cutup":
 		o = Modes.cutup_opts(s, str(like.get("difficulty", "normal")), str(like.get("toll", "open")))
 	elif like.get("mode") == "track":
-		o = Modes.track_opts(s, str(like.get("class", "gt")), str(like.get("session", "practice")), int(like.get("laps", 5)))
+		var extra := {}
+		for k in ["opponents", "start", "minutes", "grid", "damage", "weekend", "grid_order", "collide"]:
+			if like.has(k) and str(like[k]) != "":
+				extra[k] = like[k]
+		extra["difficulty"] = str(like.get("track_difficulty", like.get("difficulty", "medium")))
+		o = Modes.track_opts(s, str(like.get("class", "gt")), str(like.get("session", "practice")), int(like.get("laps", 5)), "cinder_ridge", extra)
 	else:
 		o = Modes.touge_opts(s, str(like.get("dir", "up")), str(like.get("rules", "time")))
 	if Config.flag("length") and not like.get("mode") in ["cutup", "track"]:
@@ -231,6 +238,14 @@ func next_stage(s: int, n: int, o: Dictionary) -> void:
 ## Host, at the results: ENTER. Quick play: a new stage. Story: the rally's next
 ## stage, or after the last one back to the championship.
 func continue_event() -> void:
+	if opts.get("mode") == "track" and bool(opts.get("weekend", false)) and opts.get("session") == "qualifying" and game and not game.next_grid.is_empty():
+		# (a race weekend: qualifying's order is the race's grid, the same field)
+		var like: Dictionary = opts.duplicate()
+		like["session"] = "race"
+		like["grid_order"] = game.next_grid
+		like["track_difficulty"] = opts.get("difficulty", "medium")
+		next_stage(seed_value, stage_no + 1, mode_opts(seed_value, like))
+		return
 	if Modes.is_mode(opts):                          # another pass / another highway, the same kind
 		next_stage(seed_value + 1, stage_no + 1, mode_opts(seed_value + 1, opts))
 		return
@@ -567,6 +582,8 @@ func _reward(r: Dictionary) -> void:
 	var next := "next stage"
 	if Modes.is_mode(opts):                          # (continue_event: another pass, another run on the loop)
 		next = "new pass" if opts.get("mode") == "touge" else "new run"
+		if opts.get("mode") == "track":
+			next = "THE RACE" if bool(opts.get("weekend", false)) and opts.get("session") == "qualifying" else "again"
 	if story:
 		var i: int = opts.rally
 		var j: int = opts.stage
