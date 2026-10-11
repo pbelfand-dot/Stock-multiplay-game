@@ -1,0 +1,39 @@
+{
+	"_about": "ELFER R (Porsche 911 GT3 R, 992): its race display is the top of one texture (Map #61, 1024 px) that also holds the cockpit's switch panels; the screen's UVs sit a whole tile over (uv_wrap). Painted: MAP / AC / THR / FC1 settings, the oil and water box (Oil temp blank, Oil press 0.00, Water temp 79, Water press 0.4), two blank boxes in the middle, TC-LA / TC-LO / ABS, the TYRE box (four -40s: no sensor), Lap, Laptime, Time Diff and Pred. Time (blank), Fuel Left (blank), DRY. Made live: the gear in the big middle box and the speed in the box over it, the oil temperature and pressure and the water temperature, the lap time, the fuel left in litres (Track Mode's, else a share of RaceSim's 120 l default tank), the ABS and TC levels, the tyres' temperatures in Track Mode, DRY or WET. Pixels of that texture.",
+	"tank_l": 120,
+	"displays": [
+		{
+			"mat": "^cockpit_LCD$",
+			"tex": 1024,
+			"uv_wrap": true,
+			"glow": "all",
+			"screens": [
+				{
+					"page": "cluster",
+					"rect": [9, 6, 804, 390],
+					"accent": "#78aee0",
+					"layout": {
+						"cover": [[238, 127, 295, 155], [250, 177, 287, 205], [282, 289, 298, 318], [730, 26, 790, 54],
+							[320, 273, 353, 298], [464, 273, 497, 298], [320, 355, 353, 380], [464, 355, 497, 380]],
+						"text": [
+							{"what": "gear", "at": [408, 168], "size": 150},
+							{"what": "speed", "at": [408, 39], "size": 38, "max_w": 160},
+							{"what": "t_oil", "at": [266, 93], "size": 31, "bold": false},
+							{"what": "oil_bar", "at": [266, 141], "size": 31, "bold": false},
+							{"what": "t_water", "at": [268, 191], "size": 31, "bold": false},
+							{"what": "time3", "at": [613, 134], "size": 40, "bold": false, "max_w": 200},
+							{"what": "fuel_l", "at": [673, 324], "size": 30, "bold": false, "max_w": 74},
+							{"what": "abs_set", "at": [236, 355], "size": 26, "bold": false},
+							{"what": "tc_set", "at": [291, 300], "size": 26, "bold": false},
+							{"what": "tyre_fl", "at": [336, 286], "size": 26, "bold": false},
+							{"what": "tyre_fr", "at": [480, 286], "size": 26, "bold": false},
+							{"what": "tyre_rl", "at": [336, 367], "size": 26, "bold": false},
+							{"what": "tyre_rr", "at": [480, 367], "size": 26, "bold": false},
+							{"what": "track", "at": [760, 40], "size": 28, "bold": false}
+						]
+					}
+				}
+			]
+		}
+	]
+}

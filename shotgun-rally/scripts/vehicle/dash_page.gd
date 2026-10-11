@@ -282,6 +282,17 @@ func _reading(what: String, d: Dictionary, t := {}) -> String:
 			return ("%.1f" % absf(_value("kmh", d))).replace(".", ",")
 		"fuel_l":
 			return "%.1f" % maxf(_value("fuel_l", d), 0.0)
+		"time3":                                    # (a race display's lap time: 1:23.456)
+			var m3 := roundi(maxf(_value("time", d), 0.0) * 1000.0)
+			return "%d:%02d.%03d" % [m3 / 60000, (m3 / 1000) % 60, m3 % 1000]
+		"oil_bar":                                  # (the oil pressure, climbing with the revs; 0 with the engine off)
+			return "%.2f" % (lerpf(1.2, 5.6, clampf(_value("rpm01", d), 0.0, 1.0)) if _value("rpm", d) > 1.0 else 0.0)
+		"tyre_fl", "tyre_fr", "tyre_rl", "tyre_rr":  # (Track Mode's tyre temperatures; "--" without them)
+			var tc: Array = d.get("tyre_c", [])
+			var k := ["tyre_fl", "tyre_fr", "tyre_rl", "tyre_rr"].find(what)
+			return "%d" % roundi(float(tc[k])) if k < tc.size() else "--"
+		"track":                                    # (the track: DRY, or WET in the rain)
+			return "WET" if _value("wet", d) > 0.3 else "DRY"
 		"abs_set", "tc_set":                        # (the ABS / TC map: Track Mode's level, else on 1 / off 0)
 			return "%d" % int(_value(what, d))
 		"t_water", "t_oil", "t_gear":               # (warming from the air to running temperature)

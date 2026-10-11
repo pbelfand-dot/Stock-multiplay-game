@@ -140,6 +140,17 @@ func _spec(id: String, car, cp, dash, spec: Dictionary) -> void:
 			for i in a.at.size():
 				ok = ok and absf(pg.arc_reach(a.at, lens, float(a.at[i])) - float(lens[i])) < 0.01 and (i == 0 or float(a.at[i]) > float(a.at[i - 1]))
 			fails += _check(ok and pg._painted(), "%s: its painted cluster's %s band reaches each mark at its value (%s)" % [id, str(a.what), str(a.at)])
+	# a race display's tyre temperatures (Track Mode's; "--" without), DRY or WET; a screen whose UVs sit a
+	# tile over (the 911 GT3 R's) measured in its texture's own 0..1
+	for pg in dash.pages:
+		if not pg.cfg.get("layout", {}).get("text", []).any(func(t): return str(t.what) == "tyre_fl"):
+			continue
+		var tyres: String = "%s %s" % [pg._reading("tyre_fr", {"tyre_c": [80.2, 81.4, 82.0, 83.0]}), pg._reading("tyre_rr", {})]
+		var wet: String = "%s %s" % [pg._reading("track", {"wet": 0.6}), pg._reading("track", {"wet": 0.0})]
+		var wraps: int = spec.get("displays", []).filter(func(x): return x.get("uv_wrap", false)).size()
+		var wrapped: int = dash.overlays.filter(func(o): return o.mat.get_shader_parameter("wrap_uv") == true).size()
+		fails += _check(tyres == "81 --" and wet == "WET DRY" and wrapped >= wraps,
+			"%s: its race display's tyres (%s), the track (%s), %d screen(s) with UVs a tile over wrapped" % [id, tyres, wet, wrapped])
 	# a painted cluster laid sideways in its texture (the Supra's): its picture's corners are the texture
 	# rect's, its across the texture's down; a needle drawn on a painted dial at 0 and at its top value
 	for pg in dash.pages:

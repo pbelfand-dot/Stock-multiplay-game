@@ -30,7 +30,8 @@ extends Node3D
 ##   * "electric": the readings are a charge (the "fuel") and a range ("range_km" full,
 ##     else 420); an electric car's engine (its regen) says so when the spec doesn't
 ## Spec coordinates: a display's are its texture's pixels ("units": "px", x right, y
-## down) or its UVs ("units": "uv"); a panel's and a needle mesh's are metres from the
+## down) or its UVs ("units": "uv"; "uv_wrap": a model whose screen's UVs sit a whole tile
+## over, measured in the texture's own 0..1); a panel's and a needle mesh's are metres from the
 ## steering wheel's centre (the model's axes: x right, y up, z back). Needle angles
 ## on a texture are degrees, 0 = pointing right, 90 = down (clockwise).
 
@@ -140,6 +141,7 @@ func _overlay_material(base: Material, d: Dictionary) -> ShaderMaterial:
 	ov.set_shader_parameter("base_tex", tex)
 	ov.set_shader_parameter("has_base", tex != null)
 	ov.set_shader_parameter("aspect", size.x / size.y)
+	ov.set_shader_parameter("wrap_uv", d.get("uv_wrap", false))   # (a model whose screen's UVs sit a tile over)
 	# the screens: a page each, drawn into its own viewport
 	var rects: Array = []
 	var flips: Array = []
@@ -620,6 +622,8 @@ func _read(dt: float) -> void:
 		"abs_set": int(rs.abs_level) if rs else (1 if aid and aid.cfg.anti_lock else 0),
 		"tc_set": int(rs.tc_level) if rs else (1 if aid and aid.cfg.traction_control else 0),
 		"warm": _warm, "ambient": float(rs.ambient) if rs else 20.0,
+		"tyre_c": rs.tyres.map(func(t): return float(t.surface)) if rs else [],   # (FL, FR, RL, RR)
+		"wet": float(rs.wet) if rs else 0.0,
 	})
 	data.merge(fake, true)
 	data.range = float(data.fuel) * float(spec.get("range_km", 420.0))
@@ -741,6 +745,7 @@ uniform vec4 warn_rect[8];
 uniform float warn_on[8];
 uniform vec4 warn_col[8];
 uniform bool round_mask = false;   // (a round board: only its disc)
+uniform bool wrap_uv = false;      // (UVs a whole tile over: measured in the texture's own 0..1)
 
 bool inside(vec2 uv, vec4 r) {
 	return uv.x >= r.x && uv.y >= r.y && uv.x <= r.z && uv.y <= r.w;
@@ -761,7 +766,7 @@ vec3 screen_at(int i, vec2 q) {
 }
 
 void fragment() {
-	vec2 uv = UV;
+	vec2 uv = wrap_uv ? fract(UV) : UV;
 	if (round_mask && length(uv - vec2(0.5)) > 0.5) {
 		discard;
 	}
