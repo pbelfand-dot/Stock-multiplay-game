@@ -24,6 +24,7 @@ const CircuitBuilder = preload("res://scripts/stage/circuit_builder.gd")
 const TrackSession = preload("res://scripts/game/track_session.gd")
 const RaceControl = preload("res://scripts/game/race_control.gd")
 const RaceField = preload("res://scripts/game/race_field.gd")
+const TrackNet = preload("res://scripts/game/track_net.gd")
 const RaceTower = preload("res://scripts/ui/race_tower.gd")
 const RaceDriver = preload("res://scripts/vehicle/race_driver.gd")
 const RaceLine = preload("res://scripts/game/race_line.gd")
@@ -146,6 +147,15 @@ var _end_t := -1.0                   # s until the results after you've taken th
 var _pit_stop := 0.0                 # s left of your pit stop (held in the box)
 var _green_flash := false
 var _fuel_at_line := -1.0
+# Track Mode online (a street session on the circuit): the host's race control for everyone (TrackNet)
+var net                              # TrackNet
+var _ai_view                         # (a guest) the host's AI cars, drawn from its stream (RaceField.setup_view)
+var _locked := false                 # the session's started: its grid (grid_ids) and pit boxes are set
+var _boxes := {}                     # player id -> pit box (online)
+var _from_pits := false              # (online) joined once the session was on: out of the pit box, not off the grid
+var _board_rows: Array = []          # the timing board the tower's drawn from (Game._board; a guest: the host's)
+var lights_seen: Array = []          # (tests) the start lights shown here, then "go"
+var own_timing                       # (tests, a guest) TrackSession: our own laps timed here, to check the host's
 var traffic                          # Traffic (cut up)
 var cutup                            # CutupScore
 var rivals                           # Rivals (cut up on the loop: the highway battles)
@@ -276,22 +286,38 @@ func start(seed_in: int, stage_in: int, o := {}) -> void:
 ## The driver's car from their garage set up for this stage (Catalog.for_stage); in
 ## the touge's DRIFT rules on SIM STREET, without its factory traction control.
 func _car_setup() -> Dictionary:
-	var base: Dictionary = Net.car_setup_for(Net.my_id()) if street_online else Net.car_setup()
+	return _setup_for(Net.my_id(), true)
+
+
+## A street session's other driver's car, as their machine runs it (drawn here, not simulated).
+func _remote_setup(id: int) -> Dictionary:
+	return _setup_for(id, false) if mode == "track" else Catalog.for_stage(Net.car_setup_for(id), st)
+
+
+## Player id's car for this stage (mine: the one this machine drives, with its race state).
+func _setup_for(id: int, mine: bool) -> Dictionary:
+	var base: Dictionary = Net.car_setup_for(id) if street_online else Net.car_setup()
 	if mode == "track":
 		# (Track Mode: a car of the session's class: the driver's if it's one, else the class's own)
 		var want := Modes.track_car(opts, str(base.get("car", "")))
-		if want != str(base.get("car", "")) and want != "":
+		if want != str(base.get("car", "")) and want != "" and mine:
 			var wt := str(base.get("wheel_type", "stock"))
 			base = Profile.setup_for(want)
 			if Config.flag("wheel_type"):              # (pictures: --wheel_type=X follows the car)
 				base["wheel_type"] = wt
+		elif want != str(base.get("car", "")) and want != "":
+			# (another player's: the class's car in their garage car's colours and number)
+			var paint := {"livery": base.get("livery", "plain"), "number": base.get("number", 7)}
+			if not (base.get("colours", []) as Array).is_empty():
+				paint["colours"] = base.colours
+			base = Catalog.setup(want, paint, {}, {})
 	if mode == "track":
 		# (every car at its homologated spec, as the AI's: the garage's paint and wheels, no upgrades)
 		base = Catalog.setup(str(base.get("car", "")), {"colours": base.get("colours", []), "livery": base.get("livery", "plain"),
 			"wheels": base.get("wheels", "silver"), "wheel_type": base.get("wheel_type", "stock"), "number": base.get("number", 7)}, {},
 			{"tyre": base.get("tyre", "auto"), "preset": base.get("preset", "auto")})
 	var s := Catalog.for_stage(base, st)
-	if mode == "track":
+	if mode == "track" and mine:
 		# (a race car's state: its tyres warm from cold on a medium, practice's half tank, the
 		# car's own ABS and TC; the air by the hour)
 		s["race_sim"] = true
@@ -331,6 +357,10 @@ func _apply_roster() -> void:
 				if not Net.players.has(id):
 					_loaded_peers.erase(id)
 			_to_ready("set_ready_peers", [_loaded_peers.keys()])
+			if net:
+				_net_left()
+		if field and not _locked and state == "grid":
+			_field_to_grid()                         # (a racer more or less: the AI's places move)
 	_update_hint()
 
 
@@ -342,13 +372,17 @@ func _grid_spot(id: int) -> Array:
 	if _at_station():
 		return st.station_spot(k)
 	if circuit:
-		# (practice: everyone from their own box, the solo driver from the one by the line)
-		_track_box = (8 + k) % int(st.pit.boxes)
+		# (practice: everyone from their own box, the solo driver from the one by the line; a race:
+		# the grid, but online one who joined once it was on from their box)
+		var box := _box_of(id)
+		if id == Net.my_id():
+			_track_box = box
 		if str(opts.get("session", "practice")) == "race":
 			_plan_field()
-			var sd := _start_sd(id)
-			return [st.world_at(sd.x, sd.y) + Vector3.UP * 0.6, st.heading_at(sd.x)]
-		return st.box_spot(_track_box)
+			if id in grid_ids and not (id == Net.my_id() and _from_pits):
+				var sd := _start_sd(id)
+				return [st.world_at(sd.x, sd.y) + Vector3.UP * 0.6, st.heading_at(sd.x)]
+		return st.box_spot(box)
 	var across: Array = [0.0]
 	if mode == "cutup":
 		across = [st.LANE_W * 0.5, -st.LANE_W * 0.5, st.LANE_W * 1.5, -st.LANE_W * 1.5]   # (in a lane, not astride two)
@@ -384,12 +418,12 @@ func _sync_racers() -> void:
 		if id == Net.my_id():
 			continue
 		if others.has(id):
-			others[id].apply_setup(Catalog.for_stage(Net.car_setup_for(id), st))   # (their garage car may have come since)
+			others[id].apply_setup(_remote_setup(id))   # (their garage car may have come since)
 			_fit_lamps(others[id])
 			continue
 		var c = RallyCar.new()
 		c.name = "Car_%d" % id
-		c.setup = Catalog.for_stage(Net.car_setup_for(id), st)
+		c.setup = _remote_setup(id)
 		add_child(c)
 		c.set_simulating(false)
 		var spot := _grid_spot(id)
@@ -398,6 +432,8 @@ func _sync_racers() -> void:
 		if not bool(Net.session.get("collide", true)):
 			car.add_collision_exception_with(c)
 			c.add_collision_exception_with(car)
+		if field:
+			field.ghost(c)                            # (online Track Mode: the AI pass through the players)
 		var fx := DriftFx.new()
 		fx.car = c
 		c.add_child(fx)
@@ -451,7 +487,9 @@ func loaded() -> void:
 	_loaded_peers[who] = true
 	if Net.street():
 		_to_ready("set_ready_peers", [_loaded_peers.keys()])
-		if who != Net.my_id() and state != "grid":
+		if who != Net.my_id() and net and _locked:
+			catch_up.rpc_id(who, "running" if _net_joined(who) else "finished")   # (Track Mode: out of the pit lane, or the next one)
+		elif who != Net.my_id() and state != "grid":
 			catch_up.rpc_id(who, state)                # (joined mid-run)
 	if _loaded_peers.size() >= Net.players.size():
 		set_all_loaded.rpc(true)
@@ -475,12 +513,24 @@ func set_ready_peers(ids: Array) -> void:
 
 
 ## (a street session) Joined while the others are already going: on the highway you're
-## straight in; on a touge you're in the next race (the grid, watching this one).
+## straight in; on a touge you're in the next race (the grid, watching this one); on the circuit
+## out of your pit box (TrackNet.joined_late said which) into the session that's on.
 @rpc("authority", "reliable")
 func catch_up(host_state: String) -> void:
 	if looped and host_state in ["countdown", "running"]:
 		state = "running"
 		stage_time = 0.0
+		if circuit and net and net.late_box >= 0:
+			_from_pits = true
+			_boxes[Net.my_id()] = net.late_box
+			var spot := _grid_spot(Net.my_id())
+			_start_pos = spot[0]
+			_start_yaw = spot[1]
+			car.place(_start_pos, _start_yaw)
+			car_s = st.unwrap(float(st.box_sd(_track_box).x), 0.0)
+			_hint = -1
+			autopilot.route = _pit_out_route(_track_box)
+			_flash("FROM THE PIT LANE", Color(1.0, 0.85, 0.3))
 	else:
 		_waiting = true
 	_update_hint()
@@ -589,6 +639,8 @@ func _physics_process(dt: float) -> void:
 			if Net.is_server() and crew_ready() and _all_in() and ((Input.is_action_just_pressed("ready") and not paused()) or
 					(Config.flag("autostart") and (not street_online or Net.racers().size() >= int(Config.arg("min_racers", 1))))):
 				if Net.online():
+					if net:
+						_lock_grid()                     # (Track Mode: the grid set, everyone in race control)
 					begin_countdown.rpc()
 				else:
 					begin_countdown()
@@ -630,6 +682,8 @@ func _physics_process(dt: float) -> void:
 					stage_finished(args[0], args[1], args[2], args[3])
 	if mode != "":
 		_mode_tick(dt)
+	if net and net.host:
+		net.stream_ai(dt)                            # (the AI cars to everyone, the grid included)
 	if night and street_online:
 		_beam_t -= dt
 		if _beam_t <= 0.0:
@@ -1006,7 +1060,7 @@ func _setup_mode(o: Dictionary) -> void:
 			session = TrackSession.new()
 			var ses := str(o.get("session", "practice"))
 			session.setup(st, ses)
-			if ses == "practice":
+			if ses == "practice" and not street_online:   # (online practice has race control: everyone's laps on one tower)
 				var sd: Vector2 = st.box_sd(_track_box)
 				session.add_car(Net.my_id(), str(car.setup.get("name", "YOU")), st.unwrap(sd.x, 0.0))
 			else:
@@ -1118,7 +1172,9 @@ func _mode_tick(dt: float) -> void:
 			_rows_t -= dt
 			if _rows_t <= 0.0:
 				_rows_t = 1.0
-				race_rows = race_ctl.results(_last_pos)
+				race_rows = _track_rows()
+				if race_ctl.kind == "qualifying" and bool(opts.get("weekend", false)):
+					next_grid = race_rows.map(func(r): return r.id)   # (the others' laps after yours count for the race's grid too)
 				_show_race()
 	if state == "running":
 		if cutup:
@@ -1210,7 +1266,7 @@ func _finish_mode() -> void:
 			"%d laps · %d invalidated" % [int(c.get("laps", 0)), int(c.get("cuts", 0))]]
 		mode_result = {"time": best_lap, "best": rec}
 		if race_ctl:
-			race_rows = race_ctl.results(_last_pos)
+			race_rows = _track_rows()
 			var me = Net.my_id()
 			var pos := 0
 			for r in race_rows:
@@ -1218,16 +1274,17 @@ func _finish_mode() -> void:
 					pos = int(r.pos)
 			var race: bool = race_ctl.kind == "race"
 			var fl: Array = race_ctl.fastest_lap()
-			lines.insert(0, "%s  P%d OF %d%s" % ["RACE" if race else "QUALIFYING", pos, race_rows.size(),
+			lines.insert(0, "%s  P%d OF %d%s" % [str(race_ctl.kind).to_upper(), pos, race_rows.size(),
 				("   +%d s penalties" % int(race_ctl.penalty_time(me))) if race_ctl.penalty_time(me) > 0.0 else ""])
 			if fl[0] != null:
 				lines.append("fastest lap  %s  %s" % [_car_name(fl[0]), fmt_lap(float(fl[1]))])
 			var pk := key + ("/race" if race else "/qualifying")
-			var best_pos := pos > 0 and str(race_ctl.dnf.get(me, "")) == "" and Profile.record_mode(pk, float(pos), true)
+			var best_pos: bool = pos > 0 and race_ctl.kind != "practice" and str(race_ctl.dnf.get(me, "")) == "" and Profile.record_mode(pk, float(pos), true)
 			if best_pos:
 				lines.append("YOUR BEST %s FINISH" % ("RACE" if race else "QUALIFYING"))
-			Profile.record_track_result(pk, race_rows.map(func(r): return {"pos": r.pos, "name": "YOU" if r.id == me else _car_name(r.id),
-				"total": r.total, "best": r.best, "status": r.status}))
+			if race_ctl.kind != "practice":
+				Profile.record_track_result(pk, race_rows.map(func(r): return {"pos": r.pos, "name": "YOU" if r.id == me else _car_name(r.id),
+					"total": r.total, "best": r.best, "status": r.status}))
 			mode_result["pos"] = pos
 			if not race and bool(opts.get("weekend", false)):
 				next_grid = race_rows.map(func(r): return r.id)
@@ -1674,28 +1731,51 @@ func _track_tick(dt: float) -> void:
 			_race_hud.show_state(car.race.readout(), car.race, fuel_per_lap)
 	var me = Net.my_id()
 	var pos := {me: {"s": car_s, "d": car_d, "v": car.linear_velocity.length(), "pit": pit}}
-	if field:
-		field.me = {"id": me, "s": car_s, "d": car_d, "v": car.linear_velocity.length(), "pos": car.global_position}
+	if net and not net.host:
+		# (online, a guest: the host's race control judges everyone; its copy here for the HUD, and
+		# its news as if it were our own)
+		net.guest_tick(dt, pos[me])
+		if Config.flag("smoke"):
+			# (the tests: our own laps timed here too, on this machine's clock, against the host's timing)
+			if own_timing == null:
+				own_timing = TrackSession.new()
+				own_timing.setup(st, race_ctl.kind)
+				own_timing.add_car(me, "", car_s)
+			own_timing.tick(dt, pos)
+		_last_pos = _guest_positions(pos)
 		_drivers_rules()
-		field.tick(dt)
-		pos.merge(field.positions())
-		_field_events()
-	session.tick(dt, pos)
-	if race_ctl:
-		race_ctl.tick(dt, pos)
-		_last_pos = pos
-		if field:
-			for id in field.cars:                    # (the AI's DRS: each opens it when it may, flat out)
-				var fc = field.cars[id]
-				if fc.race and pos.has(id):
-					fc.race.drs_avail = race_ctl.drs_state(id, float(pos[id].s))
 		_race_events()
-		_update_tower(pos)
+		_board_rows = net.board
+		_update_tower()
 		_my_pit(dt, pit)
-		if _end_t > 0.0:
-			_end_t -= dt
-			if _end_t <= 0.0:
-				_end_race()
+		_end_tick(dt)
+	else:
+		if net:
+			pos.merge(net.positions(_t_alive))           # (the other players' cars, from what their machines send)
+		if field:
+			field.me = {"id": me, "s": car_s, "d": car_d, "v": car.linear_velocity.length(), "pos": car.global_position}
+			if net:
+				field.others_extra = _net_others(pos)
+			_drivers_rules()
+			field.tick(dt)
+			pos.merge(field.positions())
+			_field_events()
+		session.tick(dt, pos)
+		if race_ctl:
+			race_ctl.tick(dt, pos)
+			_last_pos = pos
+			if field:
+				for id in field.cars:                    # (the AI's DRS: each opens it when it may, flat out)
+					var fc = field.cars[id]
+					if fc.race and pos.has(id):
+						fc.race.drs_avail = race_ctl.drs_state(id, float(pos[id].s))
+			_board_rows = _board(pos)
+			if net:
+				net.host_tick(dt, _board_rows)           # (its news out to everyone before it's read here)
+			_race_events()
+			_update_tower()
+			_my_pit(dt, pit)
+			_end_tick(dt)
 	for ev in session.events:
 		if ev.id != Net.my_id():
 			continue
@@ -1740,13 +1820,20 @@ var _my_service := {}
 
 const ROLL_BACK := 350.0             # m behind the grid the rolling start's double file sets off from
 
-## The race's field and grid, worked out once (before your car's put on its grid box).
+## The race's field and grid, worked out once (before your car's put on its grid box). Online: the
+## host's AI (opts.field), and the grid from the roster as it stands until the session starts.
 func _plan_field() -> void:
-	if not field_entries.is_empty():
-		return
-	var num := int(car.setup.get("number", 0)) if car and car.setup else 0
-	field_entries = Modes.track_field(opts, seed_value, num)
-	grid_ids = Modes.track_grid(opts, field_entries, Net.my_id(), seed_value)
+	if not _planned:
+		_planned = true
+		var num := int(car.setup.get("number", 0)) if car and car.setup else 0
+		field_entries = opts.field if opts.has("field") else Modes.track_field(opts, seed_value, num)
+		if not street_online:
+			grid_ids = Modes.track_grid(opts, field_entries, Net.my_id(), seed_value)
+	if street_online and not _locked:
+		grid_ids = Modes.online_grid(opts, field_entries, Net.racers())
+
+
+var _planned := false
 
 
 ## Where a car starts a race (s unwrapped, d): its grid box, or (a rolling start) the double file
@@ -1768,6 +1855,26 @@ func _setup_race(o: Dictionary, ses: String) -> void:
 	_plan_field()
 	race_ctl = RaceControl.new()
 	race_ctl.setup(st, session, o, seed_value)
+	if ses == "practice":
+		race_ctl.time_limit = INF                     # (online practice: no clock; END RUN ends your own run)
+	if street_online:
+		net = TrackNet.new()
+		net.name = "TrackNet"
+		add_child(net)
+		net.setup(self, multiplayer.is_server())
+		if not net.host:
+			# (a guest: race control's a copy the host keeps up to date, the AI cars are the host's,
+			# drawn from its stream; nothing's judged or driven here)
+			if not field_entries.is_empty():
+				_ai_view = RaceField.new()
+				_ai_view.name = "RaceField"
+				add_child(_ai_view)
+				var view: Array = []
+				for e in field_entries:
+					var sd := _start_sd(e.id) if ses == "race" else _box_sd(int(e.box))
+					view.append(e.merged({"s": sd.x, "d": sd.y}))
+				_ai_view.setup_view(st, view)
+			return
 	var me = Net.my_id()
 	var entries: Array = []
 	for e in field_entries:
@@ -1782,6 +1889,11 @@ func _setup_race(o: Dictionary, ses: String) -> void:
 	add_child(field)
 	field.player_car = car
 	field.setup(st, entries, {"collide": bool(o.get("collide", true)), "near_max": _near_max()}, Modes.race_opts(o), seed_value)
+	if street_online:
+		# (the host: every car goes into race control and the timing as the session starts, _lock_grid;
+		# online every car's a ghost to the others, the AI's too: the other players' are only drawn here)
+		field.ghost(car)
+		return
 	var order: Array = grid_ids if ses == "race" else [me] + field_entries.map(func(e): return e.id)
 	for id in order:
 		var sd: Vector2 = _start_sd(id) if ses == "race" else (_box_sd(_track_box) if id == me else _box_sd(int(field.driver(id).pit_box)))
@@ -1804,6 +1916,208 @@ func _box_sd(k: int) -> Vector2:
 	return Vector2(st.unwrap(b.x, 0.0), b.y)
 
 
+## A player's pit box: from 8 on, in the roster's order (online: set as the session starts, then kept).
+func _box_of(id) -> int:
+	if _boxes.has(id):
+		return int(_boxes[id])
+	var k := maxi(Net.racers().find(id), 0) if street_online else 0
+	return (Modes.PLAYER_BOX + k) % int(st.pit.boxes)
+
+
+# ── Track Mode online (TrackNet) ─────────────────────────────────────────────
+
+## (the host) The session starts: who's in it is set (the players here, their stages loaded), their
+## pit boxes and the grid (a race: the roster's order or qualifying's, the AI behind); every car into
+## race control and the timing from its grid box or pit box, the AI put there, every guest told.
+func _lock_grid() -> void:
+	var ses := str(opts.get("session", "practice"))
+	var racers: Array = Net.racers().filter(func(id): return id == Net.my_id() or _loaded_peers.has(id))
+	_boxes = {}
+	for k in racers.size():
+		_boxes[racers[k]] = (Modes.PLAYER_BOX + k) % int(st.pit.boxes)
+	var ids: Array = Modes.online_grid(opts, field_entries, racers) if ses == "race" else racers + field_entries.map(func(e): return e.id)
+	grid_ids = ids
+	_locked = true
+	var starts := {}
+	for id in ids:
+		var sd := _start_of(id)
+		starts[id] = sd
+		if field.driver(id):
+			field.place(id, sd.x, sd.y, "hold")
+		session.add_car(id, _car_name(id, false), sd.x, ses != "race")
+		race_ctl.add_car(id, sd.x, sd.y)
+	if ses != "race":
+		race_ctl.begin()
+	var spot := _grid_spot(Net.my_id())
+	_start_pos = spot[0]
+	_start_yaw = spot[1]
+	car.place(_start_pos, _start_yaw)
+	net.locked(ids, starts, _boxes)
+
+
+## (the host, before the start) The AI to their places on the grid as it stands (a racer joining or
+## leaving moves them back or up).
+func _field_to_grid() -> void:
+	if not street_online or str(opts.get("session", "practice")) != "race":
+		return
+	_plan_field()
+	for e in field_entries:
+		var sd := _start_sd(e.id)
+		field.place(e.id, sd.x, sd.y, "hold")
+
+
+## (the host) A player who's left is out (DNF), so nothing waits on them.
+func _net_left() -> void:
+	if session == null:
+		return
+	for id in session.cars.keys():
+		if not Net.players.has(id) and not _is_ai(id):
+			if _locked:
+				race_ctl.retire(id, "DNF")
+			net.drop(id)
+
+
+## (the host) A player whose stage loaded once the session was on: into it out of a free pit box (not
+## once the chequered flag's out: they're in the next one). True if they're in.
+func _net_joined(who: int) -> bool:
+	if race_ctl == null or race_ctl.phase in ["chequered", "done"]:
+		return false
+	var box := Modes.PLAYER_BOX
+	while box in _boxes.values():
+		box += 1
+	box = box % int(st.pit.boxes)
+	_boxes[who] = box
+	var sd := _box_sd(box)
+	if not session.cars.has(who):
+		session.add_car(who, _car_name(who, false), sd.x, true)
+	race_ctl.add_late(who)
+	net.joined(who, sd, box, grid_ids, _boxes)
+	return true
+
+
+func _is_ai(id) -> bool:
+	return field_entries.any(func(e): return e.id == id)
+
+
+## Where a car starts the session (s unwrapped, d): a race, its grid box; else (or joined late), its pit box.
+func _start_of(id) -> Vector2:
+	if str(opts.get("session", "practice")) == "race" and id in grid_ids:
+		return _start_sd(id)
+	for e in field_entries:
+		if e.id == id:
+			return _box_sd(int(e.box))
+	return _box_sd(_box_of(id))
+
+
+## (a guest) The host's grid: who's in the session, in what order, from which pit boxes; our car to
+## its place, every car into the copy of race control and the timing.
+func net_grid(ids: Array, boxes: Dictionary) -> void:
+	grid_ids = ids
+	_boxes = boxes
+	_locked = true
+	var race := str(opts.get("session", "practice")) == "race"
+	race_ctl.grid_order = ids.duplicate()
+	var me = Net.my_id()
+	for id in ids + ([me] if not me in ids else []):
+		var sd := _start_of(id)
+		if race and id in ids:
+			race_ctl.spots[id] = sd
+		if not session.cars.has(id):
+			session.add_car(id, _car_name(id, false), sd.x, not race or not id in ids)
+		if not race_ctl.pens.has(id):
+			race_ctl.pens[id] = {"time": 0.0, "list": [], "warn": {}, "dsq": false}
+	if state == "grid":
+		var spot := _grid_spot(me)
+		_start_pos = spot[0]
+		_start_yaw = spot[1]
+		car.place(_start_pos, _start_yaw)
+		autopilot.route = _pit_out_route(_track_box)
+
+
+## (a guest) The host's classification came in.
+func net_results() -> void:
+	if state == "finished" and race_ctl:
+		race_rows = _track_rows()
+		_show_race()
+
+
+## The classification: race control's (online, on a guest's machine: the host's).
+func _track_rows() -> Array:
+	if net and not net.host:
+		return net.rows
+	return race_ctl.results(_last_pos)
+
+
+## (the host) The other players' cars for the AI to mind, and to run on the physics near.
+func _net_others(pos: Dictionary) -> Array:
+	var out: Array = []
+	for id in others:
+		if pos.has(id) and is_instance_valid(others[id]):
+			var p: Dictionary = pos[id]
+			out.append({"id": id, "s": float(p.s), "d": float(p.d), "v": float(p.v), "stricken": race_ctl.dnf.has(id),
+				"pos": others[id].global_position})
+	return out
+
+
+## (a guest) Where every car is, from the cars on this machine (the others' streams, the host's AI),
+## for your autopilot's racecraft: {id: {s (round the lap), d, v, pit}}, yours as it is.
+func _guest_positions(pos: Dictionary) -> Dictionary:
+	var out := pos.duplicate()
+	var cs := others.duplicate()
+	if _ai_view:
+		cs.merge(_ai_view.cars)
+	for id in cs:
+		var c = cs[id]
+		if not is_instance_valid(c):
+			continue
+		var at: Dictionary = st.locate(c.global_position, int(_hints.get(id, -1)))
+		_hints[id] = at.i
+		out[id] = {"s": float(at.s), "d": float(at.d), "v": c.linear_velocity.length(), "pit": st.in_pit_lane(float(at.s), float(at.d))}
+	return out
+
+
+## The timing board, in race control's running order (practice and qualifying: by best lap): each
+## car's laps, its lap's start, its best and last laps, in the pits, penalties, status (DNF, DSQ),
+## its gap to the leader (or laps down) and to the car ahead, its finish. The tower's drawn from it,
+## online on every machine (the host sends it: TrackNet).
+func _board(pos: Dictionary) -> Array:
+	var race: bool = race_ctl.kind == "race"
+	var ord: Array = race_ctl.order(pos) if race else session.classification().map(func(r): return r[0])
+	var lead = ord[0] if not ord.is_empty() else null
+	var out: Array = []
+	for i in ord.size():
+		var id = ord[i]
+		var c: Dictionary = session.cars.get(id, {})
+		var down := 0
+		var gap := INF
+		var intv := INF
+		if race and i > 0 and pos.has(id) and pos.has(lead):
+			down = floori((float(pos[lead].s) - float(pos[id].s)) / st.length)
+			gap = race_ctl.gap(lead, id, pos)
+			intv = race_ctl.gap(ord[i - 1], id, pos)
+		out.append({"id": id, "laps": int(c.get("laps", 0)), "out": bool(c.get("out_lap", true)), "t0": float(c.get("lap_t0", -1.0)),
+			"ok": bool(c.get("valid", true)), "best": float(c.get("best", INF)), "last": float(c.get("last", INF)),
+			"pit": pos.has(id) and bool(pos[id].get("pit", false)), "pens": race_ctl.penalty_time(id), "st": str(race_ctl.dnf.get(id, "")),
+			"gap": gap, "down": down, "intv": intv, "fin": float(race_ctl.finished.get(id, -1.0)), "jump": race_ctl._has_pen(id, "jump")})
+	return out
+
+
+## Your place on the board (0: not on it yet).
+func _my_place() -> int:
+	for i in _board_rows.size():
+		if _board_rows[i].id == Net.my_id():
+			return i + 1
+	return 0
+
+
+## The results once you've taken the flag (or retired): a few seconds on.
+func _end_tick(dt: float) -> void:
+	if _end_t > 0.0:
+		_end_t -= dt
+		if _end_t <= 0.0:
+			_end_race()
+
+
 ## The rules onto the AI drivers (and yours, driven by the tests' autopilot): their laps, the flags
 ## where they are, the formation, qualifying's runs (out of the box one by one, three flying laps,
 ## back to the box).
@@ -1811,7 +2125,7 @@ func _drivers_rules() -> void:
 	var red: bool = race_ctl.phase == "red"
 	var form: bool = race_ctl.phase == "formation"
 	var quali: bool = race_ctl.kind != "race"
-	var all: Array = field.drivers.duplicate()
+	var all: Array = field.drivers.duplicate() if field else []
 	if _my_driver:
 		all.append(_my_driver)
 	var k := 0
@@ -1867,10 +2181,12 @@ func _race_events() -> void:
 				if builder.has_method("set_lights"):
 					builder.set_lights(int(ev.n))
 				_play("tick", -2.0)
+				lights_seen.append(int(ev.n))
 			"green":
 				if builder.has_method("set_lights"):
 					builder.set_lights(0)
 				_play("bell", -6.0)                    # (the gantry says GO, the tower's banner GREEN FLAG)
+				lights_seen.append("go")
 				var drivers: Array = field.drivers.duplicate() if field else []
 				if _my_driver:
 					drivers.append(_my_driver)
@@ -1886,7 +2202,8 @@ func _race_events() -> void:
 				_regrid(ev)
 			"finish":
 				if ev.id == me:
-					_flash("FINISHED  P%d" % race_ctl.position(me, _last_pos) if race_ctl.kind == "race" else "SESSION OVER", Color(1.0, 0.85, 0.3))
+					var place: int = int(ev.get("pos", 0)) if net and not net.host else race_ctl.position(me, _last_pos)   # (a guest's positions are only its own view)
+					_flash("FINISHED  P%d" % place if race_ctl.kind == "race" else "SESSION OVER", Color(1.0, 0.85, 0.3))
 					_end_t = 4.0
 			"penalty", "warning":
 				if ev.id == me:
@@ -1908,6 +2225,8 @@ func _race_events() -> void:
 ## A red flag's restart: everyone into their grid box in the order the race was in.
 func _regrid(ev: Dictionary) -> void:
 	var spots: Dictionary = ev.spots
+	if net and ev.has("epoch"):
+		net.epoch = int(ev.epoch)                    # (online: our positions count again from these boxes)
 	for id in spots:
 		var sp: Vector2 = spots[id]
 		if id == Net.my_id():
@@ -1956,7 +2275,7 @@ func _my_pit(dt: float, pit: bool) -> void:
 	var worn := 0.0
 	for t in car.race.tyres:
 		worn = maxf(worn, float(t.wear))
-	var laps_left: int = race_ctl.laps_total - int(session.cars[Net.my_id()].laps) if race_ctl.kind == "race" else 0
+	var laps_left: int = race_ctl.laps_total - int(session.cars.get(Net.my_id(), {}).get("laps", 0)) if race_ctl.kind == "race" else 0
 	var need := maxf((laps_left + 1) * maxf(fuel_per_lap, 3.4) - float(car.race.fuel_l), 0.0)
 	_my_service = {"tyres": worn > 0.3 or race_ctl.kind != "race", "fuel": need, "repair": car.race.damage_level()}
 	_pit_stop = RaceDriver.service_time(_my_service)
@@ -1964,8 +2283,9 @@ func _my_pit(dt: float, pit: bool) -> void:
 	_flash("PIT STOP  %.1f s" % _pit_stop, Color(1.0, 0.85, 0.3))
 
 
-## The timing tower and the flag shown to you.
-func _update_tower(pos: Dictionary) -> void:
+## The timing tower (drawn from the board: race control's order and gaps, the same on every machine
+## online) and the flag shown to you.
+func _update_tower() -> void:
 	if _tower == null and _hud:
 		_tower = RaceTower.new()
 		_hud.add_child(_tower)
@@ -1973,18 +2293,19 @@ func _update_tower(pos: Dictionary) -> void:
 		return
 	var me = Net.my_id()
 	var race: bool = race_ctl.kind == "race"
-	var ord: Array = race_ctl.order(pos) if race else session.classification().map(func(r): return r[0])
-	var n := ord.size()
-	var mine := ord.find(me) + 1
-	var lead = ord[0] if n > 0 else null
-	var c: Dictionary = session.cars[me]
+	var bd: Array = _board_rows
+	var n := bd.size()
+	var mine := _my_place()
+	var c: Dictionary = bd[mine - 1] if mine > 0 else {"laps": 0, "out": true}
 	if race:
-		_tower.head = "P%d / %d   LAP %d / %d" % [mine, n, clampi(int(c.laps) + (0 if c.out_lap else 1), 1, race_ctl.laps_total), race_ctl.laps_total]
+		_tower.head = "P%d / %d   LAP %d / %d" % [mine, n, clampi(int(c.laps) + (0 if bool(c.out) else 1), 1, race_ctl.laps_total), race_ctl.laps_total]
+	elif race_ctl.time_limit == INF:
+		_tower.head = "P%d / %d" % [mine, n]
 	else:
 		var left := maxf(race_ctl.time_limit - session.time, 0.0)
 		_tower.head = "P%d / %d   %d:%02d" % [mine, n, int(left) / 60, int(left) % 60]
 	_tower.sub = "%s  ·  %s" % [str(Modes.track_classes().get(str(opts.get("class", "gt")), {}).get("series", "GT")),
-		"RACE" if race else "QUALIFYING"]
+		str(race_ctl.kind).to_upper()]
 	var show: Array = []
 	if n <= RaceTower.ROWS:
 		show = range(n)
@@ -1995,36 +2316,31 @@ func _update_tower(pos: Dictionary) -> void:
 			show.append(i)
 	var rows: Array = []
 	for i in show:
-		var id = ord[i]
+		var r: Dictionary = bd[i]
+		var id = r.id
 		var txt := ""
 		if race:
-			if race_ctl.dnf.has(id):
-				txt = str(race_ctl.dnf[id])
+			if str(r.st) != "":
+				txt = str(r.st)
 			elif i == 0:
 				txt = "LEADER"
-			elif pos.has(id) and pos.has(lead):
-				var down := floori((float(pos[lead].s) - float(pos[id].s)) / st.length)
-				if down >= 1:
-					txt = "+%d LAP%s" % [down, "" if down == 1 else "S"]
-				else:
-					var g: float = race_ctl.gap(lead, id, pos)
-					txt = "+%.3f" % g if g != INF else ""
+			elif int(r.down) >= 1:
+				txt = "+%d LAP%s" % [int(r.down), "" if int(r.down) == 1 else "S"]
+			else:
+				txt = "+%.3f" % float(r.gap) if float(r.gap) != INF else ""
 		else:
-			var b := float(session.cars[id].best)
-			txt = fmt_lap(b) if b != INF else "NO TIME"
+			txt = fmt_lap(float(r.best)) if float(r.best) != INF else "NO TIME"
 		rows.append({"pos": i + 1, "number": _car_number(id), "name": "YOU" if id == me else _car_name(id), "text": txt, "you": id == me,
-			"pit": pos.has(id) and bool(pos[id].get("pit", false)), "pens": race_ctl.penalty_time(id), "out": race_ctl.dnf.has(id)})
+			"pit": bool(r.pit), "pens": float(r.pens), "out": str(r.st) != ""})
 	_tower.rows = rows
 	_tower.ahead = ""
 	_tower.behind = ""
 	if race and mine > 1:
-		var a_id = ord[mine - 2]
-		var g: float = race_ctl.gap(a_id, me, pos)
-		_tower.ahead = "AHEAD  %s  %s" % [("+%.1f" % g) if g != INF else "", _car_name(a_id)]
-	if race and mine < n:
-		var b_id = ord[mine]
-		var g2: float = race_ctl.gap(me, b_id, pos)
-		_tower.behind = "BEHIND  %s  %s" % [("-%.1f" % g2) if g2 != INF else "", _car_name(b_id)]
+		var g := float(c.intv)
+		_tower.ahead = "AHEAD  %s  %s" % [("+%.1f" % g) if g != INF else "", _car_name(bd[mine - 2].id)]
+	if race and mine > 0 and mine < n:
+		var g2 := float(bd[mine].intv)
+		_tower.behind = "BEHIND  %s  %s" % [("-%.1f" % g2) if g2 != INF else "", _car_name(bd[mine].id)]
 	_bw_t -= get_physics_process_delta_time()
 	_tower.set_flag(_player_flag())
 
@@ -2048,11 +2364,21 @@ func _player_flag() -> String:
 	return ""
 
 
-func _car_name(id) -> String:
+## A car's name: YOU (you: false, your own name), an AI driver's, a player's (online, those who've left too).
+func _car_name(id, you := true) -> String:
 	if id == Net.my_id():
-		return "YOU"
+		return "YOU" if you else Net.player_name(id)
 	var drv = field.driver(id) if field else null
-	return str(drv.driver_name) if drv else str(id)
+	if drv:
+		return str(drv.driver_name)
+	for e in field_entries:
+		if e.id == id:
+			return str(e.name)
+	if street_online and Net.players.has(id):
+		return Net.player_name(id)
+	if net and net.names.has(id):
+		return str(net.names[id])
+	return str(id)
 
 
 func _car_number(id) -> int:
@@ -2061,6 +2387,8 @@ func _car_number(id) -> int:
 	for e in field_entries:
 		if e.id == id:
 			return int(e.number)
+	if others.has(id) and is_instance_valid(others[id]):
+		return int(others[id].setup.get("number", 0))
 	return 0
 
 
@@ -2074,7 +2402,11 @@ func _make_my_driver():
 		seed_value * 977 + 1)
 	drv.s = car_s
 	drv.d = car_d
-	if race_ctl.kind == "race":
+	if _from_pits:
+		drv.task = "pit"                             # (online, joined once it was on: out of the pit box)
+		drv.pit_phase = "out"
+		drv.lights_out = true
+	elif race_ctl.kind == "race":
 		drv.task = "formation" if race_ctl.start_type == "rolling" and race_ctl.phase == "formation" else ("race" if race_ctl.phase in ["green", "chequered"] else "hold")
 		drv.lights_out = race_ctl.phase in ["green", "chequered"]
 	else:
@@ -2094,7 +2426,7 @@ func _track_text() -> String:
 		if st.in_pit_lane(car_s, car_d):
 			rl.append("PIT LANE  %d KM/H" % int(st.pit.limit_kmh))
 		return "\n".join(rl) + "\n%.0f km/h" % car.kmh()
-	var t: float = session.lap_time(Net.my_id())
+	var t: float = session.lap_time(Net.my_id(), _t_alive if net and not net.host else -1.0)   # (online, a guest: our laps are timed on our own clock)
 	var lines := []
 	lines.append("%s   %s" % ["OUT LAP" if t == INF else "LAP %d" % (int(c.laps) + 1), "" if t == INF else fmt_lap(t)])
 	if not c.valid and t != INF:

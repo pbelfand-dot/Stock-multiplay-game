@@ -66,7 +66,7 @@ func _ready() -> void:
 	r0.add_child(UI.gap(10))
 	_collide_btn = UI.button("COLLISIONS: ON", func(): _set_collide(not _collide), 20, 230, "night")
 	r0.add_child(_collide_btn)
-	v.add_child(UI.label("Online: friends join from ONLINE > JOIN with your IP, each in their own car. A touge is a race to the bottom.", 15, UI.DIM))
+	v.add_child(UI.label("Online: friends join from ONLINE > JOIN with your IP, each in their own car. A touge is a race to the bottom; on the track, CARS fills the grid with AI.", 15, UI.DIM))
 	# the cards, scrolling (three don't fit the screen's height: the wheel, or a pad's focus moving
 	# down, scrolls them)
 	var scroll := ScrollContainer.new()
@@ -139,7 +139,8 @@ func _ready() -> void:
 
 ## TRACK: the circuit, a class (those not ready yet greyed), a session (PRACTICE, QUALIFYING,
 ## QUICK RACE, RACE WEEKEND), its options (laps, the AI field, the start, qualifying's length, your
-## grid place, damage), START (alone for now: online Track Mode comes with P8).
+## grid place, damage), START: alone, or hosted online (the friends who join race too, each in a car
+## of the class; CARS is then the AI filling the grid round them, up to 12, 0 for friends only).
 func _track_card(v: Control) -> void:
 	var trk := _card(v, "key_track")
 	var head := HBoxContainer.new()
@@ -232,7 +233,7 @@ func _track_card(v: Control) -> void:
 func _start_track() -> void:
 	start.emit({"mode": "track", "class": _class, "session": _session, "laps": _laps, "opponents": _opponents,
 		"track_difficulty": _ai, "start": _start_type, "minutes": float(_minutes), "grid": _grid, "damage": _damage,
-		"online": false, "collide": _collide})
+		"online": _online, "collide": _collide})
 
 
 func _set_laps(n: int) -> void:

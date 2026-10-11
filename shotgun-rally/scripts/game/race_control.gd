@@ -113,6 +113,15 @@ func add_car(id, spot_s: float, spot_d: float) -> void:
 	pens[id] = {"time": 0.0, "list": [], "warn": {}, "dsq": false}
 
 
+## A car joining once the session's on (online: a player who joined late, out of the pit lane): no
+## grid box, so nothing at the start to judge.
+func add_late(id) -> void:
+	if pens.has(id):
+		return
+	pens[id] = {"time": 0.0, "list": [], "warn": {}, "dsq": false}
+	_line_checked[id] = true
+
+
 ## Off we go: the lights (standing) or the formation's roll to the line (rolling).
 func begin() -> void:
 	if kind != "race":

@@ -37,7 +37,9 @@ func add_car(id, car_name: String, s_start: float, in_pits := true) -> void:
 	order.append(id)
 
 
-## One tick: positions = {id: {s (unwrapped), d, pit (in the pit lane)}}.
+## One tick: positions = {id: {s (unwrapped), d, pit (in the pit lane)}}. A car whose physics runs on
+## another clock (online: a guest's machine) brings that clock's time too ("t", s): its laps and
+## sectors are timed on it, as its own machine would time them, whatever the session's clock does.
 func tick(dt: float, positions: Dictionary) -> void:
 	time += dt
 	for id in positions:
@@ -68,14 +70,21 @@ func _advance(id, c: Dictionary, p: Dictionary, dt: float) -> void:
 					loops.append([b, k])
 		loops.sort_custom(func(a, b): return a[0] < b[0])
 		var span: float = s - float(c.s_last)
+		var now := time
+		var since := dt                              # (the time since its last position, on its clock)
+		if p.has("t"):
+			now = float(p.t)
+			since = maxf(now - float(c.get("t_last", now - dt)), 0.0)
 		for lp in loops:
-			var tc := time - (dt * (s - float(lp[0])) / span if span > 1e-6 else 0.0)
+			var tc := now - (since * (s - float(lp[0])) / span if span > 1e-6 else 0.0)
 			if int(lp[1]) == 0:
 				_line(id, c, tc, pit)
 			else:
 				_sector(id, c, int(lp[1]) - 1, tc)
 		c.s_max = s
 	c.s_last = s
+	if p.has("t"):
+		c.t_last = float(p.t)
 
 
 ## The line: a timed lap ends (and a new one starts, unless it's in the pit lane: an out-lap).
@@ -147,12 +156,13 @@ func reposition(id, s: float, laps: int) -> void:
 	c.valid = true
 
 
-## The current lap's running time for a car (INF on an out-lap).
-func lap_time(id) -> float:
+## The current lap's running time for a car (INF on an out-lap); now: the time on its own clock, if
+## its laps are timed on one ("t" in tick's positions).
+func lap_time(id, now := -1.0) -> float:
 	var c: Dictionary = cars[id]
 	if c.out_lap or float(c.lap_t0) < 0.0:
 		return INF
-	return time - float(c.lap_t0)
+	return (time if now < 0.0 else now) - float(c.lap_t0)
 
 
 ## Cars by best lap (practice and qualifying's order): [[id, best]], the quickest first, those
