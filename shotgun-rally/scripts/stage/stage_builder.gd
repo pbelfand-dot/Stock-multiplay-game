@@ -137,6 +137,8 @@ func _prepare(stage) -> void:
 		for d in range(-60, 61, 12):
 			var p: Vector3 = st.world_at(mid, d)
 			_clearings.append([Vector2(p.x, p.z), 14.0])
+	if st.kind == "touge":
+		_plan_touge_lamps()                          # (before the forest: the trees keep back from them)
 
 
 # ── road ──────────────────────────────────────────────────────────────────
@@ -441,39 +443,20 @@ func _ground() -> void:
 		for i in rows:
 			var s: float = i * st.STEP
 			var c: Vector3 = st.pts[i]
-			var r: Vector3 = st.right_at(s)
 			var extra: float = st.widths[i] * 0.5 - 2.8         # a wider road pushes the ground out
-			# on the inside of a bend the ground can't reach past the bend's centre: clamp it
-			var reach := 1e9
-			for j in range(maxi(0, i - 12), mini(n, i + 13)):
-				var k: float = st.curv[j]
-				if signf(k) == side and absf(k) > 1e-4:
-					reach = minf(reach, 0.85 / absf(k))
-			# ... and never out over another stretch of the same road (after a bend the road
-			# comes back past this spot): stop where some other road is closer than ours
-			for g in prof:
-				var gd: float = g[0] + extra
-				var probe: Vector3 = c + r * (gd * side)
-				if g[0] > 4.0 and _nearest_road(probe) < gd - 2.5:
-					reach = minf(reach, maxf(3.4 + extra, gd - 6.0))
-					break
+			var reach := _ground_reach(i, side, prof)
 			var row: Array = []
 			var cols: Array = []
 			var berm := _berm(i)
 			for gi in prof.size():
 				var g: Array = prof[gi]
 				var d: float = minf(g[0] + extra, maxf(reach, 3.4 + extra))
-				var p: Vector3 = c + r * (d * side)
+				var p := _ground_pt(i, side, gi, reach, prof, berm)
 				var col: Color = GRASS.lerp(GRASS_FAR, clampf(d / 60.0, 0.0, 1.0))
 				col = col * (0.92 + 0.12 * _noise.get_noise_2d(p.z * 3.0, p.x * 3.0))
 				if st.mountain:
-					p.y = _mountain_h(c.y, d - extra, p)
 					col = _mountain_col(col, p, p.y - c.y, d - extra)
 				else:
-					var h: float = g[1] + g[2] * _noise.get_noise_2d(p.x, p.z) - st.gully_depth(s, d * side)
-					if berm.x == side and gi < 2:
-						h += berm.y * (0.5 if gi == 0 else 0.2)       # the berm tapers off into the grass
-					p.y += h
 					var dug: float = st.gully_depth(s, d * side)
 					if dug > 0.0:                                     # a gully's banks: earth showing, mud at the bottom
 						col = col.lerp(MUD, clampf(dug / 2.5, 0.0, 0.85))
@@ -490,6 +473,115 @@ func _ground() -> void:
 					mb.quad(prev[k], prev[k + 1], row[k + 1], row[k], cols[k], true)
 			prev = row
 	_add(mb, "grass", "Ground")
+
+
+## How far out (m off the centre line) the ground reaches at sample i on a side: on the inside
+## of a bend not past the bend's centre, and never out over another stretch of the same road
+## (after a bend the road comes back past this spot): it stops where some other road is closer
+## than ours. (upto: only the reach out to there matters; the probes further out are skipped.)
+func _ground_reach(i: int, side: float, prof: Array, upto := INF) -> float:
+	var n: int = st.pts.size()
+	var s: float = i * st.STEP
+	var c: Vector3 = st.pts[i]
+	var r: Vector3 = st.right_at(s)
+	var extra: float = st.widths[i] * 0.5 - 2.8
+	var reach := 1e9
+	for j in range(maxi(0, i - 12), mini(n, i + 13)):
+		var k: float = st.curv[j]
+		if signf(k) == side and absf(k) > 1e-4:
+			reach = minf(reach, 0.85 / absf(k))
+	for g in prof:
+		var gd: float = g[0] + extra
+		if gd - 6.0 > upto:
+			break
+		var probe: Vector3 = c + r * (gd * side)
+		if g[0] > 4.0 and _nearest_road(probe) < gd - 2.5:
+			reach = minf(reach, maxf(3.4 + extra, gd - 6.0))
+			break
+	return reach
+
+
+## The ground's point gi across the road at sample i on a side (reach: _ground_reach): on a
+## mountain the mountainside's (_mountain_h), else the rolling ground's, a gully dug in, the
+## berm (_berm(i)) tapering off into the grass.
+func _ground_pt(i: int, side: float, gi: int, reach: float, prof: Array, berm := Vector2.ZERO) -> Vector3:
+	var s: float = i * st.STEP
+	var c: Vector3 = st.pts[i]
+	var extra: float = st.widths[i] * 0.5 - 2.8
+	var g: Array = prof[gi]
+	var d: float = minf(g[0] + extra, maxf(reach, 3.4 + extra))
+	var p: Vector3 = c + st.right_at(s) * (d * side)
+	if st.mountain:
+		p.y = _mountain_h(c.y, d - extra, p)
+	else:
+		var h: float = g[1] + g[2] * _noise.get_noise_2d(p.x, p.z) - st.gully_depth(s, d * side)
+		if berm.x == side and gi < 2:
+			h += berm.y * (0.5 if gi == 0 else 0.2)
+		p.y += h
+	return p
+
+
+## The ground's height under p on a side of the road, as _ground laid it (a row every 4 m, each
+## quad two triangles; a stage without bridges): exactly what a post standing there stands on.
+## INF where p isn't over the ground on that side (past where it stops, or on the road). The
+## rows are worked out GROUND_ROW_OUT m out and kept (_ground_rows).
+var _ground_rows := {}               # "i side" -> [Vector3]
+const GROUND_ROW_OUT := 14.0
+
+func _ground_y_at(p: Vector3, side: float, hint := -1) -> float:
+	var prof: Array = MOUNTAIN_X if st.mountain else GROUND_X
+	var loc: Dictionary = st.locate(p, hint)
+	var last: int = st.pts.size() - 1
+	var i0: int = int(floor(float(loc.s) / (st.STEP * 2.0))) * 2
+	for ia in [i0, i0 - 2, i0 + 2]:
+		var ib: int = ia + 2
+		if ia < 0 or ib > last:
+			continue
+		var ra := _ground_row(ia, side, prof)
+		var rb := _ground_row(ib, side, prof)
+		for k in mini(ra.size(), rb.size()) - 1:
+			# (as MeshBuf.quad(a, b, c, d) lays them: triangles a b c and a c d)
+			var a: Vector3 = ra[k]
+			var b: Vector3 = ra[k + 1]
+			var c: Vector3 = rb[k + 1]
+			var d: Vector3 = rb[k]
+			var y := _tri_y(p, a, b, c)
+			if y == INF:
+				y = _tri_y(p, a, c, d)
+			if y != INF:
+				return y
+	return INF
+
+
+func _ground_row(i: int, side: float, prof: Array) -> Array:
+	var key := "%d %d" % [i, int(side)]
+	if _ground_rows.has(key):
+		return _ground_rows[key]
+	var extra: float = st.widths[i] * 0.5 - 2.8
+	var reach := _ground_reach(i, side, prof, GROUND_ROW_OUT + extra + 6.0)
+	var berm := _berm(i)
+	var row: Array = []
+	for gi in prof.size():
+		row.append(_ground_pt(i, side, gi, reach, prof, berm))
+		if float(prof[gi][0]) > GROUND_ROW_OUT:
+			break
+	_ground_rows[key] = row
+	return row
+
+
+## The height of triangle a b c over p (x, z), or INF if p isn't over it.
+static func _tri_y(p: Vector3, a: Vector3, b: Vector3, c: Vector3) -> float:
+	var v0 := Vector2(b.x - a.x, b.z - a.z)
+	var v1 := Vector2(c.x - a.x, c.z - a.z)
+	var v2 := Vector2(p.x - a.x, p.z - a.z)
+	var den := v0.x * v1.y - v1.x * v0.y
+	if absf(den) < 1e-9:
+		return INF
+	var u := (v2.x * v1.y - v1.x * v2.y) / den
+	var v := (v0.x * v2.y - v2.x * v0.y) / den
+	if u < -1e-4 or v < -1e-4 or u + v > 1.0 + 1e-4:
+		return INF
+	return a.y + u * (b.y - a.y) + v * (c.y - a.y)
 
 
 ## The ground on a mountain stage, d m out from the road's edge (at the normal
@@ -698,6 +790,8 @@ func _forest() -> void:
 						kind = ((["cedar", "cedar", "round", "pine"] if st.kind == "touge" else ["pine", "pine", "round", "birch"])[_rng.randi() % 4]) + "_far"   # no shadows, drawn nearer
 					var sc := _rng.randf_range(0.85, 1.55)
 					var rot := _rng.randf() * TAU
+					if _near_lamp(p, LAMP_CLEAR + (4.0 if _leaning(kind.trim_suffix("_far"), p) else 0.0)):
+						continue                             # (a street lamp's spot: its branches would be through the post; after the dice, the rest of the forest as it was)
 					var xf := Transform3D(Basis(Vector3.UP, rot).scaled(Vector3.ONE * sc), p)
 					var ci := int(s / CHUNK)
 					var base_kind := kind.trim_suffix("_far")
@@ -845,6 +939,13 @@ func _species(kind: String, p: Vector3) -> String:
 		if x <= 0.0:
 			return str(e[0])
 	return str(list[list.size() - 1][0])
+
+
+## Does a tree of this kind at p grow as one of the library's leaning species (its crown reaching
+## far out to one side)? By its spot's hash, as _species: the same at every quality.
+func _leaning(kind: String, p: Vector3) -> bool:
+	var sp := _species(kind, p)
+	return sp != "" and "leaning" in EnvAssets.info(sp).get("tags", [])
 
 
 ## The real trees: the near band's groups swap the full tree (LOD0), the lighter one (LOD1)
@@ -1039,7 +1140,7 @@ func _sign_xf(s: float, side: float):
 	var extra: float = st.widths[mini(i, st.widths.size() - 1)] * 0.5 - 2.8
 	var d: float = side * (half + (2.4 if st.kind == "touge" else 1.8))
 	var p: Vector3 = st.world_at(s, d)
-	if _near_road(p, half + 1.2) or _in_clearing(p):
+	if _near_road(p, half + 1.2) or _in_clearing(p) or _near_lamp(p, 1.0):
 		return null
 	p.y = _ground_height(st.pts[i].y, absf(d) - extra, p) - 0.05
 	return Transform3D(Basis.looking_at(st.forward_at(s), Vector3.UP), p)   # (its face, +Z, back at the drivers coming)
@@ -1082,7 +1183,7 @@ func _boulders() -> void:
 			var id: String = ids[rng.randi() % ids.size()]
 			var sc := rng.randf_range(float(scr[0]), float(scr[1]))
 			var rot := rng.randf() * TAU
-			if _near_road(p, line + 0.6 + maxf(extra, 0.0)) or _in_clearing(p):
+			if _near_road(p, line + 0.6 + maxf(extra, 0.0)) or _in_clearing(p) or _near_lamp(p, 3.5):
 				continue
 			var size: Array = EnvAssets.info(id).get("size", [2.0, 1.3, 2.0])
 			p.y = _ground_height(c.y, d - extra, p) - float(size[1]) * sc * 0.28
@@ -1183,16 +1284,20 @@ func _rock_cuts() -> void:
 
 
 ## A touge's power line (biome "poles"): wooden poles behind the guardrail on the right every
-## ~45 m, three sagging wires between them. The poles are solid (thin), the wires not.
+## ~45 m, three sagging wires between them. The poles are solid (thin), the wires not. One
+## pole each (POLE_MODEL, its crossarm 1.4 m across the road): the pack's "electricity_pole" is
+## an H-frame 10 m wide, legs 4.5 m either side of its middle, which put its near leg 1.4 m
+## into the road. Each stands on the ground there, a few metres along from a street lamp.
+const POLE_MODEL := "electricity_pole_single"
 var pole_count := 0
 
 func _poles() -> void:
 	if not biome.get("poles", false) or not EnvAssets.available() or st.kind != "touge":
 		return
-	var mesh := EnvAssets.mesh("electricity_pole")
+	var mesh := EnvAssets.mesh(POLE_MODEL)
 	if mesh == null:
 		return
-	var sc := float(EnvAssets.info("electricity_pole").get("scale", 18.0))
+	var sc := float(EnvAssets.info(POLE_MODEL).get("scale", 18.0))
 	var top := mesh.get_aabb().end.y * sc
 	var arm := mesh.get_aabb().size.x * sc * 0.42          # (the crossarm's ends)
 	var rng := RandomNumberGenerator.new()
@@ -1204,6 +1309,10 @@ func _poles() -> void:
 	var tops: Array = []                                     # [left end, middle, right end] of each crossarm, or null (a gap)
 	var s: float = st.START_S + 15.0
 	while s < st.finish_s + 10.0:
+		for k in 10:                                         # (a street lamp there: a few metres on)
+			if not _near_lamp(st.world_at(s, st.width_at(s) * 0.5 + 3.1), 5.0):
+				break
+			s += 1.0
 		var i := int(s / st.STEP)
 		var half: float = st.width_at(s) * 0.5
 		var extra: float = st.widths[i] * 0.5 - 2.8
@@ -1212,7 +1321,11 @@ func _poles() -> void:
 		if _near_road(p, half + 2.3) or _in_clearing(p):
 			tops.append(null)
 		else:
-			p.y = _ground_height(st.pts[i].y, d - extra, p) - 0.2
+			# on the ground there (the lowest under its foot), else on the ground's shape
+			var gy := INF
+			for o in [Vector3.ZERO, st.right_at(s) * 0.5, st.right_at(s) * -0.5, st.forward_at(s) * 0.5, st.forward_at(s) * -0.5]:
+				gy = minf(gy, _ground_y_at(p + o, 1.0, i))
+			p.y = (gy if gy != INF else _ground_height(st.pts[i].y, d - extra, p)) - 0.2
 			var basis := Basis.looking_at(st.forward_at(s), Vector3.UP)
 			xfs.append(Transform3D(basis.scaled(Vector3.ONE * sc), p))
 			var rv: Vector3 = basis.x
@@ -1357,7 +1470,8 @@ const GLASS_DARK := Color(0.13, 0.15, 0.19)
 ## Where the road drops away on a mountain stage (the ground 9 m out more than a
 ## metre below the road), a barrier along that edge, 0.6 m past it: armco (a steel
 ## W-beam on posts), or a low stone wall (through a village always). Hit it and it
-## stops you, and keeps you on the mountain.
+## stops you, and keeps you on the mountain. (A touge's also round the outside of every
+## tight bend, and in front of every street lamp: _lamp_guard_runs.)
 func _barriers() -> void:
 	if st.kind == "highway":
 		_highway_barriers()
@@ -1365,7 +1479,6 @@ func _barriers() -> void:
 	if not st.mountain:
 		return
 	var touge: bool = st.kind == "touge"
-	var n: int = st.pts.size()
 	var body := StaticBody3D.new()
 	body.name = "Barriers"
 	body.set_meta("surface", "gravel")
@@ -1374,7 +1487,71 @@ func _barriers() -> void:
 	var stone := MeshBuf.new()
 	var walls := MeshBuf.new()                         # (only its collision faces: the whole run's one solid)
 	var pieces := 0
+	var road := _road_barrier_runs()
+	var guards := _lamp_guard_runs()
 	for side in [-1.0, 1.0]:
+		for run in road[int(side)]:
+			var a: int = run[0]
+			var b: int = run[1]
+			var walled: bool = not st.village_at(a * st.STEP, 30.0).is_empty() or _rng.randf() < (0.15 if touge else 0.3)
+			for k in range(a, b):
+				_barrier_bit(k * st.STEP, (k + 1) * st.STEP, side, walled, stone if walled else steel, walls)
+				pieces += 1
+		for run in guards[int(side)]:                # (armco: no dice, the rest of the stage as it was)
+			for k in range(int(run[0]), int(run[1])):
+				_barrier_bit(k * st.STEP, (k + 1) * st.STEP, side, false, steel, walls)
+				pieces += 1
+	_solid(body, walls, pieces)
+	_add(steel, "", "Armco", WorldMaterials.steel({"painted": touge}))
+	_add(stone, "", "StoneWalls")
+
+
+## A touge's guardrail in front of each street lamp the road's own barriers don't already cover
+## (16 m of it, the post behind its middle: never out on the verge by the road), each side (-1, 1):
+## runs [[a, b]] (sample indices, as _road_barrier_runs) on the pieces no road run has.
+func _lamp_guard_runs() -> Dictionary:
+	var out := {-1: [], 1: []}
+	var road := _road_barrier_runs()
+	var n: int = st.pts.size()
+	for side in [-1, 1]:
+		var have := PackedByteArray()
+		have.resize(n)
+		for run in road[side]:
+			for k in range(int(run[0]), int(run[1])):
+				have[k] = 1
+		var want := PackedByteArray()
+		want.resize(n)
+		for spot in _lamp_plan:
+			if int(spot.side) == side and not _railed(spot.s, spot.side):
+				var c := int(round(float(spot.s) / st.STEP))
+				for k in range(maxi(c - 4, 0), mini(c + 4, n - 1)):
+					if have[k] == 0:
+						want[k] = 1
+		var k := 0
+		while k < n:
+			if want[k] == 0:
+				k += 1
+				continue
+			var j := k
+			while j < n and want[j] == 1:
+				j += 1
+			out[side].append([k, j])
+			k = j
+	return out
+
+
+## Where a mountain stage's own barriers go (_barriers), each side (-1, 1): the runs of it,
+## [[a, b]] (sample indices: a piece from each sample to the next, a to b), where it drops away
+## and round a pass's tight bends. Worked out once (a touge's lamps ask before it's built: _railed).
+var _road_runs := {}
+
+func _road_barrier_runs() -> Dictionary:
+	if not _road_runs.is_empty():
+		return _road_runs
+	var touge: bool = st.kind == "touge"
+	var n: int = st.pts.size()
+	for side in [-1.0, 1.0]:
+		var list: Array = []
 		var need := PackedByteArray()
 		need.resize(n)
 		for i in n:
@@ -1398,14 +1575,20 @@ func _barriers() -> void:
 			var a := maxi(i - 3, 0)
 			var b := mini(j + 3, n - 1)
 			if (b - a) * st.STEP >= 14.0:
-				var walled: bool = not st.village_at(a * st.STEP, 30.0).is_empty() or _rng.randf() < (0.15 if touge else 0.3)
-				for k in range(a, b):
-					_barrier_bit(k * st.STEP, (k + 1) * st.STEP, side, walled, stone if walled else steel, walls)
-					pieces += 1
+				list.append([a, b])
 			i = j + 1
-	_solid(body, walls, pieces)
-	_add(steel, "", "Armco", WorldMaterials.steel({"painted": touge}))
-	_add(stone, "", "StoneWalls")
+		_road_runs[int(side)] = list
+	return _road_runs
+
+
+## Is there a barrier of the road's own along side sd at s (and a metre either way)?
+func _railed(s: float, sd: float) -> bool:
+	if not st.mountain or st.kind == "highway":
+		return false
+	for run in _road_barrier_runs()[int(sd)]:
+		if s >= float(run[0]) * st.STEP + 1.0 and s <= float(run[1]) * st.STEP - 1.0:
+			return true
+	return false
 
 
 ## One 2 m piece of barrier, from s0 to s1 on `side`: armco or a stone wall, and its collision.
@@ -2100,49 +2283,296 @@ func _highway_barriers() -> void:
 	_add(mb, "", "ConcreteBarriers")
 
 
-## A touge's street lamps: one before each tight bend (on its outside, behind the
-## guardrail), the start and the finish, and between them no gap longer than ~120 m
-## (the extra ones side to side); the posts and arms go in mb, and at night the lamps are lit
-## (StreetLamps: the only light on the mountain).
-const LAMP_POST := 7.2
-const LAMP_ARM := 2.1
+## A touge's street lamps: one before each tight bend (on its outside, 3-16 m before it), the
+## start and the finish, and between them no stretch longer than LAMP_FILL without one (the
+## extra ones side to side). Planned before the forest is planted (_plan_touge_lamps; the
+## trees keep LAMP_CLEAR back, the rocks and signs off them too): each post LAMP_OUT past the
+## road's edge (behind the guardrail's line), on a spot clear of every part of the road (a
+## switchback's other leg), the touge's roadside things and the other lamps, with the ground
+## under all of it (not stopped short over a drop), as level as can be found nearby (not up
+## the cut bank). Built in mb (_touge_lamps): the post from the ground there (its foot just in
+## it) up to the arm, the arm the same height over the road wherever it stands and reaching
+## over the road, the head hung under its end; each post solid (a thin pole: hit it and it
+## stops you). At night lit (StreetLamps: the only light on the mountain), its pool on the road
+## under the head, tilted with the grade, its light stopping where the ground falls away.
+const LAMP_POST := 7.2              # m: the arm's height over the road
+const LAMP_ARM := 2.1               # m it reaches in from the post
+const LAMP_OUT := 1.6               # m past the road's edge, the post (the guardrail stands at 0.6)
+const LAMP_CLEAR := 6.0             # m: no tree nearer a post (a cedar's branches reach ~4.5 m out at its height)
+const LAMP_APART := 17.0            # m between two lamps at the least (nearer, their pools would overlap and
+                                    # StreetLamps would add every pool on the pass instead of multiplying)
+const LAMP_FILL := 110.0            # m: the longest stretch without a lamp before another's put in
+const LAMP_POOL_R := 9.0            # m: its pool of light's radius
+const POOL_DROP := 0.35             # m: the pool stops where the ground's this far under it
+var _lamp_plan: Array = []          # [{s, side, foot: Vector3 (the post's foot), at: Vector3 (the head, flat)}]
+var _lamp_grid := {}                # 20 m cells -> [foot] (_near_lamp)
 
-func _touge_lamps(mb) -> void:
-	var want: Array = []                             # [s, side]
-	want.append([st.START_S + 4.0, 1.0])
-	want.append([st.finish_s + 6.0, -1.0])
+
+## Where a touge's lamps go: the bends' first, then the start's and the finish's, then the gaps.
+func _plan_touge_lamps() -> void:
+	_lamp_plan.clear()
+	_lamp_grid.clear()
+	var props := _touge_prop_spots()
+	# [s, side, from, to, either side, the price of no guardrail in front (as many m of bank)]:
+	# a bend's lamp wants to stand behind the bend's guardrail, which starts ~6 m before it
+	var want: Array = []
 	for c in st.corners:
 		if c.r_min <= 45.0 and c.s0 > st.START_S + 20.0 and c.s0 < st.finish_s - 10.0:
-			want.append([maxf(c.s0 - 8.0, st.START_S + 12.0), -float(c.dir)])
-	want.sort_custom(func(a, b): return a[0] < b[0])
-	# the gaps between them filled: none longer than ~120 m, the new ones side to side
-	var filled: Array = []
+			want.append([maxf(c.s0 - 8.0, st.START_S + 12.0), -float(c.dir), maxf(c.s0 - 16.0, st.START_S + 12.0), c.s0 - 3.0, false, 0.3])
+	# (the start's and the finish's a few metres past the arches: the guardrail in front of them
+	# stops short of the arch's pole and the start clock)
+	want.append([st.START_S + 12.0, 1.0, st.START_S + 12.0, st.START_S + 18.0, false, 0.0])
+	want.append([st.finish_s + 10.0, -1.0, st.finish_s + 10.0, st.finish_s + 16.0, false, 0.0])
+	for w in want:
+		_lamp_spot(w, props)
+	# the gaps between them filled: none longer than LAMP_FILL, the new ones side to side
+	var fixed: Array = _lamp_plan.duplicate()
+	fixed.sort_custom(func(a, b): return a.s < b.s)
 	var side := 1.0
-	for k in range(1, want.size()):
-		var a: float = want[k - 1][0]
-		var gap: float = float(want[k][0]) - a
-		var n := ceili(gap / 120.0) - 1
+	for k in range(1, fixed.size()):
+		var a: float = fixed[k - 1].s
+		var gap: float = float(fixed[k].s) - a
+		var n := ceili(gap / LAMP_FILL) - 1
 		for j in n:
-			filled.append([a + gap * (j + 1) / (n + 1), side])
-			side = -side
-	want.append_array(filled)
-	want.sort_custom(func(a, b): return a[0] < b[0])
+			var at: float = a + gap * (j + 1) / (n + 1)
+			var spot := _lamp_spot([at, side, at - 8.0, at + 8.0, true, 0.1], props)
+			side = -side if spot.is_empty() else -float(spot.side)
+	_lamp_plan.sort_custom(func(a, b): return a.s < b.s)
+
+
+## The spot for a lamp wanted at w = [s, side, from, to, either side, the price of no guardrail]:
+## tried a metre at a time out from s (then on the other side, if it may), the nearest that's
+## clear with level ground under it (behind a guardrail, if that has a price), else the clear one
+## that comes nearest; put in the plan. {} if none is clear.
+func _lamp_spot(w: Array, props: Array) -> Dictionary:
+	var best := {}
+	var best_cost := INF
+	var sides: Array = [float(w[1]), -float(w[1])] if w[4] else [float(w[1])]
+	var reach: float = maxf(float(w[0]) - float(w[2]), float(w[3]) - float(w[0]))
+	for si in sides.size():
+		for k in 64:
+			var off := floorf((k + 1) * 0.5) * (1.0 if k % 2 == 1 else -1.0)
+			if absf(off) > reach:
+				break
+			var s: float = float(w[0]) + off
+			if s < float(w[2]) or s > float(w[3]) or s < 2.0 or s > st.length - 8.0:
+				continue
+			var spot := _lamp_check(s, sides[si], props)
+			if spot.is_empty():
+				continue
+			spot["penalty"] = float(spot.bank) + (0.0 if _railed(s, sides[si]) else float(w[5]))
+			var cost: float = float(spot.penalty) + absf(off) * 0.01 + si * 0.05
+			if cost < best_cost:
+				best_cost = cost
+				best = spot
+			if float(spot.penalty) <= 0.0:
+				break                                # (the nearest with nothing against it: this one)
+		if not best.is_empty() and float(best.penalty) <= 0.0:
+			break
+	if not best.is_empty():
+		_lamp_plan.append(best)
+		var foot: Vector3 = best.foot
+		var key := Vector2i(floori(foot.x / 20.0), floori(foot.z / 20.0))
+		if not _lamp_grid.has(key):
+			_lamp_grid[key] = []
+		_lamp_grid[key].append(foot)
+	return best
+
+
+## A lamp at s on side sd, if the spot's clear: {s, side, foot, at, bank (how far from level the
+## ground under and round it is: 0 level)}; {} if it's too near another part of the road, one
+## of the touge's roadside things or another lamp, or the ground isn't under all of it.
+func _lamp_check(s: float, sd: float, props: Array) -> Dictionary:
+	var half: float = st.width_at(s) * 0.5
+	var p: Vector3 = st.world_at(s, sd * (half + LAMP_OUT))
+	if _near_road(p, half + 1.2):
+		return {}                                    # (a switchback's other leg)
+	for q in props:
+		if Vector2(p.x - q.x, p.z - q.z).length() < 1.8:
+			return {}
+	var at: Vector3 = st.world_at(s, sd * (half + LAMP_OUT - LAMP_ARM + 0.3))
+	for l in _lamp_plan:
+		var h2: Vector3 = l.at
+		if Vector2(at.x - h2.x, at.z - h2.z).length() < LAMP_APART:
+			return {}
+	# the ground under its foot (each corner) and a metre round it: there all round, and how level
+	var f: Vector3 = st.forward_at(s)
+	var r: Vector3 = st.right_at(s)
+	var hint := int(s / st.STEP)
+	var lo := INF
+	var hi := -INF
+	for o in [Vector3.ZERO, (f + r) * 0.075, (f - r) * 0.075, (r - f) * 0.075, -(f + r) * 0.075]:
+		var y := _ground_y_at(p + o, sd, hint)
+		if y == INF:
+			return {}
+		lo = minf(lo, y)
+		hi = maxf(hi, y)
+	var ring_lo := INF
+	var ring_hi := -INF
+	for a in 8:
+		var y := _ground_y_at(p + (f * cos(a * TAU / 8.0) + r * sin(a * TAU / 8.0)), sd, hint)
+		if y == INF:
+			return {}
+		ring_lo = minf(ring_lo, y)
+		ring_hi = maxf(ring_hi, y)
+	var edge: float = st.point_at(s).y               # (the road's edge: level with its centre line)
+	var bank: float = maxf(hi - edge - 0.15, 0.0) + maxf(ring_hi - ring_lo - 0.6, 0.0)
+	return {"s": s, "side": sd, "foot": Vector3(p.x, lo - 0.04, p.z), "at": at, "bank": bank}
+
+
+## Where the touge's own roadside things stand (x, z), the lamps keeping clear of them: the
+## curve mirrors and chevrons, kilometre posts, name board and vending machine (_touge_props),
+## the arches' poles, the start clocks and the finish's signs (_arches), at the same places.
+func _touge_prop_spots() -> Array:
+	var out: Array = []
+	for c in st.corners:
+		if c.r_min > 30.0:
+			continue
+		var mid: float = (c.s0 + c.s1) * 0.5
+		var out_side: float = -float(c.dir)
+		var half: float = st.width_at(mid) * 0.5
+		out.append(st.world_at(mid, out_side * (half + 1.5)))
+		for k in range(-2, 3):
+			out.append(st.world_at(clampf(mid + k * 9.0, c.s0, c.s1), out_side * (half + 1.0)))
+	var s: float = st.START_S + 500.0
+	while s < st.finish_s:
+		out.append(st.world_at(s, -(st.width_at(s) * 0.5 + 0.9)))
+		s += 500.0
+	out.append(st.world_at(st.START_S - 18.0, -(st.width_at(st.START_S) * 0.5 + 1.6)))
+	out.append(st.world_at(st.START_S - 10.0, st.width_at(st.START_S) * 0.5 + 2.4))
+	for a in [st.START_S + 2.0, st.finish_s]:
+		for side in [-1.0, 1.0]:
+			out.append(st.world_at(a, side * maxf(st.width_at(a) * 0.5 + 0.8, 3.6)))
+	var cd: float = maxf(st.width_at(st.START_S) * 0.5 + 0.5, 3.3)
+	for d in [-cd, cd]:
+		out.append(st.world_at(st.START_S + 0.6, d))
+	var fd: float = maxf(st.width_at(st.finish_s) * 0.5 + 1.0, 3.8)
+	out.append(st.world_at(st.finish_s - 100.0, fd))
+	out.append(st.world_at(st.finish_s + 70.0, fd))
+	return out
+
+
+## Is p (x, z) within r (up to 20 m) of a touge lamp's post?
+func _near_lamp(p: Vector3, r: float) -> bool:
+	if _lamp_grid.is_empty():
+		return false
+	var c := Vector2i(floori(p.x / 20.0), floori(p.z / 20.0))
+	for dx in range(-1, 2):
+		for dz in range(-1, 2):
+			for f in _lamp_grid.get(c + Vector2i(dx, dz), []):
+				if Vector2(p.x - f.x, p.z - f.z).length() < r:
+					return true
+	return false
+
+
+func _touge_lamps(mb) -> void:
 	lamps.clear()
 	var lit := WorldMaterials.night_amount >= 0.05         # (night, or dusk: StreetLamps dims them)
-	for w in want:
-		var ls: float = clampf(float(w[0]), 2.0, st.length - 2.0)
-		var sd: float = w[1]
-		var half: float = st.width_at(ls) * 0.5
-		var base: Vector3 = st.world_at(ls, sd * (half + 1.6))
+	var body := StaticBody3D.new()
+	body.name = "LampPosts"
+	add_child(body)
+	for spot in _lamp_plan:
+		var ls: float = spot.s
+		var sd: float = spot.side
+		var foot: Vector3 = spot.foot
 		var inward: Vector3 = -st.right_at(ls) * sd
-		var f: Vector3 = st.forward_at(ls)
-		_box(mb, base, base + Vector3.UP * LAMP_POST, f, 0.15, 0.15, LAMP)
-		_box(mb, base + Vector3.UP * (LAMP_POST - 0.15), base + Vector3.UP * (LAMP_POST - 0.15) + inward * LAMP_ARM, Vector3.UP, 0.09, 0.09, LAMP)
-		var head: Vector3 = base + Vector3.UP * (LAMP_POST - 0.3) + inward * (LAMP_ARM - 0.25)
+		var top := Vector3(foot.x, st.point_at(ls).y + LAMP_POST, foot.z)
+		_box(mb, foot, top, st.forward_at(ls), 0.15, 0.15, LAMP)
+		var arm: Vector3 = top - Vector3.UP * 0.15
+		_box(mb, arm, arm + inward * LAMP_ARM, Vector3.UP, 0.09, 0.09, LAMP)
+		var head: Vector3 = arm + inward * (LAMP_ARM - 0.3) - Vector3.UP * 0.085   # (hung right under the arm's end)
 		if not lit:                                  # (lit, StreetLamps draws a glowing one)
 			_box(mb, head - inward * 0.3, head + inward * 0.3, Vector3.UP, 0.3, 0.08, Color(0.85, 0.84, 0.8))
-		lamps.append({"s": ls, "head": head, "ground": st.world_at(ls, sd * (half - 1.4))})
+		var cs := CollisionShape3D.new()
+		var pole := CylinderShape3D.new()
+		pole.radius = 0.09
+		pole.height = top.y - foot.y
+		cs.shape = pole
+		cs.position = (foot + top) * 0.5
+		body.add_child(cs)
+		lamps.append(_lamp_light(ls, sd, foot, top.y, head, inward))
 	street_lamps = WorldMaterials.street_lights(self, lamps)
+
+
+## A touge lamp's entry in `lamps` (StreetLamps reads head, ground, up, radius, arm, clip): its
+## pool straight under the head on a plane fitted to the road under it (_pool_fit: the grade, the
+## crown, a crest or a dip), smaller where the road curves up or down too much under it for a
+## flat disc, its light stopping each side where the ground falls POOL_DROP under it (out past
+## the post, in past the far verge; looked for at five places along the pool).
+func _lamp_light(ls: float, sd: float, foot: Vector3, top: float, head: Vector3, inward: Vector3) -> Dictionary:
+	var hint := int(ls / st.STEP)
+	var rv: Vector3 = st.right_at(ls)
+	var fv: Vector3 = st.forward_at(ls)
+	var fit := {}
+	for radius in [LAMP_POOL_R, 8.0, 7.0, 6.0]:
+		fit = _pool_fit(head, rv, fv, radius, hint)
+		if float(fit.spread) <= 0.2:
+			break
+	var r: float = fit.radius
+	var ground: Vector3 = fit.ground
+	var lh: Dictionary = st.locate(head, hint)
+	var clip := Vector2(r, r) * 2.0
+	for e in 2:
+		var way: float = sd if e == 0 else -sd
+		for along in [-0.6, -0.3, 0.0, 0.3, 0.6]:
+			var s2: float = float(lh.s) + along * r
+			var half2: float = st.width_at(s2) * 0.5
+			var x := 0.5
+			while x <= r and x < clip[e]:
+				var dq: float = float(lh.d) + way * x
+				if absf(dq) > half2 + 0.3:            # (past the road's shoulder: on the ground)
+					var q: Vector3 = st.world_at(s2, dq)
+					var gy := _ground_y_at(q, signf(dq), hint)
+					var pool_y: float = ground.y + 0.07 + float(fit.bx) * (q - head).dot(rv) + float(fit.bz) * (q - head).dot(fv)
+					if gy == INF or pool_y - gy > POOL_DROP:
+						# (how far out that is in the pool's own frame: x across the road where the lamp is)
+						clip[e] = minf(clip[e], maxf((q - head).dot(rv) * way - 0.5, 0.5))
+						break
+				x += 0.5
+	return {"s": ls, "side": sd, "base": foot, "top": top, "head": head, "arm": inward, "ground": ground, "up": fit.up,
+		"radius": r, "clip": clip}
+
+
+## A pool of `radius` under the head: the road's height at points across it (x along rv, z along fv
+## from under the head), the plane through them (least squares: y = a + bx x + bz z), lifted where
+## the road comes up through it (the pool's own 7 cm over it, and 5 cm spare: the road between
+## the points it was fitted to). {ground, up, bx, bz,
+## radius, spread: how far the road strays from flat under it, up and down together (m)}.
+func _pool_fit(head: Vector3, rv: Vector3, fv: Vector3, radius: float, hint: int) -> Dictionary:
+	var pts: Array = []
+	var sum := Basis(Vector3.ZERO, Vector3.ZERO, Vector3.ZERO)
+	var rhs := Vector3.ZERO
+	for iu in range(-4, 5):
+		for iv in range(-4, 5):
+			var o := Vector2(iu, iv) * (radius / 4.5)
+			if o.length() > radius * 0.95:
+				continue
+			var lq: Dictionary = st.locate(head + rv * o.x + fv * o.y, hint)
+			var hq: float = st.width_at(float(lq.s)) * 0.5
+			if absf(float(lq.d)) > hq + 0.3:
+				continue                             # (not over the road)
+			var q := Vector3(o.x, st.point_at(float(lq.s)).y + _road_height(float(lq.d), hq), o.y)
+			pts.append(q)
+			var v := Vector3(1.0, q.x, q.z)
+			sum = Basis(sum.x + v * v.x, sum.y + v * v.y, sum.z + v * v.z)
+			rhs += v * q.y
+	var lh: Dictionary = st.locate(head, hint)
+	var a: float = st.point_at(float(lh.s)).y
+	var bx := 0.0
+	var bz: float = (st.point_at(float(lh.s) + 3.0).y - st.point_at(float(lh.s) - 3.0).y) / 6.0
+	if pts.size() >= 6 and absf(sum.determinant()) > 1e-6:
+		var k: Vector3 = sum.inverse() * rhs
+		a = k.x
+		bx = k.y
+		bz = k.z
+	var over := 0.0
+	var under := 0.0
+	for q in pts:
+		var dy: float = float(q.y) - (a + bx * float(q.x) + bz * float(q.z))
+		over = maxf(over, dy)
+		under = maxf(under, -dy)
+	return {"ground": Vector3(head.x, a + maxf(over - 0.02, 0.0), head.z), "up": (Vector3.UP - rv * bx - fv * bz).normalized(),
+		"bx": bx, "bz": bz, "radius": radius, "spread": over + under}
 
 
 ## What stands beside the road: a highway's lamp posts and distance gantries; a
@@ -2172,7 +2602,7 @@ func _highway_props() -> void:
 		_box(mb, base + Vector3.UP * 9.0, base + Vector3.UP * 9.0 + r * 2.4, Vector3.UP, 0.12, 0.12, LAMP)
 		if not lit:                                        # (lit, StreetLamps draws a glowing one)
 			_box(mb, base + Vector3.UP * 8.9 + r * 2.2, base + Vector3.UP * 8.9 + r * 2.9, Vector3.UP, 0.35, 0.16, Color(0.9, 0.88, 0.75))
-		heads.append({"s": s, "head": base + Vector3.UP * 8.8 + r * 2.55, "ground": st.world_at(s, -(half + 1.3) + 4.5), "radius": 16.0})
+		heads.append({"s": s, "head": base + Vector3.UP * 8.8 + r * 2.55, "ground": st.world_at(s, -(half + 1.3) + 4.5), "radius": 16.0, "arm": r})
 		s += 70.0
 	_add(mb, "", "LampPosts")
 	street_lamps = WorldMaterials.street_lights(self, heads)
