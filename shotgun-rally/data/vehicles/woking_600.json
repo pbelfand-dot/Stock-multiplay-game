@@ -1,0 +1,78 @@
+{
+	"id": "woking_600",
+	"name": "WOKING 600 SPIDER",
+	"order": 432,
+	"model": "mc600lt",
+	"category": "hyper",
+	"role": "hypercar",
+	"real": {
+		"manufacturer": "McLaren",
+		"model": "600LT Spider",
+		"year": 2020,
+		"trim": "3.8 V8 twin-turbo, 600 PS"
+	},
+	"specs": {
+		"power_hp": 592,
+		"weight_kg": 1300,
+		"drivetrain": "RWD",
+		"transmission": "7-speed dual clutch",
+		"wheelbase_mm": 2670,
+		"top_speed_kmh": 315,
+		"front_weight": 0.42,
+		"notes": "McLaren's 600LT (Spider here): the 3.8 twin-turbo V8 at 600 PS and 620 N m behind the seats, a seven-speed dual clutch, ~1,300 kg, a 2,670 mm wheelbase. Its torque curve, ratios and aero are estimates."
+	},
+	"garage": {
+		"price": 95000,
+		"engine_sound": "v8_turbo",
+		"livery": "plain",
+		"number": 1,
+		"colours": [[0.8, 0.1, 0.1], [0.95, 0.95, 0.94], [0.07, 0.07, 0.08], [0.95, 0.95, 0.94]],
+		"wheels": "black",
+		"power": 1.0,
+		"grip": 1.0,
+		"brakes": 1.0,
+		"drive_front": 0.0,
+		"blurb": "A longtail McLaren with the roof off: light, loud and sharp, with exhausts that spit flames straight up out of the deck."
+	},
+	"physics": {
+		"chassis": "sport",
+		"mass": 1300.0,
+		"front": 0.42,
+		"torque": 620.0,
+		"curve": [[1000, 0.42], [1400, 0.8], [2000, 1.0], [6800, 1.0], [7500, 0.88], [8100, 0.76]],
+		"idle": 800.0,
+		"limiter": 8100.0,
+		"turbo": 0.4,
+		"spool": [1800.0, 3200.0],
+		"spool_time": 0.35,
+		"anti_lag": false,
+		"gears": [3.98, 2.61, 1.91, 1.48, 1.16, 0.91, 0.69],
+		"final": 4.98,
+		"drive": "rwd",
+		"rear": ["lsd", 0.35, 0.15, 30.0],
+		"cd": 0.36,
+		"area": 1.95,
+		"down": 0.4,
+		"brake": 1.15
+	},
+	"checks": {
+		"zero_100_max": 7.0
+	},
+	"interior": {
+		"own": true,
+		"camera": true,
+		"notes": "The model's own cabin: its steering wheel cut out to turn (tools/cars/mc600lt.json), the eye placed by hand from section views; an automatic or dual clutch: the hands stay on the wheel."
+	},
+	"source": {
+		"package": "Track_Mode_Cars/Street/mclaren-600lt.zip",
+		"author": "unknown (the owner's private download: no licence or author in the archive)",
+		"license": "unknown: the owner's private download, used at the owner's request for their own game (2026-10-11)",
+		"url": "",
+		"attribution": ""
+	},
+	"research": ["https://en.wikipedia.org/wiki/McLaren_570S#600LT"],
+	"limitations": [
+		"From the owner's private download batch: kept out of public credit lists; its provenance isn't cleared for redistribution.",
+		"Fictional name; the model's separate badge parts are dropped (tools/cars/mc600lt.json drop_mats), any painted into its textures remain. The torque curve, ratios and aero are estimates."
+	]
+}

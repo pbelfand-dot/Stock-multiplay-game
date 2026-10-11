@@ -1668,6 +1668,524 @@
     "clear_mm": 1.8,
     "why": "the tyre touches the body: 87 points, front left, half lock, half bump"
    }
+  },
+  "a45s": {
+   "strada_5": {
+    "ok": true,
+    "clear_mm": 20.8,
+    "why": ""
+   },
+   "torre_10": {
+    "ok": true,
+    "clear_mm": 20.8,
+    "why": ""
+   },
+   "kaze_split": {
+    "ok": true,
+    "clear_mm": 20.8,
+    "why": ""
+   },
+   "kreuz_lattice": {
+    "ok": true,
+    "clear_mm": 20.8,
+    "why": ""
+   },
+   "meridian_city": {
+    "ok": true,
+    "clear_mm": 20.8,
+    "why": ""
+   },
+   "oldsmith_dish": {
+    "ok": true,
+    "clear_mm": 20.8,
+    "why": ""
+   },
+   "kaze_wide": {
+    "ok": false,
+    "clear_mm": 22.7,
+    "why": "the tyre touches the body: 173 points, front left, straight, full bump"
+   }
+  },
+  "amg_gtbs": {
+   "strada_5": {
+    "ok": true,
+    "clear_mm": 0.0,
+    "why": ""
+   },
+   "torre_10": {
+    "ok": true,
+    "clear_mm": 0.0,
+    "why": ""
+   },
+   "kaze_split": {
+    "ok": true,
+    "clear_mm": 0.0,
+    "why": ""
+   },
+   "kreuz_lattice": {
+    "ok": true,
+    "clear_mm": 0.0,
+    "why": ""
+   },
+   "meridian_city": {
+    "ok": true,
+    "clear_mm": 0.0,
+    "why": ""
+   },
+   "oldsmith_dish": {
+    "ok": true,
+    "clear_mm": 0.1,
+    "why": ""
+   },
+   "kaze_wide": {
+    "ok": false,
+    "clear_mm": 0.2,
+    "why": "the tyre touches the body: 277 points, front left, straight, full bump"
+   }
+  },
+  "m235i_gc": {
+   "strada_5": {
+    "ok": true,
+    "clear_mm": 22.4,
+    "why": ""
+   },
+   "torre_10": {
+    "ok": true,
+    "clear_mm": 22.4,
+    "why": ""
+   },
+   "kaze_split": {
+    "ok": true,
+    "clear_mm": 22.4,
+    "why": ""
+   },
+   "kreuz_lattice": {
+    "ok": true,
+    "clear_mm": 22.4,
+    "why": ""
+   },
+   "meridian_city": {
+    "ok": true,
+    "clear_mm": 22.4,
+    "why": ""
+   },
+   "oldsmith_dish": {
+    "ok": true,
+    "clear_mm": 22.4,
+    "why": ""
+   },
+   "kaze_wide": {
+    "ok": false,
+    "clear_mm": 22.4,
+    "why": "the tyre touches the body: 44 points, front left, half lock, half bump"
+   }
+  },
+  "m2_adro": {
+   "strada_5": {
+    "ok": true,
+    "clear_mm": 3.2,
+    "why": ""
+   },
+   "torre_10": {
+    "ok": true,
+    "clear_mm": 3.2,
+    "why": ""
+   },
+   "kaze_split": {
+    "ok": true,
+    "clear_mm": 3.2,
+    "why": ""
+   },
+   "kreuz_lattice": {
+    "ok": true,
+    "clear_mm": 3.2,
+    "why": ""
+   },
+   "meridian_city": {
+    "ok": true,
+    "clear_mm": 3.2,
+    "why": ""
+   },
+   "oldsmith_dish": {
+    "ok": true,
+    "clear_mm": 3.2,
+    "why": ""
+   },
+   "kaze_wide": {
+    "ok": false,
+    "clear_mm": 3.2,
+    "why": "the tyre touches the body: 29 points, front left, half lock, half bump"
+   }
+  },
+  "m5_g90": {
+   "strada_5": {
+    "ok": true,
+    "clear_mm": 7.5,
+    "why": ""
+   },
+   "torre_10": {
+    "ok": true,
+    "clear_mm": 7.5,
+    "why": ""
+   },
+   "kaze_split": {
+    "ok": true,
+    "clear_mm": 7.5,
+    "why": ""
+   },
+   "kreuz_lattice": {
+    "ok": true,
+    "clear_mm": 7.5,
+    "why": ""
+   },
+   "meridian_city": {
+    "ok": true,
+    "clear_mm": 7.5,
+    "why": ""
+   },
+   "oldsmith_dish": {
+    "ok": true,
+    "clear_mm": 7.5,
+    "why": ""
+   },
+   "kaze_wide": {
+    "ok": false,
+    "clear_mm": 7.5,
+    "why": "the tyre touches the body: 99 points, front left, half lock, half bump"
+   }
+  },
+  "m5_touring": {
+   "strada_5": {
+    "ok": true,
+    "clear_mm": 6.0,
+    "why": ""
+   },
+   "torre_10": {
+    "ok": true,
+    "clear_mm": 6.0,
+    "why": ""
+   },
+   "kaze_split": {
+    "ok": true,
+    "clear_mm": 6.0,
+    "why": ""
+   },
+   "kreuz_lattice": {
+    "ok": true,
+    "clear_mm": 6.0,
+    "why": ""
+   },
+   "meridian_city": {
+    "ok": true,
+    "clear_mm": 6.0,
+    "why": ""
+   },
+   "oldsmith_dish": {
+    "ok": true,
+    "clear_mm": 6.0,
+    "why": ""
+   },
+   "kaze_wide": {
+    "ok": false,
+    "clear_mm": 6.0,
+    "why": "the tyre touches the body: 101 points, front left, half lock, half bump"
+   }
+  },
+  "maybach_s": {
+   "strada_5": {
+    "ok": true,
+    "clear_mm": 0.2,
+    "why": ""
+   },
+   "torre_10": {
+    "ok": true,
+    "clear_mm": 0.2,
+    "why": ""
+   },
+   "kaze_split": {
+    "ok": true,
+    "clear_mm": 0.2,
+    "why": ""
+   },
+   "kreuz_lattice": {
+    "ok": true,
+    "clear_mm": 0.2,
+    "why": ""
+   },
+   "meridian_city": {
+    "ok": true,
+    "clear_mm": 0.2,
+    "why": ""
+   },
+   "oldsmith_dish": {
+    "ok": true,
+    "clear_mm": 0.0,
+    "why": ""
+   },
+   "kaze_wide": {
+    "ok": false,
+    "clear_mm": 0.5,
+    "why": "the tyre touches the body: 75 points, front left, half lock, half bump"
+   }
+  },
+  "mc600lt": {
+   "strada_5": {
+    "ok": true,
+    "clear_mm": 0.1,
+    "why": ""
+   },
+   "torre_10": {
+    "ok": true,
+    "clear_mm": 0.1,
+    "why": ""
+   },
+   "kaze_split": {
+    "ok": true,
+    "clear_mm": 0.1,
+    "why": ""
+   },
+   "kreuz_lattice": {
+    "ok": true,
+    "clear_mm": 0.1,
+    "why": ""
+   },
+   "meridian_city": {
+    "ok": true,
+    "clear_mm": 0.1,
+    "why": ""
+   },
+   "oldsmith_dish": {
+    "ok": true,
+    "clear_mm": 0.1,
+    "why": ""
+   },
+   "kaze_wide": {
+    "ok": false,
+    "clear_mm": 2.2,
+    "why": "the tyre touches the body: 68 points, front left, full lock, at ride height"
+   }
+  },
+  "mc_p1": {
+   "strada_5": {
+    "ok": true,
+    "clear_mm": 0.6,
+    "why": ""
+   },
+   "torre_10": {
+    "ok": true,
+    "clear_mm": 0.6,
+    "why": ""
+   },
+   "kaze_split": {
+    "ok": true,
+    "clear_mm": 0.6,
+    "why": ""
+   },
+   "kreuz_lattice": {
+    "ok": true,
+    "clear_mm": 0.6,
+    "why": ""
+   },
+   "meridian_city": {
+    "ok": true,
+    "clear_mm": 0.6,
+    "why": ""
+   },
+   "oldsmith_dish": {
+    "ok": true,
+    "clear_mm": 1.2,
+    "why": ""
+   },
+   "kaze_wide": {
+    "ok": false,
+    "clear_mm": 0.2,
+    "why": "the tyre touches the body: 141 points, front left, straight, full bump"
+   }
+  },
+  "rs7_c8": {
+   "strada_5": {
+    "ok": true,
+    "clear_mm": 10.8,
+    "why": ""
+   },
+   "torre_10": {
+    "ok": true,
+    "clear_mm": 10.8,
+    "why": ""
+   },
+   "kaze_split": {
+    "ok": true,
+    "clear_mm": 10.8,
+    "why": ""
+   },
+   "kreuz_lattice": {
+    "ok": true,
+    "clear_mm": 10.8,
+    "why": ""
+   },
+   "meridian_city": {
+    "ok": true,
+    "clear_mm": 10.8,
+    "why": ""
+   },
+   "oldsmith_dish": {
+    "ok": true,
+    "clear_mm": 10.8,
+    "why": ""
+   },
+   "kaze_wide": {
+    "ok": false,
+    "clear_mm": 18.2,
+    "why": "the tyre touches the body: 29 points, front left, half lock, half bump"
+   }
+  },
+  "senna": {
+   "strada_5": {
+    "ok": true,
+    "clear_mm": 0.0,
+    "why": ""
+   },
+   "torre_10": {
+    "ok": true,
+    "clear_mm": 0.0,
+    "why": ""
+   },
+   "kaze_split": {
+    "ok": true,
+    "clear_mm": 0.0,
+    "why": ""
+   },
+   "kreuz_lattice": {
+    "ok": true,
+    "clear_mm": 0.0,
+    "why": ""
+   },
+   "meridian_city": {
+    "ok": true,
+    "clear_mm": 0.0,
+    "why": ""
+   },
+   "oldsmith_dish": {
+    "ok": true,
+    "clear_mm": 0.0,
+    "why": ""
+   },
+   "kaze_wide": {
+    "ok": false,
+    "clear_mm": 0.1,
+    "why": "the tyre touches the body: 1705 points, front left, half lock, half bump"
+   }
+  },
+  "slr722": {
+   "strada_5": {
+    "ok": true,
+    "clear_mm": 9.8,
+    "why": ""
+   },
+   "torre_10": {
+    "ok": true,
+    "clear_mm": 9.8,
+    "why": ""
+   },
+   "kaze_split": {
+    "ok": true,
+    "clear_mm": 9.8,
+    "why": ""
+   },
+   "kreuz_lattice": {
+    "ok": true,
+    "clear_mm": 9.8,
+    "why": ""
+   },
+   "meridian_city": {
+    "ok": true,
+    "clear_mm": 9.8,
+    "why": ""
+   },
+   "oldsmith_dish": {
+    "ok": true,
+    "clear_mm": 9.8,
+    "why": ""
+   },
+   "kaze_wide": {
+    "ok": false,
+    "clear_mm": 9.8,
+    "why": "the tyre touches the body: 199 points, front left, half lock, half bump"
+   }
+  },
+  "urus_p": {
+   "strada_5": {
+    "ok": true,
+    "clear_mm": 1.5,
+    "why": ""
+   },
+   "torre_10": {
+    "ok": true,
+    "clear_mm": 1.5,
+    "why": ""
+   },
+   "kaze_split": {
+    "ok": true,
+    "clear_mm": 1.5,
+    "why": ""
+   },
+   "kreuz_lattice": {
+    "ok": true,
+    "clear_mm": 1.5,
+    "why": ""
+   },
+   "meridian_city": {
+    "ok": true,
+    "clear_mm": 1.5,
+    "why": ""
+   },
+   "oldsmith_dish": {
+    "ok": true,
+    "clear_mm": 1.3,
+    "why": ""
+   },
+   "kaze_wide": {
+    "ok": false,
+    "clear_mm": 6.6,
+    "why": "the tyre touches the body: 27 points, front left, half lock, half bump"
+   }
+  },
+  "x3_m40i": {
+   "strada_5": {
+    "ok": true,
+    "clear_mm": 0.0,
+    "why": ""
+   },
+   "torre_10": {
+    "ok": true,
+    "clear_mm": 0.0,
+    "why": ""
+   },
+   "kaze_split": {
+    "ok": true,
+    "clear_mm": 0.0,
+    "why": ""
+   },
+   "kreuz_lattice": {
+    "ok": true,
+    "clear_mm": 0.0,
+    "why": ""
+   },
+   "meridian_city": {
+    "ok": true,
+    "clear_mm": 0.0,
+    "why": ""
+   },
+   "oldsmith_dish": {
+    "ok": true,
+    "clear_mm": 0.1,
+    "why": ""
+   },
+   "kaze_wide": {
+    "ok": false,
+    "clear_mm": 0.2,
+    "why": "the tyre touches the body: 169 points, front left, straight, full bump"
+   }
   }
  }
 }

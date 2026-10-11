@@ -1,0 +1,7 @@
+{"id": "urus_p", "pre_scale": 100, "front": "-Y", "wheelbase": 3.003,
+ "wheel_mats": ["Wheel1A"], "caliper_mats": ["Callipers"],
+ "paint": ["Paint_Material$"], "glass": ["Window_Material$"],
+ "drop_mats": ["BadgeA_Material$", "ManufacturerPl"],
+ "materials": [["Window_Material$", "glass"]],
+ "wheel_faces": 12000, "caliper_faces": 3000, "body_faces": 140000, "body_least": 0.3, "tex_max": 1024, "tex_format": "webp",
+ "cockpit": {"gearbox": "auto", "eye": [-0.4, -0.02, 1.38], "wheel": {"mats": ["InteriorA_Mat"], "box": [-0.6, -0.18, 0.33, 0.5, 0.8, 1.18], "cut": true, "axis": [0.0, -0.9, 0.44], "radius": 0.185}}}

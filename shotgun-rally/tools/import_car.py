@@ -332,9 +332,9 @@ if len(uv_names) > 8:
         uvs = o.data.uv_layers
         if not len(uvs):
             continue
-        keep = next((uv for uv in uvs if uv.active_render), uvs[0])
-        for uv in [uv for uv in uvs if uv != keep]:
-            uvs.remove(uv)
+        keep = next((uv for uv in uvs if uv.active_render), uvs[0]).name
+        for name in [uv.name for uv in uvs if uv.name != keep]:
+            uvs.remove(uvs[name])                         # (by name: a layer's reference goes stale once one is removed)
         uvs[0].name = "UVMap"
     print("UV maps: %d names across the parts, one kept on each" % len(uv_names))
 # materials named in another language: "rename": [[pattern, name]] (the game finds lamps by English
@@ -637,7 +637,7 @@ for pats, suffix in splits:
             strip_loose(bm)
             bm.to_mesh(ob.data)
             bm.free()
-        n.name = o.name + suffix
+        n.name = o.name[:63 - len(suffix)] + suffix   # (Blender keeps 63 characters: a long name lost its tag)
         meshes.append(n)
         print("%s: %d faces by material" % (n.name, len(n.data.polygons)))
 

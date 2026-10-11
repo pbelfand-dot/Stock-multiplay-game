@@ -1,0 +1,6 @@
+{"id": "m2_adro", "pre_scale": 100, "front": "-Y", "wheelbase": 2.747,
+ "wheel_mats": ["Rim_C", "RimC2", "TireBlur", "BrakeDisc"], "caliper_mats": ["[Cc]alliper|[Cc]aliper"],
+ "paint": ["PaintTNR"], "glass": ["Glass_slight", "Window_Material1$", "glass__surr"],
+ "materials": [["Glass_slight", "glass"], ["Window_Material1$", "glass"], ["glass__surr", "glass"]],
+ "wheel_faces": 12000, "caliper_faces": 3000, "body_faces": 140000, "body_least": 0.25, "tex_max": 1024, "tex_format": "webp",
+ "cockpit": {"gearbox": "auto", "eye": [-0.36, -0.2, 1.12], "wheel": {"mats": ["InteriorA_Material"], "box": [-0.62, -0.15, 0.14, 0.38, 0.75, 1.15], "cut": true, "axis": [0.0, -0.9, 0.44], "radius": 0.18}}}

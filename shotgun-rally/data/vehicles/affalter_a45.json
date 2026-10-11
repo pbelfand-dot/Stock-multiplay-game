@@ -1,0 +1,81 @@
+{
+	"id": "affalter_a45",
+	"name": "AFFALTER A45 S",
+	"order": 274,
+	"model": "a45s",
+	"category": "euro",
+	"role": "player_road",
+	"real": {
+		"manufacturer": "Mercedes-AMG",
+		"model": "A 45 S 4MATIC+ (W177)",
+		"year": 2023,
+		"trim": "2.0 turbo, 421 PS"
+	},
+	"specs": {
+		"power_hp": 415,
+		"weight_kg": 1635,
+		"drivetrain": "AWD",
+		"transmission": "8-speed dual clutch",
+		"wheelbase_mm": 2729,
+		"top_speed_kmh": 270,
+		"front_weight": 0.6,
+		"notes": "Mercedes-AMG's A 45 S 4MATIC+: the M139 2.0 turbo four, the most powerful series four-cylinder at 421 PS and 500 N m, an eight-speed dual clutch, 4MATIC+ with a drift mode, ~1,635 kg, 0-100 km/h in 3.9 s, 270 km/h. Its torque curve, ratios and aero are estimates."
+	},
+	"garage": {
+		"price": 26000,
+		"engine_sound": "turbo4",
+		"livery": "plain",
+		"number": 1,
+		"colours": [[0.8, 0.1, 0.1], [0.95, 0.95, 0.94], [0.07, 0.07, 0.08], [0.95, 0.95, 0.94]],
+		"wheels": "black",
+		"power": 1.0,
+		"grip": 1.0,
+		"brakes": 1.0,
+		"drive_front": 0.5,
+		"blurb": "A hot hatch with a hand-built 421 horsepower four: tiny, fierce and four-wheel drive, with a party trick that sends it all to the back."
+	},
+	"physics": {
+		"chassis": "sport",
+		"mass": 1635.0,
+		"front": 0.6,
+		"torque": 500.0,
+		"curve": [[1000, 0.42], [1400, 0.8], [2000, 1.0], [5900, 1.0], [6600, 0.88], [7200, 0.76]],
+		"idle": 800.0,
+		"limiter": 7200.0,
+		"turbo": 0.4,
+		"spool": [1800.0, 3200.0],
+		"spool_time": 0.35,
+		"anti_lag": false,
+		"gears": [3.86, 2.43, 1.68, 1.25, 1.0, 0.82, 0.67, 0.56],
+		"final": 5.92,
+		"drive": "awd",
+		"front_share": 0.5,
+		"centre": ["lsd", 0.25, 0.2, 30.0],
+		"front_diff": ["open", 0.0, 0.0, 0.0],
+		"rear": ["lsd", 0.35, 0.15, 30.0],
+		"cd": 0.33,
+		"area": 2.2,
+		"down": 0.05,
+		"brake": 1.05
+	},
+	"checks": {
+		"zero_100_max": 8.0
+	},
+	"interior": {
+		"own": true,
+		"camera": true,
+		"notes": "The model's own cabin: its steering wheel cut out to turn (tools/cars/a45s.json), the eye placed by hand from section views; an automatic or dual clutch: the hands stay on the wheel."
+	},
+	"source": {
+		"package": "Track_Mode_Cars/Street/2023-mercedes-benz-a45-s-amg-4matic.zip",
+		"author": "unknown (the owner's private download: no licence or author in the archive)",
+		"license": "unknown: the owner's private download, used at the owner's request for their own game (2026-10-11)",
+		"url": "",
+		"attribution": ""
+	},
+	"research": ["https://en.wikipedia.org/wiki/Mercedes-Benz_A-Class_(W177)#Mercedes-AMG_A_45"],
+	"limitations": [
+		"From the owner's private download batch: kept out of public credit lists; its provenance isn't cleared for redistribution.",
+		"Fictional name; the model's separate badge parts are dropped (tools/cars/a45s.json drop_mats), any painted into its textures remain. The torque curve, ratios and aero are estimates."
+	]
+}

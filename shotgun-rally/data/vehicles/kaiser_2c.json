@@ -1,0 +1,78 @@
+{
+	"id": "kaiser_2c",
+	"name": "KAISER 2 CARBON",
+	"order": 232,
+	"model": "m2_adro",
+	"category": "euro",
+	"role": "touge_grip",
+	"real": {
+		"manufacturer": "BMW M",
+		"model": "M2 (G87)",
+		"year": 2023,
+		"trim": "3.0 straight six twin-turbo, 460 PS; ADRO carbon aero kit (cosmetic)"
+	},
+	"specs": {
+		"power_hp": 454,
+		"weight_kg": 1725,
+		"drivetrain": "RWD",
+		"transmission": "8-speed automatic",
+		"wheelbase_mm": 2747,
+		"top_speed_kmh": 285,
+		"front_weight": 0.52,
+		"notes": "BMW M's M2 (G87) wearing ADRO's carbon-fibre aero kit: the S58 3.0 twin-turbo straight six at 460 PS and 550 N m, rear-wheel drive, an eight-speed automatic (a six-speed manual offered), ~1,725 kg, 0-100 km/h in 4.1 s. The kit is cosmetic here. Its torque curve, ratios and aero are estimates."
+	},
+	"garage": {
+		"price": 34000,
+		"engine_sound": "i6_turbo",
+		"livery": "plain",
+		"number": 1,
+		"colours": [[0.8, 0.1, 0.1], [0.95, 0.95, 0.94], [0.07, 0.07, 0.08], [0.95, 0.95, 0.94]],
+		"wheels": "black",
+		"power": 1.0,
+		"grip": 1.0,
+		"brakes": 1.0,
+		"drive_front": 0.0,
+		"blurb": "The little M with a big carbon kit: rear-drive, six cylinders, a short wheelbase, and it loves to slide."
+	},
+	"physics": {
+		"chassis": "sport",
+		"mass": 1725.0,
+		"front": 0.52,
+		"torque": 550.0,
+		"curve": [[1000, 0.42], [1400, 0.8], [2000, 1.0], [5900, 1.0], [6600, 0.88], [7200, 0.76]],
+		"idle": 800.0,
+		"limiter": 7200.0,
+		"turbo": 0.4,
+		"spool": [1800.0, 3200.0],
+		"spool_time": 0.35,
+		"anti_lag": false,
+		"gears": [5.0, 3.2, 2.143, 1.72, 1.313, 1.0, 0.823, 0.64],
+		"final": 5.37,
+		"drive": "rwd",
+		"rear": ["lsd", 0.35, 0.15, 30.0],
+		"cd": 0.35,
+		"area": 2.15,
+		"down": 0.2,
+		"brake": 1.1
+	},
+	"checks": {
+		"zero_100_max": 8.0
+	},
+	"interior": {
+		"own": true,
+		"camera": true,
+		"notes": "The model's own cabin: its steering wheel cut out to turn (tools/cars/m2_adro.json), the eye placed by hand from section views; an automatic or dual clutch: the hands stay on the wheel."
+	},
+	"source": {
+		"package": "Track_Mode_Cars/Street/2023-bmw-m2-g87-adro-carbon-fiber-aero-body-kit.zip",
+		"author": "unknown (the owner's private download: no licence or author in the archive)",
+		"license": "unknown: the owner's private download, used at the owner's request for their own game (2026-10-11)",
+		"url": "",
+		"attribution": ""
+	},
+	"research": ["https://en.wikipedia.org/wiki/BMW_M2#G87"],
+	"limitations": [
+		"From the owner's private download batch: kept out of public credit lists; its provenance isn't cleared for redistribution.",
+		"Fictional name, but the model's real badges are still on it (its BadgeB parts weren't dropped). The torque curve, ratios and aero are estimates."
+	]
+}

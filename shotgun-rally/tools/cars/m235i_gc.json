@@ -1,0 +1,6 @@
+{"id": "m235i_gc", "pre_scale": 100, "front": "-Y", "wheelbase": 2.67,
+ "wheel_mats": ["^i?:?RIM$", "tire"], "caliper_mats": ["Breaks"],
+ "paint": ["CarPaint$"], "glass": ["[Gg]lass", "[Ww]indow"],
+ "materials": [["[Gg]lass", "glass"], ["[Ww]indow", "glass"]],
+ "wheel_faces": 12000, "caliper_faces": 3000, "body_faces": 140000, "body_least": 0.25, "tex_max": 1024, "tex_format": "webp",
+ "cockpit": {"gearbox": "auto", "eye": [-0.36, -0.05, 1.16], "wheel": {"mats": ["INT"], "box": [-0.6, -0.15, 0.28, 0.5, 0.7, 1.12], "cut": true, "axis": [0.0, -0.9, 0.44], "radius": 0.18}}}

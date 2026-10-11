@@ -1,0 +1,7 @@
+{"id": "mc_p1", "front": "-Y", "wheelbase": 2.67,
+ "wheel_mats": ["^Rim\\.005$", "^Tyre\\.005$"], "caliper_mats": ["^Caliper\\.003$"],
+ "paint": ["^EXT_Carpaint\\.007$"], "glass": ["^Clear_Glass"],
+ "drop_mats": ["^Rim_Blurred", "^DAMAGE_GLASS"],
+ "materials": [["^Clear_Glass", "glass"]],
+ "wheel_faces": 12000, "caliper_faces": 3000, "body_faces": 140000, "body_least": 0.3, "tex_max": 1024, "tex_format": "webp",
+ "cockpit": {"gearbox": "auto", "eye": [-0.33, 0.05, 1.0], "wheel": {"mats": ["^INT_Velvet", "^INT_Skin_A", "^INT_carbon", "^INT_Cuciture", "^INT_Decals_REF_GLOSS", "^INT_PLASTIC_Black"], "box": [-0.5, -0.13, 0.5, 0.64, 0.53, 0.88], "cut": true, "axis": [0.0, -0.97, 0.25], "radius": 0.15}}}

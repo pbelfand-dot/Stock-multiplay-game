@@ -157,6 +157,11 @@ const STREET := {
 	"haldane": [1.6, "slick"], "vespera": [1.6, "slick"], "valko": [1.6, "slick"], "stiletto": [1.6, "slick"],
 	"kaiser4_gt3": [1.6, "slick"], "tempesta_gt3": [1.6, "slick"], "woking_gt3": [1.6, "slick"], "elfer_gt2cs": [1.6, "slick"],
 	"affalter_dtm": [1.6, "slick"],
+	# the street batch: today's performance tyres; the track-focused ones on cup tyres
+	"tempesta_ursa": [0.98, "street"], "affalter_slr": [0.98, "street"], "vierrad_r7": [1.0, "street"], "affalter_a45": [1.0, "street"],
+	"kaiser_5t": [1.0, "street"], "kaiser_5g": [1.0, "street"], "kaiser_3x": [0.95, "street"], "kaiser_235": [0.97, "street"],
+	"kaiser_2c": [1.04, "street"], "affalter_s": [0.9, "street"],
+	"woking_600": [1.1, "cup"], "affalter_gtb": [1.15, "cup"], "woking_800": [1.2, "cup"], "woking_one": [1.12, "cup"],
 	# FORMULA APEX: 18 in slicks on an 800 kg car (~1.7 g before the wings: they add 2-3 x the weight at speed)
 	"orion": [1.7, "formula"], "zephyr": [1.7, "formula"], "toro": [1.7, "formula"], "vee_f": [1.7, "formula"], "affalter_w17": [1.7, "formula"],
 	# rally cars on tarmac rally tyres (near-slicks today, narrower then)
@@ -180,7 +185,9 @@ const FACTORY_TC := ["akatsuki", "raiden", "hellhound", "hellhound_s", "kaiser_2
 	"kombi", "gls", "mochi", "traffic_sedan", "traffic_crossover", "traffic_minivan", "elfer_rs", "uno", "ghost",
 	"centuria", "vento", "bolt16", "elfer_r", "elfer_evo", "affalter", "gtp963", "vsr", "haldane", "vespera", "valko", "stiletto",
 	"kaiser4_gt3", "tempesta_gt3", "woking_gt3", "elfer_gt2cs",
-	"stromer", "warhawk", "pueblo", "kaiser_5x", "kaiser_7x", "kasten"]
+	"stromer", "warhawk", "pueblo", "kaiser_5x", "kaiser_7x", "kasten",
+	"tempesta_ursa", "woking_600", "affalter_slr", "affalter_gtb", "vierrad_r7", "affalter_a45", "kaiser_5t", "kaiser_5g",
+	"kaiser_3x", "kaiser_235", "kaiser_2c", "affalter_s", "woking_800", "woking_one"]
 
 
 ## [g, tyre kind, factory ABS, factory TC] for this car in SIM STREET (STREET, else

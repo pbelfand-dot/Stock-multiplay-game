@@ -1,0 +1,81 @@
+{
+	"id": "affalter_gtb",
+	"name": "AFFALTER GT BLACK",
+	"order": 436,
+	"model": "amg_gtbs",
+	"category": "hyper",
+	"role": "hypercar",
+	"real": {
+		"manufacturer": "Mercedes-AMG",
+		"model": "GT Black Series",
+		"year": 2021,
+		"trim": "4.0 V8 biturbo flat-plane, 730 PS"
+	},
+	"specs": {
+		"power_hp": 720,
+		"weight_kg": 1540,
+		"drivetrain": "RWD",
+		"transmission": "7-speed dual clutch",
+		"wheelbase_mm": 2630,
+		"top_speed_kmh": 325,
+		"front_weight": 0.47,
+		"notes": "Mercedes-AMG's GT Black Series (2021): the flat-plane-crank 4.0 twin-turbo V8 at 730 PS (537 kW) and 800 N m, a seven-speed dual clutch, 1,540 kg DIN (Autobild; 1,615 kg minimum kerb per Top Gear), 325 km/h, a 2,630 mm wheelbase. Its torque curve, ratios and aero are estimates."
+	},
+	"garage": {
+		"price": 120000,
+		"engine_sound": "v8_turbo",
+		"livery": "plain",
+		"number": 1,
+		"colours": [[0.8, 0.1, 0.1], [0.95, 0.95, 0.94], [0.07, 0.07, 0.08], [0.95, 0.95, 0.94]],
+		"wheels": "black",
+		"power": 1.0,
+		"grip": 1.0,
+		"brakes": 1.0,
+		"drive_front": 0.0,
+		"blurb": "The hardest road car its maker ever built: a flat-plane V8, a wing you could serve dinner on, and grip that keeps arriving."
+	},
+	"physics": {
+		"chassis": "sport",
+		"mass": 1540.0,
+		"front": 0.47,
+		"torque": 800.0,
+		"curve": [[1000, 0.42], [1400, 0.8], [2000, 1.0], [5900, 1.0], [6600, 0.88], [7200, 0.76]],
+		"idle": 800.0,
+		"limiter": 7200.0,
+		"turbo": 0.4,
+		"spool": [1800.0, 3200.0],
+		"spool_time": 0.35,
+		"anti_lag": false,
+		"gears": [3.4, 2.38, 1.75, 1.34, 1.09, 0.89, 0.73],
+		"final": 3.96,
+		"drive": "rwd",
+		"rear": ["lsd", 0.35, 0.15, 30.0],
+		"cd": 0.38,
+		"area": 2.0,
+		"down": 0.8,
+		"brake": 1.2
+	},
+	"checks": {
+		"zero_100_max": 7.0
+	},
+	"interior": {
+		"own": false,
+		"camera": false,
+		"notes": "The model's cabin is low-detail and its baked textures aren't linked in the file: the shared road cockpit. Flat colours set for the parts the textures would have covered (tools/cars/amg_gtbs.json glb_patch)."
+	},
+	"source": {
+		"package": "Track_Mode_Cars/Street/mercedes-benz-amg-gt-black-series.zip",
+		"author": "unknown (the owner's private download: no licence or author in the archive)",
+		"license": "unknown: the owner's private download, used at the owner's request for their own game (2026-10-11)",
+		"url": "",
+		"attribution": ""
+	},
+	"research": [
+		"https://www.autobild.de/artikel/mercedes-amg-gt-black-series-2020-preis-ps-motor-17010219.html",
+		"https://www.carexpert.com.au/mercedes-amg/gt/2021-black-series-4l-coupe-rwd-petrol-automatic-jsa8kgwm20201016"
+	],
+	"limitations": [
+		"From the owner's private download batch: kept out of public credit lists; its provenance isn't cleared for redistribution.",
+		"Fictional name; the model's separate badge parts are dropped (tools/cars/amg_gtbs.json drop_mats), any painted into its textures remain. The torque curve, ratios and aero are estimates."
+	]
+}

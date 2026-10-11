@@ -1,0 +1,82 @@
+{
+	"id": "woking_one",
+	"name": "WOKING ONE",
+	"order": 440,
+	"model": "mc_p1",
+	"category": "hyper",
+	"role": "hypercar",
+	"real": {
+		"manufacturer": "McLaren",
+		"model": "P1",
+		"year": 2013,
+		"trim": "3.8 V8 twin-turbo hybrid, 916 PS combined"
+	},
+	"specs": {
+		"power_hp": 903,
+		"weight_kg": 1395,
+		"drivetrain": "RWD",
+		"transmission": "7-speed dual clutch",
+		"wheelbase_mm": 2670,
+		"top_speed_kmh": 350,
+		"front_weight": 0.42,
+		"notes": "McLaren's P1 (2013): a 3.8 twin-turbo V8 with an electric motor, 916 PS and 900 N m combined (727 hp and 720 N m from the V8 alone), a seven-speed dual clutch, ~1,395 kg, 350 km/h limited, a 2,670 mm wheelbase. Its torque curve, ratios and aero are estimates."
+	},
+	"garage": {
+		"price": 175000,
+		"engine_sound": "v8_turbo",
+		"livery": "plain",
+		"number": 1,
+		"colours": [[0.8, 0.1, 0.1], [0.95, 0.95, 0.94], [0.07, 0.07, 0.08], [0.95, 0.95, 0.94]],
+		"wheels": "black",
+		"power": 1.0,
+		"grip": 1.0,
+		"brakes": 1.0,
+		"drive_front": 0.0,
+		"blurb": "The hybrid hypercar that started it all: a V8 and an electric motor, 916 horsepower, and it hits like nothing else from 100 to 200."
+	},
+	"physics": {
+		"chassis": "sport",
+		"mass": 1395.0,
+		"front": 0.42,
+		"torque": 900.0,
+		"curve": [[1000, 0.42], [1400, 0.8], [2000, 1.0], [7200, 1.0], [7900, 0.88], [8500, 0.76]],
+		"idle": 800.0,
+		"limiter": 8500.0,
+		"turbo": 0.4,
+		"spool": [1800.0, 3200.0],
+		"spool_time": 0.35,
+		"anti_lag": false,
+		"gears": [3.98, 2.61, 1.91, 1.48, 1.16, 0.91, 0.69],
+		"final": 4.61,
+		"drive": "rwd",
+		"rear": ["lsd", 0.35, 0.15, 30.0],
+		"cd": 0.4,
+		"area": 1.95,
+		"down": 1.0,
+		"brake": 1.25
+	},
+	"checks": {
+		"zero_100_max": 7.0
+	},
+	"interior": {
+		"own": true,
+		"camera": true,
+		"notes": "The model's own cabin: its steering wheel found by measurement (the hub's badge and stitching) and cut out to turn (tools/cars/mc_p1.json); the eye set from the 600's geometry. Handled as no-AI: checked by scripts only, its renders not viewed."
+	},
+	"source": {
+		"package": "Track_Mode_Cars/Street/mclaren-p1.zip",
+		"author": "unknown (the owner's private download: no licence or author in the archive)",
+		"license": "unknown: the owner's private download, used at the owner's request for their own game (2026-10-11)",
+		"url": "",
+		"attribution": ""
+	},
+	"research": [
+		"https://en.wikipedia.org/wiki/McLaren_P1",
+		"https://sbraceengineering.co.uk/mclaren-specialists/mclaren-models-by-year/mclaren-p1-specification/"
+	],
+	"limitations": [
+		"From the owner's private download batch: kept out of public credit lists; its provenance isn't cleared for redistribution.",
+		"Fictional name; the model has no separate badge parts by name, any painted into its textures remain. The torque curve, ratios and aero are estimates.",
+		"Handled as no-AI (the owner's earlier rule for a car named P1): converted and checked by scripts only, never looked at; screenshot tools leave it out (--seen_cars_only)."
+	]
+}

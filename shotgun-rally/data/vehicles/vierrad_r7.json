@@ -1,0 +1,81 @@
+{
+	"id": "vierrad_r7",
+	"name": "VIERRAD R7",
+	"order": 272,
+	"model": "rs7_c8",
+	"category": "euro",
+	"role": "player_road",
+	"real": {
+		"manufacturer": "Audi",
+		"model": "RS 7 Sportback (C8)",
+		"year": 2020,
+		"trim": "4.0 TFSI V8, 600 PS"
+	},
+	"specs": {
+		"power_hp": 592,
+		"weight_kg": 2065,
+		"drivetrain": "AWD",
+		"transmission": "8-speed automatic",
+		"wheelbase_mm": 2928,
+		"top_speed_kmh": 305,
+		"front_weight": 0.57,
+		"notes": "Audi's RS 7 Sportback (C8): the 4.0 twin-turbo V8 at 600 PS and 800 N m, quattro (40:60), an eight-speed automatic, ~2,065 kg, 0-100 km/h in 3.6 s, up to 305 km/h. Its torque curve, ratios and aero are estimates."
+	},
+	"garage": {
+		"price": 40000,
+		"engine_sound": "v8_turbo",
+		"livery": "plain",
+		"number": 1,
+		"colours": [[0.8, 0.1, 0.1], [0.95, 0.95, 0.94], [0.07, 0.07, 0.08], [0.95, 0.95, 0.94]],
+		"wheels": "black",
+		"power": 1.0,
+		"grip": 1.0,
+		"brakes": 1.0,
+		"drive_front": 0.4,
+		"blurb": "A fastback with 600 horsepower and four-wheel drive: it devours motorways, then surprises you on a mountain road."
+	},
+	"physics": {
+		"chassis": "sport",
+		"mass": 2065.0,
+		"front": 0.57,
+		"torque": 800.0,
+		"curve": [[1000, 0.42], [1400, 0.8], [2000, 1.0], [5500, 1.0], [6200, 0.88], [6800, 0.76]],
+		"idle": 800.0,
+		"limiter": 6800.0,
+		"turbo": 0.4,
+		"spool": [1800.0, 3200.0],
+		"spool_time": 0.35,
+		"anti_lag": false,
+		"gears": [5.0, 3.2, 2.143, 1.72, 1.313, 1.0, 0.823, 0.64],
+		"final": 4.78,
+		"drive": "awd",
+		"front_share": 0.4,
+		"centre": ["lsd", 0.25, 0.2, 30.0],
+		"front_diff": ["open", 0.0, 0.0, 0.0],
+		"rear": ["lsd", 0.35, 0.15, 30.0],
+		"cd": 0.32,
+		"area": 2.35,
+		"down": 0.05,
+		"brake": 1.1
+	},
+	"checks": {
+		"zero_100_max": 8.0
+	},
+	"interior": {
+		"own": true,
+		"camera": true,
+		"notes": "The model's own cabin: its steering wheel cut out to turn (tools/cars/rs7_c8.json), the eye placed by hand from section views; an automatic or dual clutch: the hands stay on the wheel."
+	},
+	"source": {
+		"package": "Track_Mode_Cars/Street/2020-audi-rs7-sportback.zip",
+		"author": "unknown (the owner's private download: no licence or author in the archive)",
+		"license": "unknown: the owner's private download, used at the owner's request for their own game (2026-10-11)",
+		"url": "",
+		"attribution": ""
+	},
+	"research": ["https://en.wikipedia.org/wiki/Audi_A7#RS7_(C8)"],
+	"limitations": [
+		"From the owner's private download batch: kept out of public credit lists; its provenance isn't cleared for redistribution.",
+		"Fictional name; the model's separate badge parts are dropped (tools/cars/rs7_c8.json drop_mats), any painted into its textures remain. The torque curve, ratios and aero are estimates."
+	]
+}

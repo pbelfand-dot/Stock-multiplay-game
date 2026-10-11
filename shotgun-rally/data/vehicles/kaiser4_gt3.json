@@ -5,6 +5,13 @@
 	"model": "m4_gt3",
 	"category": "race",
 	"role": "track",
+	"real": {
+		"manufacturer": "BMW M Motorsport",
+		"model": "M4 GT3 (G82)",
+		"year": 2022,
+		"trim": "GT3 race car",
+		"race_class": "GT3"
+	},
 	"specs": {
 		"power_hp": 590,
 		"weight_kg": 1300,

@@ -5,6 +5,13 @@
 	"model": "gt2rs_cs",
 	"category": "race",
 	"role": "track",
+	"real": {
+		"manufacturer": "Porsche Motorsport",
+		"model": "911 GT2 RS Clubsport (991.2)",
+		"year": 2019,
+		"trim": "track-day race car",
+		"race_class": "Clubsport"
+	},
 	"specs": {
 		"power_hp": 700,
 		"weight_kg": 1390,

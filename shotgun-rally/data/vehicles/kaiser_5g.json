@@ -1,0 +1,84 @@
+{
+	"id": "kaiser_5g",
+	"name": "KAISER 5 G",
+	"order": 263,
+	"model": "m5_g90",
+	"category": "euro",
+	"role": "player_road",
+	"real": {
+		"manufacturer": "BMW M",
+		"model": "M5 (G90)",
+		"year": 2025,
+		"trim": "4.4 V8 twin-turbo plug-in hybrid, 727 PS"
+	},
+	"specs": {
+		"power_hp": 717,
+		"weight_kg": 2510,
+		"drivetrain": "AWD",
+		"transmission": "8-speed automatic",
+		"wheelbase_mm": 3006,
+		"top_speed_kmh": 305,
+		"front_weight": 0.52,
+		"notes": "BMW M's M5 saloon (G90): a 4.4 twin-turbo V8 plug-in hybrid, 727 PS and 1,000 N m combined, M xDrive, an eight-speed automatic, ~2,510 kg, 0-100 km/h in 3.5 s (motor1, carlist). Its torque curve, ratios and aero are estimates."
+	},
+	"garage": {
+		"price": 45000,
+		"engine_sound": "v8_turbo",
+		"livery": "plain",
+		"number": 1,
+		"colours": [[0.8, 0.1, 0.1], [0.95, 0.95, 0.94], [0.07, 0.07, 0.08], [0.95, 0.95, 0.94]],
+		"wheels": "black",
+		"power": 1.0,
+		"grip": 1.0,
+		"brakes": 1.0,
+		"drive_front": 0.3,
+		"blurb": "The newest super-saloon: V8 plus electric motor, 727 horsepower, and all the traction to use it on a wet night."
+	},
+	"physics": {
+		"chassis": "sport",
+		"mass": 2510.0,
+		"front": 0.52,
+		"torque": 1000.0,
+		"curve": [[1000, 0.42], [1400, 0.8], [2000, 1.0], [5900, 1.0], [6600, 0.88], [7200, 0.76]],
+		"idle": 800.0,
+		"limiter": 7200.0,
+		"turbo": 0.4,
+		"spool": [1800.0, 3200.0],
+		"spool_time": 0.35,
+		"anti_lag": false,
+		"gears": [5.0, 3.2, 2.143, 1.72, 1.313, 1.0, 0.823, 0.64],
+		"final": 5.15,
+		"drive": "awd",
+		"front_share": 0.3,
+		"centre": ["lsd", 0.25, 0.2, 30.0],
+		"front_diff": ["open", 0.0, 0.0, 0.0],
+		"rear": ["lsd", 0.35, 0.15, 30.0],
+		"cd": 0.32,
+		"area": 2.35,
+		"down": 0.05,
+		"brake": 1.1
+	},
+	"checks": {
+		"zero_100_max": 8.0
+	},
+	"interior": {
+		"own": true,
+		"camera": true,
+		"notes": "The model's own cabin: its steering wheel cut out to turn (tools/cars/m5_g90.json), the eye placed by hand from section views; an automatic or dual clutch: the hands stay on the wheel."
+	},
+	"source": {
+		"package": "Track_Mode_Cars/Street/2025-bmw-m5-sedan.zip",
+		"author": "unknown (the owner's private download: no licence or author in the archive)",
+		"license": "unknown: the owner's private download, used at the owner's request for their own game (2026-10-11)",
+		"url": "",
+		"attribution": ""
+	},
+	"research": [
+		"https://www.motor1.com/reviews/738867/bmw-m5-g90-2025-first-drive/",
+		"https://www.carlist.my/news/2025-bmw-m5-g90-unveiled-as-727ps-100nm-2-5-tonne-phev-that-s-surprisingly-handsome/137483/amp/"
+	],
+	"limitations": [
+		"From the owner's private download batch: kept out of public credit lists; its provenance isn't cleared for redistribution.",
+		"Fictional name; the model's separate badge parts are dropped (tools/cars/m5_g90.json drop_mats), any painted into its textures remain. The torque curve, ratios and aero are estimates."
+	]
+}

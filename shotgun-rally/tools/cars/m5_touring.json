@@ -1,0 +1,7 @@
+{"id": "m5_touring", "pre_scale": 100, "front": "-Y", "wheelbase": 3.006,
+ "wheel_mats": ["Wheel1A_3D|Wheel2A_3D"], "caliper_mats": ["Callipers"],
+ "paint": ["Paint_Material1$"], "glass": ["Window_Material1$"],
+ "drop_mats": ["BadgeA_Material", "ManufacturerPl"],
+ "materials": [["Window_Material1$", "glass"], ["^b?:?red_glass$", "red_lens"]],
+ "wheel_faces": 12000, "caliper_faces": 3000, "body_faces": 140000, "body_least": 0.25, "tex_max": 1024, "tex_format": "webp",
+ "cockpit": {"gearbox": "auto", "eye": [-0.37, -0.08, 1.18], "wheel": {"mats": ["InteriorA_Material"], "box": [-0.6, -0.15, 0.2, 0.42, 0.72, 1.18], "cut": true, "axis": [0.0, -0.9, 0.44], "radius": 0.185}}}

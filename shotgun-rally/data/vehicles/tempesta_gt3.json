@@ -5,6 +5,13 @@
 	"model": "huracan_gt3",
 	"category": "race",
 	"role": "track",
+	"real": {
+		"manufacturer": "Lamborghini Squadra Corse",
+		"model": "Huracan GT3 EVO2",
+		"year": 2023,
+		"trim": "GT3 race car",
+		"race_class": "GT3"
+	},
 	"specs": {
 		"power_hp": 560,
 		"weight_kg": 1250,

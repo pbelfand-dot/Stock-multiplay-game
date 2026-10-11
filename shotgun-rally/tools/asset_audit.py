@@ -44,6 +44,8 @@ TEXTURES = "Texture set"
 NOTES = {
     # cars
     "car_packages/Track_Mode_Cars/GT3/mercedes-amg-gt3-wwwvecarzcom.zip": (ALTERNATE, "a second Mercedes-AMG GT3 Evo (source/amg_evo_3.glb, a vecarz upload): the AFFALTER GT3 (affalter) already runs a detailed model of the same car, with its cockpit (mercedes-amg-gt3-red-bull-racing.zip). Kept as the source to fall back on", ""),
+    "car_packages/Track_Mode_Cars/Street/mclaren-720s-spider.zip": (ALTERNATE, "a McLaren 720S Spider (a nested rar holding one heavy OBJ): its rims share the body's material, so the wheels can't be split off to turn, and it would be a third 720S beside the WOKING 720 GT3 and its spare. Kept as the source to fall back on", ""),
+    "car_packages/Track_Mode_Cars/Street/bmw-540i-e34.rar": (BLOCKED, "a BMW 540i (E34) as a 3ds Max scene (.max) only: no exchange format inside (FBX, OBJ, glTF), and Blender can't read .max. Needs an export from 3ds Max", ""),
     "car_packages/Track_Mode_Cars/GT3/mclaren-gt3.zip": (ALTERNATE, "a second McLaren 720S GT3 (source/McLaren720sGT3.zip inside: a nested glTF): the WOKING 720 GT3 (woking_gt3) runs the Inception Racing upload of the same car (mclaren-720s-gt3-inception-racing.zip). Kept as the source to fall back on", ""),
     "car_packages/bmw-m4-widebody-wwwvecarzcom.zip": (DUPLICATE, "the same file as bmw-m4-modified-widebody.zip (SHA-256 751c816b...): one car, KAISER 4 WB (kaiser_4)", "m4_widebody"),
     "car_packages/free-hyper-realistic-bmw-m8-competition-model.zip": (ALTERNATE, "a second M8 Competition (USDZ, 1.19M triangles; part names suggest a Forza extraction); KAISER 8 (kaiser_8) uses bmw-m8-f92-coupe-competition (1).zip, which imports directly. Blender here has no USD import", "m8_f92"),

@@ -5,6 +5,13 @@
 	"model": "m720_gt3",
 	"category": "race",
 	"role": "track",
+	"real": {
+		"manufacturer": "McLaren",
+		"model": "720S GT3",
+		"year": 2019,
+		"trim": "GT3 race car (a customer team's colours)",
+		"race_class": "GT3"
+	},
 	"specs": {
 		"power_hp": 580,
 		"weight_kg": 1290,

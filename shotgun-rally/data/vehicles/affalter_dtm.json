@@ -5,6 +5,13 @@
 	"model": "clk_dtm",
 	"category": "race",
 	"role": "track",
+	"real": {
+		"manufacturer": "Mercedes-AMG",
+		"model": "CLK DTM",
+		"year": 2002,
+		"trim": "DTM touring car",
+		"race_class": "DTM"
+	},
 	"specs": {
 		"power_hp": 470,
 		"weight_kg": 1080,

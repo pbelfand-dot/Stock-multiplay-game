@@ -1,0 +1,7 @@
+{"id": "x3_m40i", "pre_scale": 100, "front": "-Y", "wheelbase": 2.865,
+ "wheel_mats": ["ChangeA_Rim", "ChangeA_Tyre"], "caliper_mats": ["Change_Brake"],
+ "paint": ["MI_1347060001"], "glass": ["MI_Glass_0"],
+ "drop_mats": ["MI_Logo"],
+ "materials": [["MI_Glass_0", "glass"]],
+ "wheel_faces": 12000, "caliper_faces": 3000, "body_faces": 140000, "body_least": 0.25, "tex_max": 1024, "tex_format": "webp",
+ "cockpit": {"gearbox": "auto", "eye": [-0.37, -0.05, 1.32], "wheel": {"mats": ["MI_Cabin"], "box": [-0.6, -0.15, 0.12, 0.38, 0.85, 1.3], "cut": true, "axis": [0.0, -0.9, 0.44], "radius": 0.185}}}

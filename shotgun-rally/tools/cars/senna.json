@@ -1,0 +1,6 @@
+{"id": "senna", "front": "-Y", "wheelbase": 2.67,
+ "wheel_mats": ["^Scene_-_Root", "^euansenna_main$", "amdb11_brake", "amdb11_misc\\.002$"], "caliper_mats": ["amdb11_caliper"],
+ "paint": ["^sennapaintmain$"], "glass": ["^senna_glass$"],
+ "materials": [["^senna_glass$", "glass"]],
+ "wheel_faces": 12000, "caliper_faces": 3000, "body_faces": 140000, "body_least": 0.25, "tex_max": 1024, "tex_format": "webp",
+ "cockpit": {"gearbox": "auto", "eye": [-0.33, 0.12, 1.0], "wheel": {"box": [-0.55, -0.12, 0.52, 0.7, 0.53, 0.93], "cut": true, "axis": [0.0, -0.95, 0.31], "radius": 0.16}}}

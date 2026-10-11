@@ -1,0 +1,6 @@
+{"id": "maybach_s", "pre_scale": 100, "front": "-Y", "wheelbase": 3.396,
+ "wheel_mats": ["#2125663091$", "#2125663092$", "phong21SG1$", "phong22SG1$", "phong23SG1$", "^rim_1$"], "caliper_mats": ["#2125663093$"],
+ "paint": ["phong7SG1$"], "glass": ["phong10SG1$", "phong13SG1$"],
+ "materials": [["phong10SG1$", "glass"], ["phong13SG1$", "glass"], ["phong3SG1$", "red_lens"]],
+ "wheel_faces": 12000, "caliper_faces": 3000, "body_faces": 140000, "body_least": 0.3, "tex_max": 1024, "tex_format": "webp",
+ "cockpit": {"gearbox": "auto", "eye": [-0.37, -0.05, 1.25], "wheel": {"box": [-0.62, -0.15, 0.2, 0.44, 0.75, 1.2], "cut": true, "axis": [0.0, -0.9, 0.44], "radius": 0.185}}}

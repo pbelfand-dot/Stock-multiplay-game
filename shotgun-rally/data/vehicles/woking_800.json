@@ -1,0 +1,78 @@
+{
+	"id": "woking_800",
+	"name": "WOKING 800",
+	"order": 438,
+	"model": "senna",
+	"category": "hyper",
+	"role": "hypercar",
+	"real": {
+		"manufacturer": "McLaren",
+		"model": "Senna",
+		"year": 2018,
+		"trim": "4.0 V8 twin-turbo, 800 PS"
+	},
+	"specs": {
+		"power_hp": 789,
+		"weight_kg": 1300,
+		"drivetrain": "RWD",
+		"transmission": "7-speed dual clutch",
+		"wheelbase_mm": 2670,
+		"top_speed_kmh": 340,
+		"front_weight": 0.42,
+		"notes": "McLaren's Senna (2018): the 4.0 twin-turbo V8 at 800 PS (588 kW) and 800 N m, a seven-speed dual clutch, 1,198 kg dry (~1,310 kg kerb), 800 kg of downforce at 250 km/h, 340 km/h, a 2,670 mm wheelbase (Wikipedia, WhichCar). Its torque curve, ratios and aero are estimates."
+	},
+	"garage": {
+		"price": 160000,
+		"engine_sound": "v8_turbo",
+		"livery": "plain",
+		"number": 1,
+		"colours": [[0.8, 0.1, 0.1], [0.95, 0.95, 0.94], [0.07, 0.07, 0.08], [0.95, 0.95, 0.94]],
+		"wheels": "black",
+		"power": 1.0,
+		"grip": 1.0,
+		"brakes": 1.0,
+		"drive_front": 0.0,
+		"blurb": "A road-legal track weapon: 800 horsepower, a wing taller than you, and downforce that pins it to the road at speed."
+	},
+	"physics": {
+		"chassis": "sport",
+		"mass": 1300.0,
+		"front": 0.42,
+		"torque": 800.0,
+		"curve": [[1000, 0.42], [1400, 0.8], [2000, 1.0], [6950, 1.0], [7650, 0.88], [8250, 0.76]],
+		"idle": 800.0,
+		"limiter": 8250.0,
+		"turbo": 0.4,
+		"spool": [1800.0, 3200.0],
+		"spool_time": 0.35,
+		"anti_lag": false,
+		"gears": [3.98, 2.61, 1.91, 1.48, 1.16, 0.91, 0.69],
+		"final": 4.81,
+		"drive": "rwd",
+		"rear": ["lsd", 0.35, 0.15, 30.0],
+		"cd": 0.42,
+		"area": 2.0,
+		"down": 1.6,
+		"brake": 1.3
+	},
+	"checks": {
+		"zero_100_max": 7.0
+	},
+	"interior": {
+		"own": true,
+		"camera": true,
+		"notes": "The model's own cabin: its steering wheel cut out to turn (tools/cars/senna.json), the eye placed by hand from section views; an automatic or dual clutch: the hands stay on the wheel."
+	},
+	"source": {
+		"package": "Track_Mode_Cars/Street/mclaren-senna-wwwvecarzcom.zip",
+		"author": "unknown (the owner's private download: no licence or author in the archive)",
+		"license": "unknown: the owner's private download, used at the owner's request for their own game (2026-10-11)",
+		"url": "",
+		"attribution": ""
+	},
+	"research": ["https://en.wikipedia.org/wiki/McLaren_Senna", "https://whichcar.com.au/news/mclaren-senna-specs-revealed"],
+	"limitations": [
+		"From the owner's private download batch: kept out of public credit lists; its provenance isn't cleared for redistribution.",
+		"Fictional name, but the model's real badges are still on it (its badge parts (outside, cabin and steering wheel) weren't dropped). The torque curve, ratios and aero are estimates."
+	]
+}

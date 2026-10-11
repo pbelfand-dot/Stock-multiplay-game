@@ -295,6 +295,30 @@ Six more garage cars, each also uncommon-to-rare highway traffic (details, numbe
 Their chassis: `sport_suv` (WARHAWK, KAISER 5X: firm, sharp), `suv` (PUEBLO, KAISER 7X, STROMER:
 heavy, calm), `tall_suv` (KASTEN: soft and tall, it rolls and pitches).
 
+## The street batch (October 2026)
+
+Fourteen garage cars from the owner's private batch (details, numbers and test results:
+`docs/VEHICLE_REPORT.md`, "The street batch"). All are automatics or dual clutches (both hands stay
+on the wheel), left-hand drive:
+
+| Garage name | Based on | Interior |
+|---|---|---|
+| TEMPESTA URSA | Lamborghini Urus Performante (2023) | the model's own |
+| WOKING 600 SPIDER | McLaren 600LT Spider (2020) | the model's own |
+| AFFALTER SLR 722 | Mercedes-Benz SLR McLaren 722 (2006) | the model's own |
+| AFFALTER GT BLACK | Mercedes-AMG GT Black Series (2021) | the shared road cockpit (the model's is low-detail and untextured) |
+| VIERRAD R7 | Audi RS 7 Sportback C8 (2020) | the model's own |
+| AFFALTER A45 S | Mercedes-AMG A 45 S (2023) | the model's own |
+| KAISER 5 TOURING / KAISER 5 G | BMW M5 G99 Touring / G90 saloon (2025) | the model's own |
+| KAISER 3X | BMW X3 M40i G45 (2024) | the model's own |
+| KAISER 235 GC | BMW M235i Gran Coupe F44 (2019) | the model's own |
+| KAISER 2 CARBON | BMW M2 G87, ADRO carbon kit (2023) | the model's own |
+| AFFALTER S EXECUTIVE | Mercedes-Maybach S-Class Z223 (2021) | the model's own |
+| WOKING 800 | McLaren Senna (2018) | the model's own |
+| WOKING ONE | McLaren P1 (2013) | the model's own (fitted by measurement: handled as no-AI) |
+
+Their chassis: `sport_suv` (URSA, 3X), `sport` (the rest).
+
 ## Suspension: how the road cars lean (October 2026)
 
 The road cars (every chassis class but the rally cars' own) work out their suspension from their own

@@ -109,3 +109,56 @@ garage and in highway traffic, each with its own cockpit. The registry now has 5
   grilles and steering wheels), like the earlier cars; live gauges (`data/dash/`) for the six aren't
   written yet (they have the dome light and their own static dials); the ID.4 and X7 cabins are
   low-detail by nature.
+
+## The street batch (October 2026)
+
+Fourteen road cars from the owner's private download batch (`assets/car_packages/Track_Mode_Cars/Street/`;
+the owner waived the licence question for this game with friends: they stay out of public credit
+lists). All fourteen are in the garage (not traffic), each under a fictional name. The registry now
+has 79 entries: 74 in the garage, 75 with a model of their own, 67 with their own cockpit.
+
+| Garage name | Based on | Role | Drive | Weight | Power | 0-100 in the game (gravel) |
+|---|---|---|---|---|---|---|
+| TEMPESTA URSA (`tempesta_ursa`) | Lamborghini Urus Performante (2023) | super-SUV | all | 2,150 kg | 657 hp, 850 N m, 8-speed | 2.9 s (real 3.3 s) |
+| WOKING 600 SPIDER (`woking_600`) | McLaren 600LT Spider (2020) | hypercar | rear | 1,300 kg | 592 hp, 620 N m, 7-speed DCT | 3.6 s (real 2.9 s) |
+| AFFALTER SLR 722 (`affalter_slr`) | Mercedes-Benz SLR McLaren 722 Edition (2006) | hypercar | rear | 1,724 kg | 641 hp, 820 N m, 5-speed auto, supercharged | 4.7 s (real 3.6 s) |
+| AFFALTER GT BLACK (`affalter_gtb`) | Mercedes-AMG GT Black Series (2021) | hypercar | rear | 1,540 kg | 720 hp, 800 N m, 7-speed DCT | 4.0 s (real 3.2 s) |
+| VIERRAD R7 (`vierrad_r7`) | Audi RS 7 Sportback C8 (2020) | road | all | 2,065 kg | 592 hp, 800 N m, 8-speed | 2.9 s (real 3.6 s) |
+| AFFALTER A45 S (`affalter_a45`) | Mercedes-AMG A 45 S 4MATIC+ (2023) | road | all | 1,635 kg | 415 hp, 500 N m, 8-speed DCT | 3.5 s (real 3.9 s) |
+| KAISER 5 TOURING (`kaiser_5t`) | BMW M5 Touring G99 (2025) | road | all | 2,550 kg | 717 hp, 1,000 N m, 8-speed | 2.9 s (real 3.6 s) |
+| KAISER 5 G (`kaiser_5g`) | BMW M5 G90 (2025) | road | all | 2,510 kg | 717 hp, 1,000 N m, 8-speed | 2.9 s (real 3.5 s) |
+| KAISER 3X (`kaiser_3x`) | BMW X3 M40i G45 (2024) | road (SUV) | all | 1,980 kg | 393 hp, 580 N m, 8-speed | 3.6 s (real 4.6 s) |
+| KAISER 235 GC (`kaiser_235`) | BMW M235i xDrive Gran Coupe F44 (2019) | road | all | 1,570 kg | 302 hp, 450 N m, 8-speed | 3.8 s (real 4.9 s) |
+| KAISER 2 CARBON (`kaiser_2c`) | BMW M2 G87 with ADRO's carbon kit (2023) | touge (grip) | rear | 1,725 kg | 454 hp, 550 N m, 8-speed | 4.5 s (real 4.1 s) |
+| AFFALTER S EXECUTIVE (`affalter_s`) | Mercedes-Maybach S-Class Z223 (2021), run as the S 680 | road | all | 2,350 kg | 604 hp, 900 N m, 9-speed | 3.2 s (real 4.5 s) |
+| WOKING 800 (`woking_800`) | McLaren Senna (2018) | hypercar | rear | 1,300 kg | 789 hp, 800 N m, 7-speed DCT | 3.6 s (real 2.8 s) |
+| WOKING ONE (`woking_one`) | McLaren P1 (2013) | hypercar | rear | 1,395 kg | 903 hp, 900 N m, 7-speed DCT | 3.6 s (real 2.8 s) |
+
+- **Acceleration against the real cars:** the same pattern as the earlier cars. The heavy
+  four-wheel-drive cars launch hard on the test's gravel pad and beat their real tarmac times by
+  0.4-1.3 s (the Maybach and the BMW X3 most; the RS 6 wagon, KOMBI, already ran 3.1 s against a real 3.6 s).
+  The rear-drive hypercars are traction-bound and 0.7-1.1 s slow (as the 911 GT3 RS, 4.3 s against 3.2 s).
+  The specs are the real ones (power, torque, weight, ratios, top speed); the gap is the test and the
+  tyre model, not the numbers. The torque curves, gear ratios beyond the published ones and the aero are estimates.
+- **Interiors:** thirteen keep their own cabin, the steering wheel cut out to turn about its own
+  column and the eye placed by hand from section views (`tools/cars/<model>.json`, `"cockpit"`). All
+  are automatics or dual clutches, so both hands stay on the wheel. The GT Black Series' cabin is
+  low-detail and its textures aren't linked in the file: it uses the shared road cockpit, and its body
+  has flat colours set for the parts the textures would have covered (`glb_patch`). The P1's wheel was
+  found by measurement (its hub badge and stitching materials) rather than by eye: it is handled as
+  no-AI, checked by scripts only, and left out of screenshots (`--seen_cars_only`).
+- **Badges:** the separate badge parts are dropped on eight of them (`drop_mats`). The 235 GC, the
+  2 CARBON and the 800 still carry theirs, and so do any badges painted into textures (each entry's
+  `limitations` says which).
+- **SIM STREET:** today's performance tyres (0.9-1.04 g), cup tyres for the 600, GT Black, 800 and ONE
+  (1.1-1.2 g); factory ABS and traction control on all fourteen (`catalog.gd`).
+- **Engine sounds:** the existing sets (`v8_turbo`, `v8_sc` for the SLR, `i6_turbo`, `turbo4`).
+- **Skipped:** the 720S Spider (one heavy OBJ whose rims share the body's material, so the wheels
+  can't turn; it would be a third 720S) and the BMW 540i E34 (a 3ds Max `.max` scene only: Blender
+  can't read it). Both are rows in `docs/ASSET_INTEGRATION_STATUS.md`.
+- **Converter (`tools/import_car.py`) fixes:** object names cut to Blender's 63 characters before
+  the wheel and caliper suffixes (long Forza-style names lost their tag, so no wheels were found), and
+  extra UV maps removed by name (removing them by reference crashed on a stale one, the SLR's `MaskUv`).
+- **Tests:** registry, models (all fourteen build, sit on their wheels and pull away), interiors
+  (eye, gloves on the rim, the wheel turning, sleeves), wheels (fit regenerated for the fourteen
+  models), sound and the asset audit pass.
