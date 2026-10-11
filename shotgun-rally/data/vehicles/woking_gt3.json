@@ -1,0 +1,75 @@
+{
+	"id": "woking_gt3",
+	"name": "WOKING 720 GT3",
+	"order": 492,
+	"model": "m720_gt3",
+	"category": "race",
+	"role": "track",
+	"specs": {
+		"power_hp": 580,
+		"weight_kg": 1290,
+		"drivetrain": "RWD",
+		"transmission": "6-speed sequential (paddles)",
+		"wheelbase_mm": 2670,
+		"top_speed_kmh": 285,
+		"front_weight": 0.42,
+		"notes": "McLaren's 720S GT3 (2019 on, here in a customer team's colours): a race-prepared M840T 4.0 twin-turbo V8 behind the driver, a six-speed sequential in place of the road car's seven-speed dual clutch, a Salisbury limited-slip differential (McLaren, evo); the road 720S's 2,670 mm wheelbase. McLaren publishes no GT3 output (balance of performance sets it); ~600 bhp and 1,345 kg are quoted for the later LMGT3 Evo. Run to the APEX GT CHALLENGE's balance of performance (laps CINDER RIDGE within a few tenths of the AFFALTER GT3 on the AI's line: tests/race_ai_check.gd); its torque curve, aero and ratios are estimates."
+	},
+	"garage": {
+		"price": 124000,
+		"engine_sound": "v8_turbo_race",
+		"own_livery": true,
+		"livery": "charge",
+		"number": 720,
+		"colours": [[0.95, 0.45, 0.05], [0.06, 0.06, 0.07], [0.95, 0.95, 0.94], [0.2, 0.5, 0.9]],
+		"wheels": "black",
+		"power": 1.0,
+		"grip": 1.0,
+		"brakes": 1.0,
+		"drive_front": 0.0,
+		"blurb": "A carbon-tubbed GT3 with a twin-turbo V8 behind you and a canopy of glass above: it changes direction like a much smaller car and leaves the hairpins on a wave of boost."
+	},
+	"physics": {
+		"chassis": "track",
+		"mass": 1290.0,
+		"front": 0.42,
+		"torque": 630.0,
+		"curve": [[1500, 0.55], [2500, 0.84], [3500, 1.0], [6000, 1.0], [7000, 0.88], [7500, 0.78]],
+		"idle": 1000.0,
+		"limiter": 7500.0,
+		"turbo": 0.4,
+		"spool": [2000.0, 3400.0],
+		"gears": [2.6, 2.0, 1.6, 1.3, 1.07, 0.89],
+		"final": 3.8,
+		"drive": "rwd",
+		"rear": ["lsd", 0.35, 0.15, 30.0],
+		"cd": 0.44,
+		"area": 1.95,
+		"down": 2.55,
+		"brake": 1.25
+	},
+	"checks": {
+		"zero_100_max": 7.0
+	},
+	"interior": {
+		"own": true,
+		"camera": true,
+		"notes": "The model's race cockpit (cage, carbon tub, seat, the wheel with its screen): its wheel cut out by part inside a box (tools/cars/m720_gt3.json), the eye set by hand; paddles: the hands stay on the wheel."
+	},
+	"source": {
+		"package": "Track_Mode_Cars/GT3/mclaren-720s-gt3-inception-racing.zip.parts",
+		"author": "unknown (the owner's private download: no licence or author in the archive)",
+		"license": "unknown: the owner's private download, used at the owner's request for their own game (2026-10-11)",
+		"url": "",
+		"attribution": ""
+	},
+	"research": [
+		"https://cars.mclaren.com/en/customer-racing/models/720s-gt3",
+		"https://cdn2.evo.co.uk/news/21644/mclaren-reveals-new-720s-based-gt3-race-car",
+		"https://lemansultimate.com/cars/mclaren-720s-lmgt3-evo"
+	],
+	"limitations": [
+		"From the owner's private download batch: kept out of public credit lists; its provenance isn't cleared for redistribution.",
+		"Fictional name; the customer team's livery as modelled. Power, aero and ratios are estimates under the game's balance of performance."
+	]
+}

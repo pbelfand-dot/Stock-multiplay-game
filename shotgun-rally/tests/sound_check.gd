@@ -189,6 +189,21 @@ func _types() -> void:
 		sets.append("%s %s" % [k[0], d.set])
 		right = right and d.set == k[1]
 	fails += _check(right, "each engine type its own set: %s" % ", ".join(sets))
+	# every engine type there is runs on its set, and every car in the registry names one of them
+	var wrong := []
+	for k in EngineSound.ENGINES:
+		var e: Dictionary = EngineSound.ENGINES[k]
+		var want: String = "ev" if e.get("electric", false) else str(EngineSound.SETS[e.set].dir)
+		var d := _drive(k, 0.5, 0.5, 10.0, 2)
+		if d.set != want:
+			wrong.append("%s on %s" % [k, d.set])
+	var Registry = load("res://scripts/game/vehicle_registry.gd")
+	for e in Registry.all():
+		var snd := str(e.get("garage", {}).get("engine_sound", ""))
+		if snd != "" and not EngineSound.ENGINES.has(snd):        # (none: traffic, the catalog's default)
+			wrong.append("%s names '%s'" % [e.id, snd])
+	fails += _check(wrong.is_empty(), "every engine type (%d) runs on its own set, and every car that names one names a real one%s" % [
+		EngineSound.ENGINES.size(), "" if wrong.is_empty() else " (" + ", ".join(wrong) + ")"])
 	var lim := _drive("wrc", 1.0, 1.0, 30.0, 120)
 	fails += _check(lim.cut_on > 10 and lim.cut_off > 10 and lim.limiter > 0.9,
 		"flat out on the limiter it bounces (cut %d ticks, firing %d of 89) and the limiter loop is in (%.2f)" % [lim.cut_on, lim.cut_off, lim.limiter])

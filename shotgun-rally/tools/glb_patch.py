@@ -14,6 +14,8 @@ changes (a regex, matched against the GLB's material names):
   * "emissive_strength": k: how bright the glow is (KHR_materials_emissive_strength; 1: plain)
   * "color": [r, g, b] or [r, g, b, a]: the colour factor
   * "no_base_texture": true: the colour texture dropped (the factor alone)
+  * "no_uv_transform": true: the colour texture's KHR_texture_transform dropped (Blender's re-export
+    hung another map's tiling on it: the CLK DTM's livery sampled at 3 % of its size, one black corner)
   * "alpha": "OPAQUE" / "MASK" / "BLEND" (+ "cutoff" for MASK)
   * "double_sided": true / false
   * "no_occlusion": true: the occlusion map dropped (a rip whose packed map's red channel
@@ -75,6 +77,10 @@ def apply(path, patch):
                 pbr["baseColorFactor"] = c + [pbr.get("baseColorFactor", [1, 1, 1, 1])[3]] if len(c) == 3 else c
             if ch.get("no_base_texture"):
                 pbr.pop("baseColorTexture", None)
+            if ch.get("no_uv_transform") and "baseColorTexture" in pbr:
+                pbr["baseColorTexture"].get("extensions", {}).pop("KHR_texture_transform", None)
+                if not pbr["baseColorTexture"].get("extensions", True):
+                    pbr["baseColorTexture"].pop("extensions")
             if "alpha" in ch:
                 if ch["alpha"] == "OPAQUE":
                     m.pop("alphaMode", None)

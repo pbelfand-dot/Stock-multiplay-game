@@ -186,6 +186,8 @@ func _rebuild() -> void:
 		content.custom_minimum_size = Vector2(0, 120)
 		_body.add_child(content)
 		match _tab:
+			"paint", "livery" when bool(car.get("own_livery", false)):
+				content.add_child(UI.label("It races in its own team livery, as it came: there's no paint to change.", 18, UI.DIM))
 			"paint": _paint(content, setup)
 			"livery": _liveries(content, setup)
 			"wheels": _wheels(content, setup)

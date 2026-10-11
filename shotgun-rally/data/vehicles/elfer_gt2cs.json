@@ -1,0 +1,73 @@
+{
+	"id": "elfer_gt2cs",
+	"name": "ELFER GT2 CS",
+	"order": 494,
+	"model": "gt2rs_cs",
+	"category": "race",
+	"role": "track",
+	"specs": {
+		"power_hp": 700,
+		"weight_kg": 1390,
+		"drivetrain": "RWD",
+		"transmission": "7-speed dual clutch (PDK)",
+		"wheelbase_mm": 2457,
+		"top_speed_kmh": 300,
+		"front_weight": 0.39,
+		"notes": "Porsche Motorsport's 911 GT2 RS Clubsport (991.2, 2019, 200 built): the road GT2 RS's 3.8 twin-turbo flat-six at 515 kW (700 hp), a rigidly mounted seven-speed PDK, about 1,390 kg with ABS and traction control, a 2,457 mm wheelbase, 4,743 mm long (Porsche's press kit). A track-day racer outside the GT3 rules; in the APEX GT CHALLENGE it runs to the class's balance of performance (laps CINDER RIDGE within a few tenths of the AFFALTER GT3); its torque curve, aero and ratios are estimates."
+	},
+	"garage": {
+		"price": 128000,
+		"engine_sound": "flat6_turbo_race",
+		"livery": "comet",
+		"number": 700,
+		"colours": [[0.95, 0.95, 0.94], [0.85, 0.1, 0.12], [0.06, 0.06, 0.07], [0.6, 0.6, 0.62]],
+		"wheels": "black",
+		"power": 1.0,
+		"grip": 1.0,
+		"brakes": 1.0,
+		"drive_front": 0.0,
+		"blurb": "Seven hundred horsepower over the rear axle and a gearbox that never misses a shift: the fastest thing in a straight line here, and the one that bites if you lift mid-corner."
+	},
+	"physics": {
+		"chassis": "track",
+		"mass": 1390.0,
+		"front": 0.39,
+		"torque": 690.0,
+		"curve": [[1500, 0.55], [2500, 0.85], [3500, 1.0], [5500, 1.0], [6500, 0.9], [7200, 0.8]],
+		"idle": 1000.0,
+		"limiter": 7200.0,
+		"turbo": 0.45,
+		"spool": [2000.0, 3500.0],
+		"gears": [3.91, 2.29, 1.65, 1.3, 1.08, 0.88, 0.62],
+		"final": 3.4,
+		"drive": "rwd",
+		"rear": ["lsd", 0.35, 0.15, 30.0],
+		"cd": 0.45,
+		"area": 2.0,
+		"down": 2.3,
+		"brake": 1.25
+	},
+	"checks": {
+		"zero_100_max": 7.0
+	},
+	"interior": {
+		"own": true,
+		"camera": true,
+		"notes": "The model's race cockpit (cage, bucket seat, nets, the wheel): its wheel cut out of the interior material inside a box (tools/cars/gt2rs_cs.json), the column axis given (the cut's shape misleads); PDK paddles: the hands stay on the wheel."
+	},
+	"source": {
+		"package": "Track_Mode_Cars/GT3/2018-porsche-911-gt2-rs-clubsport.zip",
+		"author": "unknown (the owner's private download: no licence or author in the archive)",
+		"license": "unknown: the owner's private download, used at the owner's request for their own game (2026-10-11)",
+		"url": "",
+		"attribution": ""
+	},
+	"research": [
+		"https://newsroom.porsche.com/en_AU/motorsports/media-guide/race-cars/porsche-911-gt2-rs-clubsport.html",
+		"https://www.stuttcars.com/porsche-911-gt2-rs-clubsport-race-991-2-2021-specifications-performance/"
+	],
+	"limitations": [
+		"From the owner's private download batch: kept out of public credit lists; its provenance isn't cleared for redistribution.",
+		"Fictional name and no real badges (the badge material dropped); power, aero and ratios are estimates under the game's balance of performance."
+	]
+}

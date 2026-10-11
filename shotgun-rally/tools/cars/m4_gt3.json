@@ -1,0 +1,8 @@
+{"id": "m4_gt3", "pre_scale": 100, "front": "-Y", "wheelbase": 2.917,
+ "wheel_mats": ["_Wheel1A_3D"], "caliper_mats": ["Calliper"],
+ "paint": ["Paint_Material$"], "glass": ["Window_Material$"],
+ "drop_mats": ["BadgeA_Material$"],
+ "materials": [["Window_Material$", "glass"], ["^RED_GLASS$", "red_lens"]],
+ "wheel_faces": 12000, "caliper_faces": 3000, "body_faces": 140000, "body_least": 0.3, "tex_max": 1024, "tex_format": "webp",
+ "decimate_parts": [["^interior:Interior", 0.45]],
+ "cockpit": {"gearbox": "seq", "eye": [-0.31, -0.4, 1.06], "wheel": {"mats": ["InteriorA_Material$", "Textured2A_Material$"], "box": [-0.52, -0.1, -0.16, 0.04, 0.55, 1.0], "cut": true}}}

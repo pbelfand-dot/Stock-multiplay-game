@@ -1,0 +1,7 @@
+{"id": "gt2rs_cs", "pre_scale": 100, "front": "-Y", "wheelbase": 2.457,
+ "wheel_mats": ["_Wheel1A"], "caliper_mats": ["_Callipe"],
+ "paint": ["PaintA_M"], "glass": ["Window_M"],
+ "drop_mats": ["BadgeA_M"],
+ "materials": [["Window_M", "glass"], ["^red_glass$", "red_lens"]],
+ "wheel_faces": 12000, "caliper_faces": 3000, "body_faces": 120000, "body_least": 0.3, "tex_max": 1024, "tex_format": "webp",
+ "cockpit": {"gearbox": "seq", "wheel": {"mats": ["Interior"], "box": [-0.55, -0.12, 0.13, 0.3, 0.66, 0.98], "cut": true, "axis": [0.0, -0.9, 0.44], "radius": 0.17}}}

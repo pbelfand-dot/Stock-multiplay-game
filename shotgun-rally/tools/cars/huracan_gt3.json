@@ -1,0 +1,7 @@
+{"id": "huracan_gt3", "pre_scale": 100, "front": "+X", "wheelbase": 2.645,
+ "wheel": ["^Wheel-Rim", "^Wheel-Hub", "^Tire_"], "caliper": ["^Wheel-Caliper"],
+ "glass": ["^GLASS$"], "materials": [["^GLASS$", "glass"]],
+ "wheel_faces": 12000, "caliper_faces": 3000, "body_faces": 150000, "body_least": 0.15, "tex_max": 1024, "tex_format": "webp",
+ "decimate_parts": [["^Body-Fasteners", 0.12], ["^Body-Hoodpin", 0.2], ["^Body-CarbonFiber", 0.35], ["^Body-EngineCover", 0.35], ["^Interior-", 0.3]],
+ "cockpit": {"gearbox": "seq", "eye": [-0.32, 0.0, 0.91],
+  "wheel": {"box": [-0.58, -0.14, 0.38, 0.62, 0.55, 0.98], "axis": [0.0, -0.94, 0.34], "radius": 0.14}}}

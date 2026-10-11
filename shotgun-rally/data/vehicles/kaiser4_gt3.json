@@ -1,0 +1,73 @@
+{
+	"id": "kaiser4_gt3",
+	"name": "KAISER 4 GT3",
+	"order": 490,
+	"model": "m4_gt3",
+	"category": "race",
+	"role": "track",
+	"specs": {
+		"power_hp": 590,
+		"weight_kg": 1300,
+		"drivetrain": "RWD",
+		"transmission": "6-speed sequential transaxle (paddles)",
+		"wheelbase_mm": 2917,
+		"top_speed_kmh": 285,
+		"front_weight": 0.5,
+		"notes": "BMW M Motorsport's M4 GT3 (2022 on): the 3.0 P58 twin-turbo straight six, up to 590 hp subject to balance of performance, a straight-cut six-speed Xtrac sequential transaxle (from the M8 GTE's), a 2,917 mm wheelbase (BMW's press data; 2,901 mm for the M6 GT3 before it). Race weight given as 1,285-1,339 kg depending on the source and the rules; 1,300 kg here. Run to the APEX GT CHALLENGE's balance of performance (laps CINDER RIDGE within a few tenths of the AFFALTER GT3 on the AI's line: tests/race_ai_check.gd); its torque curve, aero and ratios are estimates."
+	},
+	"garage": {
+		"price": 118000,
+		"engine_sound": "i6_turbo_race",
+		"livery": "stripes",
+		"number": 98,
+		"colours": [[0.95, 0.95, 0.96], [0.1, 0.25, 0.6], [0.85, 0.1, 0.12], [0.06, 0.06, 0.07]],
+		"wheels": "black",
+		"power": 1.0,
+		"grip": 1.0,
+		"brakes": 1.0,
+		"drive_front": 0.0,
+		"blurb": "A big-kidneyed GT3 with a twin-turbo straight six and a long wheelbase: planted in fast corners, brutal on the brakes, and it needs a patient right foot out of hairpins."
+	},
+	"physics": {
+		"chassis": "track",
+		"mass": 1300.0,
+		"front": 0.5,
+		"torque": 720.0,
+		"curve": [[1500, 0.62], [2500, 0.88], [3500, 1.0], [5500, 1.0], [6500, 0.9], [7100, 0.8]],
+		"idle": 1000.0,
+		"limiter": 7100.0,
+		"turbo": 0.35,
+		"spool": [1800.0, 3200.0],
+		"gears": [2.7, 2.05, 1.62, 1.31, 1.08, 0.9],
+		"final": 3.55,
+		"drive": "rwd",
+		"rear": ["lsd", 0.35, 0.15, 30.0],
+		"cd": 0.44,
+		"area": 2.05,
+		"down": 2.6,
+		"brake": 1.25
+	},
+	"checks": {
+		"zero_100_max": 7.0
+	},
+	"interior": {
+		"own": true,
+		"camera": true,
+		"notes": "The model's race cockpit (cage, carbon dash, bucket seat, the wheel with its screen): its wheel cut out by material inside a box (tools/cars/m4_gt3.json), the eye set by hand (the seat probe hit the headrest's wings); paddles: the hands stay on the wheel."
+	},
+	"source": {
+		"package": "Track_Mode_Cars/GT3/2022-bmw-m4-gt3.zip",
+		"author": "unknown (the owner's private download: no licence or author in the archive)",
+		"license": "unknown: the owner's private download, used at the owner's request for their own game (2026-10-11)",
+		"url": "",
+		"attribution": ""
+	},
+	"research": [
+		"https://www.press.bmwgroup.com/canada/article/attachment/T0334415EN/481541",
+		"https://www.thegentlemanracer.com/2021/06/the-new-bmw-m4-gt3.html"
+	],
+	"limitations": [
+		"From the owner's private download batch: kept out of public credit lists; its provenance isn't cleared for redistribution.",
+		"Fictional name and no real badges (the badge material dropped); power, aero and ratios are estimates under the game's balance of performance."
+	]
+}

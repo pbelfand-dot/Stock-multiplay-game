@@ -3,9 +3,10 @@
 MODES > **TRACK** has two classes:
 
 - **GT** (APEX GT CHALLENGE): closed-wheel GT3 cars with ABS and traction control; rolling starts. The
-  ELFER R, ELFER EVO, AFFALTER GT3, HALDANE GT3, VESPERA GT3, VALKO GT4 and STILETTO CUP.
+  ELFER R, ELFER EVO, AFFALTER GT3, HALDANE GT3, VESPERA GT3, VALKO GT4, STILETTO CUP, KAISER 4 GT3,
+  TEMPESTA GT3, WOKING 720 GT3, ELFER GT2 CS and AFFALTER CLK DTM.
 - **FORMULA** (FORMULA APEX): open-wheel single-seaters with no ABS or traction control, DRS and a
-  hybrid; standing starts. The ORION FA1 and the ZEPHYR GE (below).
+  hybrid; standing starts. The ORION FA1, ZEPHYR GE, TORO R26, VEE-F 26 and AFFALTER W17 (below).
 
 Each runs four sessions on CINDER RIDGE:
 
@@ -196,6 +197,11 @@ The cars (the owner's CC0 models, at their own size):
 - **ORION FA1:** the halo open-wheeler, a 3,250 mm wheelbase: the shorter, the more agile.
 - **ZEPHYR GE:** the ground-effect car, 3,575 mm (the rules allowed up to 3,600): more downforce,
   a little more drag.
+- **TORO R26, VEE-F 26, AFFALTER W17:** three 2026-shape cars from the owner's private download batch
+  (3,400 mm, the 2026 rules' maximum), with their own cockpits: the model's steering wheel (screen, rev
+  and hybrid lights) cut out and turning, the halo, the belts. Run to FORMULA APEX's rules (800 kg, the
+  120 kW MGU-K, DRS) rather than the real 2026 ones (768 kg, 350 kW, active aero), so the five race evenly:
+  on the AI's line 79.1-79.6 s a lap (ORION 79.4).
 
 Their cockpits: a race wheel made for each (a carbon yoke, two grips, a screen: the converter's
 `"add"`), the driver alone and lying back (no co-driver, no map board, no windshield), the helmet up
@@ -239,6 +245,15 @@ VESPERA GT3 (mid-engined twin-turbo V6), VALKO GT4 (a GT4 built up to the GT3s) 
 rear-engined cup car). They have no cabins of their own (low-poly, tinted glass): from inside, the
 shared cockpit.
 
+Five more from the owner's private download batch, each with its own race cockpit (cage, seat, the
+wheel cut out and turning, the eye placed by hand where the seat probe was fooled by headrest wings or a
+cage) and its own engine sound (`engine_sound.gd`: V10, twin-turbo V8, twin-turbo six, flat six, a DTM
+V8): KAISER 4 GT3 (front-engined twin-turbo six), TEMPESTA GT3 (mid-engined V10), WOKING 720 GT3
+(mid-engined twin-turbo V8), ELFER GT2 CS (a 700 hp rear-engined track-day car, pegged back) and
+AFFALTER CLK DTM (a 2002 touring-car silhouette, lighter and given the GT3s' slicks). Balanced on the
+AI's line to the class: the whole grid laps in 99.4-101.0 s (CINDER RIDGE, SIM STREET's slicks). Two
+more GT3 sources in the batch were the same cars again (an AMG GT3 and a 720S GT3): kept, not used.
+
 ## The pits and the marshals
 
 The owner's 14 CC0 track props (`assets/environment_runtime/props/track_props.glb`), placed by
@@ -263,6 +278,6 @@ field sorting itself out round it isn't passing under one: the start's own chaos
 
 - online races (the grid, lights, flags, penalties and results synced from the host);
 - a pit strategy screen;
-- GT and Formula engine sounds of their own;
+- engine sounds of their own for the CC0 GT and Formula cars (the batch's GT cars have theirs);
 - broadcast cameras and championships;
 - the wet preset.

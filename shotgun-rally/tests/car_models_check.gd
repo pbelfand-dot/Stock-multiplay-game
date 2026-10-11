@@ -126,8 +126,9 @@ func _standing(id: String) -> void:
 			if body.get_surface_override_material(s) is ShaderMaterial:
 				paint = true
 	var spec: Dictionary = car.CarSpecs.SPECS[car.model_id] if car.CarSpecs.SPECS.has(car.model_id) else {}
-	fails += _check(ok and paint and is_equal_approx(car.mass, float(spec.get("mass", -1.0))),
-		"%s: built with its own body (%s), painted (%s), its own weight (%d kg)" % [id, car.model_id, paint, car.mass])
+	var own_livery: bool = bool(Catalog.car(id).get("own_livery", false))   # (its team livery kept: nothing to paint)
+	fails += _check(ok and (paint or own_livery) and is_equal_approx(car.mass, float(spec.get("mass", -1.0))),
+		"%s: built with its own body (%s), painted (%s), its own weight (%d kg)" % [id, car.model_id, "its own livery" if own_livery else str(paint), car.mass])
 	if not ok:
 		return
 	var worst := 0.0

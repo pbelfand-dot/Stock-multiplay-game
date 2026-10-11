@@ -60,6 +60,14 @@ const ENGINES := {
 	# an F1-derived turbo-hybrid V6 (AMG ONE): the 458's high-revving loops, a turbo's whistle,
 	# a racing gearbox's whine and the race tone
 	"f1_hybrid": {"set": "v8", "turbo": 0.6, "sc": 0.0, "anti_lag": false, "pops": 0.2, "bov": false, "whine": 0.6, "bang": true, "tone": "race"},
+	# the GT race engines: a racing gearbox's whine, the shift's cut and bang (sequentials), the race tone.
+	# A naturally aspirated V10 (the 458's high-revving loops, no turbo), a 2002 DTM V8 (the same, a
+	# louder crackle off the throttle), twin-turbo V8 / straight six / flat six (each set with a turbo's hush)
+	"v10_race": {"set": "v8", "turbo": 0.0, "sc": 0.0, "anti_lag": false, "pops": 0.35, "bov": false, "whine": 0.5, "bang": true, "tone": "race"},
+	"v8_race": {"set": "v8", "turbo": 0.0, "sc": 0.0, "anti_lag": false, "pops": 0.5, "bov": false, "whine": 0.6, "bang": true, "tone": "race"},
+	"v8_turbo_race": {"set": "v8", "turbo": 0.4, "sc": 0.0, "anti_lag": false, "pops": 0.3, "bov": false, "whine": 0.5, "bang": true, "tone": "race"},
+	"i6_turbo_race": {"set": "six", "turbo": 0.4, "sc": 0.0, "anti_lag": false, "pops": 0.3, "bov": false, "whine": 0.5, "bang": true, "tone": "race"},
+	"flat6_turbo_race": {"set": "six", "turbo": 0.5, "sc": 0.0, "anti_lag": false, "pops": 0.25, "bov": true, "whine": 0.4, "bang": false, "tone": "race"},
 	# an electric car (Honda e): no engine at all. Its motor's whine (made here: a few
 	# harmonics, rising with its revs, louder pulling than coasting on the regen), the
 	# inverter's faint high tone and the single-speed reduction gear's hum (the whine)

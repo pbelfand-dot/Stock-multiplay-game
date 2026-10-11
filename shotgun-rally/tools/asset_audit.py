@@ -43,6 +43,8 @@ TEXTURES = "Texture set"
 # without ".parts/...").
 NOTES = {
     # cars
+    "car_packages/Track_Mode_Cars/GT3/mercedes-amg-gt3-wwwvecarzcom.zip": (ALTERNATE, "a second Mercedes-AMG GT3 Evo (source/amg_evo_3.glb, a vecarz upload): the AFFALTER GT3 (affalter) already runs a detailed model of the same car, with its cockpit (mercedes-amg-gt3-red-bull-racing.zip). Kept as the source to fall back on", ""),
+    "car_packages/Track_Mode_Cars/GT3/mclaren-gt3.zip": (ALTERNATE, "a second McLaren 720S GT3 (source/McLaren720sGT3.zip inside: a nested glTF): the WOKING 720 GT3 (woking_gt3) runs the Inception Racing upload of the same car (mclaren-720s-gt3-inception-racing.zip). Kept as the source to fall back on", ""),
     "car_packages/bmw-m4-widebody-wwwvecarzcom.zip": (DUPLICATE, "the same file as bmw-m4-modified-widebody.zip (SHA-256 751c816b...): one car, KAISER 4 WB (kaiser_4)", "m4_widebody"),
     "car_packages/free-hyper-realistic-bmw-m8-competition-model.zip": (ALTERNATE, "a second M8 Competition (USDZ, 1.19M triangles; part names suggest a Forza extraction); KAISER 8 (kaiser_8) uses bmw-m8-f92-coupe-competition (1).zip, which imports directly. Blender here has no USD import", "m8_f92"),
     "car_packages/porsche-992-gt3-rs.zip": (ALTERNATE, "the second GT3 RS package (a GTA-style port, uncoloured panels); ELFER RS (elfer_rs) uses porsche-992-gt3-rs-2024.zip", "gt3rs_992"),

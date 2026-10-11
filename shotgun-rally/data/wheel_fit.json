@@ -275,6 +275,28 @@
     "why": "the tyre touches the body: 98 points, front left, straight, full bump"
    }
   },
+  "clk_dtm": {
+   "strada_5": {
+    "ok": true,
+    "clear_mm": 17.0,
+    "why": ""
+   },
+   "torre_10": {
+    "ok": true,
+    "clear_mm": 17.0,
+    "why": ""
+   },
+   "kaze_split": {
+    "ok": true,
+    "clear_mm": 17.0,
+    "why": ""
+   },
+   "apex_cl6": {
+    "ok": true,
+    "clear_mm": 17.0,
+    "why": ""
+   }
+  },
   "cup_coupe": {
    "strada_5": {
     "ok": true,
@@ -445,6 +467,27 @@
     "why": ""
    }
   },
+  "f1_argento": {
+   "formula_18": {
+    "ok": true,
+    "clear_mm": 0.0,
+    "why": ""
+   }
+  },
+  "f1_crest": {
+   "formula_18": {
+    "ok": true,
+    "clear_mm": 0.0,
+    "why": ""
+   }
+  },
+  "f1_toro": {
+   "formula_18": {
+    "ok": true,
+    "clear_mm": 0.0,
+    "why": ""
+   }
+  },
   "formula_ge": {
    "formula_18": {
     "ok": true,
@@ -494,6 +537,28 @@
     "ok": false,
     "clear_mm": 1.7,
     "why": "the tyre touches the body: 25 points, front right, full lock, at ride height"
+   }
+  },
+  "gt2rs_cs": {
+   "strada_5": {
+    "ok": true,
+    "clear_mm": 8.5,
+    "why": ""
+   },
+   "torre_10": {
+    "ok": true,
+    "clear_mm": 8.5,
+    "why": ""
+   },
+   "kaze_split": {
+    "ok": true,
+    "clear_mm": 8.5,
+    "why": ""
+   },
+   "apex_cl6": {
+    "ok": true,
+    "clear_mm": 8.5,
+    "why": ""
    }
   },
   "gt3r_992": {
@@ -739,6 +804,28 @@
     "why": "the tyre touches the body: 933 points, front left, straight, full bump"
    }
   },
+  "huracan_gt3": {
+   "strada_5": {
+    "ok": true,
+    "clear_mm": 0.0,
+    "why": ""
+   },
+   "torre_10": {
+    "ok": true,
+    "clear_mm": 0.0,
+    "why": ""
+   },
+   "kaze_split": {
+    "ok": true,
+    "clear_mm": 0.0,
+    "why": ""
+   },
+   "apex_cl6": {
+    "ok": true,
+    "clear_mm": 0.0,
+    "why": ""
+   }
+  },
   "id4": {
    "strada_5": {
     "ok": true,
@@ -924,6 +1011,28 @@
     "why": "the tyre touches the body: 39 points, front left, half lock, half bump"
    }
   },
+  "m4_gt3": {
+   "strada_5": {
+    "ok": true,
+    "clear_mm": 0.0,
+    "why": ""
+   },
+   "torre_10": {
+    "ok": true,
+    "clear_mm": 0.0,
+    "why": ""
+   },
+   "kaze_split": {
+    "ok": true,
+    "clear_mm": 0.0,
+    "why": ""
+   },
+   "apex_cl6": {
+    "ok": true,
+    "clear_mm": 0.0,
+    "why": ""
+   }
+  },
   "m4_widebody": {
    "strada_5": {
     "ok": true,
@@ -996,6 +1105,28 @@
     "ok": false,
     "clear_mm": 0.0,
     "why": "the tyre touches the body: 920 points, front left, half lock, half bump"
+   }
+  },
+  "m720_gt3": {
+   "strada_5": {
+    "ok": true,
+    "clear_mm": 0.6,
+    "why": ""
+   },
+   "torre_10": {
+    "ok": true,
+    "clear_mm": 0.6,
+    "why": ""
+   },
+   "kaze_split": {
+    "ok": true,
+    "clear_mm": 0.6,
+    "why": ""
+   },
+   "apex_cl6": {
+    "ok": true,
+    "clear_mm": 0.6,
+    "why": ""
    }
   },
   "m8_f92": {

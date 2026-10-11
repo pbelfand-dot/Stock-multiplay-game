@@ -1,0 +1,6 @@
+{"id": "m720_gt3", "front": "-Y", "wheelbase": 2.67,
+ "wheel": ["^Object_(149|151|153|155|157|159|165|167|169|171|173|175|181|183|185|187|189|191|197|199|201|203|205|207)$"],
+ "caliper": ["^Object_(161|177|193|209)$"],
+ "glass": ["^Glass$"], "materials": [["^Glass$", "glass"]],
+ "wheel_faces": 12000, "caliper_faces": 2000, "body_faces": 150000, "body_least": 0.2, "tex_max": 1024, "tex_format": "webp",
+ "cockpit": {"gearbox": "seq", "eye": [-0.28, 0.0, 0.97], "wheel": {"box": [-0.45, -0.1, 0.25, 0.5, 0.55, 0.9]}}}

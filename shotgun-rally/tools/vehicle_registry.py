@@ -11,7 +11,8 @@ An entry (only "id", "name" and "order" are required; see docs/vehicles.md):
   "" = the shared Higgsfield body), category, role, real {manufacturer, model, year, trim,
   race_class}, specs {power_hp, weight_kg, drivetrain, transmission, wheelbase_mm,
   top_speed_kmh, front_weight}, garage {price, engine_sound, livery, number, colours, wheels,
-  power, grip, brakes, drive_front, blurb, mass} (absent: not in the garage), traffic
+  power, grip, brakes, drive_front, blurb, mass, own_livery (its model's team livery kept: no paint)}
+  (absent: not in the garage), traffic
   {weight, paints} (absent: never traffic), physics (CarSpecs: see car_specs.gd), interior
   {own, camera, notes}, driver_seat {overrides}, source {package, file, author, license,
   url, attribution}, research [urls], limitations [text], checks {zero_100_max: s, the

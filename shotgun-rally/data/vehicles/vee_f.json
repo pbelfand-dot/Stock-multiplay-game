@@ -1,0 +1,87 @@
+{
+	"id": "vee_f",
+	"name": "VEE-F 26",
+	"order": 523,
+	"model": "f1_crest",
+	"category": "race",
+	"role": "formula",
+	"real": {
+		"manufacturer": "Cadillac",
+		"model": "MAC-26 (2026, as modelled)",
+		"year": 2026,
+		"trim": "Formula 1 car",
+		"race_class": "F1 2026"
+	},
+	"specs": {
+		"power_hp": 950,
+		"weight_kg": 800,
+		"drivetrain": "RWD",
+		"transmission": "8-speed seamless sequential (paddles)",
+		"wheelbase_mm": 3400,
+		"top_speed_kmh": 340,
+		"front_weight": 0.455,
+		"notes": "A 2026-shape Formula car, run here to FORMULA APEX's balanced rules (the class's: 800 kg, a 120 kW MGU-K, DRS; see docs/track_racing.md) so it races the ORION and ZEPHYR evenly. The real 2026 rules it was drawn to: 768 kg, a 3,400 mm maximum wheelbase (this model's exactly), 1,900 mm wide, a 350 kW MGU-K and no MGU-H, active aero instead of DRS (Honda's 2026 regulations overview, F1Technical's 2026 numbers). Power, torque, ratios and aero are the class's estimates."
+	},
+	"garage": {
+		"price": 260000,
+		"engine_sound": "f1_hybrid",
+		"livery": "two_tone",
+		"number": 11,
+		"colours": [[0.05, 0.05, 0.06], [0.92, 0.92, 0.9], [0.8, 0.65, 0.25], [0.6, 0.6, 0.62]],
+		"wheels": "black",
+		"power": 1.0,
+		"grip": 1.0,
+		"brakes": 1.0,
+		"drive_front": 0.0,
+		"blurb": "The new team's 2026 car: black, white and gold, built to be stable and kind to its tyres over a stint."
+	},
+	"physics": {
+		"chassis": "formula",
+		"mass": 800.0,
+		"front": 0.455,
+		"torque": 540.0,
+		"curve": [[3000, 0.45], [6000, 0.74], [8000, 0.88], [10500, 1.0], [12000, 0.875], [12500, 0.84]],
+		"idle": 4000.0,
+		"limiter": 12500.0,
+		"turbo": 0.0,
+		"gears": [4.07, 3.1, 2.5, 2.08, 1.77, 1.53, 1.35, 1.2],
+		"final": 4.0,
+		"drive": "rwd",
+		"rear": ["lsd", 0.3, 0.2, 40.0],
+		"cd": 0.82,
+		"area": 1.5,
+		"down": 5.2,
+		"balance": 0.45,
+		"brake": 5.5,
+		"bias": 0.57,
+		"shift": 0.02,
+		"ers": 120.0,
+		"ai_grip": 0.94
+	},
+	"checks": {
+		"zero_100_max": 7.0
+	},
+	"interior": {
+		"own": true,
+		"camera": true,
+		"notes": "The model's own cockpit: its steering wheel (screen, rev and KERS lights) cut out by material, belts, halo; the driver lying back."
+	},
+	"source": {
+		"package": "Track_Mode_Cars/Formula/2026-cadillac-mac-26.zip",
+		"author": "unknown (the owner's private download: no licence or author in the archive)",
+		"license": "unknown: the owner's private download, used at the owner's request for their own game (2026-10-11)",
+		"url": "",
+		"attribution": ""
+	},
+	"research": [
+		"https://global.honda/en/F1/features/2026_Commentary/regulations/",
+		"https://www.f1technical.net/news/28110",
+		"https://www.mclaren.com/racing/formula-1/2025/mcl39-technical-specification/",
+		"https://en.wikipedia.org/wiki/Drag_reduction_system"
+	],
+	"limitations": [
+		"Provenance: its textures are named like an Assetto Corsa mod's ('AC_black', 'gp21_cinture', 'kers_blue'): likely a game-mod port. The owner chose to use it for their private game.",
+		"Its team livery, decals and race number are gone (the paint is the game's, the decals dropped); the tyre sidewalls keep their maker's lettering.",
+		"Raced to FORMULA APEX's balanced rules, not the real 2026 ones (see specs.notes)."
+	]
+}

@@ -76,6 +76,8 @@ static func garage_cars() -> Array:
 			c["model"] = str(e.model)
 		if g.has("mass"):
 			c["mass"] = float(g.mass)
+		if bool(g.get("own_livery", false)):
+			c["own_livery"] = true                    # (its model's race livery kept: nothing to paint)
 		out.append(c)
 	return out
 
