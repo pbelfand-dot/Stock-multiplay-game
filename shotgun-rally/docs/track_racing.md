@@ -234,8 +234,8 @@ The circuit's three zones, each with a detection point before it (`data/maps/cin
   sheds 18 % of the drag and 13 % of the rear axle's downforce.
 - **The AI** opens it whenever it may, flat out; the far cars (RaceField's cheap mode) get its gain too.
 
-Measured (tests/race_ai_check.gd): down the pit straight 307 km/h with DRS shut and the hybrid off,
-322 with both (+15 km/h).
+Measured (tests/race_ai_check.gd, the TORO R26): down the pit straight 296 km/h with DRS shut and the
+hybrid off, 322 with both (+26 km/h).
 
 ### The hybrid (ERS)
 
