@@ -1,0 +1,147 @@
+{
+ "id": "g20_320i",
+ "front": "-X",
+ "wheelbase": 2.851,
+ "wheel": [
+  "^Object_(6[5-9]|7[0-3]|7[5-9]|8[0-3]|8[5-9]|9[0-3]|9[5-9]|10[0-3])(\\.\\d+)?$"
+ ],
+ "caliper": [
+  "^Object_(47|49|51|52)(\\.\\d+)?$"
+ ],
+ "rename": [
+  [
+   "^emit_red$",
+   "taillight_emit"
+  ],
+  [
+   "^exterior_glass_clear_red$",
+   "taillight_lens"
+  ],
+  [
+   "^tailights_red_part$",
+   "taillight_red"
+  ],
+  [
+   "^exterior_glass_clear$",
+   "headlight_lens"
+  ]
+ ],
+ "drop_mats": [
+  "^bmw_logo"
+ ],
+ "drop_boxes": [
+  {
+   "box": [
+    -0.62,
+    -0.34,
+    -2.65,
+    -2.05,
+    0.88,
+    1.0
+   ],
+   "mats": [
+    ".*"
+   ],
+   "whole": true
+  },
+  {
+   "box": [
+    0.3,
+    0.56,
+    -2.65,
+    -2.05,
+    0.88,
+    1.0
+   ],
+   "mats": [
+    ".*"
+   ],
+   "whole": true
+  },
+  {
+   "box": [
+    -0.08,
+    0.08,
+    -2.65,
+    -2.05,
+    0.88,
+    1.03
+   ],
+   "mats": [
+    ".*"
+   ],
+   "whole": true
+  },
+  {
+   "box": [
+    -0.08,
+    0.08,
+    1.9,
+    2.45,
+    0.7,
+    0.95
+   ],
+   "mats": [
+    ".*"
+   ],
+   "whole": true
+  }
+ ],
+ "paint": [
+  "^body_color$",
+  "^exterior_body$"
+ ],
+ "glass": [
+  "^exterior_glass_tinted$"
+ ],
+ "rims": [
+  "^exterior_chrome_rough\\.002$"
+ ],
+ "glow": [
+  [
+   "^emit_headlights$",
+   1.0
+  ],
+  [
+   "^taillight_emit$",
+   1.0
+  ]
+ ],
+ "wheel_faces": 12000,
+ "caliper_faces": 2500,
+ "body_faces": 200000,
+ "body_least": 0.1,
+ "tex_max": 1024,
+ "tex_format": "webp",
+ "cockpit": {
+  "gearbox": "auto",
+  "eye": [
+   -0.4,
+   -0.3,
+   1.19
+  ],
+  "wheel": {
+   "mats": [
+    "^interior_",
+    "^chrome_interior$",
+    "^design_interior$",
+    "^texture_interior$"
+   ],
+   "box": [
+    -0.6,
+    -0.2,
+    0.15,
+    0.335,
+    0.66,
+    1.07
+   ],
+   "cut": true,
+   "axis": [
+    0.0,
+    -0.96,
+    0.27
+   ],
+   "radius": 0.16
+  }
+ }
+}

@@ -319,6 +319,10 @@ on the wheel), left-hand drive:
 
 Their chassis: `sport_suv` (URSA, 3X), `sport` (the rest).
 
+And one more from the internet batch: **KAISER 320**, a 2023 BMW 320i xDrive saloon (G20) with its own
+interior, an automatic, left-hand drive, on the `road` chassis (details: `docs/VEHICLE_REPORT.md`,
+"The BMW 320i").
+
 ## Suspension: how the road cars lean (October 2026)
 
 The road cars (every chassis class but the rally cars' own) work out their suspension from their own

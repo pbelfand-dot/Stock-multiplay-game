@@ -2172,6 +2172,43 @@
     "clear_mm": 0.2,
     "why": "the tyre touches the body: 169 points, front left, straight, full bump"
    }
+  },
+  "g20_320i": {
+   "strada_5": {
+    "ok": true,
+    "clear_mm": 20.4,
+    "why": ""
+   },
+   "torre_10": {
+    "ok": true,
+    "clear_mm": 20.4,
+    "why": ""
+   },
+   "kaze_split": {
+    "ok": true,
+    "clear_mm": 20.4,
+    "why": ""
+   },
+   "kreuz_lattice": {
+    "ok": true,
+    "clear_mm": 20.4,
+    "why": ""
+   },
+   "meridian_city": {
+    "ok": true,
+    "clear_mm": 20.4,
+    "why": ""
+   },
+   "oldsmith_dish": {
+    "ok": true,
+    "clear_mm": 21.7,
+    "why": ""
+   },
+   "kaze_wide": {
+    "ok": false,
+    "clear_mm": 27.2,
+    "why": "the tyre touches the body: 921 points, front left, straight, full bump"
+   }
   }
  }
 }

@@ -1,0 +1,85 @@
+{
+	"id": "kaiser_3",
+	"name": "KAISER 320",
+	"order": 261,
+	"model": "g20_320i",
+	"category": "euro",
+	"role": "player_road",
+	"real": {
+		"manufacturer": "BMW",
+		"model": "320i xDrive Sedan (G20 LCI)",
+		"year": 2023,
+		"trim": "2.0 turbo four, 184 PS"
+	},
+	"specs": {
+		"power_hp": 181,
+		"weight_kg": 1580,
+		"drivetrain": "AWD",
+		"transmission": "8-speed automatic",
+		"wheelbase_mm": 2851,
+		"top_speed_kmh": 230,
+		"front_weight": 0.53,
+		"notes": "BMW's 320i xDrive saloon (G20, the 2022 facelift): a 2.0 turbo four at 135 kW (184 PS) from 5,000 rpm and 300 N m from 1,350 rpm, xDrive, an eight-speed Steptronic, 1,655 kg EU (with a 75 kg driver), 0-100 km/h in 7.7 s, 230 km/h, 4,713 mm long on a 2,851 mm wheelbase, 225/50 R17 (ADAC). The gear ratios are the ZF 8HP's, the final drive, weight split and aero estimates."
+	},
+	"garage": {
+		"price": 8000,
+		"engine_sound": "turbo4",
+		"livery": "plain",
+		"number": 3,
+		"colours": [[0.06, 0.06, 0.07], [0.9, 0.9, 0.9], [0.13, 0.22, 0.42], [0.5, 0.52, 0.55]],
+		"wheels": "silver",
+		"power": 1.0,
+		"grip": 1.0,
+		"brakes": 1.0,
+		"drive_front": 0.4,
+		"blurb": "The everyday four-door: a smooth turbo four, all-wheel drive and a quiet, well-made cabin. Not fast, but sure-footed in the rain and cheap to start with."
+	},
+	"physics": {
+		"chassis": "road",
+		"mass": 1580.0,
+		"front": 0.53,
+		"torque": 300.0,
+		"curve": [[1000, 0.6], [1350, 1.0], [4000, 1.0], [5000, 0.86], [5500, 0.78], [6000, 0.716], [6500, 0.66]],
+		"idle": 750.0,
+		"limiter": 6600.0,
+		"turbo": 0.35,
+		"spool": [1200.0, 2200.0],
+		"spool_time": 0.3,
+		"anti_lag": false,
+		"gears": [5.25, 3.36, 2.172, 1.72, 1.316, 1.0, 0.822, 0.64],
+		"final": 3.385,
+		"drive": "awd",
+		"front_share": 0.4,
+		"centre": ["lsd", 0.2, 0.15, 30.0],
+		"front_diff": ["open", 0.0, 0.0, 0.0],
+		"rear": ["open", 0.0, 0.0, 0.0],
+		"cd": 0.26,
+		"area": 2.2,
+		"down": 0.0,
+		"brake": 0.95
+	},
+	"checks": {
+		"zero_100_max": 9.5
+	},
+	"interior": {
+		"own": true,
+		"camera": true,
+		"notes": "The model's own cabin (dash screens, seats, door cards): its steering wheel cut out to turn (tools/cars/g20_320i.json), the eye placed by hand from section views; an automatic: the hands stay on the wheel."
+	},
+	"source": {
+		"package": "Internet_New_Cars/2023-bmw-320i-xdrive-2k.glb (Sketchfab's 2K GLB; the original Blender scene is 2023-bmw-320i-xdrive-source.zip)",
+		"author": "solid3DDD (Sketchfab)",
+		"license": "CC BY 4.0",
+		"url": "https://sketchfab.com/3d-models/2023-bmw-3-series-82534fdddd7e46e4bdb202d6c1d3c0e7",
+		"attribution": "\"2023 bmw 3 series\" by solid3DDD, CC BY 4.0"
+	},
+	"research": [
+		"https://www.adac.de/rund-ums-fahrzeug/autokatalog/marken-modelle/bmw/3er-reihe/g20-g21-g80-g81-facelift/325182/",
+		"https://www.auto-data.net/en/bmw-3-series-sedan-g20-lci-facelift-2022-320i-184hp-xdrive-steptronic-45813"
+	],
+	"limitations": [
+		"A dense model (2.7 M triangles): the body is thinned to 411 k, its paint kept whole (thinning the paint left the door panels wavy), so it's a player car only, not traffic.",
+		"The roundels, wheel caps and the boot's 320i / xDrive letters are removed; the grille's kidney shape stays. The final drive, weight split and drag area are estimates.",
+		"No live gauges yet (data/dash)."
+	]
+}

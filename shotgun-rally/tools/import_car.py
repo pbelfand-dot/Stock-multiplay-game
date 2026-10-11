@@ -94,7 +94,8 @@ The spec (tools/cars/<id>.json) says what's what in the model:
     ("caliper_faces": a caliper, for brakes modelled bolt by bolt)
     (decimated: the download stays small). The paint and the glass are never
     thinned (thinning them dents the panels): only the rest, down to 35 % at
-    most ("body_least": a lower floor for a very dense model). Whatever is thinned gets its shading back from the part as it was
+    most ("body_least": a lower floor for a very dense model; "paint_faces": the paint and glass
+    thinned too, to that many, for a model whose panels are subdivided far past what they need). Whatever is thinned gets its shading back from the part as it was
     (its normals copied over), so it isn't left lumpy
 Then every part's transform and modifiers are applied, a front wheel saved
 turned is straightened (its axle found from the shape: the tyre's thinnest
@@ -1627,9 +1628,11 @@ def thin(o, ratio):
     store_normals(o)
 
 
-def decimate(o, most, keep=(), least=0.0):
+def decimate(o, most, keep=(), least=0.0, keep_most=0):
     """At most `most` triangles; faces in the materials `keep` (the paint, the
-    glass) untouched: only the rest is thinned, to `least` x its triangles at most."""
+    glass) untouched: only the rest is thinned, to `least` x its triangles at most.
+    keep_most: those kept faces thinned too, to that many (a model whose panels are
+    subdivided far past what they need), their shading copied back as for the rest."""
     n = tris(o)
     if not most or n <= most:
         return
@@ -1649,6 +1652,8 @@ def decimate(o, most, keep=(), least=0.0):
             strip_loose(bm)
             bm.to_mesh(ob.data)
             bm.free()
+    if kept and keep_most and tris(kept) > keep_most:
+        thin(kept, keep_most / tris(kept))
     k = tris(kept) if kept else 0
     rest = tris(o)
     ratio = min(max((most - k) / max(rest, 1), least), 1.0)
@@ -1696,7 +1701,8 @@ for k in CORNERS:
         rest -= set(corner[k]["cal"])
         decimate(cal, spec.get("caliper_faces"))
 body = join(list(rest), "Body", Vector((0, 0, 0)))
-decimate(body, spec.get("body_faces"), [paint] + glass + paint_n, spec.get("body_least", 0.35))   # ("body_least": how far the rest may be thinned)
+decimate(body, spec.get("body_faces"), [paint] + glass + paint_n, spec.get("body_least", 0.35),   # ("body_least": how far the rest may be thinned)
+         spec.get("paint_faces", 0))                                               # ("paint_faces": the paint and glass thinned to that many)
 bb = verts(body)
 parts["body_min"] = [float(bb[:, 0].min()), float(bb[:, 2].min()), float(-bb[:, 1].max())]
 parts["body_max"] = [float(bb[:, 0].max()), float(bb[:, 2].max()), float(-bb[:, 1].min())]

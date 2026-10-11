@@ -162,3 +162,33 @@ has 79 entries: 74 in the garage, 75 with a model of their own, 67 with their ow
 - **Tests:** registry, models (all fourteen build, sit on their wheels and pull away), interiors
   (eye, gloves on the rim, the wheel turning, sleeves), wheels (fit regenerated for the fourteen
   models), sound and the asset audit pass.
+
+## The BMW 320i (October 2026)
+
+**KAISER 320 (`kaiser_3`)**: a 2023 BMW 320i xDrive saloon (G20, the 2022 facelift), the last car
+of the internet batch (`Internet_New_Cars/2023-bmw-320i-xdrive-2k.glb`, "2023 bmw 3 series" by
+solid3DDD, CC BY 4.0). The cheapest European car in the garage (8,000), not traffic.
+
+| Garage name | Based on | Role | Drive | Weight | Power | 0-100 in the game (gravel) |
+|---|---|---|---|---|---|---|
+| KAISER 320 (`kaiser_3`) | BMW 320i xDrive G20 LCI (2023) | road | all | 1,580 kg | 181 hp, 300 N m, 8-speed | 7.2 s (real 7.7 s) |
+
+- **Numbers** from ADAC's catalogue: 135 kW (184 PS) at 5,000 rpm, 300 N m from 1,350 rpm, an
+  eight-speed Steptronic, 1,655 kg EU (1,580 kg without the 75 kg driver), 230 km/h, 2,851 mm
+  wheelbase, 225/50 R17. The ratios are the ZF 8HP's; the final drive (3.385), weight split (53 %
+  front) and drag area are estimates. `road` chassis, touring tyres in SIM STREET (0.92 g), factory
+  ABS and traction control.
+- **The model** is dense (2.7 M triangles; its wheels 266 k each): the wheels are thinned to 12 k, the
+  calipers to 2.5 k and the body to 411 k, the paint and glass kept whole. Thinning the paint too
+  (the converter's new `"paint_faces"` option) left the door panels visibly wavy, so it's off for this
+  car; the option stays for models that can take it. Its axes came in turned (`"front": "-X"`).
+- **Badges:** the roundels and wheel caps (their own material) and the boot's 320i and xDrive letters
+  (loose pieces, by box) are gone; the grille's kidney shape stays.
+- **Lamps:** the tail-light glow, lens and red parts and the headlight lenses renamed so the game
+  finds them (`"rename"`).
+- **Interior:** its own (dash screens, seats, door cards); the steering wheel cut out to turn about
+  its column (found from section views: 0.35 m across, its centre 0.85 m up), the eye placed by hand.
+- **Tests:** registry, models (builds, sits on its wheels, 0-100 in 7.2 s against a 9.5 s limit, all
+  four wheels driven), wheels (fits six of the seven road presets; the wide one touches the front
+  arch at full bump) and the asset audit pass.
+

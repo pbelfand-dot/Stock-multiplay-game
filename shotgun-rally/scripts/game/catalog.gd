@@ -161,6 +161,7 @@ const STREET := {
 	"tempesta_ursa": [0.98, "street"], "affalter_slr": [0.98, "street"], "vierrad_r7": [1.0, "street"], "affalter_a45": [1.0, "street"],
 	"kaiser_5t": [1.0, "street"], "kaiser_5g": [1.0, "street"], "kaiser_3x": [0.95, "street"], "kaiser_235": [0.97, "street"],
 	"kaiser_2c": [1.04, "street"], "affalter_s": [0.9, "street"],
+	"kaiser_3": [0.92, "street"],                                      # (the base saloon: touring tyres)
 	"woking_600": [1.1, "cup"], "affalter_gtb": [1.15, "cup"], "woking_800": [1.2, "cup"], "woking_one": [1.12, "cup"],
 	# FORMULA APEX: 18 in slicks on an 800 kg car (~1.7 g before the wings: they add 2-3 x the weight at speed)
 	"toro": [1.7, "formula"], "vee_f": [1.7, "formula"], "affalter_w17": [1.7, "formula"],
@@ -187,7 +188,7 @@ const FACTORY_TC := ["akatsuki", "raiden", "hellhound", "hellhound_s", "kaiser_2
 	"kaiser4_gt3", "tempesta_gt3", "woking_gt3", "elfer_gt2cs",
 	"stromer", "warhawk", "pueblo", "kaiser_5x", "kaiser_7x", "kasten",
 	"tempesta_ursa", "woking_600", "affalter_slr", "affalter_gtb", "vierrad_r7", "affalter_a45", "kaiser_5t", "kaiser_5g",
-	"kaiser_3x", "kaiser_235", "kaiser_2c", "affalter_s", "woking_800", "woking_one"]
+	"kaiser_3x", "kaiser_235", "kaiser_2c", "affalter_s", "woking_800", "woking_one", "kaiser_3"]
 
 
 ## [g, tyre kind, factory ABS, factory TC] for this car in SIM STREET (STREET, else

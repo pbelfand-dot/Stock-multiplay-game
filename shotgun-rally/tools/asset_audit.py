@@ -46,6 +46,7 @@ NOTES = {
     "car_packages/Track_Mode_Cars/GT3/mercedes-amg-gt3-wwwvecarzcom.zip": (ALTERNATE, "a second Mercedes-AMG GT3 Evo (source/amg_evo_3.glb, a vecarz upload): the AFFALTER GT3 (affalter) already runs a detailed model of the same car, with its cockpit (mercedes-amg-gt3-red-bull-racing.zip). Kept as the source to fall back on", ""),
     "car_packages/Track_Mode_Cars/Formula/modern-halo-open-wheel-racer.glb": (ALTERNATE, "the ORION FA1's model (3dassets.dev, AI-generated): the FORMULA class's first car, taken out of the game at the owner's word for their own Formula models (TORO R26, VEE-F 26, AFFALTER W17). Kept as the source", ""),
     "car_packages/Track_Mode_Cars/Formula/current-ground-effect-racer.glb": (ALTERNATE, "the ZEPHYR GE's model (3dassets.dev, AI-generated): taken out of the game with the ORION FA1, at the owner's word for their own Formula models. Kept as the source", ""),
+    "environment_packages/cc0/source_packs/poly_haven/moss_01_2k_gltf.zip": (ALTERNATE, "Poly Haven's moss_01 (CC0): tufts 1-4 cm across, too small to see from a car at any distance the game draws; the rocks' and the forest floor's own textures carry the moss. Kept as the source", ""),
     "car_packages/Track_Mode_Cars/Street/mclaren-720s-spider.zip": (ALTERNATE, "a McLaren 720S Spider (a nested rar holding one heavy OBJ): its rims share the body's material, so the wheels can't be split off to turn, and it would be a third 720S beside the WOKING 720 GT3 and its spare. Kept as the source to fall back on", ""),
     "car_packages/Track_Mode_Cars/Street/bmw-540i-e34.rar": (BLOCKED, "a BMW 540i (E34) as a 3ds Max scene (.max) only: no exchange format inside (FBX, OBJ, glTF), and Blender can't read .max. Needs an export from 3ds Max", ""),
     "car_packages/Track_Mode_Cars/GT3/mclaren-gt3.zip": (ALTERNATE, "a second McLaren 720S GT3 (source/McLaren720sGT3.zip inside: a nested glTF): the WOKING 720 GT3 (woking_gt3) runs the Inception Racing upload of the same car (mclaren-720s-gt3-inception-racing.zip). Kept as the source to fall back on", ""),
@@ -55,8 +56,7 @@ NOTES = {
     "car_packages/textures (1).rar": (DUPLICATE, "byte-identical to the GLS 63's textures.rar in CGTrader_New_Cars/traffic (the GLB embeds the same set)", "gls63"),
     "car_packages/gls63.glb": (DUPLICATE, "byte-identical copy of CGTrader_New_Cars/traffic/mercedes_gls_63_amg's GLB: GRAND SUV 63 (gls)", "gls63"),
     "car_packages/CGTrader_New_Cars/mclaren_p1_gtr": (BLOCKED, "handled as no-AI (scripts only, renders never viewed). The FBX is 3.8M triangles (295k a tyre), kitbashed (another car's engine bay), turned 45 degrees, and has no textures of its own (the package's texture folders are an apartment scene's). Converted to assets/models/cars/p1_gtr for measurement only; not registered", "p1_gtr"),
-    "car_packages/Internet_New_Cars/2023-bmw-320i-xdrive-2k.glb": (PENDING, "Track P9: a 2023 BMW 320i (G20) for road and traffic; the GLB is the runtime-ready one, the source zip its original", ""),
-    "car_packages/Internet_New_Cars/2023-bmw-320i-xdrive-source.zip": (PENDING, "Track P9: the 320i's original source (the 2k GLB is the one to convert)", ""),
+    "car_packages/Internet_New_Cars/2023-bmw-320i-xdrive-source.zip": (ALTERNATE, "the 320i's original Blender scene (solid3DDD, CC BY 4.0): KAISER 320 (kaiser_3) is converted from its 2K GLB, the same model. Kept as the source", "g20_320i"),
     "car_packages/Track_Mode_Cars/2024-porsche-992-gt3-r.zip": (ALTERNATE, "compared with ELFER R's model (Track P4): the same car, and the same lineage (both are racing-sim ports: this one's materials are ACC-style 'MI_Tyre_Flex_Dry', 'EXT_Carpaint_Inst', 'PHISICS_DASH'). It has per-corner rims, tyres, discs and calipers and a full cockpit (489k triangles), but ELFER R's CGTrader file already imports with its own wheels and cockpit, and its licence is the less restrictive (this one is CC BY-NC-SA 4.0). Kept as the source to fall back on", ""),
     # environment: the owner's packs
     "environment_packages/user_sources/city/31_model_separate_files.rar": (IN_GAME, "", ""),
@@ -93,6 +93,15 @@ ENV_SOURCE_KEYS = {
     "kenney/kenney_city-kit-roads.zip": "Kenney City Kit (Roads)",
     "polyhaven/rock_moss_set_01_2k": "rock_moss_set_01",
     "polyhaven/rock_face_01_2k": "rock_face_01",
+    # Poly Haven's glTF packs on the forest floor (props/undergrowth.glb) and the second rock set
+    "poly_haven/fern_02_2k_gltf.zip": "fern_02",
+    "poly_haven/grass_medium_01_2k_gltf.zip": "grass_medium_01",
+    "poly_haven/dry_branches_medium_01_2k_gltf.zip": "dry_branches_medium_01",
+    "poly_haven/pine_roots_2k_gltf.zip": "pine_roots",
+    "poly_haven/tree_stump_01_2k_gltf.zip": "tree_stump_01",
+    "poly_haven/tree_stump_02_2k_gltf.zip": "tree_stump_02",
+    "poly_haven/dead_tree_trunk_2k_gltf.zip": "dead_tree_trunk",
+    "poly_haven/rock_moss_set_02_2k_gltf.zip": "rock_moss_set_02",
     # the owner's CC0 track props (one GLB: props/track_props.glb, the circuit's pits and marshal posts)
     "Track_Mode_Props/blank-marshal-flag-on-pole.glb": "3DAssets.dev",
     "Track_Mode_Props/double-bay-pit-garage.glb": "3DAssets.dev",
