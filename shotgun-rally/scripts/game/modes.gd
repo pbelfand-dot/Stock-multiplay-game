@@ -11,7 +11,8 @@ extends RefCounted
 ##     (END RUN in the pause menu). Four difficulties.
 ##   TRACK: a permanent circuit (CircuitGen: CINDER RIDGE, ~5 km), its pits and its grid, in a
 ##     class (data/track_classes.json: GT, FORMULA): PRACTICE (laps, sectors, track limits, your
-##     bests: TrackSession), QUALIFYING and RACE weekends on top.
+##     bests: TrackSession), QUALIFYING and RACE weekends on top; alone or online (TrackNet: the
+##     host's race control for everyone).
 
 const VehicleRegistry = preload("res://scripts/game/vehicle_registry.gd")
 const DIFFICULTIES := {
@@ -185,6 +186,49 @@ static func track_grid(o: Dictionary, field: Array, me, seed_value: int) -> Arra
 			rng.seed = seed_value * 31 + 5
 			at = rng.randi_range(0, ids.size())
 	ids.insert(at, me)
+	return ids
+
+
+## Online (a street session on the circuit): up to 8 players, each in their pit box from 8 on in the
+## roster's order (8-15), and the AI the host fills the grid with in the other boxes, no more than
+## the 20 places have room for round a full session.
+const ONLINE_AI_MAX := 12
+const PLAYER_BOX := 8
+
+
+## (online) The host's AI field for a session (track_field's drivers, the same for the same seed),
+## at most ONLINE_AI_MAX, in the boxes the players don't use. Practice is the players alone.
+static func online_field(o: Dictionary, seed_value: int, host_number := 0) -> Array:
+	if str(o.get("session", "practice")) == "practice":
+		return []
+	var oo := o.duplicate()
+	oo["opponents"] = clampi(int(o.get("opponents", 0)), 0, ONLINE_AI_MAX)
+	var out := track_field(oo, seed_value, host_number)
+	var free: Array = []
+	for b in 20:
+		if b < PLAYER_BOX or b >= PLAYER_BOX + 8:
+			free.append(b)
+	for k in out.size():
+		out[k]["box"] = free[k % free.size()]
+	return out
+
+
+## (online) The race's grid, ids from pole: qualifying's order if this weekend's qualifying set it
+## (o.grid_order: whoever of it is still here, then anyone new), else the players in the roster's
+## order (racers: the host first), then the AI field by pace.
+static func online_grid(o: Dictionary, field: Array, racers: Array) -> Array:
+	var ids: Array = []
+	for id in o.get("grid_order", []):
+		if id in racers or field.any(func(e): return e.id == id):
+			ids.append(id)
+	for id in racers:
+		if not id in ids:
+			ids.append(id)
+	var by := field.duplicate()
+	by.sort_custom(func(a, b): return float(a.skill.pace) > float(b.skill.pace))
+	for e in by:
+		if not e.id in ids:
+			ids.append(e.id)
 	return ids
 
 

@@ -35,7 +35,7 @@ var collide := true
 var race_opts := {}                # RaceSim's opts (Modes.race_opts)
 var me := {"id": 0, "s": 0.0, "d": 0.0, "v": 0.0, "pos": Vector3.ZERO}   # the player's car (the game sets it)
 var player_car                     # the player's RallyCar (collision exceptions)
-var others_extra: Array = []       # more cars the drivers should mind (online players: P8)
+var others_extra: Array = []       # more cars the drivers should mind (online: the other players', {id, s, d, v, stricken, pos})
 var events: Array = []             # [id, kind, ...] from the drivers since last read (the game clears it)
 var pin_near := false              # (tests) every car on the physics (up to near_max), wherever you are
 var _lod_t := 0.0
@@ -50,40 +50,10 @@ func setup(stage, entries: Array, opts: Dictionary, r_opts: Dictionary, seed_val
 	collide = bool(opts.get("collide", true))
 	near_max = int(opts.get("near_max", near_max))
 	for e in entries:
-		var c = RallyCar.new()
-		c.name = "AI_%s" % str(e.id)
-		var paint := {"colours": e.get("colours", []), "livery": e.get("livery", "plain"), "number": int(e.get("number", 7))}
-		if (paint.colours as Array).is_empty():
-			paint.erase("colours")
-		var s: Dictionary = Catalog.for_stage(Catalog.setup(str(e.car), paint, {}, {}), st)
-		s["race_sim"] = true
-		s["race"] = r_opts.duplicate()
-		s["race"]["fuel"] = float(e.get("fuel", r_opts.get("fuel", 60.0)))
-		if int(r_opts.get("abs", 4)) == 0 or int(r_opts.get("tc", 4)) == 0:
-			# a class without ABS or traction control (FORMULA APEX): a racing driver feels for the edge of
-			# the grip with their feet, as the aids do; the AI's pedals lean on the aids for that, so they
-			# stand in for its feet (no more grip than the tyres have: they only keep it at their peak)
-			s["race"]["abs"] = maxi(int(r_opts.get("abs", 4)), 6)
-			s["race"]["tc"] = maxi(int(r_opts.get("tc", 4)), 6)
-		c.setup = s
-		c.substeps = AI_SUBSTEPS
-		add_child(c)
-		c.set_outside(true)
+		var c = _make_car(e, r_opts)
 		c.hit.connect(func(imp: float): if c.race: c.race.hit(imp))
 		if c.race:
 			c.race.drs_auto = true                   # (the AI opens its DRS whenever it may, flat out)
-		if int(c.cockpit_info().get("seats", 2)) == 1:
-			_helmet(c, e)                            # (an open cockpit: its driver's helmet in the air)
-		var tag := Label3D.new()
-		tag.name = "NameTag"
-		tag.text = "%d  %s" % [int(e.get("number", 0)), str(e.name)]
-		tag.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-		tag.font_size = 48
-		tag.pixel_size = 0.01
-		tag.outline_size = 10
-		tag.position = Vector3(0.0, 1.9, 0.0)
-		tag.visibility_range_end = 160.0
-		c.add_child(tag)
 		var drv = RaceDriver.new()
 		drv.id = e.id
 		drv.driver_name = str(e.name)
@@ -98,6 +68,93 @@ func setup(stage, entries: Array, opts: Dictionary, r_opts: Dictionary, seed_val
 		_hint[e.id] = -1
 		_go_far(drv)
 		_pose(drv, 0.0)
+
+
+## A field car: its class car at its homologated spec in its colours, livery and number (r_opts: its
+## race state; empty: none, a car only drawn), its driver's helmet in an open cockpit, its name tag.
+func _make_car(e: Dictionary, r_opts: Dictionary):
+	var c = RallyCar.new()
+	c.name = "AI_%s" % str(e.id)
+	var paint := {"colours": e.get("colours", []), "livery": e.get("livery", "plain"), "number": int(e.get("number", 7))}
+	if (paint.colours as Array).is_empty():
+		paint.erase("colours")
+	var s: Dictionary = Catalog.for_stage(Catalog.setup(str(e.car), paint, {}, {}), st)
+	if not r_opts.is_empty():
+		s["race_sim"] = true
+		s["race"] = r_opts.duplicate()
+		s["race"]["fuel"] = float(e.get("fuel", r_opts.get("fuel", 60.0)))
+		if int(r_opts.get("abs", 4)) == 0 or int(r_opts.get("tc", 4)) == 0:
+			# a class without ABS or traction control (FORMULA APEX): a racing driver feels for the edge of
+			# the grip with their feet, as the aids do; the AI's pedals lean on the aids for that, so they
+			# stand in for its feet (no more grip than the tyres have: they only keep it at their peak)
+			s["race"]["abs"] = maxi(int(r_opts.get("abs", 4)), 6)
+			s["race"]["tc"] = maxi(int(r_opts.get("tc", 4)), 6)
+	c.setup = s
+	c.substeps = AI_SUBSTEPS
+	add_child(c)
+	c.set_outside(true)
+	if int(c.cockpit_info().get("seats", 2)) == 1:
+		_helmet(c, e)                                # (an open cockpit: its driver's helmet in the air)
+	var tag := Label3D.new()
+	tag.name = "NameTag"
+	tag.text = "%d  %s" % [int(e.get("number", 0)), str(e.name)]
+	tag.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	tag.font_size = 48
+	tag.pixel_size = 0.01
+	tag.outline_size = 10
+	tag.position = Vector3(0.0, 1.9, 0.0)
+	tag.visibility_range_end = 160.0
+	c.add_child(tag)
+	return c
+
+
+# ── online: the host's field on the other machines ──────────────────────────
+
+const NET_N := 14                  # floats a car in the stream: id, position, rotation, velocity, steering, revs, gear
+
+## (online, a guest's machine) The host's AI cars, drawn only: the same cars in the same colours, each
+## played back from the host's stream (feed) as a remote player's car is. No drivers, no physics here.
+func setup_view(stage, entries: Array) -> void:
+	st = stage
+	for e in entries:
+		var c = _make_car(e, {})
+		c.set_simulating(false)
+		var s := float(e.get("s", 0.0))
+		c.place(st.world_at(s, float(e.get("d", 0.0))), st.heading_at(s))
+		cars[e.id] = c
+
+
+## (online, the host) Every AI car's state for the stream (NET_N floats a car).
+func net_pack() -> PackedFloat32Array:
+	var out := PackedFloat32Array()
+	for id in cars:
+		var c = cars[id]
+		var p: Vector3 = c.global_position
+		var q: Quaternion = c.global_transform.basis.get_rotation_quaternion()
+		var v: Vector3 = c.linear_velocity
+		out.append_array([float(id), p.x, p.y, p.z, q.x, q.y, q.z, q.w, v.x, v.y, v.z, float(c.steer), float(c.rpm), float(c.gear)])
+	return out
+
+
+## (online, a guest's machine) The host's stream in: each car's state into its playback (RallyCar's).
+func feed(t: int, data: PackedFloat32Array) -> void:
+	for k in range(0, data.size() - NET_N + 1, NET_N):
+		var c = cars.get(int(data[k]))
+		if c == null:
+			continue
+		c.net_state(t, Vector3(data[k + 1], data[k + 2], data[k + 3]), Quaternion(data[k + 4], data[k + 5], data[k + 6], data[k + 7]).normalized(),
+			Vector3(data[k + 8], data[k + 9], data[k + 10]), data[k + 11], data[k + 12], int(data[k + 13]), PackedFloat32Array(), 0.0, "asphalt",
+			false, 1.0, 0.0)
+
+
+## (online, the host) A car the AI pass through: a player's (online every car is a ghost to the
+## others: the other players' cars are drawn on each machine, not simulated there).
+func ghost(body: Node) -> void:
+	for id in cars:
+		var c = cars[id]
+		if is_instance_valid(body) and body != c:
+			c.add_collision_exception_with(body)
+			body.add_collision_exception_with(c)
 
 
 ## A single-seater's driver, seen from outside: their helmet up in the cockpit under the halo
@@ -196,12 +253,20 @@ func tick(dt: float) -> void:
 		drv.events.clear()
 
 
-## Who's on the physics: the nearest few to you, inside NEAR_R (and staying on it out to FAR_R).
+## Who's on the physics: the nearest few to you (online: to any player), inside NEAR_R (and staying
+## on it out to FAR_R).
 func _choose_lod() -> void:
+	var at: Array = [Vector3(me.pos)]
+	for o in others_extra:
+		if o.has("pos"):
+			at.append(o.pos)
 	var by: Array = []
 	for drv in drivers:
 		var c = cars[drv.id]
-		var dist: float = (c.global_position - Vector3(me.pos)).length() if near.has(drv.id) else (st.world_at(drv.s, drv.d) - Vector3(me.pos)).length()
+		var here: Vector3 = c.global_position if near.has(drv.id) else st.world_at(drv.s, drv.d)
+		var dist := INF
+		for p in at:
+			dist = minf(dist, (here - Vector3(p)).length())
 		by.append([dist, drv])
 	by.sort_custom(func(a, b): return a[0] < b[0])
 	for k in by.size():
@@ -294,6 +359,7 @@ func _unstick(drv, c, dt: float) -> void:
 func _clear_behind(drv) -> bool:
 	var L: float = st.length
 	var check: Array = [me]
+	check.append_array(others_extra)
 	for o in drivers:
 		if o != drv:
 			check.append({"id": o.id, "s": o.s, "d": o.d})

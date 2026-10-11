@@ -33,11 +33,15 @@ func setup(stage, session_kind := "practice") -> void:
 func add_car(id, car_name: String, s_start: float, in_pits := true) -> void:
 	cars[id] = {"name": car_name, "laps": 0, "s_last": s_start, "s_max": s_start, "out_lap": true, "in_pits": in_pits,
 		"lap_t0": -1.0, "sector": 0, "sector_t0": -1.0, "cur": [], "valid": true, "best": INF, "best_sectors": [INF, INF, INF],
-		"last": INF, "last_valid": false, "history": [], "cuts": 0, "delta": INF, "line_t": -1.0}
+		"last": INF, "last_valid": false, "history": [], "cuts": 0, "delta": INF}
 	order.append(id)
 
 
-## One tick: positions = {id: {s (unwrapped), d, pit (in the pit lane)}}.
+## One tick: positions = {id: {s (unwrapped), d, pit (in the pit lane)}}. A car whose physics runs on
+## another clock (online: a guest's machine) brings that clock's time too ("t", s): its laps and
+## sectors are timed on it, as its own machine would time them, whatever the session's clock does;
+## and "toff", that clock's offset from the session's (its line crossings on the session's clock:
+## cross_at, which RaceControl finishes a race by).
 func tick(dt: float, positions: Dictionary) -> void:
 	time += dt
 	for id in positions:
@@ -68,19 +72,26 @@ func _advance(id, c: Dictionary, p: Dictionary, dt: float) -> void:
 					loops.append([b, k])
 		loops.sort_custom(func(a, b): return a[0] < b[0])
 		var span: float = s - float(c.s_last)
+		var now := time
+		var since := dt                              # (the time since its last position, on its clock)
+		if p.has("t"):
+			now = float(p.t)
+			since = maxf(now - float(c.get("t_last", now - dt)), 0.0)
 		for lp in loops:
-			var tc := time - (dt * (s - float(lp[0])) / span if span > 1e-6 else 0.0)
+			var tc := now - (since * (s - float(lp[0])) / span if span > 1e-6 else 0.0)
 			if int(lp[1]) == 0:
+				c.cross_at = tc + float(p.get("toff", 0.0))   # (when it crossed the line on the session's clock: the race's finish)
 				_line(id, c, tc, pit)
 			else:
 				_sector(id, c, int(lp[1]) - 1, tc)
 		c.s_max = s
 	c.s_last = s
+	if p.has("t"):
+		c.t_last = float(p.t)
 
 
 ## The line: a timed lap ends (and a new one starts, unless it's in the pit lane: an out-lap).
 func _line(id, c: Dictionary, tc: float, pit: bool) -> void:
-	c.line_t = tc                                    # (when it crossed, to the tick's fraction: the race's finish times)
 	if not c.out_lap and c.lap_t0 >= 0.0:
 		var lap_t: float = tc - float(c.lap_t0)
 		var secs: Array = (c.cur as Array).duplicate()
@@ -148,12 +159,13 @@ func reposition(id, s: float, laps: int) -> void:
 	c.valid = true
 
 
-## The current lap's running time for a car (INF on an out-lap).
-func lap_time(id) -> float:
+## The current lap's running time for a car (INF on an out-lap); now: the time on its own clock, if
+## its laps are timed on one ("t" in tick's positions).
+func lap_time(id, now := -1.0) -> float:
 	var c: Dictionary = cars[id]
 	if c.out_lap or float(c.lap_t0) < 0.0:
 		return INF
-	return time - float(c.lap_t0)
+	return (time if now < 0.0 else now) - float(c.lap_t0)
 
 
 ## Cars by best lap (practice and qualifying's order): [[id, best]], the quickest first, those

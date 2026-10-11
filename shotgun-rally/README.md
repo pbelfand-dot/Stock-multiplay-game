@@ -171,7 +171,9 @@ the old backdrop: your car flat out on a stage, filmed like rally TV.
     glossy track, everyone on wets, a slick hopeless);
   - the broadcast's TV camera (C).
   The AI race on the same physics as you, overtaking, defending and pitting
-  (`docs/track_racing.md`).
+  (`docs/track_racing.md`). Online, up to 8 friends race it together, each in a car of the class:
+  the host's machine is race control for everyone (the lights, the timing, flags, penalties, the
+  results), and CARS fills the grid round you with AI.
 - **The world** (`docs/ENVIRONMENT_INVENTORY.md`): every stage stands in a biome (Japanese cedar
   mountain, conifer rally forest, broadleaf forest, rocky alpine, wet forest, winter mountain;
   seasons recolour them) grown from the owner's tree packs. Those are 21 species of conifer,
@@ -560,9 +562,17 @@ back exactly where it was. All of it: [docs/replay.md](docs/replay.md).
 3. Use Discord (or any voice chat) to talk. Yelling is the game.
 
 **Racing each other (up to 8):** the host opens **MODES**, picks **HOST ONLINE (UP TO 8)** and
-**COLLISIONS: ON** or **GHOSTS**, then starts a touge or a cut-up difficulty; everyone else
-JOINs from ONLINE as above, each in their own garage car. A touge is first to the bottom (the
-results show the podium); in cut up the host's traffic is everyone's.
+**COLLISIONS: ON** or **GHOSTS**, then starts a touge, a cut-up difficulty or a TRACK session;
+everyone else JOINs from ONLINE as above, each in their own garage car. A touge is first to the
+bottom (the results show the podium); in cut up the host's traffic is everyone's. On the track
+(practice, qualifying, a race or a weekend on CINDER RIDGE) each player drives a car of the
+session's class (the class's own if their garage car isn't one), the grid is the order you joined
+in (or qualifying's), the host runs race control for everyone and everyone sees the same results;
+CARS adds AI drivers round you (0 for friends only). Someone who joins once a session is on starts
+from the pit lane; someone who leaves is out (DNF). For now every car passes through the others
+online. From a terminal: the host runs the game with
+`-- --host --street --mode=track --track_class=gt --session=race --laps=5`, the others with
+`-- --join=HOST_IP`.
 
 The driver's computer runs the car and streams it to the co-driver ~30 times a second; the
 co-driver's screen plays it back 0.1 s behind, smoothly, so the passenger seat never jitters.

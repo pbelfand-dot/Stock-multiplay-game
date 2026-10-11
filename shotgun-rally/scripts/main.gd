@@ -7,6 +7,9 @@ extends Node
 ##   --host --mode=touge|cutup ... --street [--ghosts] [--min_racers=N]   host a street session (up to 8,
 ##                                           each in their own car; --ghosts: no collisions; tests:
 ##                                           --autostart waits for N racers, all loaded)
+##   --host --street --mode=track [--track_class=gt|formula --session=practice|qualifying|race --laps=N
+##                     --opponents=N --start=standing|rolling --minutes=M --weather=day|night|wet]   host online Track Mode on
+##                                           CINDER RIDGE (--opponents: AI cars filling the grid, 0-12)
 ##   --join=IP                               join a host
 ##   --autostart --autopilot                 tests: start the countdown / drive by itself
 ##   --smoke=host|client                     2-player test: drive a stage, both check it
@@ -63,6 +66,11 @@ var _shift_t := -1.0
 var _replay_t := 0.0                       # (--smoke_replay) s of the run so far
 var _replay_step := 0                      # 0 not yet, 1 watching, 2 done
 var _replay_rx := 0                        # stream updates in when it opened
+var _moved := {}                           # (online Track Mode test) car id -> m it's moved here
+var _moved_at := {}
+var _rx := {}                              # (online Track Mode test) player id -> stream updates its car's had here
+var _lap_lo := INF                         # (online Track Mode test) the HUD's running lap clock, its least and most
+var _lap_hi := -INF
 
 
 func _ready() -> void:
@@ -79,7 +87,10 @@ func _ready() -> void:
 	elif Config.flag("host") and Config.flag("street") and Config.flag("mode"):
 		start_mode({"mode": Config.arg("mode"), "dir": Config.arg("dir", "up"), "rules": Config.arg("rules", "time"),
 			"difficulty": Config.arg("difficulty", "normal"), "toll": Config.arg("toll", "open"), "online": true, "collide": not Config.flag("ghosts"),
-			"seed": int(Config.arg("seed", -1))})
+			"seed": int(Config.arg("seed", -1)),
+			"class": Config.arg("track_class", "gt"), "session": Config.arg("session", "race"), "laps": int(Config.arg("laps", 5)),
+			"opponents": int(Config.arg("opponents", 0)), "start": Config.arg("start", ""), "minutes": float(Config.arg("minutes", 10.0)),
+			"track_difficulty": Config.arg("track_difficulty", "medium"), "weather": Config.arg("weather", "day")})
 	elif Config.flag("host"):
 		host_game(Config.arg("seat", "driver"))
 	elif Config.flag("join"):
@@ -138,6 +149,9 @@ func mode_opts(s: int, like: Dictionary) -> Dictionary:
 				extra[k] = like[k]
 		extra["difficulty"] = str(like.get("track_difficulty", like.get("difficulty", "medium")))
 		o = Modes.track_opts(s, str(like.get("class", "gt")), str(like.get("session", "practice")), int(like.get("laps", 5)), "cinder_ridge", extra)
+		if Net.online() and Net.street():
+			# (online: the host's AI field goes to every machine with the session, so all draw the same cars)
+			o["field"] = Modes.online_field(o, s, int(Net.car_setup_for(Net.my_id()).get("number", 0)))
 	else:
 		o = Modes.touge_opts(s, str(like.get("dir", "up")), str(like.get("rules", "time")))
 	if Config.flag("length") and not like.get("mode") in ["cutup", "track"]:
@@ -440,8 +454,10 @@ func _process(dt: float) -> void:
 	_test_t += dt
 	if Config.flag("smoke_replay") and game.built and game.replay and _replay_step < 2:
 		_smoke_replay(dt)
+	if Config.flag("smoke") and game.built and game.circuit and game.street_online:
+		_track_moved()
 	# an online cut-up test (no finish on the loop): check after --smoke_after s of driving
-	if Config.flag("smoke") and not _smoke_done and game.built and game.street_online and game.looped and game.state == "running":
+	if Config.flag("smoke") and not _smoke_done and game.built and game.street_online and game.looped and not game.circuit and game.state == "running":
 		_run_t += dt
 		if _run_t > 8.0 and int(_run_t) != int(_run_t - dt):     # (the traffic round us, once a second: the check looks at the spread)
 			_traffic_counts.append(game.traffic._mirror.size() if game.traffic.mirror else game.traffic.cars.size())
@@ -495,6 +511,9 @@ func _on_stage_finished(r: Dictionary) -> void:
 		return
 	_smoke_done = true
 	var role := Config.arg("smoke")
+	if game.street_online and game.circuit:
+		_track_smoke(role)
+		return
 	if game.street_online:
 		_street_smoke(role)
 		return
@@ -576,6 +595,99 @@ func _street_smoke(role: String) -> void:
 	# (the host goes last: a guest still checking would take the host leaving for a failure)
 	await get_tree().create_timer(4.0 if multiplayer.is_server() else 0.5).timeout
 	get_tree().quit(0 if ok else 1)
+
+
+## An online Track Mode test (several machines race on the circuit): once this one's taken the
+## flag, wait for everyone's (the host's race control done, its last classification here). Each
+## must have been shown the start lights (unless it joined late) and seen every other car in the
+## classification moving here (the other players', the AI's if the host filled the grid); every car
+## that started must be classified, every player at the flag; and all the machines must agree on it
+## (tests/run_all.sh compares their "track order" lines). What it saw is counted as it went (the
+## others may have quit by the time it checks).
+func _track_smoke(role: String) -> void:
+	var t := 0.0
+	while t < 150.0 and not (game.race_ctl.phase == "done" and (multiplayer.is_server() or game.net.final)):
+		await get_tree().create_timer(0.1).timeout
+		t += 0.1
+	var rows: Array = game._track_rows()
+	var names: Array = rows.map(func(r): return "%s %s%s" % [r.name, game.fmt_lap(float(r.total)), "" if str(r.status) == "" else " " + str(r.status)])
+	var players: Array = []
+	var ai: Array = []
+	for r in rows:
+		if game._is_ai(r.id):
+			ai.append(r.id)
+		elif r.id != Net.my_id():
+			players.append(r.id)
+	var least := 1 << 30
+	var driven := INF
+	for id in players:
+		least = mini(least, int(_rx.get(id, 0)))
+		driven = minf(driven, float(_moved.get(id, 0.0)))
+	var ai_driven := INF
+	for id in ai:
+		ai_driven = minf(ai_driven, float(_moved.get(id, 0.0)))
+	var all_in: bool = rows.all(func(r): return str(r.status) == "" or game._is_ai(r.id)) and game.grid_ids.all(func(id): return rows.any(func(r): return r.id == id))
+	var pens: Array = rows.filter(func(r): return float(r.pens) > 0.0).map(func(r): return "%s +%d s" % [r.name, int(r.pens)])
+	if multiplayer.is_server():                    # (race control's reasons: the host has them)
+		pens = rows.filter(func(r): return float(r.pens) > 0.0).map(func(r): return "%s %s" % [r.name,
+			", ".join(game.race_ctl.pens[r.id].list.map(func(e): return str(e[0])))])
+	print("[smoke] %s: track %s, %d players (+%d AI) classified, the others' cars here: fewest updates from one %d, least driven %.0f m (the AI %s); lights %s; penalties %s" % [
+		role, game.race_ctl.kind, players.size() + 1, ai.size(), least, driven, "%.0f m" % ai_driven if not ai.is_empty() else "-",
+		str(game.lights_seen), str(pens) if not pens.is_empty() else "none"])
+	print("[smoke] %s: track order %s" % [role, " > ".join(names)])
+	print("[smoke] %s: the HUD's lap clock ran %.2f-%.2f s" % [role, _lap_lo, _lap_hi])
+	var timing_err := 0.0
+	if game.own_timing:
+		# (a guest: its own laps timed on its own clock against the host's timing of them: the same to
+		# the millisecond, within 5 ms)
+		var here: Dictionary = game.own_timing.cars.get(Net.my_id(), {})
+		var row: Dictionary = {}
+		for r in game.net.board:
+			if r.id == Net.my_id():
+				row = r
+		var laps_here: Array = (here.get("history", []) as Array).map(func(h): return snappedf(float(h.time), 0.001))
+		var best_here := float(here.get("best", INF))
+		var last_here := float(here.get("last", INF))
+		timing_err = INF                             # (no lap to compare: a failure)
+		if not row.is_empty() and last_here != INF and float(row.last) != INF:
+			timing_err = absf(last_here - float(row.last))
+			if best_here != INF and float(row.best) != INF:
+				timing_err = maxf(timing_err, absf(best_here - float(row.best)))
+		print("[smoke] %s: my laps timed here %s, best %s; the host's last %s, best %s (%.1f ms apart)" % [role, str(laps_here),
+			game.fmt_lap(best_here), game.fmt_lap(float(row.get("last", INF))), game.fmt_lap(float(row.get("best", INF))), timing_err * 1000.0])
+	var ok: bool = game.race_ctl.phase == "done" and all_in and not players.is_empty() and least > 100 and driven > 1000.0 \
+		and (ai.is_empty() or ai_driven > 1000.0) and (game.lights_seen == [1, 2, 3, 4, 5, "go"] or game._from_pits or game.race_ctl.kind != "race") \
+		and (multiplayer.is_server() or game.net.final) and timing_err < 0.005 and _lap_lo >= -0.05 and _lap_hi < 300.0
+	print("[smoke] %s: %s" % [role, "OK" if ok else "FAIL"])
+	_smoke_ok = ok
+	# (the host goes last: a guest still checking would take the host leaving for a failure; a guest
+	# shows its results 4 s after its flag)
+	await get_tree().create_timer(10.0 if multiplayer.is_server() else 2.0).timeout
+	get_tree().quit(0 if ok else 1)
+
+
+## (online Track Mode tests) How far every other car (the players', the AI's) has moved on this
+## machine, and how many stream updates each player's has had.
+func _track_moved() -> void:
+	var cs: Dictionary = game.others.duplicate()
+	if game._ai_view:
+		cs.merge(game._ai_view.cars)
+	elif game.field:
+		cs.merge(game.field.cars)
+	for id in cs:
+		var c = cs[id]
+		if not is_instance_valid(c):
+			continue
+		var p: Vector3 = c.global_position
+		if _moved_at.has(id) and game.state != "grid":
+			_moved[id] = float(_moved.get(id, 0.0)) + minf(p.distance_to(_moved_at[id]), 50.0)
+		_moved_at[id] = p
+		if game.others.has(id):
+			_rx[id] = int(c.states_received)
+	var lap: float = game.running_lap()               # (the HUD's lap clock: never negative, never past a slow lap)
+	if lap != INF and game.state == "running":
+		_lap_lo = minf(_lap_lo, lap)
+		_lap_hi = maxf(_lap_hi, lap)
 
 
 ## An online cut-up test: the host's traffic round every player, mirrored on each

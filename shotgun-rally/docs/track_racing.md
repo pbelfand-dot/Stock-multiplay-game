@@ -43,7 +43,7 @@ same inputs give the same calls, which is what an online host needs.
   - **BLACK AND WHITE:** your third track-limits warning.
   - **BLACK:** 30 s of penalties, disqualified.
   - **RED:** three cars stopped at once. Everyone slows to 80 km/h with no passing, then after 15 s a standing restart from the order the race was in. Cars on the lead lap restart on the leader's lap, and each car's partial lap is run again.
-  - **CHEQUERED:** once the leader has done the laps, everyone finishes as they next cross the line.
+  - **CHEQUERED:** once the leader has done the laps, everyone finishes as they next cross the line (their time at the line itself, to the ms). Five minutes on, the race is over, every car home or not.
 - **The penalties** escalate:
   - **TRACK LIMITS:** a lap's excursion with all four wheels past the white line that kept its speed: warnings 1-3, then +5 s each time.
   - **CORNER CUTTING:** off on the inside of a corner: one warning, then +5 s.
@@ -292,7 +292,8 @@ field sorting itself out round it isn't passing under one: the start's own chaos
 ## The weather
 
 WEATHER on the TRACK card (`--weather=day|night|wet` on the command line) sets three presets
-(`Modes.TRACK_WEATHER`). Every machine builds the same one from the session's settings.
+(`Modes.TRACK_WEATHER`). Online every machine builds the same one from the session's settings (not
+tried online yet).
 
 - **DAY:** daylight, or Settings' TIME OF DAY when it's set.
 - **NIGHT:** 21:30 under the floodlights (the towers every 120 m light pools on the track). The air
@@ -321,9 +322,109 @@ WEATHER on the TRACK card (`--weather=day|night|wet` on the command line) sets t
   - **Sound:** the rain's hiss (filtered noise made in code, no recording). The wipers keep going
     while the car moves.
 
+## Online
+
+MODES > **HOST ONLINE (UP TO 8)**, then the TRACK card's class, session and options and START: the
+host's machine opens a street session on CINDER RIDGE (port 7777). Friends **JOIN** from ONLINE with
+the host's IP, as for the touge. Everyone drives their own car: their garage car if it's in the
+session's class, else the class's own (`Modes.track_car`), at its homologated spec, in their colours
+and number.
+
+- **The sessions:**
+  - **PRACTICE:** everyone's laps on one tower; END RUN ends your own run, not the others'.
+  - **QUALIFYING:** the clock.
+  - **QUICK RACE.**
+  - **RACE WEEKEND:** qualifying, then the race from qualifying's order (the host's ENTER at the results).
+- **The grid:** the players in the roster's order (the host first) or, in a weekend, qualifying's
+  order; the AI behind them (by pace). The players' pit boxes are 8-15, the AI's the rest. Everyone
+  loads the same circuit and starts on the host's lights: standing for FORMULA, rolling for GT (or
+  the START option).
+- **The host is race control** (`scripts/game/track_net.gd`, TrackNet). RaceControl and
+  TrackSession run on the host only, on every car: the positions, laps, timing, flags, track-limit
+  warnings and penalties, jump starts, DRS, pit-lane speeding, the chequered flag and the results.
+  - Each guest's machine runs its own car (as in the touge) and sends the host where it is on the
+    track (s, d, speed, in the pit lane) 20 times a second, stamped with its own clock (its physics
+    time).
+  - Race control judges every car at the same moment, 0.12 s back on the host's clock (a guest's
+    position can't be fresher than that, so nobody's is: the host's own car and the AI aren't judged
+    a little ahead of the guests, for the running order, gaps, DRS, flags and penalties). A guest's
+    car then: its positions at that moment on its clock (our clock less the stamps' offset, the
+    quickest packet of the last 3 s eased into, plus half the round trip they took).
+  - A guest's laps and sectors are timed on its own clock: each line's crossing between the two
+    positions either side, on their stamps. So they come out as its own machine would time them, to
+    the millisecond (the test checks it), even when the host's physics falls behind real time (a
+    busy machine's does: the first test runs here had the host's clock 10 % slow, and a guest's laps
+    12 s short).
+  - A race's finishing times are each car's crossing of the line itself (between two ticks, on the
+    session's clock; a guest's from its own), not the tick race control saw it in.
+  - Five minutes after the leader's flag the race is over, every car home or not (a car stuck on the
+    track, still connected, can't hold everyone's results).
+  - The host sends every machine the race's state 5 times a second: the phase and the lights, the
+    clock, the yellows and blue flags, who may open their DRS, and the timing board (the running
+    order, each car's laps, gaps, best and last laps, penalties, status).
+  - Its news goes out as it happens: the lights, the flags, penalties and warnings, the guests' laps
+    and sectors (the HUD's messages). The classification goes out once a second while it changes, and
+    the last one when everyone's done.
+  - A guest keeps a copy of race control and the timing, never run there, and draws its HUD from it:
+    the tower, the lights, the flags, its DRS, the results.
+  - Each time the host puts the cars in their places (the start, a red flag's restart) the grid's
+    epoch goes up by one. A guest's positions carry the epoch it has, and older ones are dropped, so
+    a car moved to its grid box isn't judged on where it was.
+- **The other players' cars:** the street session's own (each simulated on its driver's machine,
+  streamed ~30 times a second, played back 0.1 s behind, a name over it).
+- **The AI:** the card's **CARS** fills the grid online too (0-12; 0 for friends only;
+  `--opponents=N` on the command line, 0 by default). The host simulates them (RaceField: on the
+  physics near any player, moved along their line away from everyone) and streams them to every
+  machine 20 times a second, drawn there like a remote car (`RaceField.setup_view`); the same race
+  control classifies them. Practice is friends only.
+- **Collisions:** online, every car passes through the others for now. A remote player's car is only
+  drawn on your machine, not simulated there; the street session's remote cars have never touched
+  each other in fact (both on collision layer 2 and mask 1, so neither looks for the other, whatever
+  COLLISIONS says). The AI pass through the players as well, so no machine gets contact with them
+  that the others don't. The AI still race each other for real.
+- **Joining late:** someone who joins once the session's on loads the circuit, gets the state and
+  starts from a free pit box, out of the pit lane (in a race, laps down). Once the chequered flag is
+  out they wait for the next session.
+- **Leaving:** a player who leaves is out (DNF) at once. One whose positions stop coming for 20 s
+  while still connected is out too. The race never waits on them.
+- **The results:** every machine shows the host's classification: positions, times, gaps, best laps
+  and penalties. R at the results (the host) runs the session again for everyone.
+
+Command lines (port 7777, `--port=N` for another):
+
+- host: `--host --street --mode=track --track_class=gt --session=race --laps=5 [--opponents=N] [--start=standing|rolling] [--minutes=M] [--name=Ann]`;
+- join: `--join=HOST_IP [--name=Bob]`.
+
+The test (`tests/run_all.sh`): one host and two guests on localhost, all on `--autopilot`, race 2
+laps (a standing start) with 2 AI cars filling the grid. Each must:
+
+- be shown the five lights and the green;
+- see the two other players' cars and the AI moving;
+- have the same classification as the host, which has every car classified and every player at the flag;
+- (a guest) have its laps timed by the host within 5 ms of its own timing of them (0.0-1.5 ms in the runs here);
+- show a sane running lap clock on its HUD (never below 0, never past 300 s).
+
+Tried by hand, not in the suite (each run takes minutes on four machines' worth of CPU):
+
+- online qualifying (2.5 minutes, three players and 2 AI): everyone timed, the same order everywhere;
+- online practice (two machines, 3 minutes in the FORMULA class): out of their boxes and onto their
+  timed laps, one tower, no errors (practice has no finish to check);
+- the GT class's rolling start online (the test's race with `--start=rolling`): the formation, the
+  green, no penalties, everyone home, the same classification everywhere;
+- joining late and leaving: a fourth player joining 70 s into the race starts from the pit lane and
+  is classified a lap down, its laps timed to 0.0 ms; one killed 90 s in is DNF and the race finishes
+  without them; all agree.
+
+Not done online yet:
+
+- contact between the players (each car runs on its own machine: it needs prediction);
+- a quick race's GRID option (online the players start in the roster's order);
+- the AI in practice;
+- not tried online: a race weekend's race from qualifying's order, a red flag's restart
+  (`tests/race_ai_check.gd` tests it alone).
+
 ## Still to come (P8)
 
-- online races (the grid, lights, flags, penalties and results synced from the host);
 - a pit-wall radio during the race (the strategy is set from the pause menu);
 - engine sounds of their own for the CC0 GT and Formula cars (the batch's GT cars have theirs);
 - championships (the TV camera is in: C);
