@@ -6,7 +6,7 @@ MODES > **TRACK** has two classes:
   ELFER R, ELFER EVO, AFFALTER GT3, HALDANE GT3, VESPERA GT3, VALKO GT4, STILETTO CUP, KAISER 4 GT3,
   TEMPESTA GT3, WOKING 720 GT3, ELFER GT2 CS and AFFALTER CLK DTM.
 - **FORMULA** (FORMULA APEX): open-wheel single-seaters with no ABS or traction control, DRS and a
-  hybrid; standing starts. The ORION FA1, ZEPHYR GE, TORO R26, VEE-F 26 and AFFALTER W17 (below).
+  hybrid; standing starts. The TORO R26, VEE-F 26 and AFFALTER W17 (below).
 
 Each runs four sessions on CINDER RIDGE:
 
@@ -185,7 +185,7 @@ In Track Mode every car runs at its homologated spec: no garage upgrades.
 - **weekend:** qualifying in the game: the AI out one by one, everyone timed, the flag, the order, the race's grid from it, the same field.
 - **race:** a 6-car race over 2 laps in the game: the lights, no jump starts, everyone finishing, places changing (17 times in the last run), no hard hits, the classification and the results.
 - **drs:** the DRS rules with no physics (not before the leader's third lap; a second at the detection point; never under a yellow or a red; free in practice).
-- **Formula** (`--class=formula`, the ORION FA1; `--car=zephyr` for the other): the driver test on the physics (two flying laps within 2.5 % of its line, on the track), far, pit, DRS and the hybrid down the pit straight, and a 6-car 3-lap race with a standing start (DRS enabled, the AI deploying their hybrids).
+- **Formula** (`--class=formula`, the TORO R26; `--car=vee_f` or `--car=affalter_w17` for the others): the driver test on the physics (two flying laps within 2.5 % of its line, on the track), far, pit, DRS and the hybrid down the pit straight, and a 6-car 3-lap race with a standing start (DRS enabled, the AI deploying their hybrids).
 
 ## FORMULA APEX
 
@@ -208,20 +208,18 @@ Sources: the McLaren MCL39 technical specification, the FIA's July 2024 F1 Commi
 (the 800 kg), Pirelli's 2022 18 in tyre launch, the DRS article on Wikipedia (the FIA's +10-12 km/h).
 Power, torque, the ratios, the aero and DRS's effect are estimates: teams don't publish them.
 
-The cars (the owner's CC0 models, at their own size):
+The cars: the owner's own Formula models, three 2026-shape cars from their private download batch
+(**TORO R26**, the class's default, **VEE-F 26** and **AFFALTER W17**: 3,400 mm wheelbases, the 2026
+rules' maximum), each at its own size and in its own livery. Run to FORMULA APEX's rules (800 kg, the
+120 kW MGU-K, DRS) rather than the real 2026 ones (768 kg, 350 kW, active aero), so the three race
+evenly: on the AI's line 79.1-79.6 s a lap.
 
-- **ORION FA1:** the halo open-wheeler, a 3,250 mm wheelbase: the shorter, the more agile.
-- **ZEPHYR GE:** the ground-effect car, 3,575 mm (the rules allowed up to 3,600): more downforce,
-  a little more drag.
-- **TORO R26, VEE-F 26, AFFALTER W17:** three 2026-shape cars from the owner's private download batch
-  (3,400 mm, the 2026 rules' maximum), with their own cockpits: the model's steering wheel (screen, rev
-  and hybrid lights) cut out and turning, the halo, the belts. Run to FORMULA APEX's rules (800 kg, the
-  120 kW MGU-K, DRS) rather than the real 2026 ones (768 kg, 350 kW, active aero), so the five race evenly:
-  on the AI's line 79.1-79.6 s a lap (ORION 79.4).
+Their cockpits are the models' own: the steering wheel (screen, rev and hybrid lights) cut out and
+turning, the halo, the belts, the driver alone and lying back (no co-driver, no map board, no
+windshield), the helmet up under the halo. The AI's single-seaters show their drivers' helmets.
 
-Their cockpits: a race wheel made for each (a carbon yoke, two grips, a screen: the converter's
-`"add"`), the driver alone and lying back (no co-driver, no map board, no windshield), the helmet up
-under the halo. The AI's single-seaters show their drivers' helmets.
+The class first ran two AI-generated models (the ORION FA1 and ZEPHYR GE, from 3dassets.dev). At the
+owner's word they're out of the game: a save that bought one gets its price back (`Profile.RETIRED`).
 
 ### DRS
 

@@ -163,7 +163,7 @@ const STREET := {
 	"kaiser_2c": [1.04, "street"], "affalter_s": [0.9, "street"],
 	"woking_600": [1.1, "cup"], "affalter_gtb": [1.15, "cup"], "woking_800": [1.2, "cup"], "woking_one": [1.12, "cup"],
 	# FORMULA APEX: 18 in slicks on an 800 kg car (~1.7 g before the wings: they add 2-3 x the weight at speed)
-	"orion": [1.7, "formula"], "zephyr": [1.7, "formula"], "toro": [1.7, "formula"], "vee_f": [1.7, "formula"], "affalter_w17": [1.7, "formula"],
+	"toro": [1.7, "formula"], "vee_f": [1.7, "formula"], "affalter_w17": [1.7, "formula"],
 	# rally cars on tarmac rally tyres (near-slicks today, narrower then)
 	"ocelot": [1.25, "cup"], "kestrel": [1.18, "cup"], "comet": [1.2, "cup"], "vortex": [1.2, "cup"],
 	"kaiser": [1.1, "cup"], "martello": [1.08, "cup"], "sedici": [1.1, "cup"], "vierrad": [1.08, "cup"],
@@ -175,7 +175,7 @@ const STREET_ROLE := {"race_prototype": [1.7, "slick"], "track": [1.22, "cup"], 
 ## classics (1970s-80s, and early-90s cars where it was an option), the prototypes,
 ## and the rally cars (role "rally"; their rules ban it). Settings' ANTI-LOCK
 ## switch still turns it on for every car.
-const NO_ABS := ["brawler", "hako", "hachi", "kitsune", "rotora_fc", "nimbus", "biscione", "gtp963", "vsr", "orion", "zephyr", "toro", "vee_f",
+const NO_ABS := ["brawler", "hako", "hachi", "kitsune", "rotora_fc", "nimbus", "biscione", "gtp963", "vsr", "toro", "vee_f",
 	"affalter_w17", "affalter_dtm"]
 ## ... and factory traction control: today's road cars (2010s on), the hypercars, the
 ## GT3 cars and the prototypes have it; the classics, the 1990s cars and the rally

@@ -506,7 +506,7 @@ func _quali(st) -> void:
 # ── driving (the physics, the far mode, a pit stop) ─────────────────────────
 
 var cls := "gt"                    # --class=formula: the driving tests in a Formula car
-var car_id := ""                   # --car=<registry id>: the driving tests' car (else the AFFALTER GT3, or the ORION FA1)
+var car_id := ""                   # --car=<registry id>: the driving tests' car (else the AFFALTER GT3, or the TORO R26)
 var weather := "day"               # --weather=wet: the driving tests on a wet track
 
 
@@ -517,7 +517,7 @@ func _driving(st_unused, only: String) -> void:
 	root.add_child(g)
 	# a qualifying session with one AI car (it leaves its box at once): its car, its driver
 	var o: Dictionary = Modes.track_opts(5, cls, "qualifying", 3, "cinder_ridge", {"opponents": 1, "difficulty": "pro", "minutes": 30.0, "weather": weather})
-	o["field_cars"] = [car_id if car_id != "" else ("orion" if cls == "formula" else "affalter")]
+	o["field_cars"] = [car_id if car_id != "" else ("toro" if cls == "formula" else "affalter")]
 	await g.start(5, 1, o)
 	var st = g.st
 	var field = g.field

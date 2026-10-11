@@ -488,20 +488,6 @@
     "why": ""
    }
   },
-  "formula_ge": {
-   "formula_18": {
-    "ok": true,
-    "clear_mm": 0.3,
-    "why": ""
-   }
-  },
-  "formula_halo": {
-   "formula_18": {
-    "ok": true,
-    "clear_mm": 10.0,
-    "why": ""
-   }
-  },
   "g63_w463": {
    "strada_5": {
     "ok": true,

@@ -521,6 +521,20 @@ func _series() -> void:
 	var saved: Dictionary = Profile.track_series.get("gt", {})
 	check(TrackSeries.done(s) and int(saved.get("round", 0)) == 4 and TrackSeries.summary(s).begins_with("Championship over"),
 		"series: over after round 4, kept in the profile (%s)" % TrackSeries.summary(s))
+	# a save from before the ORION and ZEPHYR were taken out: both bought, the ORION driven
+	var cf := ConfigFile.new()
+	cf.set_value("bank", "credits", 1000)
+	cf.set_value("garage", "car", "orion")
+	cf.set_value("garage", "owned", {"cars": ["kestrel", "stromer", "orion", "zephyr"], "liveries": [], "wheels": ["silver"], "wheel_types": ["stock"]})
+	cf.set_value("garage", "paint", {"orion": {"livery": "plain"}})
+	cf.save(Profile.path())
+	Profile._loaded = false
+	Profile.ensure_loaded()
+	check(Profile.credits == 1000 + 240000 + 250000 and not "orion" in Profile.owned.cars and not "zephyr" in Profile.owned.cars
+		and Profile.car == "kestrel" and not Profile.paint.has("orion") and not "orion" in Modes.track_classes().formula.cars
+		and Modes.track_car({"class": "formula"}, "orion") == "toro",
+		"series: (the retired ORION / ZEPHYR) a save that bought them gets %d credits back and drives the KESTREL; FORMULA is the owner's three (%s)" % [
+		Profile.credits - 1000, ", ".join(Modes.track_classes().formula.cars)])
 	var s2: Dictionary = TrackSeries.begin("gt", 99, "medium", 9, 10.0)
 	check(int(s2.round) == 0 and (s2.points as Dictionary).is_empty() and TrackSeries.current("formula").is_empty(),
 		"series: a new season starts clean; each class has its own")

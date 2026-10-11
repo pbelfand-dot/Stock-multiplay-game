@@ -27,13 +27,11 @@
   "series": "FORMULA APEX",
   "blurb": "Open-wheel single-seaters: 800 kg, huge downforce, slicks, DRS and energy deployment, standing starts. No ABS or traction control.",
   "cars": [
-   "orion",
-   "zephyr",
    "toro",
    "vee_f",
    "affalter_w17"
   ],
-  "default": "orion",
+  "default": "toro",
   "start": "standing",
   "available": true
  }

@@ -16,6 +16,9 @@ const WheelPresets = preload("res://scripts/vehicle/wheel_presets.gd")
 ## Cars every profile owns from the start: the rally car, and the electric STROMER 4
 ## for the road (the owner's ask: drivable without saving up for it)
 const FREE_CARS := ["kestrel", "stromer"]
+## Cars taken out of the game (id -> what they cost): a save that bought one gets the credits back.
+## The ORION FA1 and ZEPHYR GE (AI-generated models) made way for the owner's own Formula cars.
+const RETIRED := {"orion": 240000, "zephyr": 250000}
 
 static var credits := 0
 static var car := "kestrel"                 # the one you drive
@@ -63,8 +66,18 @@ static func ensure_loaded() -> void:
 	for free in FREE_CARS:                                # (a save from before a car was free gets it too)
 		if not free in owned.cars:
 			owned.cars.append(free)
+	var refund := 0
+	for gone in RETIRED:                                  # (a car taken out of the game: its price back)
+		if gone in owned.cars:
+			owned.cars.erase(gone)
+			refund += int(RETIRED[gone])
+		for d in [paint, levels, tuning]:
+			d.erase(gone)
+	credits += refund
 	if not car in owned.cars:
 		car = "kestrel"
+	if refund > 0:
+		save()
 
 
 static func save() -> void:

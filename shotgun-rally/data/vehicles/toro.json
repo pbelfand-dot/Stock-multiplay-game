@@ -20,7 +20,7 @@
 		"wheelbase_mm": 3400,
 		"top_speed_kmh": 340,
 		"front_weight": 0.455,
-		"notes": "A 2026-shape Formula car, run here to FORMULA APEX's balanced rules (the class's: 800 kg, a 120 kW MGU-K, DRS; see docs/track_racing.md) so it races the ORION and ZEPHYR evenly. The real 2026 rules it was drawn to: 768 kg, a 3,400 mm maximum wheelbase (this model's exactly), 1,900 mm wide, a 350 kW MGU-K and no MGU-H, active aero instead of DRS (Honda's 2026 regulations overview, F1Technical's 2026 numbers). Power, torque, ratios and aero are the class's estimates."
+		"notes": "A 2026-shape Formula car, run here to FORMULA APEX's balanced rules (the class's: 800 kg, a 120 kW MGU-K, DRS; see docs/track_racing.md) so the class's three race evenly. The real 2026 rules it was drawn to: 768 kg, a 3,400 mm maximum wheelbase (this model's exactly), 1,900 mm wide, a 350 kW MGU-K and no MGU-H, active aero instead of DRS (Honda's 2026 regulations overview, F1Technical's 2026 numbers). Power, torque, ratios and aero are the class's estimates."
 	},
 	"garage": {
 		"price": 260000,
