@@ -1,0 +1,35 @@
+{
+	"_about": "AKATSUKI (Toyota GR Supra A90): its driver display is painted into its screen texture (Screen, 1024 px), laid in it sideways (the display's across is the texture's down: transpose): the rev counter in the middle (0 at the bottom, round through the left to the red zone past 6.5 at the top right), the gear inside it, an 'mph' with no number, the clock top right. Kept as painted and made live: the painted needle hidden under the dial copied from further round, the live one turning with the revs, the gear and its mode drawn where the painted '1 M' was, the speed over 'km/h', the clock. Pixels of the display as it's seen (903 x 480).",
+	"displays": [
+		{
+			"mat": "^Screen$",
+			"tex": 1024,
+			"glow": "all",
+			"screens": [
+				{
+					"page": "cluster",
+					"rect": [526, 96, 1006, 999],
+					"transpose": true,
+					"accent": "#e0201a",
+					"layout": {
+						"cover": [[448, 212, 502, 273, "#000000"], [156, 248, 194, 268, "#000000"], [682, 110, 758, 130, "#000000"]],
+						"needle": [{"what": "rpm", "c": [452.5, 244.2], "r": 138, "a0": 87.2, "a1": 302.5, "max": 7000,
+							"hide": 112, "hide_w": 7, "hide_r0": 50, "hide_r1": 148, "shift": 22, "w": 4, "color": "#f2f2f2", "tail": 0.0}],
+						"text": [
+							{"what": "gear_n", "at": [470, 242], "size": 66, "color": "#e0201a"},
+							{"what": "gear_mode", "at": [504, 266], "size": 15, "color": "#e0201a"},
+							{"what": "speed", "at": [176, 214], "size": 56, "max_w": 120},
+							{"what": "unit", "text": "km/h", "at": [176, 258], "size": 15, "bold": false, "color": "#cfcfcf"},
+							{"what": "clock", "at": [720, 120], "size": 18, "bold": false, "color": "#d8d8d8"}
+						],
+						"lamp": [
+							{"what": "handbrake", "at": [90, 440], "size": 12, "color": "#ff3b1f"},
+							{"what": "abs", "at": [125, 440], "size": 12, "color": "#ffb000"},
+							{"what": "tc", "at": [160, 440], "size": 12, "color": "#ffb000"}
+						]
+					}
+				}
+			]
+		}
+	]
+}

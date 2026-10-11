@@ -44,10 +44,11 @@ func setup(the_live, the_cfg: Dictionary, tex: Texture2D, region: Rect2) -> void
 	cfg = the_cfg
 	base = tex
 	src = region
+	var across := Vector2(region.size.y, region.size.x) if cfg.get("transpose", false) else region.size   # (as it's seen)
 	if _painted():
-		view = region
+		view = Rect2(Vector2.ZERO, across) if cfg.get("transpose", false) else region
 	else:
-		var aspect := float(cfg.get("aspect", region.size.x / maxf(region.size.y, 1e-4)))
+		var aspect := float(cfg.get("aspect", across.x / maxf(across.y, 1e-4)))
 		var canvas: Array = cfg.get("canvas", [1000.0, 1000.0 / aspect])
 		view = Rect2(0, 0, float(canvas[0]), float(canvas[1]))
 	var k := float(cfg.get("px", WIDTH)) / view.size.x
@@ -93,7 +94,13 @@ func _draw() -> void:
 func _cluster() -> void:
 	var d: Dictionary = live.data
 	var lay: Dictionary = cfg.get("layout", {})
-	if cfg.get("flip_v", false):                    # (a texture stored upside down: drawn the right way up here,
+	if cfg.get("transpose", false):                 # (laid sideways in its texture: drawn as it's seen, the layout
+		var kt := size.x / view.size.x               # measured on it that way, its across the texture's down)
+		var at_t := Transform2D(0.0, Vector2(kt, kt), 0.0, -view.position * kt)
+		draw_set_transform_matrix(at_t * Transform2D(Vector2(0, 1), Vector2(1, 0), Vector2(-src.position.y, -src.position.x)))
+		draw_texture_rect_region(base, src, src)
+		draw_set_transform_matrix(at_t)
+	elif cfg.get("flip_v", false):                  # (a texture stored upside down: drawn the right way up here,
 		var k := size.x / view.size.x               # the layout measured on it that way; the screen turns it back)
 		var at := Transform2D(0.0, Vector2(k, k), 0.0, -view.position * k)
 		draw_set_transform_matrix(at * Transform2D(Vector2(1, 0), Vector2(0, -1), Vector2(0, src.position.y * 2.0 + src.size.y)))
@@ -106,6 +113,8 @@ func _cluster() -> void:
 		draw_rect(Rect2(c[0], c[1], float(c[2]) - float(c[0]), float(c[3]) - float(c[1])), col)
 	for a in lay.get("arc", []):
 		_arc(a, d)
+	for n in lay.get("needle", []):
+		_needle(n, d)
 	for t in lay.get("text", []):
 		_text(t, d)
 	if lay.has("gdot"):
@@ -151,6 +160,53 @@ func _arc(a: Dictionary, d: Dictionary) -> void:
 			draw_line(p0.lerp(p1, fh), p0.lerp(p1, f), hi, w, true)
 
 
+## A needle on a painted dial ("c", "r": its hub and length; "a0" / "a1": its angle at 0 and at "max",
+## degrees, 0 right, 90 down): the painted needle ("hide": its angle, "hide_w" either side, from
+## "hide_r0" out) covered with the dial's face copied from "shift" degrees further round, then the
+## live one drawn over it, turning with the reading.
+func _needle(n: Dictionary, d: Dictionary) -> void:
+	var c := Vector2(n.c[0], n.c[1])
+	var r := float(n.r)
+	if n.has("hide"):
+		var a := deg_to_rad(float(n.hide))
+		var half := deg_to_rad(float(n.get("hide_w", 6.0)))
+		var sh := deg_to_rad(float(n.get("shift", 20.0)))
+		var r0 := maxf(float(n.get("hide_r0", 4.0)), 1.0)
+		var pts := PackedVector2Array()
+		for i in 7:                                         # (the wedge: out along one side, back along the other)
+			var t := a - half + half * i / 3.0
+			pts.append(c + Vector2(cos(t), sin(t)) * float(n.get("hide_r1", r * 1.04)))
+		for i in range(6, -1, -1):
+			var t := a - half + half * i / 3.0
+			pts.append(c + Vector2(cos(t), sin(t)) * r0)
+		var uvs := PackedVector2Array()
+		for q in pts:
+			uvs.append(_tex_uv(c + (q - c).rotated(sh)))
+		draw_polygon(pts, PackedColorArray([Color.WHITE]), uvs, base)
+	var ang := needle_angle(n, _value(str(n.what), d))
+	var dir := Vector2(cos(ang), sin(ang))
+	draw_line(c - dir * r * float(n.get("tail", 0.1)), c + dir * r, Color(str(n.get("color", "#ff3b1f"))), float(n.get("w", 3.0)), true)
+	if float(n.get("hub", 0.0)) > 0.0:
+		draw_circle(c, float(n.hub), Color(str(n.get("hub_color", "#101010"))))
+
+
+## Where a painted dial's needle points for a reading (radians, 0 right, down positive).
+static func needle_angle(n: Dictionary, v: float) -> float:
+	var u := clampf(absf(v) / maxf(float(n.get("max", 1.0)), 1e-3), 0.0, 1.0)
+	return deg_to_rad(lerpf(float(n.a0), float(n.a1), u))
+
+
+## A point of a painted page (its own pixels: sideways or upside down as the texture has it) as the
+## texture's UV.
+func _tex_uv(p: Vector2) -> Vector2:
+	var t := p
+	if cfg.get("transpose", false):
+		t = Vector2(src.position.x + p.y, src.position.y + p.x)
+	elif cfg.get("flip_v", false):
+		t = Vector2(p.x, src.position.y * 2.0 + src.size.y - p.y)
+	return t / Vector2(base.get_width(), base.get_height())
+
+
 ## How far along a band (its points' running lengths) a value reaches, given each point's value.
 static func arc_reach(at: Array, lens: Array, v: float) -> float:
 	if at.is_empty() or v <= float(at[0]):
@@ -173,6 +229,12 @@ func _reading(what: String, d: Dictionary, t := {}) -> String:
 			return "%d" % roundi(absf(_value("kmh", d)))
 		"mph":
 			return "%d" % roundi(absf(_value("kmh", d)) / 1.609344)
+		"gear_n":                                   # (the gear on its own: the number, or P / N / R)
+			var gn := _gear(d, "bmw")
+			return gn.substr(1) if gn.length() > 1 else gn
+		"gear_mode":                                # (the box's mode beside it: D or M, nothing at P / N / R)
+			var gm := _gear(d, "bmw")
+			return gm.substr(0, 1) if gm.length() > 1 else ""
 		"gear":
 			return _gear(d, str(t.get("style", cfg.get("style", ""))))
 		"unit":

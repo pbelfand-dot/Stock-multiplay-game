@@ -109,6 +109,7 @@ light (L), backlit screens at night and the warning lamps; the luxury cars have 
 | WOKING 800 (Senna) | the driver display and the portrait centre screen (tabs across the top) | |
 | WOKING 720 GT3 | the race display on the column | |
 | RAIDEN GT (GT-R) | the centre screen's pages | its painted dials don't move yet |
+| AKATSUKI V (GR Supra A90) | its own painted driver display made live, though the texture holds it sideways (`transpose`): the painted rev needle hidden under the dial's face copied from further round and a live one turning with the revs, the gear and the box's mode where the painted "1 M" was, the speed over km/h, the clock | the outside temperature and the car picture stay as painted |
 | MOCHI e (Honda e) | its own screens kept: the battery's percentage live in the driver display's ring and on the charging page; the speed, the gear (D), the range, the clock and the lamps on the display's dark sides | the EV menu and the media page stay as painted |
 | KAISER 4 WB, KAISER 2 WB, KAISER T, KAISER 8 GC | a digital cluster and the iDrive pages (the M4 over its own texture; the M2's, M3's and M8's blank screens get panels) | |
 | KAISER 5 E (M5 E34) | its own modelled needles (speed, revs, fuel) turn, the dials glow orange at night, the console clock | |

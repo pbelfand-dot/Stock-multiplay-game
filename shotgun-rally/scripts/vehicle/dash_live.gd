@@ -162,7 +162,7 @@ func _overlay_material(base: Material, d: Dictionary) -> ShaderMaterial:
 		pages.append(page)
 		ov.set_shader_parameter("screen_tex%d" % k, vp.get_texture())
 		rects.append(_uv_rect(r, size))
-		flips.append(1.0 if s.get("flip_v", false) else 0.0)
+		flips.append(2.0 if s.get("transpose", false) else (1.0 if s.get("flip_v", false) else 0.0))
 		k += 1
 	ov.set_shader_parameter("screen_count", k)
 	ov.set_shader_parameter("screen_rect", _pad(rects, MAX_SCREENS))
@@ -790,7 +790,9 @@ void fragment() {
 		vec4 r = screen_rect[i];
 		if (inside(uv, r)) {
 			vec2 q = (uv - r.xy) / (r.zw - r.xy);
-			if (screen_flip[i] > 0.5) {
+			if (screen_flip[i] > 1.5) {
+				q = q.yx;                       // (a screen laid sideways in its texture: its across is the texture's down)
+			} else if (screen_flip[i] > 0.5) {
 				q.y = 1.0 - q.y;
 			}
 			outc = vec4(screen_at(i, q) * screen_light, 1.0);

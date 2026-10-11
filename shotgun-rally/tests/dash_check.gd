@@ -16,6 +16,8 @@ extends SceneTree
 ##     driver's eye, its page; a dial's needle follows its reading (the speed, the revs)
 ##   * the ambient lighting: off by day, every light on at night
 ##   * the readings: the fuel (an electric car: its charge) and the range from it
+##   * a painted cluster laid sideways in its texture is seen the right way round, and a live
+##     needle on a painted dial sweeps from its 0 to its top value
 ##   * the original materials are untouched: an overlay is a duplicate's next pass
 ## Prints one [dash] line per check; exits 1 on any FAIL.
 ## Run: godot --headless --path . -s tests/dash_check.gd
@@ -135,6 +137,20 @@ func _spec(id: String, car, cp, dash, spec: Dictionary) -> void:
 			for i in a.at.size():
 				ok = ok and absf(pg.arc_reach(a.at, lens, float(a.at[i])) - float(lens[i])) < 0.01 and (i == 0 or float(a.at[i]) > float(a.at[i - 1]))
 			fails += _check(ok and pg._painted(), "%s: its painted cluster's %s band reaches each mark at its value (%s)" % [id, str(a.what), str(a.at)])
+	# a painted cluster laid sideways in its texture (the Supra's): its picture's corners are the texture
+	# rect's, its across the texture's down; a needle drawn on a painted dial at 0 and at its top value
+	for pg in dash.pages:
+		if pg.cfg.get("transpose", false):
+			var ts := Vector2(pg.base.get_width(), pg.base.get_height())
+			var c0: Vector2 = pg._tex_uv(Vector2.ZERO) * ts
+			var c1: Vector2 = pg._tex_uv(pg.view.size) * ts
+			fails += _check(pg.view.size == Vector2(pg.src.size.y, pg.src.size.x) and c0.distance_to(pg.src.position) < 0.5 and c1.distance_to(pg.src.end) < 0.5,
+				"%s: its sideways cluster seen the right way round (%s from the texture's %s)" % [id, str(pg.view.size), str(pg.src.size)])
+		for n in pg.cfg.get("layout", {}).get("needle", []):
+			var at0: float = pg.needle_angle(n, 0.0)
+			var at1: float = pg.needle_angle(n, float(n.max))
+			fails += _check(absf(at0 - deg_to_rad(float(n.a0))) < 1e-4 and absf(at1 - deg_to_rad(float(n.a1))) < 1e-4 and absf(pg.needle_angle(n, float(n.max) * 2.0) - at1) < 1e-4,
+				"%s: its painted dial's live %s needle sweeps %s to %s deg (held at the end past %s)" % [id, str(n.what), str(n.a0), str(n.a1), str(n.max)])
 	# a dial's needle follows its reading
 	var dials: Array = dash.pages.filter(func(p): return str(p.cfg.get("page", "")) == "dial")
 	if not dials.is_empty():
