@@ -284,11 +284,12 @@ directly) works like real timing loops:
 
 The GT class runs the **ELFER R**, the **AFFALTER GT3**, or the ELFER EVO if that's your garage
 car (the class list is `data/track_classes.json`), at its homologated spec (no garage upgrades).
-Track Mode is alone for now: online practice and races come with P8.
+Online, everyone in their own car of the class on one circuit, the host's machine race control for
+all: below, and `docs/track_racing.md`'s "Online".
 
 ## Online: street sessions (up to 8)
 
-MODES > **HOST ONLINE (UP TO 8)**, then START a touge or a cut-up difficulty: the host's
+MODES > **HOST ONLINE (UP TO 8)**, then START a touge, a cut-up difficulty or a TRACK session: the host's
 machine opens a street session (`Net.host(..., "street", collide)`, port 7777). Friends join
 from **ONLINE > JOIN** with the host's IP (as for a crew), each driving their own garage car:
 every car is simulated on its own driver's machine and streamed to the others ~30 times a
@@ -308,11 +309,21 @@ race (R at the results runs the pass again for everyone).
   driver 10 times a second (7 numbers a car); the others play it back, easing to it and
   dead-reckoning between updates. Hit a car and your machine tells the host, so it stops for
   everyone. Each driver keeps their own score; no rival battles online.
+- **Track Mode online** (`docs/track_racing.md`, "Online"): practice, qualifying, a race or a race
+  weekend on CINDER RIDGE, each player in a car of the session's class (the class's own if their
+  garage car isn't one). The grid is the roster's order (or qualifying's); the host's machine runs
+  race control for everyone (`scripts/game/track_net.gd`): each guest's machine sends where its car
+  is on the track, the host times it, judges it and sends back the race's state, its news and the
+  classification. CARS fills the grid with the host's AI, streamed to everyone. Someone joining once
+  it's on starts from the pit lane; someone leaving is out (DNF). Every car passes through the
+  others online for now.
 
 Command line (tests): `--host --street --mode=touge|cutup [--ghosts] [--min_racers=N]
---autostart --autopilot`, the others `--join=127.0.0.1 --autopilot`; `tests/run_all.sh` races
-three machines down a touge (all three agree on the order) and runs three on the loop (the
-host's traffic round each).
+--autostart --autopilot`, or `--host --street --mode=track [--track_class=gt|formula
+--session=practice|qualifying|race --laps=N --opponents=N --start=standing|rolling]`, the others
+`--join=127.0.0.1 --autopilot`; `tests/run_all.sh` races three machines down a touge (all three
+agree on the order), runs three on the loop (the host's traffic round each) and races three
+round CINDER RIDGE with the host's AI (all three agree on the classification).
 
 ## Street handling: SIM or ARCADE (Settings)
 

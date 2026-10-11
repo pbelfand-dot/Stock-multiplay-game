@@ -164,6 +164,22 @@ grep -h "\[smoke\]" $T/ch.log $T/cg1.log $T/cg2.log
 if grep -hE -A2 "^(SCRIPT ERROR|ERROR: Node not found|ERROR: Invalid packet)" $T/ch.log $T/cg1.log $T/cg2.log; then echo "!! engine errors above"; fail=1; fi
 [ $c1 -eq 0 ] && [ $c2 -eq 0 ] && [ $h -eq 0 ] || fail=1
 P=$((P + 1))
+echo "== online Track Mode: three players race 2 laps of CINDER RIDGE from a standing start, each in a car of the class, 2 of the host's AI filling the grid: the host is race control (the lights, the timing, the flags, the classification), everyone sees everyone's car and the AI moving, all agree on the results"
+run_g 600 --headless --path . -- --host --street --mode=track --track_class=gt --session=race --laps=2 --start=standing --opponents=2 --min_racers=3 --autostart --autopilot --smoke=host --port=$P --seed=5 --timeout=480 --name=Ann --profile=$T/th.cfg > $T/th.log 2>&1 &
+hp=$!
+sleep 4
+run_g 600 --headless --path . -- --join=127.0.0.1 --port=$P --name=Bob --autopilot --smoke=guest1 --timeout=480 --profile=$T/t1.cfg > $T/t1.log 2>&1 &
+g1=$!
+sleep 1
+run_g 600 --headless --path . -- --join=127.0.0.1 --port=$P --name=Cid --autopilot --smoke=guest2 --timeout=480 --profile=$T/t2.cfg > $T/t2.log 2>&1; c2=$?
+wait $g1; c1=$?
+wait $hp; h=$?
+grep -h "\[smoke\]" $T/th.log $T/t1.log $T/t2.log
+orders=$(grep -ho "track order .*" $T/th.log $T/t1.log $T/t2.log | sort -u | wc -l)
+[ "$orders" -eq 1 ] || { echo "!! the machines disagree on the classification"; fail=1; }
+if grep -hE -A2 "^(SCRIPT ERROR|ERROR: Node not found|ERROR: Invalid packet)" $T/th.log $T/t1.log $T/t2.log; then echo "!! engine errors above"; fail=1; fi
+[ $c1 -eq 0 ] && [ $c2 -eq 0 ] && [ $h -eq 0 ] || fail=1
+P=$((P + 1))
 echo "== auto-update: a build-5 copy finds, downloads, checks and runs build 6 from a local server"
 GODOT="$G" timeout -k 10 600 tests/update_check.sh 2>&1 | grep -E "\[update\] (ok|FAIL|UPDATER)" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
 [ -s "$T/timeouts.log" ] && { cat "$T/timeouts.log"; fail=1; }
