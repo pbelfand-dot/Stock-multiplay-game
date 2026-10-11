@@ -211,13 +211,15 @@ func _say(s: String, at: Vector2, px: float, col: Color, align := "center", bold
 func _gear(d: Dictionary, style: String) -> String:
 	var g := int(d.get("gear", 1))
 	if str(d.get("state", "")) in ["grid", ""] and absf(float(d.get("kmh", 0.0))) < 1.0:
-		return "P" if style == "bmw" else "N"
+		return "P" if style in ["bmw", "ev"] else "N"
 	if g < 0:
 		return "R"
 	if g == 0:
 		return "N"
 	if style == "bmw":
 		return ("D%d" if d.get("auto", false) else "M%d") % g
+	if style == "ev":                               # (one gear: an electric car's selector)
+		return "D"
 	return str(g)
 
 

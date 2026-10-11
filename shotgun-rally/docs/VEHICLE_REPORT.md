@@ -214,9 +214,9 @@ solid3DDD, CC BY 4.0). The cheapest European car in the garage (8,000), not traf
   `"normal_from_base"`, `"base_texture_of"`). A scan of every car's colour textures found no other.
 - **Headlights:** every model's head and tail lamps are found (74 models), each side's lamp on its
   own; the beams start at the lamps' lenses, with no glowing balls in front of them.
-- **Live screens:** 20 cars' instruments work (`data/dash/`, the table in `docs/cars.md`), the
+- **Live screens:** 21 cars' instruments work (`data/dash/`, the table in `docs/cars.md`), the
   luxury cars first; a tall or square centre screen (the Maybach's, the Senna's) puts its menu across
   the top as tabs.
 - **Left to do:** the live pages for the cars whose screens are painted into a texture shared with
-  the rest of the cabin (the A 45 S, Honda e, Supra, AMG GT3, 911 GT3 R, Bolide, the GT-R's dials).
-  The 320i's cluster keeps its painted art now, made live over it.
+  the rest of the cabin (the A 45 S, Supra, AMG GT3, 911 GT3 R, Bolide, the GT-R's dials).
+  The 320i's cluster keeps its painted art now, made live over it, and so do the Honda e's screens.

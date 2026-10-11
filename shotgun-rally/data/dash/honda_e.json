@@ -1,0 +1,42 @@
+{
+	"_about": "MOCHI e (Honda e): its five screens are one material (ScreenTexture) with their own pictures (1024 px): the driver's display (top: a battery ring, 'Battery Remains 95%', the car in it), the EV menu and the charging / media page (the two middle screens across the dash). The pictures are kept (the owner: keep the models' art) and made live where they show a reading: the battery's percentage in the ring and on the charging page; the empty dark sides of the driver's display get the speed (left), the gear and the range (right), the clock and the lamps along the bottom. Pixels of that texture; the screens glow at night.",
+	"displays": [
+		{
+			"mat": "^ScreenTexture$",
+			"tex": 1024,
+			"glow": "all",
+			"screens": [
+				{
+					"page": "cluster",
+					"rect": [117, 0, 621, 251],
+					"accent": "#4fd1ff",
+					"layout": {
+						"cover": [[337, 64, 392, 96, "#07080a"]],
+						"text": [
+							{"what": "fuel", "at": [364, 80], "size": 30, "max_w": 60},
+							{"what": "speed", "at": [212, 112], "size": 74, "max_w": 140},
+							{"what": "unit", "text": "km/h", "at": [212, 160], "size": 16, "bold": false, "color": "#9aa6b2"},
+							{"what": "gear", "style": "ev", "at": [530, 104], "size": 58, "color": "#4fd1ff"},
+							{"what": "range", "at": [530, 156], "size": 18, "bold": false, "color": "#c9d3dd"},
+							{"what": "clock", "at": [560, 230], "size": 16, "bold": false, "color": "#c9d3dd"}
+						],
+						"lamp": [
+							{"what": "handbrake", "at": [150, 230], "size": 12, "color": "#ff3b1f"},
+							{"what": "abs", "at": [180, 230], "size": 12, "color": "#ffb000"},
+							{"what": "tc", "at": [210, 230], "size": 12, "color": "#ffb000"}
+						]
+					}
+				},
+				{
+					"page": "cluster",
+					"rect": [0, 636, 889, 994],
+					"layout": {
+						"cover": [[345, 864, 379, 884, "#000000"]],
+						"text": [{"what": "fuel", "at": [361, 874], "size": 18, "max_w": 34}]
+					}
+				}
+			]
+		}
+	],
+	"ambient": {"color": "#9fd8ff", "energy": 0.2}
+}
