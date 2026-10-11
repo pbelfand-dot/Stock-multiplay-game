@@ -11,10 +11,10 @@ extends Camera3D
 ##                the car, swooping from behind to alongside, over the roof and ahead,
 ##                banking into its turns, a wide lens; never into the ground or behind a tree
 ##   HELICOPTER   high and off to the side, tracking (the showcase's)
-##   TRACKSIDE TV a camera by the road ahead of the car, at a spectator's height on the
-##                outside of the next bend: it pans and zooms (the field of view by the
-##                distance) to keep the car framed, and when the car's gone by (or a tree's in
-##                the way) the next one's set up further on
+##   TRACKSIDE TV a camera by the road ahead of the car, on the outside of the next bend (a
+##                crane over the road's edge, a highway's shoulder, a circuit's tower): it pans
+##                and zooms (the field of view by the distance) to keep the car framed, and
+##                when the car's gone by (or a trunk's in the way) the next one's set up further on
 ##   FREE FOLLOW  an orbit locked on the car: drag with the right mouse button (or the right
 ##                stick) round it, the wheel (or the triggers, W / S) zooms, Q / E lower and
 ##                raise it; it turns with the car, eased
@@ -421,10 +421,11 @@ func _tv_fov(c: Vector3) -> float:
 
 
 ## Where the next trackside camera stands: ~2.5 s up the road (45-170 m), on the outside of
-## the bend there. On a stage a low crane over the verge (the trees stand back from the road;
-## their canopies have no collision, so a spot with a trunk close by is passed over for the next
-## one along); on a highway beyond its own carriageway's shoulder; on a circuit up a tower past
-## the run-off.
+## the bend there. On a stage a crane over the road's edge line, 4 m up (the trees stand back
+## from the road, the touge's cedars close: their canopies have no collision, so the camera
+## keeps to the road's own airspace, and a spot with a trunk, a bank or a wall close by is passed
+## over for the next one along); on a highway beyond its own carriageway's shoulder; on a circuit
+## up a tower past the run-off, over the catch fences.
 func _tv_place(s_car: float, dir: float, v: float) -> void:
 	var s0 := s_car + dir * clampf(v * 2.6, 45.0, 170.0)
 	var k := _curv(s0)
@@ -438,7 +439,7 @@ func _tv_place(s_car: float, dir: float, v: float) -> void:
 			var spot := _tv_spot(s0 + dir * float(step), side)
 			if first.is_empty():
 				first = spot
-			if _clear(spot.pos, 3.4):
+			if _clear(spot.pos, 3.0):
 				_tv = spot
 				_los_t = 0.0
 				return
@@ -453,11 +454,11 @@ func _tv_spot(s: float, side: float) -> Dictionary:
 		s = float(st.wrap_s(s))
 	else:
 		s = clampf(s, 4.0, float(st.length) - 4.0)
-	var half: float = float(st.width_at(s)) * 0.5 - 0.2
-	var up := 3.2
-	if st.has_method("half_at"):                      # a circuit: off the track, a tower over the barriers
+	var half: float = float(st.width_at(s)) * 0.5 - 0.8
+	var up := 4.0
+	if st.has_method("half_at"):                      # a circuit: off the track, a tower over the fences
 		half = float(st.half_at(s)) + 6.0
-		up = 4.5
+		up = 8.0
 	elif st.has_method("wrap_s"):                     # the loop: beyond its own carriageway's shoulder
 		side = 1.0
 		half += 3.4

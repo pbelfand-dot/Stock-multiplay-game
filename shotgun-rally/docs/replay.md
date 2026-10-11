@@ -67,9 +67,9 @@ In the order **C** cycles them (the number keys pick the first ten):
    hovers when the replay is paused; never into the ground or behind a tree.
 7. **HELICOPTER**: high and off to the side, a little behind, tracking (the showcase's).
 8. **TRACKSIDE TV**: a camera by the road ~2.5 s ahead of the car, on the outside of the next
-   bend: on a stage on a low crane over the verge (a spot with a tree trunk close by is passed
-   over for the next one), on the highway beyond its shoulder, on a circuit up a tower past the
-   run-off. It pans to follow the car and zooms with the distance (the field of view keeps the
+   bend: on a stage on a crane 4 m up over the road's edge line (clear of the tree wall; a spot
+   with a trunk, a bank or a wall close by is passed over for the next one), on the highway
+   beyond its shoulder, on a circuit up a tower past the run-off, over the catch fences. It pans to follow the car and zooms with the distance (the field of view keeps the
    car framed); once the car has gone by, or something's in the way for a moment, the next one
    up the road takes over.
 9. **FREE FOLLOW**: an orbit locked on the car, turned with it (eased): orbit, zoom, lower and
