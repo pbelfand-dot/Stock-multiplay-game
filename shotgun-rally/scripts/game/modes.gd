@@ -9,6 +9,9 @@ extends RefCounted
 ##     the bridges over the lakes, the hills' tunnels) full of traffic (Traffic): weave
 ##     through it as fast and as close as you dare (CutupScore), as long as you like
 ##     (END RUN in the pause menu). Four difficulties.
+##   TRACK: a permanent circuit (CircuitGen: CINDER RIDGE, ~5 km), its pits and its grid, in a
+##     class (data/track_classes.json: GT, FORMULA): PRACTICE (laps, sectors, track limits, your
+##     bests: TrackSession), QUALIFYING and RACE weekends on top.
 
 const DIFFICULTIES := {
 	# cars a km (all lanes), their speeds (km/h), how close a near miss is (m), how often they change lanes,
@@ -25,6 +28,49 @@ const DIFFICULTIES := {
 		"pack": [14, 26], "pack_gap": [40.0, 90.0], "gap_k": 0.75},
 }
 const TOUGE_LENGTH := 5000.0
+const CIRCUITS := {"cinder_ridge": "CINDER RIDGE"}
+const TRACK_SESSIONS := {"practice": "PRACTICE"}
+const CLASSES_PATH := "res://data/track_classes.json"
+static var _classes := {}
+static var _circuit_info := {}
+
+
+## A circuit's headline numbers from its map (data/maps/<id>.json): {length (m), corners}.
+static func circuit_info(circuit: String) -> Dictionary:
+	if not _circuit_info.has(circuit):
+		var d = JSON.parse_string(FileAccess.get_file_as_string("res://data/maps/%s.json" % circuit))
+		_circuit_info[circuit] = {"length": float(d.length), "corners": (d.corners as Array).size()} if d is Dictionary else {"length": 0.0, "corners": 0}
+	return _circuit_info[circuit]
+
+
+## Track Mode's classes: {id: {name, series, blurb, cars, default, start, available}}.
+static func track_classes() -> Dictionary:
+	if _classes.is_empty():
+		var d = JSON.parse_string(FileAccess.get_file_as_string(CLASSES_PATH))
+		if d is Dictionary:
+			for k in d:
+				if not str(k).begins_with("_"):
+					_classes[k] = d[k]
+	return _classes
+
+
+## A Track Mode session's settings: its circuit (every machine builds it from the same data),
+## class, session and lap count; daylight unless Settings' TIME OF DAY says otherwise.
+static func track_opts(seed_value: int, cls := "gt", session := "practice", laps := 5, circuit := "cinder_ridge") -> Dictionary:
+	var c: String = cls if track_classes().has(cls) else "gt"
+	return {"mode": "track", "class": c, "session": session if TRACK_SESSIONS.has(session) else "practice",
+		"laps": clampi(laps, 1, 99), "circuit": circuit, "length": 0.0, "mood": "day",
+		"gen": {"kind": "circuit", "circuit": circuit, "biome": "temperate_broadleaf"}}
+
+
+## The car a class runs a driver in: theirs if it's one of the class's, else the class's own.
+static func track_car(o: Dictionary, garage_car: String) -> String:
+	var c: Dictionary = track_classes().get(str(o.get("class", "gt")), {})
+	var cars: Array = c.get("cars", [])
+	if garage_car in cars:
+		return garage_car
+	return str(c.get("default", garage_car))
+
 const HIGHWAY_LENGTH := 8000.0
 
 
@@ -81,6 +127,9 @@ static func title(o: Dictionary, st) -> String:
 				"DRIFT" if o.get("rules", "time") == "drift" else "TIME ATTACK"]
 		"cutup":
 			return "CUT UP\n%s · %s · %.0f km" % [st.touge_name() if st.has_method("wrap_s") else "HIGHWAY", difficulty(o).name, st.length / 1000.0]
+		"track":
+			var c: Dictionary = track_classes().get(str(o.get("class", "gt")), {})
+			return "%s\n%s · %s" % [st.touge_name(), str(c.get("series", "GT")), TRACK_SESSIONS.get(str(o.get("session", "practice")), "PRACTICE")]
 	return ""
 
 
@@ -91,8 +140,10 @@ static func best_key(o: Dictionary, seed_value: int) -> String:
 			return "touge/%d/%s/%s" % [seed_value, o.get("dir", "up"), o.get("rules", "time")]
 		"cutup":
 			return "cutup/%s" % o.get("difficulty", "normal")
+		"track":
+			return "track/%s/%s" % [o.get("circuit", "cinder_ridge"), o.get("class", "gt")]
 	return ""
 
 
 static func is_mode(o: Dictionary) -> bool:
-	return str(o.get("mode", "")) in ["touge", "cutup"]
+	return str(o.get("mode", "")) in ["touge", "cutup", "track"]

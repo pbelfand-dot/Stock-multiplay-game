@@ -1,0 +1,19 @@
+{
+ "source": "IceMaan: Free Low Poly Car CC96 (3 body kits, 4 rims), Rims3_R.fbx",
+ "url": "https://icemaan.itch.io/free-low-poly-car3-3-body-kits-4-rims",
+ "licence": "CC0",
+ "diameter": 0.47999995946884155,
+ "width": 0.21000000834465027,
+ "rim_diameter": 0.3803711533546448,
+ "detail": "low",
+ "id": "cc96_rim3",
+ "parts": [
+  "Disc",
+  "Rim",
+  "Tyre"
+ ],
+ "triangles": 1568,
+ "axle": "x",
+ "face": "+x",
+ "units": "m"
+}

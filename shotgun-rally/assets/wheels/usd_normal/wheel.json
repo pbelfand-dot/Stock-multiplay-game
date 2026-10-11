@@ -1,0 +1,18 @@
+{
+ "source": "USD Working Group: USD_Mini_Car_Kit, wheelNormal",
+ "url": "https://github.com/usd-wg/assets/tree/3b75c2dad6a494897557dcca0098257bcf42a8c6/full_assets/Vehicles/USD_Mini_Car_Kit",
+ "licence": "CC0",
+ "diameter": 0.2800000011920929,
+ "width": 0.10000000149011612,
+ "rim_diameter": 0.1419144868850708,
+ "detail": "low",
+ "id": "usd_normal",
+ "parts": [
+  "Rim",
+  "Tyre"
+ ],
+ "triangles": 236,
+ "axle": "x",
+ "face": "+x",
+ "units": "m"
+}

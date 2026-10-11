@@ -80,7 +80,7 @@ func _ready() -> void:
 	_home.add_theme_constant_override("separation", 10)
 	add_child(_home)
 	_home.add_child(UI.menu_item("PLAY NOW", "A random stage, straight in. The AI calls the notes.", func(): solo.emit(), true, "play"))
-	_home.add_child(UI.menu_item("MODES", "Touge at night, or cut up through highway traffic. Online: up to 8.", _show.bind("modes"), false, "modes"))
+	_home.add_child(UI.menu_item("MODES", "Touge at night, cut up through highway traffic, or lap a circuit. Online: up to 8.", _show.bind("modes"), false, "modes"))
 	_home.add_child(UI.menu_item("MAPS", "The Shotgun Series: nine rallies, rival crews, prize money.", _show.bind("maps"), false, "maps"))
 	_home.add_child(UI.menu_item("CARS", "The garage: buy cars, paint them, upgrade them.", _show.bind("cars"), false, "cars"))
 	if OS.has_feature("web"):

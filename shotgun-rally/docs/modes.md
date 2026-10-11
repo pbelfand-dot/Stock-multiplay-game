@@ -1,6 +1,6 @@
-# Modes: the touge and cut up
+# Modes: the touge, cut up and Track Mode
 
-Two ways to drive besides the rally stages, both from **MODES** on the home screen
+Three ways to drive besides the rally stages, both from **MODES** on the home screen
 (`scripts/ui/modes_panel.gd`), alone or online with up to eight friends (below). They're
 stages like any other underneath: the
 generator (`scripts/stage/stage_gen.gd`) makes a road of a different *kind*, the builder
@@ -8,7 +8,8 @@ generator (`scripts/stage/stage_gen.gd`) makes a road of a different *kind*, the
 mode's rules on top. `scripts/game/modes.gd` holds the options each mode loads a stage with.
 
 Command line (tests and pictures): `--solo --mode=touge [--dir=up|down] [--rules=time|drift]`
-or `--solo --mode=cutup [--difficulty=easy|normal|hard|insane]`; `--street=sim|arcade` overrides
+or `--solo --mode=cutup [--difficulty=easy|normal|hard|insane]`
+or `--solo --mode=track [--track_class=gt] [--session=practice]`; `--street=sim|arcade` overrides
 Settings > STREET HANDLING; `--seen_cars_only` keeps the no-AI cars out of screenshot traffic.
 
 ## Touge (a Japanese mountain pass)
@@ -211,6 +212,63 @@ The traffic's rules (all layouts):
 
 The layout goes to every machine with the stage (online: the host's).
 
+## Track Mode: CINDER RIDGE (a permanent circuit)
+
+MODES > **TRACK**: a class (**GT** now; **FORMULA** shows greyed until its car is in) and a
+session (**PRACTICE** now; qualifying and race weekends are the next phases), then START.
+The full plan is `docs/GT_F1_TRACK_MODE_CLAUDE_PROMPT.md`.
+
+**The circuit** is designed once, offline, by `tools/circuit_map.py` (run it to change the
+layout: `python3 -I tools/circuit_map.py --png map.png --profile profile.png`) into
+`data/maps/cinder_ridge.json`, and every machine builds the same track from that file. It's
+a polygon of 17 corners filleted with arcs, the curvature eased so nothing jumps, closed
+exactly. The numbers:
+
+- **5.03 km** clockwise, **17 corners**, from a 24 m hairpin to 260 m sweepers;
+- 45 m of climb over the ridge, grades up to 6.4 %, banking up to 3 %;
+- **12 m** wide (15 m on the pit straight);
+- a GT3's lap on the design's speed profile is about **1:47** (the test's cautious autopilot does 2:37).
+
+`scripts/stage/circuit_gen.gd` (CircuitGen, on LoopGen's road API, so the car, autopilot,
+HUD and builder work as on the highway loop) answers what's across the track at any s:
+
+- the asphalt to the white lines;
+- the **kerbs** outside them: apex kerbs on every corner's inside, exit kerbs on the outside, entry kerbs where it's braked hard, wider chicane kerbs;
+- the **run-off**: grass, gravel traps where a car would go straight on, asphalt;
+- the **barrier**: armco, tyre walls (TecPro-style blocks), or a concrete wall with debris fencing;
+- the **pit lane**, with its taper in, the 60 km/h limiter lines, **20 boxes**, the line out and the taper back.
+
+Also: a **20-place grid**, two by two, behind the line; **three sectors** (1.66 / 1.71 / 1.66 km);
+**three DRS zones** on the straights (each with its detection point, for the formula class);
+marshal posts, 300/200/100 m boards before the big stops, grandstands and floodlight towers.
+
+Each surface is a SurfaceConfig: a kerb is `data/surfaces/kerb.tres` (a touch less grip than
+the asphalt, rougher), and the gravel and grass are the rally's own.
+
+`scripts/stage/circuit_builder.gd` (CircuitBuilder) dresses it:
+
+- the track (cambered, kerbs striped), the run-off and the land (rolling hills eased into the verges, out to the horizon);
+- the barriers;
+- the pits: the lane and its lines, the pit wall with its fence, numbered garages, the paddock and a control tower;
+- the grid boxes, the start gantry with its lights, the grandstands, the marshal posts and boards;
+- floodlights (lit at night) and the biome's forest beyond.
+
+**Practice** (`scripts/game/track_session.gd`, TrackSession: pure logic, so the tests drive it
+directly) works like real timing loops:
+
+- You start in your **pit box**. The autopilot (or you) drives down the lane under the limit (the HUD warns "PIT LIMIT 60 KM/H" if you're over) and out onto the track on an **out-lap**, untimed.
+- Crossing the line on the track starts the timed lap; each sector line flashes its time against your best (purple: the session's best, green: your best, yellow: slower).
+- The line ends the lap: "LAP 3  1:52.418", PERSONAL BEST, or INVALID.
+- **Track limits**: all four wheels past the white line (more than a car's half-width beyond it) invalidates the lap. Two wheels over on a kerb is fine.
+- Crossing the line in the pit lane makes it an in-lap, and the next is an out-lap.
+- The HUD shows the running lap, LAST and BEST.
+- END RUN (pause menu) shows the best lap and saves it per circuit, class and car: the TRACK card shows your best.
+- Crossing times are interpolated between physics ticks, so laps are timed to the millisecond.
+
+The GT class runs the **ELFER R** (or the ELFER EVO if that's your garage car; the class list
+is `data/track_classes.json`). Track Mode is alone for now: online practice and races come
+with the race weekend.
+
 ## Online: street sessions (up to 8)
 
 MODES > **HOST ONLINE (UP TO 8)**, then START a touge or a cut-up difficulty: the host's
@@ -311,6 +369,15 @@ lit only at night, the real lights following the car and fading away from the la
 stray car (turns up ahead, keeps its lane, slows for hairpins, stops when hit, goes once
 you're past). `tests/drive_check.gd --kind=touge` has the autopilot drive a pass.
 `tests/sim_check.gd` and `tests/feel_check.gd --cfg=street`: SIM street handling.
+`tests/track_check.gd`: Track Mode:
+
+- the circuit: deterministic, closed (position and heading), evenly sampled, 4.5-6 km, 14-20 corners, no corner under 14 m radius, grades and banking, never within 45 m of itself;
+- the grid: behind the line, inside the white lines;
+- the pit lane: its lines in order, right of the track behind the wall, the boxes in the lane under the limit;
+- sectors, DRS zones on straights, an apex kerb at every corner, a barrier the whole way round both sides, each surface in its place, `locate()` two laps round;
+- the session: a car driven at a known speed timed to 0.000 s, sectors adding up, the kerb kept, the cut lap invalidated once, the in-lap and out-lap, the classification;
+- the game: CINDER RIDGE builds, the car starts in its box, the autopilot drives down the pit lane under the limit and round a valid timed lap, END RUN shows the best lap.
+
 `tests/toll_check.gd`: the toll plaza in each layout:
 
 - where it is, and that it's straight and on the ground;

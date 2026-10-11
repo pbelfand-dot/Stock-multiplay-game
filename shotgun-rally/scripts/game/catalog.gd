@@ -97,13 +97,14 @@ static func wheels(id: String) -> Dictionary:
 
 
 ## Everything the game needs to build and paint a car: what the driver's machine
-## drives and both machines draw. paint: {colours, livery, wheels, number}
+## drives and both machines draw. paint: {colours, livery, wheels, wheel_type, number}
 ## (missing keys: the car's own); levels: {engine, tyres, brakes} steps bought;
 ## tuning: {tyre, preset} ("auto" until the stage settles it: for_stage).
 static func setup(car_id: String, paint := {}, levels := {}, tuning := {}) -> Dictionary:
 	var c := car(car_id)
 	var s := {"car": c.id, "name": c.name, "model": str(c.get("model", "")), "livery": paint.get("livery", c.livery),
 		"colours": paint.get("colours", c.colours).duplicate(), "wheels": paint.get("wheels", c.wheels),
+		"wheel_type": str(paint.get("wheel_type", "stock")),
 		"number": int(paint.get("number", c.number)), "drive_front": c.drive_front, "mass": float(c.get("mass", 0.0)),
 		"engine": str(c.get("engine", "wrc")),
 		"tyre": str(tuning.get("tyre", "auto")), "preset": str(tuning.get("preset", "auto"))}
@@ -189,7 +190,7 @@ static func street_grip(id: String) -> Array:
 ## Is SIM STREET handling on for this stage? The road kinds (the loop, a highway,
 ## the touge) when Settings > STREET HANDLING says SIM (Config.street_handling).
 static func street_sim(st) -> bool:
-	if not str(st.get("kind")) in ["loop", "highway", "touge"]:
+	if not str(st.get("kind")) in ["loop", "highway", "touge", "circuit"]:
 		return false
 	var cfg = Engine.get_main_loop().root.get_node_or_null("Config") if Engine.get_main_loop() is SceneTree else null
 	return cfg == null or str(cfg.get("street_handling")) != "arcade"

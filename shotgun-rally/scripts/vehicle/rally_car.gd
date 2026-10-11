@@ -63,6 +63,7 @@ const Livery = preload("res://scripts/vehicle/livery.gd")
 const CarLook = preload("res://scripts/render/car_look.gd")    # its lamps, glass, chrome, reflections
 const WheelMesh = preload("res://scripts/vehicle/wheel_mesh.gd")
 const CarSpecs = preload("res://scripts/vehicle/car_specs.gd")
+const WheelPresets = preload("res://scripts/vehicle/wheel_presets.gd")
 const DEFAULT_CONFIG := "res://data/cars/awd_rally.tres"
 const TICKS := 120                 # physics ticks per second (see the plan: the wheels are stiff)
 const NAMES := ["FL", "FR", "RL", "RR"]
@@ -134,6 +135,8 @@ var _mud: Resource
 var _model_wheels: Array = []      # [pivot, spinner, rest position] per corner (model units)
 var _model_scale := MODEL_SCALE    # m per model unit (a car's own model: 1)
 var _model_info := {}              # its parts.json
+var wheel_type := "stock"          # the garage's wheel preset on it (WheelPresets: "stock" = its own wheels)
+var _wheel_parts: Array = []       # a preset's [spinning assembly, fixed caliper] per corner ([] on its own wheels)
 var cockpit_nodes := {}            # its own model's interior that moves: "wheel" (the steering wheel), "shifter",
                                    # "handbrake" (children of body_model, each with its origin at its pivot)
 var _fixed_config := false         # given a config (the physics lab, a test): the garage doesn't swap it
@@ -253,6 +256,8 @@ func _build_body_model() -> void:
 		body_model.queue_free()
 		body_model = null
 	_model_wheels.clear()
+	_wheel_parts.clear()                                  # (a new body: its own wheels until a preset goes on)
+	wheel_type = "stock"
 	_flaps.clear()
 	cockpit_nodes.clear()
 	if get_node_or_null("CarMesh"):
@@ -446,6 +451,7 @@ func apply_setup(s: Dictionary) -> bool:
 			if m and (m.resource_name == "paint" or m.resource_name.begins_with("paint_n")):
 				var nmap: Texture2D = (m as BaseMaterial3D).normal_texture if m is BaseMaterial3D and (m as BaseMaterial3D).normal_enabled else null
 				Livery.paint_model(body, i, spun, s, self, _model_info, nmap)
+		_fit_wheels(str(s.get("wheel_type", "stock")), s.get("wheel_colour", Color(0.72, 0.73, 0.75)))
 	elif body_model:
 		Livery.paint(body_model.get_child(0), [], s, self)
 		var rim := StandardMaterial3D.new()             # the rims take the wheel colour
@@ -456,6 +462,39 @@ func apply_setup(s: Dictionary) -> bool:
 		for mw in _model_wheels:
 			((mw[1] as Node3D).get_child(0) as MeshInstance3D).set_surface_override_material(1, rim)
 	return swapped
+
+
+## The garage's wheel type on the car's own model (WheelPresets): each corner's preset assembly
+## (tyre, rim and disc on the spinner, the caliper on the upright, sized to the car's own wheel:
+## the physics doesn't change) in place of its own wheels and calipers, which are hidden, not
+## dropped: "stock" brings them back. The rims take the wheel colour.
+func _fit_wheels(id: String, colour: Color) -> void:
+	if _model_info.is_empty() or _model_wheels.size() != 4 or not WheelPresets.preset(id).has("name"):
+		id = "stock"
+	if id != wheel_type or (id != "stock" and _wheel_parts.is_empty()):
+		for wp in _wheel_parts:
+			for n in wp:
+				if is_instance_valid(n):
+					(n as Node).get_parent().remove_child(n)
+					(n as Node).queue_free()
+		_wheel_parts.clear()
+		wheel_type = id
+		for k in 4:
+			var pivot: Node3D = _model_wheels[k][0]
+			var spinner: Node3D = _model_wheels[k][1]
+			for n in spinner.get_children():
+				(n as Node3D).visible = id == "stock"
+			for n in pivot.get_children():
+				if n != spinner:
+					(n as Node3D).visible = id == "stock"
+			if id == "stock":
+				continue
+			var a := WheelPresets.assemble(id, WheelPresets.fit(id, _model_info, k))
+			spinner.add_child(a.spin)
+			pivot.add_child(a.fixed)
+			_wheel_parts.append([a.spin, a.fixed])
+	for wp in _wheel_parts:
+		WheelPresets.paint(wp[0], colour)
 
 
 ## The tyres and the setup (the garage's SETUP tab; "auto" is settled by the game

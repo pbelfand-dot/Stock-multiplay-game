@@ -72,3 +72,8 @@ is `docs/VEHICLE_PROGRESS.md`.
 - The driver's gloves (`assets/models/gloves/gloves.glb`): Higgsfield, from the owner's account: a photo
   made with GPT Image 2.5 (a red and white racing glove gripping a bar), made 3D with Tripo H3.1, fitted
   to the steering wheel rim by `tools/fit_glove.py` (Blender).
+- Wheels (`assets/wheels/`, `tools/import_wheels.py`; all CC0): the 17 in five-spoke and 225/45 R17 tyre
+  from the [Innerscene Parts Library](https://www.innerscene.com/tools/library/3d-parts/17-inch-five-spoke-alloy-wheel-and-tyre-x3d-50c20c60);
+  the CC96 rims by [IceMaan](https://icemaan.itch.io/free-low-poly-car3-3-body-kits-4-rims); the wheels of the
+  [USD Working Group's USD_Mini_Car_Kit](https://github.com/usd-wg/assets/tree/3b75c2dad6a494897557dcca0098257bcf42a8c6/full_assets/Vehicles/USD_Mini_Car_Kit).
+  The garage's other wheel types are built in code (`scripts/vehicle/wheel_gen.gd`), their names made up.

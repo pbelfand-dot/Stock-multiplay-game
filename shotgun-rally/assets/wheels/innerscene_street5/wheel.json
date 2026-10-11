@@ -1,0 +1,18 @@
+{
+ "source": "Innerscene Parts Library: 17 in five-spoke alloy wheel and 225/45 R17 tyre (X3D)",
+ "url": "https://www.innerscene.com/tools/library/3d-parts/17-inch-five-spoke-alloy-wheel-and-tyre-x3d-50c20c60",
+ "licence": "CC0",
+ "diameter": 0.634174644947052,
+ "width": 0.2250000536441803,
+ "rim_diameter": 0.45770955085754395,
+ "detail": "hero",
+ "id": "innerscene_street5",
+ "parts": [
+  "Rim",
+  "Tyre"
+ ],
+ "triangles": 11908,
+ "axle": "x",
+ "face": "+x",
+ "units": "m"
+}

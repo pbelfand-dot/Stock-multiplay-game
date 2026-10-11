@@ -1,0 +1,12 @@
+[gd_resource type="Resource" format=3]
+
+[ext_resource type="Script" path="res://scripts/vehicle/physics/config/surface_config.gd" id="1_surface"]
+
+[resource]
+script = ExtResource("1_surface")
+display_name = "kerb"
+grip = 1.18
+peak_scale = 0.6
+slide_grip = 0.88
+rolling_scale = 0.7
+sealed = true

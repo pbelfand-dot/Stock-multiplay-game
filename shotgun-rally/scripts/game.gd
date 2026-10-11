@@ -19,6 +19,9 @@ extends Node3D
 
 const StageGen = preload("res://scripts/stage/stage_gen.gd")
 const LoopGen = preload("res://scripts/stage/loop_gen.gd")
+const CircuitGen = preload("res://scripts/stage/circuit_gen.gd")
+const CircuitBuilder = preload("res://scripts/stage/circuit_builder.gd")
+const TrackSession = preload("res://scripts/game/track_session.gd")
 const LoopBuilder = preload("res://scripts/stage/loop_builder.gd")
 const StageBuilder = preload("res://scripts/stage/stage_builder.gd")
 const Notes = preload("res://scripts/stage/pacenotes.gd")
@@ -115,9 +118,12 @@ var _squeal_amt := 0.0
 ## The tyre squeal on asphalt: off for now (the owner: it sounds bad). The loop
 ## and its cue (car.grip_use) stay, to come back with a better recording.
 const TYRE_SQUEAL := false
-# the modes beyond rally stages (Modes): "" (a stage), "touge", "cutup"
+# the modes beyond rally stages (Modes): "" (a stage), "touge", "cutup", "track"
 var mode := ""
-var looped := false                  # the map's a loop (cut up's LAKESHORE LOOP): no finish
+var looped := false                  # the map's a loop (cut up's LAKESHORE LOOP, Track Mode's circuit): no finish
+var circuit := false                 # Track Mode's circuit (CircuitGen)
+var session                          # TrackSession (Track Mode)
+var _track_box := 0                  # the pit box the car started from (Track Mode)
 var traffic                          # Traffic (cut up)
 var cutup                            # CutupScore
 var rivals                           # Rivals (cut up on the loop: the highway battles)
@@ -159,14 +165,15 @@ func start(seed_in: int, stage_in: int, o := {}) -> void:
 		return
 	mode = str(o.get("mode", "")) if Modes.is_mode(o) else ""
 	# cut up's map is the LAKESHORE LOOP: a loop, no finish (its s keeps growing lap after lap)
-	looped = str(o.get("gen", {}).get("kind", "")) == "loop"
-	st = LoopGen.new() if looped else StageGen.new()
+	circuit = str(o.get("gen", {}).get("kind", "")) == "circuit"
+	looped = circuit or str(o.get("gen", {}).get("kind", "")) == "loop"
+	st = CircuitGen.new() if circuit else (LoopGen.new() if looped else StageGen.new())
 	st.opts = o.get("gen", {})
 	st.generate(seed_value, float(o.get("length", Config.arg("length", 2600))))
 	notes = Notes.build(st)
 	calls = Notes.calls(notes)
 	stage_generated.emit()
-	builder = LoopBuilder.new() if looped else StageBuilder.new()
+	builder = CircuitBuilder.new() if circuit else (LoopBuilder.new() if looped else StageBuilder.new())
 	builder.mood = o.get("mood", "day")
 	if "time_of_day" in builder:
 		builder.time_of_day = float(o.get("time", -1.0))   # (the hour, -1: by the mood; the graphics work lights by it)
@@ -220,6 +227,9 @@ func start(seed_in: int, stage_in: int, o := {}) -> void:
 	autopilot = Autopilot.new(st)
 	if _at_station():
 		autopilot.route = st.station_route(maxi(Net.racers().find(Net.my_id()), 0) if street_online else 0)   # (out of the gas station, up its ramp)
+	if circuit:
+		autopilot.route = _pit_out_route(_track_box)       # (out of the box, down the pit lane, onto the track)
+		autopilot.route_v = 15.0
 	cam = SeatCam.new()
 	cam.chase_style = "street" if mode != "" else "rally"   # (cut up, the touge: low and close)
 	add_child(cam)
@@ -239,7 +249,16 @@ func start(seed_in: int, stage_in: int, o := {}) -> void:
 ## The driver's car from their garage set up for this stage (Catalog.for_stage); in
 ## the touge's DRIFT rules on SIM STREET, without its factory traction control.
 func _car_setup() -> Dictionary:
-	var s := Catalog.for_stage(Net.car_setup_for(Net.my_id()) if street_online else Net.car_setup(), st)
+	var base: Dictionary = Net.car_setup_for(Net.my_id()) if street_online else Net.car_setup()
+	if mode == "track":
+		# (Track Mode: a car of the session's class: the driver's if it's one, else the class's own)
+		var want := Modes.track_car(opts, str(base.get("car", "")))
+		if want != str(base.get("car", "")) and want != "":
+			var wt := str(base.get("wheel_type", "stock"))
+			base = Profile.setup_for(want)
+			if Config.flag("wheel_type"):              # (pictures: --wheel_type=X follows the car)
+				base["wheel_type"] = wt
+	var s := Catalog.for_stage(base, st)
 	if s.has("street") and mode == "touge" and opts.get("rules", "time") == "drift":
 		s.street = s.street.duplicate()
 		s.street[3] = false
@@ -285,6 +304,10 @@ func _grid_spot(id: int) -> Array:
 	var k := maxi(Net.racers().find(id), 0) if street_online else 0
 	if _at_station():
 		return st.station_spot(k)
+	if circuit:
+		# (practice: everyone from their own box, the solo driver from the one by the line)
+		_track_box = (8 + k) % int(st.pit.boxes)
+		return st.box_spot(_track_box)
 	var across: Array = [0.0]
 	if mode == "cutup":
 		across = [st.LANE_W * 0.5, -st.LANE_W * 0.5, st.LANE_W * 1.5, -st.LANE_W * 1.5]   # (in a lane, not astride two)
@@ -885,6 +908,11 @@ func _setup_mode(o: Dictionary) -> void:
 				rivals.name = "Rivals"
 				add_child(rivals)
 				rivals.setup(traffic, st, seed_value)
+		"track":
+			session = TrackSession.new()
+			session.setup(st, str(o.get("session", "practice")))
+			var sd: Vector2 = st.box_sd(_track_box)
+			session.add_car(Net.my_id(), str(car.setup.get("name", "YOU")), st.unwrap(sd.x, 0.0))
 		"touge":
 			touge = TougeRules.new()
 			var best := Profile.mode_best(Modes.best_key(o, seed_value))
@@ -986,6 +1014,8 @@ func _mode_tick(dt: float) -> void:
 		traffic.running = state != "grid"
 		if street_online and multiplayer.is_server():
 			_traffic_for_everyone()
+	if session and state == "running":
+		_track_tick(dt)
 	if state == "running":
 		if cutup:
 			for nm in cutup.update(dt, {"s": car_s, "d": car_d, "v": v_along}, traffic.snapshot()):
@@ -1022,6 +1052,8 @@ func _mode_tick(dt: float) -> void:
 
 
 func _mode_text() -> String:
+	if session:
+		return _track_text()
 	if cutup:
 		var t := "SCORE  %d" % cutup.total()
 		if rivals:
@@ -1063,7 +1095,17 @@ func _finish_mode() -> void:
 		return
 	var key := Modes.best_key(opts, seed_value)
 	var lines: Array = []
-	if cutup:
+	if session:
+		var c: Dictionary = session.cars.get(Net.my_id(), {})
+		var best_lap := float(c.get("best", INF))
+		var k2 := key + "/" + str(car.setup.get("car", ""))
+		var old := Profile.mode_best(k2)
+		var rec := best_lap != INF and Profile.record_mode(k2, best_lap, true)
+		lines = ["BEST LAP  %s%s" % [fmt_lap(best_lap) if best_lap != INF else "--", "   NEW RECORD" if rec else
+			("   (record %s)" % fmt_lap(float(old.value)) if not old.is_empty() else "")],
+			"%d laps · %d invalidated" % [int(c.get("laps", 0)), int(c.get("cuts", 0))]]
+		mode_result = {"time": best_lap, "best": rec}
+	elif cutup:
 		var sc: int = cutup.finish()
 		var best := sc > 0 and Profile.record_mode(key, float(sc), false)
 		lines = ["SCORE  %d%s" % [sc, "   NEW BEST" if best else ""],
@@ -1408,3 +1450,87 @@ func _show_results() -> void:
 		foot.append("Waiting for the host...")
 	_results_foot.text = "\n".join(foot)
 	_update_hint()
+
+
+# ── Track Mode ───────────────────────────────────────────────────────────────
+
+## The route out of pit box k: away from the box into the fast lane, down it to the end of
+## the lane, along the taper back onto the track (the autopilot follows it, then the racing line).
+func _pit_out_route(k: int) -> PackedVector3Array:
+	var r := PackedVector3Array()
+	var sd: Vector2 = st.box_sd(k)
+	var p: Dictionary = st.pit
+	var s0: float = st.unwrap(sd.x, 0.0)
+	var fast := float(p.fast_d)
+	r.append(st.world_at(s0 + 6.0, sd.y - 1.0))
+	r.append(st.world_at(s0 + 14.0, fast))
+	var s := s0 + 24.0
+	while s < float(p.s_out0):
+		r.append(st.world_at(s, fast))
+		s += 10.0
+	s = float(p.s_out0)
+	while s < float(p.s_out1):
+		r.append(st.world_at(s, st.pit_inner_d(s) + 2.0))
+		s += 10.0
+	r.append(st.world_at(float(p.s_out1) + 30.0, st.half_at(float(p.s_out1)) - 3.0))
+	r.append(st.world_at(float(p.s_out1) + 70.0, st.half_at(float(p.s_out1)) - 4.0))
+	return r
+
+
+## Every running tick in Track Mode: the session's timing (your car), its news as flashes.
+func _track_tick(dt: float) -> void:
+	var pit: bool = st.in_pit_lane(car_s, car_d)
+	session.tick(dt, {Net.my_id(): {"s": car_s, "d": car_d, "pit": pit}})
+	for ev in session.events:
+		if ev.id != Net.my_id():
+			continue
+		match str(ev.kind):
+			"sector":
+				var dl := float(ev.delta)
+				_flash("S%d   %s%s" % [int(ev.sector) + 1, fmt_lap(float(ev.time)), "" if dl == INF else "   %+.3f" % dl],
+					Color(0.75, 0.4, 1.0) if ev.purple else (Color(0.4, 1.0, 0.45) if dl < 0.0 else (Color(1.0, 0.85, 0.3) if dl != INF else Color.WHITE)))
+			"lap":
+				var tag := ""
+				if not ev.valid:
+					tag = "   INVALID"
+				elif ev.session_best or ev.pb:
+					tag = "   PERSONAL BEST"
+				_flash("LAP %d   %s%s" % [int(ev.lap), fmt_lap(float(ev.time)), tag],
+					Color(1.0, 0.35, 0.3) if not ev.valid else (Color(0.75, 0.4, 1.0) if ev.pb else Color.WHITE))
+			"invalid":
+				_flash("LAP INVALID: %s" % ev.reason, Color(1.0, 0.35, 0.3))
+			"out":
+				_flash("OUT LAP", Color(0.9, 0.9, 0.9))
+	session.events.clear()
+	if st.in_pit_limit(car_s, car_d) and car.kmh() > float(st.pit.limit_kmh) + 2.0:
+		_pit_warn_t -= dt
+		if _pit_warn_t <= 0.0:
+			_pit_warn_t = 2.0
+			_flash("PIT LIMIT %d KM/H" % int(st.pit.limit_kmh), Color(1.0, 0.85, 0.2))
+
+
+var _pit_warn_t := 0.0
+
+
+func _track_text() -> String:
+	var c: Dictionary = session.cars.get(Net.my_id(), {})
+	if c.is_empty():
+		return ""
+	var t: float = session.lap_time(Net.my_id())
+	var lines := []
+	lines.append("%s   %s" % ["OUT LAP" if t == INF else "LAP %d" % (int(c.laps) + 1), "" if t == INF else fmt_lap(t)])
+	if not c.valid and t != INF:
+		lines[0] += "   INVALID"
+	lines.append("LAST  %s" % (fmt_lap(float(c.last)) if float(c.last) != INF else "--"))
+	lines.append("BEST  %s" % (fmt_lap(float(c.best)) if float(c.best) != INF else "--"))
+	if st.in_pit_lane(car_s, car_d):
+		lines.append("PIT LANE  %d KM/H" % int(st.pit.limit_kmh))
+	return "\n".join(lines) + "\n%.0f km/h" % car.kmh()
+
+
+## A lap time: 1:47.312.
+static func fmt_lap(t: float) -> String:
+	if t == INF or t < 0.0:
+		return "--"
+	var m := int(t / 60.0)
+	return "%d:%06.3f" % [m, t - m * 60.0]

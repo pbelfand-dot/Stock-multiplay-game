@@ -11,6 +11,7 @@ extends RefCounted
 ## in a crew earn. There's no real money anywhere.
 
 const Catalog = preload("res://scripts/game/catalog.gd")
+const WheelPresets = preload("res://scripts/vehicle/wheel_presets.gd")
 
 ## Cars every profile owns from the start: the rally car, and the electric STROMER 4
 ## for the road (the owner's ask: drivable without saving up for it)
@@ -18,8 +19,8 @@ const FREE_CARS := ["kestrel", "stromer"]
 
 static var credits := 0
 static var car := "kestrel"                 # the one you drive
-static var owned := {"cars": FREE_CARS.duplicate(), "liveries": [], "wheels": ["silver"]}
-static var paint := {}                      # car id -> {colours, livery, wheels, number}
+static var owned := {"cars": FREE_CARS.duplicate(), "liveries": [], "wheels": ["silver"], "wheel_types": ["stock"]}
+static var paint := {}                      # car id -> {colours, livery, wheels, wheel_type, number}
 static var levels := {}                     # car id -> {engine, tyres, brakes}: upgrade steps bought
 static var tuning := {}                     # car id -> {tyre, preset}: "auto", "gravel" or "tarmac"
 static var story := {}                      # rally id -> {done, best_pos, best_total}
@@ -52,7 +53,7 @@ static func ensure_loaded() -> void:
 	story = cf.get_value("story", "rallies", story)
 	bests = cf.get_value("story", "bests", bests)
 	mode_bests = cf.get_value("modes", "bests", mode_bests)
-	for k in ["cars", "liveries", "wheels"]:              # an old or hand-edited file
+	for k in ["cars", "liveries", "wheels", "wheel_types"]:   # an old or hand-edited file
 		if not owned.has(k):
 			owned[k] = []
 	for free in FREE_CARS:                                # (a save from before a car was free gets it too)
@@ -118,10 +119,12 @@ static func owns(kind: String, id: String, for_car := "") -> bool:
 		return true
 	if kind == "wheels" and Catalog.wheels(id).price == 0:
 		return true
+	if kind == "wheel_types" and int(WheelPresets.preset(id).get("price", 0)) == 0:
+		return true
 	return id in owned.get(kind, [])
 
 
-## Buy something (cars / liveries / wheels): false if it's owned or too dear.
+## Buy something (cars / liveries / wheels / wheel_types): false if it's owned or too dear.
 static func buy(kind: String, id: String, price: int) -> bool:
 	ensure_loaded()
 	if id in owned[kind] or not spend(price):
@@ -185,10 +188,14 @@ static func set_tuning(car_id: String, key: String, value: String) -> void:
 ## The car you'll drive, as the game builds it (and sends to your crewmate).
 static func setup() -> Dictionary:
 	ensure_loaded()
+	var s: Dictionary = Catalog.setup(car, paint_of(car), levels.get(car, {}), tuning_of(car))
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--car="):                  # (pictures and tests: that car, whatever's in the garage)
-			return setup_for(a.trim_prefix("--car="))
-	return Catalog.setup(car, paint_of(car), levels.get(car, {}), tuning_of(car))
+			s = setup_for(a.trim_prefix("--car="))
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--wheel_type="):           # (pictures and tests: that wheel preset on it)
+			s["wheel_type"] = a.trim_prefix("--wheel_type=")
+	return s
 
 
 static func setup_for(car_id: String) -> Dictionary:
@@ -258,7 +265,7 @@ static func record_mode(key: String, value: float, lower_better: bool, splits :=
 static func reset() -> void:
 	credits = 0
 	car = "kestrel"
-	owned = {"cars": FREE_CARS.duplicate(), "liveries": [], "wheels": ["silver"]}
+	owned = {"cars": FREE_CARS.duplicate(), "liveries": [], "wheels": ["silver"], "wheel_types": ["stock"]}
 	paint = {}
 	levels = {}
 	tuning = {}

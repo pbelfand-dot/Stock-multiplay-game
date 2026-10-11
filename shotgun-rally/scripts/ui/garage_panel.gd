@@ -16,6 +16,7 @@ signal changed                      # credits or the car changed: the menu redra
 
 const UI = preload("res://scripts/ui/ui_kit.gd")
 const Catalog = preload("res://scripts/game/catalog.gd")
+const WheelPresets = preload("res://scripts/vehicle/wheel_presets.gd")
 const Profile = preload("res://scripts/game/profile.gd")
 const CarSpecs = preload("res://scripts/vehicle/car_specs.gd")
 const VehicleRegistry = preload("res://scripts/game/vehicle_registry.gd")
@@ -304,6 +305,29 @@ func _livery(l: Dictionary) -> void:
 
 
 func _wheels(box: VBoxContainer, setup: Dictionary) -> void:
+	# the wheel type (WheelPresets: those that fit this car's arches), then the colour
+	var c := _car()
+	var offered := WheelPresets.offered(str(c.get("role", "")), str(c.get("model", "")))
+	box.add_child(UI.label("TYPE", 18, UI.DIM))
+	for id in offered:
+		var p := WheelPresets.preset(id)
+		var mine := Profile.owns("wheel_types", id)
+		var on: bool = str(setup.get("wheel_type", "stock")) == id
+		var tag := "ON THE CAR" if on else ("" if mine else "%s CR" % _money(int(p.get("price", 0))))
+		var b := UI.button("%s   %s" % [p.name, tag], _wheel_type.bind(id), 18, 420)
+		b.tooltip_text = str(p.get("blurb", ""))
+		b.disabled = not mine and Profile.credits < int(p.get("price", 0))
+		box.add_child(b)
+	var others := 0
+	for id in WheelPresets.ids():
+		if id != "stock" and not id in offered and WheelPresets.car_class(str(c.get("role", ""))) in (WheelPresets.preset(id).get("classes", []) as Array):
+			others += 1
+	if str(c.get("model", "")) == "":
+		box.add_child(UI.label("This car runs its own rally wheels.", 15, UI.DIM))
+	elif others > 0:
+		box.add_child(UI.label("%d more type%s won't clear this car's arches." % [others, "" if others == 1 else "s"], 15, UI.DIM))
+	box.add_child(UI.gap(6))
+	box.add_child(UI.label("COLOUR", 18, UI.DIM))
 	for w in Catalog.WHEELS:
 		var row := HBoxContainer.new()
 		row.add_theme_constant_override("separation", 12)
@@ -325,6 +349,15 @@ func _wheel(w: Dictionary) -> void:
 			return
 		changed.emit()
 	Profile.set_paint(_car().id, "wheels", w.id)
+	_rebuild()
+
+
+func _wheel_type(id: String) -> void:
+	if not Profile.owns("wheel_types", id):
+		if not Profile.buy("wheel_types", id, int(WheelPresets.preset(id).get("price", 0))):
+			return
+		changed.emit()
+	Profile.set_paint(_car().id, "wheel_type", id)
 	_rebuild()
 
 

@@ -9,8 +9,9 @@ No friend online? The **AI co-driver** takes the seat.
 
 Plus **MODES**, alone or **online with up to 8 drivers**, each in their own car: the **TOUGE**, a
 Japanese mountain pass at night lit only by its street lamps and your headlights (time attack
-against your ghost, drift, or online a race to the bottom), and **CUT UP**, weaving through
-heavy highway traffic on an endless 28 km loop ([docs/modes.md](docs/modes.md)).
+against your ghost, drift, or online a race to the bottom), **CUT UP**, weaving through
+heavy highway traffic on an endless 28 km loop, and **TRACK**, a GT car round CINDER RIDGE, a
+5 km circuit with its pit lane, kerbs and gravel traps ([docs/modes.md](docs/modes.md)).
 
 > SHOTGUN RALLY lives in this `shotgun-rally/` folder, next to BAGHOLDERS on `main`. It's its own Godot
 > project with its own build, so the two games never touch each other. Both games' downloads are on
@@ -123,6 +124,11 @@ the old backdrop: your car flat out on a stage, filmed like rally TV.
     to tricolore and goldline) and wheels are bought once and fit any car, the realistic ones too.
     Pick your race number, buy three steps each of engine, tyre and brake upgrades, and pick gravel
     or tarmac tyres and setup (SETUP; AUTO matches the stage).
+- **Wheels** (`docs/wheels.md`): the garage's WHEELS tab picks a TYPE as well as a colour.
+  - Each type is a whole assembly (rim, tyre, brake disc and caliper) fitted to the car's own wheel size at every corner.
+  - There are five-spoke, ten-spoke, split, cross-laced, deep-dish whitewall, wide, centre-lock racing and formula wheels, plus a real-scale 17 in five-spoke converted from a CC0 model. Every name is made up.
+  - Only the types that clear the car's arches are offered: each was measured at full lock and full bump against the body.
+  - Track wheels go on track cars only.
 - **Credits** come from finishing stages: a base, more for a longer stage, a bonus for beating the
   pace and for a clean run, x1.5 in story mode, plus the rally prizes. Both players in a crew
   earn. There's no real money anywhere.
@@ -147,6 +153,15 @@ the old backdrop: your car flat out on a stage, filmed like rally TV.
   one. A **toll plaza** at the lakes (booths, a canopy, lane signals, barrier arms, crash
   cushions) has three layouts in the menu: ALL OPEN (full speed through), MIXED LANES (the
   right-hand lane closed, 60 km/h) or EVENT.
+  **TRACK** (Track Mode, being built: `docs/GT_F1_TRACK_MODE_CLAUDE_PROMPT.md`): **CINDER RIDGE**,
+  a permanent circuit in the hills, 5.03 km clockwise, 17 corners from a 24 m hairpin to
+  260 m sweepers, 45 m of climb. It has kerbs, gravel traps, armco, tyre walls and debris
+  fencing; a pit lane with a 60 km/h limit, 20 numbered garages, a pit wall and a control
+  tower; a 20-place grid, the start gantry, grandstands, marshal posts and floodlights.
+  PRACTICE in the GT class: out of your pit box onto an out-lap, then laps timed to the
+  millisecond in three sectors (purple, green or yellow against the bests). All four wheels
+  over the white line invalidates the lap; the pit lane makes an in-lap. Your best lap is
+  saved per car.
 - **The world** (`docs/ENVIRONMENT_INVENTORY.md`): every stage stands in a biome (Japanese cedar
   mountain, conifer rally forest, broadleaf forest, rocky alpine, wet forest, winter mountain;
   seasons recolour them) grown from the owner's tree packs. Those are 21 species of conifer,

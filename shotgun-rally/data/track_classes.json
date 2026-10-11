@@ -1,0 +1,21 @@
+{
+ "_doc": "Track Mode's classes (Modes.TRACK_CLASSES reads this): the cars each races (registry ids), its default, how its races start, its fictional series. No real series, team or sponsor names.",
+ "gt": {
+  "name": "GT",
+  "series": "APEX GT CHALLENGE",
+  "blurb": "Closed-wheel GT3 machinery: heavy, electronic aids (ABS, traction control), rolling starts.",
+  "cars": ["elfer_r", "elfer_evo"],
+  "default": "elfer_r",
+  "start": "rolling",
+  "available": true
+ },
+ "formula": {
+  "name": "FORMULA",
+  "series": "FORMULA APEX",
+  "blurb": "Open-wheel single-seaters: huge downforce, slicks, DRS and energy deployment, standing starts.",
+  "cars": [],
+  "default": "",
+  "start": "standing",
+  "available": false
+ }
+}

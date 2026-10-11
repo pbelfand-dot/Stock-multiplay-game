@@ -21,7 +21,7 @@ extends Node
 ##                         --shot_count=N (the start lights at N, 0 = GO) --shot_results [--shot_race] (the results panel)
 ##                         --shot_pause[=settings] (the pause menu; =settings: its SETTINGS open over the stage)
 ##                         --shot_stray=M (a touge's stray car M up the road, coming the other way)]
-##   --menu_shot=out.png [--menu_panel=maps|cars|online|settings --garage_tab=setup --shot_wait=6]   a picture of the home screen
+##   --menu_shot=out.png [--menu_panel=maps|cars|online|settings|modes --garage_tab=setup --modes_scroll=PX --shot_wait=6]   a picture of the home screen
 ##   --showcase=rally|touge|cutup [--autostart --autopilot --stray --shot_s=M]   film a mode for a showcase
 ##                                           video (run with --write-movie out.avi --fixed-fps 30): the
 ##                                           autopilot drives, scripts/game/showcase.gd cuts between cameras
@@ -111,7 +111,8 @@ func start_solo(s: int) -> void:
 		return
 	if Config.flag("mode"):                          # tests / pictures: --mode=touge|cutup
 		var m := {"mode": Config.arg("mode"), "dir": Config.arg("dir", "up"), "rules": Config.arg("rules", "time"),
-			"difficulty": Config.arg("difficulty", "normal"), "toll": Config.arg("toll", "open")}
+			"difficulty": Config.arg("difficulty", "normal"), "toll": Config.arg("toll", "open"),
+			"class": Config.arg("track_class", "gt"), "session": Config.arg("session", "practice"), "laps": int(Config.arg("laps", 5))}
 		load_stage(s, 1, mode_opts(s, m))
 		return
 	load_stage(s, 1, quick_opts(s))
@@ -122,9 +123,11 @@ func mode_opts(s: int, like: Dictionary) -> Dictionary:
 	var o: Dictionary
 	if like.get("mode") == "cutup":
 		o = Modes.cutup_opts(s, str(like.get("difficulty", "normal")), str(like.get("toll", "open")))
+	elif like.get("mode") == "track":
+		o = Modes.track_opts(s, str(like.get("class", "gt")), str(like.get("session", "practice")), int(like.get("laps", 5)))
 	else:
 		o = Modes.touge_opts(s, str(like.get("dir", "up")), str(like.get("rules", "time")))
-	if Config.flag("length") and like.get("mode") != "cutup":
+	if Config.flag("length") and not like.get("mode") in ["cutup", "track"]:
 		o["length"] = float(Config.arg("length"))      # (tests: a shorter pass)
 	return Modes.with_time(o, Config.time_of_day)
 
@@ -285,8 +288,8 @@ func load_stage(s: int, n: int, o: Dictionary) -> void:
 		add_child(screen)
 		var heading := "%s  ·  %s" % [o.title, o.stage_name] if o.get("mode") == "story" else ""
 		if Modes.is_mode(o):
-			heading = "TOUGE" if o.mode == "touge" else "CUT UP"
-		screen.begin(n, heading, {"touge": "key_touge", "cutup": "key_cutup"}.get(str(o.get("mode", "")), "key_rally"), Modes.is_mode(o))
+			heading = {"touge": "TOUGE", "cutup": "CUT UP", "track": "TRACK"}.get(str(o.mode), "")
+		screen.begin(n, heading, {"touge": "key_touge", "cutup": "key_cutup", "track": "key_track"}.get(str(o.get("mode", "")), "key_rally"), Modes.is_mode(o))
 	game = Game.new()
 	game.name = "Game"
 	add_child(game)
@@ -309,6 +312,8 @@ static func _stage_words(st) -> String:
 			return "of mountain pass"
 		"loop", "highway":
 			return "of highway"
+		"circuit":
+			return "of circuit"
 	var surfs := {}
 	for sec in st.sections:
 		surfs[str(sec.surface)] = true

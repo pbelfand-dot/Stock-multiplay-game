@@ -1,11 +1,12 @@
 extends PanelContainer
 ## MODES: the touge (a Japanese mountain pass, up or down, against the clock or
-## for drift points) and CUT UP (the LAKESHORE LOOP full of traffic, four
-## difficulties). ALONE, or HOST ONLINE for up to eight friends, each in their own
+## for drift points), CUT UP (the LAKESHORE LOOP full of traffic, four
+## difficulties) and TRACK (CINDER RIDGE, a ~5 km circuit: a class, a session). ALONE, or HOST ONLINE for up to eight friends, each in their own
 ## car (they join from ONLINE with your IP; a touge is then a race to the bottom),
 ## with collisions between you or as ghosts. Each START picks a new pass; at the
 ## results, R runs the same one again. Night style (UI kit): each mode on a card
-## with its key art behind it (assets/ui/key_touge, key_cutup: Higgsfield).
+## with its key art behind it (assets/ui/key_touge, key_cutup: Higgsfield; key_track: an
+## in-game picture of the circuit).
 
 signal back
 signal start(m: Dictionary)
@@ -24,6 +25,10 @@ var _online := false
 var _collide := true
 var _play_btns := {}
 var _collide_btn: Button
+var _class := "gt"                   # track: the class (Modes.track_classes)
+var _class_btns := {}
+var _session := "practice"           # track: the session (Modes.TRACK_SESSIONS)
+var _session_btns := {}
 
 
 func _ready() -> void:
@@ -46,8 +51,19 @@ func _ready() -> void:
 	_collide_btn = UI.button("COLLISIONS: ON", func(): _set_collide(not _collide), 20, 230, "night")
 	r0.add_child(_collide_btn)
 	v.add_child(UI.label("Online: friends join from ONLINE > JOIN with your IP, each in their own car. A touge is a race to the bottom.", 15, UI.DIM))
+	# the cards, scrolling (three don't fit the screen's height: the wheel, or a pad's focus moving
+	# down, scrolls them)
+	var scroll := ScrollContainer.new()
+	scroll.custom_minimum_size = Vector2(0, 520)
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	scroll.follow_focus = true
+	v.add_child(scroll)
+	var cards := VBoxContainer.new()
+	cards.add_theme_constant_override("separation", 8)
+	cards.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.add_child(cards)
 	# the touge
-	var touge := _card(v, "key_touge")
+	var touge := _card(cards, "key_touge")
 	touge.add_child(UI.label("TOUGE", 30, UI.YELLOW, true))
 	touge.add_child(UI.label("A Japanese mountain pass at night: hairpins, guardrails, cedar forest, two lanes, no co-driver.", 17, UI.CREAM))
 	var r1 := HBoxContainer.new()
@@ -68,7 +84,7 @@ func _ready() -> void:
 	go.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	touge.add_child(go)
 	# cut up
-	var cut := _card(v, "key_cutup")
+	var cut := _card(cards, "key_cutup")
 	cut.add_child(UI.label("CUT UP", 30, UI.YELLOW, true))
 	var what := UI.label("The LAKESHORE LOOP: 28 km of highway that never ends (the city, tunnels, three suspension bridges), packed with traffic. Near misses chain a combo; crash and it's gone.", 17, UI.CREAM)
 	what.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -89,6 +105,7 @@ func _ready() -> void:
 		var tb := UI.button(Modes.TOLL_LAYOUTS[tk], _set_toll.bind(tk), 17, 150, "night")
 		_toll_btns[tk] = tb
 		r3.add_child(tb)
+	_track_card(cards)
 	v.add_child(UI.gap(2))
 	var back_btn := UI.button("BACK", func(): back.emit(), 20, 140, "night")
 	back_btn.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
@@ -97,7 +114,77 @@ func _ready() -> void:
 	_set_rules(_rules)
 	_set_toll(_toll)
 	_set_online(_online)
+	_set_class(_class)
+	_set_session(_session)
+	if Config.flag("modes_scroll"):                  # (pictures: --menu_panel=modes --modes_scroll=600)
+		(func(): scroll.scroll_vertical = int(Config.arg("modes_scroll"))).call_deferred()
 	(_play_btns[false] as Button).grab_focus.call_deferred()     # (keys and pads start on ALONE)
+
+
+## TRACK: the circuit, a class (those not ready yet greyed), a session, START (alone: online
+## Track Mode comes with its races).
+func _track_card(v: Control) -> void:
+	var trk := _card(v, "key_track")
+	var head := HBoxContainer.new()
+	head.add_theme_constant_override("separation", 14)
+	trk.add_child(head)
+	head.add_child(UI.label("TRACK", 30, UI.YELLOW, true))
+	var cid: String = Modes.CIRCUITS.keys()[0]
+	head.add_child(UI.label("%s  ·  %.1f KM  ·  %d CORNERS" % [Modes.CIRCUITS[cid], Modes.circuit_info(cid).length / 1000.0,
+		Modes.circuit_info(cid).corners], 20, UI.CREAM, true))
+	var what := UI.label("A permanent circuit in the hills: pit lane and garages, kerbs, gravel traps, tyre walls, grandstands. Out of your box, then laps against the clock: three sectors, track limits.", 16, UI.CREAM)
+	what.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	what.custom_minimum_size = Vector2(860, 0)
+	trk.add_child(what)
+	var r := HBoxContainer.new()
+	r.add_theme_constant_override("separation", 10)
+	trk.add_child(r)
+	var classes := Modes.track_classes()
+	for ck in classes:
+		var c: Dictionary = classes[ck]
+		var cb := UI.button(str(c.get("name", ck)).to_upper(), _set_class.bind(ck), 20, 150, "night")
+		if not bool(c.get("available", false)):
+			cb.disabled = true
+			cb.tooltip_text = "Coming soon"
+		_class_btns[ck] = cb
+		r.add_child(cb)
+	r.add_child(UI.gap(10))
+	for sk in Modes.TRACK_SESSIONS:
+		var sb := UI.button(Modes.TRACK_SESSIONS[sk], _set_session.bind(sk), 20, 170, "night")
+		_session_btns[sk] = sb
+		r.add_child(sb)
+	r.add_child(UI.gap(10))
+	var go := UI.button("START", func(): start.emit({"mode": "track", "class": _class, "session": _session, "laps": 5,
+		"online": false, "collide": _collide}), 22, 160, "night")
+	r.add_child(go)
+	var best := Profile.mode_best("track/%s/%s/%s" % [Modes.CIRCUITS.keys()[0], _class, Modes.track_car({"class": _class}, _garage_car())])
+	var note := "Practice: as many laps as you like (END RUN in the pause menu). Alone for now: online races come with the race weekend."
+	if not best.is_empty():
+		note = "Your best: %s.   " % _fmt_lap(float(best.value)) + note
+	trk.add_child(UI.label(note, 15, UI.DIM))
+
+
+static func _garage_car() -> String:
+	Profile.ensure_loaded()
+	return str(Profile.car)
+
+
+static func _fmt_lap(t: float) -> String:
+	var m := int(t / 60.0)
+	return "%d:%06.3f" % [m, t - m * 60.0]
+
+
+func _set_class(c: String) -> void:
+	_class = c
+	for k in _class_btns:
+		var b: Button = _class_btns[k]
+		b.modulate = Color.WHITE if k == c else Color(1, 1, 1, 0.45 if not b.disabled else 0.25)
+
+
+func _set_session(sk: String) -> void:
+	_session = sk
+	for k in _session_btns:
+		(_session_btns[k] as Button).modulate = Color.WHITE if k == sk else Color(1, 1, 1, 0.45)
 
 
 ## A mode's card: its key art behind (covering the card, darkened on the left

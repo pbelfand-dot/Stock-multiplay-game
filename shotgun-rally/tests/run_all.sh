@@ -21,6 +21,8 @@ run_g() {
 }
 echo "== the vehicle registry: every entry well formed, its model there, no race car in traffic"
 python3 tools/vehicle_registry.py check || fail=1
+echo "== every 3D asset accounted for (docs/ASSET_INTEGRATION_STATUS.md up to date, each in-game asset's file there), the source packages out of every build"
+python3 -I tools/asset_audit.py check || fail=1
 echo "== compile check"
 run_g 180 --headless --path . -s tests/check_scripts.gd 2>&1 | grep -E "checked|COMPILE FAIL" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
 echo "== stages: 20 seeds, deterministic, no crossings, every corner has a note, wooden bridges; tarmac and mixed stages"
@@ -94,6 +96,10 @@ echo "== modes: a touge (hairpins, the climb, guardrail) and a highway (lanes, b
 run_g 420 --headless --fixed-fps 120 --path . -s tests/modes_check.gd 2>&1 | grep -E "\[modes\]" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
 echo "== the loop's toll plaza (open, mixed, event): the lanes fan out round the islands, a car down every lane touches nothing, the closed lane's gate stops it; traffic out of the closed lane, kept in lane and slowed through"
 run_g 300 --headless --fixed-fps 120 --path . -s tests/toll_check.gd 2>&1 | grep -E "\[toll\]" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
+echo "== Track Mode: CINDER RIDGE (closed, 4.5-6 km, its corners, kerbs, barriers the whole way round, the pits, the grid, sectors, DRS, surfaces), the session's timing (laps and sectors to the ms, track limits, in- and out-laps), a practice lap in the game (out of the pit box, down the pit lane under the limit, a timed lap)"
+run_g 600 --headless --fixed-fps 120 --path . -s tests/track_check.gd 2>&1 | grep -E "\[track\] (ok|FAIL|TRACK)" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
+echo "== wheels: the WheelPreset system (every preset complete, the converted CC0 wheels true to size, every preset at every corner of three cars: on the hub, round, on the ground at the physics radius, face outwards both sides, the caliper inside the barrel; the fit table current and honest; on a car: rolls, steers, STOCK back)"
+run_g 400 --headless --fixed-fps 120 --path . -s tests/wheel_check.gd 2>&1 | grep -E "\[wheels\] (ok|FAIL|WHEELS)" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
 echo "== barriers: scraping the loop's guardrail and parapet, a touge's guardrail, a mountain stage's armco, the wheels stay on the road (not on the barrier's face, not in a slot beside it) and steering away leaves it"
 run_g 300 --headless --fixed-fps 120 --path . -s tests/barrier_check.gd 2>&1 | grep -E "\[barrier\]" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
 echo "== the environment library and biomes: every tree's LODs and far card, rocks and props load; each stage in its land; nothing on the road; the solid things the same at LOW and MEDIUM"

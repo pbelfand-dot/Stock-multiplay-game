@@ -1,0 +1,18 @@
+{
+ "source": "USD Working Group: USD_Mini_Car_Kit, wheelBlack",
+ "url": "https://github.com/usd-wg/assets/tree/3b75c2dad6a494897557dcca0098257bcf42a8c6/full_assets/Vehicles/USD_Mini_Car_Kit",
+ "licence": "CC0",
+ "diameter": 0.2800000011920929,
+ "width": 0.10190000385046005,
+ "rim_diameter": 0.07311252504587173,
+ "detail": "low",
+ "id": "usd_black",
+ "parts": [
+  "Rim",
+  "Tyre"
+ ],
+ "triangles": 332,
+ "axle": "x",
+ "face": "+x",
+ "units": "m"
+}
