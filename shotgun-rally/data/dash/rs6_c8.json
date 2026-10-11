@@ -1,0 +1,7 @@
+{
+	"_about": "KOMBI (Audi RS 6 Avant C8): its Virtual Cockpit and its upper MMI screen are blank in the model (each a quad of the interior's material, its UVs collapsed onto one patch of the texture), so each gets a board laid on it, measured from its faces (rays from the driver's eye; m from the steering wheel's centre, the model's axes: x right, y up, z back): a digital cluster in Audi red, the centre screen's pages.",
+	"boards": [
+		{"page": "cluster", "bg": false, "c": [0.004, 0.045, -0.267], "w": 0.307, "h": 0.118, "normal": [0.0, 0.105, 0.994], "lift": 0.003, "accent": "#e8001c"},
+		{"page": "nav", "c": [0.395, -0.029, -0.138], "w": 0.233, "h": 0.11, "normal": [-0.138, 0.467, 0.874], "lift": 0.003, "accent": "#e8001c", "radio": "SHOTGUN FM 98.6"}
+	]
+}

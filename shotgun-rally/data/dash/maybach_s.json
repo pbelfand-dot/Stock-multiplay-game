@@ -1,0 +1,8 @@
+{
+	"_about": "AFFALTER S EXECUTIVE (Maybach S-Class W223): the driver display and the portrait centre screen are blank in the model (black patches of the interior texture, on its own faces), so each gets a board laid on it, measured from its faces (rays from the driver's eye; m from the steering wheel's centre, the model's axes: x right, y up, z back): the classic two-dial view in rose gold on the driver display, the map and media pages on the centre screen (tilted back as the real one). Ambient lighting: warm white-gold, as the Maybach's.",
+	"boards": [
+		{"page": "cluster", "bg": false, "style": "dials", "c": [0.0, 0.084, -0.258], "w": 0.368, "h": 0.15, "normal": [0.017, 0.139, 0.99], "lift": 0.003, "accent": "#e8c9a0", "needle": "#f0f2f5"},
+		{"page": "nav", "c": [0.401, -0.027, -0.157], "w": 0.257, "h": 0.25, "normal": [0.0, 0.634, 0.774], "lift": 0.003, "accent": "#d4a373", "radio": "SHOTGUN FM 98.6"}
+	],
+	"ambient": {"color": "#ffd6a0", "energy": 0.3}
+}

@@ -1,0 +1,6 @@
+{
+	"_about": "WOKING GT3 (McLaren 720S GT3): the race display on the column is a blank quad of the interior's material (its UVs on one dark patch of the texture), so it gets a board laid on it, measured from its faces (rays from the driver's eye; m from the steering wheel's centre, the model's axes: x right, y up, z back): a digital race cluster in McLaren orange.",
+	"boards": [
+		{"page": "cluster", "bg": false, "c": [0.001, 0.023, -0.322], "w": 0.149, "h": 0.091, "normal": [0.0, 0.0, 1.0], "lift": 0.003, "accent": "#ff8000"}
+	]
+}

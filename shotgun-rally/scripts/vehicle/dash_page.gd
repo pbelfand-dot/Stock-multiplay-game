@@ -35,6 +35,7 @@ var _font: Font
 var _font_b: Font
 
 const NAV_ITEMS := ["Navigation", "Driving information", "Vehicle status", "Settings"]
+const NAV_TABS := ["MAP", "DRIVE", "CAR", "SETUP"]   # (a tall screen's menu: tabs across its top)
 const WIDTH := 900.0                # the screen's picture, px across
 
 
@@ -54,6 +55,11 @@ func setup(the_live, the_cfg: Dictionary, tex: Texture2D, region: Rect2) -> void
 	_font = load("res://assets/fonts/Oswald-Medium.woff2")
 	_font_b = load("res://assets/fonts/Oswald-Bold.woff2")
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+
+## A portrait or squarish screen (the centre screen's menu goes across its top, short).
+func tall() -> bool:
+	return view.size.x < view.size.y * 1.3
 
 
 func _painted() -> bool:
@@ -161,10 +167,14 @@ func _reading(what: String, d: Dictionary, t := {}) -> String:
 	return str(t.get("text", ""))
 
 
-## Text with its middle (or left / right end) at `at`, its letters' middle on at.y.
-func _say(s: String, at: Vector2, px: float, col: Color, align := "center", bold := true) -> void:
+## Text with its middle (or left / right end) at `at`, its letters' middle on at.y; smaller
+## if it would be wider than `max_w` (px; a narrow screen's).
+func _say(s: String, at: Vector2, px: float, col: Color, align := "center", bold := true, max_w := -1.0) -> void:
 	var f: Font = _font_b if bold else _font
 	var w := f.get_string_size(s, HORIZONTAL_ALIGNMENT_LEFT, -1, maxi(int(px), 1)).x
+	if max_w > 0.0 and w > max_w:
+		px *= max_w / w
+		w = max_w
 	match align:
 		"center":
 			at.x -= w * 0.5
@@ -325,16 +335,32 @@ func _nav() -> void:
 	var accent := Color(str(cfg.get("accent", "#c8102e")))
 	var r := view
 	draw_rect(r, Color(0.035, 0.038, 0.045))
-	var bar := r.size.y * 0.085
+	var tall := tall()
+	var bar := minf(r.size.y * 0.085, r.size.x * 0.06)
 	# the status bar: the radio, the clock
 	draw_rect(Rect2(r.position, Vector2(r.size.x, bar)), Color(0.0, 0.0, 0.0))
 	var right := "%s    %s" % [str(cfg.get("radio", "SHOTGUN FM 98.6")), _reading("clock", d)]
-	_say(right, Vector2(r.end.x - 4.0 * r.size.x / 344.0, r.position.y + bar * 0.45), bar * 0.8, Color(0.85, 0.86, 0.88), "right", false)
+	_say(right, Vector2(r.end.x - 4.0 * r.size.x / 344.0, r.position.y + bar * 0.45), bar * 0.8, Color(0.85, 0.86, 0.88), "right", false, r.size.x * 0.94)
+	var lit := 0 if page == 0 else 1
+	var pad := r.size.x * 0.009
+	if tall:
+		var tab_h := r.size.x * 0.1
+		var tab_w := r.size.x / NAV_TABS.size()
+		for i in NAV_TABS.size():
+			var box := Rect2(r.position.x + i * tab_w + pad, r.position.y + bar + pad, tab_w - pad * 2.0, tab_h - pad * 2.0)
+			draw_rect(box, Color(accent.r, accent.g, accent.b, 0.55) if i == lit else Color(1, 1, 1, 0.045))
+			if i == lit:
+				draw_rect(Rect2(Vector2(box.position.x, box.end.y - pad * 0.8), Vector2(box.size.x, pad * 0.8)), accent)
+			_say(NAV_TABS[i], box.get_center(), tab_h * 0.4, Color(0.92, 0.93, 0.95) if i == lit else Color(0.62, 0.64, 0.68), "center", false, box.size.x * 0.9)
+		var under := Rect2(r.position.x + pad, r.position.y + bar + tab_h + pad, r.size.x - pad * 2.0, r.size.y - bar - tab_h - pad * 2.0)
+		if page == 0:
+			_map(under, d, accent)
+		else:                                           # (the readings in a landscape box, at the top)
+			_info(Rect2(under.position, Vector2(under.size.x, minf(under.size.y, under.size.x / 1.6))), d, accent)
+		return
 	# the menu down the left
 	var menu_w := r.size.x * 0.34
 	var item_h := (r.size.y - bar) / NAV_ITEMS.size()
-	var lit := 0 if page == 0 else 1
-	var pad := r.size.x * 0.009
 	for i in NAV_ITEMS.size():
 		var y := r.position.y + bar + i * item_h
 		var box := Rect2(r.position.x + pad, y + pad * 0.3, menu_w - pad * 2.0, item_h - pad * 0.6)
@@ -344,7 +370,7 @@ func _nav() -> void:
 		else:
 			draw_rect(box, Color(1, 1, 1, 0.045))
 		_say(NAV_ITEMS[i], Vector2(box.position.x + pad * 2.0, y + item_h * 0.5), item_h * 0.44,
-			Color(0.92, 0.93, 0.95) if i == lit else Color(0.62, 0.64, 0.68), "left", false)
+			Color(0.92, 0.93, 0.95) if i == lit else Color(0.62, 0.64, 0.68), "left", false, box.size.x - pad * 3.0)
 	var area := Rect2(r.position.x + menu_w + pad * 0.6, r.position.y + bar + pad * 0.6, r.size.x - menu_w - pad * 1.5, r.size.y - bar - pad * 1.2)
 	if page == 0:
 		_map(area, d, accent)
@@ -376,7 +402,7 @@ func _map(area: Rect2, d: Dictionary, accent: Color) -> void:
 		if area.grow(area.size.x * 0.05).has_point(p):
 			pts.append(p)
 		s += 6.0
-	var unit := area.size.y / 100.0
+	var unit := minf(area.size.x, area.size.y) / 100.0
 	if pts.size() > 1:
 		draw_polyline(pts, Color(0.3, 0.33, 0.37), unit * 6.0, true)
 		draw_polyline(pts, Color(0.86, 0.88, 0.9), unit * 3.8, true)
@@ -387,14 +413,14 @@ func _map(area: Rect2, d: Dictionary, accent: Color) -> void:
 	var togo: float = maxf(float(st.finish_s) - car_s, 0.0) if not loop else -1.0
 	var txt := ("%.1f km to the finish" % (togo / 1000.0)) if togo >= 0.0 else ("%.1f km driven" % (maxf(car_s - st.START_S, 0.0) / 1000.0))
 	draw_rect(Rect2(area.position, Vector2(area.size.x, area.size.y * 0.16)), Color(0, 0, 0, 0.55))
-	_say(txt, area.position + Vector2(unit * 4.0, area.size.y * 0.08), area.size.y * 0.1, Color(0.95, 0.95, 0.96), "left", false)
+	_say(txt, area.position + Vector2(unit * 4.0, area.size.y * 0.08), area.size.y * 0.1, Color(0.95, 0.95, 0.96), "left", false, area.size.x - unit * 8.0)
 	# what's playing: the station, the song, how far into it
 	var strip := Rect2(area.position + Vector2(0, area.size.y * 0.84), Vector2(area.size.x, area.size.y * 0.16))
 	draw_rect(strip, Color(0, 0, 0, 0.62))
 	var tt: float = float(d.get("time", 0.0)) + 47.0
 	var songs: Array = cfg.get("songs", ["NIGHT DRIVE", "GRAVEL & GOLD", "SIDEWAYS", "LAST STAGE"])
 	var song: String = str(songs[int(tt / 200.0) % songs.size()])
-	_say("♪  %s  ·  %s" % [song, str(cfg.get("radio", "SHOTGUN FM 98.6"))], strip.position + Vector2(unit * 4.0, strip.size.y * 0.4), strip.size.y * 0.42, Color(0.92, 0.93, 0.95), "left", false)
+	_say("♪  %s  ·  %s" % [song, str(cfg.get("radio", "SHOTGUN FM 98.6"))], strip.position + Vector2(unit * 4.0, strip.size.y * 0.4), strip.size.y * 0.42, Color(0.92, 0.93, 0.95), "left", false, strip.size.x - unit * 8.0)
 	var prog := Rect2(strip.position + Vector2(unit * 4.0, strip.size.y * 0.8), Vector2(strip.size.x - unit * 8.0, strip.size.y * 0.07))
 	draw_rect(prog, Color(1, 1, 1, 0.15))
 	draw_rect(Rect2(prog.position, Vector2(prog.size.x * fmod(tt, 200.0) / 200.0, prog.size.y)), accent)

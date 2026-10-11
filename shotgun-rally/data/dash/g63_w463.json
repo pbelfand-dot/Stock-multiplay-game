@@ -1,0 +1,8 @@
+{
+	"_about": "KASTEN 63 (Mercedes-AMG G 63, W463 2020): its widescreen (one glass panel: the driver display behind the wheel, the centre screen beside it) is blank in the model (its faces map to one flat strip of the interior texture), so each half gets a board laid on it, measured from the panel (rays from the driver's eye; m from the steering wheel's centre, the model's axes: x right, y up, z back): the classic two-dial view, the centre screen's pages. Ambient lighting: AMG red.",
+	"boards": [
+		{"page": "cluster", "bg": false, "style": "dials", "c": [0.017, 0.067, -0.139], "w": 0.34, "h": 0.146, "normal": [0.0, 0.279, 0.96], "lift": 0.003, "accent": "#e8eef6", "needle": "#ff2a1a"},
+		{"page": "nav", "c": [0.383, 0.067, -0.139], "w": 0.34, "h": 0.146, "normal": [0.0, 0.279, 0.96], "lift": 0.003, "accent": "#00adef", "radio": "SHOTGUN FM 98.6"}
+	],
+	"ambient": {"color": "#ff3020", "energy": 0.25}
+}

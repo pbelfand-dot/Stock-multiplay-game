@@ -1,0 +1,36 @@
+{
+	"_about": "BMW M5 (G90): the curved display is its own material (emis) with its own picture (1024 px): the M cluster across the top (the speed on the left in its blue frame, the gear on the right in its red one, the speed and revs scales up either side), the iDrive screen under it. The cluster is made live over the painted one (its digits covered, the live ones drawn in their place, the scales filling); the iDrive part shows the centre screen's pages. Pixels of that texture.",
+	"displays": [
+		{
+			"mat": "^emis$",
+			"tex": 1024,
+			"glow": "all",
+			"screens": [
+				{
+					"page": "cluster",
+					"rect": [0, 0, 1024, 322],
+					"layout": {
+						"cover": [[226, 116, 292, 154, "#0b1726"], [244, 152, 288, 168, "#0b1726"], [612, 116, 664, 154, "#0b1726"], [0, 286, 84, 312, "#000000"]],
+						"arc": [
+							{"what": "kmh", "max": 322.0, "w": 7.0, "pts": [[140, 250], [108, 214], [88, 172], [80, 128], [88, 86], [112, 50], [124, 40]], "color": "#3d8bff", "hot": "#3d8bff"},
+							{"what": "rpm", "max": 8000.0, "w": 7.0, "pts": [[700, 250], [728, 214], [744, 172], [750, 128], [744, 86], [726, 50], [716, 40]], "color": "#e9eef5", "hot": "#ff2f1a", "hot_from": 0.84}
+						],
+						"text": [
+							{"what": "speed", "at": [258, 135], "size": 36},
+							{"what": "unit", "text": "km/h", "at": [266, 160], "size": 11, "bold": false, "color": "#8fa6c4"},
+							{"what": "gear", "style": "bmw", "at": [638, 135], "size": 36},
+							{"what": "clock", "at": [40, 299], "size": 17, "bold": false, "color": "#e6e9ee"}
+						],
+						"lamp": [
+							{"what": "shift", "at": [512, 22], "w": 90, "size": 9},
+							{"what": "handbrake", "at": [470, 250], "size": 11, "color": "#ff3b1f"},
+							{"what": "abs", "at": [512, 250], "size": 11, "color": "#ffb000"},
+							{"what": "tc", "at": [554, 250], "size": 11, "color": "#ffb000"}
+						]
+					}
+				},
+				{"page": "nav", "rect": [0, 330, 1020, 632], "accent": "#2f7de1", "radio": "SHOTGUN FM 98.6"}
+			]
+		}
+	]
+}

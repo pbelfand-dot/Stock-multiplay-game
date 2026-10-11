@@ -205,6 +205,10 @@ func _spec(id: String, car, cp, dash, spec: Dictionary) -> void:
 		var p1: int = navs[0].page
 		dash.next_page()
 		fails += _check(p1 == 1 and navs[0].page == 0, "%s: the centre screen flips to driving information and back to the map" % id)
+		# (a portrait screen's menu across its top: the Maybach's, the Senna's; a wide one's down the left)
+		var want_tall := id in ["affalter_s", "woking_800"]
+		if want_tall or id in ["kaiser_5g", "kasten", "gls"]:
+			fails += _check(navs[0].tall() == want_tall, "%s: the centre screen laid out for its shape (%s)" % [id, "tall: tabs across the top" if want_tall else "wide: the menu down the left"])
 	# every screen's viewport sized like its screen
 	var sized := true
 	for p in dash.pages:

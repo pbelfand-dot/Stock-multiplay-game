@@ -1,0 +1,8 @@
+{
+	"_about": "TEMPESTA URSA (Lamborghini Urus Performante): its digital cluster and its centre screen are blank in the model (their faces map to one flat strip of the interior texture), so each gets a board laid on it, measured from its faces (rays from the driver's eye; m from the steering wheel's centre, the model's axes: x right, y up, z back): a digital cluster in Lamborghini's yellow-green, the centre screen's pages.",
+	"boards": [
+		{"page": "cluster", "bg": false, "c": [0.0, 0.047, -0.254], "w": 0.295, "h": 0.11, "normal": [0.0, 0.107, 0.994], "lift": 0.003, "accent": "#c8ff1e"},
+		{"page": "nav", "c": [0.394, -0.025, -0.158], "w": 0.236, "h": 0.116, "normal": [0.0, 0.196, 0.981], "lift": 0.003, "accent": "#c8ff1e", "radio": "SHOTGUN FM 98.6"}
+	],
+	"ambient": {"color": "#9fe03a", "energy": 0.22}
+}

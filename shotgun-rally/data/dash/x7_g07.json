@@ -1,0 +1,8 @@
+{
+	"_about": "KAISER 7X (BMW X7 G07): a low-detail cabin: its dash is one dark slab (its faces map to one flat strip of the texture) with no displays modelled, so its curved display's two parts are boards laid on the slab where the real ones sit, measured from its faces (rays from the driver's eye; m from the steering wheel's centre, the model's axes: x right, y up, z back): a digital cluster in the BMW style behind the wheel, the iDrive pages beside it.",
+	"boards": [
+		{"page": "cluster", "bg": false, "style": "bmw", "c": [0.0, 0.074, -0.146], "w": 0.26, "h": 0.085, "normal": [0.003, 0.105, 0.994], "lift": 0.003, "accent": "#2f7de1"},
+		{"page": "nav", "c": [0.41, 0.045, -0.2], "w": 0.27, "h": 0.1, "normal": [0.003, 0.105, 0.994], "lift": 0.004, "accent": "#2f7de1", "radio": "SHOTGUN FM 98.6"}
+	],
+	"ambient": {"color": "#4f8dff", "energy": 0.25}
+}

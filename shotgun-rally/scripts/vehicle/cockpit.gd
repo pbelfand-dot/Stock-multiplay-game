@@ -141,7 +141,8 @@ func build(the_car, stage) -> void:
 	if hood:                                         # (no cabin in the model: nothing made up, the eyes over the bonnet)
 		eye_driver = car.hood_eye()
 		eye_codriver = eye_driver + Vector3(0.0, 0.06, 0.25)
-	elif own.is_empty():
+		visible = false                              # (the crew sit unseen: from the start, the seat view's
+	elif own.is_empty():                             # first frame too, not only once the view changes)
 		_shell()
 		_dash()
 		_seats()

@@ -1,0 +1,6 @@
+{
+	"_about": "RAIDEN (Nissan GT-R R35): the centre screen is a blank quad of the interior's material (its UVs collapsed onto one patch of the texture), so it gets a board laid on it, measured from its faces (rays from the driver's eye; m from the steering wheel's centre, the model's axes: x right, y up, z back): the centre screen's pages. (Its cluster is painted into the texture: left as the model has it.)",
+	"boards": [
+		{"page": "nav", "c": [0.365, 0.088, -0.107], "w": 0.173, "h": 0.104, "normal": [-0.111, 0.408, 0.906], "lift": 0.003, "accent": "#d0d4da", "radio": "SHOTGUN FM 98.6"}
+	]
+}

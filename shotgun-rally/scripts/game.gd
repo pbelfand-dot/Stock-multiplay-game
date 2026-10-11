@@ -361,6 +361,8 @@ func _apply_roster() -> void:
 	cam.attach(car, seat, cockpit.eye_for(seat))
 	if seat == "driver" and not cockpit.hood:
 		cam.aim_at_wheel(cockpit.wheel_c)
+	elif cockpit.hood:
+		cam.pitch = -0.03                            # (over the bonnet: level, the road ahead; no wheel to show)
 	cockpit.set_my_seat(seat)
 	ai.enabled = not street_online and Net.peer_in("codriver") == 0 and mode == ""
 	if street_online:

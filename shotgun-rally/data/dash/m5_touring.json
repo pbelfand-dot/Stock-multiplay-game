@@ -1,0 +1,7 @@
+{
+	"_about": "BMW M5 Touring (G99): the curved display under its glass (Window) is two quads of the interior's material, their UVs all on one dark patch of the texture (the cluster behind the wheel, the iDrive screen beside it): each gets a board of its own laid on it, measured from the quad (rays from the driver's eye; m from the steering wheel's centre, the model's axes: x right, y up, z back): a digital cluster in the BMW style, the iDrive pages.",
+	"boards": [
+		{"page": "cluster", "bg": false, "style": "bmw", "c": [0.003, 0.036, -0.235], "w": 0.296, "h": 0.117, "normal": [-0.005, 0.212, 0.977], "lift": 0.003, "accent": "#2f7de1"},
+		{"page": "nav", "c": [0.394, 0.043, -0.204], "w": 0.364, "h": 0.129, "normal": [-0.148, 0.208, 0.967], "lift": 0.003, "accent": "#2f7de1", "radio": "SHOTGUN FM 98.6"}
+	]
+}

@@ -263,9 +263,38 @@ func _hood(id: String) -> void:
 	var eye: Vector3 = cp.eye_driver - car.model_offset()
 	var info: Dictionary = car._model_info
 	var mid := (float(info.body_min[2]) + float(info.body_max[2])) * 0.5
-	var ok: bool = cp.hood and not cp.own_interior() and cp._steer_node == null and cp._needles.is_empty() and car.body_model.visible \
+	var ok: bool = cp.hood and not cp.visible and not cp.own_interior() and cp._steer_node == null and cp._needles.is_empty() and car.body_model.visible \
 		and absf(eye.x) < 0.01 and eye.y > float(info.belt) and eye.y < float(info.body_max[1]) and eye.z < mid - 0.3 and eye.z > float(info.body_min[2]) + 0.5
-	fails += _check(ok, "%s: no cabin in its model: none made up, its body seen from over the bonnet (eye at %s, the belt at %.2f)" % [id, str(eye), float(info.belt)])
+	fails += _check(ok, "%s: no cabin in its model: none made up, the crew unseen, its body seen from over the bonnet (eye at %s, the belt at %.2f)" % [id, str(eye), float(info.belt)])
+	# (over the bonnet, not in it: nothing of the body straight up or straight ahead of the eye,
+	# the bonnet itself a little under it)
+	var up := 9.0
+	var ahead := 9.0
+	var down := 9.0
+	for mi in car.body_model.find_children("*", "MeshInstance3D", true, false):
+		var m3 := mi as MeshInstance3D
+		if m3.mesh == null:
+			continue
+		var xf: Transform3D = car._scene_xf(m3, car.body_model)
+		for i in m3.mesh.get_surface_count():
+			var mat := m3.mesh.surface_get_material(i)
+			if m3.mesh.surface_get_primitive_type(i) != Mesh.PRIMITIVE_TRIANGLES or (mat and String(mat.resource_name).to_lower().begins_with("glass")):
+				continue
+			var arr := m3.mesh.surface_get_arrays(i)
+			var v: PackedVector3Array = xf * (arr[Mesh.ARRAY_VERTEX] as PackedVector3Array)
+			var idx = arr[Mesh.ARRAY_INDEX]
+			if idx == null or (idx as PackedInt32Array).is_empty():
+				idx = PackedInt32Array(range(v.size()))
+			for t in range(0, idx.size() - 2, 3):
+				for d in [[Vector3.UP, "up"], [Vector3.FORWARD, "ahead"], [Vector3.DOWN, "down"]]:
+					var hit = Geometry3D.ray_intersects_triangle(eye, d[0], v[idx[t]], v[idx[t + 1]], v[idx[t + 2]])
+					if hit != null:
+						var dist: float = eye.distance_to(hit)
+						match d[1]:
+							"up": up = minf(up, dist)
+							"ahead": ahead = minf(ahead, dist)
+							"down": down = minf(down, dist)
+	fails += _check(up > 1.5 and ahead > 1.5 and down < 0.3, "%s: the bonnet camera is over the body, not in it (body %.2f m up, %.2f m ahead, %.2f m down)" % [id, up, ahead, down])
 	car.queue_free()
 
 

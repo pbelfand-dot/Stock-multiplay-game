@@ -402,9 +402,9 @@ func hood_view() -> bool:
 
 static var _hood_eyes := {}
 
-## The bonnet camera's place (car space): above and a little ahead of the windscreen's foot (the
-## lowest point of the sloping glass in the front half, over the belt line), on the middle line;
-## worked out once for each model.
+## The bonnet camera's place (car space): on the middle line, 35 cm ahead of the windscreen's foot
+## (the lowest point of the sloping glass in the front half, over the belt line) and 13 cm over the
+## body there (the highest of it under that spot, by rays: the bonnet, a bulge); worked out once for each model.
 func hood_eye() -> Vector3:
 	var id := str(setup.get("model", ""))
 	if not _hood_eyes.has(id):
@@ -413,6 +413,7 @@ func hood_eye() -> Vector3:
 		var belt := float(_model_info.get("belt", 0.8))
 		var mid := (float(lo[2]) + float(hi[2])) * 0.5
 		var foot := Vector3(0.0, INF, 0.0)
+		var tris: Array = []                         # [vertices, index list] of the rest of the body (the bonnet)
 		for mi in body_model.find_children("*", "MeshInstance3D", true, false):
 			var m3 := mi as MeshInstance3D
 			if m3.mesh == null:
@@ -420,14 +421,16 @@ func hood_eye() -> Vector3:
 			var xf := _scene_xf(m3, body_model)
 			for i in m3.mesh.get_surface_count():
 				var mat := m3.mesh.surface_get_material(i)
-				if mat == null or not String(mat.resource_name).to_lower().begins_with("glass") \
-						or m3.mesh.surface_get_primitive_type(i) != Mesh.PRIMITIVE_TRIANGLES:
+				if m3.mesh.surface_get_primitive_type(i) != Mesh.PRIMITIVE_TRIANGLES:
 					continue
 				var arr := m3.mesh.surface_get_arrays(i)
 				var v: PackedVector3Array = xf * (arr[Mesh.ARRAY_VERTEX] as PackedVector3Array)
 				var idx = arr[Mesh.ARRAY_INDEX]
 				if idx == null or (idx as PackedInt32Array).is_empty():
 					idx = PackedInt32Array(range(v.size()))
+				if mat == null or not String(mat.resource_name).to_lower().begins_with("glass"):
+					tris.append([v, idx])
+					continue
 				for t in range(0, idx.size() - 2, 3):
 					var a := v[idx[t]]
 					var c := (a + v[idx[t + 1]] + v[idx[t + 2]]) / 3.0
@@ -435,8 +438,22 @@ func hood_eye() -> Vector3:
 					# (the windscreen: sloping, facing forward, in the front half, over the belt)
 					if c.z < mid and absf(nrm.y) > 0.2 and absf(nrm.z) > 0.35 and c.y > belt - 0.1 and c.y < foot.y:
 						foot = c
-		_hood_eyes[id] = Vector3(0.0, foot.y + 0.14, foot.z - 0.3) if foot.y < INF \
-			else Vector3(0.0, belt + 0.12, float(lo[2]) * 0.42)
+		var at := Vector3(0.0, foot.y, foot.z - 0.35) if foot.y < INF else Vector3(0.0, belt, float(lo[2]) * 0.42)
+		var top := at.y - 0.1
+		for l in tris:                               # (the body's top under that spot: rays straight down, on
+			var v: PackedVector3Array = l[0]         # the middle line and 15 cm either side; a bonnet's big
+			var idx: PackedInt32Array = l[1]         # triangles have their centres far from it)
+			for t in range(0, idx.size() - 2, 3):
+				var a := v[idx[t]]
+				var b := v[idx[t + 1]]
+				var c := v[idx[t + 2]]
+				if minf(a.z, minf(b.z, c.z)) > at.z or maxf(a.z, maxf(b.z, c.z)) < at.z:
+					continue
+				for x in [0.0, -0.15, 0.15]:
+					var hit = Geometry3D.ray_intersects_triangle(Vector3(x, at.y + 0.3, at.z), Vector3.DOWN, a, b, c)
+					if hit != null:
+						top = maxf(top, (hit as Vector3).y)
+		_hood_eyes[id] = Vector3(0.0, top + 0.13, at.z)
 	return _hood_eyes[id] + model_offset()
 
 

@@ -1,0 +1,18 @@
+{
+	"_about": "BMW X5 M (F85): the cluster and the iDrive screen are painted into the interior texture (phong9, 512 x 1024 px): the speedometer and rev counter, their needles painted pointing up and right. Each dial gets a moving needle (the painted one covered with its face from a little further round), the cluster glows at night, and the iDrive screen shows the centre screen's pages. Pixels of that texture; needle angles in degrees, 0 = right, 90 = down (clockwise), the dials sweeping 270 degrees from bottom left to bottom right through the top.",
+	"displays": [
+		{
+			"mat": "^phong9$",
+			"tex": [512, 1024],
+			"glow": [[20, 380, 250, 482], [256, 416, 385, 465]],
+			"glow_color": "#ffb070",
+			"needles": [
+				{"value": "kmh", "c": [89, 446], "r": 20, "w": 2.2, "a0": 135, "a1": 405, "min": 0, "max": 330, "painted": -49, "color": "#ff7a1a"},
+				{"value": "rpm", "c": [178, 446], "r": 20, "w": 2.2, "a0": 135, "a1": 405, "min": 0, "max": 8000, "painted": -49, "color": "#ff7a1a"}
+			],
+			"screens": [
+				{"page": "nav", "rect": [258, 418, 383, 463], "accent": "#2f7de1", "radio": "SHOTGUN FM 98.6"}
+			]
+		}
+	]
+}

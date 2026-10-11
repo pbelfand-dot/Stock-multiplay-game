@@ -62,6 +62,41 @@ round:
   in a leather boot, so the hand has something to shift. The rest of the interior is the model's.
 - The mud splats on the outside of its windshield, and wipers sweep it.
 
+### The live instruments (`data/dash/`)
+
+`scripts/vehicle/dash_live.gd` makes a car's own instruments work, from its spec in
+`data/dash/<model>.json`; nothing of the model's look is replaced. A screen that has a picture of
+its own keeps it (the readings that change are drawn over it where the model painted them); a
+screen the model left blank gets a board laid exactly on its faces (measured by rays from the
+driver's eye) with a live page in the car's accent colour. Every car with its own cabin has a dome
+light (L), backlit screens at night and the warning lamps; the luxury cars have ambient lighting.
+
+| Garage name (model) | What's live | Limits |
+|---|---|---|
+| GRAND SUV 63 (the GLS 63) | the two round dials (needles), the screen between them, the floating centre screen (map / driving data), ambient | the model's cabin is the previous GLS's; its dials are blank, so the dials are drawn |
+| AFFALTER S EXECUTIVE (Maybach S) | the driver display (two dials in rose gold), the portrait centre screen (its menu as tabs across the top), warm ambient | the screens are blank in the model; the windscreen was modelled in the black trim's material and is made glass by `glb_patch` |
+| KASTEN 63 (G 63) | the widescreen: two dials behind the wheel, the centre screen beside them, ambient | blank in the model |
+| KAISER 7X (X7) | the curved display's two halves (a BMW cluster, the iDrive), ambient | a low-detail cabin: the display is laid on its plain dash slab |
+| KAISER 5 G (M5 G90) | its own painted M cluster made live (the digits covered, the speed and gear in their frames, the scales filling), the iDrive under it | the painted scales' numbers stay as painted |
+| KAISER 5 TOURING (M5 Touring) | the curved display: a BMW cluster and the iDrive, on the model's blank quads | |
+| KAISER 5X (X5 M) | the painted speedometer's and rev counter's needles turn (the painted ones covered), the iDrive, a night glow | the needles are flat (drawn on the dial), not meshes |
+| KAISER 320 (320i) | the curved display painted in its texture: a live cluster and the centre screen; the buttons backlit; ambient | its cluster is drawn over the painted one (not yet re-done to keep the painted art) |
+| TEMPESTA URSA (Urus Performante) | the digital cluster and the centre screen, in its green, ambient | blank in the model |
+| VIERRAD R7 (RS 7) | its painted Virtual Cockpit made live (the revs band climbing, the speed and gear), the MMI screen's pages | the climate screen stays as painted |
+| KOMBI V8 (RS 6 Avant) | the Virtual Cockpit and the upper MMI screen, on the model's blank quads | |
+| AFFALTER GT BLACK | the binnacle's cluster (two dials), the centre screen, red ambient | an untextured cabin |
+| WOKING 800 (Senna) | the driver display and the portrait centre screen (tabs across the top) | |
+| WOKING 720 GT3 | the race display on the column | |
+| RAIDEN GT (GT-R) | the centre screen's pages | its painted dials don't move yet |
+| KAISER 4 WB, KAISER 2 WB, KAISER T, KAISER 8 GC | a digital cluster and the iDrive pages (the M4 over its own texture; the M2's, M3's and M8's blank screens get panels) | |
+| KAISER 5 E (M5 E34) | its own modelled needles (speed, revs, fuel) turn, the dials glow orange at night, the console clock | |
+
+A cabin whose screens are part of a texture shared with everything else (most of the rest of the
+own-interior cars) has the dome light, the lamps and the night glow but no live pages yet.
+`tests/dash_check.gd` checks every spec: the boards and panels are found and sized to their
+screens, the needles point at their scales' ends at the top values, the centre screens flip pages
+and are laid out for their shape.
+
 ### Driver fit (F9)
 
 `scripts/vehicle/fit_debug.gd` works out where the crew go in each car from its own interior: the

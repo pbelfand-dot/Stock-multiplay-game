@@ -7,11 +7,13 @@ extends SceneTree
 ## the no-AI cars too.
 ##   godot --headless --path . -s tools/dash_survey.gd -- --ids=gls,kasten [--box=x0,x1,y0,y1,z0,z1] [--min=20]
 ##   (the box: default -0.75,0.95,-0.35,0.40,-0.75,0.15; a right-hand-drive car's x is mirrored;
-##   --min: the fewest faces to list a material)
+##   --min: the fewest faces to list a material; --flat: only the faces whose UVs are all one
+##   point, a screen modelled with no UVs of its own: what a "panel" is made of)
 
 var ids: Array = []
 var box := [-0.75, 0.95, -0.35, 0.40, -0.75, 0.15]
 var least := 20
+var flat := false
 
 
 func _initialize() -> void:
@@ -21,6 +23,7 @@ func _initialize() -> void:
 			"ids": ids = Array(kv[1].split(",", false))
 			"box": box = Array(kv[1].split(",")).map(func(x): return float(x))
 			"min": least = int(kv[1])
+			"flat": flat = true
 
 
 func _process(_dt: float) -> bool:
@@ -77,6 +80,8 @@ func _survey(id: String, car, cp) -> void:
 				var d: Vector3 = xf * vs[k2] - c
 				var mid := (a + b + d) / 3.0
 				if mid.x * sx < box[0] or mid.x * sx > box[1] or mid.y < box[2] or mid.y > box[3] or mid.z < box[4] or mid.z > box[5]:
+					continue
+				if flat and (uvs == null or uvs.size() <= k2 or not ((uvs[k0] as Vector2).is_equal_approx(uvs[k1]) and (uvs[k1] as Vector2).is_equal_approx(uvs[k2]))):
 					continue
 				count += 1
 				for p in [a, b, d]:

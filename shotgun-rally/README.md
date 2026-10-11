@@ -296,11 +296,19 @@ the old backdrop: your car flat out on a stage, filmed like rally TV.
   wheel; the hand nearer the middle works its own gear lever: an H-pattern through the gates, a
   sequential pulled and pushed, an automatic left alone (the hand stays on the wheel); its own
   handbrake comes up. Its own rear-view mirror shows the road behind, and the mud and the wipers
-  go on its windshield. Cars whose interior is too rough to sit in (both ROTORAs) and the four on
-  the shared body get the rally cockpit above. See [docs/cars.md](docs/cars.md).
+  go on its windshield. A model with no cabin at all (the ROTORA FC and four track cars: HALDANE,
+  STILETTO, VALKO, VESPERA) is driven from a camera low over its bonnet instead; nothing is made up
+  for it. Only the four on the shared rally body keep the rally cockpit above (it's theirs). See
+  [docs/cars.md](docs/cars.md).
 - **The interiors work.** Without changing how they look: the BMWs' screens are live (the M4, M2,
   M3 Touring and M8: a digital cluster with the speed, the gear, the revs and the warning lamps; the
-  iDrive screen with a map of the road ahead or the driving data, M flips it). The E34 M5's own
+  iDrive screen with a map of the road ahead or the driving data, M flips it). The luxury cars too:
+  the M5's and RS 7's painted clusters made live where they're drawn (their digits covered, the live
+  ones in their place, the rev bands filling), the X5 M's painted needles turning; the screens the
+  models left blank (the Maybach, the G 63's widescreen, the Urus, the X7, the M5 Touring, the GT
+  Black, the GLS, the RS 6, the Senna, the 720S GT3's race display, the GT-R's centre screen) get a
+  live cluster and centre screen laid on them, measured from the model, with ambient lighting at
+  night (the list: [docs/cars.md](docs/cars.md)). The E34 M5's own
   needles (speedometer, rev counter, fuel) turn, its dials glow orange at night and its console clock
   tells the time. The warning lamps light for a moment when the engine starts, then each shows what it
   should (handbrake, ABS, traction control, the shift lamp, the lights). Every car has a dome light (L).

@@ -1,0 +1,35 @@
+{
+	"_about": "Audi RS 7 Sportback (C8): its screens are one material (emissisve) with its own picture (512 px): the Virtual Cockpit across the top (the revs band climbing to the red 8, the speed and the gear in the middle), the MMI screen and the climate screen under it. The cockpit is made live over the painted one (its digits covered, the live ones drawn in their place, the band filling); the MMI screen shows the centre screen's pages. Pixels of that texture.",
+	"displays": [
+		{
+			"mat": "emissisve$",
+			"tex": 512,
+			"glow": "all",
+			"screens": [
+				{
+					"page": "cluster",
+					"rect": [0, 0, 512, 192],
+					"layout": {
+						"cover": [[257, 88, 285, 116, "#000000"], [258, 119, 284, 141, "#000000"], [198, 165, 234, 180, "#000000"], [176, 58, 350, 72, "#000000"], [174, 70, 236, 138, "#000000"]],
+						"arc": [
+							{"what": "rpm", "max": 8000.0, "w": 3.0, "pts": [[180, 133], [206, 99], [232, 66], [260, 66], [290, 66], [320, 66], [346, 66]], "color": "#f2f2f2", "hot": "#e8001c", "hot_from": 0.875}
+						],
+						"text": [
+							{"what": "speed", "at": [271, 100], "size": 18},
+							{"what": "unit", "text": "km/h", "at": [271, 113], "size": 5, "bold": false, "color": "#b9bec6"},
+							{"what": "gear", "at": [271, 130], "size": 18},
+							{"what": "clock", "at": [216, 172], "size": 9, "bold": false, "color": "#f2f2f2"}
+						],
+						"lamp": [
+							{"what": "shift", "at": [262, 46], "w": 40, "size": 5},
+							{"what": "handbrake", "at": [240, 156], "size": 6, "color": "#ff3b1f"},
+							{"what": "abs", "at": [262, 156], "size": 6, "color": "#ffb000"},
+							{"what": "tc", "at": [284, 156], "size": 6, "color": "#ffb000"}
+						]
+					}
+				},
+				{"page": "nav", "rect": [17, 205, 333, 358], "accent": "#e8001c", "radio": "SHOTGUN FM 98.6"}
+			]
+		}
+	]
+}

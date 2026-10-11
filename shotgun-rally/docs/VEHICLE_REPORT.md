@@ -194,3 +194,29 @@ solid3DDD, CC BY 4.0). The cheapest European car in the garage (8,000), not traf
   four wheels driven), wheels (fits six of the seven road presets; the wide one touches the front
   arch at full bump) and the asset audit pass.
 
+
+## The models' own cabins, the lamps and the live screens (October 2026)
+
+- **Every interior is the model's.** 65 cars keep their own cabin; none is made up. The five models
+  with no cabin at all (the ROTORA FC, HALDANE, STILETTO, VALKO, VESPERA: tinted glass over an empty
+  shell) are driven from a camera over their bonnet (`"view": "hood"`), its height found by rays down
+  onto the bonnet, the crew hidden from the first frame. Only the four on the shared rally body keep
+  the rally cockpit (theirs). The ROTORA FD and the AFFALTER GT BLACK now use their own cabins.
+- **Windscreens:** a script check from each driver's eye (rays ahead, through glass) found the
+  AFFALTER S EXECUTIVE's windscreen modelled in the black trim's material (opaque: the driver saw
+  black). Its two sheets get the side windows' glass (`glb_patch` `"faces"`: whole pieces of a
+  material inside a box given another material; the rain sensor's small pieces stay black), and its
+  cockpit windshield is measured from them. The other own-cabin cars see out (checked in the seat
+  renders; the no-AI cars by script only).
+- **Textures:** the BOLT 16's cabin carbon and its dash were drawn lavender: their colour textures
+  were normal maps (a rip's mix-up). Now the carbon has the car's carbon weave for its colour and the
+  old picture as its normals, and the dash the colour map its twin material uses (`glb_patch`
+  `"normal_from_base"`, `"base_texture_of"`). A scan of every car's colour textures found no other.
+- **Headlights:** every model's head and tail lamps are found (74 models), each side's lamp on its
+  own; the beams start at the lamps' lenses, with no glowing balls in front of them.
+- **Live screens:** 20 cars' instruments work (`data/dash/`, the table in `docs/cars.md`), the
+  luxury cars first; a tall or square centre screen (the Maybach's, the Senna's) puts its menu across
+  the top as tabs.
+- **Left to do:** the live pages for the cars whose screens are painted into a texture shared with
+  the rest of the cabin (the A 45 S, Honda e, Supra, AMG GT3, 911 GT3 R, Bolide, the GT-R's dials);
+  the 320i's cluster redone over its painted art.
