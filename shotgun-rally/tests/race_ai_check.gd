@@ -762,7 +762,9 @@ func _race() -> void:
 	var g = Game.new()
 	root.add_child(g)
 	# (a Formula race: 3 laps, DRS enabled from the third)
-	var o: Dictionary = Modes.track_opts(9, cls, "race", 3 if cls == "formula" else 2, "cinder_ridge", {"opponents": 5, "difficulty": "medium", "start": "standing", "grid": "back"})
+	# (as a championship's first round: its points go onto the season at the flag)
+	load("res://scripts/game/track_series.gd").begin(cls, 9, "medium", 5, 10.0)
+	var o: Dictionary = Modes.track_opts(9, cls, "race", 3 if cls == "formula" else 2, "cinder_ridge", {"opponents": 5, "difficulty": "medium", "start": "standing", "grid": "back", "series": 0})
 	var t0 := Time.get_ticks_msec()
 	await g.start(9, 1, o)
 	var st = g.st
@@ -831,6 +833,12 @@ func _race() -> void:
 		print("[raceai] info race: %d of 5 AI cars used DRS (within a second of another at a detection point)" % drs_open.size())
 		check(ers_max > 0.5e6 and ers_max <= 4.0e6, "race: the AI deploy their hybrids (up to %.2f MJ in a lap; never past 4)" % (ers_max / 1.0e6))
 	check(not g.race_rows.is_empty() and g._results.visible and str(g._results_label.text).contains("RACE  P"), "race: the results show your place and the classification (%s)" % str(g._results_label.text).split("\n")[0])
+	var season: Dictionary = g.mode_result.get("series", {})
+	var pts := 0
+	for v in (season.get("points", {}) as Dictionary).values():
+		pts += int(v)
+	check(int(season.get("round", 0)) == 1 and pts == 25 + 18 + 15 + 12 + 10 + 8 - _dnf_points(season, g) and str(g._results_label.text).contains("CHAMPIONSHIP"),
+		"race: as a championship round its points go onto the season (%d between 6 cars) and the standings show" % pts)
 	g.queue_free()
 	await process_frame
 
@@ -840,3 +848,13 @@ static func _fmt(t: float) -> String:
 		return "--"
 	var m := int(t / 60.0)
 	return "%d:%06.3f" % [m, t - m * 60.0]
+
+
+## The points the DNFs and DSQs of a championship round would have scored (they score none).
+func _dnf_points(season: Dictionary, g) -> int:
+	var lost := 0
+	var pts := [25, 18, 15, 12, 10, 8]
+	for r in g.race_rows:
+		if not str(r.status) in ["", "RUNNING"] and int(r.pos) <= pts.size():
+			lost += int(pts[int(r.pos) - 1])
+	return lost

@@ -1,7 +1,7 @@
 extends SceneTree
 ## Track Mode: the circuit (CircuitGen: CINDER RIDGE from data/maps/cinder_ridge.json), the session's
 ## timing (TrackSession) and a practice lap in the game (the autopilot out of its pit box).
-## Run: godot --headless --fixed-fps 120 --path . -s tests/track_check.gd [-- --only=circuit|session|game|weather]
+## Run: godot --headless --fixed-fps 120 --path . -s tests/track_check.gd [-- --only=circuit|session|game|weather|series]
 ##   circuit: closes on itself (position, heading, height), 4.5-6 km, 14-20 corners, no tighter than a
 ##     hairpin, grades and banking a real circuit's, never crosses itself (every bit of track clear of
 ##     every other by more than its run-off); the grid on the pit straight, behind the line, two by two;
@@ -19,6 +19,10 @@ extends SceneTree
 ##     a slick against a wet tyre on the wet track, the AI's line slower in the wet, the roads' wet
 ##     look; a wet practice in the game: the rain and its hiss up, spray off the car at speed, the
 ##     wipers going, the roads dry again after it; the broadcast's TV camera (C in Track Mode) live
+##   series: the championship (TrackSeries): four rounds in their weather, the same seed all season,
+##     a round's settings through Main.mode_opts (a race weekend, its laps and weather, the title),
+##     the FIA's points to the top ten (none for a DNF), the standings and a tie, the season saved
+##     and over after the last round, a new one after it
 ## Prints one [track] line per check; exits 1 on any FAIL.
 
 var CircuitGen
@@ -50,6 +54,8 @@ func _initialize() -> void:
 		await _game()
 	if only in ["", "weather"]:
 		await _weather()
+	if only in ["", "series"]:
+		_series()
 	print("[track] %s" % ("TRACK OK" if fails == 0 else "TRACK FAIL"))
 	quit(1 if fails else 0)
 
@@ -471,3 +477,51 @@ func _weather() -> void:
 	await process_frame
 	await process_frame
 	check(WM.wet == 0.0, "weather: after it the roads are dry again (the menu, the next map)")
+
+
+# ── the championship ──────────────────────────────────────────────────────
+
+func _series() -> void:
+	var TrackSeries = load("res://scripts/game/track_series.gd")
+	var Profile = load("res://scripts/game/profile.gd")
+	var Main = load("res://scripts/main.gd")
+	Profile.reset()
+	check(TrackSeries.current("gt").is_empty() and TrackSeries.done({}), "series: none running at first")
+	var s: Dictionary = TrackSeries.begin("gt", 4242, "hard", 7, 5.0)
+	var like: Dictionary = TrackSeries.round_like(s)
+	var m = Main.new()
+	var o: Dictionary = m.mode_opts(int(like.seed), like)
+	m.free()
+	check(o.mode == "track" and o.session == "qualifying" and bool(o.weekend) and int(o.laps) == 5 and o.weather == "day"
+		and int(o.series) == 0 and int(o.opponents) == 7 and o.difficulty == "hard" and float(o.minutes) == 5.0 and int(like.seed) == 4242,
+		"series: round 1 is a race weekend (qualifying first), 5 laps, DAY, the season's field and AI (%s)" % Modes.title(o, _stage()).replace("\n", " · "))
+	check(Modes.title(o, _stage()).contains("CHAMPIONSHIP R1"), "series: the title says which round")
+	var weathers: Array = TrackSeries.ROUNDS.map(func(r): return r.weather)
+	check(weathers == ["day", "night", "wet", "day"], "series: the rounds' weather: %s" % ", ".join(weathers))
+	# round 1: you win; the AI 1001 second; 1002 out
+	var me := 1
+	var rows := [{"id": me, "name": "YOU", "pos": 1, "status": ""}, {"id": 1001, "name": "NOVAK", "pos": 2, "status": ""},
+		{"id": 1003, "name": "DELORME", "pos": 3, "status": "RUNNING"}, {"id": 1002, "name": "KOSTIC", "pos": 4, "status": "DNF"}]
+	s = TrackSeries.record("gt", rows, me)
+	var t: Array = TrackSeries.standings(s)
+	check(int(s.round) == 1 and t[0][0] == "you" and int(t[0][2]) == 25 and int(t[1][2]) == 18 and int(t[2][2]) == 15 and int(t[3][2]) == 0,
+		"series: round 1's points: 25, 18, 15 (still out at the close: classified), a DNF none (%s)" % str(t.map(func(r): return "%s %d" % [r[1], r[2]])))
+	var like2: Dictionary = TrackSeries.round_like(TrackSeries.current("gt"))
+	check(like2.weather == "night" and int(like2.laps) == 6 and int(like2.series) == 1 and int(like2.seed) == 4242,
+		"series: round 2 under the lights, 6 laps, the same seed (the same field)")
+	# round 2: NOVAK wins, you second: 43 each; you've a win and so has he: the last result splits them
+	rows = [{"id": 1001, "name": "NOVAK", "pos": 1, "status": ""}, {"id": me, "name": "YOU", "pos": 2, "status": ""},
+		{"id": 1002, "name": "KOSTIC", "pos": 3, "status": ""}, {"id": 1003, "name": "DELORME", "pos": 4, "status": ""}]
+	s = TrackSeries.record("gt", rows, me)
+	t = TrackSeries.standings(s)
+	check(int(t[0][2]) == 43 and int(t[1][2]) == 43 and t[0][0] == "1001" and TrackSeries.your_place(s) == 2,
+		"series: a tie on points and wins goes to the better last result (NOVAK 43, YOU 43: P%d)" % TrackSeries.your_place(s))
+	for k in 2:
+		s = TrackSeries.record("gt", rows, me)
+	var saved: Dictionary = Profile.track_series.get("gt", {})
+	check(TrackSeries.done(s) and int(saved.get("round", 0)) == 4 and TrackSeries.summary(s).begins_with("Championship over"),
+		"series: over after round 4, kept in the profile (%s)" % TrackSeries.summary(s))
+	var s2: Dictionary = TrackSeries.begin("gt", 99, "medium", 9, 10.0)
+	check(int(s2.round) == 0 and (s2.points as Dictionary).is_empty() and TrackSeries.current("formula").is_empty(),
+		"series: a new season starts clean; each class has its own")
+	Profile.reset()

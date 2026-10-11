@@ -58,6 +58,7 @@ const Graphics = preload("res://scripts/render/graphics.gd")
 const Replay = preload("res://scripts/game/replay.gd")
 const Weather = preload("res://scripts/render/weather.gd")
 const PitPlan = preload("res://scripts/game/pit_plan.gd")
+const TrackSeries = preload("res://scripts/game/track_series.gd")
 const WorldMaterials = preload("res://scripts/render/world_materials.gd")
 
 signal progress(fraction: float, what: String)
@@ -107,6 +108,7 @@ var _mud_t := 0.0
 var _said_wipers := false
 var _chase := false                 # the driver picked the chase cam (C)
 var _tv := false                     # (Track Mode) ... or the broadcast's trackside TV camera (C again)
+var _tv_on := false                  # (it's filming now)
 var view_override := ""              # (the showcase) the view it's filming: "seat", or "chase" for its own cameras
 var built := false                  # start() has finished (it builds over several frames)
 var _look_acc := 0.0
@@ -1336,6 +1338,20 @@ func _finish_mode() -> void:
 				Profile.record_track_result(pk, race_rows.map(func(r): return {"pos": r.pos, "name": "YOU" if r.id == me else _car_name(r.id),
 					"total": r.total, "best": r.best, "status": r.status}))
 			mode_result["pos"] = pos
+			if race and opts.has("series") and not street_online:
+				# a championship's round: its points onto the season, the standings under the result
+				var season := TrackSeries.record(str(opts.get("class", "gt")), race_rows.map(func(r): return {"id": r.id,
+					"name": _car_name(r.id), "pos": r.pos, "status": r.status}), me)
+				var table: Array = TrackSeries.standings(season)
+				lines.append("CHAMPIONSHIP after %s:" % TrackSeries.round_title(int(opts.series)))
+				for k in mini(table.size(), 5):
+					lines.append("%d. %s  %d pts" % [k + 1, str(table[k][1]), int(table[k][2])])
+				var yours := TrackSeries.your_place(season)
+				if yours > 5:
+					lines.append("%d. YOU  %d pts" % [yours, int(table[yours - 1][2])])
+				if TrackSeries.done(season) and not table.is_empty():
+					lines.append("CHAMPION: %s" % str(table[0][1]))
+				mode_result["series"] = season
 			if not race and bool(opts.get("weekend", false)):
 				next_grid = race_rows.map(func(r): return r.id)
 	elif cutup:
@@ -1496,6 +1512,12 @@ func _tv_camera(dt: float, on: bool) -> void:
 	var rc = replay.cam if replay else null
 	if rc == null or replay.active:
 		return
+	if on != _tv_on:
+		_tv_on = on
+		for c in replay_targets():                    # (no names floating over the cars: through its long lens they'd fill the shot)
+			var tag = c.get_node_or_null("NameTag")
+			if tag:
+				tag.visible = not on
 	if not on:
 		if rc.current:
 			cam.make_current()

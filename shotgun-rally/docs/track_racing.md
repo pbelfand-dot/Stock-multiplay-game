@@ -14,6 +14,7 @@ Each runs four sessions on CINDER RIDGE:
 - **QUALIFYING:** the clock (5, 10, 15 or 20 minutes) with the AI field on track. Your best valid lap sets your place.
 - **QUICK RACE:** a race of 3, 5, 10 or any number of laps. You start where GRID says: FRONT, MIDDLE, BACK or RANDOM (the field lines up by pace).
 - **RACE WEEKEND:** qualifying, then the race from where you qualified, against the same drivers in the same cars.
+- **CHAMPIONSHIP:** a season of four race weekends (below), alone.
 
 The options:
 
@@ -289,6 +290,31 @@ The owner's 14 CC0 track props (`assets/environment_runtime/props/track_props.gl
 For 12 s after the lights go out (or a restart), a car slow off its grid box throws no yellow, and the
 field sorting itself out round it isn't passing under one: the start's own chaos, not an offence.
 
+## The championship
+
+CHAMPIONSHIP on the TRACK card (`scripts/game/track_series.gd`) is a season of four race weekends
+at CINDER RIDGE. Each round has its own weather and length:
+
+| Round | Weather | Laps |
+|---|---|---|
+| 1 · OPENING SPRINT | DAY | 5 |
+| 2 · UNDER THE LIGHTS | NIGHT | 6 |
+| 3 · RAIN | WET | 5 |
+| 4 · THE FINALE | DAY | 8 |
+
+- **The field:** the same all season (the season's seed gives the same drivers in the same cars and
+  colours). The card's CARS, AI and QUALIFYING length are taken when the season starts.
+- **Points:** the top ten score by the FIA's scale: 25, 18, 15, 12, 10, 8, 6, 4, 2, 1. A car still
+  out when the race closes is classified where it is and scores; a retirement or disqualification
+  scores nothing. A tie on points goes to the more wins, then the better last result.
+- **The results** show the standings after each race (the top five, and you if you're lower). ENTER
+  goes on to the next round's qualifying; after the last round it says who's champion, and ENTER
+  goes back to the menu.
+- **The card** shows where the season stands (the next round, your place and points, the leader's).
+  START plays the next round, or begins a new season once one is over. NEW SEASON drops the one
+  running. Each class (GT, FORMULA) has its own season, kept in the profile (`Profile.track_series`).
+- Offline only for now: an online championship (the host's season, everyone's points) is still to come.
+
 ## The weather
 
 WEATHER on the TRACK card (`--weather=day|night|wet` on the command line) sets three presets
@@ -427,6 +453,6 @@ Not done online yet:
 
 - a pit-wall radio during the race (the strategy is set from the pause menu);
 - engine sounds of their own for the CC0 GT and Formula cars (the batch's GT cars have theirs);
-- championships (the TV camera is in: C);
+- an online championship (the single-player one is in, and the TV camera: C);
 - the weather changing during a session (a drying line, rain arriving), standing water and
   aquaplaning, raindrops on the windscreen, the cars' rain lights.

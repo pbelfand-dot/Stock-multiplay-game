@@ -31,7 +31,8 @@ const DIFFICULTIES := {
 }
 const TOUGE_LENGTH := 5000.0
 const CIRCUITS := {"cinder_ridge": "CINDER RIDGE"}
-const TRACK_SESSIONS := {"practice": "PRACTICE", "qualifying": "QUALIFYING", "race": "QUICK RACE", "weekend": "RACE WEEKEND"}
+const TRACK_SESSIONS := {"practice": "PRACTICE", "qualifying": "QUALIFYING", "race": "QUICK RACE", "weekend": "RACE WEEKEND",
+	"series": "CHAMPIONSHIP"}
 ## The AI field's skill (RaceDriver): pace (a share of its car's limit: never more grip or power
 ## than the car has), its spread across the field, consistency (fewer mistakes), aggression.
 const TRACK_DIFFICULTY := {
@@ -81,6 +82,8 @@ static func track_classes() -> Dictionary:
 static func track_opts(seed_value: int, cls := "gt", session := "practice", laps := 5, circuit := "cinder_ridge", extra := {}) -> Dictionary:
 	var c: String = cls if track_classes().has(cls) else "gt"
 	var ses: String = session if TRACK_SESSIONS.has(session) else "practice"
+	if ses == "series":
+		ses = "weekend"                                # (a championship's round is a race weekend: TrackSeries)
 	var weekend := ses == "weekend" or bool(extra.get("weekend", false))
 	if ses == "weekend":
 		ses = "qualifying"
@@ -93,6 +96,8 @@ static func track_opts(seed_value: int, cls := "gt", session := "practice", laps
 		"gen": {"kind": "circuit", "circuit": circuit, "biome": "temperate_broadleaf"}}
 	if extra.has("grid_order"):
 		o["grid_order"] = extra.grid_order
+	if extra.has("series"):
+		o["series"] = int(extra.series)               # (a championship's round: TrackSeries)
 	var w := str(extra.get("weather", "day"))
 	o["weather"] = w if TRACK_WEATHER.has(w) else "day"
 	match o.weather:
@@ -343,6 +348,8 @@ static func title(o: Dictionary, st) -> String:
 				what = "QUALIFYING · %d MIN" % int(o.get("minutes", 10.0))
 			if str(o.get("weather", "day")) != "day":
 				what += " · " + str(TRACK_WEATHER.get(str(o.weather), ""))
+			if o.has("series"):
+				what = "CHAMPIONSHIP R%d · %s" % [int(o.series) + 1, what]
 			return "%s\n%s · %s" % [st.touge_name(), str(c.get("series", "GT")), what]
 	return ""
 

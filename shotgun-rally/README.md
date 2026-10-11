@@ -169,7 +169,9 @@ the old backdrop: your car flat out on a stage, filmed like rally TV.
   - the slipstream and damage;
   - WEATHER: a dry day, a night race under the floodlights, or WET (rain, spray off every car, a
     glossy track, everyone on wets, a slick hopeless);
-  - the broadcast's TV camera (C).
+  - the broadcast's TV camera (C);
+  - CHAMPIONSHIP: a season of four race weekends (day, night, wet, a long finale) against the same
+    field, FIA points, the standings after every race.
   The AI race on the same physics as you, overtaking, defending and pitting
   (`docs/track_racing.md`). Online, up to 8 friends race it together, each in a car of the class:
   the host's machine is race control for everyone (the lights, the timing, flags, penalties, the

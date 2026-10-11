@@ -14,6 +14,7 @@ signal start(m: Dictionary)
 const UI = preload("res://scripts/ui/ui_kit.gd")
 const Modes = preload("res://scripts/game/modes.gd")
 const Profile = preload("res://scripts/game/profile.gd")
+const TrackSeries = preload("res://scripts/game/track_series.gd")
 
 var _dir := "up"
 var _rules := "time"
@@ -47,6 +48,9 @@ var _damage_btn: Button
 var _race_rows: Array = []           # the race options' rows (hidden for practice)
 var _weather := "day"                # track: Modes.TRACK_WEATHER
 var _weather_btns := {}
+var _weather_row: Control
+var _series_row: Control             # the CHAMPIONSHIP's season, NEW SEASON
+var _series_label: Label
 
 
 func _ready() -> void:
@@ -227,11 +231,22 @@ func _track_card(v: Control) -> void:
 		_weather_btns[wk] = wb
 		r4.add_child(wb)
 	_set_weather(_weather)
+	_weather_row = r4
+	# the championship: where the season stands (its rounds set their own laps and weather), NEW SEASON
+	var r5 := HBoxContainer.new()
+	r5.add_theme_constant_override("separation", 10)
+	trk.add_child(r5)
+	_series_label = UI.label("", 16, UI.CREAM)
+	_series_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_series_label.custom_minimum_size = Vector2(680, 0)
+	r5.add_child(_series_label)
+	r5.add_child(UI.button("NEW SEASON", _new_season, 16, 160, "night"))
+	_series_row = r5
 	_set_laps(_laps)
 	_set_opponents(_opponents)
 	_set_ai(_ai)
 	var best := Profile.mode_best("track/%s/%s/%s" % [Modes.CIRCUITS.keys()[0], _class, Modes.track_car({"class": _class}, _garage_car())])
-	var note := "Practice: as many laps as you like (END RUN in the pause menu). Qualifying: the clock, the field on track, your best lap sets your place. Quick race: the grid, the lights or the rolling start, flags and penalties. Race weekend: qualifying, then the race from where you qualified."
+	var note := "Practice: as many laps as you like (END RUN in the pause menu). Qualifying: the clock, the field on track, your best lap sets your place. Quick race: the grid, the lights or the rolling start, flags and penalties. Race weekend: qualifying, then the race from where you qualified. Championship: four race weekends (day, night, rain, a long finale), points to the top ten."
 	if not best.is_empty():
 		note = "Your best: %s.   " % _fmt_lap(float(best.value)) + note
 	var nl := UI.label(note, 15, UI.DIM)
@@ -302,9 +317,21 @@ func _refresh_race() -> void:
 	_damage_btn.text = "DAMAGE: %s" % ("ON" if _damage else "OFF")
 	for row in _race_rows:
 		(row as Control).visible = _session != "practice"
-	_min_btn.visible = _session in ["qualifying", "weekend"]
+	_min_btn.visible = _session in ["qualifying", "weekend", "series"]
 	_grid_btn.visible = _session == "race"
 	_start_btn.visible = _session in ["race", "weekend"]
+	if _series_row:
+		_series_row.visible = _session == "series"
+		_weather_row.visible = _session != "series"      # (each round has its own)
+		_series_label.text = TrackSeries.summary(TrackSeries.current(_class))
+
+
+## NEW SEASON: the running championship dropped (START then begins a new one).
+func _new_season() -> void:
+	Profile.ensure_loaded()
+	Profile.track_series.erase(_class)
+	Profile.save()
+	_refresh_race()
 
 
 static func _garage_car() -> String:
@@ -322,6 +349,7 @@ func _set_class(c: String) -> void:
 	for k in _class_btns:
 		var b: Button = _class_btns[k]
 		b.modulate = Color.WHITE if k == c else Color(1, 1, 1, 0.45 if not b.disabled else 0.25)
+	_refresh_race()                                   # (the class's own championship)
 
 
 func _set_session(sk: String) -> void:

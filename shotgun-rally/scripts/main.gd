@@ -43,6 +43,7 @@ const LoadingScreen = preload("res://scripts/ui/loading_screen.gd")
 const Profile = preload("res://scripts/game/profile.gd")
 const Championship = preload("res://scripts/game/championship.gd")
 const Modes = preload("res://scripts/game/modes.gd")
+const TrackSeries = preload("res://scripts/game/track_series.gd")
 
 var game: Node
 var menu: Control
@@ -144,7 +145,7 @@ func mode_opts(s: int, like: Dictionary) -> Dictionary:
 		o = Modes.cutup_opts(s, str(like.get("difficulty", "normal")), str(like.get("toll", "open")))
 	elif like.get("mode") == "track":
 		var extra := {}
-		for k in ["opponents", "start", "minutes", "grid", "damage", "weekend", "grid_order", "collide", "weather"]:
+		for k in ["opponents", "start", "minutes", "grid", "damage", "weekend", "grid_order", "collide", "weather", "series"]:
 			if like.has(k) and str(like[k]) != "":
 				extra[k] = like[k]
 		extra["difficulty"] = str(like.get("track_difficulty", like.get("difficulty", "medium")))
@@ -162,6 +163,14 @@ func mode_opts(s: int, like: Dictionary) -> Dictionary:
 ## From the menu's MODES: a touge or a cut-up run, alone, or hosted online for up to
 ## eight friends (m.online: a street session, everyone in their own car; m.collide).
 func start_mode(m: Dictionary) -> void:
+	if m.get("mode") == "track" and m.get("session") == "series":
+		# the championship's next round (a new season if none is running or the last one's over): alone
+		var cls := str(m.get("class", "gt"))
+		var season := TrackSeries.current(cls)
+		if TrackSeries.done(season):
+			season = TrackSeries.begin(cls, randi() % 100000, str(m.get("track_difficulty", "medium")), int(m.get("opponents", 9)),
+				float(m.get("minutes", 10.0)))
+		m = TrackSeries.round_like(season)
 	if m.get("online", false):
 		if Net.host(Config.port, "racer", "street", bool(m.get("collide", true))) != OK:
 			to_menu("Couldn't host on port %d (is another game running?)" % Config.port)
@@ -265,6 +274,15 @@ func continue_event() -> void:
 		like["grid_order"] = game.next_grid
 		like["track_difficulty"] = opts.get("difficulty", "medium")
 		next_stage(seed_value, stage_no + 1, mode_opts(seed_value, like))
+		return
+	if opts.get("mode") == "track" and opts.has("series") and opts.get("session") == "race":
+		# a championship's race: on to its next round (the same field: the season's seed), or the menu after the last
+		var season := TrackSeries.current(str(opts.get("class", "gt")))
+		if TrackSeries.done(season):
+			to_menu()
+			return
+		var like := TrackSeries.round_like(season)
+		next_stage(int(season.seed), stage_no + 1, mode_opts(int(season.seed), like))
 		return
 	if Modes.is_mode(opts):                          # another pass / another highway, the same kind
 		next_stage(seed_value + 1, stage_no + 1, mode_opts(seed_value + 1, opts))
@@ -739,6 +757,8 @@ func _reward(r: Dictionary) -> void:
 		next = "new pass" if opts.get("mode") == "touge" else "new run"
 		if opts.get("mode") == "track":
 			next = "THE RACE" if bool(opts.get("weekend", false)) and opts.get("session") == "qualifying" else "again"
+			if opts.has("series") and opts.get("session") == "race":
+				next = "the menu" if TrackSeries.done(TrackSeries.current(str(opts.get("class", "gt")))) else "THE NEXT ROUND"
 	if story:
 		var i: int = opts.rally
 		var j: int = opts.stage

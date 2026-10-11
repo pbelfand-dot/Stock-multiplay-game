@@ -27,6 +27,7 @@ static var story := {}                      # rally id -> {done, best_pos, best_
 static var bests := {}                      # "seed/length" -> best total (s)
 static var mode_bests := {}                 # Modes.best_key -> {value, splits} (touge time, drift / cut-up score)
 static var track_results := {}              # Track Mode: "<best key>/race" | ".../qualifying" -> the last 10 classifications
+static var track_series := {}               # Track Mode's championship: class -> its season (TrackSeries)
 static var _loaded := false
 
 
@@ -55,6 +56,7 @@ static func ensure_loaded() -> void:
 	bests = cf.get_value("story", "bests", bests)
 	mode_bests = cf.get_value("modes", "bests", mode_bests)
 	track_results = cf.get_value("modes", "track_results", track_results)
+	track_series = cf.get_value("modes", "track_series", track_series)
 	for k in ["cars", "liveries", "wheels", "wheel_types"]:   # an old or hand-edited file
 		if not owned.has(k):
 			owned[k] = []
@@ -77,6 +79,7 @@ static func save() -> void:
 	cf.set_value("story", "bests", bests)
 	cf.set_value("modes", "bests", mode_bests)
 	cf.set_value("modes", "track_results", track_results)
+	cf.set_value("modes", "track_series", track_series)
 	cf.save(path())
 
 
@@ -286,4 +289,6 @@ static func reset() -> void:
 	story = {}
 	bests = {}
 	mode_bests = {}
+	track_results = {}
+	track_series = {}
 	_loaded = true
