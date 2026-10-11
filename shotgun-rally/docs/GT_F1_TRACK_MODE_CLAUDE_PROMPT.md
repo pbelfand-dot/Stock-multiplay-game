@@ -24,6 +24,10 @@ Read these before doing anything:
 - `shotgun-rally/assets/car_packages/Track_Mode_Cars/README.md`
 - `shotgun-rally/assets/car_packages/Track_Mode_Cars/2024-porsche-992-gt3-r.zip`
 - `shotgun-rally/assets/car_packages/Track_Mode_Cars/mercedes-amg-gt3-red-bull-racing.zip`
+- `shotgun-rally/assets/car_packages/Track_Mode_Cars/Formula/`
+- `shotgun-rally/assets/car_packages/Track_Mode_Cars/GT3/`
+- `shotgun-rally/assets/environment_packages/Track_Mode_Props/`
+- `shotgun-rally/assets/TRACK_MODE_ASSET_MANIFEST.tsv`
 - `shotgun-rally/docs/VEHICLE_PROGRESS.md`
 - `shotgun-rally/docs/modes.md`
 - the existing garage, vehicle registry, multiplayer, HUD, physics, AI, and track/stage code
@@ -35,6 +39,15 @@ alternate to a GT3 R already in the game; compare them and use the better runtim
 instead of creating a duplicate garage entry. The Formula model may be used as a temporary
 placeholder or scale/reference source, but replace or substantially improve it if it is not
 visually consistent with the game.
+
+The newer `Formula/`, `GT3/`, and `Track_Mode_Props/` GLBs are original generic CC0 assets
+with preserved upstream JSON and exact hashes in `TRACK_MODE_ASSET_MANIFEST.tsv`. Their
+upstream contributor reports AI generation with Claude Fable 5.1; none carries a `No AI`
+restriction. Use the two modern halo/open-wheel cars to establish the FORMULA class, the four
+generic closed-cockpit race cars to diversify the AI grid, and the pit/marshal props to dress
+the circuit. Their presence in the repository is not integration: import them through Godot,
+create appropriate collisions/LODs/materials, register the cars, fit the player/camera, tune
+physics, place the props, and verify the results in a running build.
 
 ## Product goal
 
@@ -174,4 +187,3 @@ largest stable playable vertical slice and document the precise remaining work w
 breaking existing modes.
 
 ---
-

@@ -25,5 +25,6 @@ Treat the full collection as private-use source material. Some older third-party
 prohibit redistribution even though the repository is currently public; audit or remove those
 packages before treating the repository as a public asset library.
 
-`Track_Mode_Cars/` contains separately attributed non-commercial/share-alike GT candidates.
+`Track_Mode_Cars/` contains separately attributed non-commercial/share-alike GT candidates
+plus public-repo-safe CC0 Formula and generic GT race-car candidates in subdirectories.
 `../wheel_packages/` contains the wheel/tyre source library and its own license manifest.

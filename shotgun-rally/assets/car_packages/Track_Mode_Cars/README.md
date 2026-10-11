@@ -12,3 +12,19 @@ Both packages are non-commercial and share-alike. Keep this README with the file
 the attribution, and treat any real brand or sponsor artwork as identification/reference,
 not as an endorsement.
 
+## Public-repo-safe CC0 additions
+
+The `Formula/` and `GT3/` subdirectories contain original, generic, game-ready GLBs from
+3DAssets.dev. They are CC0 1.0 Universal, use fictional/unbranded designs, and are suitable
+for the public repository. They were generated with AI tools by their upstream contributor;
+none carries a `No AI` restriction.
+
+- `Formula/` contains two modern halo/open-wheel candidates with named wheel pivots and a
+  `wheel-roll` clip.
+- `GT3/` contains four visually distinct closed-cockpit race-car candidates for building a
+  varied AI grid. They are generic GT/GT4/cup designs, not replicas of branded manufacturers.
+- `../../TRACK_MODE_ASSET_MANIFEST.tsv` records sources, sizes, hashes, geometry counts,
+  animations, licensing, and AI provenance for every new GLB.
+
+The upstream JSON responses are preserved beside the cars. These GLBs are source candidates,
+not proof that a vehicle is registered, physically tuned, or selectable in the game.
