@@ -14,7 +14,9 @@ extends SceneTree
 ##     back to the wheel. A sequential: pulled back, it springs back. An
 ##     automatic, or no lever modelled: the hand stays on the wheel
 ##   * the handbrake: that hand goes to its own lever and pulls it
-##   * a car without one keeps the cockpit's own interior
+##   * a car without one keeps the cockpit's own interior; a model with no cabin at all
+##     (parts.json "view": "hood") gets none made up: the camera sits low over its bonnet, in
+##     front of its windscreen, and its body is drawn
 ##   * the gloves never float: round the wheel both ways, on the handbrake and
 ##     reaching for the gear lever, each forearm ends at its glove's wrist (a
 ##     wheel out of reach: the driver slides their seat forward, the forearm
@@ -50,6 +52,7 @@ func _process(_dt: float) -> bool:
 	_done = true                                     # (in the first frame: a car added in _initialize isn't ready yet)
 	var own := 0
 	var ours := 0
+	var hood := 0
 	for c in Catalog.CARS:
 		var model := str(c.get("model", ""))
 		if model == "":
@@ -58,24 +61,33 @@ func _process(_dt: float) -> bool:
 		if info.has("cockpit"):
 			own += 1
 			_own(c.id, info.cockpit)
+		elif str(info.get("view", "")) == "hood":
+			hood += 1
+			_hood(c.id)
 		else:
 			ours += 1
 			_ours(c.id)
-	fails += _check(own >= 5, "%d cars keep their own interior, %d the cockpit's" % [own, ours])
-	for id in ["kestrel"] + Array(Catalog.CARS.filter(func(c): return str(c.get("model", "")) != "").map(func(c): return c.id)):
+	fails += _check(own >= 5, "%d cars keep their own interior, %d from over the bonnet (no cabin), %d the cockpit's" % [own, hood, ours])
+	# (the bonnet-view cars have no crew in sight: no cabin to sit them in)
+	var seen: Array = Catalog.CARS.filter(func(c): return str(c.get("model", "")) != "" and str(CarSpecs.parts(str(c.model)).get("view", "")) != "hood")
+	for id in ["kestrel"] + Array(seen.map(func(c): return c.id)):
 		_reach(id)
 	# the driver-fit anchors (fit_debug.gd, the F9 overlay's) in every car: head under the roof, the
 	# wheel in front of the eyes, the hands in reach, the pedals ahead of and below the seat, the door outside
 	var FitDebug = load("res://scripts/vehicle/fit_debug.gd")
 	var why: Array = []
+	var fitted := 0
 	for c in Catalog.CARS:
+		if str(CarSpecs.parts(str(c.get("model", ""))).get("view", "")) == "hood":
+			continue
+		fitted += 1
 		var made: Array = _car(c.id)
 		var j: Array = FitDebug.judge(FitDebug.fit(made[0], made[1]), made[0])
 		if not j[0]:
 			why.append("%s: %s" % [c.id, j[1]])
 		made[0].queue_free()
-	fails += _check(why.is_empty(), "driver fit: head, seat, hands, pedals and door anchors sane in %d of %d cars%s" % [
-		Catalog.CARS.size() - why.size(), Catalog.CARS.size(), "" if why.is_empty() else " (" + " | ".join(why) + ")"])
+	fails += _check(why.is_empty(), "driver fit: head, seat, hands, pedals and door anchors sane in %d of %d cars (the bonnet-view ones have no seat)%s" % [
+		fitted - why.size(), fitted, "" if why.is_empty() else " (" + " | ".join(why) + ")"])
 	print("[interior] %s" % ("INTERIOR OK" if fails == 0 else "INTERIOR FAIL"))
 	quit(1 if fails > 0 else 0)
 	return true
@@ -237,6 +249,23 @@ func _ours(id: String) -> void:
 	var cp = made[1]
 	fails += _check(not cp.own_interior() and cp._steer_node != null and cp.eye_driver == Cockpit.EYE_DRIVER,
 		"%s: no interior good enough of its own: the cockpit's" % id)
+	car.queue_free()
+
+
+## A model with no cabin: nothing made up (no shell, dash or wheel of ours), the body drawn in the
+## driver's view, the eyes on the middle line over the bonnet: above the belt, in the front half,
+## ahead of the windscreen's foot.
+func _hood(id: String) -> void:
+	var made: Array = _car(id)
+	var car = made[0]
+	var cp = made[1]
+	car.set_outside(false)
+	var eye: Vector3 = cp.eye_driver - car.model_offset()
+	var info: Dictionary = car._model_info
+	var mid := (float(info.body_min[2]) + float(info.body_max[2])) * 0.5
+	var ok: bool = cp.hood and not cp.own_interior() and cp._steer_node == null and cp._needles.is_empty() and car.body_model.visible \
+		and absf(eye.x) < 0.01 and eye.y > float(info.belt) and eye.y < float(info.body_max[1]) and eye.z < mid - 0.3 and eye.z > float(info.body_min[2]) + 0.5
+	fails += _check(ok, "%s: no cabin in its model: none made up, its body seen from over the bonnet (eye at %s, the belt at %.2f)" % [id, str(eye), float(info.belt)])
 	car.queue_free()
 
 

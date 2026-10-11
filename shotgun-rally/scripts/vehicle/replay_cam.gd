@@ -630,7 +630,7 @@ func _apply_view() -> void:
 	var mine: bool = mode == "cockpit" and target == game.car and game.cockpit != null
 	game.car.set_outside(not mine)
 	if game.cockpit:
-		game.cockpit.visible = mine or game.cockpit.own_interior()
+		game.cockpit.visible = (mine and not game.cockpit.hood) or game.cockpit.own_interior()
 		game.cockpit.set_my_seat(_seat() if mine else "")
 	cull_mask = 0xFFFFF & ~(1 << (1 if _seat() == "driver" else 2)) if mine else 0xFFFFF
 

@@ -260,7 +260,8 @@ def car_rows(pk, used):
             "tris": st.get("tris", 0),
             "collision": "physics in code (RallyCar: chassis box + 4 suspension shape casts)" if "garage" in v else "box (Traffic)",
             "lod": "Godot importer LODs (generate_lods)" if lods else ("none" if lods is False else "-"),
-            "interior": ("own interior, crew fitted (driver_seat)" if interior.get("own") else "shared cockpit") if "garage" in v else "-",
+            "interior": ("own interior, crew fitted (driver_seat)" if interior.get("own") else
+                         ("no cabin in the model: the bonnet camera" if interior.get("view") == "hood" else "shared cockpit")) if "garage" in v else "-",
             "modes": "; ".join(modes) or "-",
             "catalog": ("garage: %s" % ("for sale" if v.get("garage", {}).get("price", 0) else "free")) + ("; traffic list" if "traffic" in v else "") if "garage" in v else ("traffic list" if "traffic" in v else "registry only"),
             "verified": ("tests/car_models_check.gd (builds, sits on its wheels, pulls away); interior_check" if "garage" in v else "tests/modes_check.gd (every traffic car loads car-sized on four wheels)") + ("; scripts only (no-AI: renders never viewed)" if noai else ""),

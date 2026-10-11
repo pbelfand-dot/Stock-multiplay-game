@@ -3,4 +3,5 @@
  "paint": ["phong7SG1$"], "glass": ["phong10SG1$", "phong13SG1$"],
  "materials": [["phong10SG1$", "glass"], ["phong13SG1$", "glass"], ["phong3SG1$", "red_lens"]],
  "wheel_faces": 12000, "caliper_faces": 3000, "body_faces": 140000, "body_least": 0.3, "tex_max": 1024, "tex_format": "webp",
- "cockpit": {"gearbox": "auto", "eye": [-0.37, -0.05, 1.25], "wheel": {"box": [-0.62, -0.15, 0.2, 0.44, 0.75, 1.2], "cut": true, "axis": [0.0, -0.9, 0.44], "radius": 0.185}}}
+ "cockpit": {"gearbox": "auto", "eye": [-0.37, -0.05, 1.25], "wheel": {"box": [-0.62, -0.15, 0.2, 0.44, 0.75, 1.2], "cut": true, "axis": [0.0, -0.9, 0.44], "radius": 0.185}},
+ "lamps": [{"kind": "head", "mat": "^M:phong11SG1$", "box": [-0.95, -0.5, 0.62, 0.86, -2.6, -1.9]}, {"kind": "head", "mat": "^M:phong11SG1$", "box": [0.5, 0.95, 0.62, 0.86, -2.6, -1.9]}]}

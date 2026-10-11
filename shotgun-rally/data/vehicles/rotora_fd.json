@@ -57,13 +57,16 @@
 		"zero_100_max": 8.0
 	},
 	"interior": {
-		"own": false,
-		"camera": true
+		"own": true,
+		"camera": true,
+		"notes": "The model's own cabin, as simple as it came: a black dash and floor tray, the seat backs, a thin steering-wheel ring (open at the bottom) that turns (tools/cars/rx7_fd.json cockpit); the eye set by hand (the seat finder lands on the tray); a gear lever made for it on the tunnel (the model has none)."
 	},
 	"source": {
 		"package": "mazda-rx-7-fd.zip",
 		"candidate": 9
 	},
 	"research": ["automobile-catalog.com (Efini RX-7 Type R)", "carfromjapan.com", "encycarpedia"],
-	"limitations": ["Its interior is too rough to sit in: the game's rally cockpit is used."]
+	"limitations": [
+		"The cabin is the model's own and very plain (a flat black tray at the belt line, a spokeless wheel ring, no gauges): kept because it's the model's; the gear lever is ours."
+	]
 }

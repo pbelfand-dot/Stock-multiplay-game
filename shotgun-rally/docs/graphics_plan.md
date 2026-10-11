@@ -56,11 +56,19 @@ weak PCs still run it. This is the plan (with what was checked while building it
    clear coat at all); window glass and chrome get proper gloss; a reflection probe rides
    over the roof on HIGH / ULTRA so the paint reflects the trees and the road, not just the
    sky; the mirror's camera gets the world's light without the costly effects.
-6. **Lamps**: the head and tail lamp materials found by name, existing glow and where they
-   sit on the car (front / back quarter), given emission masked by their own texture: dim
-   running lights by day, brake lights when braking, full at night (CarLook). One lamp
-   material over both ends of a car (some rips) is split front / back at load, so the tail
-   lamps glow red and brighten on the brakes. The real lights are CarLamps' (see 9).
+6. **Lamps**: the head and tail lamp materials found by name ("led" only as a word: not
+   "Recycled" or "untitled", which made every material of the ripped cars a lamp), existing
+   glow and where they sit on the car (front / back quarter), given emission masked by their
+   own texture: dim running lights by day, brake lights when braking, full at night
+   (CarLook). A lamp material that reaches past the nose or the tail (both ends in one, bits
+   of the cabin with it) is split by where its triangles are at load (the front 24 %, the
+   back 24 %), so only the lamps glow and the tails glow red. Lamps the names don't give
+   away (headlamps in the glass, lamps named like wheels, the generated bodies' tail blocks)
+   come from the model's parts.json `"lamps"` hints (`[{kind, mat, box}]`, also in its
+   tools/cars spec so a re-import keeps them). Each side's lamp is the cluster round the
+   area-weighted middle of its lamp faces (a third brake light by the roof doesn't drag it
+   off), worked out once per model. `tools/lamp_survey.gd` lists every model's lamps (text
+   only: safe on the no-AI cars). The real lights are CarLamps' (see 9).
 7. **Settings: GRAPHICS** (`scripts/ui/graphics_settings.gd`, two lines in
    `settings_panel.gd`): QUALITY LOW / MEDIUM / HIGH / ULTRA (first run: picked from the GPU:
    discrete -> HIGH, integrated -> MEDIUM, Compatibility / software -> LOW), RENDER SCALE,
@@ -108,11 +116,15 @@ on at night (the lamps).
      pass); where the pools multiply, not the road (`WorldMaterials.ROAD_LAYER`: it keeps its
      pool, no light counted twice). All batched: three MultiMeshes.
    - **The cars' lamps**: CarLook (emission on the lamp lenses, red tails, brake lights)
-     and CarLamps (`scripts/vehicle/car_lamps.gd`): the headlight beams (spot lights where
-     CarLook found the headlamps; your own car two on Forward+ MEDIUM+, one casting
-     shadows on HIGH / ULTRA; everyone else one, the game turning far ones off), a red glow
-     on the road behind yours, glow sprites only where no lamp material was found or
-     there's no bloom (Compatibility, LOW), hazards. The game fits them at night, CarLook at
+     and CarLamps (`scripts/vehicle/car_lamps.gd`): the headlight beams, each starting at
+     its own headlamp's lens (CarLook's lamp boxes: each side's; your own car two on Forward+
+     MEDIUM+, one casting shadows on HIGH / ULTRA, 3 cm in front of its lens; everyone else
+     one, between its lamps, the game turning far ones off), a red glow on the road behind
+     yours, hazards. No glow balls floating in front of the car any more: the light comes
+     from the lamps themselves (their glowing lenses and the bloom). Only a body whose
+     lamps are painted into its texture (the shared rally body: parts.json `"lamp_boxes"`)
+     gets a soft glow laid flat on each lamp, facing out; where no lamp is known at all the
+     beam starts at the body's front and nothing is added. The game fits them at night, CarLook at
      dusk or with CAR LIGHTS ALWAYS; OFF leaves only your own beam at night.
    - **The traffic** (cut up): its lamps glow (CarLook.glow_model) and at night each car
      throws a faked pool of headlight on the road ahead and red behind (one additive mesh,

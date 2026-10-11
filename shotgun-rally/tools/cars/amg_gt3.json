@@ -8,4 +8,5 @@
  "wheel_faces": 12000, "caliper_faces": 3000, "body_faces": 160000, "body_least": 0.25, "tex_max": 1024, "tex_format": "webp",
  "decimate_parts": [["_Engine_Components_Inst$", 0.15], ["_Normalmap_Engine_Components$", 0.2], ["_Suspension_Inst$", 0.25],
                     ["_Interior_Chassis$", 0.35], ["_Interior_Details$", 0.35], ["_Cockpit_Console$", 0.4]],
- "cockpit": {"gearbox": "auto", "wheel": {"parts": ["^Object_(43|154|157)$"]}}}
+ "cockpit": {"gearbox": "auto", "wheel": {"parts": ["^Object_(43|154|157)$"]}},
+ "lamps": [{"kind": "head", "mat": "^MI_Mercedes_AMG_GT3_Evo_Lights(_Glass_Inst)?$", "box": [-1.0, -0.5, 0.42, 0.7, -2.1, -1.4]}, {"kind": "head", "mat": "^MI_Mercedes_AMG_GT3_Evo_Lights(_Glass_Inst)?$", "box": [0.5, 1.0, 0.42, 0.7, -2.1, -1.4]}, {"kind": "tail", "mat": "^MI_Mercedes_AMG_GT3_Evo_Lights(_Glass_Inst)?$", "box": [-0.9, 0.9, 0.6, 0.9, 1.6, 2.3]}]}

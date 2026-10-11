@@ -3,13 +3,15 @@ extends Node3D
 ## touch low), a little red on the road behind, and the lamps' glow. Fitted to the car's
 ## body (any model: the player's, the other drivers', the touge's stray car).
 ##
-## The glow is the lamps' own material where CarLook found them (scripts/render/car_look.gd
-## lights the lamp lenses: brake lights, dusk, the bloom does the rest); a glowing sprite
-## at each corner only where it didn't (a car without a model of its own, a missed lamp),
-## or where there's no bloom to make a lit lens glow (Compatibility, LOW). The beam goes
-## where CarLook found the headlamps (else by the body's bounds): on your own car, on
-## Forward+ MEDIUM and up, two of them (one casting shadows on HIGH / ULTRA); everyone
-## else's one (a light the screen pays for: the game turns far ones off with set_beam).
+## The light comes from the lamps themselves: the glow is the lamps' own lenses where CarLook
+## found them (scripts/render/car_look.gd lights them: brake lights, dusk, the bloom does the
+## rest), and each beam starts at its own headlamp's lens (CarLook's lamp_boxes: each side's
+## lamp), the one casting shadows just in front of it. A body whose lamps are only painted
+## into its texture (the shared rally body: its parts.json "lamp_boxes", "lens": true) gets a
+## soft glow laid flat on each lamp, facing out. Where no lamp is known at all the beam starts
+## at the front of the body and nothing floats in front of the car. Your own car, on Forward+
+## MEDIUM and up: two beams (one casting shadows on HIGH / ULTRA); everyone else's one, between
+## its lamps (a light the screen pays for: the game turns far ones off with set_beam).
 ##   CarLamps.fit(car, model, beam := true, tail := true) -> the CarLamps node (a child of
 ##     car; fitting again for the same model returns the one there; another model: fitted anew)
 ##     tail: the red light on the road behind (and the twin beams): yours
@@ -87,19 +89,25 @@ func _build(car: Node3D, body: Node3D, with_beam: bool, tail_light: bool) -> voi
 	var back := box.end.z
 	var cx := box.get_center().x
 	var x := box.size.x * 0.5 - 0.28
-	var ends := {"head": [Vector3(cx - x, box.position.y + box.size.y * 0.36, front - 0.05), Vector3(cx + x, box.position.y + box.size.y * 0.36, front - 0.05)],
-		"tail": [Vector3(cx - x, box.position.y + box.size.y * 0.45, back + 0.05), Vector3(cx + x, box.position.y + box.size.y * 0.45, back + 0.05)]}
+	var ends := {"head": [Vector3(cx - x, box.position.y + box.size.y * 0.36, front), Vector3(cx + x, box.position.y + box.size.y * 0.36, front)],
+		"tail": [Vector3(cx - x, box.position.y + box.size.y * 0.45, back), Vector3(cx + x, box.position.y + box.size.y * 0.45, back)]}
+	var lamps := {}                                  # kind -> [left, right] lamp boxes (car space)
 	for kind in ["head", "tail"]:
 		var fb: AABB = found.get(kind, AABB())
-		if fb.size != Vector3.ZERO:                  # (where the lamps really are)
+		if fb.size == Vector3.ZERO:
+			continue
+		if found.has(kind + "_l") and found.has(kind + "_r"):     # (each side's lamp)
+			lamps[kind] = [to_car * (found[kind + "_l"] as AABB), to_car * (found[kind + "_r"] as AABB)]
+		else:                                        # (both in one box: each side's, near its outer end)
 			var b: AABB = to_car * fb
-			var hx := maxf(b.size.x * 0.5 - 0.12, 0.25)
-			var z := b.position.z - 0.03 if kind == "head" else b.end.z + 0.03
-			ends[kind] = [Vector3(b.get_center().x - hx, b.get_center().y, z), Vector3(b.get_center().x + hx, b.get_center().y, z)]
+			var w := minf(b.size.x * 0.25, 0.3)
+			lamps[kind] = [AABB(Vector3(b.position.x, b.position.y, b.position.z), Vector3(w, b.size.y, b.size.z)),
+				AABB(Vector3(b.end.x - w, b.position.y, b.position.z), Vector3(w, b.size.y, b.size.z))]
+		# each lamp's lens: its middle across and up, at its face (a headlamp's front, a tail lamp's back)
+		ends[kind] = (lamps[kind] as Array).map(func(lb: AABB): return Vector3(lb.get_center().x, lb.get_center().y,
+			lb.position.z + 0.01 if kind == "head" else lb.end.z - 0.01))
 	_corners = ends
-	var bloom := Graphics.forward() and bool(Graphics.get_value("glow"))
-	var head_glow: bool = not found.has("head") or not bloom
-	var tail_glow: bool = not found.has("tail") or not bloom
+	var lens: bool = bool(found.get("lens", false))   # (lamps only painted on: a glow laid on each)
 	var no_beam := Graphics.car_lights() == "off" and not own      # (OFF: only your own beam)
 	if with_beam and not no_beam and not Graphics.headless():
 		var twin := own and Graphics.forward() and Graphics.level() != "low"
@@ -115,7 +123,8 @@ func _build(car: Node3D, body: Node3D, with_beam: bool, tail_light: bool) -> voi
 			spot.spot_angle_attenuation = 0.65                  # (a soft edge: brightest in the middle)
 			spot.light_specular = 0.6
 			spot.shadow_enabled = shadows and k == spots.size() - 1     # (one shadow: half the cost)
-			spot.position = (spots[k] as Vector3) - Vector3(0, 0, 0.06)
+			# (at the lens; the one casting shadows just in front of it, or the lens would shade it)
+			spot.position = (spots[k] as Vector3) - Vector3(0, 0, 0.03 if spot.shadow_enabled else 0.0)
 			spot.rotation.x = deg_to_rad(-4.0)
 			add_child(spot)
 			_beams.append(spot)
@@ -129,26 +138,31 @@ func _build(car: Node3D, body: Node3D, with_beam: bool, tail_light: bool) -> voi
 		_tail.light_cull_mask = 0xFFFFF & ~CAR_LAYER          # (a red glow on the road, not on the car)
 		_tail.position = (ends.tail[0] + ends.tail[1]) * 0.5 + Vector3(0, 0, 0.55)
 		add_child(_tail)
-	# (the sprites go on the body model: hidden with it in the driver's seat, where the
+	# (the glows go on the body model: hidden with it in the driver's seat, where the
 	# bonnet would hide the lamps anyway)
-	for side in 2:
-		if head_glow:
-			_glow(car, body, ends.head[side], 0.55, BEAM_COLOUR * 1.3)
-		if tail_glow:
-			_glow(car, body, ends.tail[side], 0.3, TAIL_COLOUR * 1.1)
+	if lens:
+		for kind in lamps:
+			for side in 2:
+				var lb: AABB = lamps[kind][side]
+				_glow(car, body, ends[kind][side], Vector2(lb.size.x, lb.size.y), BEAM_COLOUR * 1.2 if kind == "head" else TAIL_COLOUR * 1.1, kind == "head")
 
 
-func _glow(car: Node3D, body: Node3D, at: Vector3, size: float, col: Color) -> MeshInstance3D:
+## A soft glow laid flat on a lamp (size: its width and height, m), facing out of the car
+## (forward for a headlamp), just proud of it: a lamp only painted on, or a hazard light.
+func _glow(car: Node3D, body: Node3D, at: Vector3, size: Vector2, col: Color, front := true) -> MeshInstance3D:
 	var q := QuadMesh.new()
 	var k := body.global_transform.basis.get_scale().x
-	q.size = Vector2(size, size) / maxf(k, 0.01)
+	q.size = size.max(Vector2(0.06, 0.04)) / maxf(k, 0.01)
 	var mi := MeshInstance3D.new()
 	mi.name = "LampGlow"
 	mi.mesh = q
 	mi.material_override = _glow_material(col)
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	body.add_child(mi)
-	mi.global_position = car.to_global(at)
+	var out := Vector3(0, 0, -1.0 if front else 1.0)         # (car space: -z is forward)
+	var g := car.global_transform
+	mi.global_transform = Transform3D(Basis.looking_at(g.basis * -out, g.basis.y).scaled(Vector3.ONE * mi.global_transform.basis.get_scale().x),
+		car.to_global(at + out * 0.004))
 	_glows.append([mi, col])
 	return mi
 
@@ -172,8 +186,6 @@ static func _glow_material(col: Color) -> Material:
 	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	m.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
-	m.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
-	m.billboard_keep_scale = true
 	m.albedo_texture = _sprite
 	m.albedo_color = col
 	return m
@@ -189,9 +201,9 @@ func hazards(on: bool) -> void:
 	_hazard = on
 	_t = 0.0
 	if on and _glows.is_empty() and _blinkers.is_empty() and model and is_instance_valid(model):
-		for kind in ["head", "tail"]:                # (lamps lit by their material: blinkers of their own)
+		for kind in ["head", "tail"]:                # (lamps lit by their material: blinkers of their own, on them)
 			for side in 2:
-				var g := _glow(_car, model, _corners[kind][side], 0.35, Color(0, 0, 0, 0))
+				var g := _glow(_car, model, _corners[kind][side], Vector2(0.16, 0.1), Color(0, 0, 0, 0), kind == "head")
 				_glows.pop_back()
 				_blinkers.append(g)
 	if not on:

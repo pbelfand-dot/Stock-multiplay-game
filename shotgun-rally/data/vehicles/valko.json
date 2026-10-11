@@ -51,8 +51,9 @@
 	},
 	"interior": {
 		"own": false,
-		"camera": false,
-		"notes": "The model has no cabin (tinted glass over nothing): the shared race interior, as the other cars without one."
+		"camera": true,
+		"view": "hood",
+		"notes": "The model has no cabin (tinted glass over nothing): driven from a camera low over its bonnet (parts.json \"view\": \"hood\"); no cockpit made up for it."
 	},
 	"source": {
 		"package": "Track_Mode_Cars/GT3/gt4-sports-coupe.glb",

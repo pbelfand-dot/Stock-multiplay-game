@@ -4,4 +4,5 @@
  "materials": [["^Wheel_Paint_Red_4$", "glass"], ["^Wheel_Paint_Red_2$", "clear_lens"], ["^Wheel_Paint_Red_(59|3)$", "red_lens"]],
  "wheel_faces": 12000, "caliper_faces": 3000, "body_faces": 160000, "body_least": 0.1, "tex_max": 1024, "tex_format": "webp",
  "cockpit": {"gearbox": "auto", "wheel": {"mats": ["^Wheel_Paint_Red_30$"]}},
- "decimate_parts": [["^Object_(706|728|991)$", 0.35]]}
+ "decimate_parts": [["^Object_(706|728|991)$", 0.35]],
+ "lamps": [{"kind": "head", "mat": "^Wheel_Paint_Red_5[01]$", "box": [-0.85, 0.85, 0.55, 0.8, -1.95, -1.55]}, {"kind": "tail", "mat": "^Wheel_Paint_Red_(3|59)$", "box": [-0.8, 0.8, 0.68, 0.8, 1.7, 2.25]}]}

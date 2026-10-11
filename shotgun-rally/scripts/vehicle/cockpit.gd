@@ -28,6 +28,10 @@ extends Node3D
 ## hand nearer the middle works its own gear lever and handbrake (driver_hands.gd
 ## use_model: an automatic shifts itself). The mud goes on its windshield.
 ##
+## A model with no cabin at all (parts.json "view": "hood": tinted glass over nothing) gets no
+## cockpit made up for it: the driver's view is a camera low over its bonnet (RallyCar.hood_eye)
+## and the cockpit stays hidden (`hood`); the crew are kept for the game's sake, unseen.
+##
 ## A single-seater (parts.json cockpit "seats": 1: a Formula car) has the driver alone: no
 ## co-driver, no map board in sight, no windshield (no mud, no wipers); with "pose":
 ## "formula" the driver lies back in the tub, legs out flat in front, the helmet up in the air
@@ -100,6 +104,7 @@ var _shift_leds: Array = []                    # their materials, left to right
 var _trip_label: Label3D
 var _mats := {}
 var own := {}                                  # the car's own interior (parts.json "cockpit"); {}: ours
+var hood := false                              # a model with no cabin: the bonnet camera, no cockpit made up
 var solo := false                              # a single-seater: the driver alone (own "seats": 1)
 var reclined := false                          # its driver lies back (own "pose": "formula")
 var _mud_quad: MeshInstance3D
@@ -132,7 +137,11 @@ func build(the_car, stage) -> void:
 	own = car.cockpit_info() if car.has_method("cockpit_info") else {}
 	solo = int(own.get("seats", 2)) == 1
 	reclined = str(own.get("pose", "")) == "formula"
-	if own.is_empty():
+	hood = own.is_empty() and car.has_method("hood_view") and car.hood_view()
+	if hood:                                         # (no cabin in the model: nothing made up, the eyes over the bonnet)
+		eye_driver = car.hood_eye()
+		eye_codriver = eye_driver + Vector3(0.0, 0.06, 0.25)
+	elif own.is_empty():
 		_shell()
 		_dash()
 		_seats()

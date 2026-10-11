@@ -59,9 +59,9 @@
 		"zero_100_max": 7.0
 	},
 	"interior": {
-		"own": false,
-		"camera": false,
-		"notes": "The model's cabin is low-detail and its baked textures aren't linked in the file: the shared road cockpit. Flat colours set for the parts the textures would have covered (tools/cars/amg_gtbs.json glb_patch)."
+		"own": true,
+		"camera": true,
+		"notes": "The model's own cabin (bucket seats with harnesses, the console, its dash and wheel): its steering wheel cut out of the interior by material and box to turn (tools/cars/amg_gtbs.json cockpit), the eye found from the seat; a dual-clutch with paddles: the hands stay on the wheel. Its baked textures aren't linked in the file, so the cabin is in flat dark colours (glb_patch)."
 	},
 	"source": {
 		"package": "Track_Mode_Cars/Street/mercedes-benz-amg-gt-black-series.zip",
@@ -76,6 +76,7 @@
 	],
 	"limitations": [
 		"From the owner's private download batch: kept out of public credit lists; its provenance isn't cleared for redistribution.",
-		"Fictional name; the model's separate badge parts are dropped (tools/cars/amg_gtbs.json drop_mats), any painted into its textures remain. The torque curve, ratios and aero are estimates."
+		"Fictional name; the model's separate badge parts are dropped (tools/cars/amg_gtbs.json drop_mats), any painted into its textures remain. The torque curve, ratios and aero are estimates.",
+		"The cabin is the model's, untextured: flat dark greys where its baked textures would be. Converted again from the first conversion (the source archive isn't kept here): the first had the body back to front on its wheels (the nose at the back, the real front wheels still steered 15 degrees); now turned round and straightened."
 	]
 }

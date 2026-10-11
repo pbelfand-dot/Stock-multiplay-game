@@ -1720,13 +1720,13 @@
    },
    "oldsmith_dish": {
     "ok": true,
-    "clear_mm": 0.1,
+    "clear_mm": 0.0,
     "why": ""
    },
    "kaze_wide": {
     "ok": false,
-    "clear_mm": 0.2,
-    "why": "the tyre touches the body: 277 points, front left, straight, full bump"
+    "clear_mm": 3.5,
+    "why": "the tyre touches the body: 325 points, front left, half lock, half bump"
    }
   },
   "m235i_gc": {
@@ -2208,6 +2208,43 @@
     "ok": false,
     "clear_mm": 27.2,
     "why": "the tyre touches the body: 921 points, front left, straight, full bump"
+   }
+  },
+  "gls63": {
+   "strada_5": {
+    "ok": true,
+    "clear_mm": 0.0,
+    "why": ""
+   },
+   "torre_10": {
+    "ok": true,
+    "clear_mm": 0.0,
+    "why": ""
+   },
+   "kaze_split": {
+    "ok": true,
+    "clear_mm": 0.0,
+    "why": ""
+   },
+   "kreuz_lattice": {
+    "ok": true,
+    "clear_mm": 0.0,
+    "why": ""
+   },
+   "meridian_city": {
+    "ok": true,
+    "clear_mm": 0.0,
+    "why": ""
+   },
+   "oldsmith_dish": {
+    "ok": true,
+    "clear_mm": 0.0,
+    "why": ""
+   },
+   "kaze_wide": {
+    "ok": false,
+    "clear_mm": 0.7,
+    "why": "the tyre touches the body: 78 points, front left, straight, full bump"
    }
   }
  }

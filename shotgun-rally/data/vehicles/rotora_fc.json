@@ -56,12 +56,14 @@
 	},
 	"interior": {
 		"own": false,
-		"camera": true
+		"camera": true,
+		"view": "hood",
+		"notes": "The model has no cabin (glass and door cards round an empty shell: no seats, dash or wheel): driven from a camera low over its bonnet (parts.json \"view\": \"hood\"); no cockpit made up for it."
 	},
 	"source": {
 		"package": "mazda-rx-7-fc.zip",
 		"candidate": 8
 	},
 	"research": ["carfromjapan.com (GT-X)", "jdmbuysell FC3S guide", "rx7.com drivetrain"],
-	"limitations": ["Its interior is too rough to sit in: the game's rally cockpit is used."]
+	"limitations": ["No cabin in the model: the driver's view is the bonnet camera (no interior to sit in)."]
 }

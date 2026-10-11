@@ -34,7 +34,8 @@ extends RigidBody3D
 ## drive split, the paint), the Higgsfield body model (seen from outside:
 ## set_outside) with its wheels and swinging mud flaps. A car whose model has an
 ## interior of its own (parts.json "cockpit") is drawn from inside too: the
-## cockpit (cockpit.gd) puts the crew in its seats.
+## cockpit (cockpit.gd) puts the crew in its seats. A model with no cabin at all
+## (parts.json "view": "hood") is driven from a camera over its bonnet (hood_view, hood_eye).
 ## The machine of whoever is DRIVING simulates it (`simulate`) and streams its
 ## state ~30x a second; the co-driver's machine plays that stream back 100 ms
 ## behind, smoothly (snapshot interpolation), so the cabin never jitters.
@@ -285,6 +286,16 @@ func _build_body_model() -> void:
 	var body := MeshInstance3D.new()
 	body.mesh = load(PARTS + "body.res")
 	body_model.add_child(body)
+	# (its lamps are painted on: where they are, for CarLamps' beams and the glow laid on each)
+	var lb: Dictionary = info.get("lamp_boxes", {})
+	if lb.has("head_l"):
+		var boxes := {"lens": true}
+		for kind in ["head", "tail"]:
+			for side in ["_l", "_r"]:
+				var b: Array = lb[kind + side]
+				boxes[kind + side] = AABB(Vector3(b[0], b[2], b[4]), Vector3(b[1] - b[0], b[3] - b[2], b[5] - b[4]))
+			boxes[kind] = (boxes[kind + "_l"] as AABB).merge(boxes[kind + "_r"])
+		body_model.set_meta("lamp_boxes", boxes)
 	var names := ["fl", "fr", "rl", "rr"]                 # the same order as the wheels
 	for k in 4:
 		var c: Array = info.wheels[k]
@@ -381,6 +392,52 @@ func cockpit_info() -> Dictionary:
 	if body_model == null or not cockpit_nodes.has("wheel"):
 		return {}
 	return _model_info.get("cockpit", {})
+
+
+## A model with no cabin (parts.json "view": "hood": tinted glass over nothing): the driver's
+## view is a camera low over its bonnet instead, and no cockpit is made up for it.
+func hood_view() -> bool:
+	return body_model != null and str(_model_info.get("view", "")) == "hood" and cockpit_info().is_empty()
+
+
+static var _hood_eyes := {}
+
+## The bonnet camera's place (car space): above and a little ahead of the windscreen's foot (the
+## lowest point of the sloping glass in the front half, over the belt line), on the middle line;
+## worked out once for each model.
+func hood_eye() -> Vector3:
+	var id := str(setup.get("model", ""))
+	if not _hood_eyes.has(id):
+		var lo: Array = _model_info.get("body_min", [-0.9, 0.1, -2.2])
+		var hi: Array = _model_info.get("body_max", [0.9, 1.3, 2.2])
+		var belt := float(_model_info.get("belt", 0.8))
+		var mid := (float(lo[2]) + float(hi[2])) * 0.5
+		var foot := Vector3(0.0, INF, 0.0)
+		for mi in body_model.find_children("*", "MeshInstance3D", true, false):
+			var m3 := mi as MeshInstance3D
+			if m3.mesh == null:
+				continue
+			var xf := _scene_xf(m3, body_model)
+			for i in m3.mesh.get_surface_count():
+				var mat := m3.mesh.surface_get_material(i)
+				if mat == null or not String(mat.resource_name).to_lower().begins_with("glass") \
+						or m3.mesh.surface_get_primitive_type(i) != Mesh.PRIMITIVE_TRIANGLES:
+					continue
+				var arr := m3.mesh.surface_get_arrays(i)
+				var v: PackedVector3Array = xf * (arr[Mesh.ARRAY_VERTEX] as PackedVector3Array)
+				var idx = arr[Mesh.ARRAY_INDEX]
+				if idx == null or (idx as PackedInt32Array).is_empty():
+					idx = PackedInt32Array(range(v.size()))
+				for t in range(0, idx.size() - 2, 3):
+					var a := v[idx[t]]
+					var c := (a + v[idx[t + 1]] + v[idx[t + 2]]) / 3.0
+					var nrm := (v[idx[t + 1]] - a).cross(v[idx[t + 2]] - a).normalized()
+					# (the windscreen: sloping, facing forward, in the front half, over the belt)
+					if c.z < mid and absf(nrm.y) > 0.2 and absf(nrm.z) > 0.35 and c.y > belt - 0.1 and c.y < foot.y:
+						foot = c
+		_hood_eyes[id] = Vector3(0.0, foot.y + 0.14, foot.z - 0.3) if foot.y < INF \
+			else Vector3(0.0, belt + 0.12, float(lo[2]) * 0.42)
+	return _hood_eyes[id] + model_offset()
 
 
 ## Where the car's own model sits in the car (its origin is on the ground).
@@ -712,8 +769,9 @@ func set_outside(on: bool) -> void:
 	_outside = on
 	if body_model == null:
 		return
-	# a car with its own interior is the same car from inside: the cockpit is its model
-	var inside_too := not cockpit_info().is_empty()
+	# a car with its own interior is the same car from inside: the cockpit is its model (and one
+	# with none, seen from over its bonnet)
+	var inside_too := not cockpit_info().is_empty() or hood_view()
 	body_model.visible = on or inside_too
 	for w in wheels:
 		w.mesh.visible = not (on or inside_too)

@@ -359,7 +359,7 @@ func _apply_roster() -> void:
 	cockpit.set_paint(setup.colours[0])
 	car.set_simulating(driver_here)
 	cam.attach(car, seat, cockpit.eye_for(seat))
-	if seat == "driver":
+	if seat == "driver" and not cockpit.hood:
 		cam.aim_at_wheel(cockpit.wheel_c)
 	cockpit.set_my_seat(seat)
 	ai.enabled = not street_online and Net.peer_in("codriver") == 0 and mode == ""
@@ -915,7 +915,7 @@ func _process(dt: float) -> void:
 		cam.view = want
 		car.set_outside(want != "seat")
 		# a car's own interior has windows: the crew are seen from outside too (your own head with them)
-		cockpit.visible = want == "seat" or cockpit.own_interior()
+		cockpit.visible = (want == "seat" and not cockpit.hood) or cockpit.own_interior()
 		cockpit.set_my_seat(my_seat if want == "seat" else "")
 	_tv_camera(dt, want == "chase" and _tv and state == "running" and view_override == "")
 	# the clocks
@@ -1144,6 +1144,8 @@ func _night_lights() -> void:
 	if not night:
 		return
 	_fit_lamps(car)
+	if cockpit.hood:                                 # (no cabin: no dials to glow over the bonnet)
+		return
 	# the dials' glow in the cabin: the wheel and your hands just there in the dark
 	var dash := OmniLight3D.new()
 	dash.name = "DashGlow"

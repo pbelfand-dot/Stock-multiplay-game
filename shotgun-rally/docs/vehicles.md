@@ -31,7 +31,7 @@ compact layout, and `table` prints a markdown table of them all.
 | `garage` | Its garage entry: `price`, `engine_sound` (EngineSound's sets), `livery`, `number`, `colours` ([r, g, b] × 4: body, the livery's two, the wheels' trim), `wheels`, `power` / `grip` / `brakes` (× its own), `drive_front`, `blurb`, and `mass` for the shared body. |
 | `traffic` | If it can be traffic: `weight` (how often, against the others) and `paints` ([r, g, b] each). |
 | `physics` | `CarSpecs`' spec: `mass`, `front` (weight on the front axle), `torque` + `curve`, `idle`, `limiter`, `turbo` + `spool`, `gears`, `final`, `drive` (+ `front_share`), diffs `centre` / `front_diff` / `rear` as [`"open"`/`"locked"`/`"lsd"`, power lock, coast lock, preload N m], `cd`, `area`, `down`, `brake`. |
-| `interior` | `own` (its model's interior is used), `camera` (the seat view works), `notes`. |
+| `interior` | `own` (its model's interior is used), `camera` (the seat view works), `view` (`"hood"`: the model has no cabin, so the driver's view is a camera over its bonnet: its parts.json `"view"`, which the game reads), `notes`. |
 | `driver_seat` | Overrides for how the crew sit in it (see docs/cars.md, Their interiors). |
 | `source` | The package it came from, its candidate number, the author, the licence and URL. |
 | `research` | Where the numbers come from (URLs, or the publication). |

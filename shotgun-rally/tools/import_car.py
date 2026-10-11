@@ -63,6 +63,12 @@ The spec (tools/cars/<id>.json) says what's what in the model:
   * "glow": [[pattern, strength]]: lamps that glow in their own colour (the emission
     is the material's colour or texture: a white glow mask over a whole light cluster
     turned its red tail lights white); 0: no glow
+  * "lamps": [{"kind": "head"/"tail", "mat": pattern, "box": [x0, x1, y0, y1, z0, z1]}]:
+    the lamps the material names don't give away (a lens in the glass, a lamp named
+    like a wheel): copied to parts.json, where the game cuts the faces of those
+    materials inside the box (the game's model space) out as that lamp
+  * "view": "hood": a model with no cabin at all (tinted glass over nothing): copied to
+    parts.json; the game drives it from a camera low over its bonnet, no cockpit made up
   * "sidewall": {"mats": [patterns], "from": 0.7}: a wheel modelled with its
     tyre's sidewalls in the rim's material: those faces past "from" x the tyre's
     radius become rubber
@@ -1576,9 +1582,10 @@ for o in meshes:
             slot.material = paint
 glass = [m for m in bpy.data.materials if matches(m.name, spec.get("glass", []))]
 for m in glass:
-    m.name = "glass_" + m.name
+    if not m.name.startswith("glass_"):          # (a model converted before, imported again: named already)
+        m.name = "glass_" + m.name
 for m in bpy.data.materials:
-    if matches(m.name, spec.get("rims", [])):
+    if matches(m.name, spec.get("rims", [])) and not m.name.startswith("rim_"):
         m.name = "rim_" + m.name
 
 # ── join: four wheels (origin at their centres), four calipers, one body ──
@@ -1729,6 +1736,10 @@ parts["sill"] = lowest([paint]) if paint else float(bb[:, 2].min())
 parts["belt"] = lowest(glass, True)
 if cockpit:
     parts["cockpit"] = spec["_cock"]
+if spec.get("lamps"):
+    parts["lamps"] = spec["lamps"]  # (the lamps the material names don't give away: CarLook's hints)
+if spec.get("view"):
+    parts["view"] = spec["view"]    # ("hood": no cabin in the model: driven from over its bonnet)
 for o in bpy.data.objects:
     if o.type == 'MESH':
         o.data.validate()          # (the glTF export validates too: then its normals would scramble)

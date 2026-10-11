@@ -12,10 +12,15 @@ extends Node3D
 ## glowing, and by where on the car they are (the front or the back quarter). They get
 ## emission masked by their own texture: dim running lights by day, the tail lamps bright
 ## when braking, both full at night (fading in at dusk: WorldMaterials.night_amount). A lamp
-## material over both ends is split front / back so the tail lamps glow red. The real
-## lights (the headlights' beams, red on the road behind) are CarLamps'
-## (scripts/vehicle/car_lamps.gd): the game fits them at night, CarLook itself at dusk or
-## when Settings says CAR LIGHTS ALWAYS; they go where the lamps were found (lamp_boxes()).
+## material that reaches beyond the nose or the tail (both ends in one, or bits of the cabin
+## with it) is split by where its triangles are: the nose's part a headlamp, the tail's a
+## tail lamp, the rest left alone. Where a model's lamps don't go by a lamp's name, its
+## parts.json "lamps" names them: [{"kind": "head" / "tail", "mat": a material pattern,
+## "box": [x0, x1, y0, y1, z0, z1] (model space: only its triangles in there; without one,
+## those in the nose / the tail)}]. Each side's lamps are kept apart (lamp_boxes(): "head_l",
+## "head_r" ...). The real lights (the headlights' beams, red on the road behind) are
+## CarLamps' (scripts/vehicle/car_lamps.gd): the game fits them at night, CarLook itself at
+## dusk or when Settings says CAR LIGHTS ALWAYS; each beam starts at its own lamp's lens.
 ## The tyres matte rubber.
 ## MEDIUM and up, Forward+: a soft contact shadow under the car (the sky can't reach under it: ambient
 ## occlusion, faked by a darkening quad on the ground, gone when it flies). At night the
@@ -32,7 +37,7 @@ const CAR_LAYER := 1 << 10
 
 const TYRE_WORDS := ["tire", "tyre", "rubber", "pneumatic", "tread", "sidewall", "sidetyre"]
 
-const LAMP_WORDS := ["light", "lamp", "lens", "glow", "led", "beam", "xenon", "drl", "luminus", "emis", "tail",
+const LAMP_WORDS := ["light", "lamp", "lens", "glow", "beam", "xenon", "drl", "luminus", "emis", "tail",
 	"brakel", "brake l", "brake_l", "lcover", "redglass", "red_glass", "glassred", "glass_red", "red glass", "headl"]
 const NOT_LAMP := ["interior", "int_", "dash", "gauge", "guage", "screen", "lcd", "display", "monitor", "button", "seat",
 	"belt", "cockpit", "steer", "sw_", "plate", "licen", "matricula", "number", "logo", "badge", "emblem", "symbol",
@@ -48,6 +53,9 @@ var _tail: Array = []                # ... tail lamps
 var _both: Array = []                # ... one material for both ends (an atlas)
 var _head_at: Array = []             # [AABB] where they are (model space)
 var _tail_at: Array = []
+var _sides := {"head": [AABB(), AABB()], "tail": [AABB(), AABB()]}   # each side's (left, right): where the beams start
+var _lamp_surfs := {"head": [], "tail": []}     # [mesh, surface, xf]: the lamps' surfaces (each side's lamp found in them)
+var _hints: Array = []               # parts.json "lamps": the lamps a model's names don't give away
 var _probe: ReflectionProbe
 var _brake := 0.0
 var _nt := 0.0                       # how dark it is (WorldMaterials.night_amount when last looked)
@@ -70,6 +78,7 @@ static func dress(owner_car: Node3D, owner_model: Node3D, info: Dictionary) -> N
 	var lo: Array = info.get("body_min", [-0.9, 0.1, -2.2])
 	var hi: Array = info.get("body_max", [0.9, 1.3, 2.2])
 	look._box = AABB(Vector3(lo[0], lo[1], lo[2]), Vector3(hi[0] - lo[0], hi[1] - lo[1], hi[2] - lo[2]))
+	look._hints = info.get("lamps", [])
 	look._scan()
 	owner_car.add_child(look)
 	return look
@@ -97,7 +106,8 @@ func _scan() -> void:
 		m3.layers = CAR_LAYER
 		var xf := _model_xf(m3)
 		if lamps_ok:
-			_split_both(m3, xf, _box)
+			_split_lamps(m3, xf, _box, _hints)
+		var kinds: Dictionary = m3.mesh.get_meta("lamp_kinds", {})
 		for i in m3.mesh.get_surface_count():
 			var src := m3.get_surface_override_material(i)
 			if src == null:
@@ -105,12 +115,17 @@ func _scan() -> void:
 			if not (src is BaseMaterial3D):
 				continue
 			var n := String(src.resource_name).to_lower()
-			if lamps_ok and _lamp_candidate(n, src):
+			var kind := ""
+			if lamps_ok and kinds.has(i):                # (a split surface's part: the nose's, the tail's, or the rest: none)
+				kind = str(kinds[i]) if str(kinds[i]) != "none" else ""
+			elif lamps_ok and _lamp_candidate(n, src):
+				kind = _lamp_kind(xf * _surface_box(m3.mesh, i), src)
+			if kind != "":
 				var at := xf * _surface_box(m3.mesh, i)
-				var kind := _lamp_kind(at, src)
-				if kind != "":
-					m3.set_surface_override_material(i, _lamp_material(src, kind, at))
-					continue
+				if kind in ["head", "tail"]:
+					_lamp_surfs[kind].append([m3.mesh, i, xf])
+				m3.set_surface_override_material(i, _lamp_material(src, kind, at))
+				continue
 			if gloss and n.begins_with("glass"):
 				var g := (src as BaseMaterial3D).duplicate() as BaseMaterial3D
 				g.roughness = minf(g.roughness, 0.05)
@@ -123,6 +138,9 @@ func _scan() -> void:
 				if c.albedo_texture == null:
 					c.albedo_color = Color(0.86, 0.86, 0.86)
 				m3.set_surface_override_material(i, c)
+	for kind in ["head", "tail"]:
+		_sides[kind] = _lamp_sides(_lamp_surfs[kind], _box.get_center().x)
+	_lamp_surfs = {"head": [], "tail": []}
 
 
 ## The tyres: matte rubber (the rips' tyres are often as shiny as the paint).
@@ -187,27 +205,39 @@ static func _surface_box(mesh: Mesh, i: int) -> AABB:
 	return AABB(lo, hi - lo)
 
 
-## One lamp material over both ends of the car (the head and the tail lamps in one: some
-## rips): that surface split in two, front and back, so the tail lamps can glow red (and
-## brighten on the brakes) and the headlamps white. The split mesh is shared by every car
-## of the model (the same vertex arrays, two index lists); the material overrides kept.
+## A lamp material that reaches beyond the nose or the tail (both ends in one, or bits of the
+## cabin with it: some rips), and the materials a model's "lamps" hints name: each such surface
+## split by where its triangles are (a hint's box, else the nose: the front 24 % of the body,
+## the tail: the back 24 %, above the floor and below the roof): those parts made surfaces of
+## their own (the mesh's meta "lamp_kinds": {surface: "head" / "tail" / "none"}, none: what's
+## left of a lamp material, not lit). The split mesh is shared by every car of the model (the
+## same vertex arrays, more index lists); the material overrides kept.
 static var _split_cache := {}
 
-static func _split_both(m3: MeshInstance3D, xf: Transform3D, box: AABB) -> void:
+static func _split_lamps(m3: MeshInstance3D, xf: Transform3D, box: AABB, hints := []) -> void:
 	var mesh := m3.mesh
-	if not (mesh is ArrayMesh) or (mesh as ArrayMesh).get_blend_shape_count() > 0:
+	if not (mesh is ArrayMesh) or (mesh as ArrayMesh).get_blend_shape_count() > 0 or mesh.has_meta("lamp_kinds"):
 		return
-	var key := "%d|%s|%s" % [mesh.get_instance_id(), str(xf), str(box)]
+	var key := "%d|%s|%s|%s" % [mesh.get_instance_id(), str(xf), str(box), str(hints)]
 	if not _split_cache.has(key):
-		var both: Array = []
+		var plan := {}                                   # surface -> the hints for it ([]: by the nose and the tail)
 		for i in mesh.get_surface_count():
 			var src := m3.get_surface_override_material(i)
 			if src == null:
 				src = mesh.surface_get_material(i)
-			if src is BaseMaterial3D and mesh.surface_get_primitive_type(i) == Mesh.PRIMITIVE_TRIANGLES \
-					and _lamp_candidate(String(src.resource_name).to_lower(), src) and _kind_in(box, xf * _surface_box(mesh, i)) == "both":
-				both.append(i)
-		_split_cache[key] = _split_mesh(mesh as ArrayMesh, xf, both, box) if not both.is_empty() else null
+			if not (src is BaseMaterial3D) or mesh.surface_get_primitive_type(i) != Mesh.PRIMITIVE_TRIANGLES:
+				continue
+			var name := String(src.resource_name)
+			var mine: Array = []
+			for h in hints:
+				var re := RegEx.new()
+				if re.compile(str(h.get("mat", "^$"))) == OK and re.search(name) != null:
+					mine.append(h)
+			if not mine.is_empty():
+				plan[i] = mine
+			elif _lamp_candidate(name.to_lower(), src) and not (_kind_in(box, xf * _surface_box(mesh, i)) in ["head", "tail"]):
+				plan[i] = []
+		_split_cache[key] = _zone_mesh(mesh as ArrayMesh, xf, plan, box) if not plan.is_empty() else null
 	var out: ArrayMesh = _split_cache[key]
 	if out == null:
 		return
@@ -219,42 +249,142 @@ static func _split_both(m3: MeshInstance3D, xf: Transform3D, box: AABB) -> void:
 		m3.set_surface_override_material(i, keep[i])
 
 
-## The mesh again, each of the surfaces `both` split by where its triangles are: the front
-## half's in its place, the back half's added at the end (the other surfaces' places kept).
-static func _split_mesh(mesh: ArrayMesh, xf: Transform3D, both: Array, box: AABB):
+## The mesh again, each surface in `plan` split: its triangles in a hint's box (or, with no
+## hints, in the nose and the tail) made parts of their own, added at the end (the first
+## part takes the surface's own place if nothing's left there); the others' places kept.
+static func _zone_mesh(mesh: ArrayMesh, xf: Transform3D, plan: Dictionary, box: AABB) -> ArrayMesh:
 	var out := ArrayMesh.new()
-	var backs: Array = []
-	var mid := box.get_center().z
+	var kinds := {}
+	var extra: Array = []                                # [arrays, material, flags, kind]
 	for j in mesh.get_surface_count():
 		var arr := mesh.surface_get_arrays(j)
 		var mat := mesh.surface_get_material(j)
 		var flags := 0                                     # (the custom channels' formats, if any)
 		for k in 4:
 			flags |= mesh.surface_get_format(j) & (Mesh.ARRAY_FORMAT_CUSTOM_MASK << (Mesh.ARRAY_FORMAT_CUSTOM_BASE + k * Mesh.ARRAY_FORMAT_CUSTOM_BITS))
-		if j in both:
+		if plan.has(j):
 			var v: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
-			var idx: PackedInt32Array = arr[Mesh.ARRAY_INDEX] if arr[Mesh.ARRAY_INDEX] != null else PackedInt32Array(range(v.size()))
-			var front := PackedInt32Array()
-			var rear := PackedInt32Array()
+			var idx: PackedInt32Array = arr[Mesh.ARRAY_INDEX] if arr[Mesh.ARRAY_INDEX] != null and (arr[Mesh.ARRAY_INDEX] as PackedInt32Array).size() > 0 else PackedInt32Array(range(v.size()))
+			var parts := {"head": PackedInt32Array(), "tail": PackedInt32Array(), "rest": PackedInt32Array()}
 			for t in range(0, idx.size() - 2, 3):
-				var cz := (xf * ((v[idx[t]] + v[idx[t + 1]] + v[idx[t + 2]]) / 3.0)).z
-				if cz < mid:
-					front.append_array([idx[t], idx[t + 1], idx[t + 2]])
+				var c := xf * ((v[idx[t]] + v[idx[t + 1]] + v[idx[t + 2]]) / 3.0)
+				parts[_zone_of(c, box, plan[j])].append_array([idx[t], idx[t + 1], idx[t + 2]])
+			var order: Array = ["rest", "head", "tail"].filter(func(k): return not (parts[k] as PackedInt32Array).is_empty())
+			for n in order.size():
+				var a := arr.duplicate()
+				a[Mesh.ARRAY_INDEX] = parts[order[n]]
+				var kind: String = "none" if order[n] == "rest" else order[n]
+				if n == 0:
+					arr = a
+					kinds[j] = kind
 				else:
-					rear.append_array([idx[t], idx[t + 1], idx[t + 2]])
-			if not front.is_empty() and not rear.is_empty():
-				var b := arr.duplicate()
-				b[Mesh.ARRAY_INDEX] = rear
-				backs.append([b, mat, flags])
-				arr[Mesh.ARRAY_INDEX] = front
+					extra.append([a, mat, flags, kind])
 		out.add_surface_from_arrays(mesh.surface_get_primitive_type(j), arr, [], {}, flags)
 		out.surface_set_material(out.get_surface_count() - 1, mat)
 		out.surface_set_name(out.get_surface_count() - 1, mesh.surface_get_name(j))
-	for e in backs:
+	for e in extra:
 		out.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, e[0], [], {}, e[2])
 		out.surface_set_material(out.get_surface_count() - 1, e[1])
+		kinds[out.get_surface_count() - 1] = e[3]
+	out.set_meta("lamp_kinds", kinds)
 	return out
 
+
+## Which part a triangle (its middle c, model space) goes to: a hint's box it's in (its kind);
+## else, a hint without a box or no hints, the nose's or the tail's (above the floor, under the
+## roof); else the rest.
+static func _zone_of(c: Vector3, box: AABB, hints: Array) -> String:
+	var zf := (c.z - box.position.z) / maxf(box.size.z, 0.01)
+	var height_ok := c.y > box.position.y + 0.12 and c.y < box.end.y - 0.05
+	var zone := ("head" if zf < 0.24 else ("tail" if zf > 0.76 else "rest")) if height_ok else "rest"
+	if hints.is_empty():
+		return zone
+	for h in hints:
+		if h.has("box"):
+			var b: Array = h.box
+			if c.x >= float(b[0]) and c.x <= float(b[1]) and c.y >= float(b[2]) and c.y <= float(b[3]) and c.z >= float(b[4]) and c.z <= float(b[5]):
+				return str(h.get("kind", "head"))
+		elif zone == str(h.get("kind", "head")):
+			return zone
+	return "rest"
+
+
+## Each side's lamp (left, right: x below / above cx, model space) from a kind's lamp surfaces
+## ([mesh, surface, xf]): the faces round the area-weighted middle of that side's (within 18 cm
+## up or down and 35 cm along it), so a third brake light by the roof, or a strip of the lamp's
+## material running back along the wing, doesn't drag the lamp off where it is; the middle
+## 12 cm either side left out. [AABB, AABB] (an empty one where a side has none); worked out
+## once for each model (every car of it shares the answer).
+static var _sides_cache := {}
+
+static func _lamp_sides(surfs: Array, cx: float) -> Array:
+	var key := "%.3f" % cx
+	for sf in surfs:
+		key += "|%d:%d:%s" % [(sf[0] as Mesh).get_instance_id(), sf[1], str(sf[2])]
+	if _sides_cache.has(key):
+		return _sides_cache[key]
+	var out := [AABB(), AABB()]
+	if surfs.is_empty():
+		_sides_cache[key] = out
+		return out
+	var lists: Array = []                            # [vertices (model space), index list]
+	var ys := [PackedFloat32Array(), PackedFloat32Array()]       # each side's area in 1 cm bands of height,
+	var zs := [PackedFloat32Array(), PackedFloat32Array()]       # 2 cm bands along (from -5 m)
+	for k in 2:
+		ys[k].resize(500)
+		zs[k].resize(500)
+	for sf in surfs:
+		var arr := (sf[0] as Mesh).surface_get_arrays(sf[1])
+		var v: PackedVector3Array = (sf[2] as Transform3D) * (arr[Mesh.ARRAY_VERTEX] as PackedVector3Array)
+		var idx = arr[Mesh.ARRAY_INDEX]
+		if idx == null or (idx as PackedInt32Array).is_empty():
+			idx = PackedInt32Array(range(v.size()))
+		lists.append([v, idx])
+		for t in range(0, idx.size() - 2, 3):
+			var a := v[idx[t]]
+			var m := (a + v[idx[t + 1]] + v[idx[t + 2]]) / 3.0
+			if absf(m.x - cx) < 0.12:
+				continue
+			var sd := 0 if m.x < cx else 1
+			var area := (v[idx[t + 1]] - a).cross(v[idx[t + 2]] - a).length() * 0.5 + 1e-7
+			ys[sd][clampi(int(m.y * 100.0), 0, 499)] += area
+			zs[sd][clampi(int((m.z + 5.0) * 50.0), 0, 499)] += area
+	for sd in 2:
+		var my := _band_median(ys[sd]) / 100.0
+		var mz := _band_median(zs[sd]) / 50.0 - 5.0
+		if my < 0.0:
+			continue
+		var first := true
+		for l in lists:
+			var v: PackedVector3Array = l[0]
+			var idx: PackedInt32Array = l[1]
+			for t in range(0, idx.size() - 2, 3):
+				var m := (v[idx[t]] + v[idx[t + 1]] + v[idx[t + 2]]) / 3.0
+				if absf(m.x - cx) < 0.12 or (m.x < cx) != (sd == 0) or absf(m.y - my) > 0.18 or absf(m.z - mz) > 0.35:
+					continue
+				for k in 3:
+					out[sd] = AABB(v[idx[t + k]], Vector3.ZERO) if first else (out[sd] as AABB).expand(v[idx[t + k]])
+					first = false
+	_sides_cache[key] = out
+	return out
+
+
+## The middle of a run of bands by their weight (the band's centre, in bands); -1: all empty.
+static func _band_median(w: PackedFloat32Array) -> float:
+	var total := 0.0
+	for x in w:
+		total += x
+	if total <= 0.0:
+		return -1.0
+	var run := 0.0
+	for k in w.size():
+		run += w[k]
+		if run >= total * 0.5:
+			return k + 0.5
+	return w.size() - 0.5
+
+
+static var _LED := RegEx.create_from_string("[^a-z]led")
 
 ## A lamp by its name, or glowing already, and not anything that only sounds like one.
 static func _lamp_candidate(n: String, m: BaseMaterial3D) -> bool:
@@ -266,6 +396,8 @@ static func _lamp_candidate(n: String, m: BaseMaterial3D) -> bool:
 	for w in LAMP_WORDS:
 		if w in n:
 			return true
+	if n.begins_with("led") or _LED.search(n) != null:           # ("led" a word: not "recycled", "untitled")
+		return true
 	return m.emission_enabled and m.emission.get_luminance() * m.emission_energy_multiplier > 0.05
 
 
@@ -336,16 +468,19 @@ static func glow_model(root: Node3D) -> void:
 	var boxes := {}
 	for e in meshes:
 		var m3: MeshInstance3D = e[0]
-		_split_both(m3, e[1], box)
+		_split_lamps(m3, e[1], box)
 		var key := "%d|%s" % [m3.mesh.get_instance_id(), nt]
 		if not _model_lamps.has(key):
 			var found := {}
+			var kinds: Dictionary = m3.mesh.get_meta("lamp_kinds", {})
 			for i in m3.mesh.get_surface_count():
 				var src := m3.mesh.surface_get_material(i)
-				if not (src is BaseMaterial3D) or not _lamp_candidate(String(src.resource_name).to_lower(), src):
+				if not (src is BaseMaterial3D):
+					continue
+				if not kinds.has(i) and not _lamp_candidate(String(src.resource_name).to_lower(), src):
 					continue
 				var at := (e[1] as Transform3D) * _surface_box(m3.mesh, i)
-				var kind := _kind_in(box, at)
+				var kind: String = (str(kinds[i]) if str(kinds[i]) != "none" else "") if kinds.has(i) else _kind_in(box, at)
 				if kind != "":
 					var lm := _emissive(src, kind)
 					lm.emission_energy_multiplier = energy[kind]
@@ -371,6 +506,10 @@ func lamp_boxes() -> Dictionary:
 		out["head"] = _merge(_head_at)
 	if not _tail_at.is_empty():
 		out["tail"] = _merge(_tail_at)
+	for kind in ["head", "tail"]:                        # (each side's: the beams start at its own lamp)
+		if _sides[kind][0].size != Vector3.ZERO and _sides[kind][1].size != Vector3.ZERO:
+			out[kind + "_l"] = _sides[kind][0]
+			out[kind + "_r"] = _sides[kind][1]
 	return out
 
 

@@ -140,11 +140,13 @@ has 79 entries: 74 in the garage, 75 with a model of their own, 67 with their ow
   The rear-drive hypercars are traction-bound and 0.7-1.1 s slow (as the 911 GT3 RS, 4.3 s against 3.2 s).
   The specs are the real ones (power, torque, weight, ratios, top speed); the gap is the test and the
   tyre model, not the numbers. The torque curves, gear ratios beyond the published ones and the aero are estimates.
-- **Interiors:** thirteen keep their own cabin, the steering wheel cut out to turn about its own
+- **Interiors:** all fourteen keep their own cabin, the steering wheel cut out to turn about its own
   column and the eye placed by hand from section views (`tools/cars/<model>.json`, `"cockpit"`). All
   are automatics or dual clutches, so both hands stay on the wheel. The GT Black Series' cabin is
-  low-detail and its textures aren't linked in the file: it uses the shared road cockpit, and its body
-  has flat colours set for the parts the textures would have covered (`glb_patch`). The P1's wheel was
+  low-detail and its textures aren't linked in the file: it is kept (the model's own), in flat dark
+  colours set for the parts the textures would have covered (`glb_patch`). Its first conversion had
+  the body back to front on its wheels (the nose at the back, its real front wheels still steered
+  15 degrees): converted again from that GLB (the source archive isn't kept) with `"front": "-Y"`. The P1's wheel was
   found by measurement (its hub badge and stitching materials) rather than by eye: it is handled as
   no-AI, checked by scripts only, and left out of screenshots (`--seen_cars_only`).
 - **Badges:** the separate badge parts are dropped on eight of them (`drop_mats`). The 235 GC, the

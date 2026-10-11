@@ -45,7 +45,8 @@ round:
 | MARTELLO SEDICI | the model's, basic | left | 5-speed H-pattern, right hand: a lever added (none modelled) | none modelled |
 | VIERRAD S1 | the model's | left | 5-speed H-pattern, right hand | its lever between the seats |
 | OCELOT R1 | the model's, full rally (cage, buckets) | left | its sequential lever, right hand | its tall hydraulic lever |
-| ROTORA FC, ROTORA FD | too rough to sit in (blocks; a broken wheel ring): the game's rally cockpit | left | | |
+| ROTORA FD | the model's, very plain (a black dash and floor tray, the seat backs, a spokeless wheel ring) | left | 5-speed H-pattern, right hand: a lever added (none modelled) | none modelled |
+| ROTORA FC | none: the model has no cabin (glass and door cards round an empty shell): the bonnet camera | | | |
 
 - The crew sit in its seats: the driver behind its steering wheel (on the right in a right-hand-drive
   car, with the co-driver and the map board on the left), at near real size (the interior is). Their
@@ -209,8 +210,12 @@ upgrades) and weight.
      each turning about its pivot (the wheel's column found from its shape, or given as `"axis"`
      where the shape misleads: a squat race wheel on a deep hub), and `parts.json` says where they are, where the driver's eyes
      go and where the windshield is. `--parts` lists every part, where it is and how big;
-     `--snapshot file.blend` saves the car as the tool sees it, to look at. Leave the key out and
-     the game builds its own rally cockpit instead (an interior too rough to sit in).
+     `--snapshot file.blend` saves the car as the tool sees it, to look at. A model with no cabin
+     at all gets `"view": "hood"` instead: the game drives it from a camera low over its bonnet and
+     makes no cockpit up for it (no garage car is left on the game's made-up rally cockpit but the
+     four on the shared rally body, whose cockpit is theirs). The converter can be run again on a
+     GLB it made (a car whose source archive isn't kept): the glass and rims it renamed aren't
+     renamed twice.
    - Lamps and lenses that came without their colours: `"glow"` makes a lamp glow in its own
      colour (its texture), `"remat_boxes"` with `"new": true` gives the faces of a material in a
      box a new one (the back half of a lens shared front and back made a red lens), or with
@@ -306,7 +311,7 @@ on the wheel), left-hand drive:
 | TEMPESTA URSA | Lamborghini Urus Performante (2023) | the model's own |
 | WOKING 600 SPIDER | McLaren 600LT Spider (2020) | the model's own |
 | AFFALTER SLR 722 | Mercedes-Benz SLR McLaren 722 (2006) | the model's own |
-| AFFALTER GT BLACK | Mercedes-AMG GT Black Series (2021) | the shared road cockpit (the model's is low-detail and untextured) |
+| AFFALTER GT BLACK | Mercedes-AMG GT Black Series (2021) | the model's own (low-detail, untextured: flat dark greys) |
 | VIERRAD R7 | Audi RS 7 Sportback C8 (2020) | the model's own |
 | AFFALTER A45 S | Mercedes-AMG A 45 S (2023) | the model's own |
 | KAISER 5 TOURING / KAISER 5 G | BMW M5 G99 Touring / G90 saloon (2025) | the model's own |

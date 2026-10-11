@@ -80,5 +80,43 @@
       ],
       "width": 1.5971450805664062
     }
-  }
+  },
+  "lamps": [
+    {
+      "kind": "head",
+      "mat": "^MI_Mercedes_AMG_GT3_Evo_Lights(_Glass_Inst)?$",
+      "box": [
+        -1.0,
+        -0.5,
+        0.42,
+        0.7,
+        -2.1,
+        -1.4
+      ]
+    },
+    {
+      "kind": "head",
+      "mat": "^MI_Mercedes_AMG_GT3_Evo_Lights(_Glass_Inst)?$",
+      "box": [
+        0.5,
+        1.0,
+        0.42,
+        0.7,
+        -2.1,
+        -1.4
+      ]
+    },
+    {
+      "kind": "tail",
+      "mat": "^MI_Mercedes_AMG_GT3_Evo_Lights(_Glass_Inst)?$",
+      "box": [
+        -0.9,
+        0.9,
+        0.6,
+        0.9,
+        1.6,
+        2.3
+      ]
+    }
+  ]
 }
