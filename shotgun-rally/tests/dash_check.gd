@@ -15,7 +15,8 @@ extends SceneTree
 ##   * the boards (measured quads over blank dials and screens): each there, facing the
 ##     driver's eye, its page; a dial's needle follows its reading (the speed, the revs)
 ##   * the ambient lighting: off by day, every light on at night
-##   * the readings: the fuel (an electric car: its charge) and the range from it
+##   * the readings: the fuel (an electric car: its charge) and the range from it; the pedals;
+##     a painted gear selector's letter
 ##   * a painted cluster laid sideways in its texture is seen the right way round, and a live
 ##     needle on a painted dial sweeps from its 0 to its top value
 ##   * the original materials are untouched: an overlay is a duplicate's next pass
@@ -176,6 +177,24 @@ func _spec(id: String, car, cp, dash, spec: Dictionary) -> void:
 		dash.night = false
 		_run(dash, DT)
 		fails += _check(day_off and night_on, "%s: its %d ambient lights off by day, on at night" % [id, dash.ambient.size()])
+	# a display showing the pedals (the A45's): they read as far down as they are
+	if dash.pages.any(func(p): return p.cfg.get("layout", {}).get("text", []).any(func(t): return str(t.what) in ["throttle", "brake"])):
+		dash.fake = {}
+		car.inp.throttle = 0.7
+		car.inp.brake = 0.25
+		_run(dash, DT)
+		fails += _check(absf(float(dash.data.throttle) - 0.7) < 1e-3 and absf(float(dash.data.brake) - 0.25) < 1e-3,
+			"%s: the pedals read as far down as they are (%.2f, %.2f)" % [id, dash.data.throttle, dash.data.brake])
+		car.inp.throttle = 0.0
+		car.inp.brake = 0.0
+	# a painted selector (the A45's R N P D): the gear's letter the one left lit
+	for pg in dash.pages:
+		if pg.cfg.get("layout", {}).has("sel"):
+			var lit := []
+			for f in [{"state": "grid", "kmh": 0.0, "gear": 1}, {"state": "running", "kmh": 3.0, "gear": -1},
+					{"state": "running", "kmh": 3.0, "gear": 0}, {"state": "running", "kmh": 60.0, "gear": 3}]:
+				lit.append(pg._selector(f))
+			fails += _check(lit == ["P", "R", "N", "D"], "%s: its selector lights the gear's letter (parked, reverse, neutral, 3rd: %s)" % [id, str(lit)])
 	# the fuel (or the charge) and the range from it
 	dash.fake = {"fuel": 0.5}
 	_run(dash, DT)

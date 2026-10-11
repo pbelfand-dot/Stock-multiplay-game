@@ -601,6 +601,8 @@ func _read(dt: float) -> void:
 	data = {
 		"kmh": car.kmh(), "rpm01": float(car.rpm), "rpm": lerpf(idle, top, float(car.rpm)) if car.rpm > 0.001 else 0.0,
 		"limiter": top, "gear": int(car.gear), "g": _gfx, "handbrake": car.handbrake_on(),
+		"throttle": clampf(maxf(float(car.inp.get("throttle", 0.0)), float(car.net_throttle)), 0.0, 1.0),
+		"brake": clampf(float(car.inp.get("brake", 0.0)), 0.0, 1.0),
 		"auto": str(cockpit.own.get("gearbox", "")) == "auto",
 		"time": float(game.stage_time) if game and "stage_time" in game else 0.0,
 		"state": str(game.state) if game and "state" in game else "",

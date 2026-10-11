@@ -1,0 +1,40 @@
+{
+	"_about": "AFFALTER A45 S (Mercedes-AMG A 45 S): its screens are one material with its own picture (T_Dashboard_D, 512 px): the driver display across the top (a g-meter on the left; two rev scales, 0 1 2 4 6 8, closing in on the road in the middle; a panel on the right titled Speed km/h, Accelerator pedal % and Brake pedal % with no numbers; the fuel bar and its range, the temperature bar; the selector's R N P D), the drive-mode screen under it. The display is made live over the painted one: the g-meter's dot, both rev scales filling, the speed and both pedals in the right panel, the fuel bar emptying and the range, the selector's letter lit. Pixels of that texture.",
+	"displays": [
+		{
+			"mat": "^A45:MI_Dashboard1$",
+			"tex": 512,
+			"glow": "all",
+			"screens": [
+				{
+					"page": "cluster",
+					"rect": [5, 20, 507, 202],
+					"accent": "#3fb8ff",
+					"layout": {
+						"cover": [[119, 159.5, 148, 169, "#000308"], [450, 88, 464, 97.5, "#0c1e2b"], [450, 120.5, 464, 131, "#0c1e2b"]],
+						"arc": [
+							{"what": "rpm", "pts": [[201, 108.5], [187.5, 110], [174.5, 110.8], [158, 112], [139, 113.3], [127, 115.5]],
+								"at": [0, 1000, 2000, 4000, 6000, 8000], "hot_at": 6800, "w": 2.4, "color": "#7fd8ff", "hot": "#ff2a2a"},
+							{"what": "rpm", "pts": [[310, 108.3], [323.5, 109.3], [337.5, 110.5], [353.5, 112], [372, 113.3], [386, 115.5]],
+								"at": [0, 1000, 2000, 4000, 6000, 8000], "hot_at": 6800, "w": 2.4, "color": "#7fd8ff", "hot": "#ff2a2a"},
+							{"what": "fuel", "invert": true, "max": 1.0, "pts": [[164.5, 174.75], [90, 174.75]], "w": 5.0, "color": "#020a12", "hot_from": 1.0}
+						],
+						"text": [
+							{"what": "speed", "at": [412, 51], "size": 20, "max_w": 50},
+							{"what": "throttle", "at": [457, 92.5], "size": 9, "color": "#e6eef5"},
+							{"what": "brake", "at": [457, 125.7], "size": 9, "color": "#e6eef5"},
+							{"what": "range", "at": [120, 164.3], "size": 10, "align": "left", "color": "#e8eef2"}
+						],
+						"gdot": {"c": [59.25, 94], "r": 29, "g": 1.5, "dot": 2.4, "color": "#ff3020"},
+						"sel": [
+							{"g": "R", "rect": [475.5, 161, 484.5, 169]},
+							{"g": "N", "rect": [474.5, 172, 482, 180.5]},
+							{"g": "P", "rect": [485.5, 172, 493.5, 180.5]},
+							{"g": "D", "rect": [473, 183, 481, 191]}
+						]
+					}
+				}
+			]
+		}
+	]
+}

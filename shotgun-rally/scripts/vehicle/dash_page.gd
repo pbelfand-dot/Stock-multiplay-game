@@ -6,7 +6,9 @@ extends Control
 ##     over the picture from the spec's "layout" (data/dash/<model>.json): "cover"
 ##     rectangles hide the painted readings, then "text" (the speed, the gear, the
 ##     clock, the stage time), "arc" (the revs or the speed filling along a band:
-##     the points down its middle), "gdot" (the g-meter's dot), "lamp" (warning lamps)
+##     the points down its middle; "invert": what's left of it, to dim a painted bar's empty end),
+##     "needle" (a live needle on a painted dial), "gdot" (the g-meter's dot), "sel" (the gear
+##     selector's painted letters: all but the gear's dimmed), "lamp" (warning lamps)
 ##   * "cluster" on a blank screen ("bg": false): a digital cluster of its own, drawn
 ##     on a canvas the screen's shape ("aspect": its width / height as you see it):
 ##     the revs in a band across the top (the shift lamps above), the speed, the
@@ -122,8 +124,20 @@ func _cluster() -> void:
 		var gv: Vector2 = d.get("g", Vector2.ZERO)
 		var p := Vector2(g.c[0], g.c[1]) + (gv / float(g.get("g", 1.2))).limit_length(1.0) * float(g.r)
 		draw_circle(p, float(g.get("dot", 2.2)), Color(str(g.get("color", "#ff2a1a"))))
+	if lay.has("sel"):
+		var lit := _selector(d)
+		for sl in lay.sel:
+			if str(sl.g) != lit:
+				var r: Array = sl.rect
+				draw_rect(Rect2(r[0], r[1], float(r[2]) - float(r[0]), float(r[3]) - float(r[1])), Color(str(sl.get("dim", "#000000c0"))))
 	for l in lay.get("lamp", []):
 		_lamp(l)
+
+
+## The gear selector's letter for the gear: P, R, N, or D (any forward gear, the box in D or M).
+func _selector(d: Dictionary) -> String:
+	var g := _gear(d, "bmw")
+	return g if g in ["P", "R", "N"] else "D"
 
 
 func _value(what: String, d: Dictionary) -> float:
@@ -136,6 +150,8 @@ func _value(what: String, d: Dictionary) -> float:
 func _arc(a: Dictionary, d: Dictionary) -> void:
 	var pts: Array = a.pts
 	var v := absf(_value(str(a.what), d))
+	if a.get("invert", false):                      # (what's left: a painted bar's empty end, from its far end)
+		v = maxf(float(a.get("max", 1.0)) - v, 0.0)
 	var lens: Array = [0.0]
 	for i in range(1, pts.size()):
 		lens.append(lens[-1] + Vector2(pts[i][0], pts[i][1]).distance_to(Vector2(pts[i - 1][0], pts[i - 1][1])))
@@ -249,6 +265,8 @@ func _reading(what: String, d: Dictionary, t := {}) -> String:
 			return "%d" % (roundi(_value("rpm", d) / 100.0) * 100)
 		"fuel":
 			return "%d %%" % roundi(clampf(_value("fuel", d), 0.0, 1.0) * 100.0)
+		"throttle", "brake":                        # (the pedals, as far down as they are)
+			return "%d %%" % roundi(clampf(_value(what, d), 0.0, 1.0) * 100.0)
 		"range":
 			return "%d km" % roundi(_value("range", d))
 	return str(t.get("text", ""))
