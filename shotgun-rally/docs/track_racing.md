@@ -343,6 +343,10 @@ laps (a standing start) with 2 AI cars filling the grid. Each must:
 Tried by hand, not in the suite (each run takes minutes on four machines' worth of CPU):
 
 - online qualifying (2.5 minutes, three players and 2 AI): everyone timed, the same order everywhere;
+- online practice (two machines, 3 minutes in the FORMULA class): out of their boxes and onto their
+  timed laps, one tower, no errors (practice has no finish to check);
+- the GT class's rolling start online (the test's race with `--start=rolling`): the formation, the
+  green, no penalties, everyone home, the same classification everywhere;
 - joining late and leaving: a fourth player joining 70 s into the race starts from the pit lane and
   is classified a lap down, its laps timed to 0.0 ms; one killed 90 s in is DNF and the race finishes
   without them; all agree.
@@ -352,7 +356,7 @@ Not done online yet:
 - contact between the players (each car runs on its own machine: it needs prediction);
 - a quick race's GRID option (online the players start in the roster's order);
 - the AI in practice;
-- not tried online: practice, a race weekend's race from qualifying's order, a red flag's restart
+- not tried online: a race weekend's race from qualifying's order, a red flag's restart
   (`tests/race_ai_check.gd` tests it alone).
 
 ## Still to come (P8)
