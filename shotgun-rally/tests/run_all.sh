@@ -108,6 +108,8 @@ echo "== barriers: scraping the loop's guardrail and parapet, a touge's guardrai
 run_g 300 --headless --fixed-fps 120 --path . -s tests/barrier_check.gd 2>&1 | grep -E "\[barrier\]" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
 echo "== the environment library and biomes: every tree's LODs and far card, rocks and props load; each stage in its land; nothing on the road; the solid things the same at LOW and MEDIUM"
 run_g 300 --headless --fixed-fps 120 --path . -s tests/environment_check.gd 2>&1 | grep -E "\[env\]" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
+echo "== a touge's street lamps and power line, 8 passes up and down: every lamp post and pole footing off the road (any leg of it), each post behind a guardrail on the ground, clear of the trees and props, the arm over the road, the glass along it, the pool on the road under the head, a lamp before every tight bend, solid, the real lights handing over"
+run_g 400 --headless --fixed-fps 120 --path . -s tests/lamps_check.gd 2>&1 | grep -E "\[lamps\] (ok|FAIL|LAMPS)" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
 echo "== a touge: the autopilot drives a pass in the GT-R"
 run_g 360 --headless --fixed-fps 120 --path . -s tests/drive_check.gd -- --seed=3 --kind=touge --length=2400 --car=raiden 2>&1 | grep -E "\[drive\] (FAIL|DRIVE|ok   finished|ok   a mountain)" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
 echo "== AI co-driver: every call said in time, from where the car is"

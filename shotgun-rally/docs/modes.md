@@ -30,19 +30,26 @@ boxed in the last one is taken back. (Before, the last try was kept: such a pass
 under its own hillside, a wall in the middle of the road.)
 
 **The look**: a solid yellow centre line (no overtaking, as on Japanese mountain roads),
-white edge lines; white-painted guardrail wherever the road drops away *and* round the
-outside of every tight bend; some concrete parapets; sugi cedar forest (tall, narrow,
-dark spires); at each hairpin an orange curve mirror and yellow chevron boards pointing
-the way it turns; kilometre posts; the pass's name board and a vending machine at the
-start; a GOAL arch. No spectators, no co-driver.
+white edge lines; white-painted guardrail wherever the road drops away, round the
+outside of every tight bend *and* in front of every street lamp; some concrete parapets;
+sugi cedar forest (tall, narrow, dark spires); a power line on single wooden poles behind the
+guardrail on the right; at each hairpin an orange curve mirror and yellow chevron boards
+pointing the way it turns; kilometre posts; the pass's name board and a vending machine at
+the start; a GOAL arch. No spectators, no co-driver.
 
 **At night** the only light on the mountain is the street lamps' (`scripts/stage/street_lamps.gd`)
-and the cars' own. A lamp stands before every tight bend (on its outside, behind the guardrail),
-at the start and the finish, and never more than ~120 m from the next (about 12 a kilometre,
-the posts there by day too). Each lamp's sodium head glows with a glare round it and a pool of
-light on the road under it, faked (no real light: a pass of them costs next to nothing); the
-four lamps nearest your car get real lights as well, so the car, the guardrail and the cedars
-light up as you pass and fall dark behind. The cedars stand closer to the road than on a
+and the cars' own. A lamp stands before every tight bend (on its outside, 3-16 m before it),
+just past the start and the finish, and never more than ~110 m from the next (about 14 a
+kilometre, the posts there by day too). Each post stands 1.6 m past the road's edge behind a
+guardrail, on the ground there (as level a spot as there is nearby, not up the cut bank),
+clear of every part of the road, the roadside things and the trees (planned before the forest
+is planted: the cedars keep 6 m back); it's solid; its arm reaches over the road, the head
+hung under its end. Each lamp's sodium head glows with a glare round it and a pool of light on
+the road under it, faked (no real light: a pass of them costs next to nothing), lying on the
+road's grade and stopping where the ground falls away; the four lamps nearest your car get
+real lights as well, so the car, the guardrail and the cedars light up as you pass and fall
+dark behind, one handing over to the next without a pop. `tests/lamps_check.gd` measures all
+of it over 8 passes, up and down. The cedars stand closer to the road than on a
 rally stage (6.4 m from the centreline), a wall streaming past in the lights. No moon to speak
 of, no glow on the horizon: black ridges, the forest fading into black. Every car's lamps are
 on (`scripts/vehicle/car_lamps.gd`): a headlight beam down the road, the lamps' glow, red tail
@@ -367,7 +374,7 @@ steady), packs, the oncoming carriageway, ramp joins and exits; the score's near
 combo, banking and crash; highway battles (a challenge, a win, a loss); the touge's splits
 and drift chains; every traffic car loading car-sized on four wheels; a reset landing in
 the clearest lane; and a run of each mode in the game (cut up: a minute on the loop, then
-END RUN); the night touge (lamps before every tight bend and never more than ~120 m apart,
+END RUN); the night touge (lamps before every tight bend and never more than ~130 m apart,
 lit only at night, the real lights following the car and fading away from the lamps) and the
 stray car (turns up ahead, keeps its lane, slows for hairpins, stops when hit, goes once
 you're past). `tests/drive_check.gd --kind=touge` has the autopilot drive a pass.

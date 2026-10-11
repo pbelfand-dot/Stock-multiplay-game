@@ -1562,7 +1562,7 @@ func _lamp_posts() -> void:
 				var up := (st.world_at(s, d + 1.0) - st.world_at(s, d - 1.0)).cross(st.world_at(s + 1.0, d) - g).normalized()
 				if up.y < 0.0:
 					up = -up
-				lamp_heads.append({"s": s, "head": head, "ground": g, "up": up, "radius": 25.0})   # (11 m up, 48 m apart: the pools meet)
+				lamp_heads.append({"s": s, "head": head, "ground": g, "up": up, "radius": 25.0, "arm": xf.basis.x * side})   # (11 m up, 48 m apart: the pools meet; the glass along its arm)
 		s += 48.0
 	for c in per_chunk:
 		_multimesh(post, per_chunk[c], "Lamps%03d" % c, ROAD_RANGE)

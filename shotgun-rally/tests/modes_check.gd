@@ -208,7 +208,9 @@ func _night_touge() -> void:
 		for c in st.corners:
 			if c.r_min <= 45.0 and c.s0 > st.START_S + 20.0 and c.s0 < st.finish_s - 10.0:
 				tight += 1
-				if b.lamps.any(func(l): return absf(float(l.s) - (c.s0 - 8.0)) < 1.0 or absf(float(l.s) - (st.START_S + 12.0)) < 1.0):
+				# (3-16 m before it, on its outside: the spot moves to clear ground behind the guardrail)
+				var from: float = maxf(c.s0 - 16.0, st.START_S + 12.0) - 0.5
+				if b.lamps.any(func(l): return float(l.s) >= from and float(l.s) <= c.s0 - 2.5 and float(l.side) == -float(c.dir)):
 					lit_bends += 1
 		var sl = b.street_lamps
 		if mood == "night":

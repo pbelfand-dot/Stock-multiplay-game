@@ -36,7 +36,8 @@ func _initialize() -> void:
 	Catalog = load("res://scripts/game/catalog.gd")
 	await process_frame
 	await _loop()
-	await _stage("touge", {"kind": "touge", "dir": "down", "surface": "tarmac"}, 4, 55.0)
+	# (seed 3: seed 4's one run on a gentle bit ends at its finish lamp, guardrail across the road)
+	await _stage("touge", {"kind": "touge", "dir": "down", "surface": "tarmac"}, 3, 55.0)
 	await _stage("mountain", {"surface": "tarmac"}, 21, 70.0)
 	print("[barrier] %s" % ("BARRIER OK" if fails == 0 else "BARRIER FAIL"))
 	quit(1 if fails else 0)
@@ -76,7 +77,9 @@ func _loop() -> void:
 
 
 ## A built stage (the touge, a mountain stage): its first run of barrier at least 40 m
-## long on a gentle enough bit of road (the car scrapes it at v km/h).
+## long on a gentle enough bit of road, with nothing across the road where the car steers
+## away (a touge's street lamp has its guardrail on either side: there it'd meet that one) (the
+## car scrapes it at v km/h).
 func _stage(what: String, gen: Dictionary, seed_value: int, v: float) -> void:
 	var st = StageGen.new()
 	st.opts = gen
@@ -98,7 +101,7 @@ func _stage(what: String, gen: Dictionary, seed_value: int, v: float) -> void:
 			var hit := space.intersect_ray(q)
 			var gentle: bool = absf(st.curv[clampi(int(s / st.STEP), 0, st.curv.size() - 1)]) < 1.0 / 90.0
 			run = run + 2.0 if not hit.is_empty() and str((hit.collider as Node).name) == "Barriers" and gentle else 0.0
-			if run >= 40.0:
+			if run >= 40.0 and not _barrier_across(st, space, s - 30.0, s + 30.0, -side):
 				found = true
 				await _scrape("%s %s" % [what, "on the right" if side > 0.0 else "on the left"], st, s - 30.0, d, side, v)
 			s += 2.0
@@ -108,6 +111,19 @@ func _stage(what: String, gen: Dictionary, seed_value: int, v: float) -> void:
 		check(false, "%s: found a 40 m run of barrier on a gentle bit of road" % what)
 	b.queue_free()
 	await process_frame
+
+
+## Is there barrier on `side` of the road anywhere from s0 to s1?
+func _barrier_across(st, space: PhysicsDirectSpaceState3D, s0: float, s1: float, side: float) -> bool:
+	var s := s0
+	while s <= s1:
+		var d: float = side * (st.width_at(s) * 0.5 + 0.6)
+		var q := PhysicsRayQueryParameters3D.create(st.world_at(s, d - side * 1.5) + Vector3.UP * 0.4, st.world_at(s, d + side * 0.5) + Vector3.UP * 0.4)
+		var hit := space.intersect_ray(q)
+		if not hit.is_empty() and str((hit.collider as Node).name) == "Barriers":
+			return true
+		s += 2.0
+	return false
 
 
 ## The car beside the barrier (its d: bd, on `side`), at v km/h, steered gently into it
