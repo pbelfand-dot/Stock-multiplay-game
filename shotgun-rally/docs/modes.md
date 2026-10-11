@@ -12,6 +12,13 @@ or `--solo --mode=cutup [--difficulty=easy|normal|hard|insane]`
 or `--solo --mode=track [--track_class=gt] [--session=practice]`; `--street=sim|arcade` overrides
 Settings > STREET HANDLING; `--seen_cars_only` keeps the no-AI cars out of screenshot traffic.
 
+Every mode records its runs for the **replay** ([replay.md](replay.md)): from the results or the
+pause menu, every camera (the drone, trackside TV, the free cam, placed cameras and the director
+...). Cut up's replay has its traffic (both carriageways, the ramps, a rival), the touge's its
+stray car and your ghost, Track Mode's any AI race cars a `RaceField` puts on the track, and
+online every other driver's car (the replay is local: your car waits on the brake meanwhile, as
+in the pause menu).
+
 ## Touge (a Japanese mountain pass)
 
 **The road** (`StageGen` kind `"touge"`): about 5 km of two narrow lanes (6.1-6.7 m),

@@ -10,6 +10,8 @@ extends Node
 ##   --join=IP                               join a host
 ##   --autostart --autopilot                 tests: start the countdown / drive by itself
 ##   --smoke=host|client                     2-player test: drive a stage, both check it
+##   --smoke_replay=S                        (with --smoke) S s into the run, watch the replay for 4 s:
+##                                           the session mustn't notice
 ##   --aicheck                               solo test: the AI co-driver's calls come in time
 ##   --screenshot=out.png [--shot_seat=codriver --shot_s=300 --shot_read --shot_mud [--shot_wipe=N] --shot_nohud
 ##                         --shot_yaw=1.2 --shot_pitch=-0.3 (look around, rad) --shot_view=seat|chase|orbit
@@ -58,6 +60,9 @@ var _air_t := 0.0
 var _shot_jumped := false                  # (--shot_s --autostart: jumped up the road at GO)
 var _shift_gear := 0
 var _shift_t := -1.0
+var _replay_t := 0.0                       # (--smoke_replay) s of the run so far
+var _replay_step := 0                      # 0 not yet, 1 watching, 2 done
+var _replay_rx := 0                        # stream updates in when it opened
 
 
 func _ready() -> void:
@@ -432,6 +437,8 @@ func _process(dt: float) -> void:
 	if game == null:
 		return
 	_test_t += dt
+	if Config.flag("smoke_replay") and game.built and game.replay and _replay_step < 2:
+		_smoke_replay(dt)
 	# an online cut-up test (no finish on the loop): check after --smoke_after s of driving
 	if Config.flag("smoke") and not _smoke_done and game.built and game.street_online and game.looped and game.state == "running":
 		_run_t += dt
@@ -503,11 +510,46 @@ func _on_stage_finished(r: Dictionary) -> void:
 	# both machines must have built the same road surfaces (they only share the seed and settings)
 	print("[smoke] %s: surfaces %s #%d" % [role, game.st.describe(), hash(str(game.st.sections) + str(game.st.patches))])
 	var ok: bool = gap < 40.0 and (game.my_seat == "driver" or game.car.states_received > 100) \
-		and r.penalties == 0.0
+		and r.penalties == 0.0 and _replay_ok()
 	print("[smoke] %s: %s" % [role, "OK" if ok else "FAIL"])
 	_smoke_ok = ok                                   # (the other machine may quit first: its leaving isn't a failure now)
 	await get_tree().create_timer(1.5).timeout
 	get_tree().quit(0 if ok else 1)
+
+
+## (online tests, --smoke_replay=S) S s into the run this machine opens the replay (the pause
+## menu's: the last 30 s), watches 4 s of it and closes it; the session mustn't notice (the
+## streams keep coming, the stage still finishes for everyone).
+func _smoke_replay(dt: float) -> void:
+	var role := Config.arg("smoke", "?")
+	var rx := 0
+	for c in game.replay_targets():
+		rx += int(c.states_received)
+	if _replay_step == 0:
+		if game.state != "running":
+			return
+		_replay_t += dt
+		if _replay_t > float(Config.arg("smoke_replay", 8.0)) and game.replay.open("pause"):
+			_replay_step = 1
+			_replay_rx = rx
+			_replay_t = 0.0
+			print("[smoke] %s: replay opened (%.1f s recorded), the session going on under it" % [role, game.replay.duration()])
+	elif _replay_step == 1:
+		_replay_t += dt
+		if _replay_t > 4.0 or not game.replay.active:
+			var watched: bool = game.replay.active
+			game.replay.close()
+			_replay_step = 2 if watched else 3
+			print("[smoke] %s: replay closed after 4 s%s, %d stream updates in meanwhile, the car %s" % [role,
+				"" if watched else " (it had closed early!)", rx - _replay_rx, "at %.0f km/h" % game.car.kmh()])
+
+
+## (--smoke_replay) The replay was opened, watched for its 4 s and closed (true without the flag).
+func _replay_ok() -> bool:
+	if Config.flag("smoke_replay") and _replay_step != 2:
+		print("[smoke] %s: the replay %s" % [Config.arg("smoke", "?"), "never opened" if _replay_step < 2 else "closed early"])
+		return false
+	return true
 
 
 ## A street session's test (several machines racing a pass): once this one's over the
@@ -527,7 +569,7 @@ func _street_smoke(role: String) -> void:
 		role, Net.racers().size(), game.others.size(), least, gap])
 	print("[smoke] %s: race order %s" % [role, " > ".join(names)])
 	var ok: bool = game.standings.size() == Net.racers().size() and game.others.size() == Net.racers().size() - 1 \
-		and least > 100 and gap < 40.0
+		and least > 100 and gap < 40.0 and _replay_ok()
 	print("[smoke] %s: %s" % [role, "OK" if ok else "FAIL"])
 	_smoke_ok = ok
 	# (the host goes last: a guest still checking would take the host leaving for a failure)
@@ -542,7 +584,7 @@ func _street_cutup_smoke(role: String) -> void:
 	var least := 1 << 30
 	for id in game.others:
 		least = mini(least, int(game.others[id].states_received))
-	var ok: bool = game.others.size() == Net.racers().size() - 1 and least > 100
+	var ok: bool = game.others.size() == Net.racers().size() - 1 and least > 100 and _replay_ok()
 	# the traffic's size swings by a whole pack as one leaves behind and the next comes in
 	# ahead: judged on its average over the run, its low noted
 	var lo := 0

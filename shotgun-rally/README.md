@@ -519,6 +519,28 @@ Details: [docs/modes.md](docs/modes.md).
 | The car's centre screen: map / driving data (the cars with one) | M | d-pad right |
 | Start / next stage (host) | ENTER | START |
 | Pause | ESC | BACK |
+| **Replay** (on the results; in the pause menu: the last 30 s) | V (or the REPLAY button) | X |
+
+### Replay
+
+Every run is recorded (the last 10 minutes), every mode: watch it back from the results or the
+pause menu with a chase cam, the cockpit, hood, bumper and wheel cameras, an FPV drone, a
+helicopter, trackside TV cameras that pan and zoom after the car, a free-follow orbit, a free cam,
+and cameras you place yourself with a director cutting between them. Leaving it puts the game
+back exactly where it was. All of it: [docs/replay.md](docs/replay.md).
+
+| In a replay | Keyboard / mouse | Controller |
+|---|---|---|
+| Play / pause | SPACE | A |
+| Rewind / fast-forward (held), 5 s back / on (tapped) | ← / → | LT / RT, d-pad ◀ / ▶ |
+| Speed 0.25x … 4x | ↑ / ↓ | d-pad ▲ / ▼ |
+| Scrub · start / end | drag the timeline · HOME / END | START |
+| Next / previous car | TAB / PAGE UP | Y, RB / LB |
+| Camera: next / previous / pick | C / X / 1 … 0 | X |
+| Place a camera here · director · clear them | P · G · DELETE | R3 |
+| Free cam: fly · down / up · fast / slow · look | WASD · Q / E · SHIFT / CTRL · hold RIGHT MOUSE | left stick · LB / RB · RT / LT · right stick |
+| Free follow: orbit · zoom · lower / raise | hold RIGHT MOUSE · wheel · Q / E | right stick · LT / RT · LB / RB |
+| Hide the bar · leave | H · ESC or BACKSPACE | L3 · B or BACK |
 
 ## Play with friends
 
