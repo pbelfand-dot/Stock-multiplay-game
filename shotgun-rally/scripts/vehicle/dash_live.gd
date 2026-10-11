@@ -127,6 +127,10 @@ func _overlay(m: MeshInstance3D, si: int, base: Material, d: Dictionary) -> void
 	var ov := _overlay_material(base, d)
 	var mat: Material = base.duplicate()
 	mat.next_pass = ov
+	if mat is StandardMaterial3D and (mat as StandardMaterial3D).albedo_texture and d.get("needles", []).any(func(n): return n.has("painted")):
+		# (the painted needles taken out of a copy of the texture: the face under them, lit as the rest of it is)
+		(mat as StandardMaterial3D).albedo_texture = uncovered((mat as StandardMaterial3D).albedo_texture, d.needles, _tex_size(base, d))
+		overlays[-1].baked = true
 	m.set_surface_override_material(si, mat)
 	_overlaid[base] = mat
 	var rel := Transform3D()                             # (the LED rows are in the model's axes; the shader sees the mesh's own)
@@ -187,6 +191,7 @@ func _overlay_material(base: Material, d: Dictionary) -> ShaderMaterial:
 	# the needles
 	var geo: Array = []
 	var col: Array = []
+	var offs: Array = []
 	var needles: Array = []
 	for n in d.get("needles", []):
 		if needles.size() >= MAX_NEEDLES:
@@ -195,10 +200,13 @@ func _overlay_material(base: Material, d: Dictionary) -> ShaderMaterial:
 		geo.append(Vector4(float(c[0]) / size.x, float(c[1]) / size.y, float(n.r) / size.y, float(n.get("w", 3.0)) * 0.5 / size.y))
 		var cc := Color(str(n.get("color", "#e8401c")))
 		col.append(Vector4(cc.r, cc.g, cc.b, float(n.get("tail", 0.18))))
+		var off: Array = n.get("cover_off", [])          # (a patterned face: the cover copied from beside the needle, along the pattern)
+		offs.append(Vector4(float(off[0]) / size.x, float(off[1]) / size.y, 1.0, 0.0) if off.size() == 2 else Vector4.ZERO)
 		needles.append(n)
 	ov.set_shader_parameter("needle_count", needles.size())
 	ov.set_shader_parameter("needle_geo", _pad(geo, MAX_NEEDLES))
 	ov.set_shader_parameter("needle_col", _pad(col, MAX_NEEDLES))
+	ov.set_shader_parameter("needle_off", _pad(offs, MAX_NEEDLES))
 	# the glow and the warning lamps
 	var glows: Array = []
 	if str(d.get("glow", "")) == "all":
@@ -226,6 +234,53 @@ func _overlay_material(base: Material, d: Dictionary) -> ShaderMaterial:
 	ov.set_shader_parameter("led_count", leds.size())
 	overlays.append({"mat": ov, "needles": needles, "warns": warns, "leds": leds, "to_local": Transform3D()})
 	return ov
+
+
+## A display's spec size (what its pixel coordinates are measured in).
+static func _tex_size(base: Material, d: Dictionary) -> Vector2:
+	var tex: Texture2D = base.albedo_texture if base is StandardMaterial3D else null
+	if str(d.get("units", "px")) == "uv":
+		return Vector2.ONE
+	if d.has("tex"):
+		return Vector2(d.tex[0], d.tex[1]) if d.tex is Array else Vector2(float(d.tex), float(d.tex))
+	return Vector2(tex.get_width(), tex.get_height()) if tex else Vector2(512, 512)
+
+
+## A copy of a texture with its painted needles taken out: within each one's wedge (as wide as the
+## overlay's cover), the face copied from beside it ("cover_off", px: along a striped face's
+## stripes) or from "shift" degrees further round. Then only the live needle is drawn over it.
+static func uncovered(tex: Texture2D, needles: Array, size: Vector2) -> Texture2D:
+	var img := tex.get_image()
+	if img == null:
+		return tex
+	img = img.duplicate()
+	if img.is_compressed():
+		img.decompress()
+	img.clear_mipmaps()
+	var src := img.duplicate()
+	var k := Vector2(img.get_width(), img.get_height()) / size        # (spec px -> the image's)
+	for n in needles:
+		if not n.has("painted"):
+			continue
+		var c := Vector2(float(n.c[0]), float(n.c[1])) * k
+		var r := (float(n.r) + 1.5) * k.y                  # (a pixel or so past the overlay's cover, all round: the
+		var hw := float(n.get("w", 3.0)) * 0.5 * k.y        # painted needle's soft edges and its tip)
+		var margin := 1.2 * k.y
+		var a0 := deg_to_rad(float(n.painted))
+		var off: Array = n.get("cover_off", [])
+		var sh := deg_to_rad(float(n.get("shift", 18.0)))
+		for y in range(maxi(int(c.y - r), 0), mini(int(c.y + r) + 1, img.get_height())):
+			for x in range(maxi(int(c.x - r), 0), mini(int(c.x + r) + 1, img.get_width())):
+				var d := Vector2(x + 0.5, y + 0.5) - c
+				var dist := d.length()
+				if dist > r:
+					continue
+				if absf(wrapf(d.angle() - a0, -PI, PI)) >= (hw * 2.4 + margin) / maxf(dist, hw * 2.0) + 0.015:
+					continue
+				var q := Vector2(x, y) + Vector2(float(off[0]), float(off[1])) * k if off.size() == 2 else c + d.rotated(sh) - Vector2(0.5, 0.5)
+				img.set_pixel(x, y, src.get_pixel(clampi(roundi(q.x), 0, img.get_width() - 1), clampi(roundi(q.y), 0, img.get_height() - 1)))
+	img.generate_mipmaps()
+	return ImageTexture.create_from_image(img)
 
 
 ## How many of a row of LEDs are lit for a reading: "at" (each LED's value), else an even share of
@@ -712,9 +767,9 @@ func _process(dt: float) -> void:
 		var ov: ShaderMaterial = o.mat
 		var ang: Array = []
 		for n in o.needles:
-			var a := deg_to_rad(lerpf(float(n.a0), float(n.a1), _share(n)))
+			var a := deg_to_rad(_needle_deg(n))
 			ang.append(Vector4(a, deg_to_rad(float(n.get("painted", 0.0))), deg_to_rad(float(n.get("shift", 18.0))),
-				1.0 if n.has("painted") else 0.0))
+				1.0 if n.has("painted") and not o.get("baked", false) else 0.0))
 		ov.set_shader_parameter("needle_ang", _pad(ang, MAX_NEEDLES))
 		var on: Array = []
 		for w in o.warns:
@@ -742,6 +797,24 @@ func _process(dt: float) -> void:
 
 
 ## How far round its scale a needle is (0..1): its value now, or v.
+## A painted dial's needle angle (degrees) for its reading: along "marks" ([[value, deg], ...]: a scale
+## whose numbers aren't evenly spaced, the GT-R's speedometer's), else "a0" to "a1" by its share.
+func _needle_deg(n: Dictionary) -> float:
+	if n.has("marks"):
+		return marks_deg(n.marks, absf(float(data.get(str(n.get("value", "kmh")), 0.0))))
+	return lerpf(float(n.a0), float(n.a1), _share(n))
+
+
+static func marks_deg(marks: Array, v: float) -> float:
+	if v <= float(marks[0][0]):
+		return float(marks[0][1])
+	for i in range(1, marks.size()):
+		if v <= float(marks[i][0]):
+			var f := (v - float(marks[i - 1][0])) / maxf(float(marks[i][0]) - float(marks[i - 1][0]), 1e-4)
+			return lerpf(float(marks[i - 1][1]), float(marks[i][1]), f)
+	return float(marks[-1][1])
+
+
 func _share(n: Dictionary, v = null) -> float:
 	var x: float = float(data.get(str(n.get("value", "kmh")), 0.0)) if v == null else float(v)
 	if str(n.get("value", "")) == "kmh":
@@ -781,6 +854,7 @@ uniform int needle_count = 0;
 uniform vec4 needle_geo[8];   // centre u, v, radius, half width (the radius and width in the texture's height)
 uniform vec4 needle_ang[8];   // angle now, the painted needle's angle, the cover's shift (rad), covered (0 / 1)
 uniform vec4 needle_col[8];   // colour, its tail (a share of the radius)
+uniform vec4 needle_off[8];   // the cover copied from this far over (u, v), on (z): a striped face, along its stripes
 uniform int glow_count = 0;
 uniform vec4 glow_rect[8];
 uniform float glow = 0.0;
@@ -841,7 +915,7 @@ void fragment() {
 			// the painted needle: within its wedge, the dial face from a little further round
 			float half_w = (g.w * 2.4) / max(dist, g.w * 2.0);
 			if (abs(wrap_pi(a - an.y)) < half_w + 0.015) {
-				vec2 q = g.xy + vec2(cos(a + an.z), sin(a + an.z)) * dist / vec2(aspect, 1.0);
+				vec2 q = needle_off[i].z > 0.5 ? uv + needle_off[i].xy : g.xy + vec2(cos(a + an.z), sin(a + an.z)) * dist / vec2(aspect, 1.0);
 				outc = vec4(base_at(q), 1.0);
 			}
 		}

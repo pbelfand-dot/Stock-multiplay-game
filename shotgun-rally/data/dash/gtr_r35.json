@@ -1,5 +1,17 @@
 {
-	"_about": "RAIDEN (Nissan GT-R R35): the centre screen is a blank quad of the interior's material (its UVs collapsed onto one patch of the texture), so it gets a board laid on it, measured from its faces (rays from the driver's eye; m from the steering wheel's centre, the model's axes: x right, y up, z back): the centre screen's pages. (Its cluster is painted into the texture: left as the model has it.)",
+	"_about": "RAIDEN GT (Nissan GT-R R35): its cluster is painted into the interior's texture (Image_9, 512 px, stored mirrored): the speedometer (to 340 km/h: 20 to 100 in 20s, then 130 to 340 in 30s, the low end spread wider) and the rev counter (0 to 8, the red from 7), their needles painted at rest. Each dial gets a moving needle along its own painted scale (the speedometer's angles measured tick by tick: marks), the painted one covered with its striped face copied from beside it, along the stripes (they repeat every 7 px down and any distance along: cover_off), and the cluster glows at night. The centre screen is a blank quad of the interior's material (its UVs collapsed onto one patch of the texture), so it gets a board laid on it, measured from its faces (rays from the driver's eye; m from the steering wheel's centre, the model's axes: x right, y up, z back): the centre screen's pages. Pixels of the texture as stored; needle angles in degrees, 0 = right, 90 = down.",
+	"displays": [
+		{
+			"mat": "^nNissan_GTRTNR4_2017InteriorA_Material1$",
+			"tex": 512,
+			"glow": [[12, 334, 198, 442]],
+			"needles": [
+				{"value": "kmh", "c": [55.5, 386.5], "r": 43, "w": 2.4, "a0": -43, "a1": -318.5, "min": 0, "max": 340, "painted": -46.9, "cover_off": [6, 6], "color": "#ff2a1a",
+					"marks": [[0, -43], [20, -61], [60, -98], [100, -134], [130, -154], [160, -177.5], [190, -201], [220, -225], [250, -249], [280, -272.5], [310, -296.5], [340, -318.5]]},
+				{"value": "rpm", "c": [145.7, 386.0], "r": 49, "w": 2.6, "a0": 224, "a1": 17.8, "min": 0, "max": 8000, "painted": -136.3, "cover_off": [7, -7], "color": "#ff2a1a"}
+			]
+		}
+	],
 	"boards": [
 		{"page": "nav", "c": [0.365, 0.088, -0.107], "w": 0.173, "h": 0.104, "normal": [-0.111, 0.408, 0.906], "lift": 0.003, "accent": "#d0d4da", "radio": "SHOTGUN FM 98.6"}
 	]

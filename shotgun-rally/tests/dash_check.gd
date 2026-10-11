@@ -18,6 +18,7 @@ extends SceneTree
 ##   * the readings: the fuel (an electric car: its charge) and the range from it; the pedals;
 ##     a painted gear selector's letter
 ##   * a model's own LED blocks light in order with their reading
+##   * a painted needle taken out of a copy of the texture; a needle along an uneven scale
 ##   * a race display: its pit banner only with the pit limiter on, the lap time, the fuel in
 ##     litres, the temperatures warming up
 ##   * a painted cluster laid sideways in its texture is seen the right way round, and a live
@@ -152,6 +153,27 @@ func _spec(id: String, car, cp, dash, spec: Dictionary) -> void:
 		var wrapped: int = dash.overlays.filter(func(o): return o.mat.get_shader_parameter("wrap_uv") == true).size()
 		fails += _check(tyres == "81 --" and wet == "WET DRY" and wrapped >= wraps,
 			"%s: its race display's tyres (%s), the track (%s), %d screen(s) with UVs a tile over wrapped" % [id, tyres, wet, wrapped])
+	# a painted needle taken out of a copy of the texture (lit as the face round it is), the overlay's
+	# cover off; a needle along an uneven scale (the GT-R's speedometer) at each of its marks
+	for o in dash.overlays:
+		if o.needles.any(func(n): return n.has("painted")):
+			var baked: bool = o.get("baked", false)
+			var copies := 0
+			for mi in car.body_model.find_children("*", "MeshInstance3D", true, false):
+				for si in (mi as MeshInstance3D).get_surface_override_material_count():
+					var m: Material = mi.get_surface_override_material(si)
+					if m is StandardMaterial3D and m.next_pass == o.mat and (m as StandardMaterial3D).albedo_texture is ImageTexture:
+						copies += 1
+			fails += _check(baked and copies > 0, "%s: its painted needles taken out of a copy of the texture (%d surfaces), the cover off" % [id, copies])
+		for n in o.needles:
+			if not n.has("marks"):
+				continue
+			var hit := true
+			for mk in n.marks:
+				hit = hit and absf(DashLive.marks_deg(n.marks, float(mk[0])) - float(mk[1])) < 1e-4
+			var mid: float = DashLive.marks_deg(n.marks, 115.0)
+			fails += _check(hit and mid < -134.0 and mid > -154.0 and float(n.marks[-1][1]) == float(n.a1),
+				"%s: its %s needle on each of its %d marks (115 between 100 and 130: %.1f deg)" % [id, str(n.value), n.marks.size(), mid])
 	# the model's own LED blocks (the Bolide's fuel gauge and shift lights): none lit at 0, all at the top, in
 	# order between, the lit part ending in the gap after the last one lit
 	for o in dash.overlays:
