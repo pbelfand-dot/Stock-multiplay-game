@@ -1,0 +1,40 @@
+{
+	"_about": "BOLT W16 (Bugatti Bolide): its race display is the top of its screen texture (interior_emissive, 512 px; the steering wheel's button labels below it); the screen's UVs sit a whole tile over (uv_wrap). Painted: the REF scale (0 to 10, x1000 rpm) with an empty bar under it, a blank GEAR box, a blank LAPTIME box, the FUEL scale (0 to 100) and the OIL TEMPERATURE scale (0, 50, 90, 150, 200: not evenly spaced) with six green blocks lit. Made live: the revs filling the bar under REF (red past 6,800), the gear, the lap time, the oil temperature filling its scale as the engine warms. The model's own LED blocks (lcd_misc: one red or green patch of texture each) light up too: the fuel gauge's 14 red ones with the fuel, the five green and one red over the rev bar as shift lights (the last, red, where the shift lamp comes on, 93 % of the limiter). Pixels of that texture.",
+	"displays": [
+		{
+			"mat": "^LCD_MAIN$",
+			"tex": 512,
+			"uv_wrap": true,
+			"glow": "all",
+			"screens": [
+				{
+					"page": "cluster",
+					"rect": [15, 4, 495, 301],
+					"accent": "#3fd0ff",
+					"layout": {
+						"cover": [[312, 252, 380, 264, "#000000"]],
+						"arc": [
+							{"what": "rpm", "max": 10000.0, "pts": [[50, 64], [460, 64]], "w": 12.0, "color": "#3fd0ff", "hot": "#ff2a2a", "hot_from": 0.68},
+							{"what": "t_oil", "pts": [[313.5, 258], [351, 258], [389, 258], [428.5, 258], [465, 258]], "at": [0, 50, 90, 150, 200],
+								"hot_at": 130, "w": 8.0, "color": "#3cc23c", "hot": "#ff2a2a"}
+						],
+						"text": [
+							{"what": "gear", "at": [324, 128], "size": 40},
+							{"what": "time3", "at": [254, 190], "size": 17, "max_w": 230}
+						]
+					}
+				}
+			]
+		},
+		{
+			"mat": "^lcd_misc$",
+			"tex": 256,
+			"leds": [
+				{"what": "fuel", "max": 1.0, "y": [0.630, 0.641],
+					"x": [-0.468, -0.4645, -0.4605, -0.4565, -0.4525, -0.449, -0.4455, -0.4415, -0.4375, -0.4335, -0.430, -0.4265, -0.4225, -0.4185]},
+				{"what": "rpm01", "y": [0.695, 0.711], "x": [-0.4485, -0.4145, -0.3925, -0.3785, -0.3575, -0.3365],
+					"at": [0.68, 0.74, 0.80, 0.85, 0.89, 0.93]}
+			]
+		}
+	]
+}

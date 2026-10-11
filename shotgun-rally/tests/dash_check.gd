@@ -17,6 +17,7 @@ extends SceneTree
 ##   * the ambient lighting: off by day, every light on at night
 ##   * the readings: the fuel (an electric car: its charge) and the range from it; the pedals;
 ##     a painted gear selector's letter
+##   * a model's own LED blocks light in order with their reading
 ##   * a race display: its pit banner only with the pit limiter on, the lap time, the fuel in
 ##     litres, the temperatures warming up
 ##   * a painted cluster laid sideways in its texture is seen the right way round, and a live
@@ -151,6 +152,19 @@ func _spec(id: String, car, cp, dash, spec: Dictionary) -> void:
 		var wrapped: int = dash.overlays.filter(func(o): return o.mat.get_shader_parameter("wrap_uv") == true).size()
 		fails += _check(tyres == "81 --" and wet == "WET DRY" and wrapped >= wraps,
 			"%s: its race display's tyres (%s), the track (%s), %d screen(s) with UVs a tile over wrapped" % [id, tyres, wet, wrapped])
+	# the model's own LED blocks (the Bolide's fuel gauge and shift lights): none lit at 0, all at the top, in
+	# order between, the lit part ending in the gap after the last one lit
+	for o in dash.overlays:
+		for row in o.leds:
+			var n: int = row.x.size()
+			var top := float(row.at[-1]) if row.has("at") else float(row.get("max", 1.0))
+			var mid := float(row.at[1]) if row.has("at") else top * 2.0 / n
+			var b0: Vector4 = DashLive.led_box(row, Transform3D(), 0.0)
+			var b2: Vector4 = DashLive.led_box(row, Transform3D(), mid)
+			var gap := (float(row.x[1]) + float(row.x[2])) * 0.5 if n > 2 else 0.0
+			fails += _check(DashLive.leds_lit(row, 0.0) == 0 and DashLive.leds_lit(row, top) == n and DashLive.leds_lit(row, mid) == 2
+				and absf(b0.y - b0.x) < 1e-6 and absf(b2.y - gap) < 1e-6 and o.mat.get_shader_parameter("led_count") == o.leds.size(),
+				"%s: its %d %s LEDs light in order (none at 0, 2 at %s, all at %s)" % [id, n, str(row.what), str(mid), str(top)])
 	# a painted cluster laid sideways in its texture (the Supra's): its picture's corners are the texture
 	# rect's, its across the texture's down; a needle drawn on a painted dial at 0 and at its top value
 	for pg in dash.pages:
@@ -248,8 +262,12 @@ func _spec(id: String, car, cp, dash, spec: Dictionary) -> void:
 		var shown: bool = dash.warning("pit")
 		var tank := float(spec.get("tank_l", 120.0))
 		var lap: String = pg._reading("time_ms", {"time": 83.456})
-		var cold: String = pg._reading("t_water", {"warm": 0.0, "ambient": 20.0})
-		var hot: String = pg._reading("t_oil", {"warm": 1.0, "ambient": 20.0})
+		dash._warm = 0.0
+		_run(dash, DT)
+		var cold: String = pg._reading("t_water", dash.data)
+		dash._warm = 1.0
+		_run(dash, DT)
+		var hot: String = pg._reading("t_oil", dash.data)
 		fails += _check(shut and shown and lap == "01:23:456" and absf(float(dash.data.fuel_l) - 0.5 * tank) < 0.01 and cold == "20" and hot == "102",
 			"%s: its race display: the pit banner only with the limiter on (%s, %s), the lap %s, %.1f l of %d, the water %s C cold, the oil %s C warm" % [
 			id, shut, shown, lap, dash.data.fuel_l, tank, cold, hot])

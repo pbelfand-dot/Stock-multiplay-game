@@ -295,9 +295,8 @@ func _reading(what: String, d: Dictionary, t := {}) -> String:
 			return "WET" if _value("wet", d) > 0.3 else "DRY"
 		"abs_set", "tc_set":                        # (the ABS / TC map: Track Mode's level, else on 1 / off 0)
 			return "%d" % int(_value(what, d))
-		"t_water", "t_oil", "t_gear":               # (warming from the air to running temperature)
-			var hot := {"t_water": 86.0, "t_oil": 102.0, "t_gear": 82.0}[what] as float
-			return "%d" % roundi(lerpf(float(d.get("ambient", 20.0)), hot, clampf(_value("warm", d), 0.0, 1.0)))
+		"t_water", "t_oil", "t_gear":               # (warming from the air to running temperature: DashLive's)
+			return "%d" % roundi(_value(what, d))
 		"range":
 			return "%d km" % roundi(_value("range", d))
 	return str(t.get("text", ""))

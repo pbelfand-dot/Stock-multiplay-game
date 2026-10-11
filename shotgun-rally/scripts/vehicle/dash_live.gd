@@ -10,6 +10,9 @@ extends Node3D
 ##         one is covered with the dial face from a little further round
 ##       - glow: at night the backlit parts light up (the texture as if lit from behind)
 ##       - warning lamps: a lamp's icon lights up while it's on
+##       - "leds": the model's own LED blocks (sharing one patch of texture, told apart by
+##         where they sit: "x" their centres in the model's axes, "y" the row's band) lit,
+##         in their own colour, up to a reading ("max", or "at": each LED's value)
 ##   * "panels": a screen modelled with no UVs of its own to show anything on (its
 ##     faces share the interior's material): its faces (those of the material in a
 ##     box, facing the driver) copied into a mesh of their own a hair in front, with
@@ -39,6 +42,7 @@ const DashPage = preload("res://scripts/vehicle/dash_page.gd")
 const MAX_SCREENS := 3
 const MAX_NEEDLES := 8
 const MAX_RECTS := 8
+const MAX_LED_ROWS := 4
 const BULB_CHECK := 1.6             # s every lamp's lit after the engine starts
 const SCREEN_HZ := 30.0             # the screens redraw this often
 const ALL := [-1e4, -1e4, 1e4, 1e4] # a rect that's the whole surface
@@ -125,6 +129,13 @@ func _overlay(m: MeshInstance3D, si: int, base: Material, d: Dictionary) -> void
 	mat.next_pass = ov
 	m.set_surface_override_material(si, mat)
 	_overlaid[base] = mat
+	var rel := Transform3D()                             # (the LED rows are in the model's axes; the shader sees the mesh's own)
+	var nd: Node = m
+	while nd != null and nd != car.body_model:
+		if nd is Node3D:
+			rel = (nd as Node3D).transform * rel
+		nd = nd.get_parent()
+	overlays[-1].to_local = rel.affine_inverse()
 
 
 ## The overlay material for a display (its screens get their pages and viewports).
@@ -211,8 +222,33 @@ func _overlay_material(base: Material, d: Dictionary) -> ShaderMaterial:
 	ov.set_shader_parameter("warn_count", warns.size())
 	ov.set_shader_parameter("warn_rect", _pad(wrect, MAX_RECTS))
 	ov.set_shader_parameter("warn_col", _pad(wcol, MAX_RECTS))
-	overlays.append({"mat": ov, "needles": needles, "warns": warns})
+	var leds: Array = d.get("leds", []).slice(0, MAX_LED_ROWS)   # (the model's own LED blocks: lit up to the reading)
+	ov.set_shader_parameter("led_count", leds.size())
+	overlays.append({"mat": ov, "needles": needles, "warns": warns, "leds": leds, "to_local": Transform3D()})
 	return ov
+
+
+## How many of a row of LEDs are lit for a reading: "at" (each LED's value), else an even share of
+## "max" each.
+static func leds_lit(row: Dictionary, v: float) -> int:
+	var n: int = row.x.size()
+	if row.has("at"):
+		return (row.at as Array).filter(func(a): return v >= float(a)).size()
+	return clampi(roundi(v / maxf(float(row.get("max", 1.0)), 1e-4) * n), 0, n)
+
+
+## A row of LEDs' lit part, in the mesh's own axes: x from before the first LED to the gap after the
+## last one lit ("x": the LEDs' centres in the order they light, in the model's axes; "y": the row's
+## band, low and high).
+static func led_box(row: Dictionary, to_local: Transform3D, v: float) -> Vector4:
+	var xs: Array = row.x
+	var k := leds_lit(row, v)
+	var step: float = float(xs[1]) - float(xs[0]) if xs.size() > 1 else 0.004
+	var x0: float = float(xs[0]) - step * 0.5
+	var x1: float = x0 if k == 0 else (float(xs[k - 1]) + (float(xs[k]) - float(xs[k - 1])) * 0.5 if k < xs.size() else float(xs[-1]) + step * 0.5)
+	var a := to_local * Vector3(x0, float(row.y[0]), 0.0)
+	var b := to_local * Vector3(x1, float(row.y[1]), 0.0)
+	return Vector4(a.x, b.x, minf(a.y, b.y), maxf(a.y, b.y))
 
 
 static func _uv_rect(r: Array, size: Vector2) -> Vector4:
@@ -622,6 +658,10 @@ func _read(dt: float) -> void:
 		"abs_set": int(rs.abs_level) if rs else (1 if aid and aid.cfg.anti_lock else 0),
 		"tc_set": int(rs.tc_level) if rs else (1 if aid and aid.cfg.traction_control else 0),
 		"warm": _warm, "ambient": float(rs.ambient) if rs else 20.0,
+		# (the water, oil and gearbox warming from the air to running temperature, C)
+		"t_water": lerpf(float(rs.ambient) if rs else 20.0, 86.0, _warm),
+		"t_oil": lerpf(float(rs.ambient) if rs else 20.0, 102.0, _warm),
+		"t_gear": lerpf(float(rs.ambient) if rs else 20.0, 82.0, _warm),
 		"tyre_c": rs.tyres.map(func(t): return float(t.surface)) if rs else [],   # (FL, FR, RL, RR)
 		"wet": float(rs.wet) if rs else 0.0,
 	})
@@ -683,6 +723,11 @@ func _process(dt: float) -> void:
 			on.append(0.0)
 		ov.set_shader_parameter("warn_on", PackedFloat32Array(on))
 		ov.set_shader_parameter("glow", glow)
+		if not o.leds.is_empty():
+			var boxes: Array = []
+			for row in o.leds:
+				boxes.append(led_box(row, o.to_local, float(data.get(str(row.what), 0.0))))
+			ov.set_shader_parameter("led_box", _pad(boxes, MAX_LED_ROWS))
 	for np in needle_parts:
 		var n: Dictionary = np.n
 		# its turn from where it was modelled (pointing at "rest"), clockwise as the driver sees it
@@ -746,6 +791,13 @@ uniform float warn_on[8];
 uniform vec4 warn_col[8];
 uniform bool round_mask = false;   // (a round board: only its disc)
 uniform bool wrap_uv = false;      // (UVs a whole tile over: measured in the texture's own 0..1)
+uniform int led_count = 0;
+uniform vec4 led_box[4];           // a row of LEDs' lit part: x from, x to, y low, y high (the mesh's own axes)
+varying vec3 mpos;
+
+void vertex() {
+	mpos = VERTEX;
+}
 
 bool inside(vec2 uv, vec4 r) {
 	return uv.x >= r.x && uv.y >= r.y && uv.x <= r.z && uv.y <= r.w;
@@ -824,6 +876,13 @@ void fragment() {
 			vec3 b = base_at(uv);
 			float lum = has_base ? max(b.r, max(b.g, b.b)) : 0.5;   // (an untextured lamp: its colour, lit)
 			outc = vec4(warn_col[i].rgb * (0.35 + lum * 1.6), 1.0);
+		}
+	}
+	for (int i = 0; i < led_count; i++) {
+		vec4 b = led_box[i];
+		if (mpos.x >= min(b.x, b.y) && mpos.x <= max(b.x, b.y) && mpos.y >= b.z && mpos.y <= b.w) {
+			vec3 c = base_at(uv);                  // (lit in its own colour: the dark red or green, bright)
+			outc = vec4(c / max(max(c.r, max(c.g, c.b)), 0.04), 1.0);
 		}
 	}
 	if (outc.a <= 0.002) {
