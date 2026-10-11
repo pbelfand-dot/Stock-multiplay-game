@@ -21,7 +21,7 @@ import json, os, sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 DIR = os.path.join(os.path.dirname(HERE), "data", "vehicles")
-ROLES = {"rally", "touge_grip", "drift", "player_road", "track", "hypercar", "race_prototype",
+ROLES = {"rally", "touge_grip", "drift", "player_road", "track", "formula", "hypercar", "race_prototype",
          "traffic", "premium_traffic", "special"}
 CATEGORIES = {"rally", "jdm", "euro", "american", "hyper", "race", "traffic"}
 ORDER = ["id", "name", "order", "model", "category", "role", "real", "specs", "garage", "traffic",

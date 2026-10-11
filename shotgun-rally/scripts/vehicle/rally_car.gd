@@ -476,7 +476,9 @@ func _race_state(s: Dictionary) -> void:
 	if bool(s.get("race_sim", false)):
 		if race == null:
 			race = RaceSim.new()
-		race.setup(self, s.get("race", {}))
+		var ro: Dictionary = (s.get("race", {}) as Dictionary).duplicate()
+		ro["ers"] = float(CarSpecs.SPECS.get(str(s.get("model", "")), {}).get("ers", 0.0))   # (a hybrid's motor, kW)
+		race.setup(self, ro)
 	elif race != null:
 		race = null
 		mass = config.mass
@@ -796,6 +798,8 @@ func _simulate(dt: float) -> void:
 		pedals.x = race.throttle(self, pedals.x)         # (the pit limiter, the tank)
 		for k in 4:
 			wheels[k].race_mu = race.grip(k)
+		if drivetrain:
+			drivetrain.extra_torque = race.ers_torque(self, dt, pedals.x, pedals.y)   # (a hybrid's motor; DRS)
 	_brakes(dt, pedals.y)
 	var was := grounded
 	grounded = 0
@@ -972,6 +976,7 @@ func _aero() -> void:
 	aero_down = Aero.downforce(config, speed)
 	if race:
 		aero_down *= race.down_mul()                 # (dirty air behind another car, damage)
+		aero_down.y *= race.drs_rear()               # (the DRS flap open)
 	var b := global_transform.basis
 	var down := -b.y
 	var h: float = config.center_of_mass.y

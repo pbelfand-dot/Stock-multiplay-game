@@ -59,11 +59,21 @@ func setup(stage, entries: Array, opts: Dictionary, r_opts: Dictionary, seed_val
 		s["race_sim"] = true
 		s["race"] = r_opts.duplicate()
 		s["race"]["fuel"] = float(e.get("fuel", r_opts.get("fuel", 60.0)))
+		if int(r_opts.get("abs", 4)) == 0 or int(r_opts.get("tc", 4)) == 0:
+			# a class without ABS or traction control (FORMULA APEX): a racing driver feels for the edge of
+			# the grip with their feet, as the aids do; the AI's pedals lean on the aids for that, so they
+			# stand in for its feet (no more grip than the tyres have: they only keep it at their peak)
+			s["race"]["abs"] = maxi(int(r_opts.get("abs", 4)), 6)
+			s["race"]["tc"] = maxi(int(r_opts.get("tc", 4)), 6)
 		c.setup = s
 		c.substeps = AI_SUBSTEPS
 		add_child(c)
 		c.set_outside(true)
 		c.hit.connect(func(imp: float): if c.race: c.race.hit(imp))
+		if c.race:
+			c.race.drs_auto = true                   # (the AI opens its DRS whenever it may, flat out)
+		if int(c.cockpit_info().get("seats", 2)) == 1:
+			_helmet(c, e)                            # (an open cockpit: its driver's helmet in the air)
 		var tag := Label3D.new()
 		tag.name = "NameTag"
 		tag.text = "%d  %s" % [int(e.get("number", 0)), str(e.name)]
@@ -88,6 +98,39 @@ func setup(stage, entries: Array, opts: Dictionary, r_opts: Dictionary, seed_val
 		_hint[e.id] = -1
 		_go_far(drv)
 		_pose(drv, 0.0)
+
+
+## A single-seater's driver, seen from outside: their helmet up in the cockpit under the halo
+## (where its eyes are: parts.json cockpit "eye"), in their colours, a dark visor across it. (The
+## player's own car has the whole driver: Cockpit.)
+func _helmet(c, e: Dictionary) -> void:
+	var cols: Array = e.get("colours", [])
+	var shell: Color = cols[1] if cols.size() > 1 else Color(0.95, 0.95, 0.94)
+	var stripe: Color = cols[0] if cols.size() > 0 else Color(0.8, 0.1, 0.1)
+	var eye: Array = c.cockpit_info().get("eye", [0.0, 0.8, 0.2])
+	var h := Node3D.new()
+	h.name = "Helmet"
+	h.position = Vector3(float(eye[0]), float(eye[1]), float(eye[2])) + c.model_offset() + Vector3(0.0, -0.01, 0.07)
+	c.add_child(h)
+	var parts := [[Vector3(0.13, 0.135, 0.15), Vector3.ZERO, shell, 0.3],          # the shell
+		[Vector3(0.122, 0.05, 0.12), Vector3(0.0, 0.0, -0.05), Color(0.04, 0.05, 0.07), 0.08],   # the visor
+		[Vector3(0.135, 0.03, 0.155), Vector3(0.0, 0.07, 0.0), stripe, 0.35]]          # a band round the top
+	for pt in parts:
+		var mi := MeshInstance3D.new()
+		var sm := SphereMesh.new()
+		sm.radius = 1.0
+		sm.height = 2.0
+		sm.radial_segments = 16
+		sm.rings = 8
+		mi.mesh = sm
+		mi.scale = pt[0]
+		mi.position = pt[1]
+		var m := StandardMaterial3D.new()
+		m.albedo_color = pt[2]
+		m.roughness = pt[3]
+		mi.material_override = m
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		h.add_child(mi)
 
 
 func driver(id):
@@ -143,7 +186,7 @@ func tick(dt: float) -> void:
 				c.race.tow = _tow(drv, all)
 			_unstick(drv, c, dt)
 		else:
-			drv.far_step(dt, _tow(drv, all))
+			drv.far_step(dt, _tow(drv, all), c.race != null and c.race.drs_avail)   # (a far car may use its DRS too)
 			_pose(drv, dt)
 			if c.race:
 				c.race.coast(c, dt, drv.v, drv.task)

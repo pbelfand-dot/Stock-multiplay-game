@@ -526,7 +526,7 @@ func _path_k(x: float) -> float:
 
 ## Far from the player: along its path at the speed it would do (accelerating and braking as hard
 ## as its car can, as the line works out), no physics. tow: (0..1) the slipstream of a car ahead.
-func far_step(dt: float, tow := 0.0) -> void:
+func far_step(dt: float, tow := 0.0, drs := false) -> void:
 	if task == "hold":
 		if lights_out:
 			hold_t += dt
@@ -539,6 +539,11 @@ func far_step(dt: float, tow := 0.0) -> void:
 		return
 	var i: int = line.index(s)
 	var want := want_v(s + v * 0.2) * FAR_K
+	if drs and line.braking_speed(s, 120.0) >= v:
+		# DRS open (race control lets it, nothing to brake for just ahead): its flap sheds ~18 % of the drag,
+		# so it runs on past the line's speed (~4 %: the FIA's +10-12 km/h by a zone's end)
+		want *= 1.04
+		tow = maxf(tow, 0.6)
 	if v < want:
 		var a: float = line._accel(v, i) + tow * 0.004 * v * v
 		v = minf(want, v + maxf(a, 0.5) * dt)

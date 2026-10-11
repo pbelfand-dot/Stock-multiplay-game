@@ -92,7 +92,7 @@ static func physics() -> Dictionary:
 		for k in ["centre", "front_diff", "rear"]:
 			if s.has(k) and s[k] is Array and s[k][0] is String:
 				s[k][0] = DIFFS.get(s[k][0], 0)
-		for k in ["mass", "front", "torque", "idle", "limiter", "turbo", "final", "cd", "area", "down", "brake"]:
+		for k in ["mass", "front", "torque", "idle", "limiter", "turbo", "final", "cd", "area", "down", "brake", "bias", "balance", "shift", "ers", "ai_grip"]:
 			if s.has(k):
 				s[k] = float(s[k])
 		out[m] = s

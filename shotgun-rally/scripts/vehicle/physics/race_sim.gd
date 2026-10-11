@@ -15,6 +15,18 @@ extends RefCounted
 ##                  wear, fuel burnt, the car's mass
 ##   service(compound, litres)  a pit stop: new tyres (at the air's temperature: no warmers, as
 ##                  in SRO's GT3 series), fuel in
+##   ers_torque(car, dt, brake)  a hybrid's motor (a Formula car's MGU-K: setup "ers" kW): its push
+##                  at the crankshaft and the energy store it runs from and recharges
+##   drs_rear()     the rear downforce x: the DRS flap open sheds some of it (and drag_mul the drag)
+##
+## The hybrid (FORMULA APEX's rules, from 2022-25 Formula 1's): a 120 kW MGU-K deploys at most 4 MJ a
+## lap from the store and recovers at most 2 MJ a lap under braking; the turbo's MGU-H tops the store
+## up at full throttle (unlimited by the rules: here ~30 kW). The store holds 4 MJ. The modes: OFF
+## (recharge only), BALANCED (deploys flat out above ~110 km/h, where it's worth most), OVERTAKE
+## (deploys whenever it's flat out). A "lap" is a lap's length driven (setup "lap_m").
+## DRS: the car's flap opens only when race control says it may (drs_avail: in a zone, within a
+## second at its detection point in a race), on the driver's press (or by itself for the AI: drs_auto),
+## and shuts on the brakes or out of the zone.
 ##
 ## Heat by power, not by fiat: a tyre's surface warms by what its slip and flexing put in less what
 ## the air takes off (W/K growing with speed), its core follows (a ~100 s lag: a lap or two to warm
@@ -58,6 +70,28 @@ var tow := 0.0                       # (RaceField) 0..1: how deep in another car
 var damage := {"aero": 0.0, "engine": 0.0, "susp": 0.0}   # 0..1 each
 var damage_on := true                # (the session's DAMAGE option)
 const TOW_DRAG := 0.3                # the drag a car loses right behind another (a GT3: ~25-35 % at a length or two)
+const DRS_DRAG := 0.18               # the drag shed with the DRS flap open (the FIA's estimate: +10-12 km/h by a zone's end)
+const DRS_REAR := 0.13               # the rear axle's downforce shed with it (the wing's top flap: ~7 % of the car's)
+const ERS_STORE := 4.0e6             # J: the energy store's usable charge
+const ERS_DEPLOY_LAP := 4.0e6        # J a lap: the most the MGU-K may deploy
+const ERS_HARVEST_LAP := 2.0e6       # J a lap: the most it may recover under braking
+const ERS_MGUH := 30000.0            # W: the turbo's MGU-H topping the store up at full throttle
+const ERS_BALANCED_V := 30.0         # m/s: BALANCED deploys above this (108 km/h)
+const ERS_MAX_NM := 220.0            # N m: its most at the crank (at low revs the power's capped by this)
+const ERS_MODES := ["OFF", "BALANCED", "OVERTAKE"]
+
+var ers_kw := 0.0                    # the hybrid motor's power (kW; 0: none)
+var ers_mode := 1                    # 0 OFF, 1 BALANCED, 2 OVERTAKE
+var ers_store := ERS_STORE           # J in the store
+var ers_used := 0.0                  # J deployed this lap
+var ers_got := 0.0                   # J recovered under braking this lap
+var ers_on := false                  # deploying now
+var lap_m := 5000.0                  # a lap's length (m): the per-lap limits reset each lap driven
+var _lap_run := 0.0
+var drs_avail := false               # race control: it may open now (set each tick)
+var drs_open := false
+var drs_auto := false                # the AI: open it whenever it may, flat out
+var fuel_lps := FULL_FUEL_LPS        # l/s flat out (a Formula car's fuel flow is capped: 100 kg/h)
 const DIRTY_DOWN := 0.15             # the downforce it loses there (the wake: a GT3's ~10-20 %)
 
 
@@ -88,6 +122,14 @@ func setup(car, opts := {}) -> void:
 	abs_level = int(opts.get("abs", abs_level))
 	tc_level = int(opts.get("tc", tc_level))
 	damage_on = bool(opts.get("damage", true))
+	ers_kw = float(opts.get("ers", 0.0))
+	lap_m = float(opts.get("lap_m", lap_m))
+	fuel_lps = float(opts.get("fuel_lps", FULL_FUEL_LPS))
+	ers_store = ERS_STORE
+	ers_used = 0.0
+	ers_got = 0.0
+	_lap_run = 0.0
+	drs_open = false
 	repair()
 	base_mass = float(car.config.mass) if car and car.config else 1300.0
 	_fresh_tyres()
@@ -215,7 +257,7 @@ func tick(car, dt: float) -> void:
 		disc[k] += dt * (work - (25.0 + 4.0 * v) * (float(disc[k]) - ambient)) / DISC_C[k]
 	# fuel: by the throttle and the revs
 	var thr: float = clampf(float(car.inp.throttle) if car.inp else 0.0, 0.0, 1.0)
-	var burn := (IDLE_FUEL_LPS + FULL_FUEL_LPS * thr * (0.35 + 0.65 * float(car.rpm))) * dt
+	var burn := (IDLE_FUEL_LPS + fuel_lps * thr * (0.35 + 0.65 * float(car.rpm))) * dt
 	fuel_l = maxf(0.0, fuel_l - burn)
 	fuel_used += burn
 	car.mass = base_mass + fuel_l * FUEL_KG_L
@@ -223,7 +265,68 @@ func tick(car, dt: float) -> void:
 
 ## The drag x: the slipstream (less behind another car), a damaged nose (more).
 func drag_mul() -> float:
-	return (1.0 - TOW_DRAG * tow) * (1.0 + 0.1 * float(damage.aero))
+	return (1.0 - TOW_DRAG * tow) * (1.0 + 0.1 * float(damage.aero)) * (1.0 - DRS_DRAG if drs_open else 1.0)
+
+
+## The rear axle's downforce x: the DRS flap open.
+func drs_rear() -> float:
+	return 1.0 - DRS_REAR if drs_open else 1.0
+
+
+## The driver's DRS button: open it if it may (it shuts by itself).
+func drs_press() -> void:
+	if drs_avail:
+		drs_open = true
+
+
+## The ERS mode button: OFF -> BALANCED -> OVERTAKE -> OFF.
+func ers_cycle() -> void:
+	ers_mode = (ers_mode + 1) % ERS_MODES.size()
+
+
+## Before the physics tick (the pedals as the driver has them, after the limiter): the DRS flap
+## shut on the brakes or out of its zone (or opened by the AI); the hybrid's push at the crankshaft
+## (N m: the drivetrain adds it to the engine's) and the energy that takes from the store; what
+## braking puts back. 0 for a car without one.
+func ers_torque(car, dt: float, throttle: float, brake: float) -> float:
+	if not drs_avail or brake > 0.05:
+		drs_open = false
+	elif drs_auto and throttle > 0.9:
+		drs_open = true
+	if ers_kw <= 0.0:
+		ers_on = false
+		return 0.0
+	var v: float = absf(float(car.speed))
+	_lap_run += v * dt
+	if _lap_run >= lap_m:                                          # (a lap driven: the limits start again)
+		_lap_run -= lap_m
+		ers_used = 0.0
+		ers_got = 0.0
+	var dtr = car.drivetrain
+	var cap := ers_kw * 1000.0
+	# recovery: the MGU-K on the brakes (up to 2 MJ a lap), the MGU-H flat out (as much as it likes)
+	if brake > 0.1 and v > 8.0 and ers_got < ERS_HARVEST_LAP:
+		var e := minf(cap * clampf(brake * 1.5, 0.0, 1.0) * dt, ERS_HARVEST_LAP - ers_got)
+		ers_got += e
+		ers_store = minf(ERS_STORE, ers_store + e)
+	if throttle > 0.9:
+		ers_store = minf(ERS_STORE, ers_store + ERS_MGUH * dt)
+	# deployment
+	ers_on = false
+	if dtr == null or dtr.shifting() or dtr.gear < 1 or throttle < 0.95 or ers_mode == 0:
+		return 0.0
+	if ers_mode == 1 and v < ERS_BALANCED_V:
+		return 0.0
+	var left := minf(ers_store, ERS_DEPLOY_LAP - ers_used)
+	if left <= 0.0:
+		return 0.0
+	var omega: float = maxf(float(dtr.rpm()) * TAU / 60.0, 100.0)
+	var tq := minf(cap / omega, ERS_MAX_NM)
+	var e := minf(tq * omega * dt, left)
+	ers_used += e
+	ers_store -= e
+	ers_on = true
+	return e / (omega * dt)
 
 
 ## The downforce x: the wake behind another car, a damaged splitter or wing.
@@ -256,7 +359,7 @@ func repair() -> void:
 func coast(car, dt: float, v: float, task: String) -> void:
 	var racing := task == "race" and v > 10.0
 	var thr := 0.62 if racing else (0.25 if v > 1.0 else 0.0)
-	var burn := (IDLE_FUEL_LPS + FULL_FUEL_LPS * thr * 0.85) * dt
+	var burn := (IDLE_FUEL_LPS + fuel_lps * thr * 0.85) * dt
 	fuel_l = maxf(0.0, fuel_l - burn)
 	fuel_used += burn
 	var win: Array = c.get("window", [82, 108])
@@ -276,7 +379,9 @@ func coast(car, dt: float, v: float, task: String) -> void:
 ## The numbers for the HUD and the telemetry.
 func readout() -> Dictionary:
 	var out := {"compound": compound, "short": str(c.get("short", "?")), "fuel": fuel_l, "tank": tank_l, "limiter": limiter,
-		"abs": abs_level, "tc": tc_level, "tyres": [], "discs": disc.duplicate(), "damage": damage.duplicate(), "tow": tow}
+		"abs": abs_level, "tc": tc_level, "tyres": [], "discs": disc.duplicate(), "damage": damage.duplicate(), "tow": tow,
+		"ers": ers_kw > 0.0, "ers_store": ers_store / ERS_STORE, "ers_left": maxf(ERS_DEPLOY_LAP - ers_used, 0.0) / ERS_DEPLOY_LAP,
+		"ers_mode": ERS_MODES[ers_mode], "ers_on": ers_on, "drs_avail": drs_avail, "drs_open": drs_open}
 	for k in 4:
 		var t: Dictionary = tyres[k]
 		out.tyres.append({"surface": float(t.surface), "core": float(t.core), "pressure": float(t.pressure), "wear": float(t.wear),

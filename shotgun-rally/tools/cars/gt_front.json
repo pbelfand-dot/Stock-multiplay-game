@@ -1,0 +1,7 @@
+{"id": "gt_front", "front": "-Y", "wheelbase": 2.75,
+ "wheel": ["^wheel-"],
+ "paint": ["^paint$"], "glass": ["^glass$"],
+ "rename": [["^white$", "headlight"]],
+ "materials": [["^glass$", "glass"]],
+ "finish": [["^trim$", {"metal": 0.0, "rough": 0.5}], ["^(steel|alloy)$", {"metal": 0.85, "rough": 0.35}]],
+ "wheel_faces": 4000, "body_faces": 40000}

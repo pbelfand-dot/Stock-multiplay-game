@@ -17,6 +17,8 @@ extends RefCounted
 ## Skill (pace) is how near the limit a driver takes it: its grip and braking x pace. Never more
 ## than the car has: a better driver doesn't get more grip or power, only uses more of it.
 
+const RaceSim = preload("res://scripts/vehicle/physics/race_sim.gd")
+const CarSpecs = preload("res://scripts/vehicle/car_specs.gd")
 const G := 9.81
 const RHO := 1.225
 const ETA := 0.88                  # the driveline's efficiency (gearbox, diff, joints)
@@ -60,8 +62,18 @@ static func params(car) -> Dictionary:
 		"gears": dt.gear_ratios if dt else PackedFloat32Array([3.0, 2.0, 1.5, 1.2, 1.0]),
 		"final": float(dt.final_drive) if dt else 4.0,
 		# the driven axle's share of the weight (rear drive: the rear's; all-wheel: all of it)
+		# (static_loads is per wheel, so a two-wheel-drive car's figure is half its driven axle's share:
+		# kept so, as it matches what the AI's exits put down on the physics, the cornering sharing the
+		# grip; tests/race_ai_check.gd's laps on the physics were measured against it)
 		"driven": 1.0 if front > 0.05 and front < 0.95 else (cfg.static_loads(G)[1] / (float(cfg.mass) * G) if cfg.has_method("static_loads") else 0.55),
-		"load_sens": float(cfg.front_tire.load_sensitivity) if cfg.front_tire else 0.15}
+		"load_sens": float(cfg.front_tire.load_sensitivity) if cfg.front_tire else 0.15,
+		# a tyre's share of the car's weight against the load it's rated at (its nominal: a Formula
+		# slick's is far above its share of an 800 kg car, so downforce costs it little grip per newton)
+		"load_r0": float(car.mass) * G * 0.25 / float(cfg.front_tire.nominal_load) if cfg.front_tire else 1.0,
+		"ers": float(car.race.ers_kw) if car.get("race") != null else 0.0,
+		# a car whose tyres are harder for a driver to hold at their peak (a Formula car's: sharper past
+		# it, the car snappier): the share of the line's grip its drivers take ("ai_grip" in its physics)
+		"ai_grip": float(CarSpecs.SPECS.get(str(car.setup.get("model", "")) if car.get("setup") is Dictionary else "", {}).get("ai_grip", 1.0))}
 
 
 ## The line and the car's speed along it. st: the CircuitGen (its line); prm: params(); pace:
@@ -87,7 +99,19 @@ func build(st, prm: Dictionary, pace_k := 1.0) -> void:
 		var b := pts[i + 1]
 		ds[i] = maxf(a.distance_to(b), 0.05)
 		grade[i] = (b.y - a.y) / ds[i]
+	p.erase("ers_f")
 	_solve()
+	if float(p.get("ers", 0.0)) > 0.0:
+		# a hybrid deploys flat out above ~110 km/h, but only 4 MJ a lap: the share of that time it
+		# lasts (the line again with its push x that share)
+		var flat := 0.0
+		for i in n:
+			var j := (i + 1) % n
+			if v[j] > v[i] + 0.01 and v[i] > RaceSim.ERS_BALANCED_V:
+				flat += ds[i] / maxf((v[i] + v[j]) * 0.5, 1.0)
+		var full: float = RaceSim.ERS_DEPLOY_LAP / (float(p.ers) * 1000.0)
+		p["ers_f"] = clampf(full / maxf(flat, 0.1), 0.0, 1.0)
+		_solve()
 
 
 ## The speeds: the corners' limits, then braking back from them and accelerating out of them.
@@ -124,11 +148,13 @@ func _solve() -> void:
 
 
 ## The grip (m/s^2 of sideways or braking force) at speed vv: mu x pace x (g + the downforce),
-## the downforce's extra load gripping a little less per newton (load sensitivity).
+## each tyre's grip per newton falling as its load passes the load it's rated at (load
+## sensitivity, as TireModel.load_mu_factor has it).
 func grip_at(vv: float) -> float:
 	var a: float = 0.5 * RHO * float(p.down) * vv * vv / float(p.mass)
-	var sens := clampf(1.0 - float(p.get("load_sens", 0.15)) * a / G, 0.5, 1.0)
-	return float(p.mu) * pace * K_PHYS * sens * (G + a)
+	var r: float = float(p.get("load_r0", 1.0)) * (1.0 + a / G)       # (each tyre's load / its rated load)
+	var sens := clampf(1.0 - float(p.get("load_sens", 0.15)) * (r - 1.0), 0.5, 1.4)
+	return float(p.mu) * pace * K_PHYS * float(p.get("ai_grip", 1.0)) * sens * (G + a)
 
 
 ## The fastest it can take a curvature kk (1/m): where v^2 kk meets its grip at v (bisection: the
@@ -171,19 +197,23 @@ func _accel(vv: float, i: int) -> float:
 	return (f - drag) / m - ROLL * G - G * grade[i]
 
 
-## The engine's force at the tyres at speed vv (N), in the gear that gives the most.
+## The engine's force at the tyres at speed vv (N), in the gear that gives the most (and a hybrid's
+## motor on top: its power over the speed, above ~110 km/h, x the share of the lap it lasts).
 func drive_force(vv: float) -> float:
 	var r: float = p.radius
 	var best := 0.0
+	if float(p.get("ers_f", 0.0)) > 0.0 and vv > RaceSim.ERS_BALANCED_V:
+		best = float(p.ers) * 1000.0 * ETA * float(p.ers_f) / vv
 	var gears: PackedFloat32Array = p.gears
+	var eng := 0.0
 	for g in gears:
 		var ratio: float = g * float(p.final)
 		var rpm := maxf(vv, 0.5) / r * ratio * 60.0 / TAU
 		if rpm > float(p.limiter):
 			continue
 		rpm = maxf(rpm, 2500.0)                          # (a launch: the clutch slips at revs)
-		best = maxf(best, float(p.torque) * _curve(rpm) * ratio * ETA / r)
-	return best
+		eng = maxf(eng, float(p.torque) * _curve(rpm) * ratio * ETA / r)
+	return best + eng
 
 
 func _curve(rpm: float) -> float:

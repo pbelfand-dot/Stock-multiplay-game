@@ -103,6 +103,8 @@ static func track_field(o: Dictionary, seed_value: int, my_number := 0) -> Array
 	var rng := RandomNumberGenerator.new()
 	rng.seed = hash("track_field") + seed_value * 7919
 	var cars: Array = (track_classes().get(str(o.get("class", "gt")), {}).get("cars", []) as Array).duplicate()
+	if o.has("field_cars"):                                                   # (tests: the cars they want)
+		cars = (o.field_cars as Array).duplicate()
 	if OS.get_cmdline_user_args().has("--seen_cars_only"):                  # (screenshots: no no-AI cars)
 		cars = cars.filter(func(c): return not VehicleRegistry.no_ai(str(c)))
 	if cars.is_empty() or _drivers.is_empty():
@@ -183,14 +185,20 @@ static func race_opts(o: Dictionary) -> Dictionary:
 	var day := clampf(1.0 - absf(hour - 14.0) / 9.0, 0.0, 1.0)
 	var air := lerpf(14.0, 24.0, day)
 	var fuel := float(o.get("fuel", 60.0))
+	# a Formula car: no ABS or traction control (FORMULA APEX's rules), its fuel flow capped (100 kg/h:
+	# ~0.037 l/s flat out), a 145 l tank (110 kg, the most a race may start with), ~2.4 l a lap here
+	var formula := str(o.get("class", "gt")) == "formula"
+	var per_lap := 2.4 if formula else 3.4
+	var tank := 145.0 if formula else 120.0
 	match str(o.get("session", "practice")):
 		"qualifying":
-			fuel = 30.0                                   # (light: a few flying laps)
+			fuel = 20.0 if formula else 30.0              # (light: a few flying laps)
 		"race":
-			fuel = race_fuel(int(o.get("laps", 5)), 3.4, 120.0)   # (a GT3: ~3.4 l a lap here: tools' estimate, tests check it)
-	return {"compound": str(o.get("compound", "slick_medium")), "fuel": fuel, "tank": 120.0,
-		"ambient": air, "track": air + 14.0 * day, "wet": float(o.get("wet", 0.0)), "abs": 4, "tc": 4,
-		"damage": bool(o.get("damage", true))}
+			fuel = race_fuel(int(o.get("laps", 5)), per_lap, tank)   # (a GT3: ~3.4 l a lap here: tools' estimate, tests check it)
+	return {"compound": str(o.get("compound", "slick_medium")), "fuel": fuel, "tank": tank,
+		"ambient": air, "track": air + 14.0 * day, "wet": float(o.get("wet", 0.0)), "abs": 0 if formula else 4, "tc": 0 if formula else 4,
+		"damage": bool(o.get("damage", true)), "fuel_lps": 0.037 if formula else 0.042,
+		"lap_m": circuit_info(str(o.get("circuit", "cinder_ridge"))).length}
 
 
 ## The car a class runs a driver in: theirs if it's one of the class's, else the class's own.

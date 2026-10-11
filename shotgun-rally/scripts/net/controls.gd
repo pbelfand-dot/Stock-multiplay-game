@@ -53,6 +53,8 @@ func _ready() -> void:
 	_action("dome_light", [KEY_L], [JOY_BUTTON_DPAD_UP], [])
 	_action("screen_page", [KEY_M], [JOY_BUTTON_DPAD_RIGHT], [])
 	_action("pit_limiter", [KEY_P], [JOY_BUTTON_DPAD_DOWN], [])
+	_action("drs", [KEY_E], [JOY_BUTTON_RIGHT_SHOULDER], [])          # (Track Mode's Formula cars: open the DRS flap)
+	_action("ers_mode", [KEY_O], [JOY_BUTTON_DPAD_LEFT], [])          # (their hybrid's mode: OFF / BALANCED / OVERTAKE)
 	# the replay (replay.gd): opened from the results or the pause menu, its own keys while it's on
 	_action("replay", [KEY_V], [JOY_BUTTON_X], [])
 	_action("replay_play", [KEY_SPACE], [JOY_BUTTON_A], [])

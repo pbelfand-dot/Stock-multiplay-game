@@ -45,6 +45,7 @@ var gear := 1                      # -1 reverse, 0 neutral, 1..n
 var boost := 0.0                   # the turbo's boost, 0..1
 var clutch := 1.0                  # the clutch's engagement, 0 (out) .. 1 (in)
 var throttle := 0.0                # the engine's actual throttle (after the shift cut, the limiter, idle control)
+var extra_torque := 0.0            # N m at the crank from elsewhere (a hybrid's motor: RaceSim.ers_torque), set each tick
 var engine_torque := 0.0           # N m the engine makes this substep
 var clutch_torque := 0.0           # N m through the clutch (engine side, + = driving)
 var limiter := false
@@ -188,7 +189,7 @@ func control(dt: float, pedal: float, wheels: Array, launch := -1.0) -> void:
 ## and the friction torque holding it (resist_torque).
 func solve(h: float, wheels: Array) -> void:
 	var r := rpm()
-	engine_torque = EngineModel.torque(eng, r, throttle, boost)
+	engine_torque = EngineModel.torque(eng, r, throttle, boost) + extra_torque
 	var n_e: float = eng.inertia * omega_e + h * engine_torque
 	var stop := h * EngineModel.friction(eng, r, throttle)
 	omega_e = 0.0 if absf(n_e) <= stop else (n_e - signf(n_e) * stop) / eng.inertia

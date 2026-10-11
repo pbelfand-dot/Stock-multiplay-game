@@ -54,15 +54,21 @@ func _initialize() -> void:
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--only="):
 			only = a.trim_prefix("--only=")
+		elif a.begins_with("--class="):
+			cls = a.trim_prefix("--class=")
+		elif a.begins_with("--car="):
+			car_id = a.trim_prefix("--car=")
 	await process_frame
 	var st = _stage()
 	if only in ["", "line"]:
 		_line(st)
 	if only in ["", "rules"]:
 		_rules(st)
+	if only in ["", "rules", "drs"]:
+		_drs_rules(st)
 	if only in ["", "quali"]:
 		_quali(st)
-	if only in ["", "driver", "far", "pit"]:
+	if only in ["", "driver", "far", "pit", "formula"]:
 		await _driving(st, only)
 	if only in ["", "weekend"]:
 		await _weekend()
@@ -392,6 +398,66 @@ func _rules(st) -> void:
 
 # ── qualifying ──────────────────────────────────────────────────────────────
 
+## DRS (no physics): three cars round at 60 m/s, the second 0.6 s behind the first, the third 1.6 s
+## behind the second. Not before the leader's third lap; then the second may open it in the zone, the
+## others not; never under a yellow there or a red; in practice anyone may, in a zone.
+func _drs_rules(st) -> void:
+	var L: float = st.length
+	var dt := 1.0 / 120.0
+	var z: Dictionary = st.drs[0]
+	var f: Array = _rc(st, {"session": "race", "laps": 9, "start": "standing"}, 3)
+	var ses = f[0]
+	var rc = f[1]
+	var cars: Dictionary = f[2]
+	rc.begin()
+	var t := 0.0
+	while rc.phase != "green" and t < 10.0:
+		_step(ses, rc, cars, dt)
+		t += dt
+	var v := 60.0
+	cars[0].s = -5.0
+	cars[1].s = -5.0 - v * 0.6
+	cars[2].s = -5.0 - v * 0.6 - v * 1.6
+	for id in cars:
+		cars[id].d = 0.0
+		cars[id].v = v
+	var zone_s: float = float(z.s0) + 30.0                  # (well inside the zone, past its start)
+	var lap1 := false
+	var lap2 := {}
+	var enabled_at := -1.0
+	var any_early := false
+	while float(cars[2].s) < 2.0 * L + zone_s + 5.0 and t < 400.0:
+		for id in cars:
+			cars[id].s = float(cars[id].s) + v * dt
+		_step(ses, rc, cars, dt)
+		t += dt
+		for ev in rc.events:
+			if ev.kind == "drs" and bool(ev.on) and enabled_at < 0.0:
+				enabled_at = float(cars[0].s) / L
+		rc.events.clear()
+		for id in cars:
+			var sp := float(cars[id].s)
+			if enabled_at < 0.0 and rc.drs_state(id, sp):
+				any_early = true                         # (before it's enabled: never)
+			if not lap1 and id == 1 and sp >= L + zone_s:
+				lap1 = true
+			if sp >= 2.0 * L + zone_s and not lap2.has(id):
+				lap2[id] = rc.drs_state(id, sp)
+	check(not any_early and enabled_at >= 2.0 and enabled_at < 2.01, "drs: not before the leader starts its third lap (enabled at %.3f laps)" % enabled_at)
+	check(lap2.get(1, false) and not lap2.get(0, true) and not lap2.get(2, true), "drs: in the zone, the car 0.6 s behind at the detection point may open it; the leader and the car 1.6 s back may not (%s)" % str(lap2))
+	var s1 := float(cars[1].s)
+	var micro := floori(fposmod(s1, L) / RaceControl.MICRO)
+	rc.yellows[micro] = 5.0
+	check(not rc.drs_state(1, s1), "drs: not under a yellow in the zone")
+	rc.yellows.erase(micro)
+	check(rc.drs_state(1, s1) and not rc.drs_state(1, s1 + 900.0), "drs: back on once the yellow's gone; never out of a zone")
+	rc.red_flag("TEST")
+	check(not rc.drs_state(1, s1), "drs: not under a red flag")
+	# practice: anyone, in a zone
+	f = _rc(st, {"session": "practice"}, 1)
+	check(f[1].drs_state(0, zone_s) and not f[1].drs_state(0, zone_s + 900.0), "drs: in practice free in the zones, nowhere else")
+
+
 func _quali(st) -> void:
 	var L: float = st.length
 	var dt := 1.0 / 30.0
@@ -432,13 +498,18 @@ func _quali(st) -> void:
 
 # ── driving (the physics, the far mode, a pit stop) ─────────────────────────
 
+var cls := "gt"                    # --class=formula: the driving tests in a Formula car
+var car_id := ""                   # --car=<registry id>: the driving tests' car (else the AFFALTER GT3, or the ORION FA1)
+
+
 func _driving(st_unused, only: String) -> void:
 	root.get_node("Net").solo()
 	var Game = load("res://scripts/game.gd")
 	var g = Game.new()
 	root.add_child(g)
 	# a qualifying session with one AI car (it leaves its box at once): its car, its driver
-	var o: Dictionary = Modes.track_opts(5, "gt", "qualifying", 3, "cinder_ridge", {"opponents": 1, "difficulty": "pro", "minutes": 30.0})
+	var o: Dictionary = Modes.track_opts(5, cls, "qualifying", 3, "cinder_ridge", {"opponents": 1, "difficulty": "pro", "minutes": 30.0})
+	o["field_cars"] = [car_id if car_id != "" else ("orion" if cls == "formula" else "affalter")]
 	await g.start(5, 1, o)
 	var st = g.st
 	var field = g.field
@@ -450,10 +521,12 @@ func _driving(st_unused, only: String) -> void:
 		await physics_frame
 	var drv = field.drivers[0]
 	var c = field.cars[drv.id]
+	print("[raceai] info the driving tests' car: %s (%s), its line %s at pace %.2f" % [str(c.setup.get("car", "?")), cls, _fmt(drv.line.lap_time), drv.line.pace])
+	print("[raceai] info params %s" % str(drv.line.p))
 	var ses = g.session
 	var dt := 1.0 / 120.0
 	var L: float = st.length
-	if only in ["", "driver", "pit"]:
+	if only in ["", "driver", "pit", "formula"]:
 		# near: keep it on the physics (the player's car rides along with it, out of the way)
 		field.near_max = 1
 		field.pin_near = true
@@ -467,6 +540,7 @@ func _driving(st_unused, only: String) -> void:
 		g.car.freeze = true
 		var t := 0.0
 		var off_t := 0.0
+		var last_off := -9.0
 		var worst_d := 0.0
 		var lap_t0 := -1.0
 		var lap_t := INF
@@ -482,7 +556,11 @@ func _driving(st_unused, only: String) -> void:
 			var over: float = absf(drv.d) - st.half_at(drv.s)
 			worst_d = maxf(worst_d, over)
 			if over > 1.0:
+				if off_t <= 0.0 or t - last_off > 1.0:
+					print("[raceai] info off at s %.0f (lap %d): %.0f km/h, its line's %.0f, d %.1f, %.1f m past the line" % [fposmod(drv.s, L), floori(drv.s / L), drv.v * 3.6,
+						drv.line.speed_at(drv.s) * 3.6, drv.d, over])
 				off_t += dt
+				last_off = t
 			if floori(drv.s / L) > floori(last_s / L):
 				crossed += 1
 				if crossed == 1:
@@ -498,6 +576,40 @@ func _driving(st_unused, only: String) -> void:
 		check(lap_t != INF and lap2 != INF and absf(lap2 / want - 1.0) < 0.025, "driver: on the physics, two flying laps in %s and %s (its line at its pace, as the far cars run it: %s, %+.1f %%; %.0f s game in %.0f s)" % [
 			_fmt(lap_t), _fmt(lap2), _fmt(want), (lap2 / want - 1.0) * 100.0 if lap2 != INF else 0.0, t, (Time.get_ticks_msec() - t_wall) / 1000.0])
 		check(off_t < 0.5, "driver: on the track the whole way (%.1f s with all four wheels off, the widest %.1f m past the line)" % [off_t, worst_d])
+	if cls == "formula" and only in ["", "driver", "formula"]:
+		# DRS and the hybrid on the physics: down the pit straight from the HOOK's exit to the end of
+		# DRS zone 1 twice, first with both off, then the flap open and the MGU-K deploying
+		field.near_max = 1
+		field.pin_near = true
+		var tops: Array = []
+		var used := 0.0
+		for run in 2:
+			drv.task = "race"
+			drv.pit_phase = ""
+			var s0: float = 4470.0 + L * (4 + run)
+			drv.s = s0
+			drv.d = drv.line.d_at(s0)
+			drv.v = drv.line.speed_at(s0)
+			field._go_near(drv)
+			c.place(st.world_at(s0, drv.d), st.heading_at(s0))
+			c.set_rolling(drv.v)
+			c.race.drs_auto = false
+			c.race.ers_mode = 0 if run == 0 else 1
+			c.race.ers_store = c.race.ERS_STORE
+			c.race.ers_used = 0.0
+			var top := 0.0
+			var t := 0.0
+			while drv.s < s0 + 880.0 and t < 30.0:
+				c.race.drs_open = run == 1 and c.race.drs_avail
+				await physics_frame
+				t += dt
+				top = maxf(top, absf(c.speed))
+			tops.append(top)
+			if run == 1:
+				used = c.race.ers_used
+		var gain: float = (tops[1] - tops[0]) * 3.6
+		check(gain > 8.0 and gain < 40.0, "formula: down the pit straight %.0f km/h with DRS shut and the hybrid off, %.0f with the flap open and the MGU-K deploying (+%.0f km/h: DRS's +10-12 km/h, the FIA's figure, and 120 kW more)" % [tops[0] * 3.6, tops[1] * 3.6, gain])
+		check(used > 0.4e6 and used <= c.race.ERS_DEPLOY_LAP, "formula: the MGU-K deployed %.2f MJ down it (never more than 4 MJ a lap)" % (used / 1.0e6))
 	if only in ["", "far"]:
 		# far: moved along the line, timed the same way
 		field.near_max = 0
@@ -637,7 +749,8 @@ func _race() -> void:
 	var Game = load("res://scripts/game.gd")
 	var g = Game.new()
 	root.add_child(g)
-	var o: Dictionary = Modes.track_opts(9, "gt", "race", 2, "cinder_ridge", {"opponents": 5, "difficulty": "medium", "start": "standing", "grid": "back"})
+	# (a Formula race: 3 laps, DRS enabled from the third)
+	var o: Dictionary = Modes.track_opts(9, cls, "race", 3 if cls == "formula" else 2, "cinder_ridge", {"opponents": 5, "difficulty": "medium", "start": "standing", "grid": "back"})
 	var t0 := Time.get_ticks_msec()
 	await g.start(9, 1, o)
 	var st = g.st
@@ -656,6 +769,9 @@ func _race() -> void:
 	var orders: Array = []
 	var t_wall := Time.get_ticks_msec()
 	var hits := 0
+	var drs_on := false
+	var drs_open := {}
+	var ers_max := 0.0
 	for id in g.field.cars:
 		g.field.cars[id].hit.connect(func(imp: float): hits += 1 if imp > 6.0 else 0)
 	while t < 900.0 and g.state == "running":
@@ -670,6 +786,14 @@ func _race() -> void:
 			var ord: Array = rc.order(g._last_pos)
 			if orders.is_empty() or orders[-1] != ord:
 				orders.append(ord)
+		if rc.drs_enabled:
+			drs_on = true
+		for id in g.field.cars:
+			var fc = g.field.cars[id]
+			if fc.race:
+				if fc.race.drs_open or (fc.race.drs_avail and not g.field.near.has(id)):
+					drs_open[id] = true
+				ers_max = maxf(ers_max, float(fc.race.ers_used))
 	var rc = g.race_ctl
 	check(lights == [1, 2, 3, 4, 5] and green > 4.0 and green < 8.0, "race: the lights (%s), out at %.1f s" % [str(lights), green])
 	check(rc._has_pen(me, "jump") == false and g.field.drivers.all(func(d): return not rc._has_pen(d.id, "jump")), "race: nobody jumped the start")
@@ -690,6 +814,10 @@ func _race() -> void:
 			mono = false
 	check(mono and res.size() == 6, "race: the classification in order of laps and time (%s)" % str(res.map(func(r): return "%s %s" % [r.name, _fmt(float(r.total))])))
 	check(hits <= 6, "race: %d hard hits between the AI cars and anything (racing, not crashing)" % hits)
+	if cls == "formula":
+		check(drs_on, "race: DRS enabled from the third lap")
+		print("[raceai] info race: %d of 5 AI cars used DRS (within a second of another at a detection point)" % drs_open.size())
+		check(ers_max > 0.5e6 and ers_max <= 4.0e6, "race: the AI deploy their hybrids (up to %.2f MJ in a lap; never past 4)" % (ers_max / 1.0e6))
 	check(not g.race_rows.is_empty() and g._results.visible and str(g._results_label.text).contains("RACE  P"), "race: the results show your place and the classification (%s)" % str(g._results_label.text).split("\n")[0])
 	g.queue_free()
 	await process_frame

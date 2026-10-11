@@ -154,25 +154,28 @@ const STREET := {
 	"elfer_rs": [1.24, "cup"], "uno": [1.22, "cup"], "ghost": [1.2, "cup"], "vento": [1.12, "cup"], "centuria": [1.12, "cup"],
 	"elfer_r": [1.6, "slick"], "elfer_evo": [1.6, "slick"], "affalter": [1.6, "slick"], "biscione": [1.45, "slick"], "bolt16": [1.6, "slick"],
 	"gtp963": [1.7, "slick"], "vsr": [1.7, "slick"],
+	"haldane": [1.6, "slick"], "vespera": [1.6, "slick"], "valko": [1.6, "slick"], "stiletto": [1.6, "slick"],
+	# FORMULA APEX: 18 in slicks on an 800 kg car (~1.7 g before the wings: they add 2-3 x the weight at speed)
+	"orion": [1.7, "formula"], "zephyr": [1.7, "formula"],
 	# rally cars on tarmac rally tyres (near-slicks today, narrower then)
 	"ocelot": [1.25, "cup"], "kestrel": [1.18, "cup"], "comet": [1.2, "cup"], "vortex": [1.2, "cup"],
 	"kaiser": [1.1, "cup"], "martello": [1.08, "cup"], "sedici": [1.1, "cup"], "vierrad": [1.08, "cup"],
 }
-const STREET_ROLE := {"race_prototype": [1.7, "slick"], "track": [1.22, "cup"], "hypercar": [1.12, "cup"],
+const STREET_ROLE := {"race_prototype": [1.7, "slick"], "track": [1.22, "cup"], "hypercar": [1.12, "cup"], "formula": [1.7, "formula"],
 	"rally": [1.15, "cup"]}
 ## SIM STREET's factory ABS (as Assetto Corsa's "factory" aids): on for the cars
 ## that have it as standard (today's road cars, GT3 race cars), off for these: the
 ## classics (1970s-80s, and early-90s cars where it was an option), the prototypes,
 ## and the rally cars (role "rally"; their rules ban it). Settings' ANTI-LOCK
 ## switch still turns it on for every car.
-const NO_ABS := ["brawler", "hako", "hachi", "kitsune", "rotora_fc", "nimbus", "biscione", "gtp963", "vsr"]
+const NO_ABS := ["brawler", "hako", "hachi", "kitsune", "rotora_fc", "nimbus", "biscione", "gtp963", "vsr", "orion", "zephyr"]
 ## ... and factory traction control: today's road cars (2010s on), the hypercars, the
 ## GT3 cars and the prototypes have it; the classics, the 1990s cars and the rally
 ## cars don't. Off in the touge's DRIFT rules (drifters switch it off); Settings'
 ## TRACTION CONTROL still turns it on for every car.
 const FACTORY_TC := ["akatsuki", "raiden", "hellhound", "hellhound_s", "kaiser_2", "kaiser_4", "kaiser_8", "kaiser_t",
 	"kombi", "gls", "mochi", "traffic_sedan", "traffic_crossover", "traffic_minivan", "elfer_rs", "uno", "ghost",
-	"centuria", "vento", "bolt16", "elfer_r", "elfer_evo", "affalter", "gtp963", "vsr",
+	"centuria", "vento", "bolt16", "elfer_r", "elfer_evo", "affalter", "gtp963", "vsr", "haldane", "vespera", "valko", "stiletto",
 	"stromer", "warhawk", "pueblo", "kaiser_5x", "kaiser_7x", "kasten"]
 
 

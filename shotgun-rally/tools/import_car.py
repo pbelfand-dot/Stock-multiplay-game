@@ -79,7 +79,11 @@ The spec (tools/cars/<id>.json) says what's what in the model:
     "height": m, "lean": degrees}}: a lever made for it (rod, knob, leather
     boot) standing on the tunnel there, its knob that high, leaning back that
     far (10), "handbrake": the same (+ "pivot": "rear", "front" or "bottom"),
-    "gearbox": "h4" / "h5" / "h6" (an H-pattern), "seq", "auto", "eye": [x, y, z]
+    "gearbox": "h4" / "h5" / "h6" (an H-pattern), "seq", "auto"; a single-seater's wheel
+    modelled without one: "wheel": {"add": {"at": [x, y, z], "width": m, "tilt": degrees}} (a race
+    wheel made for it: a carbon yoke with two grips and a screen, its top leaning back toward the
+    driver that far), "seats": 1 (no co-driver), "pose": "formula" (the driver lies back, legs out
+    flat in front: the game poses them so), "eye": [x, y, z]
     (else from its seat: rays onto its cushion and its back), "mirror": {"mats",
     "box"}: the rear-view mirror's glass (the game shows the road behind in it)}. Each is cut out
     as SteeringWheel / Shifter / Handbrake, its origin at its pivot, and
@@ -1110,6 +1114,67 @@ def split_out(name, what):
     return j
 
 
+def add_formula_wheel(what):
+    """A single-seater's steering wheel for a cockpit modelled without one ({"at": [x, y, z]
+    its centre, "width": m across the grips, "tilt": degrees its top leans back toward the
+    driver}): a flat carbon yoke, rounded, a grip down each side, a screen in the middle and
+    a stub of column (the SteeringWheel part). Returns the part, its axis (toward the driver)
+    and the grips' radius (the hands' quarter to three)."""
+    at = Vector(what["at"])
+    half = float(what.get("width", 0.27)) * 0.5
+    tilt = math.radians(float(what.get("tilt", 15.0)))
+    n = Vector((0.0, -math.cos(tilt), math.sin(tilt)))         # toward the driver
+    up = Vector((0.0, math.sin(tilt), math.cos(tilt)))         # up the wheel's face
+    right = Vector((1.0, 0.0, 0.0))
+    frame = Matrix((right, up, n)).transposed().to_4x4()      # (local x right, y up its face, z toward the driver)
+    frame.translation = at
+    mats = {}
+    for name, p in (("steer_carbon", {"color": [0.03, 0.03, 0.035], "metal": 0.1, "rough": 0.4}),
+            ("steer_grip", {"color": [0.02, 0.02, 0.02], "rough": 0.9}),
+            ("steer_screen", {"color": [0.02, 0.05, 0.07], "rough": 0.15, "emit": [0.05, 0.25, 0.35]}),
+            ("steer_button", {"color": [0.8, 0.12, 0.05], "rough": 0.5})):
+        mats[name] = bpy.data.materials.new(name)
+        spec.setdefault("materials", []).insert(0, ["^%s$" % name, p])
+    bm = bmesh.new()
+    def box(c, size, mi, rot=None):
+        m = frame @ Matrix.Translation(Vector(c)) @ (rot or Matrix.Identity(4)) @ Matrix.Diagonal((size[0], size[1], size[2], 1.0))
+        r = bmesh.ops.create_cube(bm, size=1.0, matrix=m)
+        for f in {f for v in r["verts"] for f in v.link_faces}:
+            f.material_index = mi
+    # the yoke: a wide plate, its lower corners cut back (a few boxes give the shape)
+    box((0.0, 0.0, 0.0), (half * 1.55, 0.11, 0.028), 0)
+    box((0.0, 0.035, 0.0), (half * 1.2, 0.07, 0.03), 0)
+    box((0.0, -0.06, -0.004), (half * 0.9, 0.04, 0.026), 0)
+    # the grips: down each side, a little toed in at the bottom
+    for sx in (-1.0, 1.0):
+        rot = Matrix.Rotation(sx * math.radians(-8.0), 4, 'Z')
+        bmesh.ops.create_cone(bm, cap_ends=True, segments=12, radius1=0.021, radius2=0.021, depth=0.125,
+            matrix=frame @ Matrix.Translation(Vector((sx * half, -0.005, 0.004))) @ rot @ Matrix.Rotation(math.radians(90.0), 4, 'X'))
+        for f in bm.faces:
+            if f.material_index == 0 and not f.tag and all((frame.inverted() @ v.co).x * sx > half - 0.024 for v in f.verts):
+                f.material_index = 1
+                f.tag = True
+    # the screen and the buttons (on the driver's face of it)
+    box((0.0, 0.012, 0.017), (0.1, 0.05, 0.006), 2)
+    for bx, by in ((-0.07, 0.03), (0.07, 0.03), (-0.07, -0.02), (0.07, -0.02)):
+        box((bx, by, 0.017), (0.016, 0.016, 0.008), 3)
+    # the column's stub (the quick release) behind it
+    bmesh.ops.create_cone(bm, cap_ends=True, segments=12, radius1=0.028, radius2=0.022, depth=0.07,
+        matrix=frame @ Matrix.Translation(Vector((0.0, 0.0, -0.045))))
+    me = bpy.data.meshes.new("SteeringWheel")
+    bm.to_mesh(me)
+    bm.free()
+    o = bpy.data.objects.new("SteeringWheel", me)
+    bpy.context.collection.objects.link(o)
+    for mn in ("steer_carbon", "steer_grip", "steer_screen", "steer_button"):
+        o.data.materials.append(mats[mn])
+    s = o.data.attributes.new("solo", 'INT', 'FACE')        # (the body's budget leaves it whole)
+    s.data.foreach_set("value", [1] * len(o.data.polygons))
+    meshes.append(o)
+    print("cockpit: a race wheel added at %s, %.0f mm across, tilted %.0f deg" % (tuple(round(c, 3) for c in at), half * 2000, math.degrees(tilt)))
+    return o, n, half
+
+
 def add_shifter(what, top):
     """A gear lever for an interior modelled without one ({"at": [x, y], "height": m,
     "lean": degrees}): a rod and a knob (the Shifter part) standing on what's under
@@ -1210,9 +1275,18 @@ cockpit = spec.get("cockpit")
 cock_parts = {}                    # name -> (object, pivot in the car's frame)
 if cockpit:
     cock = {"gearbox": cockpit.get("gearbox", "h5")}
+    if "seats" in cockpit:
+        cock["seats"] = int(cockpit["seats"])         # (1: a single-seater, no co-driver)
+    if "pose" in cockpit:
+        cock["pose"] = str(cockpit["pose"])           # ("formula": the driver lies back)
     # the steering wheel: its axis is the way it's thinnest (toward the driver); the rim
     # is its outer ring: the plane and the radius the gloves grip
-    w = split_out("SteeringWheel", cockpit["wheel"])
+    if "add" in cockpit["wheel"]:
+        w, n_add, r_add = add_formula_wheel(cockpit["wheel"]["add"])
+        cockpit["wheel"]["axis"] = list(n_add)
+        cockpit["wheel"]["radius"] = r_add
+    else:
+        w = split_out("SteeringWheel", cockpit["wheel"])
     v = verts(w)
     c0, ax = pca(v)
     n = ax[0] if ax[0].y < 0 else -ax[0]              # toward the driver: back (and up)

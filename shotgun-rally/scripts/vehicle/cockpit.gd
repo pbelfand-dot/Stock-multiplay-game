@@ -27,6 +27,11 @@ extends Node3D
 ## map board on the other side), the gloves grip and turn its own wheel, and the
 ## hand nearer the middle works its own gear lever and handbrake (driver_hands.gd
 ## use_model: an automatic shifts itself). The mud goes on its windshield.
+##
+## A single-seater (parts.json cockpit "seats": 1: a Formula car) has the driver alone: no
+## co-driver, no map board in sight, no windshield (no mud, no wipers); with "pose":
+## "formula" the driver lies back in the tub, legs out flat in front, the helmet up in the air
+## under the halo (crew_model.gd recline).
 
 const MapBoard = preload("res://scripts/vehicle/map_board.gd")
 const CrewModel = preload("res://scripts/vehicle/crew_model.gd")
@@ -95,6 +100,9 @@ var _shift_leds: Array = []                    # their materials, left to right
 var _trip_label: Label3D
 var _mats := {}
 var own := {}                                  # the car's own interior (parts.json "cockpit"); {}: ours
+var solo := false                              # a single-seater: the driver alone (own "seats": 1)
+var reclined := false                          # its driver lies back (own "pose": "formula")
+var _mud_quad: MeshInstance3D
 var dash                                       # DashLive: its instruments live (data/dash/<model>.json), the dome light, the warning lamps
 var eye_driver := EYE_DRIVER                   # where the crew's eyes are, and the rest of the layout
 var eye_codriver := EYE_CODRIVER
@@ -107,6 +115,8 @@ var ws_w := WS_W
 var wiper_x: Array = WIPER_X
 var _wheel_axis := Vector3(0.0, -sin(WHEEL_TILT), cos(WHEEL_TILT))   # toward the driver
 const HIPS := Vector3(0.0, -0.72, 0.02)        # a crew member's hips from their eyes (the cartoon crew, x1.2)
+const HIPS_RECLINED := Vector3(0.0, -0.6, -0.3)  # lying back in a single-seater: the hips well below and ahead of the eyes
+const HEAD_FROM_EYE := Vector3(0.0, -0.07, 0.07) # the head's joint (the top of the neck) from the eyes: a little down and back
 const BOARD := Vector3(-0.01, -0.35, -0.26)    # the map board from the co-driver's eyes (on the right: x mirrors)
 const SEAT_SLIDE := 0.32                       # m the driver may slide their seat forward to reach its wheel (the seat probe can land on a thin seat's back: some room past a real seat track)
 const WHEEL_CLEAR := 0.46                      # m the wheel's centre stays from their eyes, at the closest
@@ -120,6 +130,8 @@ signal wiper_stroke
 func build(the_car, stage) -> void:
 	car = the_car
 	own = car.cockpit_info() if car.has_method("cockpit_info") else {}
+	solo = int(own.get("seats", 2)) == 1
+	reclined = str(own.get("pose", "")) == "formula"
 	if own.is_empty():
 		_shell()
 		_dash()
@@ -131,8 +143,8 @@ func build(the_car, stage) -> void:
 		_own_mirror()
 	_windshield()
 	_crew()
-	if not own.is_empty():
-		_reach_wheel()
+	if not own.is_empty() and not reclined:
+		_reach_wheel()                               # (a single-seater's driver is where its eyes are given)
 	hands = DriverHands.new()
 	hands.suit_colour = SUIT_D
 	add_child(hands)
@@ -147,6 +159,12 @@ func build(the_car, stage) -> void:
 	var sx := signf(eye_codriver.x)
 	map_board.position = eye_codriver + Vector3(BOARD.x * sx, BOARD.y, BOARD.z) * _crew_k()
 	map_board.rotation = Vector3(deg_to_rad(-52.0), deg_to_rad(4.0) * sx, 0.0)
+	if solo:
+		map_board.sleep()                            # (nobody to read it: kept for the stage's distance, out of sight)
+		_mud_quad.visible = false                    # (an open cockpit: no glass for the mud, no wipers)
+		for arm in _wiper_pivots:
+			arm.queue_free()
+		_wiper_pivots.clear()
 	_bake_static()
 	_harnesses()
 	dash = DashLive.new()
@@ -929,6 +947,7 @@ func _windshield() -> void:
 	q.material_override = _mud_mat
 	q.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(q)
+	_mud_quad = q
 	_mud_mat.set_shader_parameter("size_m", Vector2(ws_w, h))
 	_mud_mat.set_shader_parameter("pivots", PackedVector2Array([Vector2(wiper_x[0], 0.04), Vector2(wiper_x[1], 0.04)]))
 	_mud_mat.set_shader_parameter("reach", WIPER_REACH * ws_w / WS_W)
@@ -1034,16 +1053,18 @@ void fragment() {
 
 func _crew() -> void:
 	var ok := true
-	for seat in ["driver", "codriver"]:
+	for seat in (["driver"] if solo else ["driver", "codriver"]):
 		var m := CrewModel.new()
 		m.scale_k = CrewModel.SCALE * _crew_k()
 		if not own.is_empty():
 			m.thigh_y = 0.04                         # (on its seat's cushion, not through it)
+		if reclined and seat == "driver":
+			m.recline = 1.0                          # (lying back in a single-seater's tub)
 		m.own_layer = 2 if seat == "driver" else 3
 		m.suit_colour = SUIT_D if seat == "driver" else SUIT_C
 		add_child(m)
 		if m.load_model("res://assets/models/%s.glb" % seat):
-			m.seat_at(eye_for(seat) + HIPS * _crew_k())
+			m.seat_at(eye_for(seat) + (HIPS_RECLINED if m.recline > 0.0 else HIPS) * _crew_k())
 			# the co-driver never sees their own body: it would sit between their eyes and
 			# the map board in their lap (the co-driver's camera leaves layer 3 out)
 			if seat == "codriver":
@@ -1067,6 +1088,13 @@ func _harnesses() -> void:
 	hands.update(0.0, 0.0, false)
 	if _models.has("driver"):
 		_models.driver.pose(hands.wrists, Vector3(0.35, -0.6, 0.15))
+		if reclined:
+			# lying back, the pose's head lands where it lands: the body moved so the helmet's
+			# where the eyes are (the camera, the halo's clearance), then posed again from there
+			var m = _models.driver
+			m.position += eye_driver + HEAD_FROM_EYE - m.bone("Head")
+			m.moved()
+			m.pose(hands.wrists, Vector3(0.35, -0.6, 0.15))
 	if _models.has("codriver") and map_board:
 		var board: Array = [map_board.transform * Vector3(-0.15, -0.05, 0.02), map_board.transform * Vector3(0.15, -0.05, 0.02)]
 		_models.codriver.pose(board, Vector3(0.3, -0.6, 0.25), 0.9)
@@ -1086,7 +1114,7 @@ func set_my_seat(seat: String) -> void:
 
 
 func _box_crew() -> void:
-	for seat in ["driver", "codriver"]:
+	for seat in (["driver"] if solo else ["driver", "codriver"]):
 		var e := eye_for(seat)
 		var suit: Color = SUIT_D if seat == "driver" else SUIT_C
 		_box(Vector3(0.4, 0.5, 0.24), e + Vector3(0.0, -0.5, 0.14), suit, Vector3(deg_to_rad(-10.0), 0, 0))     # torso
@@ -1166,7 +1194,7 @@ func _process(dt: float) -> void:
 			_arm("driver" + side, sh, wheel_hands[k], sh + Vector3(-0.3 if side == "l" else 0.3, -0.5, 0.0))
 	# co-driver holds the map board by its sides
 	var board_hands: Array = []
-	if map_board:
+	if map_board and not solo:
 		for side in ["l", "r"]:
 			var hand: Vector3 = map_board.transform * Vector3(-0.15 if side == "l" else 0.15, -0.05, 0.02)
 			board_hands.append(hand)

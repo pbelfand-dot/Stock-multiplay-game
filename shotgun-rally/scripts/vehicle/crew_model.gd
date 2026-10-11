@@ -11,6 +11,8 @@ extends Node3D
 const SCALE := 1.2              # the cartoon crew is small for the cabin
 var scale_k := SCALE            # (a car's own interior is real size: 1, set before load_model)
 var thigh_y := -0.2             # the thighs' slope seated (up +): a car's own seat tilts them level
+var recline := 0.0              # 0 sat up (a saloon's seat) .. 1 lying back in a single-seater's tub: the back
+                                # ~50 deg off the horizontal, the head up to look over the nose, the legs out flat
 const FOREARM_SLIM := 0.6       # the driver's forearms, thinned to fit the gloves' gauntlets
 const HAND_CUT := 0.035         # m up the forearm from the wrist: where the driver's sleeves end (under the gauntlets)
 
@@ -183,6 +185,11 @@ func seat_at(hips: Vector3) -> void:
 	_update_to_skel()
 	var at: Vector3 = _to_skel.affine_inverse() * skel.get_bone_global_pose(_b.Hips).origin
 	position += hips - at
+	_update_to_skel()
+
+
+## After moving the model by hand (its position): the pose's frame follows.
+func moved() -> void:
 	_update_to_skel()
 
 
@@ -395,14 +402,22 @@ func pose(hands: Array, elbow_out: Vector3, legs_fwd := 1.0) -> void:
 		skel.set_bone_pose_rotation(i, skel.get_bone_rest(i).basis.get_rotation_quaternion())
 	for arm in ["LeftForeArm", "RightForeArm"]:
 		skel.set_bone_pose_scale(_b[arm], _fore_base)
-	# lean the back a little forward toward the wheel
-	_aim("Spine02", "Spine01", Vector3(0.0, 1.0, -0.12))
-	# sitting
+	# lean the back a little forward toward the wheel (or lying back in a single-seater: the
+	# lower back along the seat, the chest a little more upright, the neck bent so the
+	# head's up looking over the nose)
+	if recline > 0.0:
+		_aim("Spine02", "Spine01", Vector3(0.0, 1.0, -0.12).lerp(Vector3(0.0, 0.62, 0.78), recline))
+		_aim("Spine01", "neck", Vector3(0.0, 1.0, 0.0).lerp(Vector3(0.0, 0.8, 0.6), recline))
+		_aim("neck", "Head", Vector3(0.0, 1.0, 0.0).lerp(Vector3(0.0, 1.0, -0.05), recline))
+	else:
+		_aim("Spine02", "Spine01", Vector3(0.0, 1.0, -0.12))
+	# sitting (lying back: the thighs rising a little to the knees, the shins out flat to the
+	# pedals in the nose, the toes up on them)
 	for side in ["Left", "Right"]:
 		var out := -1.0 if side == "Left" else 1.0
-		_aim(side + "UpLeg", side + "Leg", Vector3(out * 0.1, thigh_y, -1.0))
-		_aim(side + "Leg", side + "Foot", Vector3(out * 0.02, -0.75, -0.55 * legs_fwd))
-		_aim(side + "Foot", side + "ToeBase", Vector3(0.0, -0.25, -1.0))
+		_aim(side + "UpLeg", side + "Leg", Vector3(out * 0.1, lerpf(thigh_y, 0.24, recline), -1.0))
+		_aim(side + "Leg", side + "Foot", Vector3(out * 0.02, lerpf(-0.75, -0.14, recline), lerpf(-0.55 * legs_fwd, -1.0, recline)))
+		_aim(side + "Foot", side + "ToeBase", Vector3(0.0, -0.25, -1.0).lerp(Vector3(0.0, 0.55, -0.8), recline))
 	# hands
 	_ik("LeftArm", "LeftForeArm", "LeftHand", hands[0], hands[0] + Vector3(-elbow_out.x, elbow_out.y, elbow_out.z))
 	_ik("RightArm", "RightForeArm", "RightHand", hands[1], hands[1] + elbow_out)

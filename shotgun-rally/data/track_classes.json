@@ -4,7 +4,15 @@
   "name": "GT",
   "series": "APEX GT CHALLENGE",
   "blurb": "Closed-wheel GT3 machinery: heavy, electronic aids (ABS, traction control), rolling starts.",
-  "cars": ["elfer_r", "elfer_evo", "affalter"],
+  "cars": [
+   "elfer_r",
+   "elfer_evo",
+   "affalter",
+   "haldane",
+   "vespera",
+   "valko",
+   "stiletto"
+  ],
   "default": "elfer_r",
   "start": "rolling",
   "available": true
@@ -12,10 +20,13 @@
  "formula": {
   "name": "FORMULA",
   "series": "FORMULA APEX",
-  "blurb": "Open-wheel single-seaters: huge downforce, slicks, DRS and energy deployment, standing starts.",
-  "cars": [],
-  "default": "",
+  "blurb": "Open-wheel single-seaters: 800 kg, huge downforce, slicks, DRS and energy deployment, standing starts. No ABS or traction control.",
+  "cars": [
+   "orion",
+   "zephyr"
+  ],
+  "default": "orion",
   "start": "standing",
-  "available": false
+  "available": true
  }
 }

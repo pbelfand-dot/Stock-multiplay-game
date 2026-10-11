@@ -143,12 +143,15 @@ static func arcade(cfg: Resource, rear := false) -> Resource:
 ## street tyres keep ~85 %), the slip ratio peaking at 10-15 %, and a road tyre's
 ## load sensitivity (Milliken: twice the load, ~12 % less grip per newton). On
 ## gravel or grass a road tyre is poor (x0.7).
-## kind: "street", "cup" (Cup 2 / R-compound road tyres), "slick".
+## kind: "street", "cup" (Cup 2 / R-compound road tyres), "slick", "formula" (a single-seater's).
 const STREET_CAL := 1.08
 const STREET_KINDS := {
 	"street": {"peak_deg": 7.5, "keep": 0.85, "long_peak": 0.12, "keep_long": 0.8, "load": 0.12, "brake": 1.1},
 	"cup": {"peak_deg": 6.0, "keep": 0.82, "long_peak": 0.1, "keep_long": 0.78, "load": 0.15, "brake": 1.05},
 	"slick": {"peak_deg": 4.5, "keep": 0.78, "long_peak": 0.09, "keep_long": 0.75, "load": 0.2, "brake": 1.0},
+	# a Formula car's slick: peaking earlier still, sharper past it, and built for the downforce's loads
+	# (rated at 4 kN a tyre by its chassis class: its grip per newton falls only slowly as the wings load it)
+	"formula": {"peak_deg": 4.0, "keep": 0.74, "long_peak": 0.08, "keep_long": 0.72, "load": 0.1, "brake": 1.0},
 }
 static func street(cfg: Resource, g: float, kind := "street") -> Resource:
 	var asphalt: Resource = load("res://scripts/vehicle/physics/surfaces.gd").named("asphalt")

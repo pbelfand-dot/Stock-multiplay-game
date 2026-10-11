@@ -1655,6 +1655,18 @@ func _track_tick(dt: float) -> void:
 		if use_autopilot and race_ctl == null:         # (the autopilot drives the lane on the limiter, as a driver would)
 			car.race.limiter = st.in_pit_limit(car_s, car_d) or (pit and st.around_line(car_s) < float(st.pit.s_lim0) + 20.0 and st.around_line(car_s) > float(st.pit.s_in1))
 		car.race.limiter_kmh = float(st.pit.limit_kmh)
+		# DRS: race control says when it may open (practice: anywhere in a zone); the driver opens it
+		car.race.drs_avail = race_ctl.drs_state(Net.my_id(), car_s) if race_ctl else st.drs_zone(fposmod(car_s, st.length)) >= 0
+		car.race.drs_auto = use_autopilot
+		if use_autopilot and (car.race.abs_level == 0 or car.race.tc_level == 0):
+			car.race.abs_level = 6                       # (the autopilot's feet: the aids stand in for them, as the AI's: RaceField)
+			car.race.tc_level = 6
+			car._set_aids()
+		if my_seat == "driver" and Input.is_action_just_pressed("drs"):
+			car.race.drs_press()
+		if my_seat == "driver" and car.race.ers_kw > 0.0 and Input.is_action_just_pressed("ers_mode"):
+			car.race.ers_cycle()
+			_flash("ERS  %s" % car.race.ERS_MODES[car.race.ers_mode], Color(0.4, 0.85, 1.0))
 		if _race_hud == null and _hud:                  # (the car's panel: once the HUD is up)
 			_race_hud = RaceHud.new()
 			_hud.add_child(_race_hud)
@@ -1672,6 +1684,11 @@ func _track_tick(dt: float) -> void:
 	if race_ctl:
 		race_ctl.tick(dt, pos)
 		_last_pos = pos
+		if field:
+			for id in field.cars:                    # (the AI's DRS: each opens it when it may, flat out)
+				var fc = field.cars[id]
+				if fc.race and pos.has(id):
+					fc.race.drs_avail = race_ctl.drs_state(id, float(pos[id].s))
 		_race_events()
 		_update_tower(pos)
 		_my_pit(dt, pit)

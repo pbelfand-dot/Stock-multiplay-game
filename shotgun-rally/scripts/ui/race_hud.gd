@@ -3,7 +3,8 @@ extends Control
 ## above, each coloured by where its temperature sits against the compound's window (blue cold,
 ## green in it, red hot) with its surface temperature, a wear bar and its hot pressure; the
 ## compound; the brakes' heat (front, rear); the fuel and the laps it's good for; the car's
-## ABS and TC levels; PIT LIMITER when it's on.
+## ABS and TC levels (a Formula car: its hybrid's charge and mode instead, none of either); PIT
+## LIMITER when it's on; DRS (a Formula car): grey, white when it may open, green open.
 
 const UI = preload("res://scripts/ui/ui_kit.gd")
 const COLD := Color(0.3, 0.55, 1.0)
@@ -16,6 +17,7 @@ var _brakes: Label
 var _fuel: Label
 var _aids: Label
 var _limiter: Label
+var _drs: Label
 
 
 func _ready() -> void:
@@ -55,6 +57,9 @@ func _ready() -> void:
 	_limiter = _label(Vector2(14, -34), 24)
 	_limiter.add_theme_color_override("font_color", Color(1.0, 0.85, 0.2))
 	_limiter.text = "PIT LIMITER"
+	_drs = _label(Vector2(200, -34), 24)
+	_drs.text = "DRS"
+	_drs.visible = false
 
 
 func _label(at: Vector2, size: int) -> Label:
@@ -87,5 +92,12 @@ func show_state(r: Dictionary, race, fuel_per_lap := 0.0) -> void:
 	if fuel_per_lap > 0.1:
 		laps = "  ·  %d LAPS" % floori(float(r.fuel) / fuel_per_lap)
 	_fuel.text = "FUEL %.1f L%s" % [float(r.fuel), laps]
-	_aids.text = "ABS %s  TC %s" % [str(r.abs) if int(r.abs) > 0 else "OFF", str(r.tc) if int(r.tc) > 0 else "OFF"]
+	if bool(r.get("ers", false)):
+		_aids.text = "ERS %d%%  %s  ·  LAP %d%%" % [roundi(float(r.ers_store) * 100.0), str(r.ers_mode), roundi(float(r.ers_left) * 100.0)]
+		_aids.add_theme_color_override("font_color", Color(0.4, 1.0, 0.5) if bool(r.ers_on) else Color.WHITE)
+		_drs.visible = true
+		_drs.add_theme_color_override("font_color", Color(0.3, 1.0, 0.4) if bool(r.drs_open) else (Color.WHITE if bool(r.drs_avail) else Color(0.45, 0.45, 0.48)))
+		_drs.text = "DRS OPEN" if bool(r.drs_open) else "DRS"
+	else:
+		_aids.text = "ABS %s  TC %s" % [str(r.abs) if int(r.abs) > 0 else "OFF", str(r.tc) if int(r.tc) > 0 else "OFF"]
 	_limiter.visible = bool(r.get("limiter", false))

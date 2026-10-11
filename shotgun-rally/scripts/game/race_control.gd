@@ -28,6 +28,11 @@ extends RefCounted
 ##   * PIT LANE SPEEDING (over the limit between the lines): +5 s each time in a race;
 ##   * PIT EXIT LINE (back onto the track before the end of the exit's taper): +5 s in a race;
 ##   * qualifying: track limits and a yellow delete the lap (TrackSession), the rest are warnings.
+## DRS (the circuit's zones, CircuitGen.drs: each an activation zone and its detection point before
+## it), as Formula 1 ran it: in a race it's enabled two laps after the start (or a restart); a car
+## within a second of the car ahead of it on the road (lapped cars too) at a zone's detection point
+## may open its flap in that zone; never under a yellow in the zone, never under a red. In practice and
+## qualifying it's free in the zones. drs_state() says whether a car may open it now.
 
 const LIGHTS_GAP := 1.0            # s between the red lights coming on
 const PENALTY := 5.0               # s a time penalty adds
@@ -38,6 +43,11 @@ const STRICKEN_V := 8.0            # m/s: under this on the track (not on the gr
 const PACE_V := 22.2               # m/s: the rolling start's pace (80 km/h)
 const RED_HOLD := 15.0             # s of slow running under a red flag before the restart
 const MARK := 25.0                 # m between the timing marks the gaps are measured at
+const START_GRACE := 12.0          # s after the lights go out (or a restart): a car slow off its grid box
+                                   # throws no yellow, and the field sorting itself out round it isn't passing
+                                   # under one (the start's own chaos, not an offence)
+const DRS_GAP := 1.0               # s: within this of the car ahead at the detection point
+const DRS_AFTER := 2               # laps after the start (or a restart) it's enabled
 
 var st                             # CircuitGen
 var session                        # TrackSession
@@ -76,6 +86,12 @@ var _stricken := {}                # id -> true
 var _slow_t := {}                  # id -> s it's been crawling on the track
 var _line_checked := {}            # id -> true: its first crossing after a rolling start judged
 var _at_flag := {}                 # (qualifying) id -> [its laps, on an out-lap] when the flag fell
+var drs_enabled := false           # (a race) DRS on: two laps after the start or a restart
+var _drs_from := DRS_AFTER         # the leader's laps it's enabled from
+var _drs_ok := {}                  # id -> the zone it may open in (within the gap at its detection)
+var _drs_seen := {}                # zone -> {id: session time it last crossed the detection point}
+var _prev_s := {}                  # id -> s last tick
+var _since_go := 99.0              # s since the lights last went out
 
 
 func setup(stage, timing, opts: Dictionary, seed_value: int) -> void:
@@ -142,6 +158,7 @@ func tick(dt: float, cars: Dictionary) -> void:
 				hold = rng.randf_range(0.2, 3.0)
 	if phase in ["green", "chequered"]:
 		race_t += dt
+		_since_go += dt
 	if kind != "race":
 		if phase == "open" and session.time >= time_limit:
 			phase = "chequered"
@@ -149,6 +166,7 @@ func tick(dt: float, cars: Dictionary) -> void:
 	_marks_tick(cars)
 	_judge(dt, cars)
 	_flags(dt, cars)
+	_drs(cars)
 	if kind == "race":
 		_finishes(cars)
 	elif phase == "chequered":
@@ -182,7 +200,12 @@ func _quali_flag(cars: Dictionary) -> void:
 func _go() -> void:
 	phase = "green"
 	lights = 0
+	_since_go = 0.0
 	events.append({"id": null, "kind": "green"})
+	_drs_from = DRS_AFTER + (maxi(floori(float(_lead_s) / st.length), 0) if restarts > 0 else 0)
+	if drs_enabled:
+		drs_enabled = false
+		events.append({"id": null, "kind": "drs", "on": false, "text": "DRS DISABLED"})
 
 
 ## The car leading the race (the furthest round, finished cars first).
@@ -396,7 +419,7 @@ func _flags(dt: float, cars: Dictionary) -> void:
 	for id in cars:
 		var c: Dictionary = cars[id]
 		var slow: bool = running and not bool(c.get("pit", false)) and float(c.v) < STRICKEN_V and not finished.has(id) and not dnf.has(id) \
-			and not st.in_pit_lane(float(c.s), float(c.d))
+			and not st.in_pit_lane(float(c.s), float(c.d)) and not _leaving_grid(id, c)
 		_slow_t[id] = float(_slow_t.get(id, 0.0)) + dt if slow else 0.0
 		if float(_slow_t[id]) > 2.5:                   # (crawling for a while: not a car pulling away)
 			_stricken[id] = true
@@ -418,7 +441,7 @@ func _flags(dt: float, cars: Dictionary) -> void:
 		red_flag("THREE CARS STOPPED")
 	# passing under a yellow: the order changed between two cars both in a yellow's stretch
 	var now := order(cars)
-	if phase in ["green", "chequered", "open"] and kind == "race" and not _order.is_empty():
+	if phase in ["green", "chequered", "open"] and kind == "race" and not _order.is_empty() and _since_go >= START_GRACE:
 		for k in range(1, now.size()):
 			var a = now[k - 1]
 			var b = now[k]
@@ -449,9 +472,74 @@ func _flags(dt: float, cars: Dictionary) -> void:
 				blue[id] = float(o.d)
 
 
+## A car just after the start still on (or by) its grid box: slow away, not stricken.
+func _leaving_grid(id, c: Dictionary) -> bool:
+	if kind != "race" or _since_go >= START_GRACE or not spots.has(id):
+		return false
+	var p: Vector2 = spots[id]
+	return absf(float(c.s) - p.x) < 15.0
+
+
 ## Is there a yellow over s?
 func in_yellow(s: float) -> bool:
 	return yellows.has(floori(fposmod(s, st.length) / MICRO))
+
+
+# ── DRS ─────────────────────────────────────────────────────────────────────
+
+var _lead_s := 0.0                 # the leader's s (unwrapped) last tick
+
+
+## The detection points: a car crossing one is timed against the car that crossed it last before it
+## (the car ahead on the road, lapped or not); within DRS_GAP it may open in that zone this lap. DRS
+## is enabled (a race) from the leader's lap DRS_AFTER after the start, disabled under a red flag.
+func _drs(cars: Dictionary) -> void:
+	var zones: Array = st.drs if st and "drs" in st else []
+	var lead = _leader(cars)
+	if lead != null:
+		_lead_s = float(cars[lead].s)
+	if kind == "race":
+		var on := phase in ["green", "chequered"] and lead != null and floori(_lead_s / st.length) >= _drs_from
+		if on != drs_enabled:
+			drs_enabled = on
+			events.append({"id": null, "kind": "drs", "on": on, "text": "DRS ENABLED" if on else "DRS DISABLED"})
+	for id in cars:
+		var c: Dictionary = cars[id]
+		var s := float(c.s)
+		var was := float(_prev_s.get(id, s))
+		_prev_s[id] = s
+		if kind != "race" or bool(c.get("pit", false)) or dnf.has(id):
+			continue
+		for k in zones.size():
+			var det := float(zones[k].detect)
+			if floori((s - det) / st.length) <= floori((was - det) / st.length):
+				continue
+			# crossed zone k's detection point: against the car through it last
+			if not _drs_seen.has(k):
+				_drs_seen[k] = {}
+			var seen: Dictionary = _drs_seen[k]
+			var ahead := INF
+			for o in seen:
+				if o != id:
+					ahead = minf(ahead, session.time - float(seen[o]))
+			seen[id] = session.time
+			if ahead <= DRS_GAP:
+				_drs_ok[id] = k
+			elif int(_drs_ok.get(id, -1)) == k:
+				_drs_ok.erase(id)
+
+
+## Whether car id may open its DRS now (at s): in a zone; in a race, DRS enabled, within the gap at
+## that zone's detection point; never under a yellow there or a red.
+func drs_state(id, s: float) -> bool:
+	if st == null or not ("drs" in st):
+		return false
+	var k: int = st.drs_zone(fposmod(s, st.length))
+	if k < 0 or in_yellow(s) or phase == "red":
+		return false
+	if kind != "race":
+		return true
+	return drs_enabled and int(_drs_ok.get(id, -1)) == k
 
 
 ## A red flag: everyone slows, no passing, a standing restart from the order it's in.

@@ -95,6 +95,15 @@ func _board() -> void:
 	add_child(w)
 
 
+## Out of sight and not drawn (a single-seater has nobody to read it): its distance along
+## the stage (car_s) still kept.
+func sleep() -> void:
+	visible = false
+	set_process(false)
+	if _vp:
+		_vp.render_target_update_mode = SubViewport.UPDATE_DISABLED
+
+
 func _process(_dt: float) -> void:
 	if _map:
 		_map.queue_redraw()

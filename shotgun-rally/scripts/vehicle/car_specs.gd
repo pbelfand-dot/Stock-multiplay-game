@@ -31,7 +31,8 @@ const LSD := 2
 ## "awd" (front_share: the share forward), "rwd", "fwd"; centre / front_diff / rear:
 ## diffs [kind, power lock, coast lock, preload N m]; cd, area (m²), down (m² of
 ## downforce, x the rally car's way of working it out); brake: x the rally car's
-## brakes per kg.
+## brakes per kg. Optional: bias (the brakes' front share), balance (the downforce's),
+## shift (s: the gearbox's shift time), ers (kW: a hybrid's deployable motor, RaceSim).
 static var SPECS: Dictionary = VehicleRegistry.physics()
 
 ## What kind of car it is underneath ("chassis" in a spec; the rally car's own when
@@ -68,6 +69,12 @@ const CHASSIS := {
 		"mu": 1.3, "peak": 0.8, "loose": 0.55, "steer": 27.0},
 	"prototype": {"travel": 0.07, "us": 0.2, "ride": [2.9, 3.1], "roll": 0.8, "roll_front": 0.5, "cog": 0.34, "zeta": [0.5, 0.85], "room": 0.03,
 		"mu": 1.4, "peak": 0.75, "loose": 0.45, "steer": 24.0},
+	# an open-wheel single-seater (FORMULA APEX): stiff as a board on its springs and heave (a few cm of ride
+	# height, the floor's aero needs it held), the centre of mass at the driver's hips, small steering lock;
+	# slicks built for loads a GT3's never see: rated at 4 kN a tyre (load: N, the tyre's nominal), so the
+	# grip per newton holds up under 2-3 x the car's weight of downforce (sens: their load sensitivity)
+	"formula": {"travel": 0.06, "us": 0.15, "ride": [4.0, 4.3], "roll": 0.5, "roll_front": 0.52, "cog": 0.27, "zeta": [0.55, 0.9], "room": 0.035,
+		"mu": 1.45, "peak": 0.7, "loose": 0.35, "steer": 21.0, "load": 4000.0, "sens": 0.1},
 }
 
 
@@ -95,6 +102,10 @@ static func _chassis(c: Resource, kind: String) -> void:
 		t.lateral_peak_deg = t.lateral_peak_deg * k.peak
 		t.longitudinal_peak = t.longitudinal_peak * k.peak
 		t.loose_grip = t.loose_grip * k.loose
+	if k.has("load"):
+		for t in [c.front_tire, c.rear_tire]:
+			t.nominal_load = float(k.load)
+			t.load_sensitivity = float(k.get("sens", t.load_sensitivity))
 	if c.steering:
 		c.steering.max_angle_deg = k.steer
 	if k.has("cog"):                                  # (its height above the road, the car at rest on its springs)
@@ -256,10 +267,16 @@ static func config(model: String, mass := 0.0) -> Resource:
 			dc.power_lock = float(s[key][1])
 			dc.coast_lock = float(s[key][2])
 			dc.preload_torque = float(s[key][3])
+	if s.has("shift"):                              # (a race gearbox: a seamless shift's few hundredths)
+		d.shift_time = float(s.shift)
+	if s.has("bias"):                               # (the brakes' front share)
+		c.brake_bias = float(s.bias)
 	# aero
 	c.drag_coefficient = s.cd
 	c.frontal_area = s.area
 	c.downforce_area = s.down
+	if s.has("balance"):                            # (the downforce's front share)
+		c.aero_balance = float(s.balance)
 	_chassis(c, str(s.get("chassis", "rally")))      # (before the collision: the ride height depends on it)
 	# collision: the body up to the window line, the cabin above it (the car's frame:
 	# the ground ride_height below its origin)
