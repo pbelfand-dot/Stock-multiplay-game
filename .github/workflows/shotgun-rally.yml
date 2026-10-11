@@ -21,7 +21,7 @@ defaults:
 jobs:
   test:
     runs-on: ubuntu-latest
-    timeout-minutes: 45                # every test has its own limit too (run_all.sh): a hang fails with a log
+    timeout-minutes: 90                # (Track Mode's race tests took the suite past 45 min on a runner; each test has its own limit too: a hang fails with a log)
     steps:
       - uses: actions/checkout@v4
         with:

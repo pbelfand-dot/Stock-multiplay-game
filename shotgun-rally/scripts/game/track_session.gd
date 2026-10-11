@@ -33,7 +33,7 @@ func setup(stage, session_kind := "practice") -> void:
 func add_car(id, car_name: String, s_start: float, in_pits := true) -> void:
 	cars[id] = {"name": car_name, "laps": 0, "s_last": s_start, "s_max": s_start, "out_lap": true, "in_pits": in_pits,
 		"lap_t0": -1.0, "sector": 0, "sector_t0": -1.0, "cur": [], "valid": true, "best": INF, "best_sectors": [INF, INF, INF],
-		"last": INF, "last_valid": false, "history": [], "cuts": 0, "delta": INF}
+		"last": INF, "last_valid": false, "history": [], "cuts": 0, "delta": INF, "line_t": -1.0}
 	order.append(id)
 
 
@@ -80,6 +80,7 @@ func _advance(id, c: Dictionary, p: Dictionary, dt: float) -> void:
 
 ## The line: a timed lap ends (and a new one starts, unless it's in the pit lane: an out-lap).
 func _line(id, c: Dictionary, tc: float, pit: bool) -> void:
+	c.line_t = tc                                    # (when it crossed, to the tick's fraction: the race's finish times)
 	if not c.out_lap and c.lap_t0 >= 0.0:
 		var lap_t: float = tc - float(c.lap_t0)
 		var secs: Array = (c.cur as Array).duplicate()

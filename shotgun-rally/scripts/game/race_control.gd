@@ -247,6 +247,7 @@ func position(id, cars: Dictionary) -> int:
 func _finishes(cars: Dictionary) -> void:
 	if not phase in ["green", "chequered"]:
 		return
+	var crossing := []                               # [race time at the line, id]: this tick's finishers
 	for id in cars:
 		if finished.has(id) or dnf.has(id) or not session.cars.has(id):
 			continue
@@ -256,11 +257,17 @@ func _finishes(cars: Dictionary) -> void:
 			phase = "chequered"
 			events.append({"id": null, "kind": "chequered"})
 		if leader_done and laps > int(_crossed.get(id, -1)) and _crossed.has(id):
-			finished[id] = race_t
-			finish_order.append(id)
-			session.stopped[id] = true
-			events.append({"id": id, "kind": "finish", "time": race_t, "pos": finish_order.size()})
+			# the moment it crossed (the session's, between two ticks), not the tick's: two cars over the
+			# line in the same tick (1/120 s) don't share a time, and finish in the order they crossed
+			var line_t := float(session.cars[id].get("line_t", -1.0))
+			crossing.append([race_t - (clampf(session.time - line_t, 0.0, 1.0) if line_t >= 0.0 else 0.0), id])
 		_crossed[id] = laps
+	crossing.sort_custom(func(a, b): return a[0] < b[0])
+	for f in crossing:
+		finished[f[1]] = f[0]
+		finish_order.append(f[1])
+		session.stopped[f[1]] = true
+		events.append({"id": f[1], "kind": "finish", "time": f[0], "pos": finish_order.size()})
 	if leader_done:
 		var left := false
 		for id in cars:
