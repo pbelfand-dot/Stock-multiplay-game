@@ -93,7 +93,14 @@ func _draw() -> void:
 func _cluster() -> void:
 	var d: Dictionary = live.data
 	var lay: Dictionary = cfg.get("layout", {})
-	draw_texture_rect_region(base, src, src)
+	if cfg.get("flip_v", false):                    # (a texture stored upside down: drawn the right way up here,
+		var k := size.x / view.size.x               # the layout measured on it that way; the screen turns it back)
+		var at := Transform2D(0.0, Vector2(k, k), 0.0, -view.position * k)
+		draw_set_transform_matrix(at * Transform2D(Vector2(1, 0), Vector2(0, -1), Vector2(0, src.position.y * 2.0 + src.size.y)))
+		draw_texture_rect_region(base, src, src)
+		draw_set_transform_matrix(at)
+	else:
+		draw_texture_rect_region(base, src, src)
 	for c in lay.get("cover", []):
 		var col := Color(str(c[4])) if c.size() > 4 else Color(0.0, 0.0, 0.0)
 		draw_rect(Rect2(c[0], c[1], float(c[2]) - float(c[0]), float(c[3]) - float(c[1])), col)
@@ -114,40 +121,58 @@ func _value(what: String, d: Dictionary) -> float:
 	return float(d.get(what, 0.0))
 
 
-## A band filling up with the value: thick segments along the points.
+## A band filling up with the value: thick segments along the points ("at": each point's value, for
+## a scale whose numbers aren't evenly spaced; "hot_at": the value it turns "hot" from, else "hot_from":
+## the share of the band).
 func _arc(a: Dictionary, d: Dictionary) -> void:
 	var pts: Array = a.pts
-	var u := clampf(absf(_value(str(a.what), d)) / maxf(float(a.get("max", 1.0)), 1e-3), 0.0, 1.0)
+	var v := absf(_value(str(a.what), d))
 	var lens: Array = [0.0]
 	for i in range(1, pts.size()):
 		lens.append(lens[-1] + Vector2(pts[i][0], pts[i][1]).distance_to(Vector2(pts[i - 1][0], pts[i - 1][1])))
 	var total: float = lens[-1]
-	var want := u * total
+	var at: Array = a.get("at", [])
+	var want := arc_reach(at, lens, v) if at.size() == pts.size() else clampf(v / maxf(float(a.get("max", 1.0)), 1e-3), 0.0, 1.0) * total
+	var hot := arc_reach(at, lens, float(a.hot_at)) if a.has("hot_at") and at.size() == pts.size() else float(a.get("hot_from", 0.85)) * total
 	var w := float(a.get("w", 4.0))
 	var lo := Color(str(a.get("color", "#f2f2f2")))
 	var hi := Color(str(a.get("hot", "#ff3b1f")))
-	var hot_from := float(a.get("hot_from", 0.85))
 	for i in range(1, pts.size()):
 		if lens[i - 1] >= want:
 			break
 		var p0 := Vector2(pts[i - 1][0], pts[i - 1][1])
 		var p1 := Vector2(pts[i][0], pts[i][1])
-		var seg: float = lens[i] - lens[i - 1]
-		var f := clampf((want - lens[i - 1]) / maxf(seg, 1e-3), 0.0, 1.0)
-		var mid: float = (lens[i - 1] + seg * f * 0.5) / total
-		draw_line(p0, p0.lerp(p1, f), hi if mid > hot_from else lo, w, true)
+		var seg: float = maxf(lens[i] - lens[i - 1], 1e-3)
+		var f := clampf((want - lens[i - 1]) / seg, 0.0, 1.0)
+		var fh := clampf((hot - lens[i - 1]) / seg, 0.0, f)       # (where it turns hot, in this segment)
+		if fh > 0.0:
+			draw_line(p0, p0.lerp(p1, fh), lo, w, true)
+		if f > fh:
+			draw_line(p0.lerp(p1, fh), p0.lerp(p1, f), hi, w, true)
+
+
+## How far along a band (its points' running lengths) a value reaches, given each point's value.
+static func arc_reach(at: Array, lens: Array, v: float) -> float:
+	if at.is_empty() or v <= float(at[0]):
+		return 0.0
+	for i in range(1, at.size()):
+		if v <= float(at[i]):
+			return lens[i - 1] + (lens[i] - lens[i - 1]) * (v - float(at[i - 1])) / maxf(float(at[i]) - float(at[i - 1]), 1e-6)
+	return lens[-1]
 
 
 func _text(t: Dictionary, d: Dictionary) -> void:
 	var s := _reading(str(t.what), d, t)
 	var px := float(t.get("size", 10.0))
-	_say(s, Vector2(t.at[0], t.at[1]), px, Color(str(t.get("color", "#ffffff"))), str(t.get("align", "center")), t.get("bold", true))
+	_say(s, Vector2(t.at[0], t.at[1]), px, Color(str(t.get("color", "#ffffff"))), str(t.get("align", "center")), t.get("bold", true), float(t.get("max_w", -1.0)))
 
 
 func _reading(what: String, d: Dictionary, t := {}) -> String:
 	match what:
 		"speed":
 			return "%d" % roundi(absf(_value("kmh", d)))
+		"mph":
+			return "%d" % roundi(absf(_value("kmh", d)) / 1.609344)
 		"gear":
 			return _gear(d, str(t.get("style", cfg.get("style", ""))))
 		"unit":

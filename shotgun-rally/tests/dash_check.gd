@@ -122,6 +122,19 @@ func _spec(id: String, car, cp, dash, spec: Dictionary) -> void:
 			worst_face = minf(worst_face, nrm.dot((eye - mid).normalized()))
 		fails += _check(worst_face > 0.85 or spec.get("boards", []).any(func(x): return x.has("normal")),
 			"%s: its %d boards face the driver (worst %.2f)" % [id, dash.boards.size(), worst_face])
+	# a painted cluster's bands: one whose numbers aren't evenly spaced ("at") reaches each of its points
+	# at that point's value (the 320i's: 120 km/h at its hexagon's corner)
+	for pg in dash.pages:
+		for a in pg.cfg.get("layout", {}).get("arc", []):
+			if not a.has("at"):
+				continue
+			var lens: Array = [0.0]
+			for i in range(1, a.pts.size()):
+				lens.append(lens[-1] + Vector2(a.pts[i][0], a.pts[i][1]).distance_to(Vector2(a.pts[i - 1][0], a.pts[i - 1][1])))
+			var ok: bool = a.at.size() == a.pts.size()
+			for i in a.at.size():
+				ok = ok and absf(pg.arc_reach(a.at, lens, float(a.at[i])) - float(lens[i])) < 0.01 and (i == 0 or float(a.at[i]) > float(a.at[i - 1]))
+			fails += _check(ok and pg._painted(), "%s: its painted cluster's %s band reaches each mark at its value (%s)" % [id, str(a.what), str(a.at)])
 	# a dial's needle follows its reading
 	var dials: Array = dash.pages.filter(func(p): return str(p.cfg.get("page", "")) == "dial")
 	if not dials.is_empty():

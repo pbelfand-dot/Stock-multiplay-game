@@ -17,6 +17,7 @@ G="${GODOT:-godot}"
 G="$(command -v "$G" || echo "$G")"
 cd "$(dirname "$0")/.."
 T=$(mktemp -d)
+trap 'rm -rf "$T"' EXIT      # (two copies of the game: gone however it ends, a failed export too)
 PORT=${SR_UPDATE_PORT:-$((20000 + RANDOM % 30000))}
 USERDIR="${XDG_DATA_HOME:-$HOME/.local/share}/ShotgunRallyUpdateTest"
 fail=0

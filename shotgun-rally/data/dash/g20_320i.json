@@ -1,5 +1,5 @@
 {
-	"_about": "BMW 320i (G20): the curved display's pictures are painted into the interior's texture (texture_interior, 1024 px, stored upside down: flip_v): the cluster's part (left) gets a live digital cluster, the iDrive's part (right) the centre screen's pages. The rest of that texture is the buttons (the steering wheel's, the doors', the console's, the roof's): backlit at night. Ambient lighting: cool blue.",
+	"_about": "BMW 320i (G20): the curved display's pictures are painted into the interior's texture (texture_interior, 1024 px, stored upside down: flip_v): the cluster's part (left) is kept and made live where it's painted (its speed, mph, gear, clock and handbrake lamp covered and drawn live in their places; the speed and the revs filling its two bands, which bend at the hexagon's corners with their numbers closer together up the top halves, so each band's points carry their values, \"at\"; measured on the picture turned the right way up), the iDrive's part (right) the centre screen's pages. The rest of that texture is the buttons (the steering wheel's, the doors', the console's, the roof's): backlit at night. Ambient lighting: cool blue.",
 	"displays": [
 		{
 			"mat": "^texture_interior$",
@@ -7,7 +7,23 @@
 			"glow": [[0, 0, 1024, 652]],
 			"glow_color": "#c9dcff",
 			"screens": [
-				{"page": "cluster", "bg": false, "rect": [6, 706, 440, 1018], "aspect": 2.6, "flip_v": true, "accent": "#2f7de1", "style": "bmw"},
+				{"page": "cluster", "rect": [6, 706, 440, 1018], "flip_v": true, "accent": "#2f7de1", "style": "bmw", "layout": {
+					"cover": [[104, 818, 124, 866, "#0f1113"], [114, 795, 122, 811, "#0e151c"], [311, 820, 332, 867, "#0c0f12"],
+						[78, 984, 103, 1001, "#0b0c0e"], [8, 948, 20, 964, "#0f0a0e"]],
+					"arc": [
+						{"what": "kmh", "at": [0, 30, 60, 90, 120, 150, 200, 260], "w": 6.0, "color": "#dbe8ff", "hot": "#dbe8ff",
+							"pts": [[75.7, 961], [67.6, 933], [57.7, 899], [48.2, 866], [38, 831], [50.4, 804], [63.3, 776], [74.8, 751]]},
+						{"what": "rpm", "at": [0, 1000, 2000, 3000, 4000, 5000, 6000], "w": 6.0, "color": "#dbe8ff", "hot": "#ff3b1f", "hot_at": 5300,
+							"pts": [[358.9, 963], [370.4, 926], [385, 879], [399, 834], [386.9, 808], [373, 778], [361.4, 753]]}
+					],
+					"text": [
+						{"what": "speed", "at": [120, 842], "size": 58, "align": "right", "max_w": 72},
+						{"what": "mph", "at": [120, 803], "size": 17, "align": "right", "bold": false},
+						{"what": "gear", "style": "bmw", "at": [321.5, 843.5], "size": 57},
+						{"what": "clock", "at": [90.5, 992.5], "size": 17, "bold": false, "color": "#e6e9ee"}
+					],
+					"lamp": [{"what": "handbrake", "at": [14, 956], "size": 11, "color": "#ff3b1f"}]
+				}},
 				{"page": "nav", "rect": [452, 706, 1020, 1018], "aspect": 1.9, "flip_v": true, "accent": "#2f7de1", "radio": "SHOTGUN FM 98.6"}
 			]
 		}

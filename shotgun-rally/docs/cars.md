@@ -80,7 +80,7 @@ light (L), backlit screens at night and the warning lamps; the luxury cars have 
 | KAISER 5 G (M5 G90) | its own painted M cluster made live (the digits covered, the speed and gear in their frames, the scales filling), the iDrive under it | the painted scales' numbers stay as painted |
 | KAISER 5 TOURING (M5 Touring) | the curved display: a BMW cluster and the iDrive, on the model's blank quads | |
 | KAISER 5X (X5 M) | the painted speedometer's and rev counter's needles turn (the painted ones covered), the iDrive, a night glow | the needles are flat (drawn on the dial), not meshes |
-| KAISER 320 (320i) | the curved display painted in its texture: a live cluster and the centre screen; the buttons backlit; ambient | its cluster is drawn over the painted one (not yet re-done to keep the painted art) |
+| KAISER 320 (320i) | its own painted cluster made live (the speed, mph, gear and clock in their places, the speed and revs filling its hexagon's two bent bands), the centre screen; the buttons backlit; ambient | the map in the cluster stays as painted |
 | TEMPESTA URSA (Urus Performante) | the digital cluster and the centre screen, in its green, ambient | blank in the model |
 | VIERRAD R7 (RS 7) | its painted Virtual Cockpit made live (the revs band climbing, the speed and gear), the MMI screen's pages | the climate screen stays as painted |
 | KOMBI V8 (RS 6 Avant) | the Virtual Cockpit and the upper MMI screen, on the model's blank quads | |

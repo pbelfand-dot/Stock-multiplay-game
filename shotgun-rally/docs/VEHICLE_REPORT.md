@@ -218,5 +218,5 @@ solid3DDD, CC BY 4.0). The cheapest European car in the garage (8,000), not traf
   luxury cars first; a tall or square centre screen (the Maybach's, the Senna's) puts its menu across
   the top as tabs.
 - **Left to do:** the live pages for the cars whose screens are painted into a texture shared with
-  the rest of the cabin (the A 45 S, Honda e, Supra, AMG GT3, 911 GT3 R, Bolide, the GT-R's dials);
-  the 320i's cluster redone over its painted art.
+  the rest of the cabin (the A 45 S, Honda e, Supra, AMG GT3, 911 GT3 R, Bolide, the GT-R's dials).
+  The 320i's cluster keeps its painted art now, made live over it.
