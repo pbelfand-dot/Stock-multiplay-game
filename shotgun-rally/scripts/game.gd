@@ -99,6 +99,7 @@ var _hint := -1
 var _start_pos := Vector3.ZERO
 var _in_puddle := false
 var _stuck := 0.0
+var _stuck_s := 0.0                   # (the race autopilot) where it last made progress round the lap
 var _mud_t := 0.0
 var _said_wipers := false
 var _chase := false                 # the driver picked the chase cam (C)
@@ -341,7 +342,10 @@ func _apply_roster() -> void:
 	_start_pos = spot[0]
 	_start_yaw = spot[1]
 	var setup := _car_setup()                    # the driver's car from their garage, its tyres for this stage
-	if (car.apply_setup(setup) or moved) and state == "grid":     # another car (a new driver's), another slot: put it down again
+	# (not on a Track Mode car once it's going: its race state, the tyres' heat, the fuel, is live, and
+	# someone joining or leaving would put it back to cold tyres at full speed)
+	var applied: bool = car.apply_setup(setup) if not (mode == "track" and state != "grid") else false
+	if (applied or moved) and state == "grid":     # another car (a new driver's), another slot: put it down again
 		car.place(_start_pos, _start_yaw)
 	cockpit.set_paint(setup.colours[0])
 	car.set_simulating(driver_here)
@@ -731,6 +735,14 @@ func _drive_inputs() -> void:
 		car.inp = _my_driver.drive(car, get_physics_process_delta_time())
 		if car.race:
 			car.race.limiter = st.in_pit_limit(car_s, car_d) or (_my_driver.task == "pit" and _my_driver.pit_phase == "in" and st.around_line(car_s) > float(st.pit.s_lim0) - 15.0)
+		# beached, spun or lost in a gravel trap (not 20 m further round in 8 s): press R like a player would
+		var racing: bool = state == "running" and _my_driver.task == "race" and race_ctl.phase in ["green", "chequered", "open"]
+		_stuck = _stuck + get_physics_process_delta_time() if racing and car_s < _stuck_s + 20.0 else 0.0
+		if not racing or car_s >= _stuck_s + 20.0:
+			_stuck_s = car_s
+		if _stuck > 8.0:
+			_stuck = 0.0
+			reset_car()
 		return
 	if use_autopilot and state != "grid":
 		car.inp = autopilot.drive(car, car_s, car_d)
@@ -1750,25 +1762,30 @@ func _track_tick(dt: float) -> void:
 		_my_pit(dt, pit)
 		_end_tick(dt)
 	else:
-		if net:
-			pos.merge(net.positions(_t_alive))           # (the other players' cars, from what their machines send)
 		if field:
 			field.me = {"id": me, "s": car_s, "d": car_d, "v": car.linear_velocity.length(), "pos": car.global_position}
 			if net:
-				field.others_extra = _net_others(pos)
+				field.others_extra = _net_others(_last_pos)   # (the other players, as race control has them)
 			_drivers_rules()
 			field.tick(dt)
 			pos.merge(field.positions())
 			_field_events()
+		var live := pos
+		if net:
+			# (online: every car judged at the same moment, a little back: the other players' from what
+			# their machines send, ours and the AI's from a moment ago, TrackNet.judged)
+			pos = net.judged(_t_alive, live)
 		session.tick(dt, pos)
 		if race_ctl:
 			race_ctl.tick(dt, pos)
 			_last_pos = pos
+			if net:
+				_near_pos = pos.merged(live, true)       # (racecraft: the cars here as they are now)
 			if field:
 				for id in field.cars:                    # (the AI's DRS: each opens it when it may, flat out)
 					var fc = field.cars[id]
-					if fc.race and pos.has(id):
-						fc.race.drs_avail = race_ctl.drs_state(id, float(pos[id].s))
+					if fc.race and live.has(id):
+						fc.race.drs_avail = race_ctl.drs_state(id, float(live[id].s))
 			_board_rows = _board(pos)
 			if net:
 				net.host_tick(dt, _board_rows)           # (its news out to everyone before it's read here)
@@ -1809,7 +1826,8 @@ func _track_tick(dt: float) -> void:
 
 
 var _pit_warn_t := 0.0
-var _last_pos := {}
+var _last_pos := {}                  # every car's position as race control last judged it
+var _near_pos := {}                  # (online, the host) the same with ours and the AI's as they are now (racecraft)
 var _rows_t := 0.0
 var _bw_t := 0.0
 var _pit_done := false
@@ -2155,9 +2173,10 @@ func _drivers_rules() -> void:
 		k += 1
 	if _my_driver:
 		var others: Array = []
-		for id in _last_pos:
+		var near: Dictionary = _near_pos if not _near_pos.is_empty() else _last_pos
+		for id in near:
 			if id != _my_driver.id:
-				var p: Dictionary = _last_pos[id]
+				var p: Dictionary = near[id]
 				others.append({"id": id, "s": p.s, "d": p.d, "v": p.v, "stricken": race_ctl.dnf.has(id)})
 		_my_driver.plan(others, get_physics_process_delta_time())
 		_my_driver.pit_tick(get_physics_process_delta_time())

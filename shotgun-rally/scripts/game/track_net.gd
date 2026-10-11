@@ -5,11 +5,15 @@ extends Node
 ##
 ##   * Each guest's machine runs its own car (as in the touge) and sends the host where it is on the
 ##     track (s, d, speed, in the pit lane) POS_HZ times a second, stamped with its own clock (its
-##     physics time). The host plays those back DELAY s behind on its own clock (the stamps' offset
-##     from it: the quickest of the last 3 s, eased into) for where the car is now: the order, the
-##     gaps, the flags, the penalties. Its laps and sectors are timed on the stamps (TrackSession's
-##     "t"), between the positions either side of each line: to the millisecond, as the guest's own
-##     machine would time them, even when the host's physics falls behind (a busy machine's does).
+##     physics time).
+##   * Race control judges every car at the same moment, DELAY s back on the host's clock (judged): a
+##     guest's from its positions at that moment on its clock (ours less the stamps' offset, the
+##     quickest of the last 3 s eased into, plus half the round trip), the host's own car and the AI
+##     from a moment ago, so nobody's judged a little ahead of the others.
+##   * A guest's laps and sectors are timed on its stamps (TrackSession's "t"), between the positions
+##     either side of each line: to the millisecond, as its own machine would time them, even when the
+##     host's physics falls behind (a busy machine's does). A race's finish is each car's crossing of
+##     the line on the session's clock ("toff").
 ##   * The AI (RaceField) are simulated on the host and streamed to everyone like a remote car
 ##     (RaceField.net_pack / feed).
 ##   * The host sends every machine the race's state 5 times a second (the phase and lights, the
@@ -26,7 +30,7 @@ extends Node
 const POS_HZ := 20.0               # a guest's track position to the host, a second
 const STATE_EVERY := 0.2           # s between the race's state going out
 const AI_EVERY := 0.05             # s between the AI cars' stream
-const DELAY := 0.12                # s behind a guest's newest position the host times its car at
+const DELAY := 0.12                # s back on the host's clock race control judges every car at (a guest's position is never fresher)
 const STALE := 20.0                # s without a guest's position (still connected): retired, so the race can't wait on it
 
 var game                           # the Game
@@ -37,7 +41,8 @@ var rows: Array = []               # (a guest) the host's classification (RaceCo
 var final := false                 # (a guest) rows is the last classification: everyone's done
 var names := {}                    # id -> name: everyone's (the AI's, those who've left)
 var late_box := -1                 # (a guest) joined once the session was on: the pit box it starts from
-var _remote := {}                  # (the host) guest id -> {buf: [[t, s, d, v, pit]], off, mins, est, seen}
+var _remote := {}                  # (the host) guest id -> {buf: [[t, s, d, v, pit]], off, mins, rtt, est, seen, want}
+var _local := {}                   # (the host) its own car's and the AI's last moments: id -> [[t, s, d, v, pit]]
 var _seq := 0                      # (the host) ticks of race control
 var _news_seq := 0                 # (a guest) the newest news's tick: an older state doesn't undo it
 var _state_t := 0.0
@@ -86,44 +91,61 @@ func drop(id) -> void:
 	_remote.erase(id)
 
 
-## The guests' cars where race control is to judge them now: {id: {s, d, v, pit}}. One silent for
-## STALE s (still connected) is retired.
-func positions(now: float) -> Dictionary:
+## Every car where race control is to judge it, all at the same moment: DELAY s back on the host's
+## clock (a guest's position can't be any fresher than that, so neither is anyone's: nobody's judged
+## a little ahead of the others). live: the host's own car and the AI as they are now ({id: {s, d, v,
+## pit}}), kept a moment; the guests from the positions their machines sent. Each with its clock's
+## time ("t": the host's, or a guest's own, which its laps are timed on) and that clock's offset from
+## the session's ("toff": its line crossings on the session's clock, the race's finish). A guest
+## silent for STALE s (still connected) is retired.
+func judged(now: float, live: Dictionary) -> Dictionary:
+	var to_session: float = float(game.session.time) - now
+	var want := now - DELAY
 	var out := {}
+	for id in live:
+		var p: Dictionary = live[id]
+		var b: Array = _local.get(id, [])
+		b.append([now, float(p.s), float(p.d), float(p.v), bool(p.get("pit", false))])
+		while b.size() > 2 and float(b[1][0]) <= want:
+			b.pop_front()
+		_local[id] = b
+		out[id] = _at(b, want)
+		out[id]["toff"] = to_session
 	for id in _remote.keys():
 		var r: Dictionary = _remote[id]
 		if now - float(r.seen) > STALE and game.race_ctl:
 			game.race_ctl.retire(id, "DNF")
-		out[id] = _estimate(r, now)
+		if r.buf.is_empty():
+			out[id] = r.est
+			continue
+		# (that moment on its clock: our clock less the stamps' offset, plus the half round trip they took)
+		var rtt := float(r.get("rtt", 0.0))
+		var w: float = maxf(want - float(r.off) + rtt * 0.5, float(r.get("want", -INF)))
+		r.want = w
+		r.est = _at(r.buf, w)
+		r.est["toff"] = float(r.off) - rtt * 0.5 + to_session
+		out[id] = r.est
 	return out
 
 
-## A guest's car DELAY s behind its newest position on the host's clock: between the two positions
-## either side, or past the newest at its speed (a little way only). With its own clock's time
-## there ("t": never going back), on which its laps are timed (TrackSession).
-func _estimate(r: Dictionary, now: float) -> Dictionary:
-	var buf: Array = r.buf
-	if buf.is_empty():
-		return r.est
-	var want: float = maxf(now - float(r.off) - DELAY, float(r.get("want", -INF)))
-	r.want = want
+## Positions [[t, s, d, v, pit]] (oldest first) at time t: between the two either side, or past the
+## newest at its speed (a little way only). {s, d, v, pit, t}.
+static func _at(buf: Array, t: float) -> Dictionary:
 	var a: Array = buf[0]
 	var b: Array = buf[buf.size() - 1]
-	if want >= float(b[0]):
-		var ahead := minf(want - float(b[0]), 0.25)
-		r.est = {"s": float(b[1]) + float(b[3]) * ahead, "d": float(b[2]), "v": float(b[3]), "pit": bool(b[4]), "t": float(b[0]) + ahead}
-	elif want <= float(a[0]):
-		r.est = {"s": float(a[1]), "d": float(a[2]), "v": float(a[3]), "pit": bool(a[4]), "t": float(a[0])}
-	else:
-		for i in range(buf.size() - 1, 0, -1):
-			var p0: Array = buf[i - 1]
-			if float(p0[0]) <= want:
-				var p1: Array = buf[i]
-				var u := clampf((want - float(p0[0])) / maxf(float(p1[0]) - float(p0[0]), 1e-6), 0.0, 1.0)
-				r.est = {"s": lerpf(float(p0[1]), float(p1[1]), u), "d": lerpf(float(p0[2]), float(p1[2]), u),
-					"v": lerpf(float(p0[3]), float(p1[3]), u), "pit": bool(p0[4]) if u < 0.5 else bool(p1[4]), "t": want}
-				break
-	return r.est
+	if t >= float(b[0]):
+		var ahead := minf(t - float(b[0]), 0.25)
+		return {"s": float(b[1]) + float(b[3]) * ahead, "d": float(b[2]), "v": float(b[3]), "pit": bool(b[4]), "t": float(b[0]) + ahead}
+	if t <= float(a[0]):
+		return {"s": float(a[1]), "d": float(a[2]), "v": float(a[3]), "pit": bool(a[4]), "t": float(a[0])}
+	for i in range(buf.size() - 1, 0, -1):
+		var p0: Array = buf[i - 1]
+		if float(p0[0]) <= t:
+			var p1: Array = buf[i]
+			var u := clampf((t - float(p0[0])) / maxf(float(p1[0]) - float(p0[0]), 1e-6), 0.0, 1.0)
+			return {"s": lerpf(float(p0[1]), float(p1[1]), u), "d": lerpf(float(p0[2]), float(p1[2]), u),
+				"v": lerpf(float(p0[3]), float(p1[3]), u), "pit": bool(p0[4]) if u < 0.5 else bool(p1[4]), "t": t}
+	return {"s": float(a[1]), "d": float(a[2]), "v": float(a[3]), "pit": bool(a[4]), "t": float(a[0])}
 
 
 ## (a guest's machine) Where its car is: t its clock (s), ep the grid's epoch it has.
@@ -151,6 +173,9 @@ func pos_in(t: float, ep: int, s: float, d: float, v: float, pit: bool) -> void:
 	var lo: float = mins.min()
 	r.off = lo if float(r.off) == INF else lerpf(float(r.off), lo, 0.05)
 	r.seen = now
+	var peer = (multiplayer.multiplayer_peer as ENetMultiplayerPeer).get_peer(id) if multiplayer.multiplayer_peer is ENetMultiplayerPeer else null
+	if peer:
+		r.rtt = peer.get_statistic(ENetPacketPeer.PEER_ROUND_TRIP_TIME) / 1000.0   # (s: half of it is how late its stamps reach us)
 
 
 ## Every tick of race control on the host, before the Game reads its news: the news to the guests,
@@ -169,6 +194,7 @@ func host_tick(dt: float, board_rows: Array) -> void:
 					var sp: Vector2 = ev.spots[id]
 					_remote[id].buf = []
 					_remote[id].est = {"s": sp.x, "d": sp.y, "v": 0.0, "pit": false}
+			_local.clear()
 		rc_ev.append(ev)
 	var ses_ev: Array = game.session.events.filter(func(ev): return _remote.has(ev.id))   # (the guests' laps and sectors)
 	if not rc_ev.is_empty() or not ses_ev.is_empty():

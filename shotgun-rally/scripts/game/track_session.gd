@@ -39,7 +39,9 @@ func add_car(id, car_name: String, s_start: float, in_pits := true) -> void:
 
 ## One tick: positions = {id: {s (unwrapped), d, pit (in the pit lane)}}. A car whose physics runs on
 ## another clock (online: a guest's machine) brings that clock's time too ("t", s): its laps and
-## sectors are timed on it, as its own machine would time them, whatever the session's clock does.
+## sectors are timed on it, as its own machine would time them, whatever the session's clock does;
+## and "toff", that clock's offset from the session's (its line crossings on the session's clock:
+## cross_at, which RaceControl finishes a race by).
 func tick(dt: float, positions: Dictionary) -> void:
 	time += dt
 	for id in positions:
@@ -78,6 +80,7 @@ func _advance(id, c: Dictionary, p: Dictionary, dt: float) -> void:
 		for lp in loops:
 			var tc := now - (since * (s - float(lp[0])) / span if span > 1e-6 else 0.0)
 			if int(lp[1]) == 0:
+				c.cross_at = tc + float(p.get("toff", 0.0))   # (when it crossed the line on the session's clock: the race's finish)
 				_line(id, c, tc, pit)
 			else:
 				_sector(id, c, int(lp[1]) - 1, tc)

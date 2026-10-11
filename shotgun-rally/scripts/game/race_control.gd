@@ -12,7 +12,8 @@ extends RefCounted
 ##     ahead of a car that started in front of it has passed before the start: +5 s.
 ## The flags (at a game's level):
 ##   * GREEN at the start; CHEQUERED once the leader has done the laps: everyone finishes as they
-##     next cross the line;
+##     next cross the line (their time at the line itself: TrackSession's cross_at), and CHEQUERED_MAX
+##     on the race is over, every car home or not;
 ##   * YELLOW: a car stopped or crawling on the track puts a yellow out over the 250 m it's in and
 ##     the 250 m before; no passing there (a stricken car excepted): +5 s in a race, the lap
 ##     deleted in qualifying;
@@ -48,6 +49,8 @@ const START_GRACE := 12.0          # s after the lights go out (or a restart): a
                                    # under one (the start's own chaos, not an offence)
 const DRS_GAP := 1.0               # s: within this of the car ahead at the detection point
 const DRS_AFTER := 2               # laps after the start (or a restart) it's enabled
+const CHEQUERED_MAX := 300.0       # s after the leader's flag the race is over, every car home or not (online one
+                                   # stuck but still connected can't hold everyone's results)
 
 var st                             # CircuitGen
 var session                        # TrackSession
@@ -73,6 +76,7 @@ var bw := {}                       # id -> true once it's had its last track-lim
 var yellows := {}                  # micro-sector -> s left
 var events: Array = []             # [{id, kind, text, ...}] since last read (the game clears it)
 var leader_done := false
+var _leader_done_t := 0.0          # race_t when the leader took the flag
 var rng := RandomNumberGenerator.new()
 
 var _off := {}                     # id -> {t, v0, inside}: off the track now
@@ -262,21 +266,24 @@ func _finishes(cars: Dictionary) -> void:
 		var laps: int = session.cars[id].laps
 		if not leader_done and laps >= laps_total:
 			leader_done = true
+			_leader_done_t = race_t
 			phase = "chequered"
 			events.append({"id": null, "kind": "chequered"})
 		if leader_done and laps > int(_crossed.get(id, -1)) and _crossed.has(id):
-			finished[id] = race_t
+			# (its time at the line itself, between this tick and the last: TrackSession's cross_at; online a
+			# guest's crossing on its own clock, though its position reaches race control a little later)
+			finished[id] = race_t - clampf(session.time - float(session.cars[id].get("cross_at", session.time)), 0.0, 1.0)
 			finish_order.append(id)
 			session.stopped[id] = true
-			events.append({"id": id, "kind": "finish", "time": race_t, "pos": finish_order.size()})
+			events.append({"id": id, "kind": "finish", "time": finished[id], "pos": finish_order.size()})
 		_crossed[id] = laps
 	if leader_done:
 		var left := false
 		for id in cars:
 			if not finished.has(id) and not dnf.has(id):
 				left = true
-		if not left:
-			phase = "done"
+		if not left or race_t - _leader_done_t > CHEQUERED_MAX:
+			phase = "done"                                # (a car still out by then is classified where it is)
 	# (the rolling start: crossing the line ahead of a car that started in front of it)
 	if start_type == "rolling" and restarts == 0:
 		for id in cars:
