@@ -4,11 +4,12 @@ extends SceneTree
 ##   * the menu comes up with the garage behind it (not the old stage), quickly: the room's
 ##     meshes and furniture, and the save's car parked on the spot, standing on the floor;
 ##     the cover over the menu fades once it's ready
-##   * CARS: the camera goes to the showroom orbit; ▶ (ENTER on it) and RB swap the car on
-##     the spot for the next one's own model, and ▶ keeps the focus as the panel redraws;
-##     DRIVE THIS ONE makes it the car you drive, in Profile and in the save file; BACK (ESC)
-##     leaves it on the spot, and a fresh menu with the save read again (the next launch)
-##     parks it there
+##   * CARS: the grid of every car (five columns, a picture on each tile) and the camera to the
+##     showroom orbit; the arrows go from column to column; ENTER on a tile puts that car's own
+##     model on the spot, ENTER again makes it the car you drive (Profile and the save file);
+##     CUSTOMISE opens the garage on it, where ▶ swaps the car on the spot and keeps the focus,
+##     ESC back to the grid; ESC again leaves it on the spot, and a fresh menu with the save
+##     read again (the next launch) parks it there
 ##   * the camera: the home loop and the CARS orbit sampled all the way round, and the real
 ##     camera through switches between them: inside the room, 0.3 m clear of every piece of
 ##     furniture and of the biggest car in the garage, the car in front of it
@@ -19,6 +20,8 @@ extends SceneTree
 const MenuGarage = preload("res://scripts/ui/menu_garage.gd")
 const GarageRoom = preload("res://scripts/ui/garage_room.gd")
 const GaragePanel = preload("res://scripts/ui/garage_panel.gd")
+const CarGrid = preload("res://scripts/ui/car_grid.gd")
+const CarColumns = preload("res://scripts/game/car_columns.gd")
 const Profile = preload("res://scripts/game/profile.gd")
 const Catalog = preload("res://scripts/game/catalog.gd")
 const CarSpecs = preload("res://scripts/vehicle/car_specs.gd")
@@ -100,6 +103,8 @@ func _run() -> void:
 	_no_errors("the camera")
 	await _cars(menu, g)
 	_no_errors("CARS")
+	await _modes_pick(menu)
+	_no_errors("MODES")
 	await _next_launch()
 	_no_errors("the next launch")
 
@@ -247,59 +252,90 @@ func _cars(menu, g) -> void:
 	await _click(_home_button(menu, "CARS"))
 	await _frames(6)
 	var p = menu._open
-	check(p != null and p.get_script() == GaragePanel and g.showroom, "CARS opens the garage panel, the camera to the showroom")
-	if p == null or p.get_script() != GaragePanel:
+	check(p != null and p.get_script() == CarGrid and g.showroom, "CARS opens the car grid, the camera to the showroom")
+	if p == null or p.get_script() != CarGrid:
 		return
-	var next: Button = p._buttons()[1]
-	check(root.gui_get_focus_owner() == next and next.text == "▶", "keys and pads start on ▶")
-	# ▶ with ENTER: the next car on the spot (its setup: paint, livery, wheels); ▶ keeps the focus
-	next.grab_focus()
-	await _key(KEY_ENTER)
-	await _frames(3)
-	var shown: Dictionary = p._car()
-	var focus := root.gui_get_focus_owner()
-	check(shown.id != Profile.car and g.car.setup == Profile.setup_for(shown.id) and g.car.model_id == str(shown.get("model", "")),
-		"▶ puts the next car on the spot: %s" % shown.id)
-	check(focus is Button and (focus as Button).text == "▶", "▶ still has the focus after the panel redrew")
-	# a pad's RB: the one after
-	var was: String = shown.id
-	var rb := InputEventJoypadButton.new()
-	rb.button_index = JOY_BUTTON_RIGHT_SHOULDER
-	rb.pressed = true
-	root.push_input(rb)
-	await _frames(3)
-	shown = p._car()
-	check(shown.id != was and g.car.setup == Profile.setup_for(shown.id), "a pad's RB flips to the one after: %s" % shown.id)
-	# from the car before the STROMER 4 (owned from the start, a body of its own), ▶ swaps the body
-	var at := -1
-	for k in Catalog.CARS.size():
-		if Catalog.CARS[k].id == "stromer":
-			at = k
-	var prev: Dictionary = Catalog.CARS[posmod(at - 1, Catalog.CARS.size())]
-	p._i = posmod(at - 1, Catalog.CARS.size())
-	p._rebuild()
+	var pics: int = p._tiles.values().filter(func(t): return (t as Button).icon != null).size()
+	check(p._columns.size() == 5 and p._tiles.size() == Catalog.CARS.size() and pics == p._tiles.size(),
+		"five columns, a tile with its picture for each of the %d cars (%d pictures)" % [p._tiles.size(), pics])
+	var start: Button = p._tiles.get(Profile.car)
+	check(root.gui_get_focus_owner() == start, "keys and pads start on the car you drive (%s)" % Profile.car)
+	# the arrow keys go from column to column
+	await _key(KEY_LEFT)
 	await _frames(2)
+	var f := root.gui_get_focus_owner()
+	check(f is Button and f != start and (f as Button).has_meta("car"), "← moves to a car in the next column (%s)" % (f.get_meta("car") if f and f.has_meta("car") else "?"))
+	# the STROMER 4's tile: ENTER puts it on the spot, ENTER again drives it
+	var tile: Button = p._tiles["stromer"]
+	tile.grab_focus()
 	var before: String = g.car.model_id
-	(p._buttons()[1] as Button).grab_focus()
 	await _key(KEY_ENTER)
 	await _frames(3)
 	var want := str(Catalog.car("stromer").get("model", ""))
-	check(p._car().id == "stromer" and g.car.model_id == want and want != before and g.car.body_model.visible,
-		"▶ from the %s swaps the body on the spot for the STROMER 4's ('%s' -> '%s')" % [prev.id, before, g.car.model_id])
-	var drive := _button(p, "DRIVE THIS ONE")
-	check(drive != null, "DRIVE THIS ONE offered (it's owned)")
-	if drive == null:
-		return
-	await _click(drive)
+	check(p._sel == "stromer" and g.car.setup == Profile.setup_for("stromer") and g.car.model_id == want and g.car.body_model.visible,
+		"ENTER on a tile puts that car on the spot: the STROMER 4 ('%s' -> '%s')" % [before, g.car.model_id])
+	check(Profile.car != "stromer" or before == want, "...not driven yet")
+	await _key(KEY_ENTER)
 	await _frames(2)
 	var cf := ConfigFile.new()
 	cf.load(Profile.path())
 	check(Profile.car == "stromer" and str(cf.get_value("garage", "car", "")) == "stromer",
-		"DRIVE THIS ONE: it's the car you drive (Profile: %s, the save file: %s)" % [Profile.car, cf.get_value("garage", "car", "")])
+		"ENTER again: it's the car you drive (Profile: %s, the save file: %s)" % [Profile.car, cf.get_value("garage", "car", "")])
+	# CUSTOMISE: the garage on that car; ▶ the next one on the spot; BACK to the grid
+	await _click(_button(p, "CUSTOMISE"))
+	await _frames(4)
+	var gp = menu._open
+	check(gp != null and gp.get_script() == GaragePanel and gp._car().id == "stromer" and g.showroom, "CUSTOMISE opens the garage on the STROMER 4")
+	if gp != null and gp.get_script() == GaragePanel:
+		(gp._buttons()[1] as Button).grab_focus()
+		await _key(KEY_ENTER)
+		await _frames(3)
+		var shown: Dictionary = gp._car()
+		check(shown.id != "stromer" and g.car.setup == Profile.setup_for(shown.id), "▶ in the garage puts the next car on the spot: %s" % shown.id)
+		var focus := root.gui_get_focus_owner()
+		check(focus is Button and (focus as Button).text == "▶", "▶ still has the focus after the panel redrew")
+		await _key(KEY_ESCAPE)
+		await _frames(4)
+		check(menu._open != null and menu._open.get_script() == CarGrid and g.showroom, "ESC from the garage goes back to the grid")
 	await _key(KEY_ESCAPE)
 	await _frames(4)
 	check(menu._open == null and not g.showroom, "ESC closes CARS, the camera back on the home loop")
 	_check_parked(g, Profile.setup_for("stromer"), "the STROMER 4, back on the home screen,")
+
+
+## MODES: a touge's START opens the car grid on STREET, only its cars to pick, on the car you drive
+## (a street car); ESC goes back to MODES; START IN THIS ONE starts the touge in it.
+func _modes_pick(menu) -> void:
+	var started := []
+	for c in menu.mode.get_connections():
+		menu.mode.disconnect(c.callable)                     # (not a real start: the test only hears it)
+	menu.mode.connect(func(m): started.append(m))
+	await _click(_home_button(menu, "MODES"))
+	await _frames(4)
+	var go := _button(menu._open, "START  ·  NEW PASS")
+	check(go != null, "MODES: the touge's START")
+	if go == null:
+		return
+	await _click(go)
+	await _frames(4)
+	var p = menu._open
+	var ok: bool = p != null and p.get_script() == CarGrid and str(p.mode.get("mode", "")) == "touge"
+	check(ok and started.is_empty(), "the touge's START opens the car grid first (not started yet)")
+	if not ok:
+		return
+	var open: Array = p._tiles.keys().filter(func(id): return not (p._tiles[id] as Button).disabled)
+	check(open.size() == CarColumns.cars_in("street").size() and open.all(func(id): return CarColumns.column_of(Catalog.car(id)) == "street"),
+		"...only its STREET cars to pick (%d of %d)" % [open.size(), p._tiles.size()])
+	check(p._sel == Profile.car, "...on the car you drive (a street car: %s)" % Profile.car)
+	await _key(KEY_ESCAPE)
+	await _frames(4)
+	check(menu._open != null and menu._open.get_script().resource_path.ends_with("modes_panel.gd"), "ESC goes back to MODES")
+	await _click(_button(menu._open, "START  ·  NEW PASS"))
+	await _frames(4)
+	await _click(_button(menu._open, "START IN THIS ONE"))
+	await _frames(2)
+	check(started.size() == 1 and str(started[0].get("mode", "")) == "touge" and Profile.car == "stromer",
+		"START IN THIS ONE starts the touge in it (%d started, %s)" % [started.size(), Profile.car])
 
 
 ## The next launch: the save read again from the file, a new menu, the car you chose on the spot.
@@ -360,9 +396,12 @@ func _key(code: Key) -> void:
 		k.keycode = code
 		k.physical_keycode = code
 		k.pressed = down
-		Input.parse_input_event(k)
+		# once: Input hands a parsed event on to the window by itself (headless too), so pushing it
+		# as well delivered every key twice (ESC from the garage went back to the grid, then home)
 		if DisplayServer.get_name() == "headless":
-			root.push_input(k)                                    # (no window here to hand it on)
+			root.push_input(k)
+		else:
+			Input.parse_input_event(k)
 		await _frames(2)
 
 

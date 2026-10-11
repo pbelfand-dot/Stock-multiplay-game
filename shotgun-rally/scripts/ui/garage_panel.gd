@@ -1,13 +1,13 @@
 extends PanelContainer
-## CARS, the garage. Pick a kind of car (ALL, RALLY, JDM, EURO ... : the registry's
-## categories) and flick through them (◀ ▶): what each costs, the real car's numbers,
-## how it drives (power, weight, grip, brakes, the drive split), and the one you drive. A car
-## you own can be painted (main, accent and stripe colours: free), given a
-## livery and wheels (bought once, then yours on any car), a race number,
-## upgrades (engine, tyres, brakes: three steps each), and its tyres and setup
+## The garage: CUSTOMISE in the CARS grid (scripts/ui/car_grid.gd) opens it on that car. Every
+## car is free (the owner's ask, 2026-10-11). Flick through them (◀ ▶, the registry's
+## categories as tabs: ALL, RALLY, JDM, EURO ...): the real car's numbers, how it drives (power,
+## weight, grip, brakes, the drive split), and the one you drive. Each can be painted (main,
+## accent and stripe colours: free), given a livery and wheels (bought once, then yours on any
+## car), a race number, upgrades (engine, tyres, brakes: three steps each), and its tyres and setup
 ## for gravel or tarmac (free; AUTO matches the stage). The car on the garage's spot
 ## behind the menu (MenuGarage) is the one you're looking at and shows every change as you
-## make it; DRIVE THIS ONE (or buying it) makes it yours to drive, saved, and it's the car
+## make it; DRIVE THIS ONE makes it yours to drive, saved, and it's the car
 ## on the spot from then on. A pad's LB / RB flip through the cars too; the button you were
 ## on keeps the focus as the panel redraws (keys and pads). Everything is in Profile.
 
@@ -25,6 +25,7 @@ const KINDS := [["", "ALL"], ["rally", "RALLY"], ["jdm", "JDM"], ["euro", "EURO"
 	["hyper", "HYPER"], ["race", "RACE"]]
 
 var backdrop
+var start := ""                     # the car to open on (the CARS grid's CUSTOMISE), else the one you drive
 var _i := 0
 var _kind := ""
 var _tab := "paint"
@@ -38,8 +39,9 @@ func _ready() -> void:
 	_body = VBoxContainer.new()
 	_body.add_theme_constant_override("separation", 7)
 	add_child(_body)
+	var want := start if start != "" else Profile.car
 	for k in Catalog.CARS.size():
-		if Catalog.CARS[k].id == Profile.car:
+		if Catalog.CARS[k].id == want:
 			_i = k
 	_tab = get_node("/root/Config").arg("garage_tab", _tab)      # (pictures: --garage_tab=setup)
 	_rebuild()

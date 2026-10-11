@@ -14,7 +14,8 @@ const Catalog = preload("res://scripts/game/catalog.gd")
 const WheelPresets = preload("res://scripts/vehicle/wheel_presets.gd")
 
 ## Cars every profile owns from the start: the rally car, and the electric STROMER 4
-## for the road (the owner's ask: drivable without saving up for it)
+## for the road (the owner's ask: drivable without saving up for it). Since 2026-10-11 every
+## car is free (the owner's ask: owns() says so for any garage car); these two stay in the save.
 const FREE_CARS := ["kestrel", "stromer"]
 ## Cars taken out of the game (id -> what they cost): a save that bought one gets the credits back.
 ## The ORION FA1 and ZEPHYR GE (AI-generated models) made way for the owner's own Formula cars.
@@ -74,7 +75,7 @@ static func ensure_loaded() -> void:
 		for d in [paint, levels, tuning]:
 			d.erase(gone)
 	credits += refund
-	if not car in owned.cars:
+	if not Catalog.CARS.any(func(c): return c.id == car):   # (a car no longer in the garage; any other is free)
 		car = "kestrel"
 	if refund > 0:
 		save()
@@ -132,6 +133,8 @@ static func stage_credits(result: Dictionary, length: float, story_mode := false
 ## Owned? (a car's own livery always is: for_car, else the car you drive)
 static func owns(kind: String, id: String, for_car := "") -> bool:
 	ensure_loaded()
+	if kind == "cars":
+		return Catalog.CARS.any(func(c): return c.id == id)   # (every car is free: the owner's ask)
 	if kind == "liveries" and id == Catalog.car(for_car if for_car != "" else car).livery:
 		return true                                       # every car comes in its own colours
 	if kind == "liveries" and Catalog.livery(id).price == 0:
@@ -146,7 +149,7 @@ static func owns(kind: String, id: String, for_car := "") -> bool:
 ## Buy something (cars / liveries / wheels / wheel_types): false if it's owned or too dear.
 static func buy(kind: String, id: String, price: int) -> bool:
 	ensure_loaded()
-	if id in owned[kind] or not spend(price):
+	if (kind == "cars" and owns("cars", id)) or id in owned[kind] or not spend(price):   # (a car: free, nothing to buy)
 		return false
 	owned[kind].append(id)
 	save()
@@ -155,7 +158,7 @@ static func buy(kind: String, id: String, price: int) -> bool:
 
 static func select_car(id: String) -> void:
 	ensure_loaded()
-	if id in owned.cars:
+	if owns("cars", id):
 		car = id
 		save()
 

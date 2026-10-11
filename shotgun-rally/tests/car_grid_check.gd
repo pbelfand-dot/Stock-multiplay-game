@@ -59,6 +59,10 @@ func _initialize() -> void:
 	Profile.select_car("uno")
 	fails += _check(Profile.car == "uno" and Profile.credits == 0, "a hypercar driven with 0 CR: no buying")
 	Profile.select_car("kestrel")
+
+
+## The grid's own checks: on the first frame (a panel added before it isn't ready yet).
+func _process(_dt: float) -> bool:
 	# the grid
 	var g = CarGrid.new()
 	root.add_child(g)
@@ -103,6 +107,7 @@ func _initialize() -> void:
 	t.free()
 	print("[grid] %s" % ("GRID OK" if fails == 0 else "%d FAILED" % fails))
 	quit(1 if fails > 0 else 0)
+	return true
 
 
 func _check(ok: bool, msg: String) -> int:

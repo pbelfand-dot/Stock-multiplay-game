@@ -31,6 +31,27 @@ The four rally cars on the shared body weigh what their real class weighed:
 Their springs, dampers, anti-roll bars and brakes scale with the weight (`CarSpecs.rally`),
 the same way the cars with their own bodies do.
 
+## The CARS grid (October 2026)
+
+The owner's sketch: every car on one grid, a column for each kind (`scripts/game/car_columns.gd`,
+by the registry's category and role), and every car free (`Profile.owns` says so for any garage car;
+liveries, wheels and upgrades still cost credits).
+
+| Column | What goes in it | Cars |
+|---|---|---|
+| STREET | the road cars (JDM, EURO, AMERICAN, the SUVs): the touge's | 38 |
+| GT3 | the race cars (`race` category: GT3, DTM, GT2, the prototypes); the track's GT class takes its 12 | 15 |
+| F1 | the Formula cars (`formula` role): the FORMULA class | 3 |
+| RALLY | the rally cars: PLAY NOW and the Shotgun Series | 8 |
+| HYPERCARS | the `hyper` category (the ONE, the 800, the Bolide ...): any mode but the touge | 10 |
+
+Each tile's picture is the car's own 3D model in its own colours, three-quarters from the front in a
+plain studio (`tools/car_thumbs.gd` writes `assets/ui/cars/<id>.webp`; run it again when a car's
+model changes). A mode's START opens the grid on its column with only its cars to pick
+(`CarColumns.for_mode`); cut up takes any car. With `--seen_cars_only` (screenshots) the no-AI cars'
+tiles show their names only. `tests/car_grid_check.gd` and the menu test (`tests/menu_garage_check.gd`)
+drive it.
+
 ## Their interiors
 
 Each car keeps the interior its model came with, and the crew fit into it rather than the other way

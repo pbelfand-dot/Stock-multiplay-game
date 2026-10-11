@@ -97,7 +97,14 @@ the old backdrop: your car flat out on a stage, filmed like rally TV.
   tarmac in the same stage), Isola Rossa (dry mountain tarmac, hairpins and villages), Riviera Alps
   (snow and ice), the Grand Final (long stages). You're timed against five rival crews; finish a rally to open the next, and where you
   finish pays prize money. Drive it alone or host it for a friend.
-- **CARS**: the garage. Thirteen look-alike cars with their own names (no real brands or badges).
+- **CARS**: every car on one grid, and **every car is free** (no buying). Five columns: **STREET**
+  (the road cars: the touge's), **GT3** (the race cars), **F1**, **RALLY** and **HYPERCARS**, each car a
+  tile with a picture taken from its own 3D model (`tools/car_thumbs.gd`). The car you pick shows big and
+  live in the garage behind; ENTER (or a click) on it again, or DRIVE THIS ONE, makes it yours; CUSTOMISE
+  opens its paint, livery, wheels, number, upgrades and setup. A mode's START opens the grid on that mode's
+  column with only its cars to pick: the touge STREET, the track its class's (GT3, or F1 for FORMULA), a
+  rally RALLY (PLAY NOW goes straight in if you're in a rally car); cut up takes any car
+  (`scripts/ui/car_grid.gd`, `scripts/game/car_columns.gd`). The first cars:
   - **The rally cars on the shared body:** the **Kestrel R4** you start with, the blue-and-gold
     **Blue Comet WRC** (gold wheels), the white **Vortex Evo** with red and black slashes, and the
     **Martello 037** in white with navy, sky blue and red stripes (nearly all its power at the back:
@@ -631,8 +638,10 @@ real voice.
    - jumps: air time by speed (a hop at 80 km/h, ~0.9 s at 120, longer off a big jump), landings on all
      four wheels within 12 deg of the slope, no second bounce, still on the road, and braking in the air dips the nose
    - drift dirt: dust and stones when the car slides, a light trail at speed, a burst on landing, nothing when cruising or in the air
-   - garage + story: stage credits, buying (not without the money, not twice), upgrades, car setups, rallies
+   - garage + story: stage credits, every car free (nothing to buy), upgrades, car setups, rallies
      unlocking in order, the standings and prizes, the save reloading
+   - the CARS grid: every car in one of the five columns with its picture, what each mode takes, every car
+     free, picking and driving one, CUSTOMISE (`tests/car_grid_check.gd`); the menu test drives it with keys
    - road edges: the ground is flush with the road's edge and flat for 6 m past it (no ditch, no lip), the
      trees stand back, and running wide at 70 km/h you can get back on the road
    - the cockpit: the driver's sleeves are skinned on the CPU with the hands on the wheel (straight, turned both

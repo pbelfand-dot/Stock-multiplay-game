@@ -2,8 +2,8 @@ extends SceneTree
 ## The garage, the money and story mode, without driving (a throwaway save):
 ##   * stage credits: more for a longer stage, for beating the pace, for a clean
 ##     run, x1.5 in story mode; never negative
-##   * buying: not with too little money; then it's yours and the money's gone;
-##     not twice; upgrades step up to 3 and change the car's numbers
+##   * every car free (the owner's ask): owned from a new save, driven with 0 CR, nothing to buy;
+##     upgrades need the money, step up to 3 and change the car's numbers
 ##   * the car setup: the paint you chose, its own livery free, the drive split
 ##   * the championship: rally 2 opens when rally 1 is finished; the standings
 ##     put a quick crew first and a slow one last; prizes by position
@@ -35,13 +35,14 @@ func _initialize() -> void:
 	Profile.select_car("stromer")
 	fails += _check(Profile.car == "stromer", "the STROMER 4 can be driven without buying it")
 	Profile.select_car("kestrel")
-	# buying
+	# every car free: nothing to buy
 	var comet := Catalog.car("comet")
-	fails += _check(not Profile.buy("cars", "comet", comet.price) and Profile.credits == 0, "can't buy the Comet with 0 CR")
+	fails += _check(Profile.owns("cars", "comet") and Profile.credits == 0, "the Comet is yours with 0 CR (every car is free)")
 	Profile.earn(20000)
-	fails += _check(Profile.buy("cars", "comet", comet.price) and Profile.credits == 20000 - comet.price, "bought the Comet: %d CR left" % Profile.credits)
-	fails += _check(not Profile.buy("cars", "comet", comet.price), "can't buy it twice")
+	fails += _check(not Profile.buy("cars", "comet", comet.price) and Profile.credits == 20000, "nothing to buy: no money spent (%d CR)" % Profile.credits)
+	Profile.spend(20000)
 	Profile.select_car("comet")
+	fails += _check(Profile.car == "comet", "and it can be driven straight away")
 	var before := Profile.setup()
 	fails += _check(before.livery == "comet" and before.wheels == "gold" and Profile.owns("liveries", "comet"), "it comes in its own livery (free) and gold wheels")
 	fails += _check(not Profile.upgrade("comet", "engine") or Profile.level("comet", "engine") < 3, "upgrades need the money too")
@@ -81,7 +82,7 @@ func _initialize() -> void:
 	Profile._loaded = false
 	Profile.credits = -1
 	Profile.ensure_loaded()
-	fails += _check(Profile.credits == keep and Profile.car == "comet" and "comet" in Profile.owned.cars, "it all reloads from the save")
+	fails += _check(Profile.credits == keep and Profile.car == "comet" and Profile.owns("cars", "comet"), "it all reloads from the save")
 	# a save from before the STROMER 4 was free gets it on load
 	var cf := ConfigFile.new()
 	cf.load(Profile.path())

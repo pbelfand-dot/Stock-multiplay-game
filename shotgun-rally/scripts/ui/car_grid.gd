@@ -147,7 +147,8 @@ func _tile(id: String, ok: bool) -> Button:
 	var c := Catalog.car(id)
 	var b := Button.new()
 	b.custom_minimum_size = Vector2(TILE.x + 8, TILE.y + 30)
-	b.icon = CarColumns.thumb(id)
+	if not (OS.get_cmdline_user_args().has("--seen_cars_only") and VehicleRegistry.no_ai(id)):
+		b.icon = CarColumns.thumb(id)               # (screenshots, --seen_cars_only: no no-AI car's picture)
 	b.expand_icon = true
 	b.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	b.vertical_icon_alignment = VERTICAL_ALIGNMENT_TOP

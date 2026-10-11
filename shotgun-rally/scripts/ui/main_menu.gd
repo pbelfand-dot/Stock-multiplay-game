@@ -3,10 +3,12 @@ extends Control
 ## box, a slow camera round it; --menu_stage brings back the old backdrop, MenuBackdrop:
 ## your car flat out on a stage, filmed like rally TV). Over it: the logo, your
 ## credits, and six ways in (the logo, icons and panels: Higgsfield art, assets/ui):
-##   PLAY NOW   a random stage, straight in (the AI co-driver calls)
-##   MODES      a touge (mountain pass: time attack or drift) or CUT UP (highway traffic) (ModesPanel)
-##   MAPS       story mode: the championship (MapsPanel)
-##   CARS       the garage: buy, paint, upgrade (GaragePanel; the car on the spot swaps as you browse)
+##   PLAY NOW   a random stage, straight in (the AI co-driver calls; not in a rally car: pick one first)
+##   MODES      a touge (mountain pass: time attack or drift) or CUT UP (highway traffic) (ModesPanel);
+##              START opens the CARS grid on the mode's column, its cars only (CarColumns)
+##   MAPS       story mode: the championship (MapsPanel; a rally car picked first)
+##   CARS       every car on a grid (CarGrid: STREET, GT3, F1, RALLY, HYPERCARS; all free), the car
+##              picked on the spot; CUSTOMISE: its paint and parts (GaragePanel)
 ##   ONLINE     your name, host a crew (pick your seat) or join one by IP
 ##   SETTINGS   controls, sound, the co-driver's timing, driving aids (SettingsPanel)
 ## ESC (or BACK) goes back to the home buttons. The build and updates are top
@@ -22,6 +24,8 @@ const UI = preload("res://scripts/ui/ui_kit.gd")
 const Backdrop = preload("res://scripts/ui/menu_backdrop.gd")
 const Garage = preload("res://scripts/ui/menu_garage.gd")
 const GaragePanel = preload("res://scripts/ui/garage_panel.gd")
+const CarGrid = preload("res://scripts/ui/car_grid.gd")
+const CarColumns = preload("res://scripts/game/car_columns.gd")
 const MapsPanel = preload("res://scripts/ui/maps_panel.gd")
 const SettingsPanel = preload("res://scripts/ui/settings_panel.gd")
 const ModesPanel = preload("res://scripts/ui/modes_panel.gd")
@@ -33,6 +37,9 @@ var _cover: ColorRect               # until the backdrop is built
 var _home: VBoxContainer
 var _area: Control                  # where a panel goes
 var _open: Control
+var _back_to := ""                  # where BACK goes from the panel open ("": home)
+var _custom := ""                   # the car CUSTOMISE opened the garage on
+var _pick := {}                     # the CARS grid opened for a mode: {mode, go (Callable), back}
 var _credits: Label
 var _sub: Label                     # the line under the title (hidden while a panel's open)
 var _logo: TextureRect              # (smaller while a panel's open: room for it)
@@ -79,10 +86,10 @@ func _ready() -> void:
 	_home.position = Vector2(56, 244)
 	_home.add_theme_constant_override("separation", 10)
 	add_child(_home)
-	_home.add_child(UI.menu_item("PLAY NOW", "A random stage, straight in. The AI calls the notes.", func(): solo.emit(), true, "play"))
+	_home.add_child(UI.menu_item("PLAY NOW", "A random stage, straight in. The AI calls the notes.", _play_now, true, "play"))
 	_home.add_child(UI.menu_item("MODES", "Touge at night, cut up through highway traffic, or lap a circuit. Online: up to 8.", _show.bind("modes"), false, "modes"))
 	_home.add_child(UI.menu_item("MAPS", "The Shotgun Series: nine rallies, rival crews, prize money.", _show.bind("maps"), false, "maps"))
-	_home.add_child(UI.menu_item("CARS", "The garage: buy cars, paint them, upgrade them.", _show.bind("cars"), false, "cars"))
+	_home.add_child(UI.menu_item("CARS", "Every car, free: street, GT3, F1, rally, hypercars. Paint and upgrade them.", _show.bind("cars"), false, "cars"))
 	if OS.has_feature("web"):
 		# a browser can't connect two machines the way the game does (UDP): online is the download's
 		_home.add_child(UI.menu_item("ONLINE", "Needs the download (Windows, Mac, Linux, Chromebook with Linux).", func():
@@ -201,6 +208,7 @@ func refresh() -> void:
 
 func _show(which: String) -> void:
 	_back(false)
+	_back_to = ""
 	_home.visible = false
 	_sub.visible = false
 	_shrink_title(true)
@@ -209,13 +217,34 @@ func _show(which: String) -> void:
 	match which:
 		"maps":
 			var m := MapsPanel.new()
-			m.start.connect(func(i: int, seat: String): story.emit(i, seat))
+			m.start.connect(func(i: int, seat: String):
+				if seat == "codriver":                   # (riding with a friend: their car)
+					story.emit(i, seat)
+				else:
+					_pick_car({"mode": "rally"}, func(): story.emit(i, seat), "maps"))
 			_open = m
-		"cars":
-			var g := GaragePanel.new()
+		"cars", "pick":
+			var g := CarGrid.new()
 			g.backdrop = backdrop
 			g.changed.connect(refresh)
+			if which == "pick":                         # (for a mode: its cars, DRIVE starts it)
+				g.mode = _pick.mode
+				var go: Callable = _pick.go
+				g.drive.connect(func(_id: String): go.call())
+				_back_to = str(_pick.back)
+			else:
+				g.customise.connect(func(id: String):
+					_custom = id
+					_show("garage"))
 			_open = g
+			backdrop.set_showroom(true)
+		"garage":
+			var gp := GaragePanel.new()
+			gp.backdrop = backdrop
+			gp.start = _custom
+			gp.changed.connect(refresh)
+			_back_to = "cars"
+			_open = gp
 			backdrop.set_showroom(true)
 		"online":
 			_open = _online_panel()
@@ -223,7 +252,7 @@ func _show(which: String) -> void:
 			_open = SettingsPanel.new()
 		"modes":
 			var mp := ModesPanel.new()
-			mp.start.connect(func(m: Dictionary): mode.emit(m))
+			mp.start.connect(func(m: Dictionary): _pick_car(m, func(): mode.emit(m), "modes"))
 			_open = mp
 	_area.add_child(_open)
 	if _open.has_signal("back"):
@@ -235,7 +264,28 @@ func _show(which: String) -> void:
 	tw.tween_property(_open, "position:x", 0.0, 0.22)
 
 
+## A mode's START (and a rally's): the CARS grid opens on the mode's column, only the cars it takes
+## (CarColumns.for_mode: the touge STREET, the track its class, a rally RALLY, cut up any); DRIVE
+## starts it in the car picked. BACK goes to `back` (the panel it came from, "": home).
+func _pick_car(m: Dictionary, go: Callable, back := "") -> void:
+	_pick = {"mode": m, "go": go, "back": back}
+	_show("pick")
+
+
+## PLAY NOW: a rally stage, straight in when you drive a rally car; else pick one first.
+func _play_now() -> void:
+	if CarColumns.allows({"mode": "rally"}, Profile.car):
+		solo.emit()
+	else:
+		_pick_car({"mode": "rally"}, func(): solo.emit())
+
+
 func _back(home := true) -> void:
+	if home and _back_to != "":                     # (a panel opened from another: back to that one)
+		var to := _back_to
+		_back_to = ""
+		_show(to)
+		return
 	if _open:
 		_open.queue_free()
 		_open = null

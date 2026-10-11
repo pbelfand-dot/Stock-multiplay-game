@@ -59,6 +59,8 @@ echo "== drift dirt: dust + stones when it slides, none when it cruises or flies
 run_g 180 --headless --fixed-fps 120 --path . -s tests/fx_check.gd 2>&1 | grep -E "\[fx\]" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
 echo "== garage + story: credits, buying, upgrades, car setups, championship unlocks and standings"
 run_g 120 --headless --path . -s tests/story_check.gd -- --profile=$T/story.cfg 2>&1 | grep -E "\[story\] (FAIL|STORY)" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
+echo "== the CARS grid: every car in one of five columns (STREET, GT3, F1, RALLY, HYPERCARS) with its picture; what each mode takes; every car free; picking, driving, CUSTOMISE"
+run_g 120 --headless --path . -s tests/car_grid_check.gd -- --profile=$T/grid.cfg 2>&1 | grep -E "\[grid\] (FAIL|GRID)" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
 echo "== the home screen's garage: the room built quickly, your car parked on the spot standing on the floor, the camera always in the room and clear of the furniture, CARS swapping the car on the spot, DRIVE THIS ONE saved and parked there next launch"
 T2=$(mktemp -d); run_g 300 --headless --path . -s tests/menu_garage_check.gd -- --profile=$T2/garage.cfg 2>&1 | grep -E "\[garage\] (FAIL|GARAGE)" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1; rm -rf "$T2"
 echo "== settings, again and again: from the home screen and from the pause menu (ESC on a stage), GRAPHICS and the other choices clicked round each time (every click counts), closed by BACK or ESC (back to the pause menu, still paused), one panel, no errors"

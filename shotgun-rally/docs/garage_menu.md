@@ -22,10 +22,13 @@ TV) is still there behind `--menu_stage`.
   from the back wall, the door's LED frame behind the car); in CARS a slow orbit with the car
   right of the panel. Switching starts the new path where the camera is, so it never cuts
   through the car. It stays inside the room and clear of the furniture and of the biggest car.
-- **CARS**: browsing (◀ ▶, a pad's LB / RB) swaps the car on the spot for each car's own
-  model, paint and livery; DRIVE THIS ONE (or buying it) makes it the car you drive, saved,
-  and it's the car on the spot from then on. Keys and pads start on ▶ and keep the focus as the
-  panel redraws.
+- **CARS**: the grid of every car (five columns: STREET, GT3, F1, RALLY, HYPERCARS; every car
+  free; [cars.md](cars.md)). A tile picked (ENTER, a click) swaps the car on the spot for that car's
+  own model, paint and livery; pressed again (or DRIVE THIS ONE) it's the car you drive, saved, and
+  the car on the spot from then on. Keys and pads start on the car you drive; the arrows go from tile
+  to tile and column to column, LB / RB jump a column. CUSTOMISE opens the garage (◀ ▶, paint,
+  livery, wheels, upgrades, setup) on that car; ESC goes back to the grid. A mode's START opens the
+  grid on its column (its cars only) and START IN THIS ONE starts it.
 - **Moods**: the menus tint the door's LED frame a little: amber for MODES, warm for MAPS,
   cool for ONLINE.
 
