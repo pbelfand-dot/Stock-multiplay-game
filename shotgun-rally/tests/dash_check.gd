@@ -12,6 +12,10 @@ extends SceneTree
 ##     limiter)
 ##   * the screens: the centre screen's page flips (M / the d-pad right) and back
 ##   * the dome light: every car has one, off, and it switches on and off
+##   * the boards (measured quads over blank dials and screens): each there, facing the
+##     driver's eye, its page; a dial's needle follows its reading (the speed, the revs)
+##   * the ambient lighting: off by day, every light on at night
+##   * the readings: the fuel (an electric car: its charge) and the range from it
 ##   * the original materials are untouched: an overlay is a duplicate's next pass
 ## Prints one [dash] line per check; exits 1 on any FAIL.
 ## Run: godot --headless --path . -s tests/dash_check.gd
@@ -95,13 +99,59 @@ func _spec(id: String, car, cp, dash, spec: Dictionary) -> void:
 	var screens := 0
 	for d in spec.get("displays", []) + spec.get("panels", []):
 		screens += d.get("screens", []).size()
+	screens += spec.get("boards", []).size()
 	var needles := 0
 	for nm in spec.get("needle_meshes", []):
 		needles += nm.needles.size()
 	fails += _check(dash.missing.is_empty() and dash.pages.size() == screens and dash.panels.size() == spec.get("panels", []).size()
-		and dash.needle_parts.size() == needles,
-		"%s: everything found (missing %s), %d screens, %d panels, %d modelled needles" % [
-		id, str(dash.missing), dash.pages.size(), dash.panels.size(), dash.needle_parts.size()])
+		and dash.needle_parts.size() == needles and dash.boards.size() == spec.get("boards", []).size(),
+		"%s: everything found (missing %s), %d screens, %d panels, %d boards, %d modelled needles" % [
+		id, str(dash.missing), dash.pages.size(), dash.panels.size(), dash.boards.size(), dash.needle_parts.size()])
+	# the boards face the driver's eye
+	if not dash.boards.is_empty():
+		var eye: Vector3 = cp.eye_driver - car.model_offset()
+		var worst_face := 1.0
+		for b in dash.boards:
+			var arr: Array = (b as MeshInstance3D).mesh.surface_get_arrays(0)
+			var vs: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
+			var mid := Vector3.ZERO
+			for v in vs:
+				mid += v
+			mid /= vs.size()
+			var nrm: Vector3 = (arr[Mesh.ARRAY_NORMAL] as PackedVector3Array)[0]
+			worst_face = minf(worst_face, nrm.dot((eye - mid).normalized()))
+		fails += _check(worst_face > 0.85 or spec.get("boards", []).any(func(x): return x.has("normal")),
+			"%s: its %d boards face the driver (worst %.2f)" % [id, dash.boards.size(), worst_face])
+	# a dial's needle follows its reading
+	var dials: Array = dash.pages.filter(func(p): return str(p.cfg.get("page", "")) == "dial")
+	if not dials.is_empty():
+		dash.fake = {"kmh": 0.0, "rpm": 800.0, "rpm01": 0.0}
+		_run(dash, DT)
+		var lo: Array = dials.map(func(p): return p.share())
+		dash.fake = {"kmh": 180.0, "rpm": 5500.0, "rpm01": 0.75}
+		_run(dash, DT)
+		var hi: Array = dials.map(func(p): return p.share())
+		var moved := true
+		for i in dials.size():
+			if hi[i] <= lo[i] + 0.2:
+				moved = false
+		fails += _check(moved, "%s: its dials' needles follow the speed and the revs (%s -> %s)" % [id, str(lo), str(hi)])
+	# the ambient lighting: off by day, on at night
+	if spec.has("ambient"):
+		dash.night = false
+		_run(dash, DT)
+		var day_off: bool = not dash.ambient.is_empty() and dash.ambient.all(func(l): return not l.visible)
+		dash.night = true
+		_run(dash, DT)
+		var night_on: bool = dash.ambient.all(func(l): return l.visible)
+		dash.night = false
+		_run(dash, DT)
+		fails += _check(day_off and night_on, "%s: its %d ambient lights off by day, on at night" % [id, dash.ambient.size()])
+	# the fuel (or the charge) and the range from it
+	dash.fake = {"fuel": 0.5}
+	_run(dash, DT)
+	fails += _check(absf(float(dash.data.range) - 0.5 * float(spec.get("range_km", 420.0))) < 0.5 and dash.data.has("electric"),
+		"%s: the fuel reads 50 %% and the range %d km%s" % [id, roundi(dash.data.range), " (electric)" if dash.data.electric else ""])
 	# the originals untouched: each overlaid surface draws a duplicate, the overlay its next pass
 	var same := true
 	for mi in car.body_model.find_children("*", "MeshInstance3D", true, false):

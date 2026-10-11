@@ -16,10 +16,19 @@ extends Node3D
 ##     UVs across it, showing the pages
 ##   * "needle_meshes": needles modelled as parts (merged into the body): each one cut
 ##     out into a part of its own and turned about its dial's hub
+##   * "boards": a dial or screen that's blank and can't be picked out by its faces (it
+##     shares a material with everything round it): a quad of its own placed by measure
+##     ("c": its middle, "w" x "h" m, facing the driver's eye or "normal"; "round": a
+##     dial's disc) a hair in front of it, showing a page ("dial", "cluster", "nav")
 ##   * the warning lamps: the handbrake, ABS and traction control working, the shift
 ##     lamp near the limiter, the lights at night, the flash; all of them for a moment
 ##     when the engine starts (the bulb check)
 ##   * the dome light: a soft light under the roof, switched (L / the d-pad up)
+##   * "ambient": the ambient lighting, on at night: soft coloured lights low in the cabin
+##     ({"color", "energy", "range", "at": [[x, y, z], ...]} from the steering wheel's
+##     centre; without "at": the centre console's footwell and both door cards)
+##   * "electric": the readings are a charge (the "fuel") and a range ("range_km" full,
+##     else 420); an electric car's engine (its regen) says so when the spec doesn't
 ## Spec coordinates: a display's are its texture's pixels ("units": "px", x right, y
 ## down) or its UVs ("units": "uv"); a panel's and a needle mesh's are metres from the
 ## steering wheel's centre (the model's axes: x right, y up, z back). Needle angles
@@ -45,13 +54,16 @@ var overlays: Array = []            # [{"mat": ShaderMaterial, "needles": [...],
 var needle_parts: Array = []        # [{"pivot": Node3D, "axis": Vector3, "n": spec}]
 var needle_mats: Array = []         # the needle parts' material (lit up at night)
 var panels: Array = []              # the panels' meshes
+var boards: Array = []              # the boards' meshes
 var missing: Array = []             # spec entries that found nothing (the tests list them)
 var _dome: OmniLight3D
+var ambient: Array = []             # the ambient lights (on at night)
 var _t := 0.0                       # s since it was built (the bulb check)
 var _screen_t := 0.0
 var _gfx := Vector2.ZERO            # g, smoothed (x: across, + = right; y: along, + = braking)
 var _prev_v := Vector3.ZERO
 var _lit := false                   # the needles lit (night)
+var _overlaid := {}                 # a display's material -> its copy with the overlay (one per material)
 
 
 static func spec_for(model: String) -> Dictionary:
@@ -73,9 +85,12 @@ func setup(the_car, the_cockpit, the_spec: Dictionary) -> void:
 			missing.append("display " + str(d.get("mat")))
 	for p in spec.get("panels", []):
 		_panel(p)
+	for b in spec.get("boards", []):
+		_board(b)
 	for n in spec.get("needle_meshes", []):
 		_needle_mesh(n)
 	_make_dome()
+	_make_ambient()
 
 
 ## Calls fn(mesh instance, surface, material) for every surface of the body whose
@@ -100,10 +115,14 @@ func _surfaces(pattern: String, fn: Callable) -> bool:
 
 
 func _overlay(m: MeshInstance3D, si: int, base: Material, d: Dictionary) -> void:
+	if _overlaid.has(base):                              # (the material on another mesh too: the same overlay, the same pages)
+		m.set_surface_override_material(si, _overlaid[base])
+		return
 	var ov := _overlay_material(base, d)
 	var mat: Material = base.duplicate()
 	mat.next_pass = ov
 	m.set_surface_override_material(si, mat)
+	_overlaid[base] = mat
 
 
 ## The overlay material for a display (its screens get their pages and viewports).
@@ -309,6 +328,50 @@ func _panel(p: Dictionary) -> void:
 	panels.append(mi)
 
 
+## A board: a quad of its own at "c" (m from the steering wheel's centre, the model's axes),
+## "w" x "h", facing the driver's eye (or "normal"), its top toward "up" (the world's up by
+## default), "lift" toward the driver; the page fills it ("round": the disc inside it only).
+func _board(b: Dictionary) -> void:
+	var c := _wheel() + Vector3(b.c[0], b.c[1], b.c[2])
+	var eye: Vector3 = cockpit.eye_driver - car.model_offset()
+	var nrm := (eye - c).normalized()
+	if b.has("normal"):
+		nrm = Vector3(b.normal[0], b.normal[1], b.normal[2]).normalized()
+	var upv := Vector3.UP if not b.has("up") else Vector3(b.up[0], b.up[1], b.up[2])
+	var up := (upv - nrm * nrm.dot(upv)).normalized()
+	var right := up.cross(nrm)
+	var w := float(b.get("w", 0.1)) * 0.5
+	var h := float(b.get("h", b.get("w", 0.1))) * 0.5
+	var at := c + nrm * float(b.get("lift", 0.0015))
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var corners := [[-1.0, 1.0, Vector2(0, 0)], [1.0, 1.0, Vector2(1, 0)], [1.0, -1.0, Vector2(1, 1)], [-1.0, -1.0, Vector2(0, 1)]]
+	for k in [0, 1, 2, 0, 2, 3]:
+		st.set_normal(nrm)
+		st.set_uv(corners[k][2])
+		st.add_vertex(at + right * w * corners[k][0] + up * h * corners[k][1])
+	var mi := MeshInstance3D.new()
+	mi.name = "LiveBoard"
+	mi.mesh = st.commit()
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	var host: MeshInstance3D = null
+	for n in car.body_model.find_children("*", "MeshInstance3D", true, false):
+		host = n
+		break
+	if host:
+		mi.layers = host.layers
+	var sc: Dictionary = b.duplicate()
+	sc.rect = [0.0, 0.0, 1.0, 1.0]
+	if not sc.has("aspect"):
+		sc.aspect = w / h
+	var ov := _overlay_material(StandardMaterial3D.new(), {"units": "uv", "screens": [sc], "solid": true})
+	ov.render_priority = 0
+	ov.set_shader_parameter("round_mask", bool(b.get("round", false)))
+	mi.material_override = ov
+	car.body_model.add_child(mi)
+	boards.append(mi)
+
+
 ## A surface's triangles as indices (three per triangle).
 ## A mesh's transform in the model (the car's body_model): its points in the model's space.
 func _rel(n: Node3D) -> Transform3D:
@@ -481,6 +544,36 @@ func _make_dome() -> void:
 	cockpit.add_child(_dome)
 
 
+## The ambient lighting: soft coloured lights low in the cabin, lit with the night.
+func _make_ambient() -> void:
+	var a = spec.get("ambient")
+	if not (a is Dictionary):
+		return
+	var spots: Array = []
+	if a.has("at"):
+		var c := cockpit.wheel_c as Vector3
+		for p in a.at:
+			spots.append(c + Vector3(p[0], p[1], p[2]))
+	else:
+		var ed: Vector3 = cockpit.eye_driver
+		var ec: Vector3 = cockpit.eye_codriver
+		var out := signf(ed.x - ec.x)                    # (the driver's side, outward)
+		spots = [(ed + ec) * 0.5 + Vector3(0.0, -0.62, -0.34),
+			ed + Vector3(out * 0.3, -0.42, -0.05), ec + Vector3(-out * 0.3, -0.42, -0.05)]
+	for i in spots.size():
+		var l := OmniLight3D.new()
+		l.name = "Ambient%d" % i
+		l.light_color = Color(str(a.get("color", "#ffb070")))
+		l.light_energy = float(a.get("energy", 0.3))
+		l.omni_range = float(a.get("range", 0.75))
+		l.omni_attenuation = 1.6
+		l.shadow_enabled = false
+		l.position = spots[i]
+		l.visible = false
+		cockpit.add_child(l)
+		ambient.append(l)
+
+
 func toggle_dome() -> void:
 	dome_on = not dome_on
 	_dome.visible = dome_on
@@ -504,6 +597,7 @@ func _read(dt: float) -> void:
 	var idle: float = eng.idle_rpm if eng else 900.0
 	var top: float = eng.limiter_rpm if eng else 7000.0
 	var game = car.get_parent()
+	var ev: bool = bool(spec.get("electric", eng != null and "regen_torque" in eng and float(eng.regen_torque) > 0.0))
 	data = {
 		"kmh": car.kmh(), "rpm01": float(car.rpm), "rpm": lerpf(idle, top, float(car.rpm)) if car.rpm > 0.001 else 0.0,
 		"limiter": top, "gear": int(car.gear), "g": _gfx, "handbrake": car.handbrake_on(),
@@ -513,8 +607,10 @@ func _read(dt: float) -> void:
 		"car_s": float(cockpit.map_board.car_s) if cockpit.map_board else 0.0,
 		"night": night,
 		"fuel": clampf(0.86 - float(game.stage_time if game and "stage_time" in game else 0.0) / 3600.0, 0.1, 1.0),
+		"electric": ev,
 	}
 	data.merge(fake, true)
+	data.range = float(data.fuel) * float(spec.get("range_km", 420.0))
 
 
 func warning(what: String) -> bool:
@@ -544,6 +640,8 @@ func _process(dt: float) -> void:
 	var glow := 1.0 if night else 0.0
 	if night != _lit:
 		_lit = night
+		for l in ambient:
+			(l as OmniLight3D).visible = night
 		for m in needle_mats:
 			if m is StandardMaterial3D:
 				m.emission_enabled = night
@@ -626,6 +724,7 @@ uniform int warn_count = 0;
 uniform vec4 warn_rect[8];
 uniform float warn_on[8];
 uniform vec4 warn_col[8];
+uniform bool round_mask = false;   // (a round board: only its disc)
 
 bool inside(vec2 uv, vec4 r) {
 	return uv.x >= r.x && uv.y >= r.y && uv.x <= r.z && uv.y <= r.w;
@@ -647,6 +746,9 @@ vec3 screen_at(int i, vec2 q) {
 
 void fragment() {
 	vec2 uv = UV;
+	if (round_mask && length(uv - vec2(0.5)) > 0.5) {
+		discard;
+	}
 	vec4 outc = vec4(0.0);
 	for (int i = 0; i < glow_count; i++) {
 		if (inside(uv, glow_rect[i])) {

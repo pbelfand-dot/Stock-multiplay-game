@@ -10,13 +10,20 @@ extends Control
 ##   * "cluster" on a blank screen ("bg": false): a digital cluster of its own, drawn
 ##     on a canvas the screen's shape ("aspect": its width / height as you see it):
 ##     the revs in a band across the top (the shift lamps above), the speed, the
-##     gear, the warning lamps along the bottom, in the car's accent colour
+##     gear, the fuel (an electric car: its charge and range), the warning lamps along
+##     the bottom, in the car's accent colour; "style": "dials": two round dials drawn
+##     on the screen instead (the speed on the left, the revs or, electric, the power
+##     on the right, their needles sweeping), the gear and the fuel between them
 ##   * "nav": the centre screen: a menu down the left (the page you're on lit in the
 ##     accent colour) and the page: NAVIGATION, the road around you heading up, your
-##     car in the middle, the distance to go; DRIVING INFORMATION, the speed, gear,
-##     revs, a g-meter and the stage clock. M (the d-pad right) flips the page.
+##     car in the middle, the distance to go, what's playing along the bottom; DRIVING
+##     INFORMATION, the speed, gear, revs, the fuel or charge, a g-meter and the stage
+##     clock. M (the d-pad right) flips the page.
 ##   * "lcd": a small segment display (an old car's clock): one reading ("what": the
 ##     clock by default) in its colour, the unlit segments ("88:88") faint behind it
+##   * "dial": one round dial on a board of its own (a car whose dials are blank):
+##     "what" kmh or rpm (the scale to "max", numbers every "step", red past "red" for the
+##     revs), its face colour "face", the needle "needle"
 
 var live                            # DashLive (its data, warning())
 var cfg := {}
@@ -71,6 +78,8 @@ func _draw() -> void:
 			_nav()
 		"lcd":
 			_lcd()
+		"dial":
+			_one_dial()
 
 
 # ── a painted cluster, made live ──────────────────────────────────────────
@@ -145,6 +154,10 @@ func _reading(what: String, d: Dictionary, t := {}) -> String:
 			return "%d:%04.1f" % [int(tt / 60.0), fmod(tt, 60.0)]
 		"rpm":
 			return "%d" % (roundi(_value("rpm", d) / 100.0) * 100)
+		"fuel":
+			return "%d %%" % roundi(clampf(_value("fuel", d), 0.0, 1.0) * 100.0)
+		"range":
+			return "%d km" % roundi(_value("range", d))
 	return str(t.get("text", ""))
 
 
@@ -198,6 +211,9 @@ func _lamp(l: Dictionary) -> void:
 # ── a cluster of its own, on a blank screen ───────────────────────────────
 
 func _own_cluster() -> void:
+	if str(cfg.get("style", "")) == "dials":
+		_dials()
+		return
 	var d: Dictionary = live.data
 	var r := view
 	var accent := Color(str(cfg.get("accent", "#1c69d4")))
@@ -227,6 +243,79 @@ func _own_cluster() -> void:
 	var lamps := [["handbrake", "#ff3b1f"], ["abs", "#ffb000"], ["tc", "#ffb000"]]
 	for i in lamps.size():
 		_lamp({"what": lamps[i][0], "at": [r.position.x + w * (0.42 + (i - 1) * 0.07), r.position.y + h * 0.92], "size": h * 0.08, "color": lamps[i][1]})
+	# the fuel (or the charge and the range) on the right, under the gear
+	_tank(d, Rect2(r.position + Vector2(w * 0.78, h * 0.5), Vector2(w * 0.15, h * 0.06)), accent, h * 0.07)
+
+
+## The fuel left (an electric car: its charge, and the range under it): a bar, its figure.
+func _tank(d: Dictionary, bar: Rect2, accent: Color, px: float) -> void:
+	var f := clampf(_value("fuel", d), 0.0, 1.0)
+	draw_rect(bar, Color(1, 1, 1, 0.1))
+	draw_rect(Rect2(bar.position, Vector2(bar.size.x * f, bar.size.y)), Color("#ffb000") if f < 0.15 else accent.lightened(0.2))
+	var ev: bool = d.get("electric", false)
+	_say(("%s  %s" % ["⚡" if ev else "FUEL", _reading("fuel", d)]), bar.position + Vector2(0, -px * 0.9), px, Color(0.82, 0.84, 0.87), "left", false)
+	if ev:
+		_say(_reading("range", d), bar.position + Vector2(0, bar.size.y + px * 0.9), px, Color(0.82, 0.84, 0.87), "left", false)
+
+
+## Two round dials on the screen (as the luxury cars' digital clusters draw them): the speed
+## on the left, the revs (electric: the power used, 0-100 %) on the right, the gear, the
+## fuel and the lamps between them.
+func _dials() -> void:
+	var d: Dictionary = live.data
+	var r := view
+	var accent := Color(str(cfg.get("accent", "#9fd3ff")))
+	var needle := Color(str(cfg.get("needle", "#ff4a1c")))
+	draw_rect(r, Color(0.01, 0.012, 0.016))
+	var w := r.size.x
+	var h := r.size.y
+	var rr := minf(h * 0.44, w * 0.2)
+	var ev: bool = d.get("electric", false)
+	var top_kmh := float(cfg.get("kmh_max", 260.0))
+	var lim: float = float(d.get("limiter", 7000.0))
+	_dial(r.position + Vector2(w * 0.24, h * 0.5), rr, absf(_value("kmh", d)) / top_kmh, top_kmh, 20.0 if top_kmh <= 280.0 else 40.0, "km/h", accent, needle)
+	if ev:
+		_dial(r.position + Vector2(w * 0.76, h * 0.5), rr, clampf(_value("rpm01", d), 0.0, 1.0), 100.0, 10.0, "% POWER", accent, needle)
+	else:
+		_dial(r.position + Vector2(w * 0.76, h * 0.5), rr, clampf(_value("rpm", d) / lim, 0.0, 1.0), lim / 1000.0, 1.0, "x1000/min", accent, needle, lim * 0.88 / 1000.0)
+	# between them: the gear, the speed in figures, the fuel, the clock, the lamps
+	var mid := r.position + Vector2(w * 0.5, 0.0)
+	_say(_gear(d, str(cfg.get("gear_style", "bmw"))), mid + Vector2(0, h * 0.34), h * 0.2, accent.lightened(0.3))
+	_say(_reading("speed", d), mid + Vector2(0, h * 0.58), h * 0.13, Color(1, 1, 1))
+	_tank(d, Rect2(mid + Vector2(-w * 0.07, h * 0.76), Vector2(w * 0.14, h * 0.035)), accent, h * 0.055)
+	_say(_reading("clock", d), mid + Vector2(0, h * 0.1), h * 0.06, Color(0.8, 0.82, 0.85), "center", false)
+	var lamps := [["handbrake", "#ff3b1f"], ["abs", "#ffb000"], ["tc", "#ffb000"]]
+	for i in lamps.size():
+		_lamp({"what": lamps[i][0], "at": [mid.x + w * (i - 1) * 0.045, r.position.y + h * 0.94], "size": h * 0.055, "color": lamps[i][1]})
+	if live.warning("shift"):
+		_lamp({"what": "shift", "at": [mid.x, r.position.y + h * 0.2], "w": w * 0.14, "size": h * 0.05})
+
+
+## One round dial: a 240-degree scale (from bottom left round to bottom right), its numbers
+## every `step` (major ticks), red past `red`, the needle at share u (0..1).
+func _dial(c: Vector2, rr: float, u: float, top: float, step: float, unit: String, accent: Color, needle: Color, red := -1.0) -> void:
+	var a0 := deg_to_rad(150.0)
+	var sweep := deg_to_rad(240.0)
+	var line := maxf(rr * 0.02, 1.0)
+	draw_arc(c, rr, a0, a0 + sweep, 64, Color(accent.r, accent.g, accent.b, 0.35), line, true)
+	if red > 0.0:
+		draw_arc(c, rr * 0.97, a0 + sweep * red / top, a0 + sweep, 24, Color("#ff2a12"), line * 3.0, true)
+	var n := int(round(top / step))
+	for k in n + 1:
+		var a := a0 + sweep * float(k) / float(n)
+		var dir := Vector2(cos(a), sin(a))
+		draw_line(c + dir * rr * 0.86, c + dir * rr, Color(0.9, 0.92, 0.95), line * 1.6, true)
+		if n <= 14 or k % 2 == 0:
+			_say("%d" % roundi(k * step), c + dir * rr * 0.72, rr * 0.13, Color(0.86, 0.88, 0.92), "center", false)
+	for k in n * 2:
+		var a := a0 + sweep * (float(k) + 0.5) / float(n * 2)
+		var dir := Vector2(cos(a), sin(a))
+		draw_line(c + dir * rr * 0.92, c + dir * rr, Color(0.7, 0.72, 0.76), line, true)
+	var an := a0 + sweep * clampf(u, 0.0, 1.0)
+	var dn := Vector2(cos(an), sin(an))
+	draw_line(c - dn * rr * 0.12, c + dn * rr * 0.93, needle, rr * 0.035, true)
+	draw_circle(c, rr * 0.07, Color(0.12, 0.13, 0.15))
+	_say(unit, c + Vector2(0, rr * 0.45), rr * 0.1, Color(0.65, 0.68, 0.72), "center", false)
 
 
 # ── the centre screen ─────────────────────────────────────────────────────
@@ -299,6 +388,16 @@ func _map(area: Rect2, d: Dictionary, accent: Color) -> void:
 	var txt := ("%.1f km to the finish" % (togo / 1000.0)) if togo >= 0.0 else ("%.1f km driven" % (maxf(car_s - st.START_S, 0.0) / 1000.0))
 	draw_rect(Rect2(area.position, Vector2(area.size.x, area.size.y * 0.16)), Color(0, 0, 0, 0.55))
 	_say(txt, area.position + Vector2(unit * 4.0, area.size.y * 0.08), area.size.y * 0.1, Color(0.95, 0.95, 0.96), "left", false)
+	# what's playing: the station, the song, how far into it
+	var strip := Rect2(area.position + Vector2(0, area.size.y * 0.84), Vector2(area.size.x, area.size.y * 0.16))
+	draw_rect(strip, Color(0, 0, 0, 0.62))
+	var tt: float = float(d.get("time", 0.0)) + 47.0
+	var songs: Array = cfg.get("songs", ["NIGHT DRIVE", "GRAVEL & GOLD", "SIDEWAYS", "LAST STAGE"])
+	var song: String = str(songs[int(tt / 200.0) % songs.size()])
+	_say("♪  %s  ·  %s" % [song, str(cfg.get("radio", "SHOTGUN FM 98.6"))], strip.position + Vector2(unit * 4.0, strip.size.y * 0.4), strip.size.y * 0.42, Color(0.92, 0.93, 0.95), "left", false)
+	var prog := Rect2(strip.position + Vector2(unit * 4.0, strip.size.y * 0.8), Vector2(strip.size.x - unit * 8.0, strip.size.y * 0.07))
+	draw_rect(prog, Color(1, 1, 1, 0.15))
+	draw_rect(Rect2(prog.position, Vector2(prog.size.x * fmod(tt, 200.0) / 200.0, prog.size.y)), accent)
 
 
 ## Speed, gear, revs, a g-meter, the stage clock.
@@ -316,6 +415,8 @@ func _info(area: Rect2, d: Dictionary, accent: Color) -> void:
 	var u := clampf(float(d.get("rpm01", 0.0)), 0.0, 1.0)
 	draw_rect(Rect2(bar.position, Vector2(bar.size.x * u, bar.size.y)), Color("#ff3b1f") if u > 0.9 else Color(0.92, 0.93, 0.95))
 	_say("%d rpm" % (roundi(float(d.get("rpm", 0.0)) / 50.0) * 50), Vector2(x0, y0 + h * 0.8), h * 0.1, Color(0.7, 0.72, 0.75), "left", false)
+	_say(("CHARGE " if d.get("electric", false) else "FUEL ") + _reading("fuel", d) + ("   " + _reading("range", d) if d.get("electric", false) else ""),
+		Vector2(x0 + area.size.x * 0.3, y0 + h * 0.8), h * 0.1, Color(0.7, 0.72, 0.75), "left", false)
 	_say("STAGE  " + _reading("time", d), Vector2(x0, y0 + h * 0.93), h * 0.1, Color(0.92, 0.93, 0.95), "left", false)
 	# the g-meter
 	var c := Vector2(area.end.x - h * 0.4, y0 + h * 0.5)
@@ -328,6 +429,35 @@ func _info(area: Rect2, d: Dictionary, accent: Color) -> void:
 	var g: Vector2 = d.get("g", Vector2.ZERO)
 	draw_circle(c + (g / 1.5).limit_length(1.0) * rr, h * 0.035, accent.lightened(0.2))
 	_say("%.1f g" % g.length(), c + Vector2(-rr, rr + h * 0.08), h * 0.09, Color(0.7, 0.72, 0.75), "left", false)
+
+
+# ── one dial on a board ───────────────────────────────────────────────────
+
+## How far round its scale a dial's needle is now (0..1; the tests read it).
+func share() -> float:
+	var d: Dictionary = live.data
+	if str(cfg.get("what", "kmh")) == "rpm":
+		return clampf(_value("rpm", d) / float(cfg.get("max", d.get("limiter", 7000.0))), 0.0, 1.0)
+	return clampf(absf(_value("kmh", d)) / float(cfg.get("max", 260.0)), 0.0, 1.0)
+
+
+func _one_dial() -> void:
+	var d: Dictionary = live.data
+	var r := view
+	var accent := Color(str(cfg.get("accent", "#e8eef6")))
+	var needle := Color(str(cfg.get("needle", "#ff4a1c")))
+	draw_rect(r, Color(str(cfg.get("face", "#0b0c10"))))
+	var c := r.position + r.size * 0.5
+	var rr := minf(r.size.x, r.size.y) * 0.46
+	var what := str(cfg.get("what", "kmh"))
+	if what == "rpm":
+		var lim: float = float(cfg.get("max", d.get("limiter", 7000.0)))
+		_dial(c, rr, clampf(_value("rpm", d) / lim, 0.0, 1.0), lim / 1000.0, float(cfg.get("step", 1.0)), str(cfg.get("unit", "x1000/min")),
+			accent, needle, float(cfg.get("red", lim * 0.88)) / 1000.0)
+	else:
+		var top := float(cfg.get("max", 260.0))
+		_dial(c, rr, absf(_value("kmh", d)) / top, top, float(cfg.get("step", 20.0)), str(cfg.get("unit", "km/h")), accent, needle)
+	draw_arc(c, rr * 1.06, 0.0, TAU, 64, Color(0.55, 0.57, 0.6), rr * 0.035, true)     # (the chrome ring)
 
 
 # ── a segment display ─────────────────────────────────────────────────────

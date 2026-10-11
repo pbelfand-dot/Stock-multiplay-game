@@ -1,0 +1,16 @@
+{
+	"_about": "BMW 320i (G20): the curved display's pictures are painted into the interior's texture (texture_interior, 1024 px, stored upside down: flip_v): the cluster's part (left) gets a live digital cluster, the iDrive's part (right) the centre screen's pages. The rest of that texture is the buttons (the steering wheel's, the doors', the console's, the roof's): backlit at night. Ambient lighting: cool blue.",
+	"displays": [
+		{
+			"mat": "^texture_interior$",
+			"tex": 1024,
+			"glow": [[0, 0, 1024, 652]],
+			"glow_color": "#c9dcff",
+			"screens": [
+				{"page": "cluster", "bg": false, "rect": [6, 706, 440, 1018], "aspect": 2.6, "flip_v": true, "accent": "#2f7de1", "style": "bmw"},
+				{"page": "nav", "rect": [452, 706, 1020, 1018], "aspect": 1.9, "flip_v": true, "accent": "#2f7de1", "radio": "SHOTGUN FM 98.6"}
+			]
+		}
+	],
+	"ambient": {"color": "#4f8dff", "energy": 0.28}
+}
