@@ -119,7 +119,8 @@ func start_solo(s: int) -> void:
 			"difficulty": Config.arg("difficulty", "normal"), "toll": Config.arg("toll", "open"),
 			"class": Config.arg("track_class", "gt"), "session": Config.arg("session", "practice"), "laps": int(Config.arg("laps", 5)),
 			"opponents": int(Config.arg("opponents", 9)), "start": Config.arg("start", ""), "minutes": float(Config.arg("minutes", 10.0)),
-			"grid": Config.arg("grid", "middle"), "track_difficulty": Config.arg("track_difficulty", "medium")}
+			"grid": Config.arg("grid", "middle"), "track_difficulty": Config.arg("track_difficulty", "medium"),
+			"weather": Config.arg("weather", "day")}
 		load_stage(s, 1, mode_opts(s, m))
 		return
 	load_stage(s, 1, quick_opts(s))
@@ -132,7 +133,7 @@ func mode_opts(s: int, like: Dictionary) -> Dictionary:
 		o = Modes.cutup_opts(s, str(like.get("difficulty", "normal")), str(like.get("toll", "open")))
 	elif like.get("mode") == "track":
 		var extra := {}
-		for k in ["opponents", "start", "minutes", "grid", "damage", "weekend", "grid_order", "collide"]:
+		for k in ["opponents", "start", "minutes", "grid", "damage", "weekend", "grid_order", "collide", "weather"]:
 			if like.has(k) and str(like[k]) != "":
 				extra[k] = like[k]
 		extra["difficulty"] = str(like.get("track_difficulty", like.get("difficulty", "medium")))

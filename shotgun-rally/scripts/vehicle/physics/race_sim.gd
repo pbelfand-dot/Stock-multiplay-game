@@ -231,7 +231,7 @@ func tick(car, dt: float) -> void:
 		if w.grounded:
 			var slide_long: float = w.omega * w.radius - w.v_long
 			p_slip = absf(w.long_force * slide_long) + absf(w.lateral_force * w.v_lat)
-			p_in = p_slip * float(c.get("heat", 1.0)) + FLEX * w.load * v + K_ROAD * w.load * (track - float(t.surface))
+			p_in = p_slip * float(c.get("heat", 1.0)) + FLEX * float(c.get("flex", 1.0)) * w.load * v + K_ROAD * w.load * (track - float(t.surface))
 			# a locked wheel at speed grinds a flat spot
 			if w.slip_long < -0.85 and v > 12.0:
 				t.lock_t += dt

@@ -40,6 +40,12 @@ const TRACK_DIFFICULTY := {
 	"pro": {"name": "PRO", "pace": 0.99, "spread": 0.01, "consistency": 0.97, "aggression": 0.8},
 }
 const TRACK_LAPS := [3, 5, 10]
+## The circuit's weather (spec: dry day, dry night, wet): the light (WorldMaterials' mood, the hour),
+## how wet the track is (RaceSim.wet: the tyres' grip on it, the AI's line; the road's look, rain,
+## spray). DAY follows Settings' TIME OF DAY when it's set; NIGHT is 21:30 under the floodlights;
+## WET is grey, the track wet (0.7: a drying line's worth short of standing water), raining.
+const TRACK_WEATHER := {"day": "DAY", "night": "NIGHT", "wet": "WET"}
+const WET_TRACK := 0.7
 const DRIVERS_PATH := "res://data/track_drivers.json"
 const CLASSES_PATH := "res://data/track_classes.json"
 static var _classes := {}
@@ -69,7 +75,8 @@ static func track_classes() -> Dictionary:
 ## class, session and lap count; daylight unless Settings' TIME OF DAY says otherwise. extra: the
 ## race's options: opponents (0-15), difficulty, start ("rolling" | "standing": the class's own by
 ## default), minutes (qualifying), grid ("front" | "middle" | "back" | "random": a quick race's
-## place for you), damage, weekend (qualifying sets the race's grid), grid_order (the weekend's race).
+## place for you), damage, weekend (qualifying sets the race's grid), grid_order (the weekend's race),
+## weather ("day" | "night" | "wet": TRACK_WEATHER).
 static func track_opts(seed_value: int, cls := "gt", session := "practice", laps := 5, circuit := "cinder_ridge", extra := {}) -> Dictionary:
 	var c: String = cls if track_classes().has(cls) else "gt"
 	var ses: String = session if TRACK_SESSIONS.has(session) else "practice"
@@ -85,6 +92,15 @@ static func track_opts(seed_value: int, cls := "gt", session := "practice", laps
 		"gen": {"kind": "circuit", "circuit": circuit, "biome": "temperate_broadleaf"}}
 	if extra.has("grid_order"):
 		o["grid_order"] = extra.grid_order
+	var w := str(extra.get("weather", "day"))
+	o["weather"] = w if TRACK_WEATHER.has(w) else "day"
+	match o.weather:
+		"night":
+			o["mood"] = "night"
+			o["time"] = 21.5
+		"wet":
+			o["mood"] = "overcast"
+			o["wet"] = WET_TRACK
 	return o
 
 
@@ -177,13 +193,19 @@ static func race_fuel(laps: int, lap_l: float, tank: float) -> float:
 	return minf(tank, (laps + 1.5) * lap_l)
 
 
-## A Track Mode car's race state (RaceSim.setup's opts): mediums from cold, practice on half a
-## tank (a race: enough for its laps, P5), the car's own ABS and TC at their middle maps, the air
-## by the hour (cooler at night) and the track a little warmer in the sun.
+## A Track Mode car's race state (RaceSim.setup's opts): mediums from cold (on a wet track: wets),
+## practice on half a tank (a race: enough for its laps, P5), the car's own ABS and TC at their
+## middle maps, the air by the hour (cooler at night) and the track a little warmer in the sun (in
+## the rain: cooler, no sun on it).
 static func race_opts(o: Dictionary) -> Dictionary:
 	var hour := float(o.get("time", 13.0))
 	var day := clampf(1.0 - absf(hour - 14.0) / 9.0, 0.0, 1.0)
 	var air := lerpf(14.0, 24.0, day)
+	var wet := float(o.get("wet", 0.0))
+	var track_t := air + 14.0 * day
+	if wet > 0.0:
+		air = lerpf(12.0, 17.0, day)
+		track_t = air + 2.0
 	var fuel := float(o.get("fuel", 60.0))
 	# a Formula car: no ABS or traction control (FORMULA APEX's rules), its fuel flow capped (100 kg/h:
 	# ~0.037 l/s flat out), a 145 l tank (110 kg, the most a race may start with), ~2.4 l a lap here
@@ -195,8 +217,8 @@ static func race_opts(o: Dictionary) -> Dictionary:
 			fuel = 20.0 if formula else 30.0              # (light: a few flying laps)
 		"race":
 			fuel = race_fuel(int(o.get("laps", 5)), per_lap, tank)   # (a GT3: ~3.4 l a lap here: tools' estimate, tests check it)
-	return {"compound": str(o.get("compound", "slick_medium")), "fuel": fuel, "tank": tank,
-		"ambient": air, "track": air + 14.0 * day, "wet": float(o.get("wet", 0.0)), "abs": 0 if formula else 4, "tc": 0 if formula else 4,
+	return {"compound": str(o.get("compound", "wet" if wet >= 0.3 else "slick_medium")), "fuel": fuel, "tank": tank,
+		"ambient": air, "track": track_t, "wet": wet, "abs": 0 if formula else 4, "tc": 0 if formula else 4,
 		"damage": bool(o.get("damage", true)), "fuel_lps": 0.037 if formula else 0.042,
 		"lap_m": circuit_info(str(o.get("circuit", "cinder_ridge"))).length}
 
@@ -245,11 +267,13 @@ static func mood_for_hour(h: float) -> String:
 ## A run's settings with Settings' TIME OF DAY on them (AUTO, below 0: as they are):
 ## "time" (the hour) and the mood nearest it. They go to every machine with the stage.
 static func with_time(o: Dictionary, hour: float) -> Dictionary:
-	if hour < 0.0:
+	if hour < 0.0 or str(o.get("weather", "")) == "night":    # (a night race keeps its own hour)
 		return o
 	var t := o.duplicate()
 	t["time"] = fposmod(hour, 24.0)
 	t["mood"] = mood_for_hour(hour)
+	if float(o.get("wet", 0.0)) > 0.0 and t.mood != "night":
+		t["mood"] = "overcast"                                 # (rain: a grey sky at any hour of the day)
 	return t
 
 
@@ -273,6 +297,8 @@ static func title(o: Dictionary, st) -> String:
 				what = "%s · %d LAPS" % ["RACE" if bool(o.get("weekend", false)) else "QUICK RACE", int(o.get("laps", 5))]
 			elif ses == "qualifying":
 				what = "QUALIFYING · %d MIN" % int(o.get("minutes", 10.0))
+			if str(o.get("weather", "day")) != "day":
+				what += " · " + str(TRACK_WEATHER.get(str(o.weather), ""))
 			return "%s\n%s · %s" % [st.touge_name(), str(c.get("series", "GT")), what]
 	return ""
 

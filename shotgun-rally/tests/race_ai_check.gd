@@ -4,6 +4,7 @@ extends SceneTree
 ## (RaceControl), qualifying, a pit stop, and a whole race in the game.
 ## Run: godot --headless --fixed-fps 120 --path . -s tests/race_ai_check.gd [-- --only=line|rules|drs|quali|driver|formula|far|pit|race|weekend|class]
 ##   [--class=formula] [--car=<registry id>] (the driving and race tests in that class / car; --only=class: just those)
+##   [--weather=wet] (the driving tests on a wet track, on wet tyres)
 ##   line: the AFFALTER GT3's lap along CINDER RIDGE's line: a GT3's lap time and top speed, the
 ##     hairpin's speed, never faster than a corner's limit, braking within the grip; a slower driver
 ##     slower by about its pace
@@ -57,6 +58,8 @@ func _initialize() -> void:
 			only = a.trim_prefix("--only=")
 		elif a.begins_with("--class="):
 			cls = a.trim_prefix("--class=")
+		elif a.begins_with("--weather="):
+			weather = a.trim_prefix("--weather=")
 		elif a.begins_with("--car="):
 			car_id = a.trim_prefix("--car=")
 	await process_frame
@@ -504,6 +507,7 @@ func _quali(st) -> void:
 
 var cls := "gt"                    # --class=formula: the driving tests in a Formula car
 var car_id := ""                   # --car=<registry id>: the driving tests' car (else the AFFALTER GT3, or the ORION FA1)
+var weather := "day"               # --weather=wet: the driving tests on a wet track
 
 
 func _driving(st_unused, only: String) -> void:
@@ -512,7 +516,7 @@ func _driving(st_unused, only: String) -> void:
 	var g = Game.new()
 	root.add_child(g)
 	# a qualifying session with one AI car (it leaves its box at once): its car, its driver
-	var o: Dictionary = Modes.track_opts(5, cls, "qualifying", 3, "cinder_ridge", {"opponents": 1, "difficulty": "pro", "minutes": 30.0})
+	var o: Dictionary = Modes.track_opts(5, cls, "qualifying", 3, "cinder_ridge", {"opponents": 1, "difficulty": "pro", "minutes": 30.0, "weather": weather})
 	o["field_cars"] = [car_id if car_id != "" else ("orion" if cls == "formula" else "affalter")]
 	await g.start(5, 1, o)
 	var st = g.st
@@ -577,6 +581,9 @@ func _driving(st_unused, only: String) -> void:
 			last_s = drv.s
 		var want: float = drv.line.lap_time / RaceDriver.FAR_K
 		near_lap = lap2
+		if c.race:
+			print("[raceai] info its tyres after the laps (%s): %s" % [c.race.compound, ", ".join(c.race.tyres.map(func(ty): return "%.0f/%.0f C" % [ty.surface, ty.core]))
+				+ "; grip x " + ", ".join(range(4).map(func(k): return "%.2f" % c.race.grip(k)))])
 		check(lap_t != INF and lap2 != INF and absf(lap2 / want - 1.0) < 0.025, "driver: on the physics, two flying laps in %s and %s (its line at its pace, as the far cars run it: %s, %+.1f %%; %.0f s game in %.0f s)" % [
 			_fmt(lap_t), _fmt(lap2), _fmt(want), (lap2 / want - 1.0) * 100.0 if lap2 != INF else 0.0, t, (Time.get_ticks_msec() - t_wall) / 1000.0])
 		check(off_t < 0.5, "driver: on the track the whole way (%.1f s with all four wheels off, the widest %.1f m past the line)" % [off_t, worst_d])

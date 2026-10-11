@@ -55,6 +55,9 @@ const Ghost = preload("res://scripts/game/ghost.gd")
 const FitDebug = preload("res://scripts/vehicle/fit_debug.gd")
 const Graphics = preload("res://scripts/render/graphics.gd")
 const Replay = preload("res://scripts/game/replay.gd")
+const Weather = preload("res://scripts/render/weather.gd")
+const PitPlan = preload("res://scripts/game/pit_plan.gd")
+const WorldMaterials = preload("res://scripts/render/world_materials.gd")
 
 signal progress(fraction: float, what: String)
 signal stage_generated
@@ -101,6 +104,7 @@ var _stuck := 0.0
 var _mud_t := 0.0
 var _said_wipers := false
 var _chase := false                 # the driver picked the chase cam (C)
+var _tv := false                     # (Track Mode) ... or the broadcast's trackside TV camera (C again)
 var view_override := ""              # (the showcase) the view it's filming: "seat", or "chase" for its own cameras
 var built := false                  # start() has finished (it builds over several frames)
 var _look_acc := 0.0
@@ -136,6 +140,7 @@ var _race_hud                        # Track Mode's car panel (RaceHud)
 var fuel_per_lap := 0.0              # the litres the last timed lap burnt (Track Mode)
 var race_ctl                         # RaceControl (Track Mode's qualifying and races)
 var field                            # RaceField: the AI cars
+var weather                          # Weather: Track Mode's rain (WET), else null
 var field_entries: Array = []        # Modes.track_field: who's in it
 var grid_ids: Array = []             # the race's grid, pole first (your id among the AI's)
 var race_rows: Array = []            # the classification at the end
@@ -199,6 +204,7 @@ func start(seed_in: int, stage_in: int, o := {}) -> void:
 	stage_generated.emit()
 	builder = CircuitBuilder.new() if circuit else (LoopBuilder.new() if looped else StageBuilder.new())
 	builder.mood = o.get("mood", "day")
+	WorldMaterials.wet = float(o.get("wet", 0.0))          # (Track Mode's WET weather: the roads built wet)
 	if "time_of_day" in builder:
 		builder.time_of_day = float(o.get("time", -1.0))   # (the hour, -1: by the mood; the graphics work lights by it)
 	add_child(builder)
@@ -248,6 +254,7 @@ func start(seed_in: int, stage_in: int, o := {}) -> void:
 	ai.setup(calls if mode == "" else [])           # (a touge and a highway: no co-driver calling)
 	_setup_mode(o)
 	_night_lights()
+	_weather(o)
 	autopilot = Autopilot.new(st)
 	if _at_station():
 		autopilot.route = st.station_route(maxi(Net.racers().find(Net.my_id()), 0) if street_online else 0)   # (out of the gas station, up its ramp)
@@ -654,6 +661,8 @@ func _physics_process(dt: float) -> void:
 			cockpit.wipe(3)
 	else:
 		_mud_t = 0.0
+	if weather and cockpit.wipe_strokes <= 1 and car.linear_velocity.length() > 2.0:
+		cockpit.wipe(2)                              # (rain: the wipers keep going while it moves)
 	if ai.enabled and state in ["countdown", "running"]:
 		ai.update(car_s, car.linear_velocity.length(), dt)
 	elif ai.enabled:
@@ -812,14 +821,26 @@ func _process(dt: float) -> void:
 	# the camera: circling the car before the countdown and after the finish; in the
 	# seat for the stage (the driver can press C for the chase cam)
 	if state == "running" and my_seat == "driver" and Input.is_action_just_pressed("camera"):
-		_chase = not _chase
+		if mode == "track":                       # (seat, chase, the broadcast's TV camera, seat ...)
+			if _tv:
+				_tv = false
+			elif _chase:
+				_chase = false
+				_tv = true
+			else:
+				_chase = true
+		else:
+			_chase = not _chase
 	var want := "seat"
 	if state in ["grid", "finished"]:
 		want = "orbit"
-	elif state == "running" and _chase and my_seat == "driver":
+	elif state == "running" and (_chase or _tv) and my_seat == "driver":
 		want = "chase"
 	if Config.flag("screenshot"):
 		want = Config.arg("shot_view", "seat")
+		if want == "tv":                              # (the broadcast camera: the chase view's car under it)
+			_tv = true
+			want = "chase"
 	if view_override != "" and state == "running":
 		want = view_override
 	if want != cam.view:
@@ -828,6 +849,7 @@ func _process(dt: float) -> void:
 		# a car's own interior has windows: the crew are seen from outside too (your own head with them)
 		cockpit.visible = want == "seat" or cockpit.own_interior()
 		cockpit.set_my_seat(my_seat if want == "seat" else "")
+	_tv_camera(dt, want == "chase" and _tv and state == "running" and view_override == "")
 	# the clocks
 	var clock := ""
 	var red := false
@@ -1023,6 +1045,22 @@ func _setup_mode(o: Dictionary) -> void:
 			stray = StrayCar.new()
 			add_child(stray)
 			stray.setup(st, seed_value, str(builder.get("mood")) == "night")
+
+
+## WET weather (Track Mode): the rain, the spray off every car, the rain's hiss (Weather), the
+## wipers going; the roads were built wet (WorldMaterials.wet), the tyres know (RaceSim.wet).
+func _weather(o: Dictionary) -> void:
+	if float(o.get("wet", 0.0)) <= 0.0:
+		return
+	weather = Weather.new()
+	weather.name = "Weather"
+	weather.setup(float(o.wet), seed_value)
+	weather.cars = replay_targets
+	add_child(weather)
+
+
+func _exit_tree() -> void:
+	WorldMaterials.wet = 0.0                         # (the menu's garage and the next map: dry roads)
 
 
 ## A night stage (the touge by default, any stage at a night hour: the builder's mood is
@@ -1334,6 +1372,11 @@ func _build_hud() -> void:
 	var buttons := [["RESUME", _toggle_pause], ["REPLAY", func(): replay.open("pause")], ["SETTINGS", _open_settings]]
 	if looped:
 		buttons.append(["END RUN", _end_run])          # (a loop has no finish: the run ends when you say)
+	if mode == "track":
+		# your pit strategy: each press cycles its choice (PitPlan)
+		buttons.append([pit_plan.tyres_text(), func(): pit_plan.cycle_tyres(); _pit_rows()])
+		buttons.append([pit_plan.fuel_text(), func(): pit_plan.cycle_fuel(); _pit_rows()])
+		buttons.append([pit_plan.repair_text(), func(): pit_plan.toggle_repair(); _pit_rows()])
 	buttons.append(["QUIT TO MENU", func(): get_parent().to_menu()])
 	for b in buttons:
 		var btn := Button.new()
@@ -1347,6 +1390,10 @@ func _build_hud() -> void:
 			_pause_settings = btn
 		elif b[0] == "REPLAY":
 			_pause_replay = btn
+		elif str(b[0]).begins_with("PIT "):
+			btn.add_theme_font_size_override("font_size", 20)
+			btn.custom_minimum_size = Vector2(320, 40)
+			_pit_btns.append(btn)
 	_pause.visible = false
 	# the modes' numbers: top right, and a flash in the middle for the moments
 	_mode_label = Label.new()
@@ -1371,6 +1418,33 @@ func _build_hud() -> void:
 	_flash_label.offset_right = 500
 	_flash_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_hud.add_child(_flash_label)
+
+
+## (Track Mode) The broadcast's trackside TV camera on your car: the replay's own (ReplayCam "tv": a
+## tower past the run-off up the road, on the outside of the next bend, panning and zooming after
+## you, the next one set up once you've gone by), filming live. The chase view's car underneath it.
+func _tv_camera(dt: float, on: bool) -> void:
+	var rc = replay.cam if replay else null
+	if rc == null or replay.active:
+		return
+	if not on:
+		if rc.current:
+			cam.make_current()
+		return
+	rc.set_target(car)
+	if rc.mode != "tv":
+		rc.set_mode("tv")
+	rc.target_vel = car.linear_velocity
+	rc.update(dt, dt)
+	if not rc.current:
+		rc.make_current()
+
+
+## The pause menu's PIT rows say what's set.
+func _pit_rows() -> void:
+	var texts := [pit_plan.tyres_text(), pit_plan.fuel_text(), pit_plan.repair_text()]
+	for k in mini(_pit_btns.size(), texts.size()):
+		_pit_btns[k].text = texts[k]
 
 
 ## A panel in the middle of the screen, in the art's style: the modes' night,
@@ -1734,6 +1808,8 @@ var _rows_t := 0.0
 var _bw_t := 0.0
 var _pit_done := false
 var _my_service := {}
+var pit_plan = PitPlan.new()         # your pit strategy (the pause menu's PIT rows)
+var _pit_btns: Array = []
 
 
 # ── Track Mode's qualifying and races ──────────────────────────────────────
@@ -1934,8 +2010,9 @@ func _end_race() -> void:
 	stage_finished(t, race_ctl.penalty_time(me), 0, race_ctl._has_pen(me, "jump"))
 
 
-## Your pit stop: stopped in your box in the pit lane, the crew's work (new tyres if they're worn,
-## repairs, the fuel to finish), held there till it's done.
+## Your pit stop: stopped in your box in the pit lane, the crew's work as your pit strategy says
+## (PitPlan: by default new tyres if they're worn, wets on a wet track, repairs, the fuel to
+## finish), held there till it's done.
 func _my_pit(dt: float, pit: bool) -> void:
 	if not pit:
 		_pit_done = false
@@ -1943,7 +2020,7 @@ func _my_pit(dt: float, pit: bool) -> void:
 		_pit_stop -= dt
 		if _pit_stop <= 0.0:
 			var sv := _my_service
-			car.race.service(car, str(car.race.compound) if bool(sv.get("tyres", false)) else "", float(sv.get("fuel", 0.0)))
+			car.race.service(car, str(sv.get("compound", "")) if bool(sv.get("tyres", false)) else "", float(sv.get("fuel", 0.0)))
 			if float(sv.get("repair", 0.0)) > 0.0:
 				car.race.repair()
 			_flash("GO GO GO", Color(0.3, 1.0, 0.4))
@@ -1957,11 +2034,12 @@ func _my_pit(dt: float, pit: bool) -> void:
 	for t in car.race.tyres:
 		worn = maxf(worn, float(t.wear))
 	var laps_left: int = race_ctl.laps_total - int(session.cars[Net.my_id()].laps) if race_ctl.kind == "race" else 0
-	var need := maxf((laps_left + 1) * maxf(fuel_per_lap, 3.4) - float(car.race.fuel_l), 0.0)
-	_my_service = {"tyres": worn > 0.3 or race_ctl.kind != "race", "fuel": need, "repair": car.race.damage_level()}
+	_my_service = pit_plan.service({"worn": worn, "race": race_ctl.kind == "race", "compound": str(car.race.compound),
+		"wet": float(car.race.wet), "laps_left": laps_left, "per_lap": maxf(fuel_per_lap, 3.4), "fuel": float(car.race.fuel_l),
+		"tank": float(car.race.tank_l), "damage": car.race.damage_level()})
 	_pit_stop = RaceDriver.service_time(_my_service)
 	_pit_done = true
-	_flash("PIT STOP  %.1f s" % _pit_stop, Color(1.0, 0.85, 0.3))
+	_flash("PIT STOP  %.1f s\n%s" % [_pit_stop, PitPlan.describe(_my_service)], Color(1.0, 0.85, 0.3))
 
 
 ## The timing tower and the flag shown to you.

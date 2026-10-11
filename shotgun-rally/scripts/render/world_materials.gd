@@ -60,6 +60,11 @@ static var night := false
 ## asphalt "asphalt2" a fresher, finer asphalt (Poly Haven Asphalt 02). "" the defaults.
 static var ground_style := ""
 static var asphalt_style := ""
+## How wet the roads are (0 dry .. 1 standing water; Track Mode's WET weather sets it before it builds,
+## everything else leaves it at 0): the asphalt, its paint and concrete darker and glossy (a wet road
+## mirrors the sky and the lights; HIGH and ULTRA's screen-space reflections show the cars in it).
+const WET_SURFACES := ["asphalt", "road_paint", "concrete"]
+static var wet := 0.0
 static var _cache := {}
 static var _shaders := {}
 static var _tex_info := {}
@@ -697,7 +702,8 @@ static func _grade_lut(kind: int) -> ImageTexture3D:
 # ── the material machinery ────────────────────────────────────────────────
 
 static func _key(n: String, opts: Dictionary) -> String:
-	return "%s|%s|%s|%s|%s|%s" % [n, str(opts), Graphics.level(), Graphics.forward(), ground_style, asphalt_style]
+	return "%s|%s|%s|%s|%s|%s|%.2f" % [n, str(opts), Graphics.level(), Graphics.forward(), ground_style, asphalt_style,
+		wet if n in WET_SURFACES else 0.0]
 
 
 ## The texture a surface uses: its own, or the land's (asphalt_style, ground_style) when that's there.
@@ -754,6 +760,12 @@ static func _surface(n: String, opts: Dictionary) -> Material:
 		if n == "asphalt" and opts.get("uv", false):
 			sm.set_shader_parameter("streaks", float(opts.get("streaks", 0.18)))
 			sm.set_shader_parameter("along_x", str(opts.get("uv_along", "y")) == "x")
+		if wet > 0.0 and n in WET_SURFACES:
+			# wet: water in the texture's pores darkens it, the film on top is smooth (a wet road's
+			# roughness ~0.1-0.2 against a dry one's ~0.8-0.9) and shines more
+			sm.set_shader_parameter("rough_scale", float(sd.rough) * float(opts.get("rough", 1.0)) * lerpf(1.0, 0.22, wet))
+			sm.set_shader_parameter("tint", (opts.get("tint", Color.WHITE) as Color).darkened(0.5 * wet))
+			sm.set_shader_parameter("spec", lerpf(float(sd.spec), 0.55, wet))
 		m = sm
 	_cache[key] = m
 	return m
@@ -787,6 +799,10 @@ static func _flat(n: String, opts: Dictionary) -> StandardMaterial3D:
 		m.metallic_specular = 0.9
 	elif n == "asphalt":
 		m.roughness = 0.85
+	if wet > 0.0 and n in WET_SURFACES:
+		m.albedo_color = m.albedo_color.darkened(0.5 * wet)
+		m.specular_mode = BaseMaterial3D.SPECULAR_SCHLICK_GGX
+		m.roughness = lerpf(m.roughness, 0.18, wet)
 	return m
 
 

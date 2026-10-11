@@ -165,8 +165,11 @@ the old backdrop: your car flat out on a stage, filmed like rally TV.
   PRO) in the GT3 cars:
   - the standing start's five lights or the GT class's rolling start;
   - the timing tower, flags (yellow, blue, black and white, black, red, chequered) and escalating penalties (track limits, corner cutting, pit lane speeding, the pit exit line, jump starts);
-  - pit stops for tyres, fuel and repairs;
-  - the slipstream and damage.
+  - pit stops for tyres, fuel and repairs, with your pit strategy in the pause menu (tyres, fuel, repairs);
+  - the slipstream and damage;
+  - WEATHER: a dry day, a night race under the floodlights, or WET (rain, spray off every car, a
+    glossy track, everyone on wets, a slick hopeless);
+  - the broadcast's TV camera (C).
   The AI race on the same physics as you, overtaking, defending and pitting
   (`docs/track_racing.md`).
 - **The world** (`docs/ENVIRONMENT_INVENTORY.md`): every stage stands in a biome (Japanese cedar
@@ -513,7 +516,7 @@ Details: [docs/modes.md](docs/modes.md).
 | **Co-driver:** wipers (the driver's job when alone) | F | A |
 | Look around | mouse | right stick |
 | Reset car (+5 s) | R | Y |
-| **Driver:** chase camera on / off | C | right stick click |
+| **Driver:** chase camera on / off (Track Mode: seat, chase, TV camera) | C | right stick click |
 | **Cut up:** flash your lights (challenge the rival ahead) | H | LB |
 | Dome light on / off | L | d-pad up |
 | The car's centre screen: map / driving data (the cars with one) | M | d-pad right |

@@ -45,6 +45,8 @@ var _grid_btn: Button
 var _damage := true
 var _damage_btn: Button
 var _race_rows: Array = []           # the race options' rows (hidden for practice)
+var _weather := "day"                # track: Modes.TRACK_WEATHER
+var _weather_btns := {}
 
 
 func _ready() -> void:
@@ -139,7 +141,7 @@ func _ready() -> void:
 
 ## TRACK: the circuit, a class (those not ready yet greyed), a session (PRACTICE, QUALIFYING,
 ## QUICK RACE, RACE WEEKEND), its options (laps, the AI field, the start, qualifying's length, your
-## grid place, damage), START (alone for now: online Track Mode comes with P8).
+## grid place, damage), the weather (DAY, NIGHT, WET), START (alone for now: online Track Mode comes with P8).
 func _track_card(v: Control) -> void:
 	var trk := _card(v, "key_track")
 	var head := HBoxContainer.new()
@@ -214,6 +216,16 @@ func _track_card(v: Control) -> void:
 	_damage_btn = UI.button("", func(): _damage = not _damage; _refresh_race(), 18, 170, "night")
 	r3.add_child(_damage_btn)
 	_race_rows = [r2, r3]
+	# the weather, every session: a dry day, a night under the floodlights, a wet track in the rain
+	var r4 := HBoxContainer.new()
+	r4.add_theme_constant_override("separation", 8)
+	trk.add_child(r4)
+	r4.add_child(UI.label("WEATHER", 18, UI.DIM, true))
+	for wk in Modes.TRACK_WEATHER:
+		var wb := UI.button(Modes.TRACK_WEATHER[wk], _set_weather.bind(wk), 18, 110, "night")
+		_weather_btns[wk] = wb
+		r4.add_child(wb)
+	_set_weather(_weather)
 	_set_laps(_laps)
 	_set_opponents(_opponents)
 	_set_ai(_ai)
@@ -231,7 +243,7 @@ func _track_card(v: Control) -> void:
 ## START on the TRACK card: the class, the session and the race's options.
 func _start_track() -> void:
 	start.emit({"mode": "track", "class": _class, "session": _session, "laps": _laps, "opponents": _opponents,
-		"track_difficulty": _ai, "start": _start_type, "minutes": float(_minutes), "grid": _grid, "damage": _damage,
+		"track_difficulty": _ai, "start": _start_type, "minutes": float(_minutes), "grid": _grid, "damage": _damage, "weather": _weather,
 		"online": false, "collide": _collide})
 
 
@@ -253,6 +265,12 @@ func _set_ai(k: String) -> void:
 	_ai = k
 	for a in _ai_btns:
 		(_ai_btns[a] as Button).modulate = Color.WHITE if a == k else Color(1, 1, 1, 0.45)
+
+
+func _set_weather(k: String) -> void:
+	_weather = k
+	for w in _weather_btns:
+		(_weather_btns[w] as Button).modulate = Color.WHITE if w == k else Color(1, 1, 1, 0.45)
 
 
 func _cycle_start() -> void:

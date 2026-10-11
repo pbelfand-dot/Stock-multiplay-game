@@ -1,7 +1,7 @@
 extends SceneTree
 ## Track Mode: the circuit (CircuitGen: CINDER RIDGE from data/maps/cinder_ridge.json), the session's
 ## timing (TrackSession) and a practice lap in the game (the autopilot out of its pit box).
-## Run: godot --headless --fixed-fps 120 --path . -s tests/track_check.gd [-- --only=circuit|session|game]
+## Run: godot --headless --fixed-fps 120 --path . -s tests/track_check.gd [-- --only=circuit|session|game|weather]
 ##   circuit: closes on itself (position, heading, height), 4.5-6 km, 14-20 corners, no tighter than a
 ##     hairpin, grades and banking a real circuit's, never crosses itself (every bit of track clear of
 ##     every other by more than its run-off); the grid on the pit straight, behind the line, two by two;
@@ -15,6 +15,10 @@ extends SceneTree
 ##     starts in its box in the pit lane, the autopilot drives it out down the lane at the limit, onto
 ##     the track, round a whole timed lap (sectors and lap flashed) and the results show the best lap;
 ##     the race state (RaceSim) warms its tyres from cold and burns its fuel
+##   weather: DAY / NIGHT / WET's settings (the light, the hour, the wet track, wets on, the title),
+##     a slick against a wet tyre on the wet track, the AI's line slower in the wet, the roads' wet
+##     look; a wet practice in the game: the rain and its hiss up, spray off the car at speed, the
+##     wipers going, the roads dry again after it; the broadcast's TV camera (C in Track Mode) live
 ## Prints one [track] line per check; exits 1 on any FAIL.
 
 var CircuitGen
@@ -44,6 +48,8 @@ func _initialize() -> void:
 		_session()
 	if only in ["", "game"]:
 		await _game()
+	if only in ["", "weather"]:
+		await _weather()
 	print("[track] %s" % ("TRACK OK" if fails == 0 else "TRACK FAIL"))
 	quit(1 if fails else 0)
 
@@ -368,3 +374,100 @@ func _game() -> void:
 	check(g.state == "finished" and not lines.is_empty() and str(lines[0]).begins_with("BEST LAP"), "game: END RUN shows the results (%s)" % " / ".join(lines))
 	g.queue_free()
 	await process_frame
+
+
+# ── the weather ───────────────────────────────────────────────────────────
+
+func _weather() -> void:
+	var RaceSim = load("res://scripts/vehicle/physics/race_sim.gd")
+	var RaceLine = load("res://scripts/game/race_line.gd")
+	var WM = load("res://scripts/render/world_materials.gd")
+	var day: Dictionary = Modes.track_opts(5, "gt", "race", 5)
+	var night: Dictionary = Modes.track_opts(5, "gt", "race", 5, "cinder_ridge", {"weather": "night"})
+	var wet: Dictionary = Modes.track_opts(5, "gt", "race", 5, "cinder_ridge", {"weather": "wet"})
+	var odd: Dictionary = Modes.track_opts(5, "gt", "race", 5, "cinder_ridge", {"weather": "snow"})
+	check(day.weather == "day" and day.mood == "day" and float(day.get("wet", 0.0)) == 0.0 and odd.weather == "day",
+		"weather: DAY is the default (an unknown weather too): daylight, a dry track")
+	check(night.mood == "night" and float(night.time) == 21.5 and Modes.with_time(night, 14.0).mood == "night",
+		"weather: NIGHT is 21:30 under the floodlights, and keeps its hour over Settings' TIME OF DAY")
+	var wd: Dictionary = Modes.with_time(wet, 14.0)
+	check(wet.mood == "overcast" and float(wet.wet) == Modes.WET_TRACK and wd.mood == "overcast" and float(wd.time) == 14.0
+		and Modes.with_time(wet, 22.0).mood == "night", "weather: WET is a grey sky and a wet track (%.1f), at Settings' hour too (a night hour: dark)" % float(wet.wet))
+	var rd: Dictionary = Modes.race_opts(day)
+	var rw: Dictionary = Modes.race_opts(wet)
+	check(rd.compound == "slick_medium" and rw.compound == "wet" and float(rw.wet) == Modes.WET_TRACK and float(rw.track) < float(rd.track) - 8.0,
+		"weather: dry: mediums; wet: wets on, the track %.0f C against the dry one's %.0f C (no sun on it)" % [float(rw.track), float(rd.track)])
+	var title: String = Modes.title(wet, _stage())
+	check(title.contains("WET") and not Modes.title(day, _stage()).contains("DAY"), "weather: the title says it (%s)" % title.replace("\n", " · "))
+	# a slick against a wet tyre on the wet track, each at the temperature it runs at there
+	var slick = RaceSim.new()
+	slick.setup(null, {"compound": "slick_medium", "wet": Modes.WET_TRACK, "ambient": 15.0})
+	var wt = RaceSim.new()
+	wt.setup(null, {"compound": "wet", "wet": Modes.WET_TRACK, "ambient": 15.0})
+	for k in 4:
+		slick.tyres[k].surface = 40.0
+		slick.tyres[k].core = 40.0
+		wt.tyres[k].surface = 50.0
+		wt.tyres[k].core = 48.0
+	var dry_slick = RaceSim.new()
+	dry_slick.setup(null, {"compound": "slick_medium", "ambient": 22.0})
+	for k in 4:
+		dry_slick.tyres[k].surface = 95.0
+		dry_slick.tyres[k].core = 90.0
+		dry_slick.tyres[k].pressure = 1.95
+		wt.tyres[k].pressure = 1.95
+		slick.tyres[k].pressure = 1.95
+	var gs: float = slick.grip(0)
+	var gw: float = wt.grip(0)
+	var gd: float = dry_slick.grip(0)
+	check(gw > gs * 1.3 and gw < gd * 0.9 and gw > gd * 0.7, "weather: on the wet track a wet tyre grips x%.2f, a slick x%.2f (cold and aquaplaning); a warm slick on a dry one x%.2f" % [gw, gs, gd])
+	# the roads' look: darker and glossy when wet, the dry material untouched
+	WM.wet = 0.0
+	var a_dry = WM.asphalt({})
+	WM.wet = Modes.WET_TRACK
+	var a_wet = WM.asphalt({})
+	WM.wet = 0.0
+	var r_dry := float(a_dry.get_shader_parameter("rough_scale")) if a_dry is ShaderMaterial else float(a_dry.roughness)
+	var r_wet := float(a_wet.get_shader_parameter("rough_scale")) if a_wet is ShaderMaterial else float(a_wet.roughness)
+	check(a_wet != a_dry and r_wet < r_dry * 0.5 and WM.asphalt({}) == a_dry, "weather: a wet road is glossy (roughness x%.2f against %.2f dry) and a dry one is still the dry material" % [r_wet, r_dry])
+	# a wet practice in the game
+	root.get_node("Net").solo()
+	var Game = load("res://scripts/game.gd")
+	var g = Game.new()
+	root.add_child(g)
+	var o: Dictionary = Modes.track_opts(5, "gt", "practice", 5, "cinder_ridge", {"weather": "wet"})
+	await g.start(5, 1, o)
+	var race = g.car.race
+	check(g.built and g.weather != null and int(g.weather.drops) > 0 and g.weather.get_node_or_null("RainSound") != null and WM.wet == Modes.WET_TRACK,
+		"weather: a wet practice builds with the rain up (%d drops) and its hiss, the roads wet" % (int(g.weather.drops) if g.weather else 0))
+	check(race != null and race.compound == "wet" and float(race.wet) == Modes.WET_TRACK, "weather: the car's on wets on the wet track")
+	g.begin_countdown()
+	g.use_autopilot = true
+	var t := 0.0
+	var top := 0.0
+	var wiped := false
+	var tv_ok := 0
+	var tv_seen := 0
+	var tv_far := 0.0
+	while t < 60.0:
+		await physics_frame
+		t += 1.0 / 120.0
+		top = maxf(top, g.car.kmh())
+		wiped = wiped or int(g.cockpit.wipe_strokes) > 0
+		g._tv = t > 45.0                          # (the last 15 s on the broadcast's TV camera)
+		if t > 46.0:
+			var rc = g.replay.cam
+			tv_seen += 1
+			var to_car: Vector3 = g.car.global_position - rc.global_position
+			var aim: float = (-rc.global_transform.basis.z).dot(to_car.normalized())
+			var here: Dictionary = g.st.locate(rc.global_position)
+			tv_far = maxf(tv_far, to_car.length())
+			if rc.current and aim > 0.95 and absf(float(here.d)) > float(g.st.half_at(float(here.s))) + 3.0:
+				tv_ok += 1
+	check(int(g.weather.puffs_made) > 20, "weather: spray off the car at speed (%d puffs; up to %.0f km/h)" % [int(g.weather.puffs_made), top])
+	check(wiped, "weather: the wipers keep going in the rain")
+	check(tv_seen > 0 and tv_ok > tv_seen * 0.9, "TV: the broadcast camera films you live from beside the track, on the car (%d of %d frames; up to %.0f m away)" % [tv_ok, tv_seen, tv_far])
+	g.queue_free()
+	await process_frame
+	await process_frame
+	check(WM.wet == 0.0, "weather: after it the roads are dry again (the menu, the next map)")

@@ -23,7 +23,8 @@ The options:
 - **START:** ROLLING, STANDING, or the class's own (the GT class's is rolling);
 - **QUALIFYING:** its length;
 - **GRID:** a quick race's place for you;
-- **DAMAGE:** on or off.
+- **DAMAGE:** on or off;
+- **WEATHER:** DAY, NIGHT or WET, every session (below).
 
 The plan this follows is `docs/GT_F1_TRACK_MODE_CLAUDE_PROMPT.md`.
 
@@ -70,16 +71,30 @@ and the circuit's own gantry (`CircuitBuilder.set_lights`).
 
 The car panel (tyres, brakes, fuel, ABS / TC, the limiter) is `docs/track_cars.md`'s.
 
+**C** cycles the camera: your seat, the chase camera, and the broadcast's **TV camera**. The TV camera is
+the replay's trackside one (`ReplayCam` "tv"), filming you live. It stands on a tower past the run-off,
+up the road on the outside of the next bend, and pans and zooms (the field of view by the distance) to
+keep your car framed. Once you've gone by, the next one is set up further on. You drive on from it as
+in the chase view, and the engine sounds are heard from where the camera stands.
+(`--shot_view=tv` for pictures.)
+
 ## Pit stops
 
-Drive into your box in the pit lane and stop: the crew does the work, and the car is held until it's done.
+Drive into your box in the pit lane and stop: the crew does what your pit strategy says, and the car
+is held until it's done. The strategy is three rows in the pause menu (ESC); each press cycles one
+(`scripts/game/pit_plan.gd`):
 
-- **New tyres:** if they're worn past 30 % (in qualifying: always).
-- **Fuel:** to the end of the race.
-- **Repairs:** if the session has damage on.
+- **PIT TYRES:**
+  - AUTO (the default) changes them if they're worn past 30 % (in qualifying: always) for the same
+    compound. It also puts wets on for a wet track and takes them off for a dry one.
+  - SOFT, MEDIUM, HARD and WET always fit a new set of that compound.
+  - KEEP fits none: the quickest stop.
+- **PIT FUEL:** TO THE END (the laps left and one more, at what a lap has been burning), +5 LAPS, or
+  NONE. Never more than the tank takes.
+- **PIT REPAIRS:** ON (whatever damage there is, if the session has damage on) or OFF.
 
-Its time: ~3 s, plus 12 s for tyres, fuel at 2 l/s, and up to 30 s of repairs. The AI pit the
-same way (below). A pit strategy screen comes with P8.
+The stop's banner says what's being done ("PIT STOP 15.4 s · SOFT · +18 L · REPAIRS"). Its time:
+~3 s, plus 12 s for tyres, fuel at 2 l/s, and up to 30 s of repairs. The AI pit the same way (below).
 
 ## Damage (DAMAGE: ON)
 
@@ -274,10 +289,43 @@ The owner's 14 CC0 track props (`assets/environment_runtime/props/track_props.gl
 For 12 s after the lights go out (or a restart), a car slow off its grid box throws no yellow, and the
 field sorting itself out round it isn't passing under one: the start's own chaos, not an offence.
 
+## The weather
+
+WEATHER on the TRACK card (`--weather=day|night|wet` on the command line) sets three presets
+(`Modes.TRACK_WEATHER`). Every machine builds the same one from the session's settings.
+
+- **DAY:** daylight, or Settings' TIME OF DAY when it's set.
+- **NIGHT:** 21:30 under the floodlights (the towers every 120 m light pools on the track). The air
+  is ~16 C and the track ~18 C (against ~23 C and ~35 C in the early afternoon), so the tyres take
+  longer to warm. Settings' hour doesn't change it.
+- **WET:** a grey sky and a wet track (0.7 of the way to standing water), raining:
+  - **The tyres:** every car starts on WETs (`data/tyre_compounds.json`). On a wet track a wet tyre
+    keeps 0.92 of its grip; a slick keeps half, and the water cools it out of its window. A slick in
+    the wet grips about two thirds as well as a wet tyre (`tests/track_check.gd` measures x0.55
+    against x0.81). A wet's deep, soft tread blocks squirm and make heat (`"flex"`: 2.5 x a slick's),
+    so it runs at 40-50 C, where a rain tyre works (real ones: about 40-60 C). On a dry track a wet
+    wears and overheats 2.5 x as fast.
+  - **The AI:** its line takes the tyre's grip on the wet track (`RaceLine.params`): about 8 % slower
+    a lap on CINDER RIDGE (1:52.8 for the AFFALTER GT3 at full pace, against 1:44.3 dry). On the
+    physics it laps within 1.5 % of that and stays on the track (`race_ai_check.gd --weather=wet`).
+  - **The track:** the asphalt, its paint and the concrete are built darker and glossy
+    (`WorldMaterials.wet`: roughness ~0.2 instead of ~0.85). The sky shows in them, and on HIGH and
+    ULTRA the screen-space reflections show the cars. Reset to dry when the session ends.
+  - **The rain** (`scripts/render/weather.gd`): 900-4,000 streaks by the graphics quality. They
+    fall at 9 m/s with the wind round a box that follows the camera, and the shader does all the
+    work. A streak's length and lean come from the drop's speed against the camera's: drive into it
+    and the rain comes at you. Drops right by the camera (inside the car) aren't drawn. At night only
+    the lights catch them.
+  - **Spray:** a grey cloud off each rear tyre of every car within 160 m of the camera. It starts at
+    ~30 km/h, is fullest past ~200 km/h, and you drive through the car ahead's.
+  - **Sound:** the rain's hiss (filtered noise made in code, no recording). The wipers keep going
+    while the car moves.
+
 ## Still to come (P8)
 
 - online races (the grid, lights, flags, penalties and results synced from the host);
-- a pit strategy screen;
+- a pit-wall radio during the race (the strategy is set from the pause menu);
 - engine sounds of their own for the CC0 GT and Formula cars (the batch's GT cars have theirs);
-- broadcast cameras and championships;
-- the wet preset.
+- championships (the TV camera is in: C);
+- the weather changing during a session (a drying line, rain arriving), standing water and
+  aquaplaning, raindrops on the windscreen, the cars' rain lights.

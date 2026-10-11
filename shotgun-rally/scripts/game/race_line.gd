@@ -43,7 +43,8 @@ var pace := 1.0
 
 
 ## A car's numbers for the line from its config (a RallyCar): mass (with its fuel), its tyres' grip
-## in g (SIM street's figure for its tyres, else its tyre's own), aero, engine and gears.
+## in g (SIM street's figure for its tyres, else its tyre's own; on a wet track, what its compound
+## keeps of it), aero, engine and gears.
 static func params(car) -> Dictionary:
 	var cfg = car.config
 	var mu := 1.2
@@ -51,6 +52,12 @@ static func params(car) -> Dictionary:
 		mu = float(car.street[0])
 	elif cfg.front_tire:
 		mu = float(cfg.front_tire.lateral_mu) * 0.92
+	if car.get("race") != null:
+		# its compound (RaceSim.grip's: a soft a little more, a wet tyre less on a dry track), and on a
+		# wet track what that compound keeps of its grip
+		mu *= float(car.race.c.get("grip", 1.0))
+		if float(car.race.wet) > 0.0:
+			mu *= lerpf(1.0, float(car.race.c.get("wet", 0.5)), float(car.race.wet))
 	var e = cfg.engine
 	var dt = cfg.drivetrain
 	var front := float(dt.front_share) if dt else 0.0

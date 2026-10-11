@@ -13,6 +13,9 @@ extends SceneTree
 ##     the pit limiter holds 60 km/h flat out; a stop from 200 km/h heats the front discs more
 ##     than the rears; a minute of cornering brings the tyres up from cold; the aids from the
 ##     car's levels; a car without it untouched
+##   plan: your pit strategy (PitPlan): AUTO's safe default (worn tyres changed, the same compound;
+##     wets onto a wet track, off them onto a dry one; fresh ones in qualifying), a chosen compound,
+##     KEEP, the fuel to the end / +5 laps / none (never more than the tank holds), repairs off
 ## Prints one [race] line per check; exits 1 on any FAIL.
 
 const RaceSim = preload("res://scripts/vehicle/physics/race_sim.gd")
@@ -60,9 +63,56 @@ func _initialize() -> void:
 	Engine.physics_ticks_per_second = 120
 	await process_frame
 	_sim()
+	_plan()
 	await _car()
 	print("[race] %s" % ("RACE OK" if fails == 0 else "RACE FAIL"))
 	quit(1 if fails else 0)
+
+
+# ── your pit strategy ─────────────────────────────────────────────────────
+
+func _plan() -> void:
+	var PitPlan = load("res://scripts/game/pit_plan.gd")
+	var p = PitPlan.new()
+	var ctx := {"worn": 0.1, "race": true, "compound": "slick_medium", "wet": 0.0, "laps_left": 4, "per_lap": 3.4, "fuel": 6.0,
+		"tank": 120.0, "damage": 0.2}
+	var sv: Dictionary = p.service(ctx)
+	check(not sv.tyres and absf(float(sv.fuel) - (5 * 3.4 - 6.0)) < 0.01 and float(sv.repair) == 0.2,
+		"plan: AUTO in a race on fresh tyres: no tyres, fuel to the end and a lap (%.1f l), the repairs (%s)" % [float(sv.fuel), PitPlan.describe(sv)])
+	ctx.worn = 0.45
+	sv = p.service(ctx)
+	check(sv.tyres and sv.compound == "slick_medium", "plan: AUTO on worn tyres: a new set of the same (%s)" % PitPlan.describe(sv))
+	ctx.worn = 0.1
+	ctx.wet = 0.7
+	var on_wet: Dictionary = p.service(ctx)
+	ctx.compound = "wet"
+	ctx.wet = 0.0
+	var off_wet: Dictionary = p.service(ctx)
+	ctx.compound = "slick_medium"
+	ctx.race = false
+	var quali: Dictionary = p.service(ctx)
+	check(on_wet.compound == "wet" and off_wet.compound == "slick_medium" and quali.tyres,
+		"plan: AUTO puts wets on for a wet track (%s), slicks back on a dry one (%s), fresh tyres in qualifying" % [PitPlan.describe(on_wet), PitPlan.describe(off_wet)])
+	ctx.race = true
+	p.cycle_tyres()                              # SOFT
+	var soft: Dictionary = p.service(ctx)
+	for k in 4:
+		p.cycle_tyres()                          # MEDIUM, HARD, WET, KEEP
+	var keep: Dictionary = p.service(ctx)
+	ctx.worn = 0.9
+	var keep_worn: Dictionary = p.service(ctx)
+	check(soft.tyres and soft.compound == "slick_soft" and not keep.tyres and not keep_worn.tyres and p.tyres_text() == "PIT TYRES: KEEP",
+		"plan: a chosen compound always fits a set (%s); KEEP never does, worn or not" % PitPlan.describe(soft))
+	p.cycle_fuel()                               # +5 LAPS
+	var plus5: Dictionary = p.service(ctx)
+	ctx.fuel = 110.0
+	var full: Dictionary = p.service(ctx)
+	p.cycle_fuel()                               # NONE
+	var none: Dictionary = p.service(ctx)
+	p.toggle_repair()
+	var no_fix: Dictionary = p.service(ctx)
+	check(absf(float(plus5.fuel) - 17.0) < 0.01 and absf(float(full.fuel) - 10.0) < 0.01 and float(none.fuel) == 0.0 and float(no_fix.repair) == 0.0,
+		"plan: +5 LAPS is %.0f l (no more than the tank takes: %.0f l into 110), NONE is none, REPAIRS OFF skips them" % [float(plus5.fuel), float(full.fuel)])
 
 
 # ── the sim on a stand-in ─────────────────────────────────────────────────
