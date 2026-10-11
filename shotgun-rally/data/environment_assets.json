@@ -1,5 +1,5 @@
 {
- "_doc": "The converted environment library (tools/import_environment.py, tools/environment_specs.json): what each asset is, where it is, its size; read by scripts/stage/env_assets.gd. Inventory: docs/ENVIRONMENT_INVENTORY.md.",
+ "_doc": "The converted environment library (tools/import_environment.py, tools/environment_specs.json): what each asset is, where it is, its size; read by scripts/stage/env_assets.gd. Kinds: tree, rock, cliff, prop, building, skyline, ground (the forest floor: ferns, grass, branches, roots, stumps, logs; StageBuilder._undergrowth). Inventory: docs/ENVIRONMENT_INVENTORY.md.",
  "assets": {
   "conifer_01": {
    "kind": "tree",
@@ -1997,6 +1997,398 @@
     "track"
    ],
    "source": "3DAssets.dev Grand Prix circuit / Endurance and GT paddock packs (CC0; AI-generated upstream)"
+  },
+  "rock_moss_07": {
+   "kind": "rock",
+   "glb": "res://assets/environment_runtime/rocks/rock_moss_set_02.glb",
+   "part": "rock_moss_07",
+   "tags": [
+    "moss"
+   ],
+   "source": "Poly Haven rock_moss_set_02 (CC0)",
+   "size": [
+    1.69,
+    0.74,
+    1.22
+   ]
+  },
+  "rock_moss_08": {
+   "kind": "rock",
+   "glb": "res://assets/environment_runtime/rocks/rock_moss_set_02.glb",
+   "part": "rock_moss_08",
+   "tags": [
+    "moss"
+   ],
+   "source": "Poly Haven rock_moss_set_02 (CC0)",
+   "size": [
+    1.21,
+    0.53,
+    0.98
+   ]
+  },
+  "rock_moss_09": {
+   "kind": "rock",
+   "glb": "res://assets/environment_runtime/rocks/rock_moss_set_02.glb",
+   "part": "rock_moss_09",
+   "tags": [
+    "moss"
+   ],
+   "source": "Poly Haven rock_moss_set_02 (CC0)",
+   "size": [
+    1.63,
+    0.61,
+    1.01
+   ]
+  },
+  "rock_moss_10": {
+   "kind": "rock",
+   "glb": "res://assets/environment_runtime/rocks/rock_moss_set_02.glb",
+   "part": "rock_moss_10",
+   "tags": [
+    "moss"
+   ],
+   "source": "Poly Haven rock_moss_set_02 (CC0)",
+   "size": [
+    2.2,
+    0.77,
+    1.55
+   ]
+  },
+  "rock_moss_11": {
+   "kind": "rock",
+   "glb": "res://assets/environment_runtime/rocks/rock_moss_set_02.glb",
+   "part": "rock_moss_11",
+   "tags": [
+    "moss"
+   ],
+   "source": "Poly Haven rock_moss_set_02 (CC0)",
+   "size": [
+    1.95,
+    1.31,
+    1.53
+   ]
+  },
+  "rock_moss_12": {
+   "kind": "rock",
+   "glb": "res://assets/environment_runtime/rocks/rock_moss_set_02.glb",
+   "part": "rock_moss_12",
+   "tags": [
+    "moss"
+   ],
+   "source": "Poly Haven rock_moss_set_02 (CC0)",
+   "size": [
+    1.58,
+    0.74,
+    1.44
+   ]
+  },
+  "rock_moss_13": {
+   "kind": "rock",
+   "glb": "res://assets/environment_runtime/rocks/rock_moss_set_02.glb",
+   "part": "rock_moss_13",
+   "tags": [
+    "moss"
+   ],
+   "source": "Poly Haven rock_moss_set_02 (CC0)",
+   "size": [
+    2.09,
+    1.26,
+    1.14
+   ]
+  },
+  "fern_02_a": {
+   "kind": "ground",
+   "glb": "res://assets/environment_runtime/props/undergrowth.glb",
+   "part": "fern_02_a",
+   "tags": [
+    "fern"
+   ],
+   "source": "Poly Haven fern_02 (CC0)",
+   "size": [
+    0.55,
+    0.29,
+    0.61
+   ]
+  },
+  "fern_02_b": {
+   "kind": "ground",
+   "glb": "res://assets/environment_runtime/props/undergrowth.glb",
+   "part": "fern_02_b",
+   "tags": [
+    "fern"
+   ],
+   "source": "Poly Haven fern_02 (CC0)",
+   "size": [
+    0.99,
+    0.43,
+    0.89
+   ]
+  },
+  "fern_02_c": {
+   "kind": "ground",
+   "glb": "res://assets/environment_runtime/props/undergrowth.glb",
+   "part": "fern_02_c",
+   "tags": [
+    "fern"
+   ],
+   "source": "Poly Haven fern_02 (CC0)",
+   "size": [
+    0.87,
+    0.35,
+    0.77
+   ]
+  },
+  "fern_02_d": {
+   "kind": "ground",
+   "glb": "res://assets/environment_runtime/props/undergrowth.glb",
+   "part": "fern_02_d",
+   "tags": [
+    "fern"
+   ],
+   "source": "Poly Haven fern_02 (CC0)",
+   "size": [
+    0.57,
+    0.21,
+    0.59
+   ]
+  },
+  "grass_medium_01_large_a": {
+   "kind": "ground",
+   "glb": "res://assets/environment_runtime/props/undergrowth.glb",
+   "part": "grass_medium_01_large_a",
+   "tags": [
+    "grass"
+   ],
+   "source": "Poly Haven grass_medium_01 (CC0)",
+   "size": [
+    0.32,
+    0.15,
+    0.33
+   ]
+  },
+  "grass_medium_01_large_b": {
+   "kind": "ground",
+   "glb": "res://assets/environment_runtime/props/undergrowth.glb",
+   "part": "grass_medium_01_large_b",
+   "tags": [
+    "grass"
+   ],
+   "source": "Poly Haven grass_medium_01 (CC0)",
+   "size": [
+    0.28,
+    0.17,
+    0.27
+   ]
+  },
+  "grass_medium_01_large_c": {
+   "kind": "ground",
+   "glb": "res://assets/environment_runtime/props/undergrowth.glb",
+   "part": "grass_medium_01_large_c",
+   "tags": [
+    "grass"
+   ],
+   "source": "Poly Haven grass_medium_01 (CC0)",
+   "size": [
+    0.28,
+    0.14,
+    0.25
+   ]
+  },
+  "grass_medium_01_mid_a": {
+   "kind": "ground",
+   "glb": "res://assets/environment_runtime/props/undergrowth.glb",
+   "part": "grass_medium_01_mid_a",
+   "tags": [
+    "grass"
+   ],
+   "source": "Poly Haven grass_medium_01 (CC0)",
+   "size": [
+    0.22,
+    0.22,
+    0.22
+   ]
+  },
+  "grass_medium_01_mid_b": {
+   "kind": "ground",
+   "glb": "res://assets/environment_runtime/props/undergrowth.glb",
+   "part": "grass_medium_01_mid_b",
+   "tags": [
+    "grass"
+   ],
+   "source": "Poly Haven grass_medium_01 (CC0)",
+   "size": [
+    0.19,
+    0.18,
+    0.2
+   ]
+  },
+  "grass_medium_01_mid_c": {
+   "kind": "ground",
+   "glb": "res://assets/environment_runtime/props/undergrowth.glb",
+   "part": "grass_medium_01_mid_c",
+   "tags": [
+    "grass"
+   ],
+   "source": "Poly Haven grass_medium_01 (CC0)",
+   "size": [
+    0.19,
+    0.14,
+    0.2
+   ]
+  },
+  "grass_medium_01_tall_a": {
+   "kind": "ground",
+   "glb": "res://assets/environment_runtime/props/undergrowth.glb",
+   "part": "grass_medium_01_tall_a",
+   "tags": [
+    "grass"
+   ],
+   "source": "Poly Haven grass_medium_01 (CC0)",
+   "size": [
+    0.16,
+    0.32,
+    0.16
+   ]
+  },
+  "grass_medium_01_tall_b": {
+   "kind": "ground",
+   "glb": "res://assets/environment_runtime/props/undergrowth.glb",
+   "part": "grass_medium_01_tall_b",
+   "tags": [
+    "grass"
+   ],
+   "source": "Poly Haven grass_medium_01 (CC0)",
+   "size": [
+    0.15,
+    0.29,
+    0.13
+   ]
+  },
+  "grass_medium_01_tall_c": {
+   "kind": "ground",
+   "glb": "res://assets/environment_runtime/props/undergrowth.glb",
+   "part": "grass_medium_01_tall_c",
+   "tags": [
+    "grass"
+   ],
+   "source": "Poly Haven grass_medium_01 (CC0)",
+   "size": [
+    0.15,
+    0.24,
+    0.13
+   ]
+  },
+  "dry_branches_medium_01_a": {
+   "kind": "ground",
+   "glb": "res://assets/environment_runtime/props/undergrowth.glb",
+   "part": "dry_branches_medium_01_a",
+   "tags": [
+    "branches"
+   ],
+   "source": "Poly Haven dry_branches_medium_01 (CC0)",
+   "size": [
+    0.32,
+    0.34,
+    1.3
+   ]
+  },
+  "dry_branches_medium_01_b": {
+   "kind": "ground",
+   "glb": "res://assets/environment_runtime/props/undergrowth.glb",
+   "part": "dry_branches_medium_01_b",
+   "tags": [
+    "branches"
+   ],
+   "source": "Poly Haven dry_branches_medium_01 (CC0)",
+   "size": [
+    0.15,
+    0.14,
+    1.04
+   ]
+  },
+  "dry_branches_medium_01_c": {
+   "kind": "ground",
+   "glb": "res://assets/environment_runtime/props/undergrowth.glb",
+   "part": "dry_branches_medium_01_c",
+   "tags": [
+    "branches"
+   ],
+   "source": "Poly Haven dry_branches_medium_01 (CC0)",
+   "size": [
+    0.13,
+    0.14,
+    0.78
+   ]
+  },
+  "pine_roots_a": {
+   "kind": "ground",
+   "glb": "res://assets/environment_runtime/props/undergrowth.glb",
+   "part": "pine_roots_a",
+   "tags": [
+    "roots"
+   ],
+   "source": "Poly Haven pine_roots (CC0)",
+   "size": [
+    1.74,
+    0.14,
+    0.83
+   ]
+  },
+  "pine_roots_b": {
+   "kind": "ground",
+   "glb": "res://assets/environment_runtime/props/undergrowth.glb",
+   "part": "pine_roots_b",
+   "tags": [
+    "roots"
+   ],
+   "source": "Poly Haven pine_roots (CC0)",
+   "size": [
+    1.63,
+    0.15,
+    0.99
+   ]
+  },
+  "tree_stump_01": {
+   "kind": "ground",
+   "glb": "res://assets/environment_runtime/props/undergrowth.glb",
+   "part": "tree_stump_01",
+   "tags": [
+    "stump"
+   ],
+   "source": "Poly Haven tree_stump_01 (CC0)",
+   "size": [
+    1.42,
+    0.57,
+    1.59
+   ]
+  },
+  "tree_stump_02": {
+   "kind": "ground",
+   "glb": "res://assets/environment_runtime/props/undergrowth.glb",
+   "part": "tree_stump_02",
+   "tags": [
+    "stump"
+   ],
+   "source": "Poly Haven tree_stump_02 (CC0)",
+   "size": [
+    1.52,
+    0.52,
+    1.39
+   ]
+  },
+  "dead_tree_trunk": {
+   "kind": "ground",
+   "glb": "res://assets/environment_runtime/props/undergrowth.glb",
+   "part": "dead_tree_trunk",
+   "tags": [
+    "log"
+   ],
+   "source": "Poly Haven dead_tree_trunk (CC0)",
+   "size": [
+    3.05,
+    0.29,
+    0.28
+   ]
   }
  }
 }

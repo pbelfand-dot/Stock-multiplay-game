@@ -10,9 +10,14 @@ A spec ({"id": {...}}):
             assets/environment_work/ (a restored and unpacked pack: tools/restore_environment_assets.py)
   srcs      (instead of src) several files, each one's meshes joined into a part named after
             the file (a kit of separate models into one GLB)
+  keep_parts (with srcs) each file's objects kept as parts of their own (files of several
+            models: a fern set, grass clumps), not joined
   out       the runtime GLB, relative to assets/environment_runtime/
   objects   (optional) only these objects (names; "*" globs), each kept as a part of its own
   rename    (optional) {source name: part name}
+  strip     (optional) suffixes taken off part names (["_LOD0"])
+  decimate  (optional) {part name pattern: triangles}: parts over it collapsed down to it (a
+            scanned stump or log: 40-100 k triangles in the source)
   join      (optional) {part name: [source names]}: pieces that belong together joined into one part
   origin    "base" (each part's origin at the middle of its foot: the game stands it on the
             ground) or "keep"
@@ -68,8 +73,9 @@ def load(path):
         raise SystemExit("can't read %s" % ext)
 
 
-def load_kit(paths):
-    """Several files into one scene: each file's meshes joined into one part named after it."""
+def load_kit(paths, keep_parts=False):
+    """Several files into one scene: each file's meshes joined into one part named after it (or,
+    keep_parts, kept as they are)."""
     bpy.ops.wm.read_factory_settings(use_empty=True)
     for path in paths:
         before = set(bpy.data.objects)
@@ -86,6 +92,8 @@ def load_kit(paths):
         for o in new:
             if o.type != "MESH":
                 bpy.data.objects.remove(o, do_unlink=True)
+        if keep_parts:
+            continue
         bpy.ops.object.select_all(action="DESELECT")
         for o in meshes:
             o.select_set(True)
@@ -195,7 +203,7 @@ def main():
         vegetation.convert(spec, None, os.path.join(RUNTIME, spec["out"]))
         return
     if spec.get("srcs"):
-        load_kit([source_path(s) for s in spec["srcs"]])
+        load_kit([source_path(s) for s in spec["srcs"]], bool(spec.get("keep_parts", False)))
     else:
         load(source_path(spec["src"]))
     objs = keep_only(spec.get("objects", ["*"]))
@@ -215,6 +223,9 @@ def main():
             group[0].data.name = part
     for o in objs:
         name = o.name
+        for suffix in spec.get("strip", []):                   # (a source's level-of-detail tags: "fern_02_a_LOD0" -> "fern_02_a")
+            if name.endswith(suffix):
+                name = name[:-len(suffix)]
         for pat, new in spec.get("rename", {}).items():        # (patterns: some names hide zero-width spaces)
             if fnmatch.fnmatch(o.name.replace("\u200b", ""), pat.replace("\u200b", "")):
                 name = new
@@ -223,6 +234,13 @@ def main():
         o.data.name = name
         if spec.get("origin", "base") == "base":
             base_origin(o)
+        for pat, want in spec.get("decimate", {}).items():       # (a scanned part: down to its budget)
+            if fnmatch.fnmatch(o.name, pat) and tris(o) > int(want):
+                m = o.modifiers.new("decimate", "DECIMATE")
+                m.ratio = float(want) / tris(o)
+                bpy.context.view_layer.objects.active = o
+                bpy.ops.object.modifier_apply(modifier=m.name)
+                break
     shrink_textures(int(spec.get("max_tex", 2048)))
     out = os.path.join(RUNTIME, spec["out"])
     os.makedirs(os.path.dirname(out), exist_ok=True)

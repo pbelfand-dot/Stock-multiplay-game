@@ -75,7 +75,14 @@
      "rock_moss_03",
      "rock_moss_04",
      "rock_moss_05",
-     "rock_moss_06"
+     "rock_moss_06",
+     "rock_moss_07",
+     "rock_moss_08",
+     "rock_moss_09",
+     "rock_moss_10",
+     "rock_moss_11",
+     "rock_moss_12",
+     "rock_moss_13"
     ],
     "scale": [
      0.45,
@@ -113,7 +120,44 @@
     }
    },
    "ground": "forest",
-   "asphalt": "asphalt2"
+   "asphalt": "asphalt2",
+   "undergrowth": {
+    "edge": [
+     "fern_02_a",
+     "fern_02_b",
+     "fern_02_c",
+     "fern_02_d",
+     "fern_02_a",
+     "fern_02_b",
+     "fern_02_c",
+     "fern_02_d",
+     "grass_medium_01_large_a",
+     "grass_medium_01_large_b",
+     "grass_medium_01_large_c",
+     "grass_medium_01_mid_a",
+     "grass_medium_01_mid_b",
+     "grass_medium_01_mid_c",
+     "grass_medium_01_tall_a",
+     "grass_medium_01_tall_b",
+     "grass_medium_01_tall_c"
+    ],
+    "edge_n": 1.1,
+    "floor": [
+     "fern_02_a",
+     "fern_02_b",
+     "fern_02_c",
+     "fern_02_d",
+     "dry_branches_medium_01_a",
+     "dry_branches_medium_01_b",
+     "dry_branches_medium_01_c",
+     "pine_roots_a",
+     "pine_roots_b",
+     "tree_stump_01",
+     "tree_stump_02",
+     "dead_tree_trunk"
+    ],
+    "floor_n": 0.35
+   }
   },
   "temperate_broadleaf": {
    "name": "Mixed temperate broadleaf forest",
@@ -179,7 +223,9 @@
     "ids": [
      "rock_moss_03",
      "rock_moss_04",
-     "rock_moss_06"
+     "rock_moss_06",
+     "rock_moss_08",
+     "rock_moss_12"
     ],
     "scale": [
      0.4,
@@ -204,7 +250,54 @@
      "snow": true
     }
    },
-   "ground": "forest"
+   "ground": "forest",
+   "undergrowth": {
+    "edge": [
+     "grass_medium_01_large_a",
+     "grass_medium_01_large_b",
+     "grass_medium_01_large_c",
+     "grass_medium_01_mid_a",
+     "grass_medium_01_mid_b",
+     "grass_medium_01_mid_c",
+     "grass_medium_01_tall_a",
+     "grass_medium_01_tall_b",
+     "grass_medium_01_tall_c",
+     "grass_medium_01_large_a",
+     "grass_medium_01_large_b",
+     "grass_medium_01_large_c",
+     "grass_medium_01_mid_a",
+     "grass_medium_01_mid_b",
+     "grass_medium_01_mid_c",
+     "grass_medium_01_tall_a",
+     "grass_medium_01_tall_b",
+     "grass_medium_01_tall_c",
+     "fern_02_a",
+     "fern_02_b",
+     "fern_02_c",
+     "fern_02_d"
+    ],
+    "edge_n": 0.9,
+    "floor": [
+     "dry_branches_medium_01_a",
+     "dry_branches_medium_01_b",
+     "dry_branches_medium_01_c",
+     "pine_roots_a",
+     "pine_roots_b",
+     "tree_stump_01",
+     "tree_stump_02",
+     "dead_tree_trunk",
+     "grass_medium_01_large_a",
+     "grass_medium_01_large_b",
+     "grass_medium_01_large_c",
+     "grass_medium_01_mid_a",
+     "grass_medium_01_mid_b",
+     "grass_medium_01_mid_c",
+     "grass_medium_01_tall_a",
+     "grass_medium_01_tall_b",
+     "grass_medium_01_tall_c"
+    ],
+    "floor_n": 0.25
+   }
   },
   "conifer_rally": {
    "name": "Dense conifer rally forest",
@@ -301,7 +394,10 @@
     "ids": [
      "rock_moss_01",
      "rock_moss_02",
-     "rock_moss_05"
+     "rock_moss_05",
+     "rock_moss_07",
+     "rock_moss_10",
+     "rock_moss_13"
     ],
     "scale": [
      0.4,
@@ -326,7 +422,49 @@
      "snow": true
     }
    },
-   "ground": "forest"
+   "ground": "forest",
+   "undergrowth": {
+    "edge": [
+     "grass_medium_01_large_a",
+     "grass_medium_01_large_b",
+     "grass_medium_01_large_c",
+     "grass_medium_01_mid_a",
+     "grass_medium_01_mid_b",
+     "grass_medium_01_mid_c",
+     "grass_medium_01_tall_a",
+     "grass_medium_01_tall_b",
+     "grass_medium_01_tall_c",
+     "grass_medium_01_large_a",
+     "grass_medium_01_large_b",
+     "grass_medium_01_large_c",
+     "grass_medium_01_mid_a",
+     "grass_medium_01_mid_b",
+     "grass_medium_01_mid_c",
+     "grass_medium_01_tall_a",
+     "grass_medium_01_tall_b",
+     "grass_medium_01_tall_c",
+     "fern_02_a",
+     "fern_02_b",
+     "fern_02_c",
+     "fern_02_d"
+    ],
+    "edge_n": 1.0,
+    "floor": [
+     "dry_branches_medium_01_a",
+     "dry_branches_medium_01_b",
+     "dry_branches_medium_01_c",
+     "pine_roots_a",
+     "pine_roots_b",
+     "tree_stump_01",
+     "tree_stump_02",
+     "dead_tree_trunk",
+     "fern_02_a",
+     "fern_02_b",
+     "fern_02_c",
+     "fern_02_d"
+    ],
+    "floor_n": 0.3
+   }
   },
   "alpine_rock": {
    "name": "Rocky alpine mountain",
@@ -361,7 +499,14 @@
      "rock_moss_03",
      "rock_moss_04",
      "rock_moss_05",
-     "rock_moss_06"
+     "rock_moss_06",
+     "rock_moss_07",
+     "rock_moss_08",
+     "rock_moss_09",
+     "rock_moss_10",
+     "rock_moss_11",
+     "rock_moss_12",
+     "rock_moss_13"
     ],
     "scale": [
      0.5,
@@ -385,7 +530,27 @@
      "snow": true
     }
    },
-   "asphalt": "asphalt2"
+   "asphalt": "asphalt2",
+   "undergrowth": {
+    "edge": [
+     "grass_medium_01_large_a",
+     "grass_medium_01_large_b",
+     "grass_medium_01_large_c",
+     "grass_medium_01_mid_a",
+     "grass_medium_01_mid_b",
+     "grass_medium_01_mid_c",
+     "grass_medium_01_tall_a",
+     "grass_medium_01_tall_b",
+     "grass_medium_01_tall_c"
+    ],
+    "edge_n": 0.5,
+    "floor": [
+     "tree_stump_01",
+     "tree_stump_02",
+     "dead_tree_trunk"
+    ],
+    "floor_n": 0.06
+   }
   },
   "wet_forest": {
    "name": "Wet forest and muddy rally ground",
@@ -465,7 +630,14 @@
      "rock_moss_03",
      "rock_moss_04",
      "rock_moss_05",
-     "rock_moss_06"
+     "rock_moss_06",
+     "rock_moss_07",
+     "rock_moss_08",
+     "rock_moss_09",
+     "rock_moss_10",
+     "rock_moss_11",
+     "rock_moss_12",
+     "rock_moss_13"
     ],
     "scale": [
      0.45,
@@ -497,7 +669,53 @@
      ]
     }
    },
-   "ground": "forest"
+   "ground": "forest",
+   "undergrowth": {
+    "edge": [
+     "fern_02_a",
+     "fern_02_b",
+     "fern_02_c",
+     "fern_02_d",
+     "fern_02_a",
+     "fern_02_b",
+     "fern_02_c",
+     "fern_02_d",
+     "fern_02_a",
+     "fern_02_b",
+     "fern_02_c",
+     "fern_02_d",
+     "grass_medium_01_large_a",
+     "grass_medium_01_large_b",
+     "grass_medium_01_large_c",
+     "grass_medium_01_mid_a",
+     "grass_medium_01_mid_b",
+     "grass_medium_01_mid_c",
+     "grass_medium_01_tall_a",
+     "grass_medium_01_tall_b",
+     "grass_medium_01_tall_c"
+    ],
+    "edge_n": 1.4,
+    "floor": [
+     "fern_02_a",
+     "fern_02_b",
+     "fern_02_c",
+     "fern_02_d",
+     "dry_branches_medium_01_a",
+     "dry_branches_medium_01_b",
+     "dry_branches_medium_01_c",
+     "pine_roots_a",
+     "pine_roots_b",
+     "tree_stump_01",
+     "tree_stump_02",
+     "dead_tree_trunk"
+    ],
+    "floor_n": 0.45,
+    "tint": [
+     0.9,
+     0.95,
+     0.85
+    ]
+   }
   },
   "winter_mountain": {
    "name": "Snow-covered winter mountain",
@@ -562,7 +780,9 @@
     "ids": [
      "rock_moss_01",
      "rock_moss_02",
-     "rock_moss_04"
+     "rock_moss_04",
+     "rock_moss_11",
+     "rock_moss_13"
     ],
     "scale": [
      0.5,
@@ -576,7 +796,23 @@
    },
    "cliffs": true,
    "snow": true,
-   "season": "winter"
+   "season": "winter",
+   "undergrowth": {
+    "edge": [],
+    "edge_n": 0.0,
+    "floor": [
+     "tree_stump_01",
+     "tree_stump_02",
+     "dead_tree_trunk",
+     "pine_roots_a"
+    ],
+    "floor_n": 0.08,
+    "tint": [
+     0.9,
+     0.92,
+     0.96
+    ]
+   }
   },
   "suburban_verge": {
    "name": "Suburban highway verge",

@@ -33,15 +33,27 @@ converted runtime files are committed; the restored and unpacked sources stay ou
 
 ## The CC0 library (`assets/environment_packages/cc0/`, `CC0_SOURCES.md`)
 
-| Source | Licence | What the game takes | Runtime |
-|---|---|---|---|
-| Poly Haven `rock_moss_set_01` (2K) | CC0 | 6 mossy rocks (`rock_moss_01..06`): boulders by the stages | `rocks/rock_moss_set.glb` |
-| Poly Haven `rock_face_01` (2K) | CC0 | a scanned rock face (`rock_face_01`, 4.95 x 3.56 x 3.83 m): the rock cuts on mountain stages | `rocks/rock_face_01.glb` |
-| Poly Haven `forrest_ground_01` (2K) | CC0 | the forest floor texture (`forest`) | `assets/textures/world/forest_*.webp` |
-| Poly Haven `asphalt_02` (2K) | CC0 | a second asphalt (`asphalt2`): the touge's and the alpine roads | `assets/textures/world/asphalt2_*.webp` |
-| Kenney City Kit (Roads) 2.1 | CC0 | 22 props: poles, lights, cones, barriers, signs, traffic lights, pillars, a dumpster (in toy units: the registry scales each to its real size) | `props/kenney_props.glb` |
+| Source | Authors | Licence | What the game takes | Runtime |
+|---|---|---|---|---|
+| Poly Haven [`rock_moss_set_01`](https://polyhaven.com/a/rock_moss_set_01) (2K) | Kless Gyzen | CC0 | 6 mossy rocks (`rock_moss_01..06`): boulders by the stages | `rocks/rock_moss_set.glb` |
+| Poly Haven [`rock_moss_set_02`](https://polyhaven.com/a/rock_moss_set_02) (2K) | Kless Gyzen | CC0 | 7 more mossy rocks (`rock_moss_07..13`), into the same biomes' boulders | `rocks/rock_moss_set_02.glb` |
+| Poly Haven [`rock_face_01`](https://polyhaven.com/a/rock_face_01) (2K) | Dario Barresi | CC0 | a scanned rock face (`rock_face_01`, 4.95 x 3.56 x 3.83 m): the rock cuts on mountain stages | `rocks/rock_face_01.glb` |
+| Poly Haven [`fern_02`](https://polyhaven.com/a/fern_02) (2K) | Rob Tuytel, Rico Cilliers | CC0 | 4 ferns (`fern_02_a..d`): the verge and the forest floor | `props/undergrowth.glb` |
+| Poly Haven [`grass_medium_01`](https://polyhaven.com/a/grass_medium_01) (2K) | Rob Tuytel, Rico Cilliers | CC0 | 9 grass tussocks (`grass_medium_01_large_a..c`, `_mid_a..c`, `_tall_a..c`; the large ones decimated to 2.5 k triangles): the verge | `props/undergrowth.glb` |
+| Poly Haven [`dry_branches_medium_01`](https://polyhaven.com/a/dry_branches_medium_01) (2K) | Rico Cilliers | CC0 | 3 fallen branches (`dry_branches_medium_01_a..c`): under the trees | `props/undergrowth.glb` |
+| Poly Haven [`pine_roots`](https://polyhaven.com/a/pine_roots) (2K) | Rob Tuytel | CC0 | 2 roots (`pine_roots_a`, `_b`), decimated to 5 k triangles: under the trees | `props/undergrowth.glb` |
+| Poly Haven [`tree_stump_01`](https://polyhaven.com/a/tree_stump_01), [`tree_stump_02`](https://polyhaven.com/a/tree_stump_02) (2K) | Rob Tuytel | CC0 | 2 stumps (`tree_stump_01`, `_02`; decimated to 5 k triangles each): under the trees | `props/undergrowth.glb` |
+| Poly Haven [`dead_tree_trunk`](https://polyhaven.com/a/dead_tree_trunk) (2K) | Rob Tuytel | CC0 | a fallen trunk (`dead_tree_trunk`, 3 m; decimated to 6 k): under the trees | `props/undergrowth.glb` |
+| Poly Haven [`forrest_ground_01`](https://polyhaven.com/a/forrest_ground_01) (2K) | Rob Tuytel | CC0 | the forest floor texture (`forest`) | `assets/textures/world/forest_*.webp` |
+| Poly Haven [`asphalt_02`](https://polyhaven.com/a/asphalt_02) (2K) | Rob Tuytel | CC0 | a second asphalt (`asphalt2`): the touge's and the alpine roads | `assets/textures/world/asphalt2_*.webp` |
+| Kenney City Kit (Roads) 2.1 | Kenney | CC0 | 22 props: poles, lights, cones, barriers, signs, traffic lights, pillars, a dumpster (in toy units: the registry scales each to its real size) | `props/kenney_props.glb` |
 
-Credits for all of these are in `docs/CREDITS_WORLD.md`.
+Authors as Poly Haven's own pages list them (`api.polyhaven.com/info/<name>`). Not taken: Poly
+Haven `moss_01` (tufts 1-4 cm across: too small to see from a car). The rest of the CC0 library
+(saplings, fir and pine trees, the roadside props, Kenney's other city kits, Quaternius) is
+listed in `docs/ASSET_INTEGRATION_STATUS.md` with what each still needs.
+
+Their sources: `assets/environment_packages/CC0_SOURCES.md`; the world textures' and skies' credits: `docs/CREDITS_WORLD.md`.
 
 ## How each kind is converted
 
@@ -84,16 +96,16 @@ In the game (`CitySkyline.material`) one shader draws them all, from where a pix
 
 ## The lands (biomes, `data/biomes.json`)
 
-| Biome | Trees (a stage takes 4 of these + 2 broadleaves, by its seed) | Broadleaf share | Rocks | Rock cuts | Other | Seasons | Ground / road |
-|---|---|---|---|---|---|---|---|
-| japan_cedar (touge) | conifers 01, 02, 03, 05, 06, 07, 08, 09, 10, 12 | the forest's own | 12 % | yes | a power line on wooden poles | summer, autumn, winter | forest floor, asphalt 2 |
-| temperate_broadleaf (mixed stages, golden autumn rally) | tall pines 1-5, conifers 04, 05, 11 | 60 % | 5 % | | | summer, autumn, winter | forest floor |
-| conifer_rally (gravel) | conifers (11), tall pines 1-5 | the forest's own | 5 % | | | summer, autumn, winter | forest floor |
-| alpine_rock (mountain tarmac) | conifers 04, 05, 10, 11 | none | 30 % | yes | | summer, winter | asphalt 2 |
-| wet_forest (puddles, mud rally) | conifers (11) | the forest's own | 18 % | | | autumn | forest floor |
-| winter_mountain (ice) | conifers (11) | none | 12 % | yes | snow | winter | |
-| suburban_verge (the loop) | tall pines, conifers 04, 05, 11 | 70 % | | | | summer, autumn | |
-| urban_corridor | conifers 04, 05, 11 | 85 % | | | | summer | |
+| Biome | Trees (a stage takes 4 of these + 2 broadleaves, by its seed) | Broadleaf share | Rocks | Rock cuts | Forest floor (verge; under the trees) | Other | Seasons | Ground / road |
+|---|---|---|---|---|---|---|---|---|
+| japan_cedar (touge) | conifers 01, 02, 03, 05, 06, 07, 08, 09, 10, 12 | the forest's own | 12 % | yes | ferns, grass (1.1 a side every 4 m); ferns, branches, roots, stumps, logs (0.35) | a power line on wooden poles | summer, autumn, winter | forest floor, asphalt 2 |
+| temperate_broadleaf (mixed stages, golden autumn rally) | tall pines 1-5, conifers 04, 05, 11 | 60 % | 5 % | | grass, ferns (0.9); branches, roots, stumps, logs, grass (0.25) | | summer, autumn, winter | forest floor |
+| conifer_rally (gravel) | conifers (11), tall pines 1-5 | the forest's own | 5 % | | grass, ferns (1.0); branches, roots, stumps, logs, ferns (0.3) | | summer, autumn, winter | forest floor |
+| alpine_rock (mountain tarmac) | conifers 04, 05, 10, 11 | none | 30 % | yes | grass (0.5); a stump or log now and then (0.06) | | summer, winter | asphalt 2 |
+| wet_forest (puddles, mud rally) | conifers (11) | the forest's own | 18 % | | ferns, grass, dense (1.4); ferns, branches, roots, stumps, logs (0.45); greyed | | autumn | forest floor |
+| winter_mountain (ice) | conifers (11) | none | 12 % | yes | none on the verge (snow); stumps, logs, roots (0.08); frosted | snow | winter | |
+| suburban_verge (the loop) | tall pines, conifers 04, 05, 11 | 70 % | | |  | | summer, autumn | |
+| urban_corridor | conifers 04, 05, 11 | 85 % | | |  | | summer | |
 
 A stage picks its biome from what it is (a touge, ice, tarmac, mixed, puddles, gravel), or
 from the story rally that names one (`championship.gd`). The season comes from the rally or
@@ -111,6 +123,11 @@ the biome's own, and recolours the leaves (autumn: the broadleaves turn).
 - **Shadows:** at HIGH and up every near tree casts its own. At MEDIUM the full trees' shadows come from their lighter versions and the rest cast none. At LOW the old low-poly cone trees stay, with no library trees.
 - **Solid things:** the trunks near the road, boulders taller than 0.9 m within 20 m, and the poles. Species come from a hash of the spot, so the solid things are identical at every graphics level and every machine in an online race agrees (tested: 1,812 of them on a touge, LOW = MEDIUM).
 - **Boulders, rock cuts and poles** each use their own seeded dice: the same stage gives the same dressing.
+- **The forest floor** (`StageBuilder._undergrowth`, the biome's `undergrowth`): every 4 m of road, each side, two layers:
+  - the **edge** (ferns and grass, about `edge_n` pieces) from 2 m inside the tree line to 5 m behind it;
+  - the **floor** under the trees (branches, roots, stumps, a fallen trunk, more ferns; `floor_n`) out to 30 m.
+
+  Each piece is kept off every nearby sample of the road by that sample's own width plus 1.2 m plus its own radius (`_on_verge`: a switchback's other leg counts), out of the service parks and away from the lamps. Stumps, roots and logs are sunk 18 % of their height, the small things 4 %. Visual only (nothing solid). One MultiMesh per 160 m chunk and piece (`Ground_<chunk>_<id>`). Ferns, grass and branches are drawn to 70 m, stumps, roots and logs to 140 m (x the view distance); only those three cast shadows, at HIGH and up. Not at LOW (the cone-tree world) and not on the highway. Where it's drawn, the forest's old low-poly undergrowth goes: no cone ferns, and a big scanned fern (1.5-2.2 x) stands at each spiky bush's spot (the dice are still thrown for them, so the rest comes out as before). Its own dice: the trees and boulders come out as before (tested: 78-4,623 pieces on the five test stages, none on the road).
 - **The loop's city:**
   - the library's buildings in the front rows (to 190 m from the road's middle), each its own node with its LODs, long side to the road, never overlapping or on a road;
   - the far tier behind (`scripts/stage/city_skyline.gd`), from 200 m to the city's edge (645 m): the 31-building pack, in place of the drawn towers that stood there. Each building on the ground as drawn (the land's own triangles under its footprint, flat to 0.8 m, its foot 0.1 m under the lowest of it), on the city's ground (none in the water), 40 m and more from the road and its ramps, never on another building, long side to the road (a square one any way round). Each kilometre of road (a district, both sides) is built from 6 of the designs (2 towers, 3 mid-rises, a low block), mixed: the taller likelier further out and in the middle of town, now and then a tower anywhere, gaps between the blocks: about 1,100 buildings in all. The ground steps where the road's land ribbons end (about 300-345 m out), so that band stays open. One MultiMesh per design and district, by the distance to the district's middle: the full silhouettes to 650 m, LOD1 to 1.8 km, LOD2 to 4 km x the level's view distance (the low blocks from LOD1); no shadows (past the sun's shadow map anyway). Their own dice: the rest of the city and the trees come out as before. `--no_skyline` (stage_perf, loop_shots) builds the city without it, for a comparison.
@@ -142,6 +159,7 @@ The far tier's triangles in view are mostly the district round the camera at ful
 
 - The highway props pack placed on the loop (its barriers, signs and pylons are still procedural).
 - Signs on the touge and rally stages (the winding-road sign before bends, the slippery one on wet and ice).
+- The rest of the CC0 library: Poly Haven's saplings and fir / pine trees (through the tree converter), its roadside props (chain-link fence, electricity poles, street lamp, concrete barrier, old tyre, security camera), Kenney's other city kits and Quaternius' city kit and characters.
 
 ## Every asset in the library
 
@@ -222,14 +240,46 @@ From `tools/env_stats.gd` (triangles as loaded in Godot; sizes in metres, x the 
 | `construction_light` | prop | kenney_props.glb | 144 | 0.6 x 1.9 x 0.6 | Kenney City Kit (Roads) 2.1 (CC0) |
 | `crash_barrier_a` | prop | highway_props.glb | 372 | 4.4 x 1.2 x 0.4 | owner's pack: highway props (Models.blend) |
 | `crash_barrier_b` | prop | highway_props.glb | 372 | 4.4 x 1.2 x 0.4 | owner's pack: highway props (Models.blend) |
+| `dead_tree_trunk` | ground | undergrowth.glb | 6000 | 3.0 x 0.3 x 0.3 | Poly Haven dead_tree_trunk (CC0) |
+| `dry_branches_medium_01_a` | ground | undergrowth.glb | 5933 | 0.3 x 0.3 x 1.3 | Poly Haven dry_branches_medium_01 (CC0) |
+| `dry_branches_medium_01_b` | ground | undergrowth.glb | 5254 | 0.2 x 0.1 x 1.0 | Poly Haven dry_branches_medium_01 (CC0) |
+| `dry_branches_medium_01_c` | ground | undergrowth.glb | 5616 | 0.1 x 0.1 x 0.8 | Poly Haven dry_branches_medium_01 (CC0) |
 | `dumpster` | prop | kenney_props.glb | 234 | 1.9 x 1.5 x 2.6 | Kenney City Kit (Roads) 2.1 (CC0) |
 | `electricity_pole` | prop | kenney_props.glb | 416 | 10.4 x 9.4 x 3.9 | Kenney City Kit (Roads) 2.1 (CC0) |
 | `electricity_pole_single` | prop | kenney_props.glb | 176 | 1.4 x 9.4 x 3.9 | Kenney City Kit (Roads) 2.1 (CC0) |
 | `electricity_pole_wide` | prop | kenney_props.glb | 544 | 19.4 x 9.4 x 3.9 | Kenney City Kit (Roads) 2.1 (CC0) |
 | `electricity_wires` | prop | kenney_props.glb | 72 | 9.1 x 1.2 x 3.3 | Kenney City Kit (Roads) 2.1 (CC0) |
+| `fern_02_a` | ground | undergrowth.glb | 784 | 0.6 x 0.3 x 0.6 | Poly Haven fern_02 (CC0) |
+| `fern_02_b` | ground | undergrowth.glb | 2384 | 1.0 x 0.4 x 0.9 | Poly Haven fern_02 (CC0) |
+| `fern_02_c` | ground | undergrowth.glb | 2248 | 0.9 x 0.3 x 0.8 | Poly Haven fern_02 (CC0) |
+| `fern_02_d` | ground | undergrowth.glb | 816 | 0.6 x 0.2 x 0.6 | Poly Haven fern_02 (CC0) |
+| `grass_medium_01_large_a` | ground | undergrowth.glb | 2500 | 0.3 x 0.1 x 0.3 | Poly Haven grass_medium_01 (CC0) |
+| `grass_medium_01_large_b` | ground | undergrowth.glb | 2500 | 0.3 x 0.2 x 0.3 | Poly Haven grass_medium_01 (CC0) |
+| `grass_medium_01_large_c` | ground | undergrowth.glb | 2500 | 0.3 x 0.1 x 0.3 | Poly Haven grass_medium_01 (CC0) |
+| `grass_medium_01_mid_a` | ground | undergrowth.glb | 2287 | 0.2 x 0.2 x 0.2 | Poly Haven grass_medium_01 (CC0) |
+| `grass_medium_01_mid_b` | ground | undergrowth.glb | 1257 | 0.2 x 0.2 x 0.2 | Poly Haven grass_medium_01 (CC0) |
+| `grass_medium_01_mid_c` | ground | undergrowth.glb | 1466 | 0.2 x 0.1 x 0.2 | Poly Haven grass_medium_01 (CC0) |
+| `grass_medium_01_tall_a` | ground | undergrowth.glb | 290 | 0.2 x 0.3 x 0.2 | Poly Haven grass_medium_01 (CC0) |
+| `grass_medium_01_tall_b` | ground | undergrowth.glb | 310 | 0.1 x 0.3 x 0.1 | Poly Haven grass_medium_01 (CC0) |
+| `grass_medium_01_tall_c` | ground | undergrowth.glb | 340 | 0.2 x 0.2 x 0.1 | Poly Haven grass_medium_01 (CC0) |
 | `light_curved` | prop | kenney_props.glb | 92 | 0.7 x 9.4 x 3.1 | Kenney City Kit (Roads) 2.1 (CC0) |
 | `light_curved_double` | prop | kenney_props.glb | 152 | 0.7 x 9.4 x 5.6 | Kenney City Kit (Roads) 2.1 (CC0) |
 | `light_square_double` | prop | kenney_props.glb | 88 | 0.7 x 8.4 x 5.9 | Kenney City Kit (Roads) 2.1 (CC0) |
+| `marshal_hut` | prop | track_props.glb | 276 | 2.5 x 2.5 x 2.4 | 3DAssets.dev Grand Prix circuit / Endurance and GT paddock packs (CC0; AI-generated upstream) |
+| `pine_roots_a` | ground | undergrowth.glb | 4999 | 1.7 x 0.1 x 0.8 | Poly Haven pine_roots (CC0) |
+| `pine_roots_b` | ground | undergrowth.glb | 5000 | 1.6 x 0.1 x 1.0 | Poly Haven pine_roots (CC0) |
+| `pit_air_jack` | prop | track_props.glb | 372 | 0.8 x 0.8 x 0.5 | 3DAssets.dev Grand Prix circuit / Endurance and GT paddock packs (CC0; AI-generated upstream) |
+| `pit_flag_pole` | prop | track_props.glb | 140 | 0.9 x 2.1 x 0.4 | 3DAssets.dev Grand Prix circuit / Endurance and GT paddock packs (CC0; AI-generated upstream) |
+| `pit_fuel_rig` | prop | track_props.glb | 412 | 1.8 x 3.0 x 1.0 | 3DAssets.dev Grand Prix circuit / Endurance and GT paddock packs (CC0; AI-generated upstream) |
+| `pit_garage_double` | prop | track_props.glb | 552 | 9.1 x 5.1 x 7.2 | 3DAssets.dev Grand Prix circuit / Endurance and GT paddock packs (CC0; AI-generated upstream) |
+| `pit_helmet_rack` | prop | track_props.glb | 936 | 1.4 x 1.3 x 0.5 | 3DAssets.dev Grand Prix circuit / Endurance and GT paddock packs (CC0; AI-generated upstream) |
+| `pit_jack_front` | prop | track_props.glb | 256 | 0.7 x 1.1 x 1.3 | 3DAssets.dev Grand Prix circuit / Endurance and GT paddock packs (CC0; AI-generated upstream) |
+| `pit_jack_rear` | prop | track_props.glb | 256 | 0.7 x 1.1 x 1.7 | 3DAssets.dev Grand Prix circuit / Endurance and GT paddock packs (CC0; AI-generated upstream) |
+| `pit_signal_lights` | prop | track_props.glb | 196 | 0.4 x 2.1 x 0.4 | 3DAssets.dev Grand Prix circuit / Endurance and GT paddock packs (CC0; AI-generated upstream) |
+| `pit_tyre_blankets` | prop | track_props.glb | 684 | 0.7 x 0.8 x 0.7 | 3DAssets.dev Grand Prix circuit / Endurance and GT paddock packs (CC0; AI-generated upstream) |
+| `pit_wall_stand` | prop | track_props.glb | 144 | 4.0 x 1.5 x 1.4 | 3DAssets.dev Grand Prix circuit / Endurance and GT paddock packs (CC0; AI-generated upstream) |
+| `pit_warmer_rack` | prop | track_props.glb | 1224 | 1.5 x 1.6 x 0.6 | 3DAssets.dev Grand Prix circuit / Endurance and GT paddock packs (CC0; AI-generated upstream) |
+| `pit_wheel_gun` | prop | track_props.glb | 284 | 0.5 x 0.3 x 0.4 | 3DAssets.dev Grand Prix circuit / Endurance and GT paddock packs (CC0; AI-generated upstream) |
 | `pylon` | prop | highway_props.glb | 8886 | 0.7 x 11.5 x 4.0 | owner's pack: highway props (Models.blend) |
 | `pylon_cable` | prop | highway_props.glb | 2304 | 40.4 x 2.0 x 3.5 | owner's pack: highway props (Models.blend) |
 | `road_sign_stop` | prop | kenney_props.glb | 104 | 0.5 x 3.0 x 0.8 | Kenney City Kit (Roads) 2.1 (CC0) |
@@ -246,6 +296,13 @@ From `tools/env_stats.gd` (triangles as loaded in Godot; sizes in metres, x the 
 | `rock_moss_04` | rock | rock_moss_set.glb | 10589 | 2.1 x 1.8 x 2.0 | Poly Haven rock_moss_set_01 (CC0) |
 | `rock_moss_05` | rock | rock_moss_set.glb | 16548 | 1.8 x 1.2 x 3.0 | Poly Haven rock_moss_set_01 (CC0) |
 | `rock_moss_06` | rock | rock_moss_set.glb | 8994 | 2.1 x 1.3 x 2.8 | Poly Haven rock_moss_set_01 (CC0) |
+| `rock_moss_07` | rock | rock_moss_set_02.glb | 9826 | 1.7 x 0.7 x 1.2 | Poly Haven rock_moss_set_02 (CC0) |
+| `rock_moss_08` | rock | rock_moss_set_02.glb | 8000 | 1.2 x 0.5 x 1.0 | Poly Haven rock_moss_set_02 (CC0) |
+| `rock_moss_09` | rock | rock_moss_set_02.glb | 7894 | 1.6 x 0.6 x 1.0 | Poly Haven rock_moss_set_02 (CC0) |
+| `rock_moss_10` | rock | rock_moss_set_02.glb | 8000 | 2.2 x 0.8 x 1.6 | Poly Haven rock_moss_set_02 (CC0) |
+| `rock_moss_11` | rock | rock_moss_set_02.glb | 8000 | 2.0 x 1.3 x 1.5 | Poly Haven rock_moss_set_02 (CC0) |
+| `rock_moss_12` | rock | rock_moss_set_02.glb | 7999 | 1.6 x 0.7 x 1.4 | Poly Haven rock_moss_set_02 (CC0) |
+| `rock_moss_13` | rock | rock_moss_set_02.glb | 7928 | 2.1 x 1.3 x 1.1 | Poly Haven rock_moss_set_02 (CC0) |
 | `sign_highway` | prop | kenney_props.glb | 180 | 1.2 x 6.4 x 9.0 | Kenney City Kit (Roads) 2.1 (CC0) |
 | `sign_highway_detailed` | prop | kenney_props.glb | 256 | 1.2 x 7.4 x 9.0 | Kenney City Kit (Roads) 2.1 (CC0) |
 | `sign_highway_wide` | prop | kenney_props.glb | 144 | 1.2 x 6.4 x 9.0 | Kenney City Kit (Roads) 2.1 (CC0) |
@@ -259,3 +316,6 @@ From `tools/env_stats.gd` (triangles as loaded in Godot; sizes in metres, x the 
 | `tall_pine_5` | tree | tall_pines.glb | 11702 / 1548 / 8 | 7.1 x 24.4 x 6.2 | owner's pack: Tall Pines (Blender) |
 | `traffic_light` | prop | kenney_props.glb | 212 | 1.2 x 5.1 x 0.9 | Kenney City Kit (Roads) 2.1 (CC0) |
 | `traffic_light_hanging` | prop | kenney_props.glb | 230 | 1.2 x 5.1 x 3.0 | Kenney City Kit (Roads) 2.1 (CC0) |
+| `tree_stump_01` | ground | undergrowth.glb | 5000 | 1.4 x 0.6 x 1.6 | Poly Haven tree_stump_01 (CC0) |
+| `tree_stump_02` | ground | undergrowth.glb | 4999 | 1.5 x 0.5 x 1.4 | Poly Haven tree_stump_02 (CC0) |
+| `tyre_wall_straight` | prop | track_props.glb | 2304 | 3.6 x 0.6 x 0.6 | 3DAssets.dev Grand Prix circuit / Endurance and GT paddock packs (CC0; AI-generated upstream) |

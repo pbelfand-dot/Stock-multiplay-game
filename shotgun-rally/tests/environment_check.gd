@@ -5,8 +5,9 @@ extends SceneTree
 ##   * every asset in data/environment_assets.json loads (each tree its three levels: LOD0, LOD1,
 ##     the far card), every biome's species is in the library
 ##   * a stage in each kind of land builds with the library's trees (MEDIUM), boulders where the
-##     biome has them, rock cuts and a power line on a touge
-##   * nothing stands on the road: every tree, boulder, rock face and pole is clear of every part
+##     biome has them, rock cuts and a power line on a touge, the forest floor's ferns, grass,
+##     stumps and logs where the biome has undergrowth
+##   * nothing stands on the road: every tree, boulder, rock face, pole and fern is clear of every part
 ##     of the road (switchbacks too), and a car-sized box down both lanes touches nothing
 ##   * the solid things (trunks, big boulders, poles) are the same at LOW and MEDIUM (every
 ##     machine in an online race agrees on them, whatever its graphics)
@@ -69,12 +70,13 @@ func _assets() -> void:
 		worst0 = maxi(worst0, int(tris.get(id + "LOD0", 0)))
 		worst1 = maxi(worst1, int(tris.get(id + "LOD1", 0)))
 	check(worst0 > 0 and worst0 <= 30000 and worst1 <= 6000, "trees within budget: LOD0 at most %d triangles, LOD1 at most %d" % [worst0, worst1])
-	var others: Array = EnvAssets.ids("rock") + EnvAssets.ids("cliff") + EnvAssets.ids("prop")
+	var others: Array = EnvAssets.ids("rock") + EnvAssets.ids("cliff") + EnvAssets.ids("prop") + EnvAssets.ids("ground")
 	var bad: Array = []
 	for id in others:
 		if EnvAssets.mesh(id) == null:
 			bad.append(id)
-	check(others.size() >= 25 and bad.is_empty(), "rocks, rock faces and props: %d load%s" % [others.size(), (" (missing: %s)" % ", ".join(bad)) if not bad.is_empty() else ""])
+	check(others.size() >= 25 and EnvAssets.ids("ground").size() >= 20 and bad.is_empty(), "rocks, rock faces, props and the forest floor (%d ferns, grass, branches, roots, stumps, logs): %d load%s" % [
+		EnvAssets.ids("ground").size(), others.size(), (" (missing: %s)" % ", ".join(bad)) if not bad.is_empty() else ""])
 
 
 func _biomes() -> void:
@@ -87,7 +89,7 @@ func _biomes() -> void:
 			for e in all[b].get(key, []):
 				if EnvAssets.info(str(e[0])).is_empty():
 					unknown.append("%s: %s" % [b, e[0]])
-		for r in all[b].get("rocks", {}).get("ids", []):
+		for r in all[b].get("rocks", {}).get("ids", []) + all[b].get("undergrowth", {}).get("edge", []) + all[b].get("undergrowth", {}).get("floor", []):
 			if EnvAssets.info(str(r)).is_empty():
 				unknown.append("%s: %s" % [b, r])
 	check(ids.size() >= 8 and unknown.is_empty(), "biomes: %d (%s), every species and rock in the library%s" % [
@@ -135,7 +137,7 @@ func _placed(b) -> Array:
 	for n in b.get_children():
 		if n is MultiMeshInstance3D and (String(n.name).begins_with("TreesN_") or String(n.name).begins_with("TreesF_")
 				or String(n.name).begins_with("Boulders_") or String(n.name).begins_with("RockCut_") or n.name == "PowerPoles"
-				or String(n.name).begins_with("Warn")):
+				or String(n.name).begins_with("Warn") or String(n.name).begins_with("Ground_")):
 			# (the builder's own list: a headless run's MultiMesh keeps no instance transforms)
 			for xf in n.get_meta("xforms", []):
 				out.append([String(n.name), xf])
@@ -171,6 +173,7 @@ func _stages() -> void:
 		var cuts := placed.filter(func(e): return e[0].begins_with("RockCut"))
 		var poles := placed.filter(func(e): return e[0] == "PowerPoles")
 		var signs := placed.filter(func(e): return e[0].begins_with("Warn"))
+		var ground := placed.filter(func(e): return e[0].begins_with("Ground_"))
 		var on_road: Array = []
 		for e in placed:
 			var xf: Transform3D = e[1]
@@ -181,9 +184,10 @@ func _stages() -> void:
 				on_road.append("%s at s %.0f (%.1f m from the middle)" % [e[0], rd[1] * st.STEP, rd[0]])
 		var want_cuts: bool = b.biome.get("cliffs", false) and st.mountain
 		check(b.mesh_tree_count > 200 and (rocks.size() > 0 or float(b.biome.get("rocks", {}).get("chance", 0.0)) == 0.0)
-			and (cuts.size() > 0 or not want_cuts) and (poles.size() > 3 or st.kind != "touge") and signs.size() > 0,
-			"%s: %s; %d real trees (%d placed), %d boulders, %d rock cuts, %d power poles, %d warning signs" % [land[0], b.biome.id, b.mesh_tree_count,
-			trees.size(), rocks.size(), cuts.size(), poles.size(), signs.size()])
+			and (cuts.size() > 0 or not want_cuts) and (poles.size() > 3 or st.kind != "touge") and signs.size() > 0
+			and (ground.size() > 50 or b.biome.get("undergrowth", {}).is_empty()),
+			"%s: %s; %d real trees (%d placed), %d boulders, %d rock cuts, %d power poles, %d warning signs, %d on the forest floor" % [land[0], b.biome.id,
+			b.mesh_tree_count, trees.size(), rocks.size(), cuts.size(), poles.size(), signs.size(), ground.size()])
 		check(on_road.is_empty(), "%s: nothing on the road (%d things checked against every part of it)%s" % [land[0], placed.size(),
 			(": " + "; ".join(on_road.slice(0, 4))) if not on_road.is_empty() else ""])
 		# a car-sized box down both lanes touches nothing

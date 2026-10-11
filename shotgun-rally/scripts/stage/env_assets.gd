@@ -8,7 +8,8 @@ extends RefCounted
 ##   EnvAssets.info(id) -> Dictionary: an asset's entry in data/environment_assets.json (glb, part,
 ##     kind, height, radius, trunk, tags...)
 ##   EnvAssets.ids(kind, tag = "") -> Array: the assets of a kind ("tree", "rock", "cliff", "prop",
-##     "building", "skyline": the city's far tier, scripts/stage/city_skyline.gd), with the tag if given
+##     "building", "skyline": the city's far tier, scripts/stage/city_skyline.gd; "ground": the forest
+##     floor, StageBuilder._undergrowth), with the tag if given
 ##   EnvAssets.building(material, night) -> Material: a building's (its facade, lit windows at night)
 ##   EnvAssets.mesh(id, lod = "", tint = white) -> Mesh: an asset's mesh ("" its only one; a tree's
 ##     "LOD0", "LOD1" or "BB"; a far-tier building's "LOD1"), the materials made right for the game (leaves: cut out, both sides,
@@ -85,7 +86,7 @@ static func mesh(id: String, lod := "", tint := Color.WHITE) -> Mesh:
 		_meshes[key] = null
 		return null
 	var m: Mesh = src
-	if str(a.get("kind", "")) in ["rock", "cliff", "prop"] and tint != Color.WHITE:
+	if str(a.get("kind", "")) in ["rock", "cliff", "prop", "ground"] and tint != Color.WHITE:
 		m = src.duplicate()
 		for i in m.get_surface_count():
 			var sm := m.surface_get_material(i)

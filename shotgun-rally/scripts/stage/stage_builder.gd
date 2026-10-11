@@ -112,7 +112,7 @@ func build_async(stage, report: Callable) -> void:
 const STEPS := [["_environment", "Checking the weather"], ["_mountains", "Raising the mountains"], ["_road", "Laying the road"],
 	["_ground", "Shaping the hills"], ["_base", "Shaping the hills"], ["_towns", "Closing the town's streets"], ["_villages", "Building the villages"],
 	["_barriers", "Bolting up the armco"], ["_spectators", "Letting the spectators in"], ["_forest", "Planting ten thousand trees"],
-	["_boulders", "Rolling the boulders into place"], ["_rock_cuts", "Cutting the rock"], ["_poles", "Stringing the power lines"],
+	["_boulders", "Rolling the boulders into place"], ["_undergrowth", "Scattering the ferns"], ["_rock_cuts", "Cutting the rock"], ["_poles", "Stringing the power lines"],
 	["_warning_signs", "Putting up the warning signs"],
 	["_puddles", "Filling the puddles"], ["_bridges", "Building the bridges"], ["_roadside", "Putting up the signs"],
 	["_arches", "Putting up the start and finish"]]
@@ -743,6 +743,7 @@ func _forest() -> void:
 	var chunks := {}                                 # chunk index -> {kind: [Transform3D]}
 	# (MEDIUM and up, the library there: the biome's real trees, in near and far groups)
 	var use_mesh := _mesh_trees()
+	var scans := _scanned_floor()                    # (the scanned forest floor drawn: no cone ferns or spiky bushes)
 	var mesh_chunks := {}                            # near-chunk index -> {"n:<species>": [Transform3D]}
 	var far_chunks := {}                             # chunk index -> {"f:<species>": [Transform3D]}
 	var trunks := StaticBody3D.new()
@@ -816,7 +817,9 @@ func _forest() -> void:
 								bucket[cj][key] = []
 							bucket[cj][key].append(mxf)
 							mesh_tree_count += 1
-					if sp == "" or not use_mesh:
+					if kind == "bush" and scans:
+						bush_spots.append([xf, s])           # (a scanned fern grows there: _undergrowth)
+					elif sp == "" or not use_mesh:
 						if not chunks.has(ci):
 							chunks[ci] = {}
 						if not chunks[ci].has(kind):
@@ -847,6 +850,8 @@ func _forest() -> void:
 					continue
 				p.y = _ground_height(c.y, d - extra, p) - 0.05
 				var xf := Transform3D(Basis(Vector3.UP, _rng.randf() * TAU).scaled(Vector3.ONE * _rng.randf_range(0.7, 1.3)), p)
+				if scans:
+					continue                                 # (after the dice: what comes after is laid out the same)
 				var ci := int(s / CHUNK)
 				if not chunks.has(ci):
 					chunks[ci] = {}
@@ -915,6 +920,14 @@ func _pick_species() -> void:
 ## The library's trees are drawn (MEDIUM and up, the files in the build, the biome has species).
 func _mesh_trees() -> bool:
 	return Graphics.level() != "low" and EnvAssets.available() and not (biome.get("trees", []) as Array).is_empty()
+
+
+## The scanned forest floor drawn (_undergrowth): MEDIUM and up, the library there, a biome with
+## one, not the highway. Then the old cone ferns and spiky bushes aren't (a scanned fern stands
+## at each bush's spot).
+func _scanned_floor() -> bool:
+	return Graphics.level() != "low" and EnvAssets.available() and st.kind != "highway" \
+		and not (biome.get("undergrowth", {}) as Dictionary).is_empty()
 
 
 ## Which of the biome's species a tree of this kind is ("" for the undergrowth): by its spot's
@@ -1059,6 +1072,19 @@ func _nearest_road(p: Vector3) -> float:
 				var q: Vector3 = st.pts[i]
 				best = minf(best, Vector2(p.x - q.x, p.z - q.z).length())
 	return best
+
+
+## True if p is within margin of the road's edge anywhere (every nearby sample by its own width:
+## a switchback's wider part counts as wide).
+func _on_verge(p: Vector3, margin: float) -> bool:
+	var c := Vector2i(floori(p.x / 20.0), floori(p.z / 20.0))
+	for dx in range(-1, 2):
+		for dz in range(-1, 2):
+			for i in _road_grid.get(c + Vector2i(dx, dz), []):
+				var q: Vector3 = st.pts[i]
+				if Vector2(p.x - q.x, p.z - q.z).length() < st.widths[mini(i, st.widths.size() - 1)] * 0.5 + margin:
+					return true
+	return false
 
 
 func _near_road(p: Vector3, dist: float) -> bool:
@@ -1222,6 +1248,113 @@ func _boulders() -> void:
 			mmi.visibility_range_end = BOULDER_DRAW * view
 			mmi.visibility_range_end_margin = 20.0
 			mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON if Graphics.level() != "low" else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			add_child(mmi)
+
+
+## The forest floor (the biome's "undergrowth": data/biomes.json): ferns and grass tussocks along the
+## verge and the edge of the trees ("edge", about edge_n a side every 4 m), and under the trees fallen
+## branches, roots, stumps and logs with more ferns ("floor", floor_n). Poly Haven's scans (CC0).
+## Visual only (nothing solid: a car that far off the road has already met a tree); the small
+## things cast no shadow and are drawn only near the road, the stumps and logs a little further
+## (and cast shadows on HIGH and up). Not at LOW. Its own dice: the forest is laid out as it was.
+var undergrowth_count := 0
+var bush_spots: Array = []           # [[Transform3D, s]]: the forest's bushes where the scanned floor takes their place (a fern each)
+const GROUND_NEAR := 70.0            # m the ferns, grass and branches are drawn to (x the quality's view distance)
+const GROUND_FAR := 140.0            # ... the stumps, logs and roots
+const GROUND_SCALE := {"fern": [1.0, 1.8], "grass": [2.4, 3.8], "branches": [1.0, 1.5], "roots": [0.9, 1.3],
+	"stump": [0.8, 1.2], "log": [0.9, 1.4]}
+
+func _undergrowth() -> void:
+	if not _scanned_floor():
+		return
+	var u: Dictionary = biome.get("undergrowth", {})
+	var rng := RandomNumberGenerator.new()
+	rng.seed = hash([st.seed_used, "undergrowth"])
+	var lists := {}                                       # chunk -> id -> [Transform3D]
+	var put := func(id: String, xf: Transform3D, s: float) -> void:
+		var ci := int(s / CHUNK)
+		if not lists.has(ci):
+			lists[ci] = {}
+		if not lists[ci].has(id):
+			lists[ci][id] = []
+		lists[ci][id].append(xf)
+		undergrowth_count += 1
+	var line: float = TOUGE_TREE_LINE if st.kind == "touge" else TREE_LINE
+	var n: int = st.pts.size()
+	for i in range(0, n, 2):                              # every 4 m
+		var s: float = i * st.STEP
+		if s < st.START_S - 20.0 or s > st.length - 10.0:
+			continue
+		var c: Vector3 = st.pts[i]
+		var rv: Vector3 = st.right_at(s)
+		var fv: Vector3 = st.forward_at(s)
+		var extra: float = st.widths[i] * 0.5 - 2.8
+		for side in [-1.0, 1.0]:
+			for layer in ["edge", "floor"]:
+				var ids: Array = u.get(layer, [])
+				var want := float(u.get(layer + "_n", 0.0))
+				if ids.is_empty() or want <= 0.0:
+					continue
+				var count := int(want) + (1 if rng.randf() < want - floorf(want) else 0)
+				for k in count:
+					var d: float = (rng.randf_range(line - 2.2, line + 5.0) if layer == "edge" else rng.randf_range(line + 1.0, 30.0)) + extra
+					var p: Vector3 = c + rv * (d * side) + fv * rng.randf_range(-2.0, 2.0)
+					var id: String = ids[rng.randi() % ids.size()]
+					var a: Dictionary = EnvAssets.info(id)
+					var tag: String = str((a.get("tags", ["fern"]) as Array)[0])
+					var scr: Array = GROUND_SCALE.get(tag, [1.0, 1.0])
+					var sc := rng.randf_range(float(scr[0]), float(scr[1]))
+					var rot := rng.randf() * TAU
+					var size: Array = a.get("size", [1.0, 0.5, 1.0])
+					var rad := maxf(float(size[0]), float(size[2])) * sc * 0.5
+					if _on_verge(p, 1.2 + rad) or _in_clearing(p) or _near_lamp(p, 1.5):
+						continue
+					var sink := float(size[1]) * sc * (0.18 if tag in ["stump", "log", "roots"] else 0.04)
+					p.y = _ground_height(c.y, d - extra, p) - sink
+					put.call(id, Transform3D(Basis(Vector3.UP, rot).scaled(Vector3.ONE * sc), p), s)
+	# the bushes' spots: a big fern each (the biome's ferns; grass where it has none)
+	var ferns: Array = []
+	for id in (u.get("edge", []) as Array) + (u.get("floor", []) as Array):
+		if "fern" in EnvAssets.info(id).get("tags", []) and not id in ferns:
+			ferns.append(id)
+	if ferns.is_empty():
+		for id in u.get("edge", []):
+			if not id in ferns:
+				ferns.append(id)
+	for spot in bush_spots:
+		if ferns.is_empty():
+			break
+		var id: String = ferns[rng.randi() % ferns.size()]
+		var a: Dictionary = EnvAssets.info(id)
+		var tag: String = str((a.get("tags", ["fern"]) as Array)[0])
+		var sc := rng.randf_range(1.5, 2.2) if tag == "fern" else rng.randf_range(3.2, 4.2)
+		var size: Array = a.get("size", [1.0, 0.5, 1.0])
+		var p: Vector3 = (spot[0] as Transform3D).origin + Vector3.UP * (0.15 - float(size[1]) * sc * 0.04)
+		if _on_verge(p, 1.2 + maxf(float(size[0]), float(size[2])) * sc * 0.5):
+			continue
+		put.call(id, Transform3D(Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3.ONE * sc), p), float(spot[1]))
+	var tint: Color = Biomes.colour(u.get("tint"), Color.WHITE)
+	var view := Graphics.view_distance()
+	var shadows := Graphics.level() in ["high", "ultra"]
+	for ci in lists:
+		for id in lists[ci]:
+			var mm := MultiMesh.new()
+			mm.transform_format = MultiMesh.TRANSFORM_3D
+			mm.mesh = EnvAssets.mesh(id, "", tint)
+			if mm.mesh == null:
+				continue
+			var list: Array = lists[ci][id]
+			mm.instance_count = list.size()
+			for j in list.size():
+				mm.set_instance_transform(j, list[j])
+			var big: bool = str((EnvAssets.info(id).get("tags", [""]) as Array)[0]) in ["stump", "log", "roots"]
+			var mmi := MultiMeshInstance3D.new()
+			mmi.name = "Ground_%d_%s" % [ci, id]
+			mmi.multimesh = mm
+			mmi.set_meta("xforms", list)
+			mmi.visibility_range_end = (GROUND_FAR if big else GROUND_NEAR) * view
+			mmi.visibility_range_end_margin = 10.0
+			mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON if (big and shadows) else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 			add_child(mmi)
 
 
