@@ -8,7 +8,9 @@ extends Control
 ##     clock, the stage time), "arc" (the revs or the speed filling along a band:
 ##     the points down its middle; "invert": what's left of it, to dim a painted bar's empty end),
 ##     "needle" (a live needle on a painted dial), "gdot" (the g-meter's dot), "sel" (the gear
-##     selector's painted letters: all but the gear's dimmed), "lamp" (warning lamps)
+##     selector's painted letters: all but the gear's dimmed), "lit" (painted lamps and banners
+##     shown only while what they show is on: hidden, or dimmed, the rest of the time), "lamp"
+##     (warning lamps drawn); a text with "when" is drawn only while that is on
 ##   * "cluster" on a blank screen ("bg": false): a digital cluster of its own, drawn
 ##     on a canvas the screen's shape ("aspect": its width / height as you see it):
 ##     the revs in a band across the top (the shift lamps above), the speed, the
@@ -113,6 +115,10 @@ func _cluster() -> void:
 	for c in lay.get("cover", []):
 		var col := Color(str(c[4])) if c.size() > 4 else Color(0.0, 0.0, 0.0)
 		draw_rect(Rect2(c[0], c[1], float(c[2]) - float(c[0]), float(c[3]) - float(c[1])), col)
+	for li in lay.get("lit", []):                   # (a painted lamp or banner: shown only while it's on)
+		if not live.warning(str(li.what)):
+			var r: Array = li.rect
+			draw_rect(Rect2(r[0], r[1], float(r[2]) - float(r[0]), float(r[3]) - float(r[1])), Color(str(li.get("dim", "#000000"))))
 	for a in lay.get("arc", []):
 		_arc(a, d)
 	for n in lay.get("needle", []):
@@ -234,6 +240,8 @@ static func arc_reach(at: Array, lens: Array, v: float) -> float:
 
 
 func _text(t: Dictionary, d: Dictionary) -> void:
+	if t.has("when") and not live.warning(str(t.when)):
+		return
 	var s := _reading(str(t.what), d, t)
 	var px := float(t.get("size", 10.0))
 	_say(s, Vector2(t.at[0], t.at[1]), px, Color(str(t.get("color", "#ffffff"))), str(t.get("align", "center")), t.get("bold", true), float(t.get("max_w", -1.0)))
@@ -267,6 +275,18 @@ func _reading(what: String, d: Dictionary, t := {}) -> String:
 			return "%d %%" % roundi(clampf(_value("fuel", d), 0.0, 1.0) * 100.0)
 		"throttle", "brake":                        # (the pedals, as far down as they are)
 			return "%d %%" % roundi(clampf(_value(what, d), 0.0, 1.0) * 100.0)
+		"time_ms":                                  # (a race display's lap time: 01:23:456)
+			var ms := roundi(maxf(_value("time", d), 0.0) * 1000.0)
+			return "%02d:%02d:%03d" % [ms / 60000, (ms / 1000) % 60, ms % 1000]
+		"speed_dec":                                # (to a tenth, a decimal comma: 61,8)
+			return ("%.1f" % absf(_value("kmh", d))).replace(".", ",")
+		"fuel_l":
+			return "%.1f" % maxf(_value("fuel_l", d), 0.0)
+		"abs_set", "tc_set":                        # (the ABS / TC map: Track Mode's level, else on 1 / off 0)
+			return "%d" % int(_value(what, d))
+		"t_water", "t_oil", "t_gear":               # (warming from the air to running temperature)
+			var hot := {"t_water": 86.0, "t_oil": 102.0, "t_gear": 82.0}[what] as float
+			return "%d" % roundi(lerpf(float(d.get("ambient", 20.0)), hot, clampf(_value("warm", d), 0.0, 1.0)))
 		"range":
 			return "%d km" % roundi(_value("range", d))
 	return str(t.get("text", ""))

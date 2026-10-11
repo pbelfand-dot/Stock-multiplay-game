@@ -1,0 +1,44 @@
+{
+	"_about": "AFFALTER GT3 (Mercedes-AMG GT3 Evo): its race display is painted into its screen texture (Image_3, 1024 px) upside down (the screen's top shows the texture's row 844: flip_v): the pit-limiter banner across the top, then boxes for T Water, V Batt, a blank time, Speed; T Oil, T Gear, the Gear, ABS, TC, MAP; Lap Time, Fuel; the lamps along the bottom (indicators, dipped and main beam, fog, F-Pump OFF). Made live over the painted one: every number but V Batt and MAP; the banner shows only with the pit limiter on (the speed in it); the lamps only while they're on (the dipped beam at night, the main beam flashing, F-Pump OFF in the bulb check). The fuel is Track Mode's litres, else the share of RaceSim's 120 l default tank; the temperatures warm from the air over the first minutes. Pixels of the display as it's seen.",
+	"tank_l": 120,
+	"displays": [
+		{
+			"mat": "^MI_Mercedes_AMG_GT3_Evo_Cockpit_Screen$",
+			"tex": 1024,
+			"glow": "all",
+			"screens": [
+				{
+					"page": "cluster",
+					"rect": [31, 111, 1000, 844],
+					"flip_v": true,
+					"accent": "#ffffff",
+					"layout": {
+						"cover": [[128, 303, 178, 354], [128, 435, 178, 486], [283, 435, 333, 486], [760, 292, 830, 356],
+							[672, 440, 713, 484], [775, 440, 816, 484], [466, 455, 563, 588], [84, 565, 377, 618], [735, 560, 852, 622],
+							[648, 165, 733, 230, "#0001c0"]],
+						"lit": [
+							{"what": "pit", "rect": [70, 151, 955, 243]},
+							{"what": "indicator", "rect": [310, 668, 418, 734]},
+							{"what": "lights", "rect": [424, 668, 512, 734]},
+							{"what": "flash", "rect": [512, 668, 613, 734]},
+							{"what": "fog", "rect": [613, 666, 687, 734]},
+							{"what": "ignition", "rect": [687, 666, 898, 736]}
+						],
+						"text": [
+							{"what": "t_water", "at": [152.5, 329], "size": 58},
+							{"what": "t_oil", "at": [152.5, 460], "size": 58},
+							{"what": "t_gear", "at": [307.5, 460], "size": 58},
+							{"what": "speed", "at": [795, 324], "size": 78, "max_w": 280},
+							{"what": "abs_set", "at": [692.5, 461], "size": 52, "max_w": 80},
+							{"what": "tc_set", "at": [795, 461], "size": 52, "max_w": 80},
+							{"what": "gear", "at": [514.5, 522], "size": 165},
+							{"what": "time_ms", "at": [230.5, 591.5], "size": 62, "max_w": 290},
+							{"what": "fuel_l", "at": [794, 591], "size": 75, "max_w": 200},
+							{"what": "speed_dec", "at": [731, 197.5], "size": 60, "max_w": 84, "align": "right", "when": "pit"}
+						]
+					}
+				}
+			]
+		}
+	]
+}

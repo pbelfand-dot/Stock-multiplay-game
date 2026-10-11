@@ -17,6 +17,8 @@ extends SceneTree
 ##   * the ambient lighting: off by day, every light on at night
 ##   * the readings: the fuel (an electric car: its charge) and the range from it; the pedals;
 ##     a painted gear selector's letter
+##   * a race display: its pit banner only with the pit limiter on, the lap time, the fuel in
+##     litres, the temperatures warming up
 ##   * a painted cluster laid sideways in its texture is seen the right way round, and a live
 ##     needle on a painted dial sweeps from its 0 to its top value
 ##   * the original materials are untouched: an overlay is a duplicate's next pass
@@ -221,6 +223,26 @@ func _spec(id: String, car, cp, dash, spec: Dictionary) -> void:
 	var on: bool = dash.warning("handbrake") and dash.warning("shift")
 	fails += _check(bulbs and off and on, "%s: the lamps: all lit at the start (%s), then off (%s), the handbrake and shift lamps on when they should be (%s)" % [
 		id, bulbs, off, on])
+	# a race display (the AMG GT3's): its pit banner only with the pit limiter on, the lap time to the
+	# thousandth, the fuel in litres, the temperatures warming from the air to running
+	for pg in dash.pages:
+		var lay: Dictionary = pg.cfg.get("layout", {})
+		if not lay.get("lit", []).any(func(l): return str(l.what) == "pit"):
+			continue
+		dash.fake = {"fuel": 0.5}
+		_run(dash, DT)
+		var shut: bool = not dash.warning("pit")
+		dash.fake.pit = true
+		_run(dash, DT)
+		var shown: bool = dash.warning("pit")
+		var tank := float(spec.get("tank_l", 120.0))
+		var lap: String = pg._reading("time_ms", {"time": 83.456})
+		var cold: String = pg._reading("t_water", {"warm": 0.0, "ambient": 20.0})
+		var hot: String = pg._reading("t_oil", {"warm": 1.0, "ambient": 20.0})
+		fails += _check(shut and shown and lap == "01:23:456" and absf(float(dash.data.fuel_l) - 0.5 * tank) < 0.01 and cold == "20" and hot == "102",
+			"%s: its race display: the pit banner only with the limiter on (%s, %s), the lap %s, %.1f l of %d, the water %s C cold, the oil %s C warm" % [
+			id, shut, shown, lap, dash.data.fuel_l, tank, cold, hot])
+		dash.fake = {}
 	# the modelled needles turn about their hubs, by their share of the sweep
 	var worst := 0.0
 	for np in dash.needle_parts:

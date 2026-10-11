@@ -62,6 +62,7 @@ var _t := 0.0                       # s since it was built (the bulb check)
 var _screen_t := 0.0
 var _gfx := Vector2.ZERO            # g, smoothed (x: across, + = right; y: along, + = braking)
 var _prev_v := Vector3.ZERO
+var _warm := 0.0                     # 0 cold ... 1 at running temperature (the water, oil and gearbox)
 var _lit := false                   # the needles lit (night)
 var _overlaid := {}                 # a display's material -> its copy with the overlay (one per material)
 
@@ -593,6 +594,7 @@ func _read(dt: float) -> void:
 		var g := Vector2(a.dot(b.x), a.dot(b.z)) / 9.8
 		_gfx = _gfx.lerp(g, clampf(dt * 6.0, 0.0, 1.0))
 	_prev_v = v
+	_warm = minf(_warm + dt * (0.3 + float(car.rpm)) / 240.0, 1.0)   # (a few minutes' running, quicker at high revs)
 	var eng = car.config.engine if car.config else null
 	var idle: float = eng.idle_rpm if eng else 900.0
 	var top: float = eng.limiter_rpm if eng else 7000.0
@@ -611,8 +613,18 @@ func _read(dt: float) -> void:
 		"fuel": clampf(0.86 - float(game.stage_time if game and "stage_time" in game else 0.0) / 3600.0, 0.1, 1.0),
 		"electric": ev,
 	}
+	var rs = car.race                                      # (Track Mode's: its fuel in litres, its ABS and TC maps, the pit limiter)
+	var aid = car.assist
+	data.merge({
+		"pit": rs != null and bool(rs.limiter),
+		"abs_set": int(rs.abs_level) if rs else (1 if aid and aid.cfg.anti_lock else 0),
+		"tc_set": int(rs.tc_level) if rs else (1 if aid and aid.cfg.traction_control else 0),
+		"warm": _warm, "ambient": float(rs.ambient) if rs else 20.0,
+	})
 	data.merge(fake, true)
 	data.range = float(data.fuel) * float(spec.get("range_km", 420.0))
+	if not fake.has("fuel_l"):
+		data.fuel_l = float(rs.fuel_l) if rs else float(data.fuel) * float(spec.get("tank_l", 120.0))
 
 
 func warning(what: String) -> bool:
@@ -631,6 +643,8 @@ func warning(what: String) -> bool:
 			return night
 		"flash":
 			return Input.is_action_pressed("flash")
+		"pit":
+			return bool(data.get("pit", false))
 	return false                                         # ("ignition": only the bulb check)
 
 
