@@ -228,7 +228,7 @@ The layout goes to every machine with the stage (online: the host's).
 
 ## Track Mode: CINDER RIDGE (a permanent circuit)
 
-MODES > **TRACK**: a class (**GT** now; **FORMULA** shows greyed until its car is in), a
+MODES > **TRACK**: a class (**GT**, or **FORMULA**: open-wheelers with DRS and a hybrid), a
 session (**PRACTICE**, **QUALIFYING**, **QUICK RACE**, **RACE WEEKEND**) and, for the last three,
 the race's options (laps, the AI field and its skill, the start, qualifying's length, your grid
 place, damage), then START. Qualifying, races, flags, penalties, pit stops and the AI field are

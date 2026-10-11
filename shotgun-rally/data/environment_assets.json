@@ -1871,6 +1871,132 @@
     "mid"
    ],
    "source": "owner's pack: 31 Model separate Files (FBX), 30.FBX, 152883 triangles in the source"
+  },
+  "pit_flag_pole": {
+   "kind": "prop",
+   "glb": "res://assets/environment_runtime/props/track_props.glb",
+   "part": "blank_marshal_flag_on_pole",
+   "tags": [
+    "track"
+   ],
+   "source": "3DAssets.dev Grand Prix circuit / Endurance and GT paddock packs (CC0; AI-generated upstream)"
+  },
+  "pit_garage_double": {
+   "kind": "prop",
+   "glb": "res://assets/environment_runtime/props/track_props.glb",
+   "part": "double_bay_pit_garage",
+   "tags": [
+    "track"
+   ],
+   "source": "3DAssets.dev Grand Prix circuit / Endurance and GT paddock packs (CC0; AI-generated upstream)"
+  },
+  "pit_jack_front": {
+   "kind": "prop",
+   "glb": "res://assets/environment_runtime/props/track_props.glb",
+   "part": "front_quick_lift_jack",
+   "tags": [
+    "track"
+   ],
+   "source": "3DAssets.dev Grand Prix circuit / Endurance and GT paddock packs (CC0; AI-generated upstream)"
+  },
+  "pit_fuel_rig": {
+   "kind": "prop",
+   "glb": "res://assets/environment_runtime/props/track_props.glb",
+   "part": "gravity_fuel_rig_and_hose",
+   "tags": [
+    "track"
+   ],
+   "source": "3DAssets.dev Grand Prix circuit / Endurance and GT paddock packs (CC0; AI-generated upstream)"
+  },
+  "pit_helmet_rack": {
+   "kind": "prop",
+   "glb": "res://assets/environment_runtime/props/track_props.glb",
+   "part": "helmet_equipment_rack",
+   "tags": [
+    "track"
+   ],
+   "source": "3DAssets.dev Grand Prix circuit / Endurance and GT paddock packs (CC0; AI-generated upstream)"
+  },
+  "marshal_hut": {
+   "kind": "prop",
+   "glb": "res://assets/environment_runtime/props/track_props.glb",
+   "part": "marshal_observation_hut",
+   "tags": [
+    "track"
+   ],
+   "source": "3DAssets.dev Grand Prix circuit / Endurance and GT paddock packs (CC0; AI-generated upstream)"
+  },
+  "pit_signal_lights": {
+   "kind": "prop",
+   "glb": "res://assets/environment_runtime/props/track_props.glb",
+   "part": "pit_gantry_signal_lights",
+   "tags": [
+    "track"
+   ],
+   "source": "3DAssets.dev Grand Prix circuit / Endurance and GT paddock packs (CC0; AI-generated upstream)"
+  },
+  "pit_wall_stand": {
+   "kind": "prop",
+   "glb": "res://assets/environment_runtime/props/track_props.glb",
+   "part": "pit_wall_monitor_stand",
+   "tags": [
+    "track"
+   ],
+   "source": "3DAssets.dev Grand Prix circuit / Endurance and GT paddock packs (CC0; AI-generated upstream)"
+  },
+  "pit_wheel_gun": {
+   "kind": "prop",
+   "glb": "res://assets/environment_runtime/props/track_props.glb",
+   "part": "pneumatic_wheel_gun_and_hose",
+   "tags": [
+    "track"
+   ],
+   "source": "3DAssets.dev Grand Prix circuit / Endurance and GT paddock packs (CC0; AI-generated upstream)"
+  },
+  "pit_air_jack": {
+   "kind": "prop",
+   "glb": "res://assets/environment_runtime/props/track_props.glb",
+   "part": "quick_lift_air_jack_rig",
+   "tags": [
+    "track"
+   ],
+   "source": "3DAssets.dev Grand Prix circuit / Endurance and GT paddock packs (CC0; AI-generated upstream)"
+  },
+  "pit_jack_rear": {
+   "kind": "prop",
+   "glb": "res://assets/environment_runtime/props/track_props.glb",
+   "part": "rear_quick_lift_jack",
+   "tags": [
+    "track"
+   ],
+   "source": "3DAssets.dev Grand Prix circuit / Endurance and GT paddock packs (CC0; AI-generated upstream)"
+  },
+  "pit_warmer_rack": {
+   "kind": "prop",
+   "glb": "res://assets/environment_runtime/props/track_props.glb",
+   "part": "six_tyre_warmer_rack",
+   "tags": [
+    "track"
+   ],
+   "source": "3DAssets.dev Grand Prix circuit / Endurance and GT paddock packs (CC0; AI-generated upstream)"
+  },
+  "tyre_wall_straight": {
+   "kind": "prop",
+   "glb": "res://assets/environment_runtime/props/track_props.glb",
+   "part": "straight_tyre_stack_wall",
+   "tags": [
+    "track"
+   ],
+   "source": "3DAssets.dev Grand Prix circuit / Endurance and GT paddock packs (CC0; AI-generated upstream)"
+  },
+  "pit_tyre_blankets": {
+   "kind": "prop",
+   "glb": "res://assets/environment_runtime/props/track_props.glb",
+   "part": "tyre_stack_warming_blankets",
+   "tags": [
+    "track"
+   ],
+   "source": "3DAssets.dev Grand Prix circuit / Endurance and GT paddock packs (CC0; AI-generated upstream)"
   }
  }
 }

@@ -61,6 +61,28 @@
     "why": ""
    }
   },
+  "amg_gt3": {
+   "strada_5": {
+    "ok": true,
+    "clear_mm": 0.0,
+    "why": ""
+   },
+   "torre_10": {
+    "ok": true,
+    "clear_mm": 0.0,
+    "why": ""
+   },
+   "kaze_split": {
+    "ok": true,
+    "clear_mm": 0.0,
+    "why": ""
+   },
+   "apex_cl6": {
+    "ok": true,
+    "clear_mm": 0.0,
+    "why": ""
+   }
+  },
   "amg_one": {
    "strada_5": {
     "ok": true,
@@ -253,6 +275,28 @@
     "why": "the tyre touches the body: 98 points, front left, straight, full bump"
    }
   },
+  "cup_coupe": {
+   "strada_5": {
+    "ok": true,
+    "clear_mm": 0.2,
+    "why": ""
+   },
+   "torre_10": {
+    "ok": true,
+    "clear_mm": 0.2,
+    "why": ""
+   },
+   "kaze_split": {
+    "ok": true,
+    "clear_mm": 0.2,
+    "why": ""
+   },
+   "apex_cl6": {
+    "ok": true,
+    "clear_mm": 0.2,
+    "why": ""
+   }
+  },
   "delta_evo2": {
    "strada_5": {
     "ok": true,
@@ -401,6 +445,20 @@
     "why": ""
    }
   },
+  "formula_ge": {
+   "formula_18": {
+    "ok": true,
+    "clear_mm": 0.3,
+    "why": ""
+   }
+  },
+  "formula_halo": {
+   "formula_18": {
+    "ok": true,
+    "clear_mm": 10.0,
+    "why": ""
+   }
+  },
   "g63_w463": {
    "strada_5": {
     "ok": true,
@@ -501,6 +559,72 @@
    "apex_cl6": {
     "ok": true,
     "clear_mm": 0.2,
+    "why": ""
+   }
+  },
+  "gt4_coupe": {
+   "strada_5": {
+    "ok": true,
+    "clear_mm": 11.6,
+    "why": ""
+   },
+   "torre_10": {
+    "ok": true,
+    "clear_mm": 11.6,
+    "why": ""
+   },
+   "kaze_split": {
+    "ok": true,
+    "clear_mm": 11.6,
+    "why": ""
+   },
+   "apex_cl6": {
+    "ok": true,
+    "clear_mm": 11.6,
+    "why": ""
+   }
+  },
+  "gt_front": {
+   "strada_5": {
+    "ok": true,
+    "clear_mm": 0.3,
+    "why": ""
+   },
+   "torre_10": {
+    "ok": true,
+    "clear_mm": 0.3,
+    "why": ""
+   },
+   "kaze_split": {
+    "ok": true,
+    "clear_mm": 0.3,
+    "why": ""
+   },
+   "apex_cl6": {
+    "ok": true,
+    "clear_mm": 0.3,
+    "why": ""
+   }
+  },
+  "gt_mid": {
+   "strada_5": {
+    "ok": true,
+    "clear_mm": 0.1,
+    "why": ""
+   },
+   "torre_10": {
+    "ok": true,
+    "clear_mm": 0.1,
+    "why": ""
+   },
+   "kaze_split": {
+    "ok": true,
+    "clear_mm": 0.1,
+    "why": ""
+   },
+   "apex_cl6": {
+    "ok": true,
+    "clear_mm": 0.1,
     "why": ""
    }
   },
@@ -1412,28 +1536,6 @@
     "ok": false,
     "clear_mm": 1.8,
     "why": "the tyre touches the body: 87 points, front left, half lock, half bump"
-   }
-  },
-  "amg_gt3": {
-   "strada_5": {
-    "ok": true,
-    "clear_mm": 0.0,
-    "why": ""
-   },
-   "torre_10": {
-    "ok": true,
-    "clear_mm": 0.0,
-    "why": ""
-   },
-   "kaze_split": {
-    "ok": true,
-    "clear_mm": 0.0,
-    "why": ""
-   },
-   "apex_cl6": {
-    "ok": true,
-    "clear_mm": 0.0,
-    "why": ""
    }
   }
  }

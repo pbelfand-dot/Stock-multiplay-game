@@ -1,6 +1,13 @@
 # Track Mode: qualifying, races and the AI field
 
-MODES > **TRACK** has four sessions on CINDER RIDGE:
+MODES > **TRACK** has two classes:
+
+- **GT** (APEX GT CHALLENGE): closed-wheel GT3 cars with ABS and traction control; rolling starts. The
+  ELFER R, ELFER EVO, AFFALTER GT3, HALDANE GT3, VESPERA GT3, VALKO GT4 and STILETTO CUP.
+- **FORMULA** (FORMULA APEX): open-wheel single-seaters with no ABS or traction control, DRS and a
+  hybrid; standing starts. The ORION FA1 and the ZEPHYR GE (below).
+
+Each runs four sessions on CINDER RIDGE:
 
 - **PRACTICE:** alone, laps against the clock (`docs/modes.md`).
 - **QUALIFYING:** the clock (5, 10, 15 or 20 minutes) with the AI field on track. Your best valid lap sets your place.
@@ -52,6 +59,10 @@ same inputs give the same calls, which is what an online host needs.
 - the timing tower: places, numbers, names, the gap to the leader (or best laps in qualifying), PIT, penalties, DNF;
 - the gap to the cars just ahead and just behind;
 - the flag being shown to you, as a banner across the top.
+
+The car panel (bottom left) in a Formula car shows its hybrid (ERS: the store's charge, the mode, what's
+left of the lap's 4 MJ; green while it deploys) instead of ABS and TC, and DRS above it: grey, white when
+you may open it, green open.
 
 The start lights are the existing on-screen gantry (`scripts/ui/start_lights.gd`, its race mode)
 and the circuit's own gantry (`CircuitBuilder.set_lights`).
@@ -155,13 +166,103 @@ In Track Mode every car runs at its homologated spec: no garage upgrades.
 - **far:** the same car moved far away laps within 1.5 % of it. The switch onto the physics at 250 km/h keeps its place, speed and gear.
 - **pit:** down the lane at the limit, stopped in its box, new tyres and fuel, back out across no line.
 - **weekend:** qualifying in the game: the AI out one by one, everyone timed, the flag, the order, the race's grid from it, the same field.
-- **race:** a 6-car race over 2 laps in the game: the lights, no jump starts, everyone finishing, places changing (18 times in the run that set it), no hard hits, the classification and the results.
+- **race:** a 6-car race over 2 laps in the game: the lights, no jump starts, everyone finishing, places changing (17 times in the last run), no hard hits, the classification and the results.
+- **drs:** the DRS rules with no physics (not before the leader's third lap; a second at the detection point; never under a yellow or a red; free in practice).
+- **Formula** (`--class=formula`, the ORION FA1; `--car=zephyr` for the other): the driver test on the physics (two flying laps within 2.5 % of its line, on the track), far, pit, DRS and the hybrid down the pit straight, and a 6-car 3-lap race with a standing start (DRS enabled, the AI deploying their hybrids).
 
-## Still to come (P7-P8)
+## FORMULA APEX
 
-- the FORMULA class (its car, DRS, energy deployment);
+The game's own series: no real team, car or branding. Its numbers are 2022-25 Formula 1's:
+
+- **800 kg** with the driver and without fuel (the FIA's 2025 minimum, up from 798 kg), ~45 % on the
+  front (McLaren's MCL39 sheet: 44.6-46.1 %).
+- **A 1.6 V6 turbo hybrid:** ~590 kW from the engine, its power flat above 10,500 rpm as the fuel flow
+  cap holds it, the limiter at 12,500 here; **eight gears**, a 0.02 s seamless shift.
+- **A 120 kW MGU-K** deploying at most 4 MJ a lap and recovering at most 2 MJ under braking (McLaren's
+  sheet); the turbo's MGU-H tops the store up at full throttle (~30 kW here).
+- **Pirelli's 18 in slicks:** 305 / 405 mm wide, 720 mm across. In the game they're a "formula" tyre:
+  ~1.7 g before the wings, rated at 4 kN a tyre so the downforce costs them little grip per newton.
+- **Aero:** a lift coefficient of ~3.6 on ~1.5 m² (published estimates for post-2017 cars): about
+  the car's weight in downforce by ~180 km/h, 5 g in CINDER RIDGE's fastest corners on the AI's line.
+- **No ABS, no traction control.** A 145 l tank (110 kg: the most a race starts with), its fuel flow
+  capped (~0.037 l/s flat out); ~2.4 l a lap here.
+
+Sources: the McLaren MCL39 technical specification, the FIA's July 2024 F1 Commission statement
+(the 800 kg), Pirelli's 2022 18 in tyre launch, the DRS article on Wikipedia (the FIA's +10-12 km/h).
+Power, torque, the ratios, the aero and DRS's effect are estimates: teams don't publish them.
+
+The cars (the owner's CC0 models, at their own size):
+
+- **ORION FA1:** the halo open-wheeler, a 3,250 mm wheelbase: the shorter, the more agile.
+- **ZEPHYR GE:** the ground-effect car, 3,575 mm (the rules allowed up to 3,600): more downforce,
+  a little more drag.
+
+Their cockpits: a race wheel made for each (a carbon yoke, two grips, a screen: the converter's
+`"add"`), the driver alone and lying back (no co-driver, no map board, no windshield), the helmet up
+under the halo. The AI's single-seaters show their drivers' helmets.
+
+### DRS
+
+The circuit's three zones, each with a detection point before it (`data/maps/cinder_ridge.json`
+"drs"): the pit straight, the run through SKYLINE, the back straight.
+
+- **In a race:** enabled two laps after the start (or a restart). A car within a second of the car
+  ahead of it on the road (lapped or not) at a zone's detection point may open its flap in that zone.
+  Never under a yellow in the zone, never under a red.
+- **In practice and qualifying:** free in the zones.
+- **The flap:** E (RB on a pad) opens it when you may; it shuts on the brakes or out of the zone. Open, it
+  sheds 18 % of the drag and 13 % of the rear axle's downforce.
+- **The AI** opens it whenever it may, flat out; the far cars (RaceField's cheap mode) get its gain too.
+
+Measured (tests/race_ai_check.gd): down the pit straight 307 km/h with DRS shut and the hybrid off,
+322 with both (+15 km/h).
+
+### The hybrid (ERS)
+
+O (d-pad left) cycles its mode: **OFF** (it only recharges), **BALANCED** (it deploys flat out above
+~110 km/h, where it's worth most), **OVERTAKE** (whenever it's flat out). The AI runs BALANCED, and its
+racing line counts the push (the share of the lap the 4 MJ lasts).
+
+### The AI in a Formula car
+
+A racing driver feels for the edge of the grip with their feet; the AI's pedals lean on ABS and
+traction control for that. So in a class without either, the AI's and the autopilot's cars run them
+as stand-ins for their feet: no more grip than the tyres have, they only keep them at their peak.
+Your own car has neither (FORMULA APEX's rules). The AI also takes 94 % of the line's grip in a
+Formula car (`"ai_grip"`): its sharper tyres and snappier car are harder to hold at the limit.
+
+## The GT grid
+
+The owner's four CC0 GT models joined the class, balanced on the AI's line to within 0.8 % of each
+other and the AFFALTER (SIM STREET's GT3 slicks, 1.6 g): HALDANE GT3 (front-engined twin-turbo V8),
+VESPERA GT3 (mid-engined twin-turbo V6), VALKO GT4 (a GT4 built up to the GT3s) and STILETTO CUP (a
+rear-engined cup car). They have no cabins of their own (low-poly, tinted glass): from inside, the
+shared cockpit.
+
+## The pits and the marshals
+
+The owner's 14 CC0 track props (`assets/environment_runtime/props/track_props.glb`), placed by
+`CircuitBuilder._pit_props`:
+
+- **Between the boxes:** each team's tyres in their blankets, a warmer rack and a wheel gun.
+- **The boxes:** a jack at each end of each box; an air-jack rig, a helmet rack or a fuel rig every
+  other box. Nothing in a box or the fast lane.
+- **The pit wall:** a monitor stand opposite each box.
+- **The lane:** signal lights at both ends, solid tyre walls on the noses of the entry and exit.
+- **The paddock:** a row of team garages behind the garage block.
+- **The marshal posts:** an observation hut with a flag pole beside it at all 34.
+
+`tools/circuit_shots.gd` shoots them without the game.
+
+## The start
+
+For 12 s after the lights go out (or a restart), a car slow off its grid box throws no yellow, and the
+field sorting itself out round it isn't passing under one: the start's own chaos, not an offence.
+
+## Still to come (P8)
+
 - online races (the grid, lights, flags, penalties and results synced from the host);
 - a pit strategy screen;
-- GT and Formula engine sounds;
+- GT and Formula engine sounds of their own;
 - broadcast cameras and championships;
 - the wet preset.

@@ -118,9 +118,15 @@ func _own(id: String, ck: Dictionary) -> void:
 	var hi := Vector3(car._model_info.body_max[0], car._model_info.body_max[1], car._model_info.body_max[2])
 	var inside: bool = eye.x > lo.x + 0.2 and eye.x < hi.x - 0.2 and eye.y > lo.y + 0.5 and eye.y < hi.y - 0.1 and eye.z > lo.z + 1.0 and eye.z < hi.z - 1.0
 	var sx := 1.0 if ck.side == "right" else -1.0
-	fails += _check(inside and signf(eye.x) == sx and signf(cp.eye_codriver.x) == -sx and signf(cp.wheel_c.x) == sx,
-		"%s: the driver's eyes in the car, %s of the middle like its wheel (%.2f, %.2f, %.2f m), the co-driver's across" % [
-		id, ck.side, eye.x, eye.y, eye.z])
+	if int(ck.get("seats", 2)) == 1:
+		# a single-seater: the driver in the middle, behind a wheel in the middle; no co-driver
+		fails += _check(inside and absf(eye.x) < 0.05 and absf(cp.wheel_c.x - off.x) < 0.05 and cp.solo,
+			"%s: a single-seater, the driver's eyes in the car, in the middle like its wheel (%.2f, %.2f, %.2f m), no co-driver" % [
+			id, eye.x, eye.y, eye.z])
+	else:
+		fails += _check(inside and signf(eye.x) == sx and signf(cp.eye_codriver.x) == -sx and signf(cp.wheel_c.x) == sx,
+			"%s: the driver's eyes in the car, %s of the middle like its wheel (%.2f, %.2f, %.2f m), the co-driver's across" % [
+			id, ck.side, eye.x, eye.y, eye.z])
 	# the gloves on its rim
 	_run(cp, 0.5)
 	var axis: Vector3 = cp._wheel_axis

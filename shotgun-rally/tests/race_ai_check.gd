@@ -2,7 +2,8 @@ extends SceneTree
 ## Track Mode's races: the speed along the racing line (RaceLine), the AI driver (RaceDriver) on the
 ## physics and moved far from you (RaceField), race control's start, flags and penalties
 ## (RaceControl), qualifying, a pit stop, and a whole race in the game.
-## Run: godot --headless --fixed-fps 120 --path . -s tests/race_ai_check.gd [-- --only=line|rules|quali|driver|far|pit|race]
+## Run: godot --headless --fixed-fps 120 --path . -s tests/race_ai_check.gd [-- --only=line|rules|drs|quali|driver|formula|far|pit|race|weekend|class]
+##   [--class=formula] [--car=<registry id>] (the driving and race tests in that class / car; --only=class: just those)
 ##   line: the AFFALTER GT3's lap along CINDER RIDGE's line: a GT3's lap time and top speed, the
 ##     hairpin's speed, never faster than a corner's limit, braking within the grip; a slower driver
 ##     slower by about its pace
@@ -70,6 +71,9 @@ func _initialize() -> void:
 		_quali(st)
 	if only in ["", "driver", "far", "pit", "formula"]:
 		await _driving(st, only)
+	if only == "class":                       # (the class's own tests: run_all.sh's --class=formula pass)
+		await _driving(st, "")
+		await _race()
 	if only in ["", "weekend"]:
 		await _weekend()
 	if only in ["", "race"]:
@@ -576,40 +580,6 @@ func _driving(st_unused, only: String) -> void:
 		check(lap_t != INF and lap2 != INF and absf(lap2 / want - 1.0) < 0.025, "driver: on the physics, two flying laps in %s and %s (its line at its pace, as the far cars run it: %s, %+.1f %%; %.0f s game in %.0f s)" % [
 			_fmt(lap_t), _fmt(lap2), _fmt(want), (lap2 / want - 1.0) * 100.0 if lap2 != INF else 0.0, t, (Time.get_ticks_msec() - t_wall) / 1000.0])
 		check(off_t < 0.5, "driver: on the track the whole way (%.1f s with all four wheels off, the widest %.1f m past the line)" % [off_t, worst_d])
-	if cls == "formula" and only in ["", "driver", "formula"]:
-		# DRS and the hybrid on the physics: down the pit straight from the HOOK's exit to the end of
-		# DRS zone 1 twice, first with both off, then the flap open and the MGU-K deploying
-		field.near_max = 1
-		field.pin_near = true
-		var tops: Array = []
-		var used := 0.0
-		for run in 2:
-			drv.task = "race"
-			drv.pit_phase = ""
-			var s0: float = 4470.0 + L * (4 + run)
-			drv.s = s0
-			drv.d = drv.line.d_at(s0)
-			drv.v = drv.line.speed_at(s0)
-			field._go_near(drv)
-			c.place(st.world_at(s0, drv.d), st.heading_at(s0))
-			c.set_rolling(drv.v)
-			c.race.drs_auto = false
-			c.race.ers_mode = 0 if run == 0 else 1
-			c.race.ers_store = c.race.ERS_STORE
-			c.race.ers_used = 0.0
-			var top := 0.0
-			var t := 0.0
-			while drv.s < s0 + 880.0 and t < 30.0:
-				c.race.drs_open = run == 1 and c.race.drs_avail
-				await physics_frame
-				t += dt
-				top = maxf(top, absf(c.speed))
-			tops.append(top)
-			if run == 1:
-				used = c.race.ers_used
-		var gain: float = (tops[1] - tops[0]) * 3.6
-		check(gain > 8.0 and gain < 40.0, "formula: down the pit straight %.0f km/h with DRS shut and the hybrid off, %.0f with the flap open and the MGU-K deploying (+%.0f km/h: DRS's +10-12 km/h, the FIA's figure, and 120 kW more)" % [tops[0] * 3.6, tops[1] * 3.6, gain])
-		check(used > 0.4e6 and used <= c.race.ERS_DEPLOY_LAP, "formula: the MGU-K deployed %.2f MJ down it (never more than 4 MJ a lap)" % (used / 1.0e6))
 	if only in ["", "far"]:
 		# far: moved along the line, timed the same way
 		field.near_max = 0
@@ -687,6 +657,41 @@ func _driving(st_unused, only: String) -> void:
 		check(stop_at != INF and absf(stop_at) < 2.5, "pit: stopped in its box (%.1f m from its middle)" % stop_at)
 		check(c.race.compound == "slick_soft" and float(c.race.tyres[0].wear) < 0.01 and c.race.fuel_l > fuel0 + 15.0, "pit: new softs and 20 l (%.0f s stopped)" % stop_t)
 		check(out and g.race_ctl.penalty_time(drv.id) == pens0, "pit: back out onto the track, no line crossed, under the limit (penalties %+.0f s)" % (g.race_ctl.penalty_time(drv.id) - pens0))
+	# (last: its laps flat out down the pit straight leave the car rounds ahead of the far and pit tests' places)
+	if cls == "formula" and only in ["", "driver", "formula"]:
+		# DRS and the hybrid on the physics: down the pit straight from the HOOK's exit to the end of
+		# DRS zone 1 twice, first with both off, then the flap open and the MGU-K deploying
+		field.near_max = 1
+		field.pin_near = true
+		var tops: Array = []
+		var used := 0.0
+		for run in 2:
+			drv.task = "race"
+			drv.pit_phase = ""
+			var s0: float = 4470.0 + L * (4 + run)
+			drv.s = s0
+			drv.d = drv.line.d_at(s0)
+			drv.v = drv.line.speed_at(s0)
+			field._go_near(drv)
+			c.place(st.world_at(s0, drv.d), st.heading_at(s0))
+			c.set_rolling(drv.v)
+			c.race.drs_auto = false
+			c.race.ers_mode = 0 if run == 0 else 1
+			c.race.ers_store = c.race.ERS_STORE
+			c.race.ers_used = 0.0
+			var top := 0.0
+			var t := 0.0
+			while drv.s < s0 + 880.0 and t < 30.0:
+				c.race.drs_open = run == 1 and c.race.drs_avail
+				await physics_frame
+				t += dt
+				top = maxf(top, absf(c.speed))
+			tops.append(top)
+			if run == 1:
+				used = c.race.ers_used
+		var gain: float = (tops[1] - tops[0]) * 3.6
+		check(gain > 8.0 and gain < 40.0, "formula: down the pit straight %.0f km/h with DRS shut and the hybrid off, %.0f with the flap open and the MGU-K deploying (+%.0f km/h: DRS's +10-12 km/h, the FIA's figure, and 120 kW more)" % [tops[0] * 3.6, tops[1] * 3.6, gain])
+		check(used > 0.4e6 and used <= c.race.ERS_DEPLOY_LAP, "formula: the MGU-K deployed %.2f MJ down it (never more than 4 MJ a lap)" % (used / 1.0e6))
 	g.queue_free()
 	await process_frame
 

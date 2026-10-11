@@ -87,13 +87,28 @@ ENV_SOURCE_KEYS = {
     "kenney/kenney_city-kit-roads.zip": "Kenney City Kit (Roads)",
     "polyhaven/rock_moss_set_01_2k": "rock_moss_set_01",
     "polyhaven/rock_face_01_2k": "rock_face_01",
+    # the owner's CC0 track props (one GLB: props/track_props.glb, the circuit's pits and marshal posts)
+    "Track_Mode_Props/blank-marshal-flag-on-pole.glb": "3DAssets.dev",
+    "Track_Mode_Props/double-bay-pit-garage.glb": "3DAssets.dev",
+    "Track_Mode_Props/front-quick-lift-jack.glb": "3DAssets.dev",
+    "Track_Mode_Props/gravity-fuel-rig-and-hose.glb": "3DAssets.dev",
+    "Track_Mode_Props/helmet-equipment-rack.glb": "3DAssets.dev",
+    "Track_Mode_Props/marshal-observation-hut.glb": "3DAssets.dev",
+    "Track_Mode_Props/pit-gantry-signal-lights.glb": "3DAssets.dev",
+    "Track_Mode_Props/pit-wall-monitor-stand.glb": "3DAssets.dev",
+    "Track_Mode_Props/pneumatic-wheel-gun-and-hose.glb": "3DAssets.dev",
+    "Track_Mode_Props/quick-lift-air-jack-rig.glb": "3DAssets.dev",
+    "Track_Mode_Props/rear-quick-lift-jack.glb": "3DAssets.dev",
+    "Track_Mode_Props/six-tyre-warmer-rack.glb": "3DAssets.dev",
+    "Track_Mode_Props/straight-tyre-stack-wall.glb": "3DAssets.dev",
+    "Track_Mode_Props/tyre-stack-warming-blankets.glb": "3DAssets.dev",
 }
 # What each environment kind is used for and how it's solid (the builders' code)
 ENV_USE = {
     "tree": ("every stage, the touge, the loop, the circuit (Biomes picks them)", "trunk cylinder (stage_builder.gd), leaves none", "LOD0 / LOD1 / billboard (BB) parts"),
     "rock": ("rally stages and the touge (verges, cuts)", "box per rock (stage_builder.gd)", "one mesh (low-poly already)"),
     "cliff": ("rally stage cut faces", "the cut's own ribbon", "one mesh"),
-    "prop": ("the loop's roadworks and toll plaza, stage dressing", "box where solid (loop_builder.gd)", "one mesh (low-poly already)"),
+    "prop": ("the loop's roadworks and toll plaza, CINDER RIDGE's pits and marshal posts, stage dressing", "box where solid (loop_builder.gd; the pit lane's nose tyre walls)", "one mesh (low-poly already)"),
     "building": ("CUT UP's city front rows", "box per building (loop_builder.gd)", "LOD0 + LOD1"),
     "skyline": ("CUT UP's city far tier (city_skyline.gd)", "none (out of reach)", "LOD1 only (far)"),
 }
@@ -213,7 +228,7 @@ def car_rows(pk, used):
             used.add(key)
         modes = []
         if "garage" in v:
-            modes.append("rally, touge, cut up" + (", track (%s)" % v["role"] if v.get("role") in ("track", "race_prototype") else ""))
+            modes.append("rally, touge, cut up" + (", track (%s)" % v["role"] if v.get("role") in ("track", "race_prototype", "formula") else ""))
         if "traffic" in v:
             modes.append("cut-up traffic")
         interior = v.get("interior", {}) or {}

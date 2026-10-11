@@ -20,7 +20,7 @@ const Graphics = preload("res://scripts/render/graphics.gd")
 const CIRCUIT_STEPS := [["_environment", "Checking the weather"], ["_track", "Laying the asphalt"],
 	["_kerbs", "Painting the kerbs"], ["_runoff", "Raking the gravel traps"], ["_land", "Shaping the ridge"],
 	["_barriers", "Stacking the tyre walls"], ["_pits", "Opening the garages"], ["_grid_marks", "Painting the grid"],
-	["_gantries", "Hanging the start lights"], ["_stands", "Building the grandstands"], ["_trackside", "Posting the marshals"],
+	["_gantries", "Hanging the start lights"], ["_stands", "Building the grandstands"], ["_trackside", "Posting the marshals"], ["_pit_props", "Setting up the pit crews"],
 	["_floodlights", "Raising the floodlights"], ["_forest", "Planting the ridge"], ["_finish", "Opening the circuit"]]
 const LAND_REACH := 170.0            # m: the ground ribbons go this far from the track (the far land beyond)
 const LAND_ROWS := [0.0, 3.0, 8.0, 16.0, 28.0, 44.0, 66.0, 95.0, 130.0, 170.0]
@@ -847,9 +847,14 @@ func _trackside() -> void:
 		var p := _out_pt(s, d)
 		var bas := _seg_basis(st.world_at(s - 1.0, 0.0), st.world_at(s + 1.0, 0.0))
 		var i := int(st.wrap_s(s) / st.STEP) % st._n
-		_buf(i, "board").box(p + Vector3.UP * 1.1, Vector3(1.8, 2.2, 1.8), bas)
-		_buf(i, "marshal").box(p + Vector3.UP * 2.3, Vector3(2.2, 0.2, 2.2), bas)
-		_buf(i, "garage_dark").box(p + Vector3.UP * 1.5 - bas.x * side * 0.92, Vector3(0.05, 0.8, 1.2), bas)
+		if _prop_mesh("marshal_hut") != null:
+			# the library's observation hut, its open side to the track, a flag pole beside it
+			_prop("marshal_hut", Transform3D(bas * Basis(Vector3.UP, PI * 0.5 * side), p))
+			_prop("pit_flag_pole", Transform3D(bas, p + bas.z * 2.0 - bas.x * side * 0.9))
+		else:
+			_buf(i, "board").box(p + Vector3.UP * 1.1, Vector3(1.8, 2.2, 1.8), bas)
+			_buf(i, "marshal").box(p + Vector3.UP * 2.3, Vector3(2.2, 0.2, 2.2), bas)
+			_buf(i, "garage_dark").box(p + Vector3.UP * 1.5 - bas.x * side * 0.92, Vector3(0.05, 0.8, 1.2), bas)
 		marshal_count += 1
 	for bd in cst.boards:
 		var s := float(bd.s)
@@ -870,6 +875,95 @@ func _trackside() -> void:
 		lbl.outline_size = 0
 		add_child(lbl)
 		lbl.global_transform = Transform3D(bas, p + Vector3.UP * 1.0 + bas.z * 0.05)
+
+
+# ── the pit crews' kit (the library's track props) ────────────────────────
+
+var _props := {}                     # asset id -> [Transform3D]: drawn as one MultiMesh each (_pit_props)
+
+
+func _prop_mesh(id: String) -> Mesh:
+	if not EnvAssets.available() or EnvAssets.info(id).is_empty():
+		return null
+	return EnvAssets.mesh(id)
+
+
+func _prop(id: String, xf: Transform3D) -> void:
+	if not _props.has(id):
+		_props[id] = []
+	_props[id].append(xf)
+
+
+## The pits dressed: between each pair of boxes the team's tyres in their blankets, a warmer rack
+## and a wheel gun; a jack waiting at each end of its box; an air-jack rig, a fuel rig and a helmet
+## rack every other box; a monitor stand on the pit wall opposite each box; the signal lights at
+## the lane's ends; tyre walls on the noses of the pit entry and exit (solid); a row of team garages
+## in the paddock behind. The marshal posts' huts and flags come from _trackside. Nothing in a box
+## or the fast lane (the cars' way in and out). Then every prop is drawn (one MultiMesh a kind).
+func _pit_props() -> void:
+	if _prop_mesh("pit_tyre_blankets") != null:
+		var p: Dictionary = cst.pit
+		var span := (float(p.s_box1) - float(p.s_box0)) / float(p.boxes)
+		var wall := float(p.wall_d)
+		var garage := float(p.garage_d)
+		for k in int(p.boxes):
+			var sd: Vector2 = cst.box_sd(k)
+			var bas := _seg_basis(st.world_at(sd.x - 1.0, sd.y), st.world_at(sd.x + 1.0, sd.y))
+			var across := bas * Basis(Vector3.UP, PI * 0.5)          # (a long thing laid across the lane's way)
+			var gs: float = sd.x + span * 0.5                       # the gap after this box
+			_prop("pit_tyre_blankets", Transform3D(bas, st.world_at(gs, garage - 0.6)))
+			_prop("pit_tyre_blankets", Transform3D(bas * Basis(Vector3.UP, 0.7), st.world_at(gs, garage - 1.45)))
+			_prop("pit_warmer_rack", Transform3D(across, st.world_at(gs, sd.y - 0.3)))
+			_prop("pit_wheel_gun", Transform3D(bas * Basis(Vector3.UP, 1.1 + k), st.world_at(gs, sd.y - 1.8)))
+			_prop("pit_jack_front", Transform3D(across, st.world_at(sd.x + span * 0.42 - 0.5, garage - 0.9)))
+			_prop("pit_jack_rear", Transform3D(across, st.world_at(sd.x - span * 0.42 + 0.6, garage - 1.0)))
+			if k % 2 == 0:
+				_prop("pit_air_jack", Transform3D(bas, st.world_at(gs - 0.1, sd.y + 1.1)))
+				_prop("pit_helmet_rack", Transform3D(bas * Basis(Vector3.UP, -PI * 0.5), st.world_at(sd.x - span * 0.42 - 0.3, garage - 0.4)))
+			else:
+				_prop("pit_fuel_rig", Transform3D(across, st.world_at(gs, garage - 2.6)))
+			# the team's stand on the pit wall (its lane side), along the wall
+			_prop("pit_wall_stand", Transform3D(across, st.world_at(sd.x, wall + 0.75)))
+		# the signal lights where the lane starts and ends (by the wall), the tyre walls on the noses
+		for ls in [float(p.s_lim0) - 4.0, float(p.s_lim1) + 4.0]:
+			_prop("pit_signal_lights", Transform3D(_seg_basis(st.world_at(ls - 1.0, 0.0), st.world_at(ls + 1.0, 0.0)), st.world_at(ls, wall + 0.4)))
+		for nose in [[float(p.s_in1), -1.0], [float(p.s_out0), 1.0]]:
+			var ns := float(nose[0]) + float(nose[1]) * 1.5
+			var nd := (cst.half_at(ns) + float(p.lane_d0)) * 0.5
+			var nb := _seg_basis(st.world_at(ns - 1.0, 0.0), st.world_at(ns + 1.0, 0.0))
+			var at: Vector3 = st.world_at(ns, nd)
+			_prop("tyre_wall_straight", Transform3D(nb, at))
+			_prop("tyre_wall_straight", Transform3D(nb, at + Vector3.UP * 0.6))
+			var i := int(st.wrap_s(ns) / st.STEP) % st._n
+			_body(i, "barrier").box(at + Vector3.UP * 0.6, Vector3(3.6, 1.2, 0.6), nb, Color.WHITE, true)
+		# the team garages in the paddock behind the garage block, facing it
+		var ps := float(p.s_box0) + 6.0
+		while ps < float(p.s_box1) - 6.0:
+			var pb := _seg_basis(st.world_at(ps - 1.0, 0.0), st.world_at(ps + 1.0, 0.0))
+			_prop("pit_garage_double", Transform3D(pb * Basis(Vector3.UP, PI), st.world_at(ps, garage + 0.5 + 16.0 + 9.0)))
+			ps += 28.0
+	for id in _props:
+		var m: Mesh = EnvAssets.mesh(id)
+		if m == null:
+			continue
+		var list: Array = _props[id]
+		var mm := MultiMesh.new()
+		mm.transform_format = MultiMesh.TRANSFORM_3D
+		mm.mesh = m
+		mm.instance_count = list.size()
+		for j in list.size():
+			mm.set_instance_transform(j, list[j])
+		var mmi := MultiMeshInstance3D.new()
+		mmi.name = "Props_%s" % id
+		mmi.multimesh = mm
+		var big: bool = id in ["pit_garage_double", "marshal_hut", "tyre_wall_straight"]
+		# (a MultiMesh's range is to its bounds' middle: the pits' kit is all in one place, but the
+		# marshal posts are round the whole lap: theirs has no range, ~14k triangles for all of them)
+		if not id in ["marshal_hut", "pit_flag_pole"]:
+			mmi.visibility_range_end = (700.0 if big else 220.0) * (0.5 if Graphics.level() == "low" else 1.0)
+		mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON if big else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		add_child(mmi)
+	_props.clear()
 
 
 # ── floodlights ───────────────────────────────────────────────────────────

@@ -517,6 +517,9 @@ Details: [docs/modes.md](docs/modes.md).
 | **Cut up:** flash your lights (challenge the rival ahead) | H | LB |
 | Dome light on / off | L | d-pad up |
 | The car's centre screen: map / driving data (the cars with one) | M | d-pad right |
+| **Track Mode:** pit limiter on / off | P | d-pad down |
+| **Track Mode (Formula):** open the DRS flap (when you may: it shuts on the brakes) | E | RB |
+| **Track Mode (Formula):** hybrid mode (OFF / BALANCED / OVERTAKE) | O | d-pad left |
 | Start / next stage (host) | ENTER | START |
 | Pause | ESC | BACK |
 | **Replay** (on the results; in the pause menu: the last 30 s) | V (or the REPLAY button) | X |

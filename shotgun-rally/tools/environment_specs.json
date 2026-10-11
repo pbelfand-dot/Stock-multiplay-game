@@ -317,5 +317,26 @@
     2.0
    ]
   ]
+ },
+ "track_props": {
+  "srcs": [
+   "Track_Mode_Props/blank-marshal-flag-on-pole.glb",
+   "Track_Mode_Props/double-bay-pit-garage.glb",
+   "Track_Mode_Props/front-quick-lift-jack.glb",
+   "Track_Mode_Props/gravity-fuel-rig-and-hose.glb",
+   "Track_Mode_Props/helmet-equipment-rack.glb",
+   "Track_Mode_Props/marshal-observation-hut.glb",
+   "Track_Mode_Props/pit-gantry-signal-lights.glb",
+   "Track_Mode_Props/pit-wall-monitor-stand.glb",
+   "Track_Mode_Props/pneumatic-wheel-gun-and-hose.glb",
+   "Track_Mode_Props/quick-lift-air-jack-rig.glb",
+   "Track_Mode_Props/rear-quick-lift-jack.glb",
+   "Track_Mode_Props/six-tyre-warmer-rack.glb",
+   "Track_Mode_Props/straight-tyre-stack-wall.glb",
+   "Track_Mode_Props/tyre-stack-warming-blankets.glb"
+  ],
+  "out": "props/track_props.glb",
+  "origin": "base",
+  "max_tex": 512
  }
 }

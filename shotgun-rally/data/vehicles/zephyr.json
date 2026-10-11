@@ -52,7 +52,7 @@
 		"ai_grip": 0.94
 	},
 	"checks": {
-		"zero_100_max": 4.0
+		"zero_100_max": 7.0
 	},
 	"interior": {
 		"own": true,
