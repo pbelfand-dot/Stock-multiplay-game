@@ -49,7 +49,16 @@ const PRESETS := {
 		"probe": true, "scale": 1.0, "fog_sky": 0.85},
 }
 
+## RENDER SCALE AUTO's pixel budget (the 3D's pixels, per level): a screen with more pixels than
+## this draws the 3D smaller and FSR scales it up (sharpened). A MacBook's Retina screen has ~2.7x
+## the pixels of 1080p (2880 x 1800 up to 3456 x 2234) and drew every one of them at every level;
+## at that density FSR from ~80 % is hard to tell from the real thing and costs a third less.
+## A 1080p or 1440p screen is under every budget: no change; nor the movie maker (--write-movie).
+const PIXEL_BUDGET := {"low": 1920 * 1080, "medium": 2304 * 1296, "high": 2560 * 1440, "ultra": 2688 * 1512}
+const MIN_AUTO_SCALE := 0.6
+
 static var _loaded := false
+static var _watched: Viewport                  # (the window whose resizes re-apply AUTO's scale)
 static var _level := ""
 static var _scale := 0.0                       # RENDER SCALE: 0 = the level's
 static var _car_lights := "auto"               # "auto" (on in the dark) | "on" | "off"
@@ -134,9 +143,17 @@ static func view_distance() -> float:
 	return float(get_value("view"))
 
 
-static func render_scale() -> float:
+static func render_scale(vp: Viewport = null) -> float:
 	_load()
-	return _scale if _scale > 0.0 else float(get_value("scale"))
+	if _scale > 0.0:
+		return _scale
+	var s := float(get_value("scale"))
+	if vp != null and not "--write-movie" in OS.get_cmdline_args():   # AUTO: held to the level's pixel budget (a movie: every pixel)
+		var px := float(vp.size.x) * float(vp.size.y)
+		var budget := float(PIXEL_BUDGET[level()])
+		if px > budget * 1.05:
+			s = minf(s, maxf(sqrt(budget / px), MIN_AUTO_SCALE))
+	return s
 
 
 static func render_scale_setting() -> float:
@@ -216,15 +233,25 @@ static func apply_viewport(vp: Viewport) -> void:
 	vp.msaa_3d = Viewport.MSAA_DISABLED if "--look_nomsaa" in OS.get_cmdline_user_args() else get_value("msaa")
 	vp.use_taa = f and bool(get_value("taa"))
 	vp.screen_space_aa = Viewport.SCREEN_SPACE_AA_DISABLED
-	var s := render_scale()
-	vp.scaling_3d_scale = s
-	vp.scaling_3d_mode = Viewport.SCALING_3D_MODE_FSR if f and s < 0.99 else Viewport.SCALING_3D_MODE_BILINEAR
+	_scale_3d(vp)
+	if vp is Window and _watched != vp:          # (resized, made full screen: AUTO's scale follows)
+		_watched = vp
+		vp.size_changed.connect(func(): _scale_3d(vp))
 	vp.anisotropic_filtering_level = get_value("aniso")
 	if f:
 		vp.use_debanding = level() != "low"
 	RenderingServer.directional_shadow_atlas_set_size(int(get_value("shadow_size")), true)
 	RenderingServer.directional_soft_shadow_filter_set_quality(get_value("soft"))
 	RenderingServer.positional_soft_shadow_filter_set_quality(get_value("soft"))
+
+
+## The 3D resolution (RENDER SCALE; AUTO: the pixel budget for this screen), FSR scaling it up.
+static func _scale_3d(vp: Viewport) -> void:
+	if vp == null or headless():
+		return
+	var s := render_scale(vp)
+	vp.scaling_3d_scale = s
+	vp.scaling_3d_mode = Viewport.SCALING_3D_MODE_FSR if forward() and s < 0.99 else Viewport.SCALING_3D_MODE_BILINEAR
 
 
 ## The effects: SSAO (MEDIUM up), SSIL and SSR (HIGH up), SDFGI (ULTRA), glow (MEDIUM up),
