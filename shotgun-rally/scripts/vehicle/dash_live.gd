@@ -6,7 +6,8 @@ extends Node3D
 ##     something to show; everywhere else the original shows through, untouched):
 ##       - screens: a rectangle of the surface's UVs shows a live page instead (the texture
 ##         holding it upside down "flip_v", mirrored "flip_h", both: turned half round, or
-##         sideways "transpose")
+##         sideways "transpose"; "off_wheel": not on the bits of the steering wheel that share
+##         the material)
 ##         (dash_page.gd: a digital cluster, the centre screen's map and driving data)
 ##       - needles: a dial painted in the texture gets a moving needle; the painted
 ##         one is covered with the dial face from a little further round
@@ -22,7 +23,9 @@ extends Node3D
 ##     UVs across it, showing the pages
 ##   * "needle_meshes": needles modelled as parts (merged into the body): each one cut
 ##     out into a part of its own and turned about its dial's hub ("max_size": needles in a
-##     material the trim shares, told apart by their size; "marks": an uneven scale)
+##     material the trim shares, told apart by their size, a needle's own for a small dial whose
+##     face is smaller than the big dials' needles; "grow": how near its hub a piece reaches;
+##     "marks": an uneven scale)
 ##   * "boards": a dial or screen that's blank and can't be picked out by its faces (it
 ##     shares a material with everything round it): a quad of its own placed by measure
 ##     ("c": its middle, "w" x "h" m, facing the driver's eye or "normal"; "round": a
@@ -44,6 +47,10 @@ extends Node3D
 ##     centre; without "at": the centre console's footwell and both door cards)
 ##   * "electric": the readings are a charge (the "fuel") and a range ("range_km" full,
 ##     else 420); an electric car's engine (its regen) says so when the spec doesn't
+##   * "boost_bar": a turbo's boost gauge's top (bar, 1.0 if not given): the reading "boost",
+##     a vacuum at idle and off the throttle, building with the throttle and the revs (a
+##     moment's lag); "trip": the km driven since the car was built (a trip meter); "volts":
+##     the battery's (12.4, 14.1 charging with the engine running)
 ## Spec coordinates: a display's are its texture's pixels ("units": "px", x right, y
 ## down) or its UVs ("units": "uv"; "uv_wrap": a model whose screen's UVs sit a whole tile
 ## over, measured in the texture's own 0..1); a panel's and a needle mesh's are metres from the
@@ -51,7 +58,7 @@ extends Node3D
 ## on a texture are degrees, 0 = pointing right, 90 = down (clockwise).
 
 const DashPage = preload("res://scripts/vehicle/dash_page.gd")
-const MAX_SCREENS := 3
+const MAX_SCREENS := 5
 const MAX_NEEDLES := 8
 const MAX_RECTS := 8
 const MAX_LED_ROWS := 4
@@ -82,6 +89,8 @@ var _screen_t := 0.0
 var _gfx := Vector2.ZERO            # g, smoothed (x: across, + = right; y: along, + = braking)
 var _prev_v := Vector3.ZERO
 var _warm := 0.0                     # 0 cold ... 1 at running temperature (the water, oil and gearbox)
+var _boost := 0.0                    # bar, the turbo's (smoothed: its lag)
+var _trip := 0.0                     # km driven
 var _lit := false                   # the needles lit (night)
 var _overlaid := {}                 # a display's material -> its copy with the overlay (one per material)
 
@@ -105,7 +114,10 @@ func setup(the_car, the_cockpit, the_spec: Dictionary) -> void:
 	for bp in spec.get("body_parts", []):
 		_wheel_parts(bp, true)
 	for d in spec.get("displays", []):
-		if not _surfaces(str(d.get("mat", "^$")), func(m, si, base): _overlay(m, si, base, d)):
+		if not _surfaces(str(d.get("mat", "^$")), func(m, si, base):
+				if d.get("off_wheel", false) and _on_wheel(m):   # (the material on a bit of the steering wheel too: left as it is)
+					return
+				_overlay(m, si, base, d)):
 			missing.append("display " + str(d.get("mat")))
 	for p in spec.get("panels", []):
 		_panel(p)
@@ -119,6 +131,12 @@ func setup(the_car, the_cockpit, the_spec: Dictionary) -> void:
 
 ## Calls fn(mesh instance, surface, material) for every surface of the body whose
 ## material's name matches; false if there were none.
+## Whether a mesh turns with the steering wheel (it, or under it).
+func _on_wheel(m: Node) -> bool:
+	var sw = car.cockpit_nodes.get("wheel") if "cockpit_nodes" in car else null
+	return sw != null and (m == sw or (sw as Node).is_ancestor_of(m))
+
+
 func _surfaces(pattern: String, fn: Callable) -> bool:
 	var re := RegEx.new()
 	re.compile(pattern)
@@ -697,10 +715,11 @@ func _needle_mesh(nm: Dictionary) -> void:
 		for n in todo.duplicate():
 			var hub: Vector3 = c + Vector3(n.hub[0], n.hub[1], n.hub[2])
 			var grow := float(n.get("grow", 0.008))
+			var limit := float(n.get("max_size", biggest))     # (a small dial's needle: under its own face's size)
 			var mine: Array = []
 			for gi in groups.size():
 				var box: AABB = boxes[gi]
-				if not used.has(gi) and box.size[box.get_longest_axis_index()] <= biggest and box.grow(grow).has_point(hub):
+				if not used.has(gi) and box.size[box.get_longest_axis_index()] <= limit and box.grow(grow).has_point(hub):
 					mine.append(gi)
 			if mine.is_empty():
 				continue
@@ -835,6 +854,13 @@ func _read(dt: float) -> void:
 		_gfx = _gfx.lerp(g, clampf(dt * 6.0, 0.0, 1.0))
 	_prev_v = v
 	_warm = minf(_warm + dt * (0.3 + float(car.rpm)) / 240.0, 1.0)   # (a few minutes' running, quicker at high revs)
+	_trip += absf(float(car.kmh())) / 3600.0 * dt
+	var thr := clampf(maxf(float(car.inp.get("throttle", 0.0)), float(car.net_throttle)), 0.0, 1.0)
+	var spool := clampf((float(car.rpm) - 0.2) / 0.4, 0.0, 1.0)             # (none low down, full from mid-range)
+	var want := 0.0
+	if float(car.rpm) > 0.001:
+		want = lerpf(-0.62, -0.62 + thr * (0.62 + float(spec.get("boost_bar", 1.0)) * spool), thr)
+	_boost = lerpf(_boost, want, clampf(dt * (5.0 if want < _boost else 2.2), 0.0, 1.0))
 	var eng = car.config.engine if car.config else null
 	var idle: float = eng.idle_rpm if eng else 900.0
 	var top: float = eng.limiter_rpm if eng else 7000.0
@@ -851,7 +877,8 @@ func _read(dt: float) -> void:
 		"car_s": float(cockpit.map_board.car_s) if cockpit.map_board else 0.0,
 		"night": night,
 		"fuel": clampf(0.86 - float(game.stage_time if game and "stage_time" in game else 0.0) / 3600.0, 0.1, 1.0),
-		"electric": ev,
+		"electric": ev, "boost": _boost, "trip": _trip,
+		"volts": 14.1 if float(car.rpm) > 0.001 else 12.4,      # (the battery's: charging with the engine running)
 	}
 	var rs = car.race                                      # (Track Mode's: its fuel in litres, its ABS and TC maps, the pit limiter)
 	var aid = car.assist
@@ -945,7 +972,7 @@ func _process(dt: float) -> void:
 ## value, a scale that isn't even as the driver sees it).
 func needle_turn(n: Dictionary) -> float:
 	if n.has("marks"):
-		return deg_to_rad(marks_deg(n.marks, absf(float(data.get(str(n.get("value", "kmh")), 0.0)))))
+		return deg_to_rad(marks_deg(n.marks, _mark_value(n)))
 	return deg_to_rad(float(n.sweep)) * (_share(n) - _share(n, float(n.get("rest", n.get("min", 0.0)))))
 
 
@@ -954,18 +981,18 @@ func needle_turn(n: Dictionary) -> float:
 ## whose numbers aren't evenly spaced, the GT-R's speedometer's), else "a0" to "a1" by its share.
 func _needle_deg(n: Dictionary) -> float:
 	if n.has("marks"):
-		return marks_deg(n.marks, absf(float(data.get(str(n.get("value", "kmh")), 0.0))))
+		return marks_deg(n.marks, _mark_value(n))
 	return lerpf(float(n.a0), float(n.a1), _share(n))
 
 
+## A needle's reading for its marks: the speed either way round, the others signed (a boost gauge's vacuum).
+func _mark_value(n: Dictionary) -> float:
+	var v := float(data.get(str(n.get("value", "kmh")), 0.0))
+	return absf(v) if str(n.get("value", "kmh")) == "kmh" else v
+
+
 static func marks_deg(marks: Array, v: float) -> float:
-	if v <= float(marks[0][0]):
-		return float(marks[0][1])
-	for i in range(1, marks.size()):
-		if v <= float(marks[i][0]):
-			var f := (v - float(marks[i - 1][0])) / maxf(float(marks[i][0]) - float(marks[i - 1][0]), 1e-4)
-			return lerpf(float(marks[i - 1][1]), float(marks[i][1]), f)
-	return float(marks[-1][1])
+	return DashPage.marks_deg(marks, v)
 
 
 func _share(n: Dictionary, v = null) -> float:
@@ -1000,11 +1027,13 @@ uniform sampler2D base_tex : source_color, filter_linear_mipmap, repeat_enable;
 uniform bool has_base = false;
 uniform float aspect = 1.0;
 uniform int screen_count = 0;
-uniform vec4 screen_rect[3];
+uniform vec4 screen_rect[5];
 uniform sampler2D screen_tex0 : source_color, filter_linear;
 uniform sampler2D screen_tex1 : source_color, filter_linear;
 uniform sampler2D screen_tex2 : source_color, filter_linear;
-uniform float screen_flip[3];
+uniform sampler2D screen_tex3 : source_color, filter_linear;
+uniform sampler2D screen_tex4 : source_color, filter_linear;
+uniform float screen_flip[5];
 uniform float screen_light = 0.92;
 uniform int needle_count = 0;
 uniform vec4 needle_geo[8];   // centre u, v, radius, half width (the radius and width in the texture's height)
@@ -1045,7 +1074,9 @@ vec3 base_at(vec2 uv) {
 vec3 screen_at(int i, vec2 q) {
 	if (i == 0) return texture(screen_tex0, q).rgb;
 	if (i == 1) return texture(screen_tex1, q).rgb;
-	return texture(screen_tex2, q).rgb;
+	if (i == 2) return texture(screen_tex2, q).rgb;
+	if (i == 3) return texture(screen_tex3, q).rgb;
+	return texture(screen_tex4, q).rgb;
 }
 
 void fragment() {

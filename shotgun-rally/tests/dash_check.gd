@@ -225,20 +225,25 @@ func _spec(id: String, car, cp, dash, spec: Dictionary) -> void:
 			var at1: float = pg.needle_angle(n, float(n.max))
 			fails += _check(absf(at0 - deg_to_rad(float(n.a0))) < 1e-4 and absf(at1 - deg_to_rad(float(n.a1))) < 1e-4 and absf(pg.needle_angle(n, float(n.max) * 2.0) - at1) < 1e-4,
 				"%s: its painted dial's live %s needle sweeps %s to %s deg (held at the end past %s)" % [id, str(n.what), str(n.a0), str(n.a1), str(n.max)])
+			if n.has("marks") and n.marks.size() > 2:          # (an uneven scale: between two marks, halfway between their angles)
+				var mv := (float(n.marks[1][0]) + float(n.marks[2][0])) * 0.5
+				var ma := (float(n.marks[1][1]) + float(n.marks[2][1])) * 0.5
+				fails += _check(absf(pg.needle_angle(n, mv) - deg_to_rad(ma)) < 1e-4,
+					"%s: its painted dial's live %s needle along its marks (%.1f between two of them: %.1f deg)" % [id, str(n.what), mv, ma])
 	# a dial's needle follows its reading
 	var dials: Array = dash.pages.filter(func(p): return str(p.cfg.get("page", "")) == "dial")
 	if not dials.is_empty():
-		dash.fake = {"kmh": 0.0, "rpm": 800.0, "rpm01": 0.0}
+		dash.fake = {"kmh": 0.0, "rpm": 800.0, "rpm01": 0.0, "fuel": 0.1, "t_water": 55.0, "boost": -0.6}
 		_run(dash, DT)
 		var lo: Array = dials.map(func(p): return p.share())
-		dash.fake = {"kmh": 180.0, "rpm": 5500.0, "rpm01": 0.75}
+		dash.fake = {"kmh": 180.0, "rpm": 5500.0, "rpm01": 0.75, "fuel": 0.95, "t_water": 110.0, "boost": 1.2}
 		_run(dash, DT)
 		var hi: Array = dials.map(func(p): return p.share())
 		var moved := true
 		for i in dials.size():
 			if hi[i] <= lo[i] + 0.2:
 				moved = false
-		fails += _check(moved, "%s: its dials' needles follow the speed and the revs (%s -> %s)" % [id, str(lo), str(hi)])
+		fails += _check(moved, "%s: its dials' needles follow their readings: the speed, the revs, the fuel, a temperature, the boost (%s -> %s)" % [id, str(lo), str(hi)])
 	# the ambient lighting: off by day, on at night
 	if spec.has("ambient"):
 		dash.night = false
@@ -432,6 +437,64 @@ func _spec(id: String, car, cp, dash, spec: Dictionary) -> void:
 			worst = maxf(worst, got.angle_to(Quaternion(Basis(np.axis, -want))))
 	if not dash.needle_parts.is_empty():
 		fails += _check(worst < 0.01, "%s: the modelled needles turn by their share of the sweep or along their marks (worst off by %.2f deg)" % [id, rad_to_deg(worst)])
+	# a boost gauge: its needle reads signed (a vacuum turns it the other way from the same boost), and the
+	# boost: none with the engine off, a vacuum off the throttle, boost with the throttle open at high revs
+	for np in dash.needle_parts:
+		var nb: Dictionary = np.n
+		if str(nb.get("value", "")) != "boost" or not nb.has("marks"):
+			continue
+		dash.fake["boost"] = -0.5
+		_run(dash, DT)
+		var got_b := Quaternion((np.pivot as Node3D).basis.orthonormalized())
+		var off_b := got_b.angle_to(Quaternion(Basis(np.axis, -deg_to_rad(DashLive.marks_deg(nb.marks, -0.5)))))
+		dash.fake.erase("boost")
+		var saved := [car.rpm, car.inp.get("throttle", 0.0), car.net_throttle]
+		car.rpm = 0.0
+		car.inp["throttle"] = 0.0
+		car.net_throttle = 0.0
+		_run(dash, 3.0)
+		var b_off := float(dash.data.boost)
+		car.rpm = 0.3
+		_run(dash, 3.0)
+		var b_idle := float(dash.data.boost)
+		car.rpm = 0.85
+		car.inp["throttle"] = 1.0
+		_run(dash, 3.0)
+		var b_full := float(dash.data.boost)
+		car.rpm = saved[0]
+		car.inp["throttle"] = saved[1]
+		car.net_throttle = saved[2]
+		fails += _check(off_b < 0.01 and absf(b_off) < 0.01 and b_idle < -0.3 and b_full > 0.5 * float(spec.get("boost_bar", 1.0)),
+			"%s: its boost needle reads a vacuum the other way (off by %.2f deg); the boost %.2f engine off, %.2f off the throttle, %.2f flat out" % [
+			id, rad_to_deg(off_b), b_off, b_idle, b_full])
+	# a display kept off the steering wheel's bits of the same material ("off_wheel")
+	for dd in spec.get("displays", []):
+		if not dd.get("off_wheel", false) or not car.cockpit_nodes.has("wheel"):
+			continue
+		var re_w := RegEx.new()
+		re_w.compile(str(dd.mat))
+		var on_w := 0
+		var seen_w := 0
+		var sw_n: Node = car.cockpit_nodes.wheel
+		for mw in ([sw_n] + sw_n.find_children("*", "MeshInstance3D", true, false)):
+			if not (mw is MeshInstance3D) or (mw as MeshInstance3D).mesh == null:
+				continue
+			for si in (mw as MeshInstance3D).mesh.get_surface_count():
+				var am: Material = (mw as MeshInstance3D).get_active_material(si)
+				if am != null and re_w.search(am.resource_name) != null:
+					seen_w += 1
+					if am.next_pass is ShaderMaterial:
+						on_w += 1
+		fails += _check(on_w == 0, "%s: its display left off the steering wheel's %d surfaces of the same material (%d overlaid)" % [id, seen_w, on_w])
+	# the trip meter: the km driven (25 m/s for a second)
+	if dash.pages.any(func(p): return str(p.cfg.get("what", "")) == "trip"):
+		var sp0: float = car.speed
+		var trip0 := float(dash.data.get("trip", 0.0))
+		car.speed = 25.0
+		_run(dash, 1.0)
+		car.speed = sp0
+		var went := float(dash.data.trip) - trip0
+		fails += _check(absf(went - 0.025) < 0.002, "%s: its trip meter counts the km driven (%.4f km in a second at 90 km/h)" % [id, went])
 	# the painted needles' angles follow too
 	for o in dash.overlays:
 		if o.needles.is_empty():

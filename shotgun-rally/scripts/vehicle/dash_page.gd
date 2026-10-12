@@ -29,7 +29,10 @@ extends Control
 ##     clock by default) in its colour, the unlit segments ("88:88") faint behind it
 ##   * "dial": one round dial on a board of its own (a car whose dials are blank):
 ##     "what" kmh or rpm (the scale to "max", numbers every "step", red past "red" for the
-##     revs), its face colour "face", the needle "needle"
+##     revs), its face colour "face", the needle "needle"; or any other reading (fuel,
+##     t_water, t_oil, boost ...) from "min" to "max", numbered every "step" or with words
+##     at its two ends ("labels": ["E", "F"]); "sweep" its scale's degrees (240), "start"
+##     where it begins (150: bottom left, clockwise)
 ##   * "intro": s, any page over a picture of the model's own: that picture shown as it is for the
 ##     first seconds after the engine starts (a real screen's welcome), then the page
 
@@ -240,11 +243,24 @@ func _needle(n: Dictionary, d: Dictionary) -> void:
 
 
 ## Where a painted dial's needle points for a reading (radians, 0 right, down positive): "a0" at "min"
-## (0 by default), "a1" at "max".
+## (0 by default), "a1" at "max"; or along "marks".
 static func needle_angle(n: Dictionary, v: float) -> float:
+	if n.has("marks"):                               # (an uneven scale: [[reading, degrees], ...]; the speed either way round)
+		return deg_to_rad(marks_deg(n.marks, absf(v) if str(n.get("what", "kmh")) == "kmh" else v))
 	var lo := float(n.get("min", 0.0))
 	var u := clampf((absf(v) - lo) / maxf(float(n.get("max", 1.0)) - lo, 1e-3), 0.0, 1.0)
 	return deg_to_rad(lerpf(float(n.a0), float(n.a1), u))
+
+
+## The angle (degrees) for v along marks [[reading, degrees], ...], held at both ends.
+static func marks_deg(marks: Array, v: float) -> float:
+	if v <= float(marks[0][0]):
+		return float(marks[0][1])
+	for i in range(1, marks.size()):
+		if v <= float(marks[i][0]):
+			var f := (v - float(marks[i - 1][0])) / maxf(float(marks[i][0]) - float(marks[i - 1][0]), 1e-4)
+			return lerpf(float(marks[i - 1][1]), float(marks[i][1]), f)
+	return float(marks[-1][1])
 
 
 ## A point of a painted page (its own pixels: sideways or upside down as the texture has it) as the
@@ -327,6 +343,8 @@ func _reading(what: String, d: Dictionary, t := {}) -> String:
 			return "%d" % int(_value(what, d))
 		"t_water", "t_oil", "t_gear":               # (warming from the air to running temperature: DashLive's)
 			return "%d" % roundi(_value(what, d))
+		"trip":                                     # (the trip meter: km driven, to a tenth)
+			return "%.1f" % _value("trip", d)
 		"range":
 			return "%d km" % roundi(_value("range", d))
 		"range_n":                                  # (the range's number alone: a painted "km" kept beside it)
@@ -475,21 +493,29 @@ func _dials() -> void:
 
 
 ## One round dial: a 240-degree scale (from bottom left round to bottom right), its numbers
-## every `step` (major ticks), red past `red`, the needle at share u (0..1).
-func _dial(c: Vector2, rr: float, u: float, top: float, step: float, unit: String, accent: Color, needle: Color, red := -1.0) -> void:
-	var a0 := deg_to_rad(150.0)
-	var sweep := deg_to_rad(240.0)
+## every `step` (major ticks), red past `red`, the needle at share u (0..1). opt: "start" and
+## "sweep" (degrees) for another scale, "lo" its first number (the scale lo..top), "labels"
+## [low end, high end] words instead of numbers.
+func _dial(c: Vector2, rr: float, u: float, top: float, step: float, unit: String, accent: Color, needle: Color, red := -1.0, opt := {}) -> void:
+	var a0 := deg_to_rad(float(opt.get("start", 150.0)))
+	var sweep := deg_to_rad(float(opt.get("sweep", 240.0)))
+	var lo := float(opt.get("lo", 0.0))
+	var labels: Array = opt.get("labels", [])
 	var line := maxf(rr * 0.02, 1.0)
 	draw_arc(c, rr, a0, a0 + sweep, 64, Color(accent.r, accent.g, accent.b, 0.35), line, true)
 	if red > 0.0:
-		draw_arc(c, rr * 0.97, a0 + sweep * red / top, a0 + sweep, 24, Color("#ff2a12"), line * 3.0, true)
-	var n := int(round(top / step))
+		draw_arc(c, rr * 0.97, a0 + sweep * (red - lo) / (top - lo), a0 + sweep, 24, Color("#ff2a12"), line * 3.0, true)
+	var n := maxi(int(round((top - lo) / step)), 1)
 	for k in n + 1:
 		var a := a0 + sweep * float(k) / float(n)
 		var dir := Vector2(cos(a), sin(a))
 		draw_line(c + dir * rr * 0.86, c + dir * rr, Color(0.9, 0.92, 0.95), line * 1.6, true)
-		if n <= 14 or k % 2 == 0:
-			_say("%d" % roundi(k * step), c + dir * rr * 0.72, rr * 0.13, Color(0.86, 0.88, 0.92), "center", false)
+		var num := lo + k * step
+		var say := ("%d" % roundi(num)) if is_equal_approx(step, roundf(step)) else ("%.1f" % num)
+		if labels.size() >= 2:
+			say = str(labels[0]) if k == 0 else (str(labels[1]) if k == n else "")
+		if say != "" and (n <= 14 or k % 2 == 0):
+			_say(say, c + dir * rr * 0.72, rr * (0.2 if labels.size() >= 2 else 0.13), Color(0.86, 0.88, 0.92), "center", false)
 	for k in n * 2:
 		var a := a0 + sweep * (float(k) + 0.5) / float(n * 2)
 		var dir := Vector2(cos(a), sin(a))
@@ -696,8 +722,12 @@ func _info(area: Rect2, d: Dictionary, accent: Color) -> void:
 ## How far round its scale a dial's needle is now (0..1; the tests read it).
 func share() -> float:
 	var d: Dictionary = live.data
-	if str(cfg.get("what", "kmh")) == "rpm":
+	var what := str(cfg.get("what", "kmh"))
+	if what == "rpm":
 		return clampf(_value("rpm", d) / float(cfg.get("max", d.get("limiter", 7000.0))), 0.0, 1.0)
+	if what != "kmh":
+		var lo := float(cfg.get("min", 0.0))
+		return clampf((_value(what, d) - lo) / maxf(float(cfg.get("max", 1.0)) - lo, 1e-4), 0.0, 1.0)
 	return clampf(absf(_value("kmh", d)) / float(cfg.get("max", 260.0)), 0.0, 1.0)
 
 
@@ -714,6 +744,12 @@ func _one_dial() -> void:
 		var lim: float = float(cfg.get("max", d.get("limiter", 7000.0)))
 		_dial(c, rr, clampf(_value("rpm", d) / lim, 0.0, 1.0), lim / 1000.0, float(cfg.get("step", 1.0)), str(cfg.get("unit", "x1000/min")),
 			accent, needle, float(cfg.get("red", lim * 0.88)) / 1000.0)
+	elif what != "kmh":                                  # (any other reading on its own scale: the fuel, a temperature, the boost)
+		var lo := float(cfg.get("min", 0.0))
+		var hi := float(cfg.get("max", 1.0))
+		_dial(c, rr, share(), hi, float(cfg.get("step", (hi - lo) / 4.0)),
+			str(cfg.get("unit", "")), accent, needle, float(cfg.get("red", -1.0)),
+			{"lo": lo, "labels": cfg.get("labels", []), "start": float(cfg.get("start", 150.0)), "sweep": float(cfg.get("sweep", 240.0))})
 	else:
 		var top := float(cfg.get("max", 260.0))
 		_dial(c, rr, absf(_value("kmh", d)) / top, top, float(cfg.get("step", 20.0)), str(cfg.get("unit", "km/h")), accent, needle)

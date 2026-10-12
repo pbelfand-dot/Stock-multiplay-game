@@ -1,0 +1,17 @@
+{
+	"_about": "LANCER IX: its cluster's five dial faces are modelled, with UVs of their own (each disc laid out as it's seen, in the material 'Speed Meter'), but blank: plain white. Each face is a dial page now, in the car's style (white numbers on black, red needles): the rev counter on the left (to 9,000 rpm, red from 7,000), the speedometer beside it (to 260 km/h), and the three small ones to their right: the water temperature (top), the fuel (below it) and the boost (far right, to 1.5 bar). Rects: UVs (the discs' own); aspect 1: round.",
+	"boost_bar": 1.4,
+	"displays": [
+		{
+			"mat": "^Speed Meter$",
+			"units": "uv",
+			"screens": [
+				{"page": "dial", "what": "rpm", "max": 9000, "step": 1, "red": 7000, "rect": [0.1543, 0.3395, 0.3504, 0.6412], "aspect": 1.0, "needle": "#ff3a1a"},
+				{"page": "dial", "what": "kmh", "max": 260, "step": 20, "rect": [0.3844, 0.2981, 0.6206, 0.6614], "aspect": 1.0, "needle": "#ff3a1a"},
+				{"page": "dial", "what": "t_water", "min": 50, "max": 130, "labels": ["C", "H"], "start": 180, "sweep": 180, "rect": [0.6659, 0.3201, 0.7568, 0.4602], "aspect": 1.0, "needle": "#ff3a1a"},
+				{"page": "dial", "what": "fuel", "min": 0, "max": 1, "labels": ["E", "F"], "start": 180, "sweep": 180, "rect": [0.6347, 0.4964, 0.7347, 0.6506], "aspect": 1.0, "needle": "#ff3a1a"},
+				{"page": "dial", "what": "boost", "min": -1, "max": 1.5, "step": 0.5, "unit": "BOOST", "rect": [0.7636, 0.4459, 0.8534, 0.5843], "aspect": 1.0, "needle": "#ff3a1a"}
+			]
+		}
+	]
+}
