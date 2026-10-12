@@ -1743,7 +1743,7 @@ func _barrier_bit(s0: float, s1: float, side: float, walled: bool, mb, walls) ->
 	else:
 		_box(mb, e0 - Vector3.UP * 0.3, e0 + Vector3.UP * 0.72, st.forward_at(s0), 0.1, 0.12, RAIL_WHITE if touge else POST)
 		var beam := -r * 0.09                                  # the beam's on the road side of the posts
-		_box(mb, e0 + beam + Vector3.UP * 0.58, e1 + beam + Vector3.UP * 0.58, r, 0.06, 0.32, RAIL_WHITE if touge else ARMCO)
+		_w_beam(mb, e0 + beam + Vector3.UP * 0.58, e1 + beam + Vector3.UP * 0.58, r, 0.06, 0.32, RAIL_WHITE if touge else ARMCO)
 		_wall_faces(walls, e0, e1, r, st.right_at(s1) * side, 0.25, 0.9)
 
 
@@ -2220,6 +2220,37 @@ func _box(mb, a: Vector3, b: Vector3, side: Vector3, w: float, h: float, col: Co
 	_face(mb, c[0], c[4], c[5], c[1], -up, _shade(col, 0.8))
 	_face(mb, c[0], c[1], c[2], c[3], -along, _shade(col, 0.9))
 	_face(mb, c[4], c[7], c[6], c[5], along, _shade(col, 0.9))
+
+
+## A guardrail's beam: _box's, its face to the road a W in section (two ridges 3 cm proud, a groove
+## between: four strips, each lit by its own tilt, so the beam reads as pressed steel, not a flat
+## slab). side points away from the road.
+func _w_beam(mb, a: Vector3, b: Vector3, side: Vector3, w: float, h: float, col: Color) -> void:
+	var along := (b - a).normalized()
+	var up := along.cross(side).normalized()
+	side = up.cross(along).normalized()
+	var hw := side * (w * 0.5)
+	var hh := up * (h * 0.5)
+	var c := [a - hw - hh, a + hw - hh, a + hw + hh, a - hw + hh, b - hw - hh, b + hw - hh, b + hw + hh, b - hw + hh]
+	_face(mb, c[1], c[5], c[6], c[2], side, col)
+	_face(mb, c[3], c[2], c[6], c[7], up, _shade(col, 1.08))
+	_face(mb, c[0], c[4], c[5], c[1], -up, _shade(col, 0.8))
+	_face(mb, c[0], c[1], c[2], c[3], -along, _shade(col, 0.9))
+	_face(mb, c[4], c[7], c[6], c[5], along, _shade(col, 0.9))
+	# the road's face: from the bottom edge up, out to a ridge, back to the groove, out, back
+	var prof := [[-1.0, 0.0], [-0.5, 0.03], [0.0, 0.0], [0.5, 0.03], [1.0, 0.0]]
+	for k in 4:
+		var y0: float = prof[k][0]
+		var y1: float = prof[k + 1][0]
+		var o0: Vector3 = -hw - side * float(prof[k][1])
+		var o1: Vector3 = -hw - side * float(prof[k + 1][1])
+		var q := [a + o0 + hh * y0, a + o1 + hh * y1, b + o1 + hh * y1, b + o0 + hh * y0]
+		if ((q[1] - q[0]) as Vector3).cross(q[2] - q[0]).dot(side) < 0.0:
+			q.reverse()
+		# (tri_raw: MeshBuf.tri turns any face pointing down past ~12 degrees up, as if it were the
+		# ground: the lower strips of the W would have gone)
+		mb.tri_raw(q[0], q[1], q[2], col)
+		mb.tri_raw(q[0], q[2], q[3], col)
 
 
 ## A quad facing `out` (whichever way round its corners come).

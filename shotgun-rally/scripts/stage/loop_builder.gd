@@ -739,14 +739,18 @@ func _guardrail(i: int, d0: float, d1: float, side: float) -> void:
 	var gb := _buf(i, "steel")
 	var b0 := st.world_at(s0, d0)
 	var b1 := st.world_at(s1, d1)
-	var h0 := 0.5
-	var h1 := 0.82
-	var q0 := b0 + Vector3.UP * h0
-	var q1 := b1 + Vector3.UP * h0
-	var q2 := b1 + Vector3.UP * h1
-	var q3 := b0 + Vector3.UP * h1
-	gb.quad(q0, q1, q2, q3, Vector2(s0, h0), Vector2(s1, h0), Vector2(s1, h1), Vector2(s0, h1))
-	gb.quad(q0, q3, q2, q1, Vector2(s0, h0), Vector2(s0, h1), Vector2(s1, h1), Vector2(s1, h0))
+	# the beam a W in section (two ridges 3 cm toward the road, a groove between): four strips, each
+	# lit by its own tilt, both faces (it was one flat band, a grey slab)
+	var prof := [[0.5, 0.0], [0.58, 0.03], [0.66, 0.0], [0.74, 0.03], [0.82, 0.0]]
+	for k in 4:
+		var h0: float = prof[k][0]
+		var h1: float = prof[k + 1][0]
+		var q0 := st.world_at(s0, d0 - side * float(prof[k][1])) + Vector3.UP * h0
+		var q1 := st.world_at(s1, d1 - side * float(prof[k][1])) + Vector3.UP * h0
+		var q2 := st.world_at(s1, d1 - side * float(prof[k + 1][1])) + Vector3.UP * h1
+		var q3 := st.world_at(s0, d0 - side * float(prof[k + 1][1])) + Vector3.UP * h1
+		gb.quad(q0, q1, q2, q3, Vector2(s0, h0), Vector2(s1, h0), Vector2(s1, h1), Vector2(s0, h1))
+		gb.quad(q0, q3, q2, q1, Vector2(s0, h0), Vector2(s0, h1), Vector2(s1, h1), Vector2(s1, h0))
 	if fposmod(s0, GUARD_POST) < st.STEP:
 		gb.box(st.world_at(s0, d0 + side * 0.15) + Vector3.UP * 0.4, Vector3(0.12, 0.8, 0.12), Basis(Vector3.UP, -st.heading_at(s0)))
 	# its collision: a wall to 0.85 m
