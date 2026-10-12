@@ -963,9 +963,9 @@ func _leaning(kind: String, p: Vector3) -> bool:
 
 ## The real trees: the near band's groups swap the full tree (LOD0), the lighter one (LOD1)
 ## and the far card (BB) by distance, the forest behind them only the lighter one and the
-## card, the far belt only ever the card. Shadows: at HIGH and up each tree casts its own; at
-## MEDIUM the full trees' shadows come from their lighter version (a shadow's detail isn't
-## seen; the shadow passes draw every tree once a cascade) and the lighter trees cast none.
+## card, the far belt only ever the card. Shadows: the full trees' come from their lighter
+## version at every level (a shadow's detail isn't seen; the shadow passes draw every tree once
+## a cascade); at HIGH and up the lighter trees cast their own, at MEDIUM none.
 func _mesh_forest(near_chunks: Dictionary, far: Dictionary, view: float) -> void:
 	var tint: Color = Biomes.colour(biome.get("foliage_tint"), Color.WHITE)
 	var broad_tint: Color = Biomes.colour(biome.get("broad_tint"), tint)
@@ -982,11 +982,13 @@ func _mesh_forest(near_chunks: Dictionary, far: Dictionary, view: float) -> void
 			var tt: Color = broad_tint if "broad" in EnvAssets.info(sp).get("tags", []) else tint
 			var list: Array = near_chunks[cj][key]
 			if tag.begins_with("n0"):
-				_tree_mmi("TreesN_%d_%s_%s_0" % [cj, tag, sp], EnvAssets.mesh(sp, "LOD0", tt), list, 0.0, d0, shadows_far)
-				if not shadows_far:
-					var proxy := _tree_mmi("TreesS_%d_%s_%s" % [cj, tag, sp], EnvAssets.mesh(sp, "LOD1", tt), list, 0.0, d0, true)
-					if proxy:
-						proxy.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_SHADOWS_ONLY
+				# (the full tree's shadow comes from its lighter version at every level: ~1.9k triangles
+				# against ~19k, drawn into two or three cascades; a shadow's detail doesn't show. On HIGH
+				# a forest stage's shadow passes went from 7.7-11.2 to 4.5-7.1 million triangles a frame)
+				_tree_mmi("TreesN_%d_%s_%s_0" % [cj, tag, sp], EnvAssets.mesh(sp, "LOD0", tt), list, 0.0, d0, false)
+				var proxy := _tree_mmi("TreesS_%d_%s_%s" % [cj, tag, sp], EnvAssets.mesh(sp, "LOD1", tt), list, 0.0, d0, true)
+				if proxy:
+					proxy.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_SHADOWS_ONLY
 				_tree_mmi("TreesN_%d_%s_%s_1" % [cj, tag, sp], EnvAssets.mesh(sp, "LOD1", tt), list, d0, d1, shadows_far)
 				_tree_mmi("TreesN_%d_%s_%s_b" % [cj, tag, sp], EnvAssets.mesh(sp, "BB", tt), list, d1, d2, false)
 			else:
