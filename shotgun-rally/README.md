@@ -125,7 +125,9 @@ the old backdrop: your car flat out on a stage, filmed like rally TV.
     cars, speed blur. **SETTINGS > WORLD > TIME OF DAY** sets the hour (dawn, golden hour, night with
     the street lamps, the cars' own lamps and the city's lit windows); **SETTINGS > GRAPHICS** has
     LOW / MEDIUM / HIGH / ULTRA (LOW: flat colours and light shadows, for weak laptops) and a render
-    scale. The web build and Chromebooks use the lighter Compatibility renderer. The garage shows
+    scale (AUTO holds the 3D to a pixel budget per level and scales it up with FSR, so a MacBook's
+    Retina or a 4K screen doesn't draw every one of its pixels; a 1080p or 1440p screen is drawn at
+    100 %). The web build and Chromebooks use the lighter Compatibility renderer. The garage shows
     each car's real power, weight and drive layout.
   - Paint any car you own (main, accent and stripe colours, free). Liveries (11, from twin stripes
     to tricolore and goldline) and wheels are bought once and fit any car, the realistic ones too.

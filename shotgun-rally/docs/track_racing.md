@@ -283,6 +283,10 @@ The owner's 14 CC0 track props (`assets/environment_runtime/props/track_props.gl
 - **The pit wall:** a monitor stand opposite each box.
 - **The lane:** signal lights at both ends, solid tyre walls on the noses of the entry and exit.
 - **The paddock:** a row of team garages behind the garage block.
+- **The garages' open doors** (`CircuitBuilder.BAY_SHADER`): each door is one quad whose shader
+  traces the camera's ray into a room behind it (interior mapping): grey walls with the team's colour
+  in a band, cabinets, a floor, strip lights on the ceiling, lit from inside. No geometry, so no cost
+  worth counting; they used to be flat black.
 - **The marshal posts:** an observation hut with a flag pole beside it at all 34.
 
 `tools/circuit_shots.gd` shoots them without the game.

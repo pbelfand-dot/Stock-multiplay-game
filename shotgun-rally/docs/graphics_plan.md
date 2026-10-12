@@ -152,6 +152,66 @@ on at night (the lamps).
    empty under MSAA (checked on llvmpipe; the resolve isn't filled in for a compositor
    effect), so while the blur is on the stage drops MSAA for FXAA / TAA (the table).
 
+11. **The look pass** (October 2026: an overall look at every screen and world, the cheapest fixes
+    for what looked worst, nothing that costs frames on the presets the owner plays):
+   - **The ground isn't a lawn**: the stages' grass was one pale, even green from the road to the
+     trees (the vertex colours set the colour; the photo's own showed at 20 %). The terrain shader
+     now lays big soft patches over it (two value noises a pixel, ~25 m and ~6 m: no textures, no
+     branch), where up to 62 % of the photo's colour shows (moss, dry grass, needles, leaves; at
+     80 % the alpine slopes went khaki) and where it's lighter or darker (x0.66-1.1): MEDIUM and
+     up, LOW keeps its flat colours. The gravel road's colours a little darker (x0.82: it was
+     near white in the sun). (A branch round the two noises crashed llvmpipe outright; written
+     without one.)
+   - **Puddles**: a mud puddle was a hard-edged 9-sided polygon, a sheet of navy blue from afar.
+     Now 18 sides with a lobed outline of its own, a ragged edge frayed by noise from the
+     mesh's vertex alpha (1 in the middle, 0 at the rim), a rim of wet mud, then muddy water.
+   - **Street lamps at night**: the glare round each head was a straight ramp out to its edge,
+     which read as a hard orange disc (a moon behind the trees); now a hot core and a halo that
+     falls off softly. (The heads themselves still burn out white; dimming them was tried and
+     not kept: the pictures couldn't settle it.)
+   - **CINDER RIDGE's garages**: the twenty open doors were flat black slabs. Each is now drawn
+     by the camera's ray (interior mapping, one quad, a few dozen instructions a pixel): a
+     grey room with the team's colour in a band round it, cabinets, a floor and strip lights,
+     darker toward the back, lit from inside (it glows a little at night). The circuit's
+     concrete walls are painted light grey (the bare photo read as tan sandstone).
+   - **Cut up's hills**: the LAKESHORE LOOP's trees were the last low-poly cones in the game.
+     On MEDIUM and up they're the library's: two tall cedars for the hills' sugi forest and two
+     broadleaves for the lakes (by the loop's seed), at the cones' spots; LOD1 near the road and
+     the camera (shadows on HIGH and ULTRA), the far card everywhere else (~2 s more at load).
+     Sparser to look at than the solid cones (the cards are see-through), but no toy trees.
+   - **Guardrails**: the mountain stages' armco, the touge's white guardrail and the loop's were
+     a flat band, a grey slab; the face to the road is now a W in section (four flat-shaded
+     strips, two ridges 3 cm proud), so it reads as pressed steel.
+   - **Tyre marks** soft-edged with the tread's grooves faint in them (a 64 x 1 profile texture),
+     overlapping less at the joints (they were hard strips, tape on the road, darker every 30 cm).
+   - **The menus**: the home screen's item lines were clipped after being sized (a Label sized
+     while it doesn't clip grows to its text), so the long ones ran off their plates; the help
+     line along the bottom and the status line got a dark outline (the garage floor's light
+     reflections washed them out).
+   - **Performance: RENDER SCALE AUTO** keeps the 3D within a pixel budget per level (LOW
+     1920 x 1080, MEDIUM 2304 x 1296, HIGH 2560 x 1440, ULTRA 2688 x 1512 worth of pixels),
+     FSR scaling it up past that, re-applied when the window changes size. A MacBook's Retina
+     screen (2880 x 1800 up to 3456 x 2234) drew the 3D at every one of its pixels, ~2.7x a
+     1080p screen's: at 3024 x 1964 it's now drawn at 79 % on HIGH, 83 % on ULTRA (checked:
+     a 1920 x 1080 window goes back to 100 %, a RENDER SCALE picked by hand is kept). A 1080p or
+     1440p screen is under every budget, and the movie maker (--write-movie) always draws every
+     pixel: unchanged.
+   - **Performance: the near trees' shadows** come from their lighter version (LOD1, ~1.9k
+     triangles) at every level, as MEDIUM already did, not the full tree (LOD0, ~19k) on HIGH and
+     ULTRA. On a forest stage (stage_perf, seed 5, HIGH) the shadow passes went from 9.2 / 11.2 /
+     7.7 million triangles a frame to 4.7 / 7.1 / 4.5 at three places; side by side the shadows
+     look the same.
+   - Looked at and left alone: the day's exposure against the sky (lowering it and lifting the
+     sky changed little once the grass was fixed, and would have changed every shot of the
+     owner's video); a blue-white tree or two standing out of the dark forest on the night
+     touge (moonlit leaves; darkening the far cards at night didn't change it, so the cause
+     wasn't found); the paddock's plain white team
+     garages (the prop's own look); the far mountains' flat silhouettes (shaded darker toward
+     their feet they looked no different through the haze); the pause menu's plain buttons
+     (no picture of it could be had: the render queue); ULTRA's SDFGI (its GI at half
+     resolution would save the most on a laptop, but ULTRA's pictures pass this machine's
+     memory cap, so it couldn't be looked at).
+
 ## Lens 1: why it works and is good
 
 - Most of "realistic" is light, not geometry: a real sky (clouds, a proper horizon) that

@@ -110,7 +110,10 @@ oncoming carriageway across the median. The bridges' towers, cables and hangers 
 the real proportions (sag about 1/9.5 of the main span, towers about 0.11 of it above the deck).
 Everything you can hit is solid; the materials are textured (asphalt, concrete, grass,
 water) through `scripts/render/world_materials.gd` when the realistic-graphics work
-provides it, noise-textured fallbacks otherwise.
+provides it, noise-textured fallbacks otherwise. The trees off the road are the environment
+library's on MEDIUM and up (`LoopBuilder._library_trees`: tall cedars for the hills' sugi forest,
+broadleaves by the lakes; LOD1 near the road and the camera, the far card elsewhere), the drawn
+low-poly cones on LOW.
 
 **The traffic** (`scripts/stage/traffic.gd`): the registry's traffic cars
 (`VehicleRegistry.traffic_pool()`), painted from their palettes, their wheels turning.
