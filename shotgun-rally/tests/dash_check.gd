@@ -23,6 +23,10 @@ extends SceneTree
 ##     litres, the temperatures warming up
 ##   * a painted cluster laid sideways in its texture is seen the right way round, and a live
 ##     needle on a painted dial sweeps from its 0 to its top value
+##   * modelled needles cut from a material the cabin's trim shares: small parts only, the
+##     steering wheel's surfaces of it left to turn
+##   * a painted map's window: inside its screen, the road cut at its edges; today's date
+##   * a screen showing the model's own picture first ("intro"), then its live page
 ##   * the original materials are untouched: an overlay is a duplicate's next pass
 ## Prints one [dash] line per check; exits 1 on any FAIL.
 ## Run: godot --headless --path . -s tests/dash_check.gd
@@ -294,6 +298,50 @@ func _spec(id: String, car, cp, dash, spec: Dictionary) -> void:
 			"%s: its race display: the pit banner only with the limiter on (%s, %s), the lap %s, %.1f l of %d, the water %s C cold, the oil %s C warm" % [
 			id, shut, shown, lap, dash.data.fuel_l, tank, cold, hot])
 		dash.fake = {}
+	# modelled needles sharing their material with the cabin's trim (the SLR's chrome, "max_size"): each needle a
+	# small part, the steering wheel's surfaces of that material left alone (they still turn with the wheel)
+	for nm in spec.get("needle_meshes", []):
+		if not nm.has("max_size"):
+			continue
+		var small := true
+		for np in dash.needle_parts:
+			for part in (np.pivot as Node3D).get_children():
+				var bb: AABB = (part as MeshInstance3D).get_aabb()
+				small = small and bb.size[bb.get_longest_axis_index()] <= float(nm.max_size) + 1e-4
+		var wheel_kept := true
+		var sw: Node = car.body_model.find_child("SteeringWheel*", true, false)
+		if sw:
+			for mi in sw.find_children("*", "MeshInstance3D", true, false) + ([sw] if sw is MeshInstance3D else []):
+				for si in (mi as MeshInstance3D).get_surface_override_material_count():
+					if mi.get_surface_override_material(si) == DashLive._hidden():
+						wheel_kept = false
+		var still: int = car.body_model.find_children("NeedlesStill", "MeshInstance3D", true, false).size()
+		fails += _check(small and wheel_kept and still > 0, "%s: its needles cut from the trim's material, each under %.2f m (%s), the rest kept (%d), the steering wheel's left to turn (%s)" % [
+			id, float(nm.max_size), small, still, wheel_kept])
+	# a painted map's window (the M235i's iDrive): inside its screen; the road cut at the window's edges; today's date
+	for pg in dash.pages:
+		for m in pg.cfg.get("layout", {}).get("map", []):
+			var wr := Rect2(m.rect[0], m.rect[1], float(m.rect[2]) - float(m.rect[0]), float(m.rect[3]) - float(m.rect[1]))
+			var runs: Array = pg.clip_line(PackedVector2Array([wr.position - Vector2(30, 0), wr.get_center(), wr.end + Vector2(40, 40)]), wr)
+			var cut: bool = runs.size() == 1 and runs[0].size() == 3 and wr.grow(0.01).has_point(runs[0][0]) and wr.grow(0.01).has_point(runs[0][-1]) \
+				and absf(runs[0][0].x - wr.position.x) < 0.01 and pg.clip_line(PackedVector2Array([wr.end + Vector2(5, 5), wr.end + Vector2(50, 9)]), wr).is_empty()
+			fails += _check(pg.view.encloses(wr) and cut, "%s: its painted map's window %s inside its screen, the road cut at its edges (%s)" % [id, str(wr), cut])
+		var dt: Dictionary = Time.get_date_dict_from_system()
+		if pg.cfg.get("layout", {}).get("text", []).any(func(t): return str(t.what) in ["date_d", "month"]):
+			fails += _check(pg._reading("date_d", {}) == "%02d" % int(dt.day) and pg._reading("month", {}) == pg.MONTHS[int(dt.month) - 1],
+				"%s: today's date on its screen (%s %s)" % [id, pg._reading("date_d", {}), pg._reading("month", {})])
+	# a screen showing the model's own picture first (the X3's iDrive welcome page, "intro"), then its live page
+	for pg in dash.pages:
+		if float(pg.cfg.get("intro", 0.0)) <= 0.0:
+			continue
+		var t0: float = dash._t
+		dash._t = 0.5
+		var first: bool = pg.art_now()
+		dash._t = float(pg.cfg.intro) + 0.5
+		var then: bool = pg.art_now()
+		dash._t = t0
+		fails += _check(first and not then, "%s: its %s screen shows the model's own picture for %.0f s (%s), then its live page (%s)" % [
+			id, str(pg.cfg.page), float(pg.cfg.intro), first, not then])
 	# the modelled needles turn about their hubs, by their share of the sweep
 	var worst := 0.0
 	for np in dash.needle_parts:

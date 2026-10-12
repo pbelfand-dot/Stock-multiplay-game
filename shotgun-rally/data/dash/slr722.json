@@ -1,0 +1,27 @@
+{
+	"_about": "AFFALTER SLR 722 (SLR 722 Edition): its four dials are painted into the interior's texture (interior_s_lod0, 1024 px: the speedometer to 360 km/h and the rev counter to 8,000 rpm, blue rings, each 0 at the bottom left round to the top at the bottom right; the water temperature, 40 to 120, and the fuel gauge either side, quarter dials) and their needles are modelled: thin parts of the chrome trim's material (Int_Metal, shared with the cabin's chrome: only parts under 6 cm count as needles, max_size), each with its own hub cap. Each needle turns about its hub along its painted scale (the fuel gauge's anticlockwise, empty at the right); the dials glow at night with the needles lit. The small grey discs in the two big dials' lower halves (digital_gauge1, untextured) are their displays: the clock in the speedometer's, the gear in the rev counter's (UVs; the discs' own). Hubs: metres from the steering wheel's centre (the model's axes: x right, y up, z back); axis: the dials' face.",
+	"needle_meshes": [
+		{
+			"mat": "^Int_Metal$",
+			"max_size": 0.06,
+			"needles": [
+				{"value": "kmh", "hub": [-0.115, 0.0585, -0.117], "axis": [0.0, 0.31, 0.95], "min": 0, "max": 360, "rest": 0, "sweep": 253},
+				{"value": "rpm", "hub": [0.027, 0.0585, -0.117], "axis": [0.0, 0.31, 0.95], "min": 0, "max": 8000, "rest": 0, "sweep": 253},
+				{"value": "t_water", "hub": [-0.19, 0.0225, -0.116], "axis": [0.0, 0.31, 0.95], "min": 40, "max": 120, "rest": 40, "sweep": 66},
+				{"value": "fuel", "hub": [0.0975, 0.0245, -0.116], "axis": [0.0, 0.31, 0.95], "min": 0, "max": 1, "rest": 0, "sweep": -66.6}
+			]
+		}
+	],
+	"displays": [
+		{"mat": "^Int_Emiss$", "glow": "all", "glow_color": "#d8e4ff"},
+		{
+			"mat": "digital_gauge1$",
+			"units": "uv",
+			"glow": "all",
+			"screens": [
+				{"page": "lcd", "what": "clock", "rect": [0.146, 0.708, 0.419, 0.864], "aspect": 1.0, "size": 0.22, "color": "#d6e2ff", "bg_color": "#05070c"},
+				{"page": "lcd", "what": "gear", "style": "bmw", "rect": [0.577, 0.704, 0.85, 0.861], "aspect": 1.0, "size": 0.26, "color": "#d6e2ff", "bg_color": "#05070c"}
+			]
+		}
+	]
+}

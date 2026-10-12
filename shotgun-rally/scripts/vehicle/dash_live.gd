@@ -18,7 +18,8 @@ extends Node3D
 ##     box, facing the driver) copied into a mesh of their own a hair in front, with
 ##     UVs across it, showing the pages
 ##   * "needle_meshes": needles modelled as parts (merged into the body): each one cut
-##     out into a part of its own and turned about its dial's hub
+##     out into a part of its own and turned about its dial's hub ("max_size": needles in a
+##     material the trim shares, told apart by their size)
 ##   * "boards": a dial or screen that's blank and can't be picked out by its faces (it
 ##     shares a material with everything round it): a quad of its own placed by measure
 ##     ("c": its middle, "w" x "h" m, facing the driver's eye or "normal"; "round": a
@@ -527,43 +528,60 @@ static func _mid(vs: PackedVector3Array, ids: PackedInt32Array, g: Array) -> Vec
 
 
 ## Needles modelled as parts: the material's triangles in touching groups; a needle is
-## the groups passing through its hub (the hub within "grow" of the group's box), cut
+## the groups passing through its hub (the hub within "grow" of the group's box; "max_size":
+## no group longer than that, m, a needle sharing its material with the cabin's trim), cut
 ## out into a part of its own turning about the hub (the axis: toward the driver, or
-## the dial's own); the rest (needles not listed) stay where they are; the original
-## faces hidden.
+## the dial's own); the rest of that surface stays where it is (lit at night with the needles,
+## unless the material is shared with the trim, "max_size": then in its own material); the
+## original faces hidden. A surface of the material holding none of the needles (the steering
+## wheel's, cut out to turn) is left alone.
 func _needle_mesh(nm: Dictionary) -> void:
 	var c := _wheel()
+	var todo: Array = nm.needles.duplicate()
+	var biggest := float(nm.get("max_size", INF))
 	var found := _surfaces(str(nm.mat), func(m: MeshInstance3D, si: int, base: Material):
+		if todo.is_empty():
+			return
 		var arr := m.mesh.surface_get_arrays(si)
 		var xf := _rel(m)
 		var vs: PackedVector3Array = xf * (arr[Mesh.ARRAY_VERTEX] as PackedVector3Array)
 		var ns = arr[Mesh.ARRAY_NORMAL]
 		if ns != null and ns.size() > 0:
 			ns = PackedVector3Array(Array(ns).map(func(x): return (xf.basis * x).normalized()))
+		var tg = arr[Mesh.ARRAY_TANGENT]
+		if tg != null and tg.size() > 0:                 # (the normal map's tangents turned into the model's space too)
+			var tt := PackedFloat32Array(tg)
+			for i in tt.size() / 4:
+				var t3: Vector3 = (xf.basis * Vector3(tt[i * 4], tt[i * 4 + 1], tt[i * 4 + 2])).normalized()
+				tt[i * 4] = t3.x
+				tt[i * 4 + 1] = t3.y
+				tt[i * 4 + 2] = t3.z
+			tg = tt
 		var uvs = arr[Mesh.ARRAY_TEX_UV]
 		var ids := _indices(arr)
 		var all_t: Array = range(ids.size() / 3)
 		var groups := _groups(vs, ids, all_t)
+		var boxes: Array = []
+		for g in groups:
+			var box := AABB(vs[ids[g[0] * 3]], Vector3.ZERO)
+			for t in g:
+				for k in 3:
+					box = box.expand(vs[ids[t * 3 + k]])
+			boxes.append(box)
 		var eye: Vector3 = cockpit.eye_driver - car.model_offset()
 		var used := {}
 		var mat: Material = base.duplicate()
-		var parts: Array = []
-		for n in nm.needles:
+		for n in todo.duplicate():
 			var hub: Vector3 = c + Vector3(n.hub[0], n.hub[1], n.hub[2])
 			var grow := float(n.get("grow", 0.008))
 			var mine: Array = []
 			for gi in groups.size():
-				if used.has(gi):
-					continue
-				var box := AABB(vs[ids[groups[gi][0] * 3]], Vector3.ZERO)
-				for t in groups[gi]:
-					for k in 3:
-						box = box.expand(vs[ids[t * 3 + k]])
-				if box.grow(grow).has_point(hub):
+				var box: AABB = boxes[gi]
+				if not used.has(gi) and box.size[box.get_longest_axis_index()] <= biggest and box.grow(grow).has_point(hub):
 					mine.append(gi)
 			if mine.is_empty():
-				missing.append("needle " + str(n.get("value")))
 				continue
+			todo.erase(n)
 			var tris: Array = []
 			for gi in mine:
 				used[gi] = true
@@ -572,26 +590,30 @@ func _needle_mesh(nm: Dictionary) -> void:
 			pivot.name = "Needle_" + str(n.get("value", "kmh"))
 			pivot.position = hub
 			car.body_model.add_child(pivot)
-			pivot.add_child(_part(vs, ns, uvs, ids, tris, hub, mat, m))
+			pivot.add_child(_part(vs, ns, uvs, ids, tris, hub, mat, m, tg))
 			var axis := (eye - hub).normalized()
 			if n.has("axis"):
 				axis = Vector3(n.axis[0], n.axis[1], n.axis[2]).normalized()
 			needle_parts.append({"pivot": pivot, "axis": axis, "n": n})
+		if used.is_empty():
+			return                                       # (none of the needles here: the surface as it was)
 		var rest: Array = []
 		for gi in groups.size():
 			if not used.has(gi):
 				rest.append_array(groups[gi])
 		if not rest.is_empty():
-			var still := _part(vs, ns, uvs, ids, rest, Vector3.ZERO, mat, m)
+			var still := _part(vs, ns, uvs, ids, rest, Vector3.ZERO, base if nm.has("max_size") else mat, m, tg)
 			still.name = "NeedlesStill"
 			car.body_model.add_child(still)
 		needle_mats.append(mat)
 		m.set_surface_override_material(si, _hidden()))   # (the original needles: drawn by nothing)
+	for n in todo:
+		missing.append("needle " + str(n.get("value")))
 	if not found:
 		missing.append("needle mesh " + str(nm.mat))
 
 
-func _part(vs: PackedVector3Array, ns, uvs, ids: PackedInt32Array, tris: Array, origin: Vector3, mat: Material, host: MeshInstance3D) -> MeshInstance3D:
+func _part(vs: PackedVector3Array, ns, uvs, ids: PackedInt32Array, tris: Array, origin: Vector3, mat: Material, host: MeshInstance3D, tg = null) -> MeshInstance3D:
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	for t in tris:
@@ -599,6 +621,8 @@ func _part(vs: PackedVector3Array, ns, uvs, ids: PackedInt32Array, tris: Array, 
 			var vi: int = ids[t * 3 + k]
 			if ns != null and ns.size() > vi:
 				st.set_normal(ns[vi])
+			if tg != null and tg.size() >= vi * 4 + 4:
+				st.set_tangent(Plane(tg[vi * 4], tg[vi * 4 + 1], tg[vi * 4 + 2], tg[vi * 4 + 3]))
 			if uvs != null and uvs.size() > vi:
 				st.set_uv(uvs[vi])
 			st.add_vertex(vs[vi] - origin)

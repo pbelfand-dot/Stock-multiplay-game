@@ -10,7 +10,9 @@ extends Control
 ##     "needle" (a live needle on a painted dial), "gdot" (the g-meter's dot), "sel" (the gear
 ##     selector's painted letters: all but the gear's dimmed), "lit" (painted lamps and banners
 ##     shown only while what they show is on: hidden, or dimmed, the rest of the time), "lamp"
-##     (warning lamps drawn); a text with "when" is drawn only while that is on
+##     (warning lamps drawn), "map" (the painted map's window, [x0, y0, x1, y1]: the live road
+##     round the car in it, "day" colours for a painted day map); a text with "when" is drawn only
+##     while that is on
 ##   * "cluster" on a blank screen ("bg": false): a digital cluster of its own, drawn
 ##     on a canvas the screen's shape ("aspect": its width / height as you see it):
 ##     the revs in a band across the top (the shift lamps above), the speed, the
@@ -28,6 +30,8 @@ extends Control
 ##   * "dial": one round dial on a board of its own (a car whose dials are blank):
 ##     "what" kmh or rpm (the scale to "max", numbers every "step", red past "red" for the
 ##     revs), its face colour "face", the needle "needle"
+##   * "intro": s, any page over a picture of the model's own: that picture shown as it is for the
+##     first seconds after the engine starts (a real screen's welcome), then the page
 
 var live                            # DashLive (its data, warning())
 var cfg := {}
@@ -41,6 +45,7 @@ var _font_b: Font
 const NAV_ITEMS := ["Navigation", "Driving information", "Vehicle status", "Settings"]
 const NAV_TABS := ["MAP", "DRIVE", "CAR", "SETUP"]   # (a tall screen's menu: tabs across its top)
 const WIDTH := 900.0                # the screen's picture, px across
+const MONTHS := ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
 
 
 func setup(the_live, the_cfg: Dictionary, tex: Texture2D, region: Rect2) -> void:
@@ -79,6 +84,9 @@ func next_page() -> void:
 func _draw() -> void:
 	var k := size.x / view.size.x
 	draw_set_transform(-view.position * k, 0.0, Vector2(k, k))
+	if art_now():
+		_art(view)
+		return
 	match str(cfg.get("page", "")):
 		"cluster":
 			if _painted():
@@ -95,30 +103,44 @@ func _draw() -> void:
 
 # ── a painted cluster, made live ──────────────────────────────────────────
 
+## The model's own picture shown as it is: for the first seconds after the engine starts ("intro").
+func art_now() -> bool:
+	return base != null and float(cfg.get("intro", 0.0)) > 0.0 and float(live._t) < float(cfg.intro)
+
+
+## The screen's part of the texture drawn upright (as it's seen) filling `dst` (in the page's own
+## coordinates): sideways ("transpose") or upside down ("flip_v") as the texture holds it.
+func _art(dst: Rect2) -> void:
+	var k := size.x / view.size.x
+	var at := Transform2D(0.0, Vector2(k, k), 0.0, -view.position * k)
+	var sx := dst.size.x / (src.size.y if cfg.get("transpose", false) else src.size.x)
+	var sy := dst.size.y / (src.size.x if cfg.get("transpose", false) else src.size.y)
+	var local: Transform2D                          # (the region's own pixels, from its corner, to the page)
+	if cfg.get("transpose", false):                 # (laid sideways: its across the texture's down)
+		local = Transform2D(Vector2(0, sy), Vector2(sx, 0), dst.position)
+	elif cfg.get("flip_v", false):                  # (stored upside down: turned the right way up)
+		local = Transform2D(Vector2(sx, 0), Vector2(0, -sy), dst.position + Vector2(0, dst.size.y))
+	else:
+		local = Transform2D(Vector2(sx, 0), Vector2(0, sy), dst.position)
+	draw_set_transform_matrix(at * local)
+	draw_texture_rect_region(base, Rect2(Vector2.ZERO, src.size), src)
+	draw_set_transform_matrix(at)
+
+
 func _cluster() -> void:
 	var d: Dictionary = live.data
 	var lay: Dictionary = cfg.get("layout", {})
-	if cfg.get("transpose", false):                 # (laid sideways in its texture: drawn as it's seen, the layout
-		var kt := size.x / view.size.x               # measured on it that way, its across the texture's down)
-		var at_t := Transform2D(0.0, Vector2(kt, kt), 0.0, -view.position * kt)
-		draw_set_transform_matrix(at_t * Transform2D(Vector2(0, 1), Vector2(1, 0), Vector2(-src.position.y, -src.position.x)))
-		draw_texture_rect_region(base, src, src)
-		draw_set_transform_matrix(at_t)
-	elif cfg.get("flip_v", false):                  # (a texture stored upside down: drawn the right way up here,
-		var k := size.x / view.size.x               # the layout measured on it that way; the screen turns it back)
-		var at := Transform2D(0.0, Vector2(k, k), 0.0, -view.position * k)
-		draw_set_transform_matrix(at * Transform2D(Vector2(1, 0), Vector2(0, -1), Vector2(0, src.position.y * 2.0 + src.size.y)))
-		draw_texture_rect_region(base, src, src)
-		draw_set_transform_matrix(at)
-	else:
-		draw_texture_rect_region(base, src, src)
-	for c in lay.get("cover", []):
+	_art(view)                                      # (sideways or upside down in its texture: drawn as it's seen, the
+	for c in lay.get("cover", []):                  # layout measured on it that way; the screen turns it back)
 		var col := Color(str(c[4])) if c.size() > 4 else Color(0.0, 0.0, 0.0)
 		draw_rect(Rect2(c[0], c[1], float(c[2]) - float(c[0]), float(c[3]) - float(c[1])), col)
 	for li in lay.get("lit", []):                   # (a painted lamp or banner: shown only while it's on)
 		if not live.warning(str(li.what)):
 			var r: Array = li.rect
 			draw_rect(Rect2(r[0], r[1], float(r[2]) - float(r[0]), float(r[3]) - float(r[1])), Color(str(li.get("dim", "#000000"))))
+	for m in lay.get("map", []):                    # (the painted map's window: the live road round the car in it)
+		var mr: Array = m.rect
+		_map(Rect2(mr[0], mr[1], float(mr[2]) - float(mr[0]), float(mr[3]) - float(mr[1])), d, Color(str(m.get("accent", cfg.get("accent", "#ff5a1f")))), m)
 	for a in lay.get("arc", []):
 		_arc(a, d)
 	for n in lay.get("needle", []):
@@ -299,6 +321,12 @@ func _reading(what: String, d: Dictionary, t := {}) -> String:
 			return "%d" % roundi(_value(what, d))
 		"range":
 			return "%d km" % roundi(_value("range", d))
+		"range_n":                                  # (the range's number alone: a painted "km" kept beside it)
+			return "%d" % roundi(_value("range", d))
+		"date_d":                                   # (today: the day of the month, 01-31)
+			return "%02d" % int(Time.get_date_dict_from_system().day)
+		"month":
+			return MONTHS[int(Time.get_date_dict_from_system().month) - 1]
 	return str(t.get("text", ""))
 
 
@@ -515,9 +543,11 @@ func _nav() -> void:
 		_info(area, d, accent)
 
 
-## The road round the car, heading up, the car in the middle.
-func _map(area: Rect2, d: Dictionary, accent: Color) -> void:
-	draw_rect(area, Color(0.07, 0.09, 0.11))
+## The road round the car, heading up, the car in the middle (`opt`: a painted page's map window,
+## "style": "day" its light colours, "info": the distance to go and what's playing over it).
+func _map(area: Rect2, d: Dictionary, accent: Color, opt := {}) -> void:
+	var day := str(opt.get("style", "")) == "day"
+	draw_rect(area, Color(str(opt.get("bg", "#dfe4e1" if day else "#12171c"))))
 	var st = live.cockpit.map_board.st if live.cockpit.map_board else null
 	if st == null:
 		return
@@ -529,6 +559,18 @@ func _map(area: Rect2, d: Dictionary, accent: Color) -> void:
 	var k: float = area.size.y * 0.72 / span
 	var centre := area.position + Vector2(area.size.x * 0.5, area.size.y * 0.72)
 	var rot := Transform2D(-yaw, Vector2.ZERO)
+	var unit := minf(area.size.x, area.size.y) / 100.0
+	var inside := area.grow(-unit * 3.0)                # (the road kept inside the map: nothing drawn past its edges)
+	if day:                                             # (the streets round about: a grid fixed to the ground, turning with the car)
+		var step := 90.0
+		var g0 := Vector2(floorf(cpos.x / step) * step, floorf(cpos.z / step) * step)
+		for i in range(-5, 6):
+			for ax in 2:
+				var a0 := g0 + (Vector2(i * step, -500.0) if ax == 0 else Vector2(-500.0, i * step))
+				var a1 := g0 + (Vector2(i * step, 500.0) if ax == 0 else Vector2(500.0, i * step))
+				var seg := PackedVector2Array([centre + rot * (a0 - Vector2(cpos.x, cpos.z)) * k, centre + rot * (a1 - Vector2(cpos.x, cpos.z)) * k])
+				for run in clip_line(seg, area):
+					draw_polyline(run, Color("#c6cdc9"), unit * 1.4, true)
 	var pts := PackedVector2Array()
 	var loop: bool = st.has_method("wrap_s")
 	var s: float = car_s - span * 0.5
@@ -536,16 +578,20 @@ func _map(area: Rect2, d: Dictionary, accent: Color) -> void:
 		var w: Vector3 = st.world_at(st.wrap_s(s) if loop else clampf(s, 0.0, st.length), 0.0)
 		var rel := rot * Vector2(w.x - cpos.x, w.z - cpos.z)
 		var p := centre + rel * k
-		if area.grow(area.size.x * 0.05).has_point(p):
-			pts.append(p)
+		pts.append(p)
 		s += 6.0
-	var unit := minf(area.size.x, area.size.y) / 100.0
-	if pts.size() > 1:
-		draw_polyline(pts, Color(0.3, 0.33, 0.37), unit * 6.0, true)
-		draw_polyline(pts, Color(0.86, 0.88, 0.9), unit * 3.8, true)
-	# the car: an arrow, pointing up
+	for run in clip_line(pts, inside):
+		if run.size() > 1:
+			draw_polyline(run, Color("#b8a676") if day else Color(0.3, 0.33, 0.37), unit * 6.0, true)
+			draw_polyline(run, Color("#f4d27a") if day else Color(0.86, 0.88, 0.9), unit * 3.8, true)
+	# the car: an arrow, pointing up (on a day map in a ring, as the painted ones have it)
+	if day:
+		draw_circle(centre + Vector2(0, -unit * 0.6), unit * 8.0, Color(1, 1, 1, 0.92))
+		draw_arc(centre + Vector2(0, -unit * 0.6), unit * 8.0, 0.0, TAU, 32, Color(0.12, 0.13, 0.15), unit * 1.2, true)
 	var a := centre + Vector2(0, -unit * 6.0)
 	draw_colored_polygon(PackedVector2Array([a, centre + Vector2(unit * 4.2, unit * 4.5), centre + Vector2(0, unit * 2.2), centre + Vector2(-unit * 4.2, unit * 4.5)]), accent)
+	if not opt.get("info", opt.is_empty()):
+		return
 	# the distance to go (a loop has none: the distance driven)
 	var togo: float = maxf(float(st.finish_s) - car_s, 0.0) if not loop else -1.0
 	var txt := ("%.1f km to the finish" % (togo / 1000.0)) if togo >= 0.0 else ("%.1f km driven" % (maxf(car_s - st.START_S, 0.0) / 1000.0))
@@ -561,6 +607,49 @@ func _map(area: Rect2, d: Dictionary, accent: Color) -> void:
 	var prog := Rect2(strip.position + Vector2(unit * 4.0, strip.size.y * 0.8), Vector2(strip.size.x - unit * 8.0, strip.size.y * 0.07))
 	draw_rect(prog, Color(1, 1, 1, 0.15))
 	draw_rect(Rect2(prog.position, Vector2(prog.size.x * fmod(tt, 200.0) / 200.0, prog.size.y)), accent)
+
+
+## A polyline cut to a rectangle: the runs of it inside, each end on the edge where it crosses.
+static func clip_line(pts: PackedVector2Array, r: Rect2) -> Array:
+	var runs: Array = []
+	var cur := PackedVector2Array()
+	for i in range(1, pts.size()):
+		var a := pts[i - 1]
+		var b := pts[i]
+		var t0 := 0.0                                   # (Liang-Barsky: the segment's part inside)
+		var t1 := 1.0
+		var dd := b - a
+		var ok := true
+		for e in [[-dd.x, a.x - r.position.x], [dd.x, r.end.x - a.x], [-dd.y, a.y - r.position.y], [dd.y, r.end.y - a.y]]:
+			var pp: float = e[0]
+			var q: float = e[1]
+			if absf(pp) < 1e-9:
+				if q < 0.0:
+					ok = false
+			else:
+				var t := q / pp
+				if pp < 0.0:
+					t0 = maxf(t0, t)
+				else:
+					t1 = minf(t1, t)
+		if not ok or t0 > t1:
+			if cur.size() > 1:
+				runs.append(cur)
+			cur = PackedVector2Array()
+			continue
+		var p0 := a + dd * t0
+		var p1 := a + dd * t1
+		if cur.is_empty() or cur[-1].distance_to(p0) > 1e-4:
+			if cur.size() > 1:
+				runs.append(cur)
+			cur = PackedVector2Array([p0])
+		cur.append(p1)
+		if t1 < 1.0:                                    # (it leaves here)
+			runs.append(cur)
+			cur = PackedVector2Array()
+	if cur.size() > 1:
+		runs.append(cur)
+	return runs
 
 
 ## Speed, gear, revs, a g-meter, the stage clock.

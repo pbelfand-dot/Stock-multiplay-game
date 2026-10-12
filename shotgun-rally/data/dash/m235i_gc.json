@@ -1,0 +1,64 @@
+{
+	"_about": "KAISER 235 GC (BMW M235i Gran Coupe): its screens are one material with their own pictures (T_1170_Dashboard_D, 512 px): the cluster across the top (the speed band up the left side of its hexagon, 0 20 40 60 then 100 140 200 260 closer together up the top; the rev band up the right, 0 to 7, red past 6; the speed and gear in the middle, a map between them, the range and the clock along the bottom), the iDrive screen under it (its menu down the left, a day map, the media and phone cards, the date), the climate panel's figures at the bottom. Kept as painted and made live: the speed, the gear, the range and the clock where they're painted, both bands filling along their painted outlines (each point carries its value: at); on the iDrive, the live road round the car in the painted map's window (day colours), the clock and today's date. Pixels of that texture.",
+	"displays": [
+		{
+			"mat": "^i:dummy_material_27$",
+			"tex": 512,
+			"glow": "all",
+			"screens": [
+				{
+					"page": "cluster",
+					"rect": [0, 0, 512, 196],
+					"accent": "#3d8bff",
+					"style": "bmw",
+					"layout": {
+						"cover": [[166.5, 92.5, 179.5, 106, "#0a0a0a"], [361.5, 91.5, 379, 105.5, "#090909"],
+							[106.5, 156.5, 119.5, 166.5, "#060606"], [139, 156.5, 161.5, 166.5, "#07070a"]],
+						"arc": [
+							{"what": "kmh", "w": 2.6, "color": "#6fb4ff", "hot": "#6fb4ff",
+								"pts": [[141.0, 154.0], [133.9, 153.8], [126.8, 152.7], [120.5, 149.4], [115.0, 144.5], [110.5, 139.4], [106.1, 133.8], [102.1, 127.8], [97.6, 120.4], [94.8, 115.5],
+									[91.8, 109.1], [89.0, 102.5], [87.1, 93.3], [87.4, 88.4], [90.1, 81.8], [94.2, 76.0], [98.8, 70.5], [104.0, 65.0], [109.2, 60.7], [114.7, 56.3],
+									[120.5, 52.0], [126.4, 48.0], [134.7, 44.7], [139.5, 42.2], [146.2, 39.9], [153.2, 38.6], [160.2, 37.5], [167.3, 36.6], [173.0, 35.8], [181.5, 34.9],
+									[188.6, 34.3], [195.7, 33.5], [202.9, 32.8], [210.0, 32.6]],
+								"at": [0, 4.9, 9.9, 14.8, 20, 24.6, 29.4, 34.2, 40, 43.8,
+									48.7, 53.6, 60, 65.8, 74.2, 82.6, 91, 100, 107.2, 114.9,
+									122.6, 130.4, 140, 148.1, 158.9, 169.7, 180.5, 191.3, 200, 213.8,
+									225.4, 236.9, 248.5, 260]},
+							{"what": "rpm", "w": 2.6, "color": "#e9eef5", "hot": "#ff3b1f", "hot_at": 6300,
+								"pts": [[379.0, 151.0], [386.1, 151.0], [393.1, 150.8], [399.8, 149.2], [406.0, 144.0], [410.2, 139.7], [414.3, 134.0], [418.5, 128.3], [424.3, 119.2], [425.8, 116.2],
+									[429.0, 109.9], [431.8, 103.4], [432.8, 93.3], [432.5, 89.5], [431.9, 82.5], [427.7, 76.8], [423.3, 71.2], [416.4, 64.0], [413.4, 61.2], [407.9, 56.8],
+									[402.2, 52.6], [396.4, 48.6], [388.0, 44.7], [383.6, 42.8], [377.0, 40.1], [370.1, 38.7], [363.1, 37.6], [356.1, 36.6], [349.7, 36.3], [342.1, 34.9],
+									[335.1, 34.4], [328.1, 33.7], [321.0, 32.9], [314.0, 32.2]],
+								"at": [0, 241, 482, 723, 1000, 1194.4, 1423.1, 1651.7, 2000, 2121.1,
+									2375, 2628.9, 3000, 3108.7, 3310.4, 3512.1, 3713.7, 4000, 4118.6, 4322.9,
+									4527.2, 4731.4, 5000, 5122.4, 5301.1, 5479.8, 5658.4, 5837.1, 6000, 6213.9,
+									6410.4, 6606.9, 6803.5, 7000]}
+						],
+						"text": [
+							{"what": "speed", "at": [178.5, 99.5], "size": 14, "align": "right", "max_w": 34},
+							{"what": "gear", "style": "bmw", "at": [370.3, 98.6], "size": 13.6, "max_w": 30},
+							{"what": "range_n", "at": [119, 161.7], "size": 9.2, "align": "right", "bold": false, "color": "#e4e6ea"},
+							{"what": "clock", "at": [150.2, 161.7], "size": 8.8, "bold": false, "color": "#e4e6ea"}
+						],
+						"lamp": [{"what": "handbrake", "at": [81, 168], "size": 7, "color": "#ff3b1f"}]
+					}
+				},
+				{
+					"page": "cluster",
+					"rect": [72, 210, 440, 354],
+					"accent": "#e8401c",
+					"layout": {
+						"cover": [[415.5, 221, 436, 229.5, "#030405"], [385.5, 301, 429.5, 336.5, "#080b14"]],
+						"map": [{"rect": [111, 236, 270, 342.5], "style": "day", "accent": "#e8401c"}],
+						"text": [
+							{"what": "clock", "at": [434.5, 225.3], "size": 6.8, "align": "right", "bold": false, "color": "#c8ccd2"},
+							{"what": "date_d", "at": [427, 313.5], "size": 27, "align": "right", "bold": false, "color": "#f2f4f7"},
+							{"what": "month", "at": [427, 330.8], "size": 9.5, "align": "right", "bold": false, "color": "#8a8f96"}
+						]
+					}
+				}
+			]
+		}
+	],
+	"ambient": {"color": "#4f8dff", "energy": 0.25}
+}
