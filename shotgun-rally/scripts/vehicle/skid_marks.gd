@@ -8,7 +8,7 @@ extends Node3D
 ## lock-up, wheelspin). Lives in world space (top_level), beside DriftFx.
 
 const MAX := 1600                    # segments kept (~400 m of four tyres sliding)
-const WIDTH := 0.22                  # m, a mark's width
+const WIDTH := 0.25                  # m, a mark's width (its edges soft: _profile)
 const STEP := 0.3                    # m between a strip's joints
 const START := 0.18                  # how hard a tyre has to work before it marks (0..1)
 const SPIN_START := 0.22             # slip ratio (lock-up or spin) that starts a mark ...
@@ -30,6 +30,7 @@ func _ready() -> void:
 	quad.size = Vector2.ONE
 	var mat := StandardMaterial3D.new()
 	mat.albedo_color = Color(1, 1, 1)
+	mat.albedo_texture = _profile()
 	mat.vertex_color_use_as_albedo = true
 	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	mat.roughness = 0.9
@@ -73,6 +74,23 @@ func _physics_process(_dt: float) -> void:
 		_last[k] = p
 
 
+## A mark's profile across the tyre: soft edges (a hard-edged strip read as tape on the road) and
+## the tread's lighter grooves. 64 x 1, built once.
+static var _tex: ImageTexture
+
+static func _profile() -> ImageTexture:
+	if _tex:
+		return _tex
+	var img := Image.create(64, 1, false, Image.FORMAT_RGBA8)
+	for x in 64:
+		var u := (x + 0.5) / 64.0
+		var a := smoothstep(0.0, 0.2, u) * smoothstep(1.0, 0.8, u)
+		a *= 1.0 - 0.2 * smoothstep(0.5, 1.0, cos(u * TAU * 4.0 + 0.6))        # (the grooves, faintly)
+		img.set_pixel(x, 0, Color(1, 1, 1, a))
+	_tex = ImageTexture.create_from_image(img)
+	return _tex
+
+
 ## How hard tyre k is working (0..1): its slide, or its lock-up / wheelspin.
 func strength(k: int) -> float:
 	var s: float = fx.intensity[k] / (0.6 if k < 2 else 1.0) if fx else 0.0   # (DriftFx scales the fronts down)
@@ -87,7 +105,7 @@ func _lay(a: Vector3, b: Vector3, up: Vector3, amount: float) -> void:
 	var z := along.normalized()
 	var x := z.cross(up).normalized()
 	var y := x.cross(z).normalized()
-	var basis := Basis(x * WIDTH, y, z * (along.length() + 0.04))
+	var basis := Basis(x * WIDTH, y, z * (along.length() + 0.015))     # (overlapping less: the joints showed as darker bands)
 	_mm.set_instance_transform(_next, Transform3D(basis, (a + b) * 0.5 + up * 0.015))
 	_mm.set_instance_color(_next, Color(0.03, 0.03, 0.03, 0.25 + 0.5 * amount))
 	_next = (_next + 1) % MAX
