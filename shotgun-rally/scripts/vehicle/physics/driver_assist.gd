@@ -287,8 +287,10 @@ func angle_for(car, s: float) -> float:
 		var st = car.get("street")
 		if st != null and (st as Array).size() > 0:
 			most = minf(most, float(st[0]))
-		# (a race car's tyres as they are now: cold, worn, wet; 1 for every other car)
-		most *= 0.25 * (float(car.wheels[0].race_mu) + float(car.wheels[1].race_mu) + float(car.wheels[2].race_mu) + float(car.wheels[3].race_mu))
+		if not bool(car.inp.get("analog", false)):
+			# (keys: a race car's tyres as they are now, cold, worn, wet: a held key asks for the grip they
+			# have; 1 for every other car. A stick, and the AI driving with one, keeps the whole range)
+			most *= 0.25 * (float(car.wheels[0].race_mu) + float(car.wheels[1].race_mu) + float(car.wheels[2].race_mu) + float(car.wheels[3].race_mu))
 		var a: float = clampf(absf(s), 0.0, 1.0) * cfg.street_grip_share * most * 9.8
 		if understeer < 0.0:
 			understeer = deg_to_rad(float(car.config.understeer))
