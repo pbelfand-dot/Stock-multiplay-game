@@ -340,10 +340,11 @@ func _spec(id: String, car, cp, dash, spec: Dictionary) -> void:
 		if not nm.has("max_size"):
 			continue
 		var small := true
-		for np in dash.needle_parts:
+		for np in dash.needle_parts:                 # (a needle's pieces, each under its size, gathered round its hub: its cap, its tail)
+			var lim := 2.0 * float(np.n.get("max_size", nm.max_size)) + 1e-4
 			for part in (np.pivot as Node3D).get_children():
 				var bb: AABB = (part as MeshInstance3D).get_aabb()
-				small = small and bb.size[bb.get_longest_axis_index()] <= float(nm.max_size) + 1e-4
+				small = small and bb.size[bb.get_longest_axis_index()] <= lim
 		var wheel_kept := true
 		var sw: Node = car.body_model.find_child("SteeringWheel*", true, false)
 		if sw:
@@ -352,7 +353,7 @@ func _spec(id: String, car, cp, dash, spec: Dictionary) -> void:
 					if mi.get_surface_override_material(si) == DashLive._hidden():
 						wheel_kept = false
 		var still: int = car.body_model.find_children("NeedlesStill", "MeshInstance3D", true, false).size()
-		fails += _check(small and wheel_kept and still > 0, "%s: its needles cut from the trim's material, each under %.2f m (%s), the rest kept (%d), the steering wheel's left to turn (%s)" % [
+		fails += _check(small and wheel_kept and still > 0, "%s: its needles cut from the trim's material, each piece under %.2f m (%s), the rest kept (%d), the steering wheel's left to turn (%s)" % [
 			id, float(nm.max_size), small, still, wheel_kept])
 	# the steering wheel's own pieces left in the body (the AMG ONE's grips, buttons, LEDs and screens): moved onto the
 	# wheel's node (they turn with it), every corner inside the spec's box, the originals hidden
@@ -467,6 +468,17 @@ func _spec(id: String, car, cp, dash, spec: Dictionary) -> void:
 		fails += _check(off_b < 0.01 and absf(b_off) < 0.01 and b_idle < -0.3 and b_full > 0.5 * float(spec.get("boost_bar", 1.0)),
 			"%s: its boost needle reads a vacuum the other way (off by %.2f deg); the boost %.2f engine off, %.2f off the throttle, %.2f flat out" % [
 			id, rad_to_deg(off_b), b_off, b_idle, b_full])
+	# a "loose" panel (a screen modelled joined to the dash round it): only its faces inside its box
+	var pspecs: Array = spec.get("panels", [])
+	for pi in mini(pspecs.size(), dash.panels.size()):
+		if not pspecs[pi].get("loose", false):
+			continue
+		var pb: Array = pspecs[pi].box
+		var wc0: Vector3 = dash._wheel()
+		var want_box := AABB(wc0 + Vector3(pb[0], pb[2], pb[4]), Vector3(float(pb[1]) - float(pb[0]), float(pb[3]) - float(pb[2]), float(pb[5]) - float(pb[4]))).grow(0.008)
+		var pm := dash.panels[pi] as MeshInstance3D
+		var got_box: AABB = dash._rel(pm) * pm.get_aabb()
+		fails += _check(want_box.encloses(got_box), "%s: its loose panel %d laid only on the faces in its box (%s in %s)" % [id, pi, str(got_box.size.snapped(Vector3.ONE * 0.001)), str(want_box.size.snapped(Vector3.ONE * 0.001))])
 	# a display kept off the steering wheel's bits of the same material ("off_wheel")
 	for dd in spec.get("displays", []):
 		if not dd.get("off_wheel", false) or not car.cockpit_nodes.has("wheel"):

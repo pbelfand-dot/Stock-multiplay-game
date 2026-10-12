@@ -1,0 +1,18 @@
+{
+	"_about": "HAKO 2000: its gauges are painted in the dash's texture (Dash, 1024 px, top right: aftermarket dials, each face mapped turned half round, so they read the right way in the car) and their needles are modelled in the same material (each with its hub cap; all posed pointing down-left). The two big dials behind the wheel are boost gauges (pounds of boost one way from 0, inches of vacuum the other, 0 at the top of the left one, at the left of the right one): both needles read the turbo's boost along their painted ticks (marks: [bar, degrees turned from the model's pose, clockwise as you see it]). The small clock top left: its one hand shows the hour. Only parts of the dash's material under 6 cm (4.5 for the clock) near a hub count as its needle (grow: the needles' tails, 2.5 cm out). Hubs: metres from the steering wheel's centre (the model's axes: x right, y up, z back); axis: each dial's face.",
+	"needle_meshes": [
+		{
+			"mat": "^Dash$",
+			"max_size": 0.06,
+			"needles": [
+				{"value": "boost", "hub": [-0.0627, 0.0625, -0.13], "axis": [0.055, 0.257, 0.965], "grow": 0.025,
+					"marks": [[-1.016, -10.6], [-0.677, 36.2], [-0.339, 87.4], [0, 135.2], [0.345, 173.4], [0.69, 206.2], [1.034, 242.0], [1.379, 275.0]]},
+				{"value": "boost", "hub": [0.0664, 0.062, -0.1311], "axis": [-0.055, 0.255, 0.965], "grow": 0.025,
+					"marks": [[-1.016, -100.5], [-0.677, -59.2], [-0.339, -15.9], [0, 34.5], [0.345, 77.8], [0.69, 110.5], [1.034, 143.8], [1.379, 176.8]]},
+				{"value": "clock_h", "hub": [-0.1649, 0.0804, -0.1257], "axis": [0.092, 0.229, 0.969], "grow": 0.02, "max_size": 0.045,
+					"marks": [[0, 127.3], [12, 487.3]]}
+			]
+		}
+	],
+	"boost_bar": 1.1
+}

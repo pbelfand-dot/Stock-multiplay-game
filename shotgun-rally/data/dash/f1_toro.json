@@ -1,0 +1,24 @@
+{
+	"_about": "TORO R26: the steering wheel's screen (gp21_LCD, its UVs a tile over: uv_wrap) shows the middle of its own picture (rb22_LCD, 1024 px: columns 46 to 978, rows 240 to 784), black but for one bracket at the right. Made live on it: the revs filling a bar across the top (red near the limiter), the gear big in the middle, the speed to its left, the lap time along the bottom, the fuel left in litres to the gear's right. Pixels of that picture.",
+	"displays": [
+		{
+			"mat": "^gp21_LCD",
+			"tex": [1024, 1024],
+			"uv_wrap": true,
+			"screens": [
+				{
+					"page": "cluster", "rect": [46, 240, 978, 784], "accent": "#3fb8ff",
+					"layout": {
+						"arc": [{"what": "rpm01", "pts": [[110, 300], [900, 300]], "w": 34.0, "color": "#3fb8ff", "hot": "#ff2a2a", "hot_from": 0.86}],
+						"text": [
+							{"what": "gear", "at": [512, 520], "size": 230, "max_w": 220, "color": "#ffffff"},
+							{"what": "speed", "at": [250, 520], "size": 110, "max_w": 220, "color": "#ffffff"},
+							{"what": "fuel_l", "at": [770, 520], "size": 80, "max_w": 220, "color": "#3fb8ff"},
+							{"what": "time3", "at": [512, 710], "size": 70, "max_w": 520, "color": "#ffffff", "bold": false}
+						]
+					}
+				}
+			]
+		}
+	]
+}

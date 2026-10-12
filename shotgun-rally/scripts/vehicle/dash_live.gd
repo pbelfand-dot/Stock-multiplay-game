@@ -20,7 +20,8 @@ extends Node3D
 ##   * "panels": a screen modelled with no UVs of its own to show anything on (its
 ##     faces share the interior's material): its faces (those of the material in a
 ##     box, facing the driver) copied into a mesh of their own a hair in front, with
-##     UVs across it, showing the pages
+##     UVs across it, showing the pages; "loose": the faces inside the box though the
+##     screen's modelled joined to the dash round it
 ##   * "needle_meshes": needles modelled as parts (merged into the body): each one cut
 ##     out into a part of its own and turned about its dial's hub ("max_size": needles in a
 ##     material the trim shares, told apart by their size, a needle's own for a small dial whose
@@ -50,7 +51,8 @@ extends Node3D
 ##   * "boost_bar": a turbo's boost gauge's top (bar, 1.0 if not given): the reading "boost",
 ##     a vacuum at idle and off the throttle, building with the throttle and the revs (a
 ##     moment's lag); "trip": the km driven since the car was built (a trip meter); "volts":
-##     the battery's (12.4, 14.1 charging with the engine running)
+##     the battery's (12.4, 14.1 charging with the engine running); "clock_h": the time on a
+##     12-hour dial (an analogue clock's hand)
 ## Spec coordinates: a display's are its texture's pixels ("units": "px", x right, y
 ## down) or its UVs ("units": "uv"; "uv_wrap": a model whose screen's UVs sit a whole tile
 ## over, measured in the texture's own 0..1); a panel's and a needle mesh's are metres from the
@@ -390,7 +392,12 @@ func _panel(p: Dictionary) -> void:
 				if near.has_point(vs[ids[t * 3 + k]]):
 					cand.append(t)
 					break
-		for g in _groups(vs, ids, cand):
+		var groups := _groups(vs, ids, cand)
+		if p.get("loose", false):                         # (a screen modelled joined to the dash round it: its own faces, those inside the box)
+			var inner: Array = cand.filter(func(t):
+				return tight.has_point(vs[ids[t * 3]]) and tight.has_point(vs[ids[t * 3 + 1]]) and tight.has_point(vs[ids[t * 3 + 2]]))
+			groups = [inner]
+		for g in groups:
 			var inside := true
 			for t in g:
 				for k in 3:
@@ -879,6 +886,7 @@ func _read(dt: float) -> void:
 		"fuel": clampf(0.86 - float(game.stage_time if game and "stage_time" in game else 0.0) / 3600.0, 0.1, 1.0),
 		"electric": ev, "boost": _boost, "trip": _trip,
 		"volts": 14.1 if float(car.rpm) > 0.001 else 12.4,      # (the battery's: charging with the engine running)
+		"clock_h": _clock_h(),                                  # (the hour on a 12-hour dial, with the minutes: an analogue clock's hand)
 	}
 	var rs = car.race                                      # (Track Mode's: its fuel in litres, its ABS and TC maps, the pit limiter)
 	var aid = car.assist
@@ -983,6 +991,12 @@ func _needle_deg(n: Dictionary) -> float:
 	if n.has("marks"):
 		return marks_deg(n.marks, _mark_value(n))
 	return lerpf(float(n.a0), float(n.a1), _share(n))
+
+
+## The time on a 12-hour dial: 0 ... 12 (the minutes as its fraction).
+static func _clock_h() -> float:
+	var tm := Time.get_time_dict_from_system()
+	return float(int(tm.hour) % 12) + float(tm.minute) / 60.0
 
 
 ## A needle's reading for its marks: the speed either way round, the others signed (a boost gauge's vacuum).

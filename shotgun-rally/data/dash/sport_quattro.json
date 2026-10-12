@@ -1,0 +1,26 @@
+{
+	"_about": "VIERRAD S1: its cluster is a photograph in the interior's detail texture (512 px, bottom left): the speedometer (20 to 300 km/h, its needle resting on the 20) and the rev counter (x100 rpm to 80, 0 to 1,000 closer spaced), the small battery voltmeter and fuel gauge at either end, the turbo's boost gauge at the top in the middle and the clock's LCD under it, the mechanical odometer and trip counter in the speedometer. Each photographed needle (orange, at rest) is taken out of a copy of the picture (the face from further round) and drawn live along its own scale (the big dials' marks measured from their ticks); the clock's LCD shows the time, the trip counter the km driven. The dials glow at night. Pixels of the texture; needle angles in degrees, 0 = right, 90 = down.",
+	"boost_bar": 1.3,
+	"displays": [
+		{
+			"mat": "Details_INT1$",
+			"tex": [512, 512],
+			"glow": [[0, 385, 360, 512]],
+			"glow_color": "#ffa070",
+			"needles": [
+				{"value": "kmh", "c": [104.2, 440.7], "r": 40, "w": 1.5, "a0": 136.5, "a1": 402.2, "min": 0, "max": 300, "painted": 136.1, "shift": 30, "color": "#e4572e", "tail": 0.0,
+					"marks": [[0, 136.5], [20, 136.5], [40, 156.5], [60, 177.0], [80, 195.2], [100, 214.2], [120, 233.2], [140, 250.5], [160, 269.8], [180, 288.8], [200, 308.0], [220, 326.8], [240, 345.5], [260, 364.5], [280, 383.2], [300, 402.2]]},
+				{"value": "rpm", "c": [264.2, 439.7], "r": 40, "w": 1.5, "a0": 139.5, "a1": 375, "min": 0, "max": 8000, "painted": 139.1, "shift": 30, "color": "#e4572e", "tail": 0.0,
+					"marks": [[0, 139.5], [1000, 162.8], [2000, 190.5], [3000, 220.5], [4000, 251.5], [5000, 282.2], [6000, 313.8], [7000, 344.5], [8000, 375.0]]},
+				{"value": "boost", "c": [184.2, 412.4], "r": 18, "w": 1.0, "a0": 226.5, "a1": 313, "min": -1, "max": 1.5, "painted": 226.5, "shift": -30, "color": "#e4572e", "tail": 0.0,
+					"marks": [[-1, 226.5], [0, 229.6], [0.5, 255.5], [1.0, 284.6], [1.5, 313.0]]},
+				{"value": "fuel", "c": [332.2, 479.6], "r": 23, "w": 1.1, "a0": 221, "a1": 313.6, "min": 0, "max": 1, "painted": 218.7, "shift": 30, "color": "#e4572e", "tail": 0.0},
+				{"value": "volts", "c": [36.1, 483.1], "r": 24, "w": 1.1, "a0": 225, "a1": 315, "min": 10, "max": 16, "painted": 225, "shift": 30, "color": "#e4572e", "tail": 0.0}
+			],
+			"screens": [
+				{"page": "lcd", "what": "clock", "rect": [163, 434, 205, 447], "size": 0.8, "color": "#62d8cf", "bg_color": "#0d171b"},
+				{"page": "lcd", "what": "trip", "rect": [91, 449, 126, 457], "size": 0.85, "color": "#e6e6e2", "bg_color": "#141414"}
+			]
+		}
+	]
+}

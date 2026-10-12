@@ -1,0 +1,14 @@
+{
+	"_about": "OCELOT R1: its display is modelled on the steering column, a small square screen with UVs of its own (dummy_material_11, a tile over: uv_wrap) but blank. It shows a cluster of its own now: the revs in a band across the top, the speed, the gear, the clock and the stage time, the warning lamps, in a rally car's orange. The same material's sliver on the steering wheel is left as it is (off_wheel).",
+	"displays": [
+		{
+			"mat": "^dummy_material_11$",
+			"units": "uv",
+			"uv_wrap": true,
+			"off_wheel": true,
+			"screens": [
+				{"page": "cluster", "bg": false, "rect": [0, 0, 1, 1], "aspect": 0.92, "accent": "#ff8a1a"}
+			]
+		}
+	]
+}

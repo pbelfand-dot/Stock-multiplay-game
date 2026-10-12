@@ -1,0 +1,12 @@
+{
+	"_about": "NIMBUS EG: its interior is untextured (no UVs), but the instrument cluster's face is modelled, the glossy black panel behind the steering wheel (Interior_Glossy): its faces get a panel, two round dials in the car's style (white on black, red needles: the speed on the left, the revs on the right) with the gear and the fuel between them. Box: metres from the steering wheel's centre (the model's axes: x right, y up, z back).",
+	"panels": [
+		{
+			"mat": "^Interior_Glossy$",
+			"box": [-0.17, 0.16, -0.045, 0.055, -0.37, -0.28],
+			"screens": [
+				{"page": "cluster", "rect": [0.0, 0.0, 1.0, 1.0], "style": "dials", "gear_style": "plain", "accent": "#e8eef6", "needle": "#ff4a1c", "kmh_max": 200}
+			]
+		}
+	]
+}
