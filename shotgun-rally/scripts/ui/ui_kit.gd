@@ -199,9 +199,12 @@ static func menu_item(title: String, sub: String, cb: Callable, accent := false,
 	t.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	card.add_child(t)
 	var s := label(sub, 15, DIM)
+	# (clipped before it's sized: a Label sized while it doesn't clip grows to its text, and the
+	# long lines ran off the plate)
+	s.clip_text = true
+	s.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	s.position = Vector2(x + 2, 46)
 	s.size = Vector2(W - x - 14, 22)
-	s.clip_text = true
 	s.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	card.add_child(s)
 	var hit := Button.new()

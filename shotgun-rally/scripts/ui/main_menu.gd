@@ -87,9 +87,9 @@ func _ready() -> void:
 	_home.add_theme_constant_override("separation", 10)
 	add_child(_home)
 	_home.add_child(UI.menu_item("PLAY NOW", "A random stage, straight in. The AI calls the notes.", _play_now, true, "play"))
-	_home.add_child(UI.menu_item("MODES", "Touge at night, cut up through highway traffic, or lap a circuit. Online: up to 8.", _show.bind("modes"), false, "modes"))
+	_home.add_child(UI.menu_item("MODES", "Touge at night, cut up through traffic, lap a circuit. Online: up to 8.", _show.bind("modes"), false, "modes"))
 	_home.add_child(UI.menu_item("MAPS", "The Shotgun Series: nine rallies, rival crews, prize money.", _show.bind("maps"), false, "maps"))
-	_home.add_child(UI.menu_item("CARS", "Every car, free: street, GT3, F1, rally, hypercars. Paint and upgrade them.", _show.bind("cars"), false, "cars"))
+	_home.add_child(UI.menu_item("CARS", "Every car free: street, GT3, F1, rally, hypercars. Paint, upgrade.", _show.bind("cars"), false, "cars"))
 	if OS.has_feature("web"):
 		# a browser can't connect two machines the way the game does (UDP): online is the download's
 		_home.add_child(UI.menu_item("ONLINE", "Needs the download (Windows, Mac, Linux, Chromebook with Linux).", func():
@@ -115,6 +115,8 @@ func _ready() -> void:
 	_status.offset_left = -700
 	_status.offset_right = 700
 	_status.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_status.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
+	_status.add_theme_constant_override("outline_size", 5)
 	add_child(_status)
 	var help := UI.label("DRIVER  WASD / arrows · SPACE handbrake · R reset      CO-DRIVER  hold RIGHT MOUSE / Q for the map · F wipers      "
 		+ "PAD  left stick · RT / LT · B handbrake", 15, Color(0.75, 0.77, 0.72))
@@ -123,6 +125,9 @@ func _ready() -> void:
 	help.offset_left = -800
 	help.offset_right = 800
 	help.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	# (a dark edge: the garage floor's reflections of the lights pass behind it and washed it out)
+	help.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
+	help.add_theme_constant_override("outline_size", 4)
 	add_child(help)
 	_update_corner()
 	if start_panel != "":
