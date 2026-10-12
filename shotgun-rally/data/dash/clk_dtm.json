@@ -1,0 +1,258 @@
+{
+	"_about": "AFFALTER CLK DTM: its race display on the column top is its own picture (Image_6, 512 x 256 px: a grey LCD with empty frames labelled Fuel total, speed, gear, Laptime, Session, Modes; the screen's UVs a tile over: uv_wrap). Made live in its frames: the fuel in litres, the speed, the gear, the lap time, the clock in Session. Its own LED bar over the screen (RPMBAR1: 50 segments, told apart by where they sit) climbs with the revs, green, then yellow, then red, and the five shift lights above it (RPM_LED) come on in turn near the limiter. Pixels of the picture; LEDs: their centres in the model's axes (x), their row's band (y). A few of the steering wheel's plastic pieces, left in the body by the model's cut, are moved onto it (wheel_parts: within its disc, 16.7 cm round its axis, 4.5 cm either side of its plane).",
+	"wheel_parts": [
+		{
+			"mat": "^plastic\\.005$",
+			"disc": [
+				0.167,
+				0.045
+			]
+		}
+	],
+	"displays": [
+		{
+			"mat": "NL2\\.003$",
+			"tex": [
+				512,
+				256
+			],
+			"uv_wrap": true,
+			"glow": "all",
+			"glow_color": "#d8d4dc",
+			"screens": [
+				{
+					"page": "cluster",
+					"rect": [
+						6,
+						8,
+						506,
+						248
+					],
+					"accent": "#2a2a2a",
+					"layout": {
+						"text": [
+							{
+								"what": "fuel_l",
+								"at": [
+									100,
+									76
+								],
+								"size": 40,
+								"max_w": 150,
+								"color": "#2a2a2a"
+							},
+							{
+								"what": "speed",
+								"at": [
+									275,
+									76
+								],
+								"size": 52,
+								"max_w": 140,
+								"color": "#2a2a2a"
+							},
+							{
+								"what": "gear",
+								"at": [
+									465,
+									82
+								],
+								"size": 64,
+								"max_w": 64,
+								"color": "#2a2a2a"
+							},
+							{
+								"what": "time3",
+								"at": [
+									388,
+									166
+								],
+								"size": 36,
+								"max_w": 220,
+								"color": "#2a2a2a"
+							},
+							{
+								"what": "clock",
+								"at": [
+									106,
+									184
+								],
+								"size": 22,
+								"max_w": 120,
+								"color": "#2a2a2a",
+								"bold": false
+							}
+						]
+					}
+				}
+			]
+		},
+		{
+			"mat": "^RPMBAR1\\.001$",
+			"leds": [
+				{
+					"what": "rpm01",
+					"y": [
+						0.8539,
+						0.8739
+					],
+					"x": [
+						-0.4255,
+						-0.42301,
+						-0.42052,
+						-0.41802,
+						-0.41553,
+						-0.41304,
+						-0.41055,
+						-0.40806,
+						-0.40556,
+						-0.40307,
+						-0.40058,
+						-0.39809,
+						-0.3956,
+						-0.3931,
+						-0.39061,
+						-0.38812,
+						-0.38563,
+						-0.38314,
+						-0.38064,
+						-0.37815,
+						-0.37566,
+						-0.37317,
+						-0.37068,
+						-0.36818,
+						-0.36569,
+						-0.3632,
+						-0.36071,
+						-0.35822,
+						-0.35572,
+						-0.35323,
+						-0.35074,
+						-0.34825,
+						-0.34576,
+						-0.34326,
+						-0.34077
+					],
+					"at": [
+						0.02,
+						0.04,
+						0.06,
+						0.08,
+						0.1,
+						0.12,
+						0.14,
+						0.16,
+						0.18,
+						0.2,
+						0.22,
+						0.24,
+						0.26,
+						0.28,
+						0.3,
+						0.32,
+						0.34,
+						0.36,
+						0.38,
+						0.4,
+						0.42,
+						0.44,
+						0.46,
+						0.48,
+						0.5,
+						0.52,
+						0.54,
+						0.56,
+						0.58,
+						0.6,
+						0.62,
+						0.64,
+						0.66,
+						0.68,
+						0.7
+					],
+					"color": "#3cff4a"
+				},
+				{
+					"what": "rpm01",
+					"y": [
+						0.8539,
+						0.8739
+					],
+					"x": [
+						-0.33828,
+						-0.33579,
+						-0.3333,
+						-0.3308,
+						-0.32831,
+						-0.32582,
+						-0.32333,
+						-0.32084,
+						-0.31834,
+						-0.31585
+					],
+					"at": [
+						0.72,
+						0.74,
+						0.76,
+						0.78,
+						0.8,
+						0.82,
+						0.84,
+						0.86,
+						0.88,
+						0.9
+					],
+					"color": "#ffd21a"
+				},
+				{
+					"what": "rpm01",
+					"y": [
+						0.8539,
+						0.8739
+					],
+					"x": [
+						-0.31336,
+						-0.31087,
+						-0.30838,
+						-0.30588,
+						-0.30339
+					],
+					"at": [
+						0.92,
+						0.94,
+						0.96,
+						0.98,
+						1.0
+					],
+					"color": "#ff2a1a"
+				}
+			]
+		},
+		{
+			"mat": "^RPM_LED\\.001$",
+			"leds": [
+				{
+					"what": "rpm01",
+					"y": [
+						0.8883,
+						0.8922
+					],
+					"x": [
+						-0.4173,
+						-0.3908,
+						-0.3644,
+						-0.3378,
+						-0.3113
+					],
+					"at": [
+						0.8,
+						0.84,
+						0.88,
+						0.92,
+						0.96
+					]
+				}
+			]
+		}
+	]
+}

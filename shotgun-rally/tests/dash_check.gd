@@ -92,6 +92,12 @@ func _process(_dt: float) -> bool:
 	fails += _check(why_dome.is_empty(), "the dome light in %d of %d cars, off, switched on and off%s" % [
 		domes, Catalog.CARS.size(), "" if why_dome.is_empty() else " (" + " | ".join(why_dome) + ")"])
 	fails += _check(specs >= 5, "%d cars have a live interior spec" % specs)
+	# a digital cluster's rev band numbered at whole thousands from 0 to the limiter (each where the band fills
+	# to at those revs), every 2,000 past 10,000 rpm
+	var DP = load("res://scripts/vehicle/dash_page.gd")
+	fails += _check(DP.rev_step(7000.0) == 1 and DP.rev_step(9000.0) == 1 and DP.rev_step(15000.0) == 2,
+		"a digital cluster's rev band numbered every %d, %d and %d thousand (a 7,000, 9,000 and 15,000 rpm limiter)" % [
+			DP.rev_step(7000.0), DP.rev_step(9000.0), DP.rev_step(15000.0)])
 	print("[dash] %s" % ("DASH OK" if fails == 0 else "DASH FAIL"))
 	quit(1 if fails > 0 else 0)
 	return true
@@ -409,6 +415,23 @@ func _spec(id: String, car, cp, dash, spec: Dictionary) -> void:
 			for v in ((p as MeshInstance3D).mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX] as PackedVector3Array):
 				inbox = inbox and spaces.any(func(f): return f.call((p as MeshInstance3D).transform * v))
 		fails += _check(home and inbox, "%s: %d pieces of its cabin moved back into the body from a moving part (inside the box: %s)" % [id, dash.body_parts.size(), inbox])
+	# a bar of modelled segments (the HACHI's tach): found in order along x, all of them small, lit in turn with the reading
+	for sg in dash.segments:
+		var xs: Array = sg.xs
+		var ordered := true
+		for i in range(1, xs.size()):
+			ordered = ordered and float(xs[i]) >= float(xs[i - 1])
+		var what := str(sg.s.get("what", "rpm01"))
+		dash.fake = {what: 0.0}
+		_run(dash, DT)
+		var lo: float = sg.mat.get_shader_parameter("lit")
+		dash.fake = {what: float(sg.s.get("max", 1.0)) * 0.5}
+		_run(dash, DT)
+		var mid: float = sg.mat.get_shader_parameter("lit")
+		dash.fake = {}
+		_run(dash, DT)
+		fails += _check(sg.n >= 5 and ordered and lo == 0.0 and absf(mid - 0.5) < 1e-4 and sg.mesh.get_parent() == car.body_model,
+			"%s: its %d modelled %s segments lit in turn along the bar (none at 0, half at half: %.2f)" % [id, sg.n, what, mid])
 	# a piece that shouldn't show (the W17's steering column standing out through its wheel's screen): left out,
 	# nothing of the material wholly inside the box left showing, the rest of the material kept
 	if spec.has("drop_parts"):

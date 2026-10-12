@@ -1,5 +1,5 @@
 {
-	"_about": "AKATSUKI (Toyota GR Supra A90): its driver display is painted into its screen texture (Screen, 1024 px), laid in it sideways (the display's across is the texture's down: transpose): the rev counter in the middle (0 at the bottom, round through the left to the red zone past 6.5 at the top right), the gear inside it, an 'mph' with no number, the clock top right. Kept as painted and made live: the painted needle hidden under the dial copied from further round, the live one turning with the revs, the gear and its mode drawn where the painted '1 M' was, the speed over 'km/h', the clock. Pixels of the display as it's seen (903 x 480).",
+	"_about": "AKATSUKI (Toyota GR Supra A90): its driver display is painted into its screen texture (Screen, 1024 px), laid in it sideways (the display's across is the texture's down: transpose): the rev counter in the middle (0 at the bottom, round through the left to the red zone past 6.5 at the top right), the gear inside it, an 'mph' with no number, the clock top right. Kept as painted and made live: the painted needle hidden under the dial copied from further round, the live one turning with the revs, the gear and its mode drawn where the painted '1 M' was, the speed over 'km/h', the clock. Pixels of the display as it's seen (903 x 480). The centre screen (Monitor: a photograph of its settings page, 710 x 454 px, the face mapping columns 51 to 659, rows 29 to 252) keeps its picture; its clock (4:52 pm, at 566-611 x 46-57) shows the time.",
 	"displays": [
 		{
 			"mat": "^Screen$",
@@ -27,6 +27,19 @@
 							{"what": "abs", "at": [125, 440], "size": 12, "color": "#ffb000"},
 							{"what": "tc", "at": [160, 440], "size": 12, "color": "#ffb000"}
 						]
+					}
+				}
+			]
+		},
+		{
+			"mat": "^Monitor$",
+			"tex": [710, 454],
+			"screens": [
+				{
+					"page": "cluster", "rect": [51, 29, 659, 252], "accent": "#e0201a",
+					"layout": {
+						"cover": [[562, 43, 616, 60, "#01020b"]],
+						"text": [{"what": "clock12", "at": [589, 52], "size": 14, "max_w": 52, "color": "#f4f4f4", "bold": false}]
 					}
 				}
 			]

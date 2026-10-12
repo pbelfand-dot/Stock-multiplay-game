@@ -1,8 +1,55 @@
 {
-	"_about": "GHOST J (Jesko): an untextured cabin; its screen on the steering wheel (turning with it: on_wheel) and its centre screen are blank faces of the interior's material, so each gets a board laid on it, measured from its faces (rays from the driver's eye; m from the steering wheel's centre, the model's axes: x right, y up, z back): a digital cluster and the centre screen's pages in its red. Ambient lighting: red, as its trim.",
-	"boards": [
-		{"page": "cluster", "bg": false, "c": [0.0, 0.073, -0.08], "w": 0.139, "h": 0.081, "normal": [0.0, 0.066, 0.998], "lift": 0.002, "on_wheel": true, "accent": "#ff2a2a"},
-		{"page": "nav", "c": [0.315, -0.066, -0.154], "w": 0.131, "h": 0.1, "normal": [0.0, 0.538, 0.843], "lift": 0.003, "accent": "#ff2a2a", "radio": "SHOTGUN FM 98.6"}
+	"_about": "GHOST J (Jesko): an untextured cabin; its screen on the steering wheel (turning with it: on_wheel) and its centre screen are blank faces of the interior's material, so each gets a board laid on it, measured from its faces (rays from the driver's eye; m from the steering wheel's centre, the model's axes: x right, y up, z back): a digital cluster and the centre screen's pages in its red. Ambient lighting: red, as its trim. A piece of its steering wheel's rim, left in the body by the model's cut, is moved onto the wheel (wheel_parts).",
+	"wheel_parts": [
+		{
+			"mat": "Interior_Zone2$",
+			"disc": [
+				0.185,
+				0.025
+			]
+		}
 	],
-	"ambient": {"color": "#ff3020", "energy": 0.22}
+	"boards": [
+		{
+			"page": "cluster",
+			"bg": false,
+			"c": [
+				0.0,
+				0.073,
+				-0.08
+			],
+			"w": 0.139,
+			"h": 0.081,
+			"normal": [
+				0.0,
+				0.066,
+				0.998
+			],
+			"lift": 0.002,
+			"on_wheel": true,
+			"accent": "#ff2a2a"
+		},
+		{
+			"page": "nav",
+			"c": [
+				0.315,
+				-0.066,
+				-0.154
+			],
+			"w": 0.131,
+			"h": 0.1,
+			"normal": [
+				0.0,
+				0.538,
+				0.843
+			],
+			"lift": 0.003,
+			"accent": "#ff2a2a",
+			"radio": "SHOTGUN FM 98.6"
+		}
+	],
+	"ambient": {
+		"color": "#ff3020",
+		"energy": 0.22
+	}
 }

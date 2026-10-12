@@ -1,0 +1,32 @@
+{
+	"_about": "AFFALTER W17: the steering wheel's screen (generics_lcd, its UVs a tile over: uv_wrap) shows the middle of its own picture (W13LCD2, 1024 px: columns 55 to 985, rows 236 to 788): a grid of empty boxes (lines at x 61, 111, 392, 586, 929, 966 and y 313, 413, 582, 680, 769; STRAT 1 under the middle one, LAP over the segmented bar at the right) with a bar at either side. Made live in its boxes: the gear in the big middle one, the speed to its left, the lap time to its right; the oil temperature and the fuel in litres in the top row, the water temperature bottom left; the revs climbing the left bar, the fuel the right one. Pixels of that picture. The model's steering column (generics.007, a rod 2.4 cm across from the dash to the wheel) runs 3 cm out through the middle of that screen: left out (drop_parts; box: m from the steering wheel's centre).",
+	"drop_parts": [
+		{"mat": "^generics\\.007$", "box": [-0.018, 0.018, 0.017, 0.052, -0.272, 0.035]}
+	],
+	"displays": [
+		{
+			"mat": "^generics_lcd",
+			"tex": [1024, 1024],
+			"uv_wrap": true,
+			"screens": [
+				{
+					"page": "cluster", "rect": [55, 236, 985, 788], "accent": "#ffffff",
+					"layout": {
+						"arc": [
+							{"what": "rpm01", "pts": [[86, 764], [86, 318]], "w": 44.0, "color": "#ffffff", "hot": "#ff2a2a", "hot_from": 0.86},
+							{"what": "fuel", "max": 1.0, "pts": [[947, 764], [947, 318]], "w": 32.0, "color": "#3cc23c"}
+						],
+						"text": [
+							{"what": "gear", "at": [489, 498], "size": 130, "max_w": 170, "color": "#ffffff"},
+							{"what": "speed", "at": [251, 498], "size": 110, "max_w": 250, "color": "#ffffff"},
+							{"what": "time3", "at": [757, 498], "size": 64, "max_w": 320, "color": "#ffffff", "bold": false},
+							{"what": "t_oil", "at": [251, 363], "size": 60, "max_w": 250, "color": "#ffd23a", "bold": false},
+							{"what": "t_water", "at": [251, 676], "size": 60, "max_w": 250, "color": "#3fb8ff", "bold": false},
+							{"what": "fuel_l", "at": [757, 363], "size": 60, "max_w": 320, "color": "#3cc23c", "bold": false}
+						]
+					}
+				}
+			]
+		}
+	]
+}

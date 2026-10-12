@@ -1,0 +1,53 @@
+{
+	"_about": "HACHI 86: its digital meter is modelled in the interior's baked texture (Interior_Bake1, 512 px): the cluster's face maps its bottom left (columns 0 to 162, rows 456 to 512: the meter's outlines, a grey bar each side) with a hole where the speed readout is; behind the hole a face of its own maps a little black window with a painted 0 (columns 400 to 437, rows 388 to 401, turned half round: flip_v and flip_h). The tach is a curve of about 60 modelled segments (each a tiny part of the interior's material, 2-3 mm, its UVs on one stray texel). Made live: the speed in its window (green on black, like the meter's fluorescent figures), the tach's segments lit in turn with the revs (segments: the material's pieces under 5 mm in the box, m from the steering wheel's centre; red near the limiter), the fuel filling the left bar and the water temperature the right one. Pixels of that texture.",
+	"displays": [
+		{
+			"mat": "^Interior$",
+			"tex": [512, 512],
+			"screens": [
+				{
+					"page": "cluster",
+					"rect": [0, 456, 162, 512],
+					"accent": "#7dffb0",
+					"layout": {
+						"arc": [
+							{"what": "fuel", "max": 1.0, "pts": [[20.5, 497], [20.5, 480.5]], "w": 8.0, "color": "#7dffb0"},
+							{
+								"what": "t_water",
+								"at": [50, 130],
+								"pts": [[137.8, 498], [137.8, 473]],
+								"w": 9.0,
+								"color": "#7dffb0",
+								"hot": "#ff5040",
+								"hot_at": 115
+							}
+						]
+					}
+				},
+				{
+					"page": "cluster",
+					"rect": [400, 388, 437, 401],
+					"flip_v": true,
+					"flip_h": true,
+					"accent": "#7dffb0",
+					"layout": {
+						"cover": [[400, 388, 437, 401, "#000101"]],
+						"text": [{"what": "speed", "at": [418.5, 394.5], "size": 10, "max_w": 30, "color": "#7dffb0"}]
+					}
+				}
+			]
+		}
+	],
+	"segments": [
+		{
+			"mat": "^Interior$",
+			"box": [-0.08, 0.07, 0.018, 0.075, -0.2535, -0.2415],
+			"max_size": 0.005,
+			"what": "rpm01",
+			"max": 1.0,
+			"color": "#7dffb0",
+			"hot": "#ff5040",
+			"hot_from": 0.86
+		}
+	]
+}

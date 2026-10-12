@@ -1,0 +1,22 @@
+{
+	"_about": "KAISER 4 GT3: its cabin is one material with no UVs of its own (InteriorA: every face samples one spot of its texture), so its two displays are modelled but blank: the driver display above the column and the second screen to its right. Each gets a panel: a race cluster of its own on the driver display (the revs in a band across the top, the speed, the gear, the lap time, the lamps) and the centre screen's pages on the other. The steering wheel's buttons and switches (the colour atlas's material) were left in the body by the model's cut, so they stood still as the rim turned: every piece of that material within the wheel's disc (17 cm round its axis, 4.5 cm either side of its plane) is moved onto the wheel (wheel_parts). Boxes: metres from the steering wheel's centre (the model's axes: x right, y up, z back).",
+	"wheel_parts": [
+		{"mat": "2022Coloured_Material$", "disc": [0.17, 0.045]}
+	],
+	"panels": [
+		{
+			"mat": "2022InteriorA_Material$",
+			"box": [-0.1, 0.1, 0.004, 0.14, -0.326, -0.298], "loose": true,
+			"screens": [
+				{"page": "cluster", "style": "race", "rect": [0.0, 0.0, 1.0, 1.0], "accent": "#2f7de1"}
+			]
+		},
+		{
+			"mat": "2022InteriorA_Material$",
+			"box": [0.158, 0.36, 0.028, 0.163, -0.377, -0.323], "loose": true,
+			"screens": [
+				{"page": "nav", "rect": [0.0, 0.0, 1.0, 1.0], "accent": "#2f7de1", "radio": "PIT 2 CAR"}
+			]
+		}
+	]
+}

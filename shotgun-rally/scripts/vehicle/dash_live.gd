@@ -29,6 +29,10 @@ extends Node3D
 ##     material the trim shares, told apart by their size, a needle's own for a small dial whose
 ##     face is smaller than the big dials' needles; "grow": how near its hub a piece reaches;
 ##     "marks": an uneven scale)
+##   * "segments": a bar of modelled segments (each a tiny part of its own in a material the
+##     cabin shares, its texture no help: the HACHI's tach): the material's small pieces in the
+##     box ("max_size" each) lit in turn along x ("what" up to "max"; "color", red from
+##     "hot_from"), a lit copy a hair in front of each
 ##   * "boards": a dial or screen that's blank and can't be picked out by its faces (it
 ##     shares a material with everything round it): a quad of its own placed by measure
 ##     ("c": its middle, "w" x "h" m, facing the driver's eye or "normal"; "round": a
@@ -82,6 +86,7 @@ var fake := {}                      # readings to show instead (pictures, tests)
 var pages: Array = []               # DashPage, one per screen
 var overlays: Array = []            # [{"mat": ShaderMaterial, "needles": [...], "warns": [...]}]
 var needle_parts: Array = []        # [{"pivot": Node3D, "axis": Vector3, "n": spec}]
+var segments: Array = []            # [{"mesh": MeshInstance3D, "mat": ShaderMaterial, "n": count, "s": spec, "xs": centres' x}]
 var wheel_parts: Array = []         # the steering wheel's pieces moved onto it (MeshInstance3D)
 var body_parts: Array = []          # the cabin's pieces moved back into the body from something that moves
 var dropped := 0                    # faces of the pieces left out ("drop_parts")
@@ -134,6 +139,8 @@ func setup(the_car, the_cockpit, the_spec: Dictionary) -> void:
 		_board(b)
 	for n in spec.get("needle_meshes", []):
 		_needle_mesh(n)
+	for sg in spec.get("segments", []):
+		_segments(sg)
 	_make_dome()
 	_make_ambient()
 
@@ -811,6 +818,89 @@ static func _hidden() -> ShaderMaterial:
 	return _hide
 
 
+## A bar of modelled segments: the material's pieces wholly inside the box (m from the steering wheel's
+## centre) and no bigger than "max_size", in order along x; a copy of them a hair in front (toward the
+## driver), unshaded in the bar's colour, each shown once the reading reaches its share of the bar.
+func _segments(sg: Dictionary) -> void:
+	var c := _wheel()
+	var bx: Array = sg.box
+	var box := AABB(c + Vector3(bx[0], bx[2], bx[4]), Vector3(float(bx[1]) - float(bx[0]), float(bx[3]) - float(bx[2]), float(bx[5]) - float(bx[4]))).grow(0.002)
+	var limit := float(sg.get("max_size", 0.006))
+	var eye: Vector3 = cockpit.eye_driver - car.model_offset()
+	var found: Array = []                                # [[centre, [[a, b, c], ...]], ...]
+	var hosts: Array = []
+	_surfaces(str(sg.mat), func(m: MeshInstance3D, si: int, _base: Material):
+		var arr := m.mesh.surface_get_arrays(si)
+		var vs: PackedVector3Array = _rel(m) * (arr[Mesh.ARRAY_VERTEX] as PackedVector3Array)
+		var ids := _indices(arr)
+		var cand: Array = []
+		for t in ids.size() / 3:
+			if box.has_point(vs[ids[t * 3]]):
+				cand.append(t)
+		for g in _groups(vs, ids, cand):
+			var gb := AABB(vs[ids[g[0] * 3]], Vector3.ZERO)
+			for t in g:
+				for k in 3:
+					gb = gb.expand(vs[ids[t * 3 + k]])
+			if not box.encloses(gb) or gb.get_longest_axis_size() > limit:
+				continue
+			var tris: Array = []
+			for t in g:
+				tris.append([vs[ids[t * 3]], vs[ids[t * 3 + 1]], vs[ids[t * 3 + 2]]])
+			found.append([gb.get_center(), tris])
+			if not hosts.has(m):
+				hosts.append(m))
+	if found.size() < 2:
+		missing.append("segments " + str(sg.get("mat")))
+		return
+	found.sort_custom(func(a, b): return a[0].x < b[0].x)
+	var lift := float(sg.get("lift", 0.0004))
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	for k in found.size():
+		var u := (k + 0.5) / found.size()
+		for t in found[k][1]:
+			var nrm: Vector3 = (t[2] - t[0]).cross(t[1] - t[0])
+			if nrm.length_squared() < 1e-14:
+				continue
+			nrm = nrm.normalized()
+			if nrm.dot(eye - t[0]) < 0.0:
+				nrm = -nrm
+			for q in t:
+				st.set_uv(Vector2(u, 0.0))
+				st.add_vertex(q + nrm * lift)
+	var sh := Shader.new()
+	sh.code = """shader_type spatial;
+render_mode unshaded, cull_disabled, shadows_disabled;
+uniform float lit = 0.0;
+uniform vec3 on_col : source_color = vec3(0.5, 1.0, 0.7);
+uniform vec3 hot_col : source_color = vec3(1.0, 0.3, 0.25);
+uniform float hot_from = 2.0;
+void fragment() {
+	if (UV.x > lit) { discard; }
+	ALBEDO = UV.x > hot_from ? hot_col : on_col;
+}
+"""
+	var mat := ShaderMaterial.new()
+	mat.shader = sh
+	mat.set_shader_parameter("on_col", Color(str(sg.get("color", "#7dffb0"))))
+	mat.set_shader_parameter("hot_col", Color(str(sg.get("hot", sg.get("color", "#7dffb0")))))
+	mat.set_shader_parameter("hot_from", float(sg.get("hot_from", 2.0)))
+	var mi := MeshInstance3D.new()
+	mi.name = "LiveSegments"
+	mi.mesh = st.commit()
+	mi.material_override = mat
+	mi.layers = (hosts[0] as MeshInstance3D).layers
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	car.body_model.add_child(mi)
+	segments.append({"mesh": mi, "mat": mat, "n": found.size(), "s": sg, "xs": found.map(func(f): return f[0].x)})
+
+
+## How much of a segment bar is lit (0..1): its reading's share of "max".
+func segments_lit(sg: Dictionary) -> float:
+	return clampf(float(data.get(str(sg.get("what", "rpm01")), 0.0)) / maxf(float(sg.get("max", 1.0)), 1e-6), 0.0, 1.0)
+
+
 ## The dome light: under the roof between the front seats (off until it's switched).
 func _make_dome() -> void:
 	_dome = OmniLight3D.new()
@@ -984,6 +1074,8 @@ func _process(dt: float) -> void:
 			ov.set_shader_parameter("led_box", _pad(boxes, MAX_LED_ROWS))
 	for np in needle_parts:
 		(np.pivot as Node3D).basis = Basis(np.axis, -needle_turn(np.n))
+	for sg in segments:
+		(sg.mat as ShaderMaterial).set_shader_parameter("lit", segments_lit(sg.s))
 	_screen_t += dt
 	if _screen_t >= 1.0 / SCREEN_HZ:
 		_screen_t = 0.0

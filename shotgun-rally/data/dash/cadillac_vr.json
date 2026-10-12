@@ -1,0 +1,58 @@
+{
+	"_about": "VEE-SR GTP: most of its steering wheel was left in the body by the model's cut (the metal frame, the display, its clear LED row, the hybrid lights, the clear covers), so it stood still as the rim turned: every piece of those within the wheel's disc (14 cm round its axis, 4.5 cm either side of its plane) is moved onto the wheel (wheel_parts). Its display shows its own race page (DISPLAY: Map #44, 1024 px, rows 202 to 822), a grid of labelled boxes, blank: made live in them, the gear big in the open middle under GEAR, the speed below it, the lap time under LAST LAP, the fuel in litres under LAP FUEL and as a share under FUEL USED, the water, oil and gearbox temperatures under TMOT, TOIL and TGEAR, the traction control level in the TC box, the four tyres' temperatures in the TYRE PRESSURE cells (Track Mode's; -- elsewhere), the accelerator climbing the H bar. Layout: pixels of the picture. Its second screen, to the right of the wheel (DISPLAY2: Map #64; its faces a tile over: uv_wrap), maps a splash (a racing series' logo) at columns 199 to 794, rows 486 to 945; the same texture holds the screen's own race page above it, which no face shows (boxes: blue Fuel / GPL at 290-448 x 130-235, yellow at 570-728 x 130-235, Speed at 481-535 x 272-289, the TC / Sip grid at 290-441 x 292-394, orange at 569-729 x 288-394): the screen shows that page instead (art_at: 13, -454 px), made live: the fuel in litres beside Fuel, the gear big between the top boxes, the lap time in the yellow box, the speed under Speed, the TC level beside TC, the revs in the orange box. Layout: pixels of that page.",
+	"wheel_parts": [{"mat": "^(DISPLAY|TRANSPARENTE|963_CLEARLED|kers_(green|yellow|red)|sw_metal)$", "disc": [0.14, 0.045]}],
+	"displays": [
+		{
+			"mat": "^DISPLAY$",
+			"tex": [1024, 1024],
+			"screens": [
+				{
+					"page": "cluster",
+					"rect": [0, 202, 1024, 822],
+					"accent": "#ffffff",
+					"layout": {
+						"arc": [{"what": "throttle", "max": 1.0, "pts": [[998, 752], [998, 438]], "w": 34.0, "color": "#3cc23c"}],
+						"text": [
+							{"what": "gear", "at": [504, 470], "size": 230, "max_w": 240, "color": "#ffffff"},
+							{"what": "speed", "at": [504, 640], "size": 60, "max_w": 200, "color": "#ffffff"},
+							{"what": "time3", "at": [830, 515], "size": 50, "max_w": 260, "color": "#ffffff", "bold": false},
+							{"what": "fuel_l", "at": [120, 545], "size": 48, "max_w": 200, "color": "#ffffff", "bold": false},
+							{"what": "fuel", "at": [120, 652], "size": 48, "max_w": 200, "color": "#ffffff", "bold": false},
+							{"what": "t_water", "at": [56, 763], "size": 40, "max_w": 90, "color": "#ffffff", "bold": false},
+							{"what": "t_oil", "at": [161, 763], "size": 40, "max_w": 90, "color": "#ffffff", "bold": false},
+							{"what": "t_gear", "at": [265, 763], "size": 40, "max_w": 90, "color": "#ffffff", "bold": false},
+							{"what": "tc_set", "at": [865, 285], "size": 44, "max_w": 80, "color": "#ffffff"},
+							{"what": "tyre_fl", "at": [85, 309], "size": 44, "max_w": 140, "color": "#1a1a1a"},
+							{"what": "tyre_fr", "at": [243, 309], "size": 44, "max_w": 140, "color": "#1a1a1a"},
+							{"what": "tyre_rl", "at": [85, 410], "size": 44, "max_w": 140, "color": "#1a1a1a"},
+							{"what": "tyre_rr", "at": [243, 410], "size": 44, "max_w": 140, "color": "#1a1a1a"}
+						]
+					}
+				}
+			]
+		},
+		{
+			"mat": "^DISPLAY2$",
+			"tex": [1024, 1024],
+			"uv_wrap": true,
+			"screens": [
+				{
+					"page": "cluster",
+					"rect": [199, 486, 794, 945],
+					"art_at": [13, -454],
+					"accent": "#ffffff",
+					"layout": {
+						"text": [
+							{"what": "fuel_l", "at": [438, 161], "size": 26, "max_w": 80, "align": "right", "color": "#ffffff", "bold": false},
+							{"what": "gear", "at": [509, 182], "size": 96, "max_w": 100, "color": "#ffffff"},
+							{"what": "time3", "at": [649, 182], "size": 36, "max_w": 140, "color": "#ffffff", "bold": false},
+							{"what": "speed", "at": [508, 338], "size": 56, "max_w": 115, "color": "#ffffff"},
+							{"what": "tc_set", "at": [400, 318], "size": 26, "max_w": 50, "color": "#ffffff", "bold": false},
+							{"what": "rpm", "at": [649, 341], "size": 40, "max_w": 140, "color": "#ffffff", "bold": false}
+						]
+					}
+				}
+			]
+		}
+	]
+}

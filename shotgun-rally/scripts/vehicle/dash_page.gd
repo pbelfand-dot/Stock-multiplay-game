@@ -134,6 +134,11 @@ func _art(dst: Rect2) -> void:
 	draw_set_transform_matrix(at)
 
 
+## The rev band's numbers: every 1,000 rpm, or every 2,000 / 5,000 for an engine revving past 10,000 / 20,000.
+static func rev_step(top: float) -> int:
+	return 1 if top <= 10000.0 else (2 if top <= 20000.0 else 5)
+
+
 ## The part of the texture the screen's picture is: where the screen's faces map it, or ("art_at": [dx, dy]
 ## texture pixels over) a page the texture holds beside it that no face shows (the VEE-SR's second screen:
 ## its faces show a splash, its race page sits above it). The layout is in that picture's pixels.
@@ -445,14 +450,15 @@ func _own_cluster() -> void:
 	# the revs: a band across the top, filling left to right, red past the shift point
 	var band := Rect2(r.position + Vector2(w * 0.06, h * 0.2), Vector2(w * 0.88, h * 0.1))
 	draw_rect(band, Color(1, 1, 1, 0.08))
-	var u := clampf(float(d.get("rpm01", 0.0)), 0.0, 1.0)
+	var top: float = maxf(float(d.get("limiter", 7000.0)), 1000.0)
+	var u := clampf(float(d.get("rpm", 0.0)) / top, 0.0, 1.0)   # (from 0 to the limiter, as the thousands under it)
 	var fill := Rect2(band.position, Vector2(band.size.x * u, band.size.y))
 	draw_rect(fill, Color("#ff3b1f") if u > 0.9 else accent.lightened(0.15))
-	for k in 9:                                         # the thousands, under the band
-		var x := band.position.x + band.size.x * k / 8.0
+	var step := 1000 * rev_step(top)
+	for k in int(top) / step + 1:                       # the thousands, under the band, each where its revs fill to
+		var x := band.position.x + band.size.x * k * step / top
 		draw_line(Vector2(x, band.end.y), Vector2(x, band.end.y + h * 0.04), Color(1, 1, 1, 0.5), maxf(w * 0.002, 1.0))
-		var top: float = float(d.get("limiter", 7000.0))
-		_say("%d" % roundi(top * k / 8000.0), Vector2(x, band.end.y + h * 0.1), h * 0.065, Color(0.75, 0.77, 0.8), "center", false)
+		_say("%d" % (k * step / 1000), Vector2(x, band.end.y + h * 0.1), h * 0.065, Color(0.75, 0.77, 0.8), "center", false)
 	if live.warning("shift"):
 		_lamp({"what": "shift", "at": [r.position.x + w * 0.5, r.position.y + h * 0.1], "w": w * 0.3, "size": h * 0.1})
 	# the speed in the middle, the gear beside it

@@ -1,0 +1,182 @@
+{
+	"_about": "963 GTP: its steering wheel's screen shows its own race page (LCD: Map #82, 1024 px, the part at columns 3 to 745, rows 121 to 603; its UVs a tile over: uv_wrap), painted with fixed figures. Made live in its boxes: the gear big and the speed in the Pred/Diff box, the fuel in litres and the lap time in the Page/Fuel box, DRY or WET in the Tyre box, the traction control level in TCLA and the ABS level in BBal (their painted figures covered), the four tyres' temperatures in the Tyre grid (Track Mode's; -- elsewhere), the revs climbing the segmented bar at the right. Pixels of the picture.",
+	"displays": [
+		{
+			"mat": "^LCD$",
+			"tex": [
+				1024,
+				1024
+			],
+			"uv_wrap": true,
+			"screens": [
+				{
+					"page": "cluster",
+					"rect": [
+						3,
+						121,
+						745,
+						603
+					],
+					"accent": "#ffffff",
+					"layout": {
+						"cover": [
+							[
+								536,
+								154,
+								595,
+								186,
+								"#000000"
+							],
+							[
+								603,
+								154,
+								661,
+								186,
+								"#000000"
+							],
+							[
+								14,
+								154,
+								72,
+								186,
+								"#000000"
+							]
+						],
+						"arc": [
+							{
+								"what": "rpm01",
+								"pts": [
+									[
+										724,
+										536
+									],
+									[
+										724,
+										200
+									]
+								],
+								"w": 26.0,
+								"color": "#3cc23c",
+								"hot": "#ff2a2a",
+								"hot_from": 0.86
+							}
+						],
+						"text": [
+							{
+								"what": "gear",
+								"at": [
+									530,
+									300
+								],
+								"size": 120,
+								"max_w": 110,
+								"color": "#ffffff"
+							},
+							{
+								"what": "speed",
+								"at": [
+									645,
+									300
+								],
+								"size": 56,
+								"max_w": 100,
+								"color": "#ffffff"
+							},
+							{
+								"what": "fuel_l",
+								"at": [
+									627,
+									445
+								],
+								"size": 50,
+								"max_w": 200,
+								"color": "#ffffff"
+							},
+							{
+								"what": "time3",
+								"at": [
+									585,
+									510
+								],
+								"size": 34,
+								"max_w": 220,
+								"color": "#ffffff",
+								"bold": false
+							},
+							{
+								"what": "track",
+								"at": [
+									566,
+									171
+								],
+								"size": 26,
+								"max_w": 56,
+								"color": "#ffffff"
+							},
+							{
+								"what": "tc_set",
+								"at": [
+									632,
+									171
+								],
+								"size": 30,
+								"max_w": 50,
+								"color": "#ffffff"
+							},
+							{
+								"what": "abs_set",
+								"at": [
+									43,
+									171
+								],
+								"size": 30,
+								"max_w": 50,
+								"color": "#ffffff"
+							},
+							{
+								"what": "tyre_fl",
+								"at": [
+									328,
+									425
+								],
+								"size": 34,
+								"max_w": 80,
+								"color": "#ffffff"
+							},
+							{
+								"what": "tyre_fr",
+								"at": [
+									416,
+									425
+								],
+								"size": 34,
+								"max_w": 80,
+								"color": "#ffffff"
+							},
+							{
+								"what": "tyre_rl",
+								"at": [
+									328,
+									500
+								],
+								"size": 34,
+								"max_w": 80,
+								"color": "#ffffff"
+							},
+							{
+								"what": "tyre_rr",
+								"at": [
+									416,
+									500
+								],
+								"size": 34,
+								"max_w": 80,
+								"color": "#ffffff"
+							}
+						]
+					}
+				}
+			]
+		}
+	]
+}

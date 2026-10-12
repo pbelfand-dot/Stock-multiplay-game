@@ -1,8 +1,54 @@
 {
-	"_about": "AFFALTER GT BLACK (the model's cabin, untextured): its cluster (one flat face behind the two round openings of its binnacle) and its centre screen are blank and share the interior's material, so each gets a board of its own, placed by measure (rays forward from section views; m from the steering wheel's centre, the model's axes: x right, y up, z back): two round dials on the cluster (the speed, the revs to the 7,200 limiter), the centre screen's pages. Ambient lighting: AMG red.",
-	"boards": [
-		{"page": "cluster", "bg": false, "style": "dials", "c": [0.0, 0.051, -0.316], "w": 0.3, "h": 0.11, "normal": [0.0, 0.02, 1.0], "accent": "#e8eef6", "needle": "#ff2a1a"},
-		{"page": "nav", "c": [0.427, 0.056, -0.216], "w": 0.29, "h": 0.098, "normal": [0.0, 0.11, 0.99], "accent": "#e3001b", "radio": "SHOTGUN FM 98.6"}
+	"_about": "AFFALTER GT BLACK (the model's cabin, untextured): its cluster (one flat face behind the two round openings of its binnacle) and its centre screen are blank and share the interior's material, so each gets a board of its own, placed by measure (rays forward from section views; m from the steering wheel's centre, the model's axes: x right, y up, z back): two round dials on the cluster (the speed, the revs to the 7,200 limiter), the centre screen's pages. Ambient lighting: AMG red. The strip along its steering wheel's top, left in the body by the model's cut, is moved onto the wheel (wheel_parts).",
+	"wheel_parts": [
+		{
+			"mat": "^Interior$",
+			"disc": [
+				0.175,
+				0.025
+			]
+		}
 	],
-	"ambient": {"color": "#ff3020", "energy": 0.25}
+	"boards": [
+		{
+			"page": "cluster",
+			"bg": false,
+			"style": "dials",
+			"c": [
+				0.0,
+				0.051,
+				-0.316
+			],
+			"w": 0.3,
+			"h": 0.11,
+			"normal": [
+				0.0,
+				0.02,
+				1.0
+			],
+			"accent": "#e8eef6",
+			"needle": "#ff2a1a"
+		},
+		{
+			"page": "nav",
+			"c": [
+				0.427,
+				0.056,
+				-0.216
+			],
+			"w": 0.29,
+			"h": 0.098,
+			"normal": [
+				0.0,
+				0.11,
+				0.99
+			],
+			"accent": "#e3001b",
+			"radio": "SHOTGUN FM 98.6"
+		}
+	],
+	"ambient": {
+		"color": "#ff3020",
+		"energy": 0.25
+	}
 }

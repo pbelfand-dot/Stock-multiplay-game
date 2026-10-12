@@ -1,0 +1,32 @@
+{
+	"_about": "PLEIAD 22: its cluster is painted twice in the interior's texture (int1, 1024 px, the bottom half: by day on the left, lit on the right), upside down and squashed (each dial an ellipse twice as tall as wide); the model's dial faces show the lit one, and its needles are modelled, short thin parts of the same material standing clear of their hub caps (all posed pointing up, the small ones up and left). Each needle turns about its cap along its painted scale as the driver sees it, measured from the ticks (marks: [reading, degrees turned from the model's pose, clockwise]): the rev counter to 9,000 rpm (0-1,000 closer spaced), the speedometer to 180 km/h, the fuel and water temperature quarter dials. By day the screen shows the unlit picture (day_art), at night the lit one. The odometer's LCD shows the trip (the lit picture drawn the right way up: y' = 2 x 520 + 504 - the texture's y). Hubs: metres from the steering wheel's centre (the model's axes: x right, y up, z back); axis: the dials' face.",
+	"needle_meshes": [
+		{
+			"mat": "^int1$",
+			"max_size": 0.04,
+			"needles": [
+				{"value": "rpm", "hub": [0.0095, 0.0157, -0.2448], "axis": [0.006, 0.297, 0.955], "grow": 0.012,
+					"marks": [[0, -131.7], [1000, -110.9], [2000, -82.1], [3000, -51.7], [4000, -20.4], [5000, 7.0], [6000, 39.6], [7000, 68.6], [8000, 99.7], [9000, 131.7]]},
+				{"value": "kmh", "hub": [0.1045, 0.00995, -0.2427], "axis": [0.003, 0.305, 0.952], "grow": 0.012,
+					"marks": [[0, -138.8], [20, -110.4], [40, -80.8], [60, -51.2], [80, -22.0], [100, 8.2], [120, 36.4], [140, 66.0], [160, 96.1], [180, 126.1]]},
+				{"value": "fuel", "hub": [-0.1119, 0.0114, -0.24], "axis": [0.009, 0.309, 0.951], "grow": 0.008, "marks": [[0, -48.2], [1, 28.9]]},
+				{"value": "t_water", "hub": [-0.0702, 0.0113, -0.24], "axis": [0.004, 0.304, 0.953], "grow": 0.008, "marks": [[50, -51.2], [130, 34.5]]}
+			]
+		}
+	],
+	"displays": [
+		{
+			"mat": "^int1$",
+			"tex": [1024, 1024],
+			"screens": [
+				{
+					"page": "cluster", "rect": [512, 520, 1024, 1024], "flip_v": true, "day_art": [-512, 0],
+					"layout": {
+						"cover": [[858, 903, 930, 937, "#777777"]],
+						"text": [{"what": "trip", "at": [894, 920], "size": 22, "max_w": 66, "bold": false, "color": "#3a3a3a"}]
+					}
+				}
+			]
+		}
+	]
+}

@@ -1,0 +1,15 @@
+{
+	"_about": "ELFER GT2 CS: its race display above the column is modelled, joined to the dash round it and mapped to one dark swatch of the interior's texture: blank. It gets a panel (loose: its own faces in the box) with a race cluster of its own: the revs in a band across the top, the speed, the gear, the clock and the lap time, the lamps. The steering wheel's buttons, left in the body by the model's cut, are moved onto the wheel (wheel_parts: the interior material's pieces within its disc, 20 cm round its axis, 4.5 cm either side of its plane). Boxes: metres from the steering wheel's centre (the model's axes: x right, y up, z back).",
+	"wheel_parts": [
+		{"mat": "2019InteriorA_Material1$", "disc": [0.2, 0.045]}
+	],
+	"panels": [
+		{
+			"mat": "2019InteriorA_Material1$",
+			"box": [-0.064, 0.083, 0.03, 0.117, -0.171, -0.163], "loose": true,
+			"screens": [
+				{"page": "cluster", "style": "race", "rect": [0.0, 0.0, 1.0, 1.0], "accent": "#ff3b1f"}
+			]
+		}
+	]
+}

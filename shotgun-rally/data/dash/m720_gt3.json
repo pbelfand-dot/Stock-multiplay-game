@@ -1,6 +1,32 @@
 {
-	"_about": "WOKING GT3 (McLaren 720S GT3): the race display on the column is a blank quad of the interior's material (its UVs on one dark patch of the texture), so it gets a board laid on it, measured from its faces (rays from the driver's eye; m from the steering wheel's centre, the model's axes: x right, y up, z back): a digital race cluster in McLaren orange.",
+	"_about": "WOKING GT3 (McLaren 720S GT3): the race display on the column is a blank quad of the interior's material (its UVs on one dark patch of the texture), so it gets a board laid on it, measured from its faces (rays from the driver's eye; m from the steering wheel's centre, the model's axes: x right, y up, z back): a digital race cluster in McLaren orange. Its steering wheel's two side grips, left in the body by the model's cut, are moved onto the wheel (wheel_parts).",
+	"wheel_parts": [
+		{
+			"mat": "^Interior$",
+			"disc": [
+				0.16,
+				0.03
+			]
+		}
+	],
 	"boards": [
-		{"page": "cluster", "bg": false, "c": [0.001, 0.023, -0.322], "w": 0.149, "h": 0.091, "normal": [0.0, 0.0, 1.0], "lift": 0.003, "accent": "#ff8000"}
+		{
+			"page": "cluster",
+			"bg": false,
+			"c": [
+				0.001,
+				0.023,
+				-0.322
+			],
+			"w": 0.149,
+			"h": 0.091,
+			"normal": [
+				0.0,
+				0.0,
+				1.0
+			],
+			"lift": 0.003,
+			"accent": "#ff8000"
+		}
 	]
 }
