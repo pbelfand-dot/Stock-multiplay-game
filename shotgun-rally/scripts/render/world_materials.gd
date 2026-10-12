@@ -1128,7 +1128,7 @@ void fragment() {
 	float gw = step(0.01, w_grass) * w_grass / wsum;
 	float m1 = vnoise(wpos.xz * 0.043 + vec2(31.0, 7.0));
 	float m2 = vnoise(wpos.xz * 0.17 + vec2(3.0, 41.0));
-	float ph = mix(photo, mix(0.1, 0.8, smoothstep(0.25, 0.75, m1 * 0.6 + m2 * 0.4)), gw);
+	float ph = mix(photo, mix(0.1, 0.62, smoothstep(0.25, 0.75, m1 * 0.6 + m2 * 0.4)), gw);
 	vlin *= mix(1.0, mix(0.66, 1.1, smoothstep(0.15, 0.85, m2 * 0.7 + m1 * 0.3)), gw);
 	albedo = mix(vlin * clamp(mix(vec3(1.0), ratio, det), 0.0, 3.0), dot(vlin, LUMA) * phsum, ph);
 #else
