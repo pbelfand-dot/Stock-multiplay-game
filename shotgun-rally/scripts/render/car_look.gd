@@ -25,7 +25,7 @@ extends Node3D
 ## MEDIUM and up, Forward+: a soft contact shadow under the car (the sky can't reach under it: ambient
 ## occlusion, faked by a darkening quad on the ground, gone when it flies). At night the
 ## street lamps' few real lights (StreetLamps) light the car as it passes them.
-## LOW quality leaves the materials as they are (the lamps still glow).
+## LOW quality leaves the materials as they are (the lamps still glow; the tyres still go matte).
 
 const Graphics = preload("res://scripts/render/graphics.gd")
 const WorldMaterials = preload("res://scripts/render/world_materials.gd")
@@ -99,8 +99,7 @@ func _scan() -> void:
 		if m3.mesh == null:
 			continue
 		if _skip(m3):
-			if gloss:
-				_rubber(m3)
+			_rubber(m3)                                  # (every level: a tyre left metallic is chrome-white on LOW too)
 			continue
 		m3.gi_mode = GeometryInstance3D.GI_MODE_DYNAMIC         # (it moves: not part of SDFGI's world)
 		m3.layers = CAR_LAYER
@@ -143,7 +142,8 @@ func _scan() -> void:
 	_lamp_surfs = {"head": [], "tail": []}
 
 
-## The tyres: matte rubber (the rips' tyres are often as shiny as the paint).
+## The tyres: matte rubber, at every quality level (the rips' tyres are often as shiny as the
+## paint, some left at the glTF default metallic 1: chrome-white).
 func _rubber(m3: MeshInstance3D) -> void:
 	for i in m3.mesh.get_surface_count():
 		var src := m3.get_surface_override_material(i)
