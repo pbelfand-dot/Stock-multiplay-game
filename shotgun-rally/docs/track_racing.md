@@ -136,6 +136,10 @@ It never gets more grip or power than the car has.
 brake). The car's own ABS and TC catch the rest.
 
 - **Steering:** the autopilot's method (the path's bend ahead, back parallel to it, onto it), with the front tyres' slip angle for the side force asked of them. Never more lock than the tyres' peak: past it, more lock only scrubs.
+  - **The bend ahead** is averaged over the next 0.1 s. That's about as long as the car takes to answer its steering: 0.01-0.04 s, measured on a GT3 and a Formula car at 40-340 km/h.
+  - **Back parallel** compares the way the rear axle is going with the path's heading where the rear axle is.
+  - **What it used to do:** it looked 0.3 s ahead, and it read the path's heading at the front axle, which in a bend is the wheelbase x the bend further round. Both turned it in early. A Formula car sat up to ~2 m inside its path through a 200 km/h bend, with its wheels over the inside kerb.
+  - **Now:** the mean error in bends at CINDER RIDGE is 0.3 m inside for the Formula car (it was 1.1 m) and 0.0 m for the GT3 (0.7 m).
 - **Speed:** its line's at its pace.
   - flat out while the line's speed is rising;
   - a corner's speed held;

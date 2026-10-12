@@ -36,7 +36,9 @@ const RaceLine = preload("res://scripts/game/race_line.gd")
 
 const HOLD := 1.5                  # rad/s: how briskly it gets back onto its path ...
 const HOLD_DAMP := 0.9             # ... damped
-const PREVIEW := 0.3               # s: the bend it steers for is this far ahead
+const PREVIEW := 0.1               # s: the bend it steers for is this far ahead (averaged over it): about as long as
+                                   # the car takes to answer its steering (0.01-0.04 s, GT3 or Formula, 40-340 km/h);
+                                   # a longer look turned it in early, inside its path at every bend's entry
 const CATCH := 1.0                 # how much of the tail's angle it countersteers
 const CAR_L := 4.8                 # m: a GT3's length (4.6-4.75) and a little
 const SIDE := 2.7                  # m between two cars' middles side by side (2.05 m wide each, a gap)
@@ -508,9 +510,13 @@ func drive(car, dt: float) -> Dictionary:
 	if spd > 4.0:
 		tail = atan2(rear_v.dot(right), maxf(rear_v.dot(fwd), 0.5))
 		dir = (rear_v - xf.basis.y * rear_v.dot(xf.basis.y)).normalized()
-	# back parallel to the path (the road's heading turned by the path's slope across it) ...
-	var slope := (target_d(fs + 2.0) - target_d(fs - 2.0)) / 4.0
-	var path_yaw: float = st.heading_at(fs) + atan(slope)
+	# back parallel to the path (the road's heading turned by the path's slope across it) where the rear
+	# axle is, the way it's going: in a bend the path's heading at the front axle is further round by
+	# the wheelbase x the bend, which, taken for a heading error, turned the car in until it sat
+	# ~1.2 x its yaw rate x its wheelbase inside its path (up to ~2 m for a Formula car in a 200 km/h bend)
+	var rs: float = s + fwd.dot(st.forward_at(s)) * -car.config.rear_axle
+	var slope := (target_d(rs + 2.0) - target_d(rs - 2.0)) / 4.0
+	var path_yaw: float = st.heading_at(rs) + atan(slope)
 	var yaw: float = atan2(dir.x, -dir.z)
 	var vv := maxf(spd, 4.0)
 	k += 2.0 * HOLD_DAMP * HOLD * wrapf(path_yaw - yaw, -PI, PI) / vv
