@@ -4,7 +4,8 @@ extends Node3D
 ## sat in a seat. Every frame the skeleton is posed from scratch:
 ##   * sitting: thighs forward, shins down to the pedals / the footwell; a leg whose boot would
 ##     sink through the floor under it ("floor_prof": the cockpit's) swung up about the hip, the
-##     knee bent as it was, until the boot's heel and toe rest on it
+##     knee bent as it was, until the boot's heel, sole and toe cap rest on it (the foot stays
+##     over the floor it was over: opening the knee instead pushed the toes into the toe board)
 ##   * hands on targets (the steering wheel rim, the map board) with two-bone IK
 ##   * the head turned where that player is looking
 ## Works in the cockpit's space (the car faces -Z). Bones are aimed by
@@ -23,6 +24,7 @@ var floor_prof := {}            # "Left" / "Right" -> [z0, dz, heights]: the flo
                                 # from z0 (cockpit space; -INF: none there), cockpit.gd's; {}: the feet as posed
 const HEEL_DROP := 0.11         # m from the ankle joint down to the boot's heel at scale_k 1 (x scale_k)
 const TOE_DROP := 0.05          # m from the toes' joint down to the boot's sole under them (x scale_k)
+const TIP := Vector2(0.08, 0.035) # the boot's toe cap: m on from the toes' joint, and down to its sole (x scale_k)
 const LEG_LIFT_MAX := 55.0      # deg: the most a leg swings up to clear the floor
 var _leg_len := {}              # side -> [thigh, shin, foot] m (as scaled)
 var lifted := {}                # side -> how far (radians) that leg was swung up this frame to clear the floor
@@ -451,9 +453,9 @@ func pose(hands: Array, elbow_out: Vector3, legs_fwd := 1.0) -> void:
 	# mesh every face points away and isn't drawn. Shrinking it left a hole in the neck)
 
 
-## How far (radians) a leg posed along these directions (cockpit space: thigh, shin, foot) swings up
-## about its hip joint for its boot to clear the floor under it: the boot's heel (under the ankle) and
-## sole under the toes no lower than the floor where they are; 0: it clears it as it is.
+## How far (radians) a leg posed along these directions (cockpit space: thigh, shin, foot) swings up about
+## its hip joint for its boot to clear the floor under it: the boot's heel (under the ankle), its sole under
+## the toes and its toe cap no lower than the floor where they are; 0: it clears it as it is.
 func leg_lift(side: String, thigh: Vector3, shin: Vector3, foot: Vector3) -> float:
 	if not floor_prof.has(side):
 		return 0.0
@@ -464,16 +466,16 @@ func leg_lift(side: String, thigh: Vector3, shin: Vector3, foot: Vector3) -> flo
 	var hip := bone(side + "UpLeg")
 	var ankle := thigh.normalized() * float(ln[0]) + shin.normalized() * float(ln[1])
 	var toe := ankle + foot.normalized() * float(ln[2])
-	var k := scale_k
-	var step := deg_to_rad(1.5)
+	var tip := toe + foot.normalized() * TIP.x * scale_k
 	var a := 0.0
 	while a <= deg_to_rad(LEG_LIFT_MAX):
 		var r := Basis(Vector3.RIGHT, a)
-		var heel := hip + r * ankle - Vector3(0.0, HEEL_DROP * k, 0.0)
-		var sole := hip + r * toe - Vector3(0.0, TOE_DROP * k, 0.0)
-		if heel.y >= floor_under(side, heel.z) and sole.y >= floor_under(side, sole.z):
+		var heel := hip + r * ankle - Vector3(0.0, HEEL_DROP * scale_k, 0.0)
+		var sole := hip + r * toe - Vector3(0.0, TOE_DROP * scale_k, 0.0)
+		var cap := hip + r * tip - Vector3(0.0, TIP.y * scale_k, 0.0)
+		if heel.y >= floor_under(side, heel.z) and sole.y >= floor_under(side, sole.z) and cap.y >= floor_under(side, cap.z):
 			return a
-		a += step
+		a += deg_to_rad(1.5)
 	return deg_to_rad(LEG_LIFT_MAX)
 
 

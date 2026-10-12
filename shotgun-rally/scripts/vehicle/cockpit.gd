@@ -1132,6 +1132,18 @@ func _feet_floor() -> void:
 			h.append(best)
 			n += 1
 			z -= FOOT_ZS[2]
+		var j := 0                                   # (a short gap where no floor was found, a hole in its mesh: bridged by
+		while j < h.size():                          # the floor either side of it; past the floor's end, none)
+			if not is_inf(h[j]):
+				j += 1
+				continue
+			var e := j
+			while e < h.size() and is_inf(h[e]):
+				e += 1
+			if j > 0 and e < h.size() and e - j <= 2:
+				for q in range(j, e):
+					h[q] = maxf(h[j - 1], h[e])
+			j = e
 		line[0].floor_prof[line[1]] = [line[2], -float(FOOT_ZS[2]), h]
 
 
