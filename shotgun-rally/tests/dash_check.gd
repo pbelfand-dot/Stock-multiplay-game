@@ -220,6 +220,20 @@ func _spec(id: String, car, cp, dash, spec: Dictionary) -> void:
 			var want0 := Vector2(pg.src.end.x, pg.src.end.y if pg.cfg.get("flip_v", false) else pg.src.position.y)
 			fails += _check(m0.distance_to(want0) < 0.5 and pg.view == pg.src,
 				"%s: its mirrored%s page's corner is the texture's %s" % [id, " (and upside-down)" if pg.cfg.get("flip_v", false) else "", str(want0)])
+		if pg.cfg.has("day_art"):                      # (a screen the texture paints twice, the 22B's: unlit by day, lit at night)
+			var was: bool = dash.night
+			dash.night = false
+			_run(dash, DT)
+			var day: Rect2 = pg.art_src()
+			dash.night = true
+			_run(dash, DT)
+			var lit: Rect2 = pg.art_src()
+			dash.night = was
+			_run(dash, DT)
+			var off := Vector2(float(pg.cfg.day_art[0]), float(pg.cfg.day_art[1]))
+			fails += _check(lit == pg.src and day.position == pg.src.position + off and day.size == pg.src.size
+				and Rect2(Vector2.ZERO, Vector2(pg.base.get_width(), pg.base.get_height())).encloses(day),
+				"%s: its screen's picture by day is the unlit one %s px over, at night the lit one" % [id, str(off)])
 		for n in pg.cfg.get("layout", {}).get("needle", []):
 			var at0: float = pg.needle_angle(n, 0.0)
 			var at1: float = pg.needle_angle(n, float(n.max))
@@ -386,6 +400,22 @@ func _spec(id: String, car, cp, dash, spec: Dictionary) -> void:
 			for v in ((p as MeshInstance3D).mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX] as PackedVector3Array):
 				inbox = inbox and spaces.any(func(f): return f.call((p as MeshInstance3D).transform * v))
 		fails += _check(home and inbox, "%s: %d pieces of its cabin moved back into the body from a moving part (inside the box: %s)" % [id, dash.body_parts.size(), inbox])
+	# a piece that shouldn't show (the W17's steering column standing out through its wheel's screen): left out,
+	# nothing of the material wholly inside the box left showing, the rest of the material kept
+	if spec.has("drop_parts"):
+		var cnt := {"left": 0, "kept": 0}              # (a lambda sees a copy of a plain local: a dictionary it can add to)
+		for dp in spec.drop_parts:
+			var within: Callable = dash.wheel_space(dp)
+			dash._surfaces(str(dp.mat), func(m: MeshInstance3D, si: int, _base):
+				var arr := m.mesh.surface_get_arrays(si)
+				var vs: PackedVector3Array = dash._rel(m) * (arr[Mesh.ARRAY_VERTEX] as PackedVector3Array)
+				var ids: PackedInt32Array = dash._indices(arr)
+				cnt.kept += ids.size() / 3
+				for g in dash._groups(vs, ids, range(ids.size() / 3)):
+					if g.all(func(t): return within.call(vs[ids[t * 3]]) and within.call(vs[ids[t * 3 + 1]]) and within.call(vs[ids[t * 3 + 2]])):
+						cnt.left += g.size())
+		fails += _check(dash.dropped > 0 and cnt.left == 0 and cnt.kept > 0, "%s: %d faces left out (its %s), none of them still showing, the rest of the material kept (%d faces)" % [
+			id, dash.dropped, str(spec.drop_parts.map(func(dp): return dp.mat)), cnt.kept])
 	# LEDs painted plain white lit in their row's own colour (the AMG ONE's green, red and blue shift lights)
 	for o in dash.overlays:
 		var coloured: Array = o.leds.filter(func(r): return r.has("color"))

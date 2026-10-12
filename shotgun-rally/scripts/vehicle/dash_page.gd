@@ -130,8 +130,17 @@ func _art(dst: Rect2) -> void:
 	else:
 		local = Transform2D(Vector2(sx, 0), Vector2(0, sy), dst.position)
 	draw_set_transform_matrix(at * local)
-	draw_texture_rect_region(base, Rect2(Vector2.ZERO, src.size), src)
+	draw_texture_rect_region(base, Rect2(Vector2.ZERO, src.size), art_src())
 	draw_set_transform_matrix(at)
+
+
+## The part of the texture the art comes from: by day, where the texture paints the screen a second time
+## unlit ("day_art": [dx, dy] texture pixels from the lit one), that picture instead.
+func art_src() -> Rect2:
+	var off: Array = cfg.get("day_art", [])
+	if off.size() < 2 or live.data.get("night", false):
+		return src
+	return Rect2(src.position + Vector2(float(off[0]), float(off[1])), src.size)
 
 
 func _cluster() -> void:

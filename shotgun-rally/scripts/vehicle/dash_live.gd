@@ -7,7 +7,8 @@ extends Node3D
 ##       - screens: a rectangle of the surface's UVs shows a live page instead (the texture
 ##         holding it upside down "flip_v", mirrored "flip_h", both: turned half round, or
 ##         sideways "transpose"; "off_wheel": not on the bits of the steering wheel that share
-##         the material)
+##         the material; "day_art": [dx, dy] where the texture paints the screen again unlit,
+##         drawn by day)
 ##         (dash_page.gd: a digital cluster, the centre screen's map and driving data)
 ##       - needles: a dial painted in the texture gets a moving needle; the painted
 ##         one is covered with the dial face from a little further round
@@ -38,7 +39,9 @@ extends Node3D
 ##     the steering wheel: they turn with it; "body_parts": the same for pieces of the cabin
 ##     the model left in something that moves (the Zonda's cluster bits in a brake caliper,
 ##     swinging with the front wheel; the Trackhawk's needles cut out with its steering wheel):
-##     moved back into the body, where they belong
+##     moved back into the body, where they belong; "drop_parts": the same for a piece that
+##     shouldn't show at all (the W17's steering column, its end standing out through the
+##     middle of the wheel's screen): left out
 ##   * the warning lamps: the handbrake, ABS and traction control working, the shift
 ##     lamp near the limiter, the lights at night, the flash; all of them for a moment
 ##     when the engine starts (the bulb check)
@@ -80,6 +83,7 @@ var overlays: Array = []            # [{"mat": ShaderMaterial, "needles": [...],
 var needle_parts: Array = []        # [{"pivot": Node3D, "axis": Vector3, "n": spec}]
 var wheel_parts: Array = []         # the steering wheel's pieces moved onto it (MeshInstance3D)
 var body_parts: Array = []          # the cabin's pieces moved back into the body from something that moves
+var dropped := 0                    # faces of the pieces left out ("drop_parts")
 var needle_mats: Array = []         # the needle parts' material (lit up at night)
 var panels: Array = []              # the panels' meshes
 var boards: Array = []              # the boards' meshes
@@ -115,6 +119,8 @@ func setup(the_car, the_cockpit, the_spec: Dictionary) -> void:
 		_wheel_parts(wp)
 	for bp in spec.get("body_parts", []):
 		_wheel_parts(bp, true)
+	for dp in spec.get("drop_parts", []):
+		_wheel_parts(dp, true, true)
 	for d in spec.get("displays", []):
 		if not _surfaces(str(d.get("mat", "^$")), func(m, si, base):
 				if d.get("off_wheel", false) and _on_wheel(m):   # (the material on a bit of the steering wheel too: left as it is)
@@ -526,8 +532,8 @@ func _board(b: Dictionary) -> void:
 ## material: its buttons, LEDs and screens in others): the material's touching groups wholly
 ## inside the box (m from the wheel's centre) moved onto the steering wheel's node, in their
 ## own material (an overlay can still ride on it), so they turn with it; the rest of the surface
-## stays where it is.
-func _wheel_parts(wp: Dictionary, to_body := false) -> void:
+## stays where it is. ("drop": the pieces left out altogether.)
+func _wheel_parts(wp: Dictionary, to_body := false, drop := false) -> void:
 	var sw: Node3D = car.body_model if to_body else (car.cockpit_nodes.get("wheel") if "cockpit_nodes" in car else null)
 	if sw == null:
 		missing.append("wheel parts " + str(wp.get("mat")) + ": no steering wheel")
@@ -535,9 +541,10 @@ func _wheel_parts(wp: Dictionary, to_body := false) -> void:
 	var within := wheel_space(wp)
 	var onto := _rel(sw).affine_inverse()               # (the model's space -> the wheel node's)
 	var before := (body_parts if to_body else wheel_parts).size()
+	var dropped_before := dropped
 	_surfaces(str(wp.mat), func(m: MeshInstance3D, si: int, base: Material):
 		var moving: bool = car.cockpit_nodes.values().any(func(n): return n == m or (n as Node).is_ancestor_of(m)) if "cockpit_nodes" in car else false
-		if m.name in ["WheelPart", "BodyPart"] or (not to_body and (m == sw or sw.is_ancestor_of(m))) or (to_body and m.get_parent() == sw and not moving):
+		if m.name in ["WheelPart", "BodyPart"] or (drop and moving) or (not drop and not to_body and (m == sw or sw.is_ancestor_of(m))) or (not drop and to_body and m.get_parent() == sw and not moving):
 			return                                       # (where it belongs already: the body's own, not a moving part's)
 		var arr := m.mesh.surface_get_arrays(si)
 		var xf := _rel(m)
@@ -559,19 +566,28 @@ func _wheel_parts(wp: Dictionary, to_body := false) -> void:
 				rest.append_array(g)
 		if mine.is_empty():
 			return
-		var part := _piece(onto * vs, PackedVector3Array(Array(ns).map(func(x): return (onto.basis * x).normalized())) if ns != null and ns.size() > 0 else ns,
-			arr[Mesh.ARRAY_TEX_UV], ids, mine, base, m)
-		part.name = "BodyPart" if to_body else "WheelPart"
-		sw.add_child(part)
-		(body_parts if to_body else wheel_parts).append(part)
+		if drop:
+			dropped += mine.size()
+		else:
+			_place_part(sw, onto, vs, ns, arr, ids, mine, base, m, to_body)
 		if not rest.is_empty():                          # (the rest stays with what it was part of)
 			var still := _piece(arr[Mesh.ARRAY_VERTEX], arr[Mesh.ARRAY_NORMAL], arr[Mesh.ARRAY_TEX_UV], ids, rest, base, m)
 			still.name = "WheelRest"
 			still.transform = m.transform
 			m.get_parent().add_child(still)
 		m.set_surface_override_material(si, _hidden()))
-	if (body_parts if to_body else wheel_parts).size() == before:
-		missing.append(("body parts " if to_body else "wheel parts ") + str(wp.get("mat")))
+	if (dropped == dropped_before) if drop else ((body_parts if to_body else wheel_parts).size() == before):
+		missing.append(("drop parts " if drop else ("body parts " if to_body else "wheel parts ")) + str(wp.get("mat")))
+
+
+## A part's pieces as a mesh of their own on the node they move with.
+func _place_part(sw: Node3D, onto: Transform3D, vs: PackedVector3Array, ns, arr: Array, ids: PackedInt32Array, mine: Array, base: Material,
+		m: MeshInstance3D, to_body: bool) -> void:
+	var part := _piece(onto * vs, PackedVector3Array(Array(ns).map(func(x): return (onto.basis * x).normalized())) if ns != null and ns.size() > 0 else ns,
+		arr[Mesh.ARRAY_TEX_UV], ids, mine, base, m)
+	part.name = "BodyPart" if to_body else "WheelPart"
+	sw.add_child(part)
+	(body_parts if to_body else wheel_parts).append(part)
 
 
 ## Whether a point (the model's space) is in a "wheel_parts" entry's space: its "box" (m from the
