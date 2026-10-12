@@ -120,7 +120,8 @@ const CIRCUIT_WM := {"asphalt": ["asphalt", {"uv": true, "uv_along": "x", "tint"
 	"pitlane": ["asphalt", {"uv": true, "uv_along": "x", "tint": Color(0.56, 0.57, 0.6)}],
 	"runoff": ["asphalt", {"uv": true, "uv_along": "x", "tint": Color(0.5, 0.56, 0.62)}],
 	"paint": ["road_paint", {"vertex": "colour", "tint": Color(0.85, 0.85, 0.83)}],
-	"concrete": ["concrete", {}], "steel": ["steel", {"tint": Color(0.7, 0.72, 0.75)}],
+	# (the walls painted a light grey: the bare photo read as tan sandstone down the pit wall)
+	"concrete": ["concrete", {"vertex": "colour", "tint": Color(0.74, 0.75, 0.76)}], "steel": ["steel", {"tint": Color(0.7, 0.72, 0.75)}],
 	"grass": ["grass", {"uv": true}], "gravel": ["gravel", {"uv": true}], "terrain": ["terrain", {}],
 	"post_lamp": ["street_lamp_head", {}], "building": ["buildings", {}], "glass": ["glass_windows", {}]}
 
@@ -138,6 +139,14 @@ func _mat(key: String) -> Material:
 
 
 func _fallback(key: String) -> Material:
+	if key == "garage_bay":
+		var bay := ShaderMaterial.new()
+		var sh := Shader.new()
+		sh.code = BAY_SHADER
+		bay.shader = sh
+		var p: Dictionary = cst.pit
+		bay.set_shader_parameter("width", (float(p.s_box1) - float(p.s_box0)) / float(p.boxes) * 0.82)
+		return bay
 	var m := StandardMaterial3D.new()
 	m.vertex_color_use_as_albedo = true
 	m.vertex_color_is_srgb = true
@@ -207,6 +216,67 @@ func _fallback(key: String) -> Material:
 		_:
 			return super._fallback(key)
 	return m
+
+
+## A pit garage's open door: the room behind it drawn by the camera's ray (interior mapping: no
+## geometry, a few dozen instructions a pixel on 20 small quads): a light grey back wall and sides,
+## the team's colour in a band round them (the vertex colour), cabinets along the bottom, a grey
+## floor, strip lights across the ceiling; darker toward the back. Lit from inside (unshaded), so
+## it glows a little at night. The other faces of the door's thin box: dark. (It was a flat black
+## slab: twenty black holes down the pit lane.)
+const BAY_SHADER := """
+shader_type spatial;
+render_mode unshaded, cull_back;
+uniform float width = 8.0;
+uniform float height = 4.4;
+uniform float depth = 12.0;
+uniform float bright = 1.0;
+varying vec3 wpos;
+varying vec3 wnrm;
+void vertex() {
+	wpos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
+	wnrm = normalize((MODEL_MATRIX * vec4(NORMAL, 0.0)).xyz);
+}
+vec3 wall(vec2 p, vec3 team) {
+	vec3 c = vec3(0.5, 0.51, 0.52);
+	c = mix(c, vec3(0.1, 0.105, 0.11), step(p.y, 1.05));                    // cabinets
+	c = mix(c, vec3(0.16), step(abs(fract(p.x * 0.55) - 0.5), 0.012) * step(p.y, 1.05));
+	c = mix(c, team, step(abs(p.y - 2.35), 0.17));                          // the team's band
+	return c;
+}
+void fragment() {
+	vec3 n = normalize(wnrm);
+	vec3 col = vec3(0.025);
+	if (abs(n.y) < 0.5) {
+		vec3 dp1 = dFdx(wpos);
+		vec3 dp2 = dFdy(wpos);
+		vec2 du1 = dFdx(UV);
+		vec2 du2 = dFdy(UV);
+		float det = du1.x * du2.y - du2.x * du1.y;
+		vec3 T = normalize((dp1 * du2.y - dp2 * du1.y) * sign(det));
+		vec3 rw = normalize(wpos - CAMERA_POSITION_WORLD);
+		vec3 rd = vec3(dot(rw, T), rw.y, max(dot(rw, -n), 1e-3));
+		vec3 ro = vec3(clamp(UV.x, 0.0, width), clamp(UV.y, 0.0, height), 0.0);
+		float tx = ((rd.x > 0.0 ? width : 0.0) - ro.x) / (rd.x + (rd.x >= 0.0 ? 1e-5 : -1e-5));
+		float ty = ((rd.y > 0.0 ? height : 0.0) - ro.y) / (rd.y + (rd.y >= 0.0 ? 1e-5 : -1e-5));
+		float tz = depth / rd.z;
+		float t = min(tx, min(ty, tz));
+		vec3 h = ro + rd * t;
+		vec3 team = pow(COLOR.rgb, vec3(2.2));
+		if (t == tz) {
+			col = wall(vec2(h.x, h.y), team);
+		} else if (t == tx) {
+			col = wall(vec2(h.z, h.y), team) * 0.85;
+		} else if (rd.y < 0.0) {
+			col = vec3(0.3, 0.31, 0.33) + 0.12 * smoothstep(0.3, 0.0, abs(fract(h.z / 3.0) - 0.5));   // the lights in the floor
+		} else {
+			col = mix(vec3(0.16), vec3(4.0), step(abs(fract(h.z / 3.0) - 0.5), 0.06) * step(0.6, h.x) * step(h.x, width - 0.6));
+		}
+		col *= mix(1.0, 0.5, h.z / depth) * mix(0.75, 1.0, h.y / height);
+	}
+	ALBEDO = col * bright;
+}
+"""
 
 
 # ── shapes on the track ───────────────────────────────────────────────────
@@ -666,7 +736,8 @@ func _garages() -> void:
 		var span := (float(p.s_box1) - float(p.s_box0)) / float(p.boxes)
 		var a2: Vector3 = st.world_at(sd.x, d0 - 0.02)
 		var bas2 := _seg_basis(st.world_at(sd.x - 1.0, d0), st.world_at(sd.x + 1.0, d0))
-		_buf(i2, "garage_dark").box(a2 + Vector3.UP * 2.3, Vector3(0.1, 4.4, span * 0.82), bas2)
+		var team := Color.from_hsv(fposmod(k * 0.137 + 0.03, 1.0), 0.75, 0.85)       # (each bay its team's colour)
+		_buf(i2, "garage_bay").box(a2 + Vector3.UP * 2.3, Vector3(0.1, 4.4, span * 0.82), bas2, team)
 		var lbl := Label3D.new()
 		lbl.text = str(k + 1)
 		lbl.font_size = 96
