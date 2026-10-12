@@ -19,7 +19,7 @@
 		"wheelbase_mm": 2865,
 		"top_speed_kmh": 250,
 		"front_weight": 0.53,
-		"notes": "BMW's X3 M40i (G01, the 2021-2024 facelift): the B58 3.0 turbo straight six with a 48 V mild hybrid, 360 PS (265 kW) at 5,200-6,500 rpm and 500 N m at 1,900-5,000 rpm (BMW's technical data: 1,850-5,000 before the facelift; Autotijd for the facelift), xDrive, an eight-speed automatic, ~1,980 kg, 0-100 km/h in 4.9 s (4.8 before the facelift), 250 km/h limited; 382 hp in the US. Its torque curve follows those (from October 2026 to the cars' check it was drawn to the G45 X3 M50's 398 PS, and before that it held 580 N m to 5,500 rpm: 455 PS). Its ratios and aero are estimates."
+		"notes": "BMW's X3 M40i (G01, the 2021-2024 facelift): the B58 3.0 turbo straight six with a 48 V mild hybrid, 360 PS (265 kW) at 5,200-6,500 rpm and 500 N m at 1,900-5,000 rpm (BMW's technical data: 1,850-5,000 before the facelift; Autotijd for the facelift), xDrive, an eight-speed automatic, ~1,980 kg, 0-100 km/h in 4.9 s (4.8 before the facelift), 250 km/h limited; 382 hp in the US. Its torque curve follows those (from October 2026 to the cars' check it was drawn to the G45 X3 M50's 398 PS, and before that it held 580 N m to 5,500 rpm: 455 PS). Its ratios and aero are estimates. Its gearbox is BMW's for the M40i before the facelift (BMW's media information, 04/2020: 5.250 / 3.360 / 2.172 / 1.720 / 1.316 / 1.000 / 0.822 / 0.640 on a 3.385 final drive; no facelift sheet with the ratios was found), with its 250 km/h limiter; before October 2026 a 5.82 final drive ran it into the rev limiter in eighth at 250 km/h."
 	},
 	"garage": {
 		"price": 30000,
@@ -46,8 +46,9 @@
 		"spool": [1800.0, 3200.0],
 		"spool_time": 0.35,
 		"anti_lag": false,
-		"gears": [5.0, 3.2, 2.143, 1.72, 1.313, 1.0, 0.823, 0.64],
-		"final": 5.82,
+		"gears": [5.25, 3.36, 2.172, 1.72, 1.316, 1.0, 0.822, 0.64],
+		"final": 3.385,
+		"vmax": 250.0,
 		"drive": "awd",
 		"front_share": 0.4,
 		"centre": ["lsd", 0.25, 0.2, 30.0],

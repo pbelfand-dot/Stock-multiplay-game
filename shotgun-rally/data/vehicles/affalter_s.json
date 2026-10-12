@@ -19,7 +19,7 @@
 		"wheelbase_mm": 3396,
 		"top_speed_kmh": 250,
 		"front_weight": 0.52,
-		"notes": "The Mercedes-Maybach S-Class (Z223, 2021): a 3,396 mm wheelbase limousine; run as the S 680 (6.0 V12 biturbo, 612 PS, 900 N m, 4MATIC, a nine-speed automatic, ~2,350 kg, 0-100 km/h in 4.5 s). Which engine the model shows isn't stated; the V12's numbers are an assumption. Its torque curve, ratios and aero are estimates."
+		"notes": "The Mercedes-Maybach S-Class (Z223, 2021): a 3,396 mm wheelbase limousine; run as the S 680 (6.0 V12 biturbo, 612 PS, 900 N m, 4MATIC, a nine-speed automatic, ~2,350 kg, 0-100 km/h in 4.5 s). Which engine the model shows isn't stated; the V12's numbers are an assumption. Its torque curve, ratios and aero are estimates. Its nine-speed's ratios are Mercedes' (the S 680's technical data, 04/2026: 5.35 / 3.24 / 2.25 / 1.64 / 1.21 / 1.00 / 0.87 / 0.72 / 0.60); Mercedes publishes no axle ratio for it, so the final drive is the V12 Maybach S 600's 2.47 (Mercedes-Benz USA's 2017 specifications, the closest published), with its 250 km/h limiter, and 4MATIC sends 31 % of the drive forward (Mercedes-Benz USA); before October 2026 a 5.56 final drive ran it into the rev limiter in ninth at 250 km/h, with 45 % forward."
 	},
 	"garage": {
 		"price": 70000,
@@ -46,10 +46,11 @@
 		"spool": [1800.0, 3200.0],
 		"spool_time": 0.35,
 		"anti_lag": false,
-		"gears": [5.35, 3.24, 2.25, 1.64, 1.21, 1.0, 0.86, 0.72, 0.6],
-		"final": 5.56,
+		"gears": [5.35, 3.24, 2.25, 1.64, 1.21, 1.0, 0.87, 0.72, 0.6],
+		"final": 2.47,
+		"vmax": 250.0,
 		"drive": "awd",
-		"front_share": 0.45,
+		"front_share": 0.31,
 		"centre": ["lsd", 0.25, 0.2, 30.0],
 		"front_diff": ["open", 0.0, 0.0, 0.0],
 		"rear": ["lsd", 0.35, 0.15, 30.0],
@@ -73,7 +74,7 @@
 		"url": "",
 		"attribution": ""
 	},
-	"research": ["https://en.wikipedia.org/wiki/Mercedes-Benz_S-Class_(W223)#Mercedes-Maybach_S-Class"],
+	"research": ["https://en.wikipedia.org/wiki/Mercedes-Benz_S-Class_(W223)#Mercedes-Maybach_S-Class", "https://media.mercedes-benz.it/download/125aa765-e6ba-476c-8368-bc06ef9657ca/td_mercedes-maybachs680_saloon_z223_en.docx", "https://media.mbusa.com/releases/release-95853e11e010b7b5e744226d7f1e220d-2017-mercedes-maybach-s600-specifications", "https://www.automotiveworld.com/news/mercedes-benz-usa-announces-highly-anticipated-new-mercedes-maybach-s-680-4matic-sedan/"],
 	"limitations": [
 		"From the owner's private download batch: kept out of public credit lists; its provenance isn't cleared for redistribution.",
 		"Fictional name; the model has no separate badge parts by name, any painted into its textures remain. The torque curve, ratios and aero are estimates."

@@ -19,7 +19,7 @@
 		"wheelbase_mm": 3003,
 		"top_speed_kmh": 306,
 		"front_weight": 0.57,
-		"notes": "Lamborghini's Urus Performante: the 4.0 twin-turbo V8 at 666 CV (490 kW) and 850 N m, eight-speed automatic, permanent four-wheel drive, ~2,150 kg, 0-100 km/h in 3.3 s, 306 km/h (Lamborghini, dealer spec sheets). Its torque curve, ratios and aero are estimates."
+		"notes": "Lamborghini's Urus Performante: the 4.0 twin-turbo V8 at 666 CV (490 kW) and 850 N m, eight-speed automatic, permanent four-wheel drive, ~2,150 kg, 0-100 km/h in 3.3 s, 306 km/h (Lamborghini, dealer spec sheets). Its torque curve, ratios and aero are estimates. Lamborghini publishes no ratios for it: its gearbox is the Audi RS Q8 Performance's, the same eight-speed behind the same 4.0 V8 (auto motor und sport's data: 4.714 / 3.143 / 2.11 / 1.67 / 1.28 / 1.00 / 0.84 / 0.67 on a 3.20 final drive), with its 306 km/h limiter; before October 2026 a 5.18 final drive ran it into the rev limiter in eighth at 306 km/h."
 	},
 	"garage": {
 		"price": 60000,
@@ -46,8 +46,9 @@
 		"spool": [1800.0, 3200.0],
 		"spool_time": 0.35,
 		"anti_lag": false,
-		"gears": [5.0, 3.2, 2.143, 1.72, 1.313, 1.0, 0.823, 0.64],
-		"final": 5.18,
+		"gears": [4.714, 3.143, 2.11, 1.67, 1.28, 1.0, 0.84, 0.67],
+		"final": 3.2,
+		"vmax": 306.0,
 		"drive": "awd",
 		"front_share": 0.4,
 		"centre": ["lsd", 0.25, 0.2, 30.0],
@@ -75,7 +76,8 @@
 	},
 	"research": [
 		"https://media.lamborghini.com/English/aktuelles/the-lamborghini-urus-performante---raising-the-bar-on-the-super-suv/s/47ee8d0a-3aa1-4585-be65-50d579242c8f",
-		"https://www.hrowen.co.uk/lamborghini/urus/"
+		"https://www.hrowen.co.uk/lamborghini/urus/",
+		"https://www.auto-motor-und-sport.de/test/audi-rs-q8-perfomance-suv-mit-nordschleifen-rekord/technische-daten/"
 	],
 	"limitations": [
 		"From the owner's private download batch: kept out of public credit lists; its provenance isn't cleared for redistribution.",
