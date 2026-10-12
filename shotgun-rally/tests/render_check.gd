@@ -40,6 +40,7 @@ func _initialize() -> void:
 	_loop_night()
 	_car_lamps()
 	_lamp_lenses()
+	_beam_shape()
 	_split()
 	print("[render] %s" % ("RENDER OK" if fails == 0 else "RENDER FAIL (%d)" % fails))
 	quit(1 if fails > 0 else 0)
@@ -426,6 +427,29 @@ func _lamp_lenses() -> void:
 	_check(on_lens and box_ahead > 0.1 and from_lens and theirs and glow_on and ahead < 0.01 and yours and road_ok,
 		"headlights from the lamps: a swept lamp's light on its lens cover %s (its box's front %.2f m in front of it), the beams on it 2 cm out (%s; one beam: %s); someone else's car on its own layer (%s), yours (%s); the hazard blinkers on the lenses (%s), no glow in front of a lens (%.3f m); the traffic's light on the road from the lamps out to %.0f m (%s)" % [
 		str(lens), box_ahead, str(twin), str(one), theirs, yours, glow_on, ahead, CarLamps.ROAD_REACH, road_ok])
+
+
+## The headlights' shape on a flat road (CarLamps.road_light: a spot light as Godot works it
+## out, a lamp 0.6 m up): lit from 0.75 m out of the lamp (half the brightest or more), a fifth
+## of the brightest still at 10 m and a twelfth at 20 m. The old cone (34 degrees, 4 down,
+## focus 0.65, decay 0.6) left 0.75 m dark and had a tenth at 10 m: a round pool on its own
+## just in front of the car.
+func _beam_shape() -> void:
+	var xs := [0.75, 1.0, 1.5, 2.0, 3.0, 5.0, 8.0, 10.0, 15.0, 20.0]
+	var shape := func(old: bool) -> Dictionary:
+		var out := {}
+		var most := 0.0
+		for x in xs:
+			out[x] = CarLamps.road_light(x, 0.6, 34.0, 4.0, 0.65, 0.6) if old else CarLamps.road_light(x)
+			most = maxf(most, out[x])
+		for x in xs:
+			out[x] = out[x] / most
+		return out
+	var now: Dictionary = shape.call(false)
+	var was: Dictionary = shape.call(true)
+	_check(now[0.75] >= 0.5 and now[10.0] >= 0.2 and now[20.0] >= 0.08 and was[0.75] < 0.05,
+		"the headlights on a flat road (of the brightest): at 0.75 m %.2f, 10 m %.2f, 20 m %.2f (the old cone: %.2f, %.2f, %.2f)" % [
+		now[0.75], now[10.0], now[20.0], was[0.75], was[10.0], was[20.0]])
 
 
 ## A lamp material over both ends of a car, and one the material names don't give away (a

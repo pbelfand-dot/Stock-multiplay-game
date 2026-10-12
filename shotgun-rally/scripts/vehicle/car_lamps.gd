@@ -14,6 +14,15 @@ extends Node3D
 ##     on a lamp swept back round the wing: the light came from the air there). Where a model
 ##     has no "_at" (lamps painted on), the middle of each lamp's face; where no lamp is known
 ##     at all, the front of the body. Nothing glows in the air in front of the car.
+##   * the light on the road runs on from the lamps: a wide cone (BEAM_ANGLE 50 degrees), aimed
+##     just under the level (BEAM_TILT), its light gathered toward the middle (BEAM_FOCUS) and
+##     falling off slowly with distance (BEAM_DECAY). On a flat road it lights from ~0.75 m out
+##     of the lamp (just ahead of the bumper) and still has a quarter of its brightest at 10 m,
+##     a tenth at 20 m. The old cone (34 degrees, 4 down) left the first 0.75 m dark, lit
+##     1-3 m ahead brightest by far and had a tenth of that at 10 m: a round pool on the road
+##     on its own just in front of the car, the brightest thing in view. (A projector's low-beam
+##     pattern would do better, but in Godot it only works with the light's shadows on: a
+##     shadow pass for every beam.)
 ##   * a beam doesn't light its own car (light_cull_mask and shadow_caster_mask leave the car's
 ##     layer out): a spot light a few cm from the car's own bumper, grille, bonnet and lens lit
 ##     them white-hot (worst with one beam in the middle of the nose, in the grille), the bloom
@@ -45,8 +54,12 @@ const WorldMaterials = preload("res://scripts/render/world_materials.gd")
 const BEAM_COLOUR := Color(1.0, 0.95, 0.86)
 const TAIL_COLOUR := Color(1.0, 0.08, 0.04)
 const AMBER := Color(1.0, 0.55, 0.08)
-const BEAM_ENERGY := 8.5
+const BEAM_ENERGY := 5.1          # (one beam's; two share it, a third more between them)
 const BEAM_OUT := 0.02            # m: a beam starts this far out from its lens
+const BEAM_ANGLE := 50.0          # deg: the cone (half): wide enough for the road just ahead of the bumper
+const BEAM_TILT := 3.0            # deg: its middle aimed this far under the level
+const BEAM_FOCUS := 0.3           # its spot_angle_attenuation: the light gathered toward the middle (the far road)
+const BEAM_DECAY := 0.2           # its spot_attenuation: slow to fall off with distance
 const CAR_LAYER := 1 << 10        # (CarLook's: your car's own meshes)
 const OTHER_LAYER := 1 << 14      # (CarLook's: anyone else's car)
 const ROAD_REACH := 14.0          # m: the traffic's light on the road, this far out from its headlamps
@@ -145,10 +158,10 @@ func _build(car: Node3D, body: Node3D, with_beam: bool, tail_light: bool) -> voi
 			spot.light_color = BEAM_COLOUR
 			spot.light_energy = _energy
 			spot.spot_range = 75.0
-			spot.spot_attenuation = 0.6
-			spot.spot_angle = 34.0 if twin else 37.0
-			spot.spot_angle_attenuation = 0.65                  # (a soft edge: brightest in the middle)
-			spot.rotation.x = deg_to_rad(-4.0)
+			spot.spot_attenuation = BEAM_DECAY
+			spot.spot_angle = BEAM_ANGLE
+			spot.spot_angle_attenuation = BEAM_FOCUS
+			spot.rotation.x = deg_to_rad(-BEAM_TILT)
 			spot.light_specular = 0.6
 			spot.shadow_enabled = shadows and k == spots.size() - 1     # (one shadow: half the cost)
 			spot.light_cull_mask = 0xFFFFF & ~layer              # (not its own car: no white-hot nose a few cm off)
@@ -180,6 +193,19 @@ func _build(car: Node3D, body: Node3D, with_beam: bool, tail_light: bool) -> voi
 static func beam_origins(heads: Array, twin: bool) -> Array:
 	var out := Vector3(0, 0, -BEAM_OUT)
 	return [heads[0] + out, heads[1] + out] if twin else [(heads[0] + heads[1]) * 0.5 + out]
+
+
+## How bright a beam lights a flat road x m ahead of its lamp (h m up), as Godot works a spot
+## light out (its range's fade aside): the cone's falloff off its middle, the distance, the
+## angle it lands at; for one energy. (The tests' measure of a beam's shape.)
+static func road_light(x: float, h := 0.6, angle := BEAM_ANGLE, tilt := BEAM_TILT, focus := BEAM_FOCUS, decay := BEAM_DECAY) -> float:
+	var d := sqrt(x * x + h * h)
+	var c := (x * cos(deg_to_rad(tilt)) + h * sin(deg_to_rad(tilt))) / d     # (cos of the angle off the middle)
+	var cut := cos(deg_to_rad(angle))
+	if c <= cut:
+		return 0.0
+	var rim := maxf((1.0 - c) / (1.0 - cut), 0.0001)
+	return (1.0 - pow(rim, focus)) * pow(d, -decay) * (h / d)
 
 
 ## The car's own meshes onto its layer (yours: CAR_LAYER; anyone else's: OTHER_LAYER), so its

@@ -127,7 +127,15 @@ on at night (the lamps).
      never lights its own car (its cull and shadow-caster masks leave the car's layer out): a
      spot light a few cm from its own bumper, grille and lens lit them white-hot, the bloom
      made a ball of it and the beam seemed to come out of that ball (worst with the single
-     beam everyone else had, in the middle of the nose, inside the grille). Your car's meshes
+     beam everyone else had, in the middle of the nose, inside the grille). And each beam's
+     light runs on down the road from the lamp: a wide cone (50 degrees), aimed 3 degrees
+     under the level, gathered toward its middle and slow to fall off with distance, so a flat
+     road is lit from ~0.75 m out of the lamp and still has a quarter of its brightest at
+     10 m, a tenth at 20 m. The old cone (34 degrees, 4 down) left the first 0.75 m dark, lit
+     1-3 m ahead brightest by far and had a tenth of that at 10 m: a round pool of light on
+     the road on its own just in front of the car, the brightest thing in view. (A projector's
+     low-beam pattern would be better still, but Godot only uses a light's projector with its
+     shadows on: a shadow pass for every beam.) Your car's meshes
      are on CAR_LAYER, any other car CarLamps fits on OTHER_LAYER: your beams light the cars
      ahead of you and theirs light yours. Only a body whose lamps are painted into its
      texture (the shared rally body: parts.json `"lamp_boxes"`) gets a soft glow laid flat on
