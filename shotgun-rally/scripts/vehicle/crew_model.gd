@@ -2,7 +2,9 @@ extends Node3D
 ## A crew member from a rigged model (assets/models/driver.glb / codriver.glb:
 ## the owner's racer, a Mixamo rig, made game-ready by tools/import_crew.py)
 ## sat in a seat. Every frame the skeleton is posed from scratch:
-##   * sitting: thighs forward, shins down to the pedals / the footwell
+##   * sitting: thighs forward, shins down to the pedals / the footwell; a leg whose boot would
+##     sink through the floor under it ("floor_prof": the cockpit's) swung up about the hip, the
+##     knee bent as it was, until the boot's heel and toe rest on it
 ##   * hands on targets (the steering wheel rim, the map board) with two-bone IK
 ##   * the head turned where that player is looking
 ## Works in the cockpit's space (the car faces -Z). Bones are aimed by
@@ -17,6 +19,13 @@ const FOREARM_SLIM := 0.6       # the driver's forearms, thinned to fit the glov
 const HAND_CUT := 0.035         # m up the forearm from the wrist: where the driver's sleeves end (under the gauntlets)
 
 var suit_colour := Color(0.75, 0.13, 0.12)
+var floor_prof := {}            # "Left" / "Right" -> [z0, dz, heights]: the floor under that foot every dz m along z
+                                # from z0 (cockpit space; -INF: none there), cockpit.gd's; {}: the feet as posed
+const HEEL_DROP := 0.11         # m from the ankle joint down to the boot's heel at scale_k 1 (x scale_k)
+const TOE_DROP := 0.05          # m from the toes' joint down to the boot's sole under them (x scale_k)
+const LEG_LIFT_MAX := 55.0      # deg: the most a leg swings up to clear the floor
+var _leg_len := {}              # side -> [thigh, shin, foot] m (as scaled)
+var lifted := {}                # side -> how far (radians) that leg was swung up this frame to clear the floor
 
 var skel: Skeleton3D
 var look := Vector2.ZERO        # yaw (+ = left), pitch (+ = up), rad
@@ -415,9 +424,19 @@ func pose(hands: Array, elbow_out: Vector3, legs_fwd := 1.0) -> void:
 	# pedals in the nose, the toes up on them)
 	for side in ["Left", "Right"]:
 		var out := -1.0 if side == "Left" else 1.0
-		_aim(side + "UpLeg", side + "Leg", Vector3(out * 0.1, lerpf(thigh_y, 0.24, recline), -1.0))
-		_aim(side + "Leg", side + "Foot", Vector3(out * 0.02, lerpf(-0.75, -0.14, recline), lerpf(-0.55 * legs_fwd, -1.0, recline)))
-		_aim(side + "Foot", side + "ToeBase", Vector3(0.0, -0.25, -1.0).lerp(Vector3(0.0, 0.55, -0.8), recline))
+		var thigh := Vector3(out * 0.1, lerpf(thigh_y, 0.24, recline), -1.0)
+		var shin := Vector3(out * 0.02, lerpf(-0.75, -0.14, recline), lerpf(-0.55 * legs_fwd, -1.0, recline))
+		var foot := Vector3(0.0, -0.25, -1.0).lerp(Vector3(0.0, 0.55, -0.8), recline)
+		var up := leg_lift(side, thigh, shin, foot)
+		lifted[side] = up
+		if up > 0.0:                                   # (the whole leg swung up about the hip: the boot on the floor)
+			var r := Basis(Vector3.RIGHT, up)
+			thigh = r * thigh
+			shin = r * shin
+			foot = r * foot
+		_aim(side + "UpLeg", side + "Leg", thigh)
+		_aim(side + "Leg", side + "Foot", shin)
+		_aim(side + "Foot", side + "ToeBase", foot)
 	# hands
 	_ik("LeftArm", "LeftForeArm", "LeftHand", hands[0], hands[0] + Vector3(-elbow_out.x, elbow_out.y, elbow_out.z))
 	_ik("RightArm", "RightForeArm", "RightHand", hands[1], hands[1] + elbow_out)
@@ -430,6 +449,50 @@ func pose(hands: Array, elbow_out: Vector3, legs_fwd := 1.0) -> void:
 	_set_global_basis(head, turned)
 	# (your own head stays: the camera sits inside the helmet, and from inside a closed
 	# mesh every face points away and isn't drawn. Shrinking it left a hole in the neck)
+
+
+## How far (radians) a leg posed along these directions (cockpit space: thigh, shin, foot) swings up
+## about its hip joint for its boot to clear the floor under it: the boot's heel (under the ankle) and
+## sole under the toes no lower than the floor where they are; 0: it clears it as it is.
+func leg_lift(side: String, thigh: Vector3, shin: Vector3, foot: Vector3) -> float:
+	if not floor_prof.has(side):
+		return 0.0
+	if not _leg_len.has(side):
+		_leg_len[side] = [bone(side + "UpLeg").distance_to(bone(side + "Leg")), bone(side + "Leg").distance_to(bone(side + "Foot")),
+			bone(side + "Foot").distance_to(bone(side + "ToeBase"))]
+	var ln: Array = _leg_len[side]
+	var hip := bone(side + "UpLeg")
+	var ankle := thigh.normalized() * float(ln[0]) + shin.normalized() * float(ln[1])
+	var toe := ankle + foot.normalized() * float(ln[2])
+	var k := scale_k
+	var step := deg_to_rad(1.5)
+	var a := 0.0
+	while a <= deg_to_rad(LEG_LIFT_MAX):
+		var r := Basis(Vector3.RIGHT, a)
+		var heel := hip + r * ankle - Vector3(0.0, HEEL_DROP * k, 0.0)
+		var sole := hip + r * toe - Vector3(0.0, TOE_DROP * k, 0.0)
+		if heel.y >= floor_under(side, heel.z) and sole.y >= floor_under(side, sole.z):
+			return a
+		a += step
+	return deg_to_rad(LEG_LIFT_MAX)
+
+
+## The floor's height under a foot at z (cockpit space): -INF where none was found.
+func floor_under(side: String, z: float) -> float:
+	var fp: Array = floor_prof.get(side, [])
+	if fp.is_empty():
+		return -INF
+	var h: PackedFloat32Array = fp[2]
+	var t := (z - float(fp[0])) / float(fp[1])
+	if t < 0.0 or t > h.size() - 1:
+		return -INF
+	var i := mini(int(t), h.size() - 2)
+	var f := t - i
+	var lo := h[i]
+	var hi := h[i + 1]
+	if is_inf(lo) or is_inf(hi):
+		return maxf(lo, hi)
+	return lerpf(lo, hi, f)
 
 
 # ── helpers ───────────────────────────────────────────────────────────────

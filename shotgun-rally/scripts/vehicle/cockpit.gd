@@ -36,6 +36,11 @@ extends Node3D
 ## co-driver, no map board in sight, no windshield (no mud, no wipers); with "pose":
 ## "formula" the driver lies back in the tub, legs out flat in front, the helmet up in the air
 ## under the halo (crew_model.gd recline).
+##
+## The crew's feet never go through the floor: under each foot the cabin's floor is found (our
+## shell's, or the model's: the first upward-facing surface over its underside, along the line
+## the foot can take) and a leg whose boot would sink into it is swung up about the hip, the
+## knee bent as it was, until the boot rests on it (crew_model.gd floor_prof).
 
 const MapBoard = preload("res://scripts/vehicle/map_board.gd")
 const CrewModel = preload("res://scripts/vehicle/crew_model.gd")
@@ -125,6 +130,10 @@ const HEAD_FROM_EYE := Vector3(0.0, -0.07, 0.07) # the head's joint (the top of 
 const BOARD := Vector3(-0.01, -0.35, -0.26)    # the map board from the co-driver's eyes (on the right: x mirrors)
 const SEAT_SLIDE := 0.32                       # m the driver may slide their seat forward to reach its wheel (the seat probe can land on a thin seat's back: some room past a real seat track)
 const WHEEL_CLEAR := 0.46                      # m the wheel's centre stays from their eyes, at the closest
+const SHELL_FLOOR := -0.30                     # our shell's floor (its top)
+const FLOOR_RECLINED := 0.35                   # m: lying back in a single-seater the tub's floor rises into the nose, up to this far over the hips
+const FLOOR_BELOW_HIP := 0.03                  # m: a floor under the feet is at least this far below the hip joints (not the dash)
+const FOOT_ZS := [0.15, -1.35, 0.04]           # the floor under each foot: from (m along z from the hip joint) to, every
 const OWN_SCALE := 1.0                         # in a car's own interior the crew are real size (it is): their
                                                # eyes 0.6 m over their hips, 0.69 over their thighs' joints, which
                                                # tools/import_car.py puts 8 cm over the cushion
@@ -176,6 +185,7 @@ func build(the_car, stage) -> void:
 			arm.queue_free()
 		_wiper_pivots.clear()
 	_bake_static()
+	_feet_floor()
 	_harnesses()
 	dash = DashLive.new()
 	add_child(dash)
@@ -1088,6 +1098,131 @@ func _crew() -> void:
 		m.queue_free()
 	_models.clear()
 	_box_crew()
+
+
+## Each crew member's floor under their feet (crew_model.gd floor_prof): along z in front of each hip
+## joint, at the foot's x and 4 cm either side (a boot's width: the highest of the three).
+func _feet_floor() -> void:
+	var lines: Array = []                            # [model, side, x, z0]
+	var pts: Array = []
+	for seat in _models:
+		var m = _models[seat]
+		for side in ["Left", "Right"]:
+			var hip: Vector3 = m.bone(side + "UpLeg")
+			var x: float = hip.x + (-1.0 if side == "Left" else 1.0) * 0.05 * float(m.scale_k) / CrewModel.SCALE
+			var z0: float = hip.z + FOOT_ZS[0]
+			lines.append([m, side, z0])
+			var z := z0
+			while z >= hip.z + FOOT_ZS[1]:
+				for dx in [-0.04, 0.0, 0.04]:
+					pts.append(Vector3(x + dx, hip.y + (FLOOR_RECLINED if m.recline > 0.0 else -FLOOR_BELOW_HIP), z))
+				z -= FOOT_ZS[2]
+	var got := floor_heights(pts)
+	var i := 0
+	for line in lines:
+		var h := PackedFloat32Array()
+		var n := 0
+		var z: float = line[2]
+		var hip_z: float = line[0].bone(line[1] + "UpLeg").z
+		while z >= hip_z + FOOT_ZS[1]:
+			var best := -INF
+			for k in 3:
+				best = maxf(best, float(got[i][0]))
+				i += 1
+			h.append(best)
+			n += 1
+			z -= FOOT_ZS[2]
+		line[0].floor_prof[line[1]] = [line[2], -float(FOOT_ZS[2]), h]
+
+
+## The floor under points (x, the highest it may be, z: the car's space): for each [floor, underside]
+## heights. Our shell's floor in ours; in a car's own interior the lowest upward-facing surface below
+## that height (the carpet over the floor pan, not the pedals or the dash above it), or with none
+## facing up (a floor modelled one-sided) the highest surface below it; -INF where there's none.
+func floor_heights(points: Array) -> Array:
+	var out: Array = []
+	var hits: Array = []
+	for p in points:
+		out.append([-INF, -INF])
+		hits.append([])
+	if points.is_empty():
+		return out
+	const CELL := 0.04
+	var grid := {}
+	for i in points.size():
+		var key := Vector2i(floori(points[i].x / CELL), floori(points[i].z / CELL))
+		if not grid.has(key):
+			grid[key] = []
+		grid[key].append(i)
+	var body: Node3D = car.body_model if car.get("body_model") else null
+	var meshes: Array = body.find_children("*", "MeshInstance3D", true, false) if body else []
+	var inv: Transform3D = car.global_transform.affine_inverse()
+	for mi in meshes:
+		var m := mi as MeshInstance3D
+		if m.mesh == null or not m.is_visible_in_tree():
+			continue
+		var xf: Transform3D = inv * m.global_transform
+		for s in m.mesh.get_surface_count():
+			if m.mesh.surface_get_primitive_type(s) != Mesh.PRIMITIVE_TRIANGLES:
+				continue
+			var arr := m.mesh.surface_get_arrays(s)
+			var vs: PackedVector3Array = xf * (arr[Mesh.ARRAY_VERTEX] as PackedVector3Array)
+			var raw_n = arr[Mesh.ARRAY_NORMAL]
+			var ns: PackedVector3Array = raw_n if raw_n != null and (raw_n as PackedVector3Array).size() == vs.size() else PackedVector3Array()
+			var ids = arr[Mesh.ARRAY_INDEX]
+			if ids == null or (ids as PackedInt32Array).is_empty():
+				ids = PackedInt32Array(range(vs.size()))
+			for t in range(0, ids.size() - 2, 3):
+				var a: Vector3 = vs[ids[t]]
+				var b: Vector3 = vs[ids[t + 1]]
+				var c: Vector3 = vs[ids[t + 2]]
+				var x0 := floori(minf(a.x, minf(b.x, c.x)) / CELL)
+				var x1 := floori(maxf(a.x, maxf(b.x, c.x)) / CELL)
+				var z0 := floori(minf(a.z, minf(b.z, c.z)) / CELL)
+				var z1 := floori(maxf(a.z, maxf(b.z, c.z)) / CELL)
+				if (x1 - x0 + 1) * (z1 - z0 + 1) > 4000:
+					continue                             # (a huge face: not the floor of a footwell)
+				var d := (b.x - a.x) * (c.z - a.z) - (c.x - a.x) * (b.z - a.z)
+				if absf(d) < 1e-12:
+					continue                             # (edge on from above)
+				for gx in range(x0, x1 + 1):
+					for gz in range(z0, z1 + 1):
+						var cell = grid.get(Vector2i(gx, gz))
+						if cell == null:
+							continue
+						for i in cell:
+							var p: Vector3 = points[i]
+							var u := ((p.x - a.x) * (c.z - a.z) - (c.x - a.x) * (p.z - a.z)) / d
+							var v := ((b.x - a.x) * (p.z - a.z) - (p.x - a.x) * (b.z - a.z)) / d
+							if u < 0.0 or v < 0.0 or u + v > 1.0:
+								continue
+							var up := 0.0
+							if not ns.is_empty():
+								up = (xf.basis * (ns[ids[t]] + ns[ids[t + 1]] + ns[ids[t + 2]])).normalized().y
+							else:
+								up = (c - a).cross(b - a).normalized().y
+							hits[i].append(Vector2(a.y + (b.y - a.y) * u + (c.y - a.y) * v, up))
+	for i in points.size():
+		var hs: Array = hits[i]
+		hs.sort_custom(func(p, q): return p.x < q.x)
+		if not hs.is_empty():
+			out[i][1] = hs[0].x
+		if own.is_empty():
+			out[i][0] = SHELL_FLOOR
+			continue
+		var top: float = points[i].y
+		var any := -INF
+		for h in hs:
+			if h.x > top:
+				break
+			if h.y > 0.3:
+				any = INF
+				out[i][0] = h.x
+				break
+			any = h.x
+		if any != INF:
+			out[i][0] = any
+	return out
 
 
 ## Belt the crew in: pose them once as they'll sit (the driver's hands on the

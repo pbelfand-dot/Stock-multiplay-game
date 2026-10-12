@@ -77,6 +77,8 @@ func _process(_dt: float) -> bool:
 	var FitDebug = load("res://scripts/vehicle/fit_debug.gd")
 	var why: Array = []
 	var fitted := 0
+	var feet_bad: Array = []
+	var feet := 0
 	for c in Catalog.CARS:
 		if str(CarSpecs.parts(str(c.get("model", ""))).get("view", "")) == "hood":
 			continue
@@ -85,9 +87,14 @@ func _process(_dt: float) -> bool:
 		var j: Array = FitDebug.judge(FitDebug.fit(made[0], made[1]), made[0])
 		if not j[0]:
 			why.append("%s: %s" % [c.id, j[1]])
+		var fw: Array = _feet(c.id, made[0], made[1])
+		feet_bad.append_array(fw[0])
+		feet += fw[1]
 		made[0].queue_free()
 	fails += _check(why.is_empty(), "driver fit: head, seat, hands, pedals and door anchors sane in %d of %d cars (the bonnet-view ones have no seat)%s" % [
 		fitted - why.size(), fitted, "" if why.is_empty() else " (" + " | ".join(why) + ")"])
+	fails += _check(feet > 0 and feet_bad.is_empty(), "the crew's feet on the floor: %d of %d boots, in every car (each boot's lowest point no lower than the floor under its foot, nor the body's underside there; a single-seater's in its tub; no leg swung up to its limit)%s" % [
+		feet - feet_bad.size(), feet, "" if feet_bad.is_empty() else " (" + " | ".join(feet_bad) + ")"])
 	print("[interior] %s" % ("INTERIOR OK" if fails == 0 else "INTERIOR FAIL"))
 	quit(1 if fails > 0 else 0)
 	return true
@@ -107,6 +114,37 @@ func _car(id: String):
 	car.steer = 0.0
 	car.gear = 1
 	return [car, cp]
+
+
+## Each crew member's boots against the floor (the cockpit's, crew_model.gd floor_prof: under the foot's
+## middle) and the body's underside (under the boot's lowest point: seen from outside). [what's wrong, boots]
+func _feet(id: String, _car_node, cp) -> Array:
+	var bad: Array = []
+	var n := 0
+	var CrewModel = load("res://scripts/vehicle/crew_model.gd")
+	for seat in cp._models:
+		var m = cp._models[seat]
+		for side in ["Left", "Right"]:
+			var foot: Vector3 = m.bone(side + "Foot")
+			var other: Vector3 = m.bone(("Right" if side == "Left" else "Left") + "Foot")
+			var low := Vector3(0.0, INF, 0.0)
+			for p in m.body_points(0.015, AABB(foot - Vector3(0.14, 0.2, 0.3), Vector3(0.28, 0.35, 0.5))):
+				if p.distance_to(foot) < p.distance_to(other) and p.y < low.y:
+					low = p
+			if is_inf(low.y):
+				continue
+			n += 1
+			var floor_y: float = m.floor_under(side, low.z)
+			var under: float = cp.floor_heights([Vector3(low.x, INF, low.z)])[0][1]
+			var lift: float = m.lifted.get(side, 0.0)
+			var tag := "%s %s %s" % [id, seat, side.to_lower()]
+			if not is_inf(floor_y) and low.y < floor_y - 0.01:
+				bad.append("%s: %.2f m into the floor" % [tag, floor_y - low.y])
+			elif not is_inf(under) and low.y < under:
+				bad.append("%s: %.2f m below the body" % [tag, under - low.y])
+			elif lift >= deg_to_rad(CrewModel.LEG_LIFT_MAX) - 1e-4:
+				bad.append("%s: the leg swung up its most (%.0f deg)" % [tag, rad_to_deg(lift)])
+	return [bad, n]
 
 
 func _run(cp, seconds: float) -> void:
