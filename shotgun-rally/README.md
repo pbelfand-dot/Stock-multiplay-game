@@ -559,6 +559,9 @@ spinning before it had turned, an M5 that felt slow, too little grip. Measured f
   throttle allows: the M5, gently up to 100 km/h, is in eighth at ~2,300 rpm. Floored from there it
   kicks down to the lowest gear it won't rev out of (eighth to fourth in one change). Off the
   throttle it doesn't change up, so on keys it changes up where it did.
+- **Two BMWs' engines** held their peak torque too long: the KAISER 3X made 455 PS (BMW: 398) and
+  the 235 GC 353 PS (306). Their curves now follow BMW's published torque and power bands; 0-100
+  km/h on a flat pad 4.3 and 4.6 s (BMW: 4.6 and 4.9 s).
 
 ## Controls
 

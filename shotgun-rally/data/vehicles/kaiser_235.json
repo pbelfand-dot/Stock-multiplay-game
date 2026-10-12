@@ -19,7 +19,7 @@
 		"wheelbase_mm": 2670,
 		"top_speed_kmh": 250,
 		"front_weight": 0.6,
-		"notes": "BMW's M235i xDrive Gran Coupe (F44): a 2.0 turbo four at 306 PS and 450 N m, xDrive, an eight-speed automatic, ~1,570 kg, 0-100 km/h in 4.9 s, 250 km/h limited. Its torque curve, ratios and aero are estimates."
+		"notes": "BMW's M235i xDrive Gran Coupe (F44): a 2.0 turbo four at 306 PS (225 kW) at 5,000-6,250 rpm and 450 N m at 1,750-4,500 rpm (ADAC's and Autotijd's data), xDrive, an eight-speed automatic, ~1,570 kg, 0-100 km/h in 4.9 s, 250 km/h limited. Its torque curve follows those (before October 2026 it held 450 N m to 5,500 rpm: 353 PS). Its ratios and aero are estimates."
 	},
 	"garage": {
 		"price": 22000,
@@ -39,7 +39,7 @@
 		"mass": 1570.0,
 		"front": 0.6,
 		"torque": 450.0,
-		"curve": [[1000, 0.42], [1400, 0.8], [2000, 1.0], [5500, 1.0], [6200, 0.88], [6800, 0.76]],
+		"curve": [[1000, 0.42], [1400, 0.8], [1750, 1.0], [4500, 1.0], [5000, 0.955], [5625, 0.849], [6250, 0.764], [6800, 0.65]],
 		"idle": 800.0,
 		"limiter": 6800.0,
 		"turbo": 0.4,
@@ -73,7 +73,7 @@
 		"url": "",
 		"attribution": ""
 	},
-	"research": ["https://en.wikipedia.org/wiki/BMW_2_Series_Gran_Coup%C3%A9"],
+	"research": ["https://en.wikipedia.org/wiki/BMW_2_Series_Gran_Coup%C3%A9", "https://www.adac.de/rund-ums-fahrzeug/autokatalog/marken-modelle/bmw/2er-reihe-gran-coupe/f44/315767/", "https://autotijd.be/en/specs/bmw/2-reeks-gran-coupe/m235i-xdrive-306-hp-awd-1999"],
 	"limitations": [
 		"From the owner's private download batch: kept out of public credit lists; its provenance isn't cleared for redistribution.",
 		"Fictional name, but the model's real badges are still on it (its 'Logo' part weren't dropped). The torque curve, ratios and aero are estimates."

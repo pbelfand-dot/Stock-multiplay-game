@@ -19,7 +19,7 @@
 		"wheelbase_mm": 2865,
 		"top_speed_kmh": 250,
 		"front_weight": 0.53,
-		"notes": "BMW's X3 M40i (G45, 2024): the B58 3.0 turbo straight six with mild-hybrid help, 398 PS and 580 N m, xDrive, an eight-speed automatic, ~1,980 kg, 0-100 km/h in 4.6 s, 250 km/h limited. Its torque curve, ratios and aero are estimates."
+		"notes": "BMW's six-cylinder X3 of the G45 generation (2024; sold as the X3 M50 xDrive, the G01 X3 M40i's successor): the B58 3.0 turbo straight six with a 48 V motor's help, 398 PS and 580 N m combined (the engine alone 381 PS at 5,200-6,250 rpm and 540 N m at 1,900-4,800 rpm: BMW's technical data), xDrive, an eight-speed automatic, ~1,980 kg, 0-100 km/h in 4.6 s, 250 km/h limited. Its torque curve holds the combined 580 N m from 1,900 to 4,800 rpm, then the 398 PS (293 kW) to 6,250 rpm (before October 2026 it held 580 N m to 5,500 rpm: 455 PS). Its ratios and aero are estimates."
 	},
 	"garage": {
 		"price": 30000,
@@ -39,7 +39,7 @@
 		"mass": 1980.0,
 		"front": 0.53,
 		"torque": 580.0,
-		"curve": [[1000, 0.42], [1400, 0.8], [2000, 1.0], [5500, 1.0], [6200, 0.88], [6800, 0.76]],
+		"curve": [[1000, 0.42], [1400, 0.8], [1900, 1.0], [4800, 1.0], [5200, 0.928], [5725, 0.843], [6250, 0.772], [6800, 0.66]],
 		"idle": 800.0,
 		"limiter": 6800.0,
 		"turbo": 0.4,
@@ -73,7 +73,7 @@
 		"url": "",
 		"attribution": ""
 	},
-	"research": ["https://en.wikipedia.org/wiki/BMW_X3_(G45)"],
+	"research": ["https://en.wikipedia.org/wiki/BMW_X3_(G45)", "https://bmw-georgia.com/en/all-models/m-series/x3-m50/bmw-x3-m50-technical-data.html"],
 	"limitations": [
 		"From the owner's private download batch: kept out of public credit lists; its provenance isn't cleared for redistribution.",
 		"Fictional name; the model's separate badge parts are dropped (tools/cars/x3_m40i.json drop_mats), any painted into its textures remain. The torque curve, ratios and aero are estimates."
