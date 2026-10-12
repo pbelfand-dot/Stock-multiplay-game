@@ -26,7 +26,9 @@ extends SceneTree
 ##     the AI out of their boxes one by one, timed laps, the flag, everyone back, the order by best
 ##     lap, the race's grid from it
 ##   race: a race in the game (6 cars, 2 laps, standing start, your car driven by an AI too): the
-##     lights, every car finishing, places changing, the classification and the results
+##     lights, the field off the grid straight (each car still on its grid box's side 60 m past the
+##     line, not all across on the racing line), every car finishing, places changing, the
+##     classification and the results
 ## Prints one [raceai] line per check; exits 1 on any FAIL.
 
 var CircuitGen
@@ -786,6 +788,7 @@ func _race() -> void:
 	var drs_on := false
 	var drs_open := {}
 	var ers_max := 0.0
+	var launch_at := {}
 	for id in g.field.cars:
 		g.field.cars[id].hit.connect(func(imp: float): hits += 1 if imp > 6.0 else 0)
 	while t < 900.0 and g.state == "running":
@@ -796,6 +799,13 @@ func _race() -> void:
 			lights.append(rc.lights)
 		if green < 0.0 and rc.phase == "green":
 			green = t
+		if green > 0.0 and t - green < 20.0:
+			# (the start: where across the track each car is 60 m past the line)
+			for id in g._last_pos:
+				var ps: Dictionary = g._last_pos[id]
+				var a: float = st.around_line(float(ps.s))
+				if not launch_at.has(id) and a > 60.0 and a < 200.0:
+					launch_at[id] = float(ps.d)
 		if int(t * 2.0) != int((t - dt) * 2.0) and rc.phase == "green":
 			var ord: Array = rc.order(g._last_pos)
 			if orders.is_empty() or orders[-1] != ord:
@@ -811,6 +821,18 @@ func _race() -> void:
 	var rc = g.race_ctl
 	check(lights == [1, 2, 3, 4, 5] and green > 4.0 and green < 8.0, "race: the lights (%s), out at %.1f s" % [str(lights), green])
 	check(rc._has_pen(me, "jump") == false and g.field.drivers.all(func(d): return not rc._has_pen(d.id, "jump")), "race: nobody jumped the start")
+	# off the line straight from their grid boxes: 60 m past the line they're still on their own side of
+	# the track (the left column left, the right right: a nudge out of a tow at most), not all across on
+	# the racing line
+	var kept := 0
+	var lanes := []
+	for id in launch_at:
+		var gd: float = float(rc.spots.get(id, Vector2.ZERO).y)
+		var ld: float = float(launch_at[id])
+		lanes.append("%+.1f->%+.1f" % [gd, ld])
+		if ld * signf(gd) > 0.5:
+			kept += 1
+	check(launch_at.size() == 6 and kept >= 5, "race: off the grid straight, not across to the line (%d of %d on their grid box's side 60 m past the line: %s)" % [kept, launch_at.size(), ", ".join(lanes)])
 	var finishers: int = rc.finish_order.size()
 	check(g.state == "finished" and rc.finished.has(me), "race: you took the chequered flag (%s, %.0f s of game in %.0f s)" % [g.state, t, (Time.get_ticks_msec() - t_wall) / 1000.0])
 	# the others race on to the flag after you

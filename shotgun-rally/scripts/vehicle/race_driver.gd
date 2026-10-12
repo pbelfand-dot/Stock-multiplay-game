@@ -25,7 +25,10 @@ extends RefCounted
 ##       - its mistakes (a lower consistency: more): a corner run wide or braked too late, a
 ##         little pace lost or found from corner to corner;
 ##   * the start: held on the brakes at the line until the lights go out (its reaction time),
-##     or in its place in the rolling start's double file;
+##     or in its place in the rolling start's double file; then straight off its grid box (or
+##     its file), not across to the line: its place across the track held for the first stretch
+##     and eased onto the line by the first braking zone (as at a real start: the field funnels
+##     only on the run to turn 1);
 ##   * the pits: down the pit lane on the limiter, into its box, stopped while it's serviced
 ##     (tyres, fuel, repairs: RaceSim.service), back out along the lane and its taper.
 
@@ -41,6 +44,9 @@ const EDGE := 1.15                 # m: the farthest its middle goes is the whit
 const FAR_LAT := 3.0               # m/s: how quickly a far car moves across
 const FAR_K := 0.985               # a far car's speed x its line's: the share of the line's pace a car on the physics, its tyres warm,
                                    # makes good lap after lap (measured: tests/race_ai_check.gd, driver vs far)
+const LAUNCH_KEEP := 0.35          # the share of the run from the start to the first braking zone it keeps its place across
+                                   # the track (its grid box's or its file's), before it eases onto the line ...
+const LAUNCH_ON := 0.85            # ... and the share by which it's on the line (settled before it brakes)
 
 var st                             # CircuitGen
 var line                           # RaceLine at this driver's pace
@@ -89,6 +95,11 @@ var _mistake := 0.0                # this corner: + ran wide (m) / braked late
 var _corner_k := 1.0               # this corner's pace jitter
 var _corner_wide := 0.0            # how far wide of its path it's been in this corner (m)
 var _adapt := {}                   # corner -> its pace x, learnt: down after a corner run wide, slowly back up
+var launch_off := 0.0              # (the start) m: how far off the line its grid box (or file) was when it set off (0: not launching) ...
+var launch_d0 := 0.0               # ... the d it set off at (its place across the track: held, then eased onto the line) ...
+var launch_s0 := 0.0               # ... where it set off (s, unwrapped) ...
+var launch_s1 := 0.0               # ... and where it's back on the line: the first braking zone
+var _was := "hold"                 # its task the tick before (the start: off the grid, or out of the double file)
 
 
 ## st: the CircuitGen; prm: RaceLine.params(car); skill: {pace, consistency, aggression, reaction}.
@@ -113,8 +124,40 @@ func target_d(x: float) -> float:
 	if task == "formation":
 		want = slot.y
 	else:
-		want = line.d_at(x) + offset + _mistake * _outside(x)
+		want = line.d_at(x) + launch_d(x) + offset + _mistake * _outside(x)
 	return clampf(clampf(want, d_lo, d_hi), -lim, lim)
+
+
+## (the start) How far off the line its path still is at x: its place across the grid (the same d,
+## wherever the line goes) for the first LAUNCH_KEEP of the run to the first braking zone, then eased
+## onto the line by LAUNCH_ON of it.
+func launch_d(x: float) -> float:
+	if launch_off == 0.0:
+		return 0.0
+	var u := (x - launch_s0) / maxf(launch_s1 - launch_s0, 1.0)
+	return (launch_d0 - line.d_at(x)) * (1.0 - smoothstep(LAUNCH_KEEP, LAUNCH_ON, clampf(u, 0.0, 1.0)))
+
+
+## Off the grid (or out of the double file at the green): where its path rejoins the line, the first
+## braking zone ahead (the line's speed falling), and how far off the line it is now.
+func _launch() -> void:
+	launch_off = 0.0
+	var x := s
+	var prev: float = line.speed_at(x)
+	while x < s + 1500.0:
+		x += line.step
+		var sp: float = line.speed_at(x)
+		if sp < prev - 0.05:
+			break
+		prev = sp
+	if x - s < 80.0 or x >= s + 1500.0:
+		return                                         # (no run to speak of: onto the line at once, as before)
+	launch_s0 = s
+	launch_s1 = x
+	launch_d0 = d
+	launch_off = d - line.d_at(s)
+	if launch_off == 0.0:
+		launch_off = 0.001                             # (on the line already: still launching, its d held)
 
 
 ## The speed it wants at x (m/s).
@@ -148,11 +191,16 @@ func plan(others: Array, dt: float) -> void:
 	cap = INF
 	d_lo = -INF
 	d_hi = INF
+	if task == "race" and _was in ["hold", "formation"] and v < 26.0:
+		_launch()                                      # (off the grid, or the double file at its pace: not a car put down at speed)
+	elif launch_off != 0.0 and (task != "race" or s >= launch_s1):
+		launch_off = 0.0
+	_was = task
 	if task in ["hold", "out"]:
 		return
 	_corner_check()
 	var lim: float = st.half_at(s) - EDGE
-	var my_line: float = line.d_at(s)
+	var my_line: float = line.d_at(s) + launch_d(s)      # (its path without racecraft: the line, or still its grid place)
 	var want_off := 0.0
 	var ahead = null
 	var ahead_gap := INF
@@ -172,7 +220,7 @@ func plan(others: Array, dt: float) -> void:
 			continue
 		if gap > 0.0 and gap < reach:
 			# in its path? (where it'll be when it gets there)
-			var mine: float = line.d_at(float(o.s)) + offset
+			var mine: float = line.d_at(float(o.s)) + launch_d(float(o.s)) + offset
 			if absf(od - mine) < SIDE - 0.3 or (_pass_id != null and o.id == _pass_id):
 				if gap < ahead_gap:
 					ahead_gap = gap
@@ -224,6 +272,8 @@ func plan(others: Array, dt: float) -> void:
 		want_off = away * (lim - 0.3) - my_line
 	# back toward the line, never across the nose of a car it just passed (alongside limits hold it)
 	var rate := 1.6 + 0.04 * v
+	if launch_off != 0.0 and (s - launch_s0) < LAUNCH_KEEP * (launch_s1 - launch_s0):
+		rate *= 0.12                                   # (off the grid: a nudge out of the tow at most, no dive across the field)
 	offset = move_toward(offset, want_off, rate * dt)
 	offset = clampf(offset, -lim - my_line, lim - my_line)
 	# squeezed between two cars: drop back out of it
@@ -513,7 +563,7 @@ func drive(car, dt: float) -> Dictionary:
 ## The path's curvature at x (1/m, + right): the line's own, or the road's at the path's d plus
 ## its turns across the road.
 func _path_k(x: float) -> float:
-	if task in ["race", "cool"] and absf(offset) < 0.5 and _mistake == 0.0 and d_lo == -INF and d_hi == INF:
+	if task in ["race", "cool"] and absf(offset) < 0.5 and _mistake == 0.0 and d_lo == -INF and d_hi == INF and launch_off == 0.0:
 		return line.k_at(x)
 	var kr: float = st.curv_at(x)
 	var dd := target_d(x)
