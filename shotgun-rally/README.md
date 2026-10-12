@@ -567,9 +567,26 @@ spinning before it had turned, an M5 that felt slow, too little grip. Measured f
 - **The M5's gearing** had BMW's ratios on a 5.15 final drive (BMW: 3.308): eighth ran into the rev
   limiter at 305 km/h and turned 2,400 rpm at 100 km/h. Now it has BMW's 3.308 (eighth ~1,500 rpm
   at 100), and its electronic limiter holds 305 km/h (the M Driver's Package's), the M5 Touring too.
-  0-60 mph 2.9 s, 0-100 km/h 3.0 s, 0-200 9.8 s (BMW: 3.4, 3.5 and 10.9 s; Car and Driver timed
-  3.0 s to 60 with a 1-ft rollout): it launches at 1.2 g in first, on its tyres' peak, more than
-  the real car does.
+- **Launches** were wrong both ways:
+  - four-wheel-drive cars pulled away at ~1.2 g on all four tyres' peak (the M5's 0-60 mph in
+    2.9 s; BMW quotes 3.4);
+  - rear-drive cars came up ~10 % short (the M4 Competition's 0-100 km/h in 4.4 s; BMW quotes 3.9);
+  - an electric car slipped a clutch it doesn't have (the Honda e's 0-100 in 10.2 s; Honda quotes 8.3).
+
+  Three changes fix it:
+  - a four-wheel-drive road car's traction control holds the spin to a third of the tyres' peak,
+    as the real systems do (they have no undriven wheel to read the road's speed from);
+  - a road tyre grips 10 % more under drive than its braking figure (braking figures are what an
+    ABS gets, cycling round the peak);
+  - an electric motor pulls from a standstill.
+
+  The M5 now does 0-60 mph in 3.4 s and 0-100 km/h in 3.6 s. Ten cars, from the Honda e to the GT
+  Black Series, pull away within 0.2 s or 6 % of their makers' 0-100 figures (tests/tarmac_check.gd).
+  Braking and cornering are unchanged. The heavy four-wheel-drive luxury cars and SUVs (X5 M, X7,
+  G 63, Maybach) are still 0.3-0.7 s quicker than their makers say.
+- **Six more cars' gearing** put the rev limiter at the top speed in top gear: the X3 M40i, 235 GC,
+  M2, Maybach S 680, A 45 S and Urus Performante. They now have their makers' ratios and
+  electronic limiters. The Urus has the RS Q8's ratios, which Lamborghini doesn't publish.
 
 ## Controls
 

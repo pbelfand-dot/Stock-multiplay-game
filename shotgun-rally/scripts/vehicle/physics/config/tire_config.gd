@@ -19,6 +19,9 @@ extends Resource
 ## The slip ratio where it peaks ((wheel speed - ground speed) / ground speed):
 ## on loose gravel the tyre digs in and peaks late, ~0.15.
 @export_range(0.02, 0.5, 0.005) var longitudinal_peak := 0.15
+## Its grip along the wheel under drive, x longitudinal_mu (a road tyre's is set from braking
+## figures, which are what an ABS gets: TireModel.street).
+@export_range(0.5, 1.5, 0.01) var drive_grip := 1.0
 ## Magic Formula shape C along the wheel: a locked or spinning tyre keeps sin(C pi / 2)
 ## of its grip (1.45: ~76 %, a locked tyre sliding on gravel).
 @export_range(1.0, 1.9, 0.01) var longitudinal_shape := 1.45

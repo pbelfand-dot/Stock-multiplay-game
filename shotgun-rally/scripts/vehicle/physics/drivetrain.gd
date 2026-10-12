@@ -195,8 +195,10 @@ func control(dt: float, pedal: float, wheels: Array, launch := -1.0) -> void:
 		clutch = 0.0
 	elif foot < 0.05:
 		clutch = 1.0 if drive_rpm >= eng.idle_rpm * 1.1 else 0.0   # rolling: in (engine braking); stopped: out (it idles)
-	elif drive_rpm >= hold or (absi(gear) > 1 and drive_rpm >= eng.idle_rpm * 1.1):
-		clutch = 1.0                                 # the car has caught up with the engine (or it's not pulling away)
+	elif drive_rpm >= hold or (absi(gear) > 1 and drive_rpm >= eng.idle_rpm * 1.1) or gears() == 1:
+		clutch = 1.0                                 # the car has caught up with the engine (or it's not pulling away; or
+		                                             # an electric car's single gear: its motor pulls from a standstill, no clutch
+		                                             # to slip: it had held the Honda e's motor at 4,500 rpm, a third of its torque gone)
 	else:
 		# pulling away (first or reverse) it slips, holding the engine at those revs
 		# until the car catches up: it carries what the engine makes, more if the

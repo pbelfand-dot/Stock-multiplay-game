@@ -700,6 +700,9 @@ func _set_aids() -> void:
 	if street.size() > 3 and bool(street[3]):
 		a.traction_control = true                        # (its factory traction control ...
 		a.stability_control = true                       # ... and stability control: brakes, not a hand on the body)
+	if not street.is_empty() and race == null and config.drivetrain and config.drivetrain.front_share > 0.01 \
+			and config.drivetrain.front_share < 0.99:
+		a.tc_target = a.tc_target_awd                    # (four-wheel drive: its traction control holds the spin lower)
 	if race:
 		race.apply_aids(a)                               # (a race car: its own ABS / TC maps, no stability control)
 		a.stability_control = false

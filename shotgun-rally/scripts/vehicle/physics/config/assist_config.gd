@@ -46,6 +46,12 @@ extends Resource
 ## The spin it aims for: x the tyre's peak slip ratio (less what cornering takes: the
 ## combined-slip ellipse). 1: the peak, the most drive; above it the tyre spins more.
 @export_range(0.3, 2.0, 0.01) var tc_target := 1.0
+## ... on a four-wheel-drive road car (SIM street). It has no undriven wheel to read the road's
+## speed from: its system estimates it, and holds the spin low (~4 %, a third of a road tyre's peak)
+## to keep that estimate good. At the peak, as a two-wheel-drive car's, every four-wheel-drive car
+## pulled away at its tyres' full grip on all four, ~1.2 g, and beat its maker's 0-100 km/h by
+## 10-25 % (the M5 G90 3.0 s against BMW's 3.5; tests/tarmac_check.gd).
+@export_range(0.1, 2.0, 0.01) var tc_target_awd := 0.33
 ## How fast the throttle settles where the spin sits at the target (its integral part, per s
 ## per band of slip past it).
 @export_range(0.5, 60.0, 0.5) var tc_gain := 12.0

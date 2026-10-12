@@ -124,6 +124,8 @@
   "idle": 500.0,
   "limiter": 10000.0,
   "turbo": 0.0,
+  "regen": 55.0,
+  "motor_loss": 0.001,
   "gears": [
    1.0
   ],

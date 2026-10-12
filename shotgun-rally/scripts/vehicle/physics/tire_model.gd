@@ -146,7 +146,12 @@ static func arcade(cfg: Resource, rear := false) -> Resource:
 ## kind: "street", "cup" (Cup 2 / R-compound road tyres), "slick", "formula" (a single-seater's).
 ## STREET_CAL: tests/sim_check.gd's skid pad on the cars it measures, measured / real, ~1.00 on
 ## average (at 1.08 it was 0.95: every road car ~5 % short of its real grip).
+## DRIVE_GRIP: a road tyre's grip under drive, x its braking grip. The braking figures are what a
+## car's ABS gets from its tyres, cycling round their peak (~90 % of it); a driven tyre held at its
+## peak (traction control, a careful foot) uses all of it. At 1.0 every rear-drive car pulled away
+## ~10 % short of its maker's 0-100 km/h (the M4 Competition 4.4 s against BMW's 3.9; tests/tarmac_check.gd).
 const STREET_CAL := 1.13
+const DRIVE_GRIP := 1.1
 const STREET_KINDS := {
 	"street": {"peak_deg": 7.5, "keep": 0.85, "long_peak": 0.12, "keep_long": 0.8, "load": 0.12, "brake": 1.1},
 	"cup": {"peak_deg": 6.0, "keep": 0.82, "long_peak": 0.1, "keep_long": 0.78, "load": 0.15, "brake": 1.05},
@@ -168,6 +173,7 @@ static func street(cfg: Resource, g: float, kind := "street") -> Resource:
 	t.longitudinal_peak = float(spec.long_peak) / asphalt.peak_scale
 	t.load_sensitivity = float(spec.load)
 	t.loose_grip = 0.7
+	t.drive_grip = DRIVE_GRIP if kind in ["street", "cup"] else 1.0     # (road tyres; the race tyres as they were)
 	return t
 
 
@@ -224,6 +230,8 @@ static func combined(cfg: Resource, slip_x: float, slip_y: float, load: float, m
 	var s := sqrt(sx * sx + sy * sy)
 	if s < 1e-9:
 		return Vector2.ZERO
+	if slip_x > 0.0:
+		mu_x *= cfg.drive_grip                          # (under drive)
 	return Vector2(mu_x * load * longitudinal_curve(cfg, s * px) * sx / s, mu_y * load * lateral_curve(cfg, s * py) * sy / s)
 
 
@@ -279,7 +287,7 @@ static func long_force(cfg: Resource, slip: float, slip_y: float, spin: float, v
 	# slow or stopped, the wound-up carcass is a spring along the wheel too: damp it
 	# (a braked car on a slope would rock on its tyres otherwise)
 	var still := 1.0 - clampf(absf(v_x) / 3.0, 0.0, 1.0)
-	return clampf(f + cfg.standstill_damping * (spin * radius - v_x) * still, -mu * load, mu * load)
+	return clampf(f + cfg.standstill_damping * (spin * radius - v_x) * still, -mu * load, mu * load * maxf(cfg.drive_grip, 1.0))
 
 
 ## The wheel in the air: only the drive and the friction torques act on it.

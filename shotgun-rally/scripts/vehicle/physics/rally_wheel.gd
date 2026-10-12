@@ -303,7 +303,7 @@ func apply_forces(dt: float) -> void:
 	var fx := _fx / _n
 	var fy := _fy / _n
 	# (the combined slip keeps them inside the ellipse; this only catches the damping's extra)
-	var limit := maxf(_mu_x, _mu_y) * load
+	var limit := maxf(_mu_x * (surface_tire.drive_grip if fx > 0.0 else 1.0), _mu_y) * load
 	var total := sqrt(fx * fx + fy * fy)
 	if total > limit:
 		fx *= limit / total

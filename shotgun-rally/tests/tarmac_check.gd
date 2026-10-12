@@ -5,9 +5,13 @@ extends SceneTree
 ## car's own ABS and TC levels), on a flat asphalt pad:
 ##   * ACCELERATION: the M5 (KAISER 5 G, the G90) from a standstill and rolling, flat out:
 ##     0-60 mph and 0-100 km/h, 60-100 mph from a 60 mph cruise in the gear the box holds there,
-##     100-200 km/h, against the real car's figures (BMW: 0-100 km/h 3.5 s, 0-200 km/h 10.9 s;
-##     Car and Driver: 0-60 mph 3.0 s with a 1-ft rollout; MotorWeek 3.1 s and a 129 mph
-##     quarter mile; FastestLaps 100-200 km/h 6.4 s; 60-100 mph ~3.7-4.2 s from those)
+##     100-200 km/h, against the real car's figures (BMW: 0-60 mph 3.4 s, 0-100 km/h 3.5 s,
+##     0-200 km/h 10.9 s; FastestLaps 100-200 km/h 6.4 s; 60-100 mph ~3.7-4.2 s from those)
+##   * 0-100 km/h from a standstill, flat out on keys, against the maker's figure (within 0.2 s or
+##     6 %) across the range: the M4 Competition and M2 (rear drive), the GT Black Series (a
+##     supercar), the X3 M40i and the Urus Performante (SUVs), the A 45 S and the RS 6 (four-wheel
+##     drive), the ID.4 and the Honda e (electric). (No front-drive road car is in the game but a
+##     1992 Civic, which its maker never timed.)
 ##   * a GT3 car's STANDING LAUNCH in Track Mode on keys: parked on the grid's handbrake, then
 ##     the throttle flat with NO steering (a 1.7 deg/s nudge of yaw, as a bump or the camber
 ##     gives): it goes straight, and 0-100 km/h in a GT3's ~3.5 s. And on the throttle at
@@ -76,6 +80,15 @@ func _initialize() -> void:
 	root.add_child(pad)
 	cases = [
 		{"k": "standing", "car": "kaiser_5g"},
+		{"k": "pub", "car": "kaiser_4", "z100": 3.9, "src": "BMW's spec sheet 03/2021"},
+		{"k": "pub", "car": "kaiser_2c", "z100": 4.1, "src": "BMW 10/2022, the automatic"},
+		{"k": "pub", "car": "affalter_gtb", "z100": 3.2, "src": "Mercedes-AMG"},
+		{"k": "pub", "car": "kaiser_3x", "z100": 4.9, "src": "BMW, the facelift"},
+		{"k": "pub", "car": "tempesta_ursa", "z100": 3.3, "src": "Lamborghini"},
+		{"k": "pub", "car": "affalter_a45", "z100": 3.9, "src": "Mercedes-AMG 07/2019"},
+		{"k": "pub", "car": "kombi", "z100": 3.6, "src": "Audi"},
+		{"k": "pub", "car": "stromer", "z100": 8.5, "src": "Volkswagen"},
+		{"k": "pub", "car": "mochi", "z100": 8.3, "src": "Honda"},
 		{"k": "roll", "car": "kaiser_5g", "from": 60.0 * MPH, "to": 100.0 * MPH, "n": "60-100 mph", "lo": 3.2, "hi": 4.6},
 		{"k": "roll", "car": "kaiser_5g", "from": 100.0, "to": 200.0, "n": "100-200 km/h", "lo": 6.0, "hi": 8.0},
 	]
@@ -90,7 +103,12 @@ func _initialize() -> void:
 		cases.append({"k": "key", "car": "kaiser_5g", "v": 200.0, "hold": hold})
 	cases.append({"k": "cruise", "car": "kaiser_5g"})
 	cases.append({"k": "lift", "car": "kaiser_5g"})
-	_next()
+	# (the first car waits out the run's first seconds: a car built right at the start pulled away
+	# differently, ~0.2 s quicker to 100 on a four-wheel-drive car, whatever its model; from 3 s on
+	# every run of a car is the same)
+
+
+var _settle := 3.0
 
 
 func _make_car() -> void:
@@ -154,6 +172,11 @@ func _roll_start(v0: float) -> void:
 
 
 func _physics_process(dt: float) -> bool:
+	if ci < 0:
+		_settle -= dt
+		if _settle <= 0.0:
+			_next()
+		return false
 	if ci >= cases.size() or car == null or not is_instance_valid(car):
 		return true
 	t += dt
@@ -168,13 +191,13 @@ func _physics_process(dt: float) -> bool:
 	var inp := {"steer": 0.0, "throttle": 0.0, "brake": 0.0, "handbrake": false}
 	var done := false
 	match c.k:
-		"standing":
+		"standing", "pub":
 			if t >= 1.0:
 				inp.throttle = 1.0
 				for mk in [[60.0 * MPH, "60mph"], [100.0, "100"], [200.0, "200"]]:
 					if kmh >= mk[0] and not m.has(mk[1]):
 						m[mk[1]] = t - 1.0
-			done = m.has("200") or t > 20.0
+			done = m.has("200") or t > 20.0 or (c.k == "pub" and (m.has("100") or t > 16.0))
 		"roll":
 			var v0: float = c.from / 3.6
 			if t < 0.5:
@@ -286,9 +309,13 @@ func _report() -> void:
 			var t60 := float(m.get("60mph", INF))
 			var t100 := float(m.get("100", INF))
 			var t200 := float(m.get("200", INF))
-			_check(t60 > 2.6 and t60 < 3.8 and t100 > 2.8 and t100 < 4.0,
-				"the M5 G90 from a standstill: 0-60 mph %.2f s, 0-100 km/h %.2f s (the real car: 3.0 s with a 1-ft rollout, BMW's 0-100 3.5 s)" % [t60, t100])
+			_check(_near(t60, 3.4) and _near(t100, 3.5),
+				"the M5 G90 from a standstill: 0-60 mph %.2f s, 0-100 km/h %.2f s (BMW: 3.4 and 3.5 s)" % [t60, t100])
 			_check(t200 > 9.0 and t200 < 12.0, "... 0-200 km/h %.2f s (BMW: 10.9 s)" % t200)
+		"pub":
+			var t100 := float(m.get("100", INF))
+			_check(_near(t100, float(c.z100)), "%s from a standstill: 0-100 km/h %.2f s, its maker's %.1f s (%s; %+.2f s)" % [c.car, t100, float(c.z100), c.src,
+				t100 - float(c.z100)])
 		"roll":
 			var tr := float(m.get("time", INF))
 			_check(tr > float(c.lo) and tr < float(c.hi), "the M5 G90 rolling %s flat out from a cruise: %.2f s (real: %s)" % [c.n, tr,
@@ -322,6 +349,11 @@ func _report() -> void:
 				"%.0f" % float(m.kick_rpm) if m.has("kick") else "-"])
 		"lift":
 			_check(int(m.gear1) <= int(m.gear0), "the M5 on keys: a 1.5 s lift after a pull doesn't change up (gear %d on the key, %d off it)" % [int(m.gear0), int(m.gear1)])
+
+
+## Within 0.2 s or 6 % of the published figure.
+func _near(t: float, want: float) -> bool:
+	return absf(t - want) <= maxf(0.2, want * 0.06)
 
 
 func _check(ok: bool, msg: String) -> void:

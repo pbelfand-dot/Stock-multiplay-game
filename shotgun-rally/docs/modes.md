@@ -361,13 +361,16 @@ SIM is Assetto Corsa-like: each car on the road tyres it really has (`TireModel.
   while it catches one; its reference (the yaw the steering asks for) follows the steering as a
   car's yaw does and allows for the car's understeer, so a lane change's unwinding isn't a slide
   (it used to brake a wheel and cut the engine in ordinary lane changes). Traction control holds
-  the driven tyres' spin at their peak from an estimate of what they can take, less while they
-  corner (the combined-slip ellipse: under power the tyres keep their grip sideways), counts them
+  the driven tyres' spin at their peak from an estimate of what they can take (a four-wheel-drive
+  car's at a third of it: with no undriven wheel to read the road's speed from, the real systems
+  hold the spin low), less while they corner (the combined-slip ellipse: under power the tyres keep their grip sideways), counts them
   sliding sideways (power oversteer), and never cuts below the throttle where the engine neither
   drives nor brakes (cutting to nothing was a lift: lift-off oversteer). The automatic and
   dual-clutch boxes (the cars with factory traction control) match the revs on a change, and every
   road car's automatic changes up early on a light throttle, kicks down to the lowest gear it won't
-  rev out of when floored, and doesn't change up off the throttle;
+  rev out of when floored, and doesn't change up off the throttle. Under drive a road tyre grips
+  10 % more than its braking figure (what an ABS gets from it), so cars pull away in their makers'
+  0-100 km/h times;
 - **the steering** (with SPEED-SENSITIVE STEERING on, out of the box): the stick asks for that
   share of the car's grip, in proportion (a quarter of the stick a quarter, half half), through
   the turn's geometry and the car's understeer, which it learns as it's driven (every car's is
