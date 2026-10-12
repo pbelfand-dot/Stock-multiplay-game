@@ -516,6 +516,10 @@ func apply_setup(s: Dictionary) -> bool:
 		config.drivetrain.front_share = float(s.get("drive_front", _base.front))
 	street = s.get("street", [])
 	_race_state(s)
+	if drivetrain:
+		# (a modern road car's automatic / dual-clutch box, the ones with factory traction control, and a race
+		# car's paddle box match the revs on a change: drivetrain.gd; a classic's manual and the rally box don't)
+		drivetrain.rev_match = race != null or (street.size() > 3 and bool(street[3]))
 	_tune(str(s.get("tyre", "gravel")), str(s.get("preset", "gravel")))
 	_street_brakes()
 	_set_aids()

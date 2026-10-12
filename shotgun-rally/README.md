@@ -524,6 +524,37 @@ weight (it's shoved, you keep your share of the speed).
 real figures (the Supra 1.06 g and 37 m). ARCADE keeps the rally's grip for those who'd rather.
 Details: [docs/modes.md](docs/modes.md).
 
+**Tarmac handling, fixed (October 2026).** The owner drives cars like these and said the road
+and track handling was wrong: sliding and smoking on ordinary highway lane changes, a GT3
+spinning before it had turned, an M5 that felt slow, too little grip. Measured first
+(`tests/tarmac_check.gd` now checks all three), then the causes fixed:
+- **Keys at speed**: a held key swung the front wheels from 0.5 to 7.7 deg at 200 km/h within a
+  second (the last tenth of the travel added the tyres' whole peak slip angle) and they ploughed
+  on past their grip, smoking. Now the steering builds with the time a key's held, slower the
+  faster you go: at 200 km/h a 0.3 s tap is a calm ~0.15 g move, a key held ~1 s a hard ~0.8 g
+  turn, and the front tyres stay short of their peak (the road wheels under 1 deg, the steering
+  wheel under ~13). Sliding or on the handbrake the keys are as quick as before (catching a
+  slide, a drift on the touge). HIGH-SPEED STABILITY no longer makes the car turn less than it's
+  steered; it only damps a slide.
+- **Tyre smoke** came on with 1.2 m/s of sideways speed at a tyre: at 200 km/h a tyre at half its
+  grip. Now tarmac smokes (and marks) only when a tyre slides past its peak; drifts smoke as
+  before, gravel dust is untouched.
+- **Traction control** let the spin run past the tyres' peak, then cut to nothing and back: it
+  pulled away at a third of the grip, and a rear-drive car's spinning tyres had no grip left
+  sideways (a GT3 on cold slicks, on the throttle at 80 km/h, spun on a 0.2 s tap of steering).
+  Now it holds the spin at the peak from what the tyres can take (less while they corner) and
+  never cuts below the throttle where the engine neither drives nor brakes (a cut to nothing was
+  a lift). **Stability control** read every unwinding of the wheel as a slide and braked in
+  lane changes; its reference now follows the steering as a car's yaw does.
+- **Cold race tyres** counted the cold twice (25 % down); now ~17 %, as the compounds say. The
+  road cars' automatic boxes and the race cars' paddle boxes match the revs on a change (the
+  clutch's jolt spun the driven wheels).
+- **Grip**: SIM street's tyres were ~5 % short of the cars' real skid-pad figures; now on them.
+- **The M5 G90**'s engine made 840 PS; it makes 727 (BMW). Its straight-line pace was never slow
+  (0-100 km/h 3.2 s, 60-100 mph 3.3 s from a cruise; on its real 727 PS now 3.2 and 3.7 s,
+  0-200 km/h 10.0 s; BMW: 3.5 and 10.9 s): flat out while steering on keys it lost much of it to
+  the ploughing fronts and the aids cutting in (60-100 mph weaving on keys 4.5 s, now 4.1 s).
+
 ## Controls
 
 | | Keyboard / mouse | Controller |

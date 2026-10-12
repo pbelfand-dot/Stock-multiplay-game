@@ -51,6 +51,16 @@ var clutch_torque := 0.0           # N m through the clutch (engine side, + = dr
 var limiter := false
 var handbrake := 0.0               # the handbrake lever, 0..1 (the car sets it)
 var rear_coupling := 1.0           # the rear axle's clutch: 0 (let go) .. 1 (in)
+## A road car's automatic / dual-clutch box and a race car's paddle box match the engine's revs to
+## the new gear as it goes in (the engine's torque cut on an upshift, a blip on a downshift: the car
+## sets it, for SIM street's cars with factory traction control and Track Mode's). Without, the engine still spinning at the old gear's revs
+## was yanked to the new one's through the clutch at its full capacity: a jolt at the driven wheels
+## that spun them (a rear-drive car's tail kicked on every upshift). The rally box: as it was.
+var rev_match := false
+const SHIFT_SETTLE := 0.6          # s: with rev_match, no downshift this soon after a change (a real box's minimum
+                                   # time between shifts: a rear-drive car spinning its tyres up into the next gear
+                                   # matched the revs to the slowing wheels and dropped straight back, gear hunting)
+var _since_shift := 0.0
 
 var _shift_t := 0.0
 var _next_gear := 1
@@ -135,10 +145,15 @@ func driveline_speed(wheels: Array) -> float:
 ## clutch slips at pulling away (traction control cutting the throttle mustn't
 ## bog the launch); -1: the same as pedal.
 func control(dt: float, pedal: float, wheels: Array, launch := -1.0) -> void:
+	_since_shift += dt
 	if _shift_t > 0.0:
+		_since_shift = 0.0
 		_shift_t -= dt
 		if _shift_t <= 0.0:
 			gear = _next_gear
+			if rev_match and gear >= 1:
+				var w := absf(driveline_speed(wheels) * ratio())
+				omega_e = clampf(w, eng.idle_rpm / EngineModel.TO_RPM, eng.limiter_rpm / EngineModel.TO_RPM)
 	var r := rpm()
 	if r > eng.limiter_rpm:
 		limiter = true
@@ -178,7 +193,7 @@ func control(dt: float, pedal: float, wheels: Array, launch := -1.0) -> void:
 	if cfg.auto_shift and not shifting() and gear >= 1:
 		if r > cfg.upshift_rpm and gear < gears():
 			shift_up()
-		elif gear > 1 and r < cfg.downshift_rpm:
+		elif gear > 1 and r < cfg.downshift_rpm and (not rev_match or _since_shift > SHIFT_SETTLE):
 			var lower := absf(_driveline * ratio_for(gear - 1)) * EngineModel.TO_RPM
 			if lower < cfg.upshift_rpm - 500.0:
 				shift_down()

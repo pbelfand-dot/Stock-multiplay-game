@@ -51,6 +51,8 @@ run_g 300 --headless --fixed-fps 120 --path . -s tests/sim_check.gd 2>&1 | grep 
 for car in akatsuki hellhound; do
   run_g 900 --headless --fixed-fps 120 --path . -s tests/feel_check.gd -- --cfg=street --car=$car 2>&1 | grep -E "\[feel\] (ok|FAIL|info|FEEL)" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
 done
+echo "== tarmac, the owner's three complaints: the M5's acceleration against the real car's (0-60 mph, 0-100, 60-100 mph, 100-200), a GT3's standing launch on cold slicks with no steering goes straight and a tap of steering on the throttle doesn't spin it, a lane change at 200 km/h on keys and a stick with no slide and no smoke, a key tapped and held at 200"
+run_g 300 --headless --fixed-fps 120 --path . -s tests/tarmac_check.gd 2>&1 | grep -E "\[tarmac\]" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
 echo "== tyres and setup: tarmac tyres grip more on asphalt and far less on gravel, the tarmac setup rolls less, AUTO picks for the stage"
 run_g 180 --headless --fixed-fps 120 --path . -s tests/tuning_check.gd 2>&1 | grep -E "\[tuning\] (ok|FAIL|TUNING)" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
 echo "== jumps: air time by speed, clean four-wheel landings, no second bounce, braking in the air dips the nose"

@@ -43,6 +43,12 @@ extends Resource
 @export_group("Traction control")
 ## How far past the tyre's peak slip a driven wheel may spin before the throttle is fully cut.
 @export_range(0.01, 1.0, 0.01) var tc_band := 0.15
+## The spin it aims for: x the tyre's peak slip ratio (less what cornering takes: the
+## combined-slip ellipse). 1: the peak, the most drive; above it the tyre spins more.
+@export_range(0.3, 2.0, 0.01) var tc_target := 1.0
+## How fast the throttle settles where the spin sits at the target (its integral part, per s
+## per band of slip past it).
+@export_range(0.5, 60.0, 0.5) var tc_gain := 12.0
 ## Below this speed the spin is measured against it instead (so it can pull away).
 @export_range(0.5, 10.0, 0.1, "suffix:m/s") var tc_low_speed := 3.0
 ## A driven wheel sliding sideways past its tyre's peak slip angle counts too (power
@@ -56,6 +62,9 @@ extends Resource
 @export_range(0.0, 5000.0, 50.0, "suffix:N m") var esc_max := 3000.0   # (per 1,500 kg: about what a front tyre can take)
 ## How far off (rad/s) before it steps in.
 @export_range(0.0, 1.0, 0.01, "suffix:rad/s") var esc_deadband := 0.1
+## Its reference: the yaw rate the steering asks for follows the steering this much later (s),
+## as a car's yaw does (a lane change's unwinding isn't a slide).
+@export_range(0.01, 1.0, 0.01, "suffix:s") var esc_ref_time := 0.2
 ## The body's slip angle past this counts too (a wide, slow slide the yaw rate misses),
 ## as this much yaw rate per radian past it.
 @export_range(0.0, 30.0, 0.5, "suffix:deg") var esc_slip_deg := 5.0
@@ -113,15 +122,13 @@ extends Resource
 @export_range(0.0, 20.0, 0.5, "suffix:deg") var counter_from_deg := 2.0
 @export_range(0.5, 30.0, 0.5, "suffix:deg") var counter_full_deg := 5.0
 @export_range(0.01, 1.0, 0.01, "suffix:s") var counter_time := 0.1
-## SIM street keys at speed (fully from key_stage_to, not at all below key_stage_from): a
-## held key first asks for key_stage_share of the steering (a lane change), all of it only
-## once held key_stage_hold s (over key_stage_rise s): a held key used to ask for all the
-## grip at 200 km/h.
-@export_range(0.1, 1.0, 0.01) var key_stage_share := 0.55
-@export_range(0.0, 3.0, 0.05, "suffix:s") var key_stage_hold := 0.6
-@export_range(0.05, 3.0, 0.05, "suffix:s") var key_stage_rise := 0.4
-@export_range(0.0, 80.0, 0.5, "suffix:m/s") var key_stage_from := 16.5
-@export_range(1.0, 100.0, 0.5, "suffix:m/s") var key_stage_to := 25.0
+## SIM street keys (smoothing on): the steering builds at key_rate_slow up to key_rate_from,
+## street_key_rate (full input per second) from street_key_to, between them in proportion on a
+## log scale. The stick asks for a share of the grip, so at speed this is how fast the
+## cornering builds: at 200 km/h a 0.3 s tap is a lane change (~0.2 g), a key held ~1.3 s
+## all the grip. Sliding (or on the handbrake) the keys stay at the rally's quick rate.
+@export_range(0.1, 5.0, 0.05, "suffix:/s") var street_key_rate := 1.2
+@export_range(1.0, 100.0, 0.5, "suffix:m/s") var street_key_to := 35.0
 
 @export_group("Drift assist")
 ## A drift: the body's slip angle (between where it points and where it's going)
@@ -171,3 +178,6 @@ extends Resource
 ## weight x its wheelbase per rad/s, and against the body's slip angle per rad.
 @export_range(0.0, 5.0, 0.01) var hs_yaw_damping := 1.0
 @export_range(0.0, 5.0, 0.01) var hs_slip_damping := 0.5
+## In SIM street only the body's slip past this angle counts (a car cornering hard runs a degree
+## or two: damping that made it turn less than it was steered).
+@export_range(0.0, 10.0, 0.1, "suffix:deg") var hs_street_slip_from_deg := 2.5

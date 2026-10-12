@@ -42,14 +42,14 @@ at the right pressure, a warm disc. Without it (every rally, touge and cut-up ca
   - Each tyre has a skin (3 kJ/K) and a core (12 kJ/K).
   - The skin is heated by its slip power (force times sliding speed, along and across), the carcass flexing (about 1.2 % of load times speed, a race tyre's rolling loss) and the track. The air takes heat off it at 20 + 2.2 W/K per m/s (about 1.3 m² of rubber).
   - The core follows the skin with a lag of about 100 s, so a lap or two to warm up.
-  - The grip follows the temperature: cold below the window (a cold slick about 18 % down), full in it, greasy past it.
+  - The grip follows the temperature: cold below the window (a cold slick about 18 % down), full in it, greasy past it. (Until October 2026 a cold tyre also lost grip to its cold pressure, counting the cold twice: 25 % down. The pressure now counts once the tyre's near its window.)
 - **Pressure:** the hot pressure comes from the cold setting by the gas law, on absolute pressure (gauge + 1.013 bar). 1.40 bar cold reaches ~1.95 bar with the core at ~90 °C, as a GT3 slick does. Away from the ideal, it loses grip.
 - **Wear:** by slip energy. A slow fade to 70 % worn, then a cliff to 82 % grip worn out. A locked wheel at speed grinds a flat spot.
 - **Compounds** (`data/tyre_compounds.json`): SOFT, MEDIUM, HARD and WET. Each has its window, grip, wear, heating and wet grip: the soft wears about 1.6 times as fast as the medium and 2.7 times the hard.
 - **Brakes:** each disc's heat comes from the brake's own work (torque times spin), and the air cools it, much more at speed. A cold disc bites 10 % less, and past 700 °C it fades to 65 % at 1,000 °C.
 - **Fuel:** burnt by throttle and revs (~280 g/kWh at a GT3's ~405 kW: about 2.5 l a minute flat out). The car's mass carries it at 0.745 kg/l: a 120 l tank, practice on 60.
 - **Pit limiter** (P, or the pad's d-pad down): holds the pit lane's 60 km/h. The autopilot drives the lane on it.
-- **ABS and TC:** the car's own levels (1-10, 0 off), not the rally's Settings switches. A GT3 has ABS and traction control and no stability control.
+- **ABS and TC:** the car's own levels (1-10, 0 off), not the rally's Settings switches. A GT3 has ABS and traction control and no stability control (Porsche's 992 GT3 R: Porsche Motorsport traction control and a racing ABS; the 991's adjustable). TC aims the rears' spin at their peak slip x 1.4 (level 1) .. x 0.75 (10): level 4, out of the box, ~x 1.2. It used to let the spin run up to 0.3 past the peak before it cut, and on cold slicks a tap of steering on the throttle spun the car.
 
 At the autopilot's gentle pace (about 30 % off race pace, as in `tests/track_check.gd`), the
 mediums warm to 35-55 °C over the out-lap and a lap, under their window: slicks driven gently

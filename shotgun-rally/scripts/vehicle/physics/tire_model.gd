@@ -144,7 +144,9 @@ static func arcade(cfg: Resource, rear := false) -> Resource:
 ## load sensitivity (Milliken: twice the load, ~12 % less grip per newton). On
 ## gravel or grass a road tyre is poor (x0.7).
 ## kind: "street", "cup" (Cup 2 / R-compound road tyres), "slick", "formula" (a single-seater's).
-const STREET_CAL := 1.08
+## STREET_CAL: tests/sim_check.gd's skid pad on the cars it measures, measured / real, ~1.00 on
+## average (at 1.08 it was 0.95: every road car ~5 % short of its real grip).
+const STREET_CAL := 1.13
 const STREET_KINDS := {
 	"street": {"peak_deg": 7.5, "keep": 0.85, "long_peak": 0.12, "keep_long": 0.8, "load": 0.12, "brake": 1.1},
 	"cup": {"peak_deg": 6.0, "keep": 0.82, "long_peak": 0.1, "keep_long": 0.78, "load": 0.15, "brake": 1.05},

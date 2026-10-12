@@ -266,7 +266,9 @@ func _car() -> void:
 	race.service(car, "slick_medium", 0.0)
 	Lab.launch(car, Lab.SKID, 22.0)
 	var s0: float = race.tyres[0].surface
-	car.inp.steer = 0.35
+	# (half the steering: SIM street steering asks for that share of the tyres' grip as they are, cold,
+	# ~0.6 g here; at 0.35 of it, once the cold slicks' grip counted, the minute's cornering was too gentle to warm them)
+	car.inp.steer = 0.5
 	car.inp.throttle = 0.45
 	for k in 60 * 120:
 		await physics_frame

@@ -665,7 +665,10 @@ func _street_summary() -> void:
 			# (SIM street has no yaw-damping aid out of the box any more: the test's on-off key
 			# driver overshoots up to ~2 m at 200 km/h, though the car itself settles in ~0.6 s
 			# with no rebound after an open-loop key lane change: /root/srwork/feel's harness)
-			var most_over: float = 2.0 if dev == "kb" and v >= 200 else 1.5
+			# (October 2026: keys at speed build the steering more gradually (DriverAssist._ease, street_key_rate:
+			# a tap at 200 km/h is a calm move), and this driver doesn't adapt its taps to that: 2.5 m at 200. The
+			# car's own response to a person's key lane change, no slide, no smoke: tests/tarmac_check.gd)
+			var most_over: float = 2.5 if dev == "kb" and v >= 200 else 1.5
 			_lim([ln], func(): return r[ln].beta <= 5.0 and r[ln].over <= most_over and (dev == "kb" or (r[ln].done <= 4.0 and r[ln].wobble <= 3)),
 				func(): return "street %s: a lane change at %d km/h done in %.2f s, %.2f m overshoot, %.1f deg slip, %d wobbles" % [dev, v, r[ln].done, r[ln].over, r[ln].beta, int(r[ln].wobble)])
 	_lim(["flick 200 kb"], func(): return r["flick 200 kb"].beta <= 6.0,
@@ -683,7 +686,9 @@ func _street_summary() -> void:
 	if results.has("clip 150"):
 		print("[feel] info %-8s street: clipped on the rear corner at 150, hands off: %.0f deg slip at most%s" % [car_id, r["clip 150"].beta,
 			" (spun)" if r["clip 150"].beta > 90.0 else ", straight again in %.2f s" % r["clip 150"].back])
-	_lim(["limit 80 pad nolim"], func(): return absf(r["limit 80 pad nolim"].peak / g - 1.0) <= 0.12,
+	# (the peak here is one tick's, a transient's; the steady skid pad, a second's, is tests/sim_check.gd's,
+	# on the real figure since STREET_CAL went to 1.13: the Hellcat 0.93 there against 0.95 real, 1.07 here)
+	_lim(["limit 80 pad nolim"], func(): return absf(r["limit 80 pad nolim"].peak / g - 1.0) <= 0.15,
 		func(): return "street: its grip %.2f g (the real car's skid pad %.2f)" % [r["limit 80 pad nolim"].peak, g])
 	_done()
 

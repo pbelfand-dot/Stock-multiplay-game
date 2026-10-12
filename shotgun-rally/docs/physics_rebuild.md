@@ -604,10 +604,17 @@ group), `config/car_config.gd` (`handbrake_torque`).
   - **ABS**: a braking wheel past its tyre's peak slip (on that surface) gets its pedal brake eased
     in proportion, so it brakes near the peak and still steers (the handbrake isn't touched);
   - **traction control**: a driven wheel spinning past its peak cuts the throttle in proportion
-    (cut fast, back on in ~0.1 s); measured against a floor speed so it can pull away;
+    (cut fast, back on in ~0.1 s); measured against a floor speed so it can pull away. (October
+    2026: it now holds the spin at the tyres' peak, x `tc_target`: the throttle whose torque the
+    driven tyres can just take at that spin, from their load, grip and slip sideways (the
+    combined-slip ellipse: cornering, they may spin less), trimmed by an integral on the spin,
+    and never below the throttle where the engine neither drives nor brakes. Cutting to nothing
+    and back had pulled away at a third of the grip, and a cut mid-corner was a lift);
   - **stability control**: compares the yaw rate with what the steering asks for (no more than the
     grip allows) and brakes one wheel: sliding round too far, the outside front; not turning
-    enough, the inside rear (off with the handbrake pulled, and under 18 km/h);
+    enough, the inside rear (off with the handbrake pulled, and under 18 km/h). (October 2026:
+    the yaw it compares with is the steering's through the car's understeer, lagged 0.2 s as a
+    car's yaw follows its steering; unlagged, every unwinding of the wheel read as a slide);
   - **steering smoothing** (the input eased, 0.2 s), **damping** (above 12 m/s the wheels turn more
     slowly, in proportion), **speed-sensitive steering** (never more angle than the fronts can use
     at that speed: the tightest turn their grip allows plus their peak slip angle; less is left

@@ -332,7 +332,8 @@ these modes like the rally (`Config.street_handling`). Rally stages always use T
 
 SIM is Assetto Corsa-like: each car on the road tyres it really has (`TireModel.street`,
 `Catalog.street_grip`):
-- **its real grip**: the asphalt peak set so the car holds its real skid-pad figure, measured
+- **its real grip**: the asphalt peak set so the car holds its real skid-pad figure (0.99 of it
+  on average across `tests/sim_check.gd`'s nine cars; until October 2026 0.95), measured
   where magazines published it (GR Supra 1.07 g, GT-R 1.00, Hellcat 0.92-0.95, 911 GT3 RS
   1.24), estimated by age and tyre otherwise (a 1970s car ~0.78, 1980s ~0.82, 1990s
   0.84-0.92, today's sports cars ~1.0, economy cars ~0.86; race cars on slicks 1.45-1.7, their
@@ -350,22 +351,42 @@ SIM is Assetto Corsa-like: each car on the road tyres it really has (`TireModel.
   them as standard (the classics, the prototypes and the rally cars without; their switches
   still force them on; no traction control in the touge's DRIFT rules). Its ESC brakes one
   wheel (harder on a heavier car), counts a wide slide as well as the yaw, and cuts the engine
-  while it catches one; traction control counts the driven tyres sliding sideways too (power
-  oversteer);
+  while it catches one; its reference (the yaw the steering asks for) follows the steering as a
+  car's yaw does and allows for the car's understeer, so a lane change's unwinding isn't a slide
+  (it used to brake a wheel and cut the engine in ordinary lane changes). Traction control holds
+  the driven tyres' spin at their peak from an estimate of what they can take, less while they
+  corner (the combined-slip ellipse: under power the tyres keep their grip sideways), counts them
+  sliding sideways (power oversteer), and never cuts below the throttle where the engine neither
+  drives nor brakes (cutting to nothing was a lift: lift-off oversteer). The automatic and
+  dual-clutch boxes (the cars with factory traction control) match the revs on a change;
 - **the steering** (with SPEED-SENSITIVE STEERING on, out of the box): the stick asks for that
   share of the car's grip, in proportion (a quarter of the stick a quarter, half half), through
   the turn's geometry and the car's understeer, which it learns as it's driven (every car's is
   its own); the last tenth of the stick adds the front tyres' peak slip (full lock pushes wide,
   never spins it). Sliding, steering toward the slide may turn the wheels to where the front
-  axle's going and past (a slide can be caught by hand; nothing steers for you). Keys at speed:
-  a held key first asks for a lane change's worth, all of it only if held on for a bend. The
-  stick's deadzone is 0.07 (it was 0.2: the first fifth of the stick did nothing);
+  axle's going and past (a slide can be caught by hand; nothing steers for you). **Keys**: the
+  steering builds in proportion to the time a key's held, slower the faster it goes (5 /s up to
+  54 km/h, 1.2 /s from 126 km/h, between on a log scale: `AssistConfig.street_key_rate`): at
+  200 km/h a 0.3 s tap is a calm ~0.15 g move, 0.6 s ~0.45 g, a key held ~1 s a hard ~0.8 g
+  turn; and on keys the last of the travel adds the fronts' peak slip only at low speed (a
+  hairpin), so a held key never pushes them past their grip (at 200 km/h the road wheels stay
+  under 1 deg, the steering wheel under ~13 deg; until October 2026 a held key swung them to
+  7.7 deg in a second and the car ploughed on, smoking). Sliding (the body past 2 deg) or on the
+  handbrake the keys stay quick (catching a slide, holding a drift). The stick's deadzone is
+  0.07 (it was 0.2: the first fifth of the stick did nothing);
 - **traffic has weight**: running into a car shares the hit by weight as two real cars do
   (`Traffic.shove`): a rear-ender at 133 into 100 km/h costs you 17 km/h (it was ~50, as off a
   wall) with a ~5 g jolt, the car is shoved on, hard enough it's a crash and it pulls up; a rub
   alongside shoves it off its line and it steers back into its lane;
 - **the camera** shivers a hair at speed and with the revs (~0.08 deg rms at 200 km/h flat out),
-  more on gravel than asphalt.
+  more on gravel than asphalt;
+- **tyre smoke and marks** on tarmac only when a tyre really slides: past its grip's peak slip
+  angle (and fast enough sideways), or spinning / locking (`DriftFx`, `SkidMarks`). They came on
+  with 1.2 m/s of sideways speed at the tyre: at 200 km/h a tyre at half its grip, so every lane
+  change smoked. Drifts smoke as before; gravel throws its dust as before.
+- **HIGH-SPEED STABILITY (CUT UP, TOUGE)** on only damps yaw the steering didn't ask for and a slide
+  past 2.5 deg: it used to also fight the degree or two of body slip every car runs cornering
+  hard, so the car turned less than it was steered.
 
 Measured (`tests/sim_check.gd`, a 76 km/h ramp-steer skid pad and 100-0 km/h): the Supra
 1.06 g and 37 m, the GT-R 1.00 g and 36 m, the AE86 0.80 g and 43 m, the GT3 RS 1.28 g and
@@ -378,6 +399,14 @@ at the rear axle) peaks at 8-9 deg of slide and is straight again in under a sec
 car's own ESC; a hard one (3 m/s) slides 40-57 deg but no longer spins the Supra or the G 63;
 flooring it out of a 60 km/h corner no longer spins the Supra. ARCADE is there for those who'd
 rather.
+
+`tests/tarmac_check.gd` measures the owner's three complaints (October 2026): the M5 G90's
+acceleration against the real car's (0-60 mph 3.0 s, 0-100 km/h 3.2 s against BMW's 3.5,
+60-100 mph from a cruise 3.7 s, 100-200 km/h 6.9 s, 0-200 10.0 s against BMW's 10.9); a GT3
+car's standing launch in Track Mode on cold slicks with no steering (straight, 0-100 km/h in
+~3.2-3.5 s) and keys tapped on the throttle at 80 km/h (no spin: it spun on a 0.2 s tap); a
+lane change at 200 km/h on keys and a stick (no smoke, no marks, ~0.3 g, the front tyres under
+half their peak slip, ESC untouched), a key tapped and held at 200 km/h.
 
 ## Tests
 
@@ -396,7 +425,7 @@ END RUN); the night touge (lamps before every tight bend and never more than ~13
 lit only at night, the real lights following the car and fading away from the lamps) and the
 stray car (turns up ahead, keeps its lane, slows for hairpins, stops when hit, goes once
 you're past). `tests/drive_check.gd --kind=touge` has the autopilot drive a pass.
-`tests/sim_check.gd` and `tests/feel_check.gd --cfg=street`: SIM street handling.
+`tests/sim_check.gd`, `tests/feel_check.gd --cfg=street` and `tests/tarmac_check.gd`: SIM street handling.
 `tests/track_check.gd`: Track Mode:
 
 - the circuit: deterministic, closed (position and heading), evenly sampled, 4.5-6 km, 14-20 corners, no corner under 14 m radius, grades and banking, never within 45 m of itself;

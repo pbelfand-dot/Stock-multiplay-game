@@ -16,9 +16,16 @@ extends Node3D
 ##     alpha scissor (no see-through sorting trouble) and face the camera; the
 ##     cloud texture's alpha is a soft "how far inside" field, so lowering a
 ##     puff's alpha erodes it into shrinking lumps (the cartoon dissolve)
+##   * on tarmac a tyre smokes only when it's really sliding: past its grip's peak slip
+##     angle (the tyre's own, on that surface: a road tyre ~7.5 deg, a slick ~4.5), not
+##     just when its patch moves sideways a little: at 200 km/h a tyre cornering well
+##     inside its grip runs 1-2 deg of slip angle, 1-2 m/s sideways, and that used to smoke
+##     on every lane change. Gravel throws dust as before (any slide sprays it)
 ## Lives under the car but works in world space (top_level).
 
 const RallyCar = preload("res://scripts/vehicle/rally_car.gd")
+const TireModel = preload("res://scripts/vehicle/physics/tire_model.gd")
+const Surfaces = preload("res://scripts/vehicle/physics/surfaces.gd")
 
 const MAX_PUFFS := 420
 const MAX_STONES := 300
@@ -27,6 +34,9 @@ const STONE_RATE := 44.0        # stones a second per wheel, sliding hard
 const FRONT := 0.6              # the front tyres throw less than the rears
 const SLIDE_START := 1.2        # m/s of sideways slide at the tyre before anything flies
 const SLIDE_FULL := 6.0         # ... and the slide for the full spray
+const SMOKE_SURFACES := ["asphalt", "tarmac", "wet asphalt", "kerb"]   # tyre smoke: a slide past the tyre's peak
+const SMOKE_FROM := 1.1         # x the tyre's peak slip angle before it smokes ...
+const SMOKE_FULL := 2.0         # ... and for all the smoke
 const GRAVITY := 15.0           # a bit more than real: snappier, cartoony arcs
 ## per surface: dust colour, stone colours, how much dust, how many stones
 const ROOST := Color(0.36, 0.33, 0.37)   # the low ribbon of gravel thrown straight back: dark, a bit wet
@@ -180,6 +190,7 @@ func _spawn(xf: Transform3D, dt: float) -> void:
 	var surf: Array = SURF.get(car.on_surface, SURF.gravel)
 	var loose := car.on_surface in ["gravel", "dirt"]
 	var hb: bool = car.handbrake_on()
+	var smoke: bool = car.on_surface in SMOKE_SURFACES
 	var fast := clampf((absf(car.speed) - 12.0) / 25.0, 0.0, 1.0)
 	# landing a jump: a burst of dust and stones round every tyre
 	var touching := 0
@@ -210,6 +221,11 @@ func _spawn(xf: Transform3D, dt: float) -> void:
 		if hb and not front:
 			slide = maxf(slide, absf(vc.dot(wf)) * 0.8)   # locked: it slides the way it's going
 		var drift := clampf((slide - SLIDE_START) / (SLIDE_FULL - SLIDE_START), 0.0, 1.0)
+		if smoke and not (hb and not front):
+			# (tarmac: and past the tyre's peak slip angle, from how the patch moves: both machines know it)
+			var along := absf(vc.dot(wf))
+			var angle := rad_to_deg(atan2(absf(lat), maxf(along, 0.5)))
+			drift *= clampf((angle / _peak_deg(k) - SMOKE_FROM) / (SMOKE_FULL - SMOKE_FROM), 0.0, 1.0)
 		var trail := fast * 0.16 if (loose and not front) else 0.0
 		if front:
 			drift *= FRONT
@@ -224,6 +240,18 @@ func _spawn(xf: Transform3D, dt: float) -> void:
 		while _acc_s[k] >= 1.0:
 			_acc_s[k] -= 1.0
 			_add_stone(contact, up, wf, vc, out_dir, surf[1])
+
+
+static var _peaks := {}
+
+## Tyre k's peak slip angle (deg) on the surface the car's on (its tyre's own on it).
+func _peak_deg(k: int) -> float:
+	var w = car.wheels[k]
+	var key := [w.tire.get_instance_id() if w.tire else 0, str(car.on_surface)]
+	if not _peaks.has(key):
+		var t: Resource = TireModel.on_surface(w.tire, Surfaces.named(str(car.on_surface))) if w.tire else null
+		_peaks[key] = maxf(float(t.lateral_peak_deg) if t else 6.0, 1.0)
+	return _peaks[key]
 
 
 func _land_burst(xf: Transform3D, v: Vector3, surf: Array, power: float) -> void:

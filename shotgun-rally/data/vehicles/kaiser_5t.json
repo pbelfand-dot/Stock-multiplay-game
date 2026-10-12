@@ -19,7 +19,7 @@
 		"wheelbase_mm": 3006,
 		"top_speed_kmh": 305,
 		"front_weight": 0.52,
-		"notes": "BMW M's M5 Touring (G99): a 4.4 twin-turbo V8 plug-in hybrid, 727 PS and 1,000 N m combined, M xDrive, an eight-speed automatic, ~2,550 kg (40 kg over the saloon), 0-100 km/h in 3.6 s. Its torque curve, ratios and aero are estimates."
+		"notes": "BMW M's M5 Touring (G99): a 4.4 twin-turbo V8 plug-in hybrid, 727 PS and 1,000 N m combined, M xDrive, an eight-speed automatic, ~2,550 kg (40 kg over the saloon), 0-100 km/h in 3.6 s. Its torque curve holds the combined 1,000 N m to ~5,100 rpm, then the 727 PS (535 kW) to 6,500 rpm (BMW's press release: 727 hp and 1,000 N m combined, the V8 to 7,200 rpm); before October 2026 it held 1,000 N m to 5,900 rpm, 840 PS. Its ratios and aero are estimates."
 	},
 	"garage": {
 		"price": 48000,
@@ -39,7 +39,7 @@
 		"mass": 2550.0,
 		"front": 0.52,
 		"torque": 1000.0,
-		"curve": [[1000, 0.42], [1400, 0.8], [2000, 1.0], [5900, 1.0], [6600, 0.88], [7200, 0.76]],
+		"curve": [[1000, 0.42], [1400, 0.8], [2000, 1.0], [5100, 1.0], [5600, 0.912], [6500, 0.786], [7200, 0.7]],
 		"idle": 800.0,
 		"limiter": 7200.0,
 		"turbo": 0.4,
@@ -73,7 +73,11 @@
 		"url": "",
 		"attribution": ""
 	},
-	"research": ["https://paultan.org/2024/08/16/2025-g99-bmw-m5-touring-debuts", "https://autobuzz.my/?p=291811"],
+	"research": [
+		"https://paultan.org/2024/08/16/2025-g99-bmw-m5-touring-debuts",
+		"https://autobuzz.my/?p=291811",
+		"https://www.press.bmwgroup.com/united-kingdom/article/detail/T0443389EN_GB/the-all-new-bmw-m5"
+	],
 	"limitations": [
 		"From the owner's private download batch: kept out of public credit lists; its provenance isn't cleared for redistribution.",
 		"Fictional name; the model's separate badge parts are dropped (tools/cars/m5_touring.json drop_mats), any painted into its textures remain. The torque curve, ratios and aero are estimates."

@@ -168,9 +168,12 @@ func grip(k: int) -> float:
 		g = lerpf(float(c.get("cold", 0.82)), 1.0, smoothstep(20.0, float(win[0]), temp))
 	elif temp > float(win[1]):
 		g = maxf(0.7, 1.0 - float(c.get("hot", 0.02)) * (temp - float(win[1])) / 10.0)
-	# the hot pressure against the ideal (a little either way doesn't matter)
+	# the hot pressure against the ideal (a little either way doesn't matter), once it's warm: a cold
+	# tyre's pressure is low because it's cold, and the compound's cold grip already counts that (both
+	# together made a cold slick 25 % down, not the 15-20 % the compounds say)
 	var dp := absf(float(t.pressure) - float(b.get("pressure_ideal_bar", 1.95)))
-	g *= 1.0 - float(b.get("pressure_loss_per_bar", 0.18)) * maxf(dp - 0.05, 0.0)
+	var warm := smoothstep(float(win[0]) - 25.0, float(win[0]), temp)
+	g *= 1.0 - float(b.get("pressure_loss_per_bar", 0.18)) * maxf(dp - 0.05, 0.0) * warm
 	# wear: a slow fade to wear_soft_from, then the cliff to worn_grip at 1
 	var w := float(t.wear)
 	var w0 := float(b.get("wear_soft_from", 0.7))
@@ -207,14 +210,19 @@ func throttle(car, t: float) -> float:
 
 ## The ABS / traction control settings onto the car's assist config (Track Mode's GT cars run
 ## the car's own aids, by level, whatever Settings says for the rally): level 1 lets the tyre
-## slip furthest, 10 cuts in earliest; 0 off.
+## slip furthest, 10 cuts in earliest; 0 off. Traction control aims the driven tyres' spin at
+## their peak slip x 1.4 (level 1) .. x 0.75 (10): the middle levels hold it about at the peak,
+## the most drive with the grip sideways kept (it used to let it run a band of up to 0.3 past
+## the peak before cutting, and a GT3 on cold slicks spun on a tap of steering).
 func apply_aids(cfg: Resource) -> void:
 	cfg.anti_lock = abs_level > 0
 	cfg.traction_control = tc_level > 0
 	if abs_level > 0:
 		cfg.abs_band = lerpf(0.18, 0.06, (abs_level - 1) / 9.0)
 	if tc_level > 0:
-		cfg.tc_band = lerpf(0.3, 0.08, (tc_level - 1) / 9.0)
+		var k := (tc_level - 1) / 9.0
+		cfg.tc_target = lerpf(1.4, 0.75, k)
+		cfg.tc_band = lerpf(0.2, 0.06, k)
 
 
 # ── after each tick ───────────────────────────────────────────────────────
