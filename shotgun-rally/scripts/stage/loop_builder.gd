@@ -2423,8 +2423,6 @@ func _building_mesh() -> ArrayMesh:
 ## clumps, out to ~400 m from the road, each on the ground as drawn (_drawn_y: on the land
 ## the ground's shaped from, 1 in 7 floated over the road's cuts and the far land, up to 60 m).
 func _trees() -> void:
-	var pine := _tree_mesh(true)
-	var broad := _tree_mesh(false)
 	var noise := FastNoiseLite.new()
 	noise.seed = 21
 	noise.frequency = 1.0 / 180.0
@@ -2443,6 +2441,7 @@ func _trees() -> void:
 					var g := st.land_at(p.x, p.z)
 					if g < 2.0 or st.in_city(p.x, p.z) or _road_dist(p.x, p.z) < 26.0:
 						continue
+					var rd := _road_dist(p.x, p.z)
 					g = _drawn_y(ts, d)
 					var sc := _rng.randf_range(0.75, 1.35)
 					var xf := Transform3D(Basis(Vector3.UP, _rng.randf() * TAU).scaled(Vector3(sc, sc * _rng.randf_range(0.9, 1.2), sc)), Vector3(p.x, g - 0.2, p.z))
@@ -2453,11 +2452,87 @@ func _trees() -> void:
 						continue
 					if not per_chunk.has(key):
 						per_chunk[key] = []
-					per_chunk[key].append(xf)
+					per_chunk[key].append([xf, rd])
 		s += 12.0
+	if _lib_trees_ok():
+		_library_trees(per_chunk)
+		return
+	var pine := _tree_mesh(true)
+	var broad := _tree_mesh(false)
 	for key in per_chunk:
 		tree_count += per_chunk[key].size()
-		_multimesh(pine if key.y == 0 else broad, per_chunk[key], "Trees%03d_%d" % [key.x, key.y], 1800.0)
+		_multimesh(pine if key.y == 0 else broad, per_chunk[key].map(func(e): return e[0]), "Trees%03d_%d" % [key.x, key.y], 1800.0)
+
+
+## MEDIUM and up, the library in the build: the hills' trees are the library's (the biome's species,
+## as the stages and the circuit draw them), not the drawn cones. (The cones were the last of the
+## old flat-colour look on cut up's open stretches.)
+func _lib_trees_ok() -> bool:
+	var gfx = load("res://scripts/render/graphics.gd")
+	return gfx.level() != "low" and EnvAssets.available() and not gfx.headless()
+
+
+const LIB_NEAR := 70.0               # m off the road: the trees nearer than this get their real (LOD1) mesh near the camera
+const LIB_LOD1_DRAW := 240.0         # ... within this of their group's middle; the far card beyond, and always for the rest
+
+## The library's trees for the groups _trees laid out ({Vector2i(chunk, 0 pine / 1 broadleaf): [[xf, m off
+## the road]]}): two tall cedars for the hills' sugi forest (the touge's biome, japan_cedar) and two of the
+## highway verge's broadleaves (suburban_verge), picked by the loop's seed (each species is a draw per
+## group); which one by each tree's spot (the same on every machine and at every level), sized from the
+## biome's scale (the broadleaves larger: grown trees, not the verge's saplings). The near ones (LIB_NEAR)
+## LOD1 near the camera (casting shadows on HIGH and ULTRA), the far card beyond; the rest only ever the card.
+func _library_trees(per_chunk: Dictionary) -> void:
+	var biomes = load("res://scripts/stage/biomes.gd")
+	var cedar: Dictionary = biomes.for_stage({"opts": {"biome": "japan_cedar"}, "kind": "loop"})
+	var verge: Dictionary = biomes.for_stage(st)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = hash([st.seed_used, "loop species"])
+	var pick := func(pool: Array, n: int) -> Array:
+		var left := pool.duplicate()
+		var out: Array = []
+		while not left.is_empty() and out.size() < n:
+			var id: String = biomes.pick(left, rng)
+			out.append(id)
+			left = left.filter(func(e): return str(e[0]) != id)
+		return out
+	var kinds := [pick.call(cedar.get("trees", []), 2), pick.call(verge.get("broad", []), 2)]
+	if kinds[0].is_empty() and kinds[1].is_empty():
+		return
+	for k in 2:
+		if kinds[k].is_empty():
+			kinds[k] = kinds[1 - k]
+	var scales := [cedar.get("tree_scale", [0.72, 1.0]), [1.0, 1.45]]
+	var shadows: bool = load("res://scripts/render/graphics.gd").level() in ["high", "ultra"]     # (as the stages: MEDIUM's trees cast none)
+	var groups := {}                 # "chunk|near|species" -> [Transform3D]
+	for key in per_chunk:
+		var list: Array = kinds[key.y]
+		for e in per_chunk[key]:
+			var xf: Transform3D = e[0]
+			var o := xf.origin
+			var sp: String = list[absi(hash([int(o.x * 4.0), int(o.z * 4.0), "loop tree"])) % list.size()]
+			var sc := xf.basis.get_scale().x
+			var ts: Array = scales[key.y]
+			var msc := lerpf(float(ts[0]), float(ts[1]), clampf((sc - 0.75) / 0.6, 0.0, 1.0))
+			var gk := "%d|%d|%s" % [key.x, 1 if float(e[1]) < LIB_NEAR else 0, sp]
+			if not groups.has(gk):
+				groups[gk] = []
+			groups[gk].append(Transform3D(Basis(Vector3.UP, atan2(-xf.basis.x.z, xf.basis.x.x)).scaled(Vector3.ONE * msc), o))
+			tree_count += 1
+	for gk in groups:
+		var parts: PackedStringArray = gk.split("|")
+		var near := parts[1] == "1"
+		var sp := parts[2]
+		var list: Array = groups[gk]
+		var lods := [["LOD1", 0.0, LIB_LOD1_DRAW], ["BB", LIB_LOD1_DRAW, 1800.0]] if near else [["BB", 0.0, 1800.0]]
+		for lv in lods:
+			var m: Mesh = EnvAssets.mesh(sp, lv[0])
+			if m == null:
+				continue
+			var mmi := _multimesh(m, list, "Trees%s_%s_%s_%s" % [parts[0], parts[1], sp, lv[0]], lv[2])
+			mmi.visibility_range_begin = lv[1]
+			mmi.visibility_range_begin_margin = 10.0 if lv[1] > 0.0 else 0.0
+			mmi.visibility_range_end_margin = 10.0 if lv[0] == "LOD1" else 150.0
+			mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON if lv[0] == "LOD1" and shadows else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 
 
 ## A tree (origin at its foot): a trunk and a crown, low-poly but in real colours.
