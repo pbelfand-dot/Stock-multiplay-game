@@ -59,8 +59,9 @@ dark behind, one handing over to the next without a pop. `tests/lamps_check.gd` 
 of it over 8 passes, up and down. The cedars stand closer to the road than on a
 rally stage (6.4 m from the centreline), a wall streaming past in the lights. No moon to speak
 of, no glow on the horizon: black ridges, the forest fading into black. Every car's lamps are
-on (`scripts/vehicle/car_lamps.gd`): a headlight beam down the road, the lamps' glow, red tail
-lamps; in the driver's seat the dials glow just enough to see the wheel and your hands. (The
+on (`scripts/vehicle/car_lamps.gd`): headlight beams down the road from the headlamps' lenses,
+the lamps' glow, red tail lamps; in the driver's seat the dials glow just enough to see the
+wheel and your hands. (The
 web and Chromebook build draws at most 12 lights on anything at once: the other drivers'
 beams are the two nearest you, the rest glow.)
 

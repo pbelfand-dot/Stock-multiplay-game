@@ -11,7 +11,8 @@ extends SceneTree
 ##   * the night: street lamps (none by day; lit, a few real lights follow the car, the pool
 ##     added on Compatibility or where pools overlap, else multiplied on Forward+), a touge lit by the hour alone, the
 ##     LAKESHORE LOOP's lamp posts and lit windows, a car's lamps (CarLamps: fitted once per
-##     body, its glow where the lamps are, hazards), one lamp material over both ends split
+##     body, its glow where the lamps are, hazards; the beams start on the lenses, not in the
+##     air in front of them, and leave their own car unlit), one lamp material over both ends split
 ## Run: godot --headless --path . -s tests/render_check.gd   (prints [render] lines; exit 1 on a FAIL)
 
 const Graphics = preload("res://scripts/render/graphics.gd")
@@ -38,6 +39,7 @@ func _initialize() -> void:
 	await _touge_by_hour()
 	_loop_night()
 	_car_lamps()
+	_lamp_lenses()
 	_split()
 	print("[render] %s" % ("RENDER OK" if fails == 0 else "RENDER FAIL (%d)" % fails))
 	quit(1 if fails > 0 else 0)
@@ -345,6 +347,85 @@ func _car_lamps() -> void:
 		"car lamps: fitted once per body; no lamps found: no glow (%d), the beam at the front (%.2f); painted lamps: a flat glow on each (%d, flat %s), the light at each side's lens (%s); lamps that glow: nothing added (%d); hazards blink (%s, %s)" % [
 		none_glow, bare_front, painted, flat, str(heads), own_glow, amber, blink])
 	car.free()
+
+
+## Where the headlights' light comes from: on a swept-back headlamp (its box's front 15 cm ahead
+## of the lens at the lamp's middle: the beams once started there, in the air), each side's light
+## comes out at the lamp's middle on its lens cover (not the reflector behind); the beams start on
+## it, 2 cm out; a car fitted as someone else's is moved onto OTHER_LAYER (its beams leave it out,
+## yours light it), yours onto CAR_LAYER; the hazard blinkers sit on the lenses (no glow more
+## than 1 cm in front of one); the traffic's faked light on the road starts at the lamps.
+func _lamp_lenses() -> void:
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	for sx in [-1.0, 1.0]:
+		for i in 4:                                       # (the cover: swept back from z -2.15 inside to -1.85 outside)
+			for j in 2:
+				var x0: float = sx * (0.45 + i * 0.1)
+				var x1: float = sx * (0.45 + (i + 1) * 0.1)
+				var y0 := 0.55 + j * 0.1
+				var z0 := -2.15 + (absf(x0) - 0.45) * 0.75
+				var z1 := -2.15 + (absf(x1) - 0.45) * 0.75
+				for v in [Vector3(x0, y0, z0), Vector3(x1, y0, z1), Vector3(x1, y0 + 0.1, z1), Vector3(x0, y0, z0), Vector3(x1, y0 + 0.1, z1), Vector3(x0, y0 + 0.1, z0)]:
+					st.add_vertex(v)
+		var r0: float = sx * 0.45                         # (the reflector behind it)
+		var r1: float = sx * 0.85
+		for v in [Vector3(r0, 0.55, -1.8), Vector3(r1, 0.55, -1.8), Vector3(r1, 0.75, -1.8), Vector3(r0, 0.55, -1.8), Vector3(r1, 0.75, -1.8), Vector3(r0, 0.75, -1.8)]:
+			st.add_vertex(v)
+	var mesh := st.commit()
+	var surfs := [[mesh, 0, Transform3D.IDENTITY]]
+	var sides: Array = CarLook._lamp_sides(surfs, 0.0)
+	var lens: Array = CarLook._lamp_lenses(surfs, 0.0, "head")
+	var on_lens: bool = lens[0].distance_to(Vector3(-0.65, 0.65, -2.0)) < 0.01 and lens[1].distance_to(Vector3(0.65, 0.65, -2.0)) < 0.01
+	var box_ahead: float = -2.0 - (sides[0] as AABB).position.z     # (how far in front of the lens the box's front is)
+	var car := Node3D.new()
+	root.add_child(car)
+	var body := Node3D.new()
+	car.add_child(body)
+	var lamp_mi := MeshInstance3D.new()
+	lamp_mi.mesh = mesh
+	body.add_child(lamp_mi)
+	var shell := MeshInstance3D.new()                     # (the body behind the lamps)
+	var bm := BoxMesh.new()
+	bm.size = Vector3(1.8, 1.2, 3.6)
+	shell.mesh = bm
+	shell.position = Vector3(0, 0.7, 0.0)
+	body.add_child(shell)
+	body.set_meta("lamp_boxes", {"head": (sides[0] as AABB).merge(sides[1]), "head_l": sides[0], "head_r": sides[1],
+		"head_l_at": lens[0], "head_r_at": lens[1]})
+	var other = CarLamps.fit(car, body, true, false)
+	var heads: Array = other._corners.head
+	var twin: Array = CarLamps.beam_origins(heads, true)
+	var one: Array = CarLamps.beam_origins(heads, false)
+	var from_lens: bool = twin.size() == 2 and twin[0].distance_to(lens[0]) < 0.03 and twin[1].distance_to(lens[1]) < 0.03 \
+		and twin[0].z < lens[0].z and absf(one[0].y - 0.65) < 0.01 and one[0].z > -2.05
+	var theirs: bool = other.layer == CarLook.OTHER_LAYER and lamp_mi.layers == CarLook.OTHER_LAYER and shell.layers == CarLook.OTHER_LAYER
+	other.hazards(true)
+	other._process(0.1)
+	var glow_on := true                                   # (the blinkers on the headlamps: on the lenses, not in front)
+	for k in 2:
+		glow_on = glow_on and (other._blinkers[k] as MeshInstance3D).global_position.distance_to(lens[k]) < 0.01
+	var ahead := 0.0                                      # (any glow in front of its lamp's lens: by how much)
+	for g in body.find_children("LampGlow", "MeshInstance3D", true, false):
+		var p: Vector3 = (g as MeshInstance3D).global_position
+		if p.z < -1.0:
+			ahead = maxf(ahead, -2.0 - p.z)
+	other.hazards(false)
+	var mine = CarLamps.fit(car, body, true, true)
+	var yours: bool = mine.layer == CarLook.CAR_LAYER and lamp_mi.layers == CarLook.CAR_LAYER and shell.layers == CarLook.CAR_LAYER
+	var rm: ArrayMesh = CarLamps.road_mesh({"head_l_at": lens[0], "head_r_at": lens[1]}, AABB(Vector3(-0.9, 0.0, -2.2), Vector3(1.8, 1.3, 4.4)), 1.0)
+	var rv: PackedVector3Array = rm.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
+	var ruv2: PackedVector2Array = rm.surface_get_arrays(0)[Mesh.ARRAY_TEX_UV2]
+	var near_z := -INF
+	var far_z := INF
+	for i in 6:                                           # (the first quad: the headlamps')
+		near_z = maxf(near_z, rv[i].z)
+		far_z = minf(far_z, rv[i].z)
+	var road_ok := absf(near_z - (-2.0)) < 0.01 and absf(far_z - (-2.0 - CarLamps.ROAD_REACH)) < 0.01 and absf(ruv2[0].x - 0.65) < 0.01
+	car.free()
+	_check(on_lens and box_ahead > 0.1 and from_lens and theirs and glow_on and ahead < 0.01 and yours and road_ok,
+		"headlights from the lamps: a swept lamp's light on its lens cover %s (its box's front %.2f m in front of it), the beams on it 2 cm out (%s; one beam: %s); someone else's car on its own layer (%s), yours (%s); the hazard blinkers on the lenses (%s), no glow in front of a lens (%.3f m); the traffic's light on the road from the lamps out to %.0f m (%s)" % [
+		str(lens), box_ahead, str(twin), str(one), theirs, yours, glow_on, ahead, CarLamps.ROAD_REACH, road_ok])
 
 
 ## A lamp material over both ends of a car, and one the material names don't give away (a

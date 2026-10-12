@@ -116,19 +116,32 @@ on at night (the lamps).
      pass); where the pools multiply, not the road (`WorldMaterials.ROAD_LAYER`: it keeps its
      pool, no light counted twice). All batched: three MultiMeshes.
    - **The cars' lamps**: CarLook (emission on the lamp lenses, red tails, brake lights)
-     and CarLamps (`scripts/vehicle/car_lamps.gd`): the headlight beams, each starting at
-     its own headlamp's lens (CarLook's lamp boxes: each side's; your own car two on Forward+
-     MEDIUM+, one casting shadows on HIGH / ULTRA, 3 cm in front of its lens; everyone else
-     one, between its lamps, the game turning far ones off), a red glow on the road behind
-     yours, hazards. No glow balls floating in front of the car any more: the light comes
-     from the lamps themselves (their glowing lenses and the bloom). Only a body whose
-     lamps are painted into its texture (the shared rally body: parts.json `"lamp_boxes"`)
-     gets a soft glow laid flat on each lamp, facing out; where no lamp is known at all the
-     beam starts at the body's front and nothing is added. The game fits them at night, CarLook at
-     dusk or with CAR LIGHTS ALWAYS; OFF leaves only your own beam at night.
+     and CarLamps (`scripts/vehicle/car_lamps.gd`): the headlight beams (two, one on each
+     headlamp, on Forward+ MEDIUM+, yours casting one shadow on HIGH / ULTRA; one between the
+     lenses on LOW and Compatibility), a red glow on the road behind yours, hazards. The light
+     comes from the lamps themselves: their glowing lenses (and the bloom), and each beam
+     starts on its own headlamp's lens, 2 cm out. CarLook finds where each side's light comes
+     out: the lamp's middle as seen from in front, on its outermost face (the lens cover).
+     The front of the lamp's box, where the beams used to start, was up to 34 cm in front of
+     the lens on a lamp swept back round the wing (10 cm on the median model). A beam
+     never lights its own car (its cull and shadow-caster masks leave the car's layer out): a
+     spot light a few cm from its own bumper, grille and lens lit them white-hot, the bloom
+     made a ball of it and the beam seemed to come out of that ball (worst with the single
+     beam everyone else had, in the middle of the nose, inside the grille). Your car's meshes
+     are on CAR_LAYER, any other car CarLamps fits on OTHER_LAYER: your beams light the cars
+     ahead of you and theirs light yours. Only a body whose lamps are painted into its
+     texture (the shared rally body: parts.json `"lamp_boxes"`) gets a soft glow laid flat on
+     each lamp, facing out; where no lamp is known at all the beams start at the body's front
+     and nothing is added. The game fits them at night, CarLook at dusk or with CAR LIGHTS
+     ALWAYS; OFF leaves only your own beam at night. The other drivers' and Track Mode's AI
+     cars' beams are on for the two nearest you only. `tools/lamp_shots.gd` takes night
+     pictures of them all (yours, another driver's, the stray car, the traffic) and times the
+     beams; `tools/lamp_survey.gd` lists each model's lamps and lenses.
    - **The traffic** (cut up): its lamps glow (CarLook.glow_model) and at night each car
      throws a faked pool of headlight on the road ahead and red behind (one additive mesh,
-     260 m) instead of real lights (dozens of cars).
+     200 m) instead of real lights (dozens of cars). It starts at the lamps, a lobe out of
+     each headlamp, brightest just ahead of the car and gone by 14 m (it was a round pool
+     centred 9 m out, nearly dark at the bumper: a ball of light on the road ahead).
    - **The loop's city**: the towers' facade shader lights ~40 % of the windows at night
      (warm and cold white); the bridge towers' red beacons; no shadows from the moon.
    - A dash glow in the cockpit (the game), the stray local car's lamps (CarLamps + glow).

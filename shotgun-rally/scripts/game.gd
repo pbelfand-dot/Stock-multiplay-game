@@ -716,7 +716,7 @@ func _physics_process(dt: float) -> void:
 		_mode_tick(dt)
 	if net and net.host:
 		net.stream_ai(dt)                            # (the AI cars to everyone, the grid included)
-	if night and street_online:
+	if street_online or field != null:               # (CarLook lights the AI's lamps at dusk too)
 		_beam_t -= dt
 		if _beam_t <= 0.0:
 			_beam_t = 0.5
@@ -1183,15 +1183,18 @@ func _night_lights() -> void:
 func _fit_lamps(c) -> void:
 	if not night or c.body_model == null:
 		return
-	CarLamps.fit(c, c.body_model, true, c == car)      # (a tail light, twin beams on yours only; a new body: fitted anew)
+	CarLamps.fit(c, c.body_model, true, c == car)      # (yours: a tail light, a shadow, your car's layer; a new body: fitted anew)
 
 
-## At night the other drivers' headlight beams: the two nearest you within 150 m (a
-## real light each; the rest just glow: the web build can only light so much at once).
+## In the dark the other drivers' and Track Mode's AI cars' headlight beams: only the two
+## nearest you within 150 m have them (real lights, one on each headlamp; the rest just glow:
+## the web build can only light so much at once).
 func _others_beams() -> void:
 	var near: Array = []
-	for id in others:
-		var c = others[id]
+	var cars: Array = others.values()
+	if field != null:
+		cars.append_array(field.cars.values())
+	for c in cars:
 		if is_instance_valid(c) and c.get_node_or_null("CarLamps"):
 			near.append([c.global_position.distance_to(car.global_position), c])
 	near.sort_custom(func(a, b): return a[0] < b[0])

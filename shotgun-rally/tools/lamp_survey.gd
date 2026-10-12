@@ -1,8 +1,9 @@
 extends SceneTree
 ## Which lamps the game finds on each car model (CarLook's own rules: a lamp by its material's
 ## name, or glowing already, at the front or the back of the body): the headlamps and tail
-## lamps, their materials, where they are (model space: x right, y up, -z forward) and
-## whether both sides were found. Scripts only (no pictures: safe on the no-AI cars).
+## lamps, their materials, where they are (model space: x right, y up, -z forward), whether
+## both sides were found and where each side's light comes out (its lens: CarLamps' beams start
+## there). Scripts only (no pictures: safe on the no-AI cars).
 ##   godot --headless --path . -s tools/lamp_survey.gd [-- --ids=kaiser_3,gls] [--missing]
 ##   (--missing: only the cars with a headlamp or tail lamp not found on both sides, or a side's
 ##   lamp box too big to be only the lamp;
@@ -82,6 +83,7 @@ func _survey(id: String, model: String, formula := false) -> void:
 				if kind in ["head", "tail"]:
 					surfs[kind].append([m3.mesh, i, xf])
 	var sides := {"head": CarLook._lamp_sides(surfs.head, box.get_center().x), "tail": CarLook._lamp_sides(surfs.tail, box.get_center().x)}
+	var lens := {"head": CarLook._lamp_lenses(surfs.head, box.get_center().x, "head"), "tail": CarLook._lamp_lenses(surfs.tail, box.get_center().x, "tail")}
 	root.free()
 	var cx := box.get_center().x
 	var lines: Array = []
@@ -111,8 +113,9 @@ func _survey(id: String, model: String, formula := false) -> void:
 			if sb.size != Vector3.ZERO:
 				var odd := sb.size.y > 0.45            # (a deep lamp is fine: the beam starts at its front)
 				bad = bad or odd
-				lines.append("    %s_%s: x %.2f..%.2f y %.2f..%.2f z %.2f..%.2f%s" % [kind, "lr"[k], sb.position.x, sb.end.x,
-					sb.position.y, sb.end.y, sb.position.z, sb.end.z, "  <- TOO BIG (more than the lamp?)" if odd else ""])
+				var at: Vector3 = lens[kind][k]               # (where its light comes out: the beam starts 2 cm out from it)
+				lines.append("    %s_%s: x %.2f..%.2f y %.2f..%.2f z %.2f..%.2f  lens (%.2f, %.2f, %.2f)%s" % [kind, "lr"[k], sb.position.x, sb.end.x,
+					sb.position.y, sb.end.y, sb.position.z, sb.end.z, at.x, at.y, at.z, "  <- TOO BIG (more than the lamp?)" if odd else ""])
 	if not found.both.is_empty():
 		lines.append("  both ends (split by the game): " + ", ".join(found.both.map(func(e): return e[0]).slice(0, 4)))
 	if bad or not only_missing:

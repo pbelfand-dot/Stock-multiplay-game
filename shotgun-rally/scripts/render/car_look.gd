@@ -18,9 +18,11 @@ extends Node3D
 ## parts.json "lamps" names them: [{"kind": "head" / "tail", "mat": a material pattern,
 ## "box": [x0, x1, y0, y1, z0, z1] (model space: only its triangles in there; without one,
 ## those in the nose / the tail)}]. Each side's lamps are kept apart (lamp_boxes(): "head_l",
-## "head_r" ...). The real lights (the headlights' beams, red on the road behind) are
+## "head_r" ...), and where each one's light comes out is found on it: the lamp's middle as
+## seen from in front (from behind: a tail lamp), on its outermost face, the lens cover
+## ("head_l_at" ...). The real lights (the headlights' beams, red on the road behind) are
 ## CarLamps' (scripts/vehicle/car_lamps.gd): the game fits them at night, CarLook itself at
-## dusk or when Settings says CAR LIGHTS ALWAYS; each beam starts at its own lamp's lens.
+## dusk or when Settings says CAR LIGHTS ALWAYS; each beam starts on its own lamp's lens.
 ## The tyres matte rubber.
 ## MEDIUM and up, Forward+: a soft contact shadow under the car (the sky can't reach under it: ambient
 ## occlusion, faked by a darkening quad on the ground, gone when it flies). At night the
@@ -34,6 +36,11 @@ const CAR_LAMPS := "res://scripts/vehicle/car_lamps.gd"
 ## the car's model meshes go on this render layer (as well as no other), so its own
 ## reflection probe doesn't see it from inside
 const CAR_LAYER := 1 << 10
+## ... and a car CarLamps fits as someone else's (the other drivers, Track Mode's AI, the touge's
+## stray car) is moved onto this one instead: each car's headlight beams leave its own layer
+## out (no light on its own nose from a lamp a few cm off it), so yours light the cars in front
+## of you and theirs light yours. The probes leave both out.
+const OTHER_LAYER := 1 << 14
 
 const TYRE_WORDS := ["tire", "tyre", "rubber", "pneumatic", "tread", "sidewall", "sidetyre"]
 
@@ -53,7 +60,8 @@ var _tail: Array = []                # ... tail lamps
 var _both: Array = []                # ... one material for both ends (an atlas)
 var _head_at: Array = []             # [AABB] where they are (model space)
 var _tail_at: Array = []
-var _sides := {"head": [AABB(), AABB()], "tail": [AABB(), AABB()]}   # each side's (left, right): where the beams start
+var _sides := {"head": [AABB(), AABB()], "tail": [AABB(), AABB()]}   # each side's lamp (left, right)
+var _lens := {"head": [Vector3.INF, Vector3.INF], "tail": [Vector3.INF, Vector3.INF]}   # where each side's light comes out: the beams start there
 var _lamp_surfs := {"head": [], "tail": []}     # [mesh, surface, xf]: the lamps' surfaces (each side's lamp found in them)
 var _hints: Array = []               # parts.json "lamps": the lamps a model's names don't give away
 var _probe: ReflectionProbe
@@ -139,6 +147,7 @@ func _scan() -> void:
 				m3.set_surface_override_material(i, c)
 	for kind in ["head", "tail"]:
 		_sides[kind] = _lamp_sides(_lamp_surfs[kind], _box.get_center().x)
+		_lens[kind] = _lamp_lenses(_lamp_surfs[kind], _box.get_center().x, kind)
 	_lamp_surfs = {"head": [], "tail": []}
 
 
@@ -314,16 +323,18 @@ static func _zone_of(c: Vector3, box: AABB, hints: Array) -> String:
 ## up or down and 35 cm along it), so a third brake light by the roof, or a strip of the lamp's
 ## material running back along the wing, doesn't drag the lamp off where it is; the middle
 ## 12 cm either side left out. [AABB, AABB] (an empty one where a side has none); worked out
-## once for each model (every car of it shares the answer).
+## once for each model (every car of it shares the answer), with where each side's light comes
+## out (_lamp_lenses).
 static var _sides_cache := {}
+static var _lens_cache := {}         # the same key: {true: [front-most, ...], false: [back-most, ...]}
 
 static func _lamp_sides(surfs: Array, cx: float) -> Array:
-	var key := "%.3f" % cx
-	for sf in surfs:
-		key += "|%d:%d:%s" % [(sf[0] as Mesh).get_instance_id(), sf[1], str(sf[2])]
+	var key := _sides_key(surfs, cx)
 	if _sides_cache.has(key):
 		return _sides_cache[key]
 	var out := [AABB(), AABB()]
+	var lens := {true: [Vector3.INF, Vector3.INF], false: [Vector3.INF, Vector3.INF]}
+	_lens_cache[key] = lens
 	if surfs.is_empty():
 		_sides_cache[key] = out
 		return out
@@ -349,24 +360,114 @@ static func _lamp_sides(surfs: Array, cx: float) -> Array:
 			var area := (v[idx[t + 1]] - a).cross(v[idx[t + 2]] - a).length() * 0.5 + 1e-7
 			ys[sd][clampi(int(m.y * 100.0), 0, 499)] += area
 			zs[sd][clampi(int((m.z + 5.0) * 50.0), 0, 499)] += area
+	var my := [_band_median(ys[0]) / 100.0, _band_median(ys[1]) / 100.0]
+	var mz := [_band_median(zs[0]) / 50.0 - 5.0, _band_median(zs[1]) / 50.0 - 5.0]
+	var first := [true, true]
+	var sums := [Vector2.ZERO, Vector2.ZERO]         # (each side's faces' middles, weighted by the area they show along z)
+	var ws := [0.0, 0.0]
+	var picked := [[], []]                           # each side's faces: their first index, a list each
+	for l in lists:
+		var v: PackedVector3Array = l[0]
+		var idx: PackedInt32Array = l[1]
+		var p0 := PackedInt32Array()
+		var p1 := PackedInt32Array()
+		for t in range(0, idx.size() - 2, 3):
+			var a := v[idx[t]]
+			var b := v[idx[t + 1]]
+			var c := v[idx[t + 2]]
+			var m := (a + b + c) / 3.0
+			if absf(m.x - cx) < 0.12:
+				continue
+			var sd := 0 if m.x < cx else 1
+			if my[sd] < 0.0 or absf(m.y - my[sd]) > 0.18 or absf(m.z - mz[sd]) > 0.35:
+				continue
+			if first[sd]:
+				out[sd] = AABB(a, Vector3.ZERO)
+				first[sd] = false
+			out[sd] = (out[sd] as AABB).expand(a).expand(b).expand(c)
+			var shown := absf((b.x - a.x) * (c.y - a.y) - (c.x - a.x) * (b.y - a.y))
+			sums[sd] += Vector2(m.x, m.y) * shown
+			ws[sd] += shown
+			if sd == 0:
+				p0.append(t)
+			else:
+				p1.append(t)
+		picked[0].append(p0)
+		picked[1].append(p1)
 	for sd in 2:
-		var my := _band_median(ys[sd]) / 100.0
-		var mz := _band_median(zs[sd]) / 50.0 - 5.0
-		if my < 0.0:
+		if first[sd]:
 			continue
-		var first := true
-		for l in lists:
-			var v: PackedVector3Array = l[0]
-			var idx: PackedInt32Array = l[1]
-			for t in range(0, idx.size() - 2, 3):
-				var m := (v[idx[t]] + v[idx[t + 1]] + v[idx[t + 2]]) / 3.0
-				if absf(m.x - cx) < 0.12 or (m.x < cx) != (sd == 0) or absf(m.y - my) > 0.18 or absf(m.z - mz) > 0.35:
-					continue
-				for k in 3:
-					out[sd] = AABB(v[idx[t + k]], Vector3.ZERO) if first else (out[sd] as AABB).expand(v[idx[t + k]])
-					first = false
+		var sb: AABB = out[sd]
+		var mid: Vector2 = sums[sd] / ws[sd] if ws[sd] > 1e-9 else Vector2(sb.get_center().x, sb.get_center().y)
+		var near := PackedVector3Array()             # (the side's faces round its middle: where its lens is looked for)
+		for li in lists.size():
+			var v: PackedVector3Array = lists[li][0]
+			var idx: PackedInt32Array = lists[li][1]
+			for t in (picked[sd][li] as PackedInt32Array):
+				var a := v[idx[t]]
+				var b := v[idx[t + 1]]
+				var c := v[idx[t + 2]]
+				if maxf(a.x, maxf(b.x, c.x)) >= mid.x - 0.07 and minf(a.x, minf(b.x, c.x)) <= mid.x + 0.07 \
+						and maxf(a.y, maxf(b.y, c.y)) >= mid.y - 0.07 and minf(a.y, minf(b.y, c.y)) <= mid.y + 0.07:
+					near.append_array([a, b, c])
+		for front in [true, false]:
+			lens[front][sd] = _lens_at(near, mid, sb, front)
 	_sides_cache[key] = out
 	return out
+
+
+static func _sides_key(surfs: Array, cx: float) -> String:
+	var key := "%.3f" % cx
+	for sf in surfs:
+		key += "|%d:%d:%s" % [(sf[0] as Mesh).get_instance_id(), sf[1], str(sf[2])]
+	return key
+
+
+## Where each side's lamp gives its light out (model space): the lamp's middle as seen from in
+## front (a tail lamp: from behind; its faces weighted by the area they show that way), on its
+## outermost face there: the lens cover. Not the front of the lamp's box: on a lamp swept back
+## round the wing that's in the air in front of it (up to a third of a metre on some models).
+## Where the middle is a hole (a ring of a lamp), the cover's depth a few cm off it. [Vector3,
+## Vector3], Vector3.INF where a side has none; found with the sides (_lamp_sides, the same
+## surfs and cx), once for each model.
+static func _lamp_lenses(surfs: Array, cx: float, kind: String) -> Array:
+	_lamp_sides(surfs, cx)
+	return _lens_cache[_sides_key(surfs, cx)][kind == "head"]
+
+
+## A side's lens at its middle (mid: x, y) from the faces round it (near): the front-most of them
+## there (front: a headlamp's) or the back-most (a tail lamp's); a few cm off the middle if it's
+## a hole; else its box's face.
+static func _lens_at(near: PackedVector3Array, mid: Vector2, sb: AABB, front: bool) -> Vector3:
+	for off in [Vector2.ZERO, Vector2(0.02, 0.0), Vector2(-0.02, 0.0), Vector2(0.0, 0.02), Vector2(0.0, -0.02),
+			Vector2(0.04, 0.0), Vector2(-0.04, 0.0), Vector2(0.0, 0.04), Vector2(0.0, -0.04), Vector2(0.06, 0.0), Vector2(-0.06, 0.0)]:
+		var z := _outer_z(near, mid + off, front)
+		if not is_nan(z):
+			return Vector3(mid.x, mid.y, z)
+	return Vector3(mid.x, mid.y, sb.position.z if front else sb.end.z)
+
+
+## The outermost of the faces over the point p (x, y) along z: the front-most (front: the
+## smallest z) or the back-most; NAN where none is over it.
+static func _outer_z(tris: PackedVector3Array, p: Vector2, front: bool) -> float:
+	var best := NAN
+	for i in range(0, tris.size() - 2, 3):
+		var z := z_over(p, tris[i], tris[i + 1], tris[i + 2])
+		if not is_nan(z) and (is_nan(best) or (z < best if front else z > best)):
+			best = z
+	return best
+
+
+## A triangle's z over the point p (x, y): NAN if it isn't over it (or it's edge-on to z).
+static func z_over(p: Vector2, a: Vector3, b: Vector3, c: Vector3) -> float:
+	var d := (b.x - a.x) * (c.y - a.y) - (c.x - a.x) * (b.y - a.y)
+	if absf(d) < 1e-12:
+		return NAN
+	var u := ((p.x - a.x) * (c.y - a.y) - (c.x - a.x) * (p.y - a.y)) / d
+	var w := ((b.x - a.x) * (p.y - a.y) - (p.x - a.x) * (b.y - a.y)) / d
+	if u < -1e-6 or w < -1e-6 or u + w > 1.0 + 1e-6:
+		return NAN
+	return a.z + u * (b.z - a.z) + w * (c.z - a.z)
 
 
 ## The middle of a run of bands by their weight (the band's centre, in bands); -1: all empty.
@@ -445,12 +546,15 @@ static func _emissive(src: BaseMaterial3D, kind: String) -> BaseMaterial3D:
 ## Traffic and other plain car models (not a RallyCar): their lamps glow, running lights by
 ## day, full at night (no brake lights, no real lights). The lamps are found once per mesh
 ## and the glowing copies shared by every car of that model. Call it after painting. Where
-## they are goes on root's meta "lamp_boxes" ({"head"/"tail": AABB, root's space}: CarLamps
-## puts its beams there and leaves out its glow sprites).
+## they are goes on root's meta "lamp_boxes" (root's space, as lamp_boxes(): {"head"/"tail":
+## AABB}; with sides true also each side's "head_l", "head_r" ... and where its light comes out,
+## "head_l_at" ...: CarLamps starts a car's beams there, the stray car's; worked out once a
+## model, left out for the traffic, which has no beams). road_glow puts the traffic's faked light
+## on the road at the lamps.
 static var _model_lamps := {}
 
 
-static func glow_model(root: Node3D) -> void:
+static func glow_model(root: Node3D, sides := false) -> void:
 	if Graphics.headless() or root == null:
 		return
 	var box := AABB()
@@ -466,6 +570,7 @@ static func glow_model(root: Node3D) -> void:
 	var nt := snappedf(WorldMaterials.night_amount, 0.1)
 	var energy := {"head": lerpf(1.8, 7.0, nt), "tail": lerpf(0.8, 3.0, nt), "both": lerpf(1.1, 4.0, nt)}
 	var boxes := {}
+	var surfs := {"head": [], "tail": []}                # [mesh, surface, xf]: each side's lamp found in them
 	for e in meshes:
 		var m3: MeshInstance3D = e[0]
 		_split_lamps(m3, e[1], box)
@@ -495,11 +600,23 @@ static func glow_model(root: Node3D) -> void:
 			var at: AABB = lm.get_meta("at")
 			if kind != "both":
 				boxes[kind] = at if not boxes.has(kind) else (boxes[kind] as AABB).merge(at)
+				surfs[kind].append([m3.mesh, i, e[1]])
+	for kind in (["head", "tail"] if sides else []):     # (each side's lamp, and its lens: worked out once a model)
+		var two := _lamp_sides(surfs[kind], box.get_center().x)
+		if (two[0] as AABB).size == Vector3.ZERO or (two[1] as AABB).size == Vector3.ZERO:
+			continue
+		var lens := _lamp_lenses(surfs[kind], box.get_center().x, kind)
+		boxes[kind + "_l"] = two[0]
+		boxes[kind + "_r"] = two[1]
+		boxes[kind + "_l_at"] = lens[0]
+		boxes[kind + "_r_at"] = lens[1]
 	root.set_meta("lamp_boxes", boxes)
 
 
-## Where this car's lamps are ({"head"/"tail": AABB in the model's space}; a kind left out
-## where none was found): CarLamps puts its beams there.
+## Where this car's lamps are, in the model's space: {"head"/"tail": AABB, each side's lamp
+## "head_l", "head_r", "tail_l", "tail_r": AABB, and where each side's light comes out, on its
+## lens: "head_l_at" ... Vector3}; a kind left out where none was found, the sides where one
+## side wasn't. CarLamps starts each beam at its own lamp's "_at".
 func lamp_boxes() -> Dictionary:
 	var out := {}
 	if not _head_at.is_empty():
@@ -510,6 +627,9 @@ func lamp_boxes() -> Dictionary:
 		if _sides[kind][0].size != Vector3.ZERO and _sides[kind][1].size != Vector3.ZERO:
 			out[kind + "_l"] = _sides[kind][0]
 			out[kind + "_r"] = _sides[kind][1]
+			if _lens[kind][0] != Vector3.INF and _lens[kind][1] != Vector3.INF:
+				out[kind + "_l_at"] = _lens[kind][0]
+				out[kind + "_r_at"] = _lens[kind][1]
 	return out
 
 
@@ -706,6 +826,6 @@ func _add_probe() -> void:
 	_probe.max_distance = 60.0
 	_probe.intensity = 1.0
 	_probe.blend_distance = 0.4
-	_probe.cull_mask = 0xFFFFF & ~CAR_LAYER & ~(1 << 1) & ~(1 << 2) & ~(1 << 12)    # not the car itself, the crew's helmets, the card trees (cost)
+	_probe.cull_mask = 0xFFFFF & ~CAR_LAYER & ~OTHER_LAYER & ~(1 << 1) & ~(1 << 2) & ~(1 << 12)    # not the car itself (nor the others), the crew's helmets, the card trees (cost)
 	_probe.mesh_lod_threshold = 4.0
 	add_child(_probe)

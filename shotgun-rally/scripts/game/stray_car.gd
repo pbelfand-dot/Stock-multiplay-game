@@ -46,6 +46,8 @@ func setup(stage, seed_value: int, is_night: bool) -> void:
 		var scene: PackedScene = load(path)
 		var probe: Node3D = scene.instantiate()
 		var box := _bounds(probe)
+		if night:                                    # (its lamps found now, while it loads: not a hitch when one turns up)
+			CarLook.glow_model(probe, true)
 		probe.free()
 		_pool.append({"scene": scene, "paints": e.paints, "half_len": box.size.z * 0.5, "half_w": box.size.x * 0.5,
 			"height": box.size.y})
@@ -102,7 +104,7 @@ func spawn_at(s: float, dir: int) -> void:
 	body.add_child(cs)
 	add_child(body)
 	_paint(model, m.paints[_rng.randi() % m.paints.size()])
-	CarLook.glow_model(model)                        # (its lamps glow: dim by day, full at night)
+	CarLook.glow_model(model, night)                 # (its lamps glow: dim by day, full at night; at night each lamp's lens found: its beams start there)
 	var kmh: Array = ONCOMING_KMH if dir < 0 else AHEAD_KMH
 	var v0: float = _rng.randf_range(kmh[0], kmh[1]) / 3.6
 	car = {"body": body, "model": model, "s": s, "d": lane_d(dir), "v": v0, "v0": v0, "dir": dir, "crashed": false,
