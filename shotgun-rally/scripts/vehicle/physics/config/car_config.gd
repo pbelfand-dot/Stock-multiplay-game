@@ -20,6 +20,9 @@ extends Resource
 ## understeer gradient, deg per g): SIM street steering asks for a share of the grip
 ## through it (DriverAssist.angle_for). 0: the rally car's (not used there).
 @export var understeer := 0.0
+## Its electronic top-speed limiter (km/h; 0: none): the throttle is cut within 0.3 m/s of it (a
+## road car geared on its real ratios would otherwise run past its published top speed).
+@export_range(0.0, 450.0, 1.0, "suffix:km/h") var vmax_kmh := 0.0
 
 @export_group("Wheels")
 ## Front axle position along the car (car-space z, negative = forward).

@@ -32,7 +32,8 @@ const LSD := 2
 ## diffs [kind, power lock, coast lock, preload N m]; cd, area (m²), down (m² of
 ## downforce, x the rally car's way of working it out); brake: x the rally car's
 ## brakes per kg. Optional: bias (the brakes' front share), balance (the downforce's),
-## shift (s: the gearbox's shift time), ers (kW: a hybrid's deployable motor, RaceSim).
+## shift (s: the gearbox's shift time), ers (kW: a hybrid's deployable motor, RaceSim), vmax (km/h:
+## its electronic top-speed limiter).
 static var SPECS: Dictionary = VehicleRegistry.physics()
 
 ## What kind of car it is underneath ("chassis" in a spec; the rally car's own when
@@ -273,6 +274,7 @@ static func config(model: String, mass := 0.0) -> Resource:
 		c.brake_bias = float(s.bias)
 	# aero
 	c.drag_coefficient = s.cd
+	c.vmax_kmh = float(s.get("vmax", 0.0))
 	c.frontal_area = s.area
 	c.downforce_area = s.down
 	if s.has("balance"):                            # (the downforce's front share)

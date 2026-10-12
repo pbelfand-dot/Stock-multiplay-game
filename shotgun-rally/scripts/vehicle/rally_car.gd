@@ -874,6 +874,8 @@ func _simulate(dt: float) -> void:
 	var pedals := _pedals(dt)
 	var foot := pedals.x
 	pedals.x = assist.throttle(self, dt, pedals.x)
+	if config.vmax_kmh > 0.0:                        # (its electronic top-speed limiter: off over the last 0.6 m/s round it)
+		pedals.x = minf(pedals.x, clampf((config.vmax_kmh / 3.6 + 0.3 - speed) / 0.6, 0.0, 1.0))
 	if race:
 		pedals.x = race.throttle(self, pedals.x)         # (the pit limiter, the tank)
 		for k in 4:

@@ -62,7 +62,7 @@ const SHIFT_SETTLE := 0.6          # s: with rev_match, no downshift this soon a
                                    # matched the revs to the slowing wheels and dropped straight back, gear hunting)
 var _since_shift := 0.0
 ## A road car's automatic (SIM street; the car sets it) changes up as early as the driver's foot
-## lets it: gently on the throttle it's in top by 100 km/h (the M5: eighth, ~2,300 rpm), flat out it
+## lets it: cruising gently it's in top by 100 km/h (the M5: eighth, ~1,500 rpm), flat out it
 ## holds each gear to upshift_rpm, and floored from a light throttle (a kickdown) it drops straight
 ## to the lowest gear it won't rev out of. What it goes by is the driver's demand: the throttle or
 ## the brake, whichever's harder, kept for a few seconds after a lift; off the throttle it doesn't
@@ -71,7 +71,7 @@ var _since_shift := 0.0
 ## cruised at 5,000 rpm.
 var part_throttle := false
 var brake := 0.0                   # the brake pedal, 0..1 (the car sets it): part of the demand
-const LIGHT_UP := 0.3              # x the limiter: where it changes up on the lightest throttle (a 6,800 rpm engine: ~2,000)
+const LIGHT_UP := 0.25             # x the limiter: where it changes up on the lightest throttle (a 7,200 rpm engine: 1,800)
 const LIGHT_DOWN := 0.18           # x the limiter: where it changes down on the lightest (~1,200)
 const DEMAND_KEEP := 3.0           # s: a full demand falls to none this long after the foot comes off
 var _demand := 0.0

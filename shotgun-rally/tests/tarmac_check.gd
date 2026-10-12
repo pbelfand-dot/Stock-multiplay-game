@@ -19,7 +19,7 @@ extends SceneTree
 ##     the front tyres short of their peak and the road wheels under 2 deg (they swung to
 ##     7.7 deg and ploughed on, smoking)
 ##   * the AUTOMATIC on part throttle (the M5, cut up): gently on the throttle up to a 100 km/h
-##     cruise it's in one of its top two gears under 3,000 rpm (it held each gear to 6,850 rpm
+##     cruise it's in one of its top two gears under 2,500 rpm (it held each gear to 6,850 rpm
 ##     whatever the throttle, cruising at 4,000-5,000), floored from there it kicks down three
 ##     gears or more in one change; and on keys a 1.5 s lift after a pull doesn't change up
 ## Run: godot --headless --fixed-fps 120 --path . -s tests/tarmac_check.gd
@@ -241,7 +241,7 @@ func _physics_process(dt: float) -> bool:
 			var dt_ = car.drivetrain
 			if t < 0.5:
 				_roll_start(50.0 / 3.6)
-			elif t < 16.0:
+			elif t < 24.0:
 				inp.throttle = clampf((100.0 / 3.6 - car.speed) * 0.1 + 0.1, 0.0, 0.4)   # (gently up to 100 and holding it)
 				m.gear = dt_.gear
 				m.rpm = dt_.rpm()
@@ -249,10 +249,10 @@ func _physics_process(dt: float) -> bool:
 			else:
 				inp.throttle = 1.0                         # (floored)
 				if not m.has("kick") and dt_.gear < int(m.gear) and not dt_.shifting():
-					m.kick = t - 16.0
+					m.kick = t - 24.0
 					m.kick_gear = dt_.gear
 					m.kick_rpm = dt_.rpm()
-			done = t > 18.0
+			done = t > 26.0
 		"lift":
 			var dt_ = car.drivetrain
 			if t < 0.5:
@@ -316,7 +316,7 @@ func _report() -> void:
 					float(m.latg), float(m.front) * 100.0, float(m.wheel), fx.puffs_made])
 		"cruise":
 			var n: int = car.drivetrain.gears()
-			_check(int(m.gear) >= n - 1 and float(m.rpm) < 3000.0, "the M5's automatic, gently up to a %.0f km/h cruise: in gear %d of %d at %.0f rpm" % [float(m.kmh), int(m.gear), n, float(m.rpm)])
+			_check(int(m.gear) >= n - 1 and float(m.rpm) < 2500.0, "the M5's automatic, gently up to a %.0f km/h cruise: in gear %d of %d at %.0f rpm (the real car: eighth, ~1,500 rpm)" % [float(m.kmh), int(m.gear), n, float(m.rpm)])
 			_check(m.has("kick") and float(m.kick) < 0.6 and int(m.gear) - int(m.get("kick_gear", 99)) >= 3,
 				"... floored from there it kicks down from %d to %s in %s (at %s rpm)" % [int(m.gear), str(m.get("kick_gear", "-")), "%.2f s" % float(m.kick) if m.has("kick") else "never",
 				"%.0f" % float(m.kick_rpm) if m.has("kick") else "-"])

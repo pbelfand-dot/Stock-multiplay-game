@@ -556,12 +556,18 @@ spinning before it had turned, an M5 that felt slow, too little grip. Measured f
   the ploughing fronts and the aids cutting in (60-100 mph weaving on keys 4.5 s, now 4.1 s).
 - **The automatic** changed up only near the limiter, whatever the throttle, so a road car cruised
   at 4,000-5,000 rpm. In SIM street a road car's automatic now changes up as early as a light
-  throttle allows: the M5, gently up to 100 km/h, is in eighth at ~2,300 rpm. Floored from there it
-  kicks down to the lowest gear it won't rev out of (eighth to fourth in one change). Off the
+  throttle allows: the M5, gently up to 100 km/h, is in seventh at ~1,900 rpm. Floored from there it
+  kicks down to the lowest gear it won't rev out of (seventh to third in one change). Off the
   throttle it doesn't change up, so on keys it changes up where it did.
-- **Two BMWs' engines** held their peak torque too long: the KAISER 3X made 455 PS (BMW: 398) and
-  the 235 GC 353 PS (306). Their curves now follow BMW's published torque and power bands; 0-100
-  km/h on a flat pad 4.3 and 4.6 s (BMW: 4.6 and 4.9 s).
+- **Two BMWs' engines** held their peak torque too long: the KAISER 3X (a G01 X3 M40i) made 455 PS
+  (BMW: 360) and the 235 GC 353 PS (306). Their curves now follow BMW's published torque and power
+  bands; 0-100 km/h on a flat pad 4.7 and 4.6 s (BMW: 4.9 s both).
+- **The M5's gearing** had BMW's ratios on a 5.15 final drive (BMW: 3.308): eighth ran into the rev
+  limiter at 305 km/h and turned 2,400 rpm at 100 km/h. Now it has BMW's 3.308 (eighth ~1,500 rpm
+  at 100), and its electronic limiter holds 305 km/h (the M Driver's Package's), the M5 Touring too.
+  0-60 mph 2.9 s, 0-100 km/h 3.0 s, 0-200 9.8 s (BMW: 3.4, 3.5 and 10.9 s; Car and Driver timed
+  3.0 s to 60 with a 1-ft rollout): it launches at 1.2 g in first, on its tyres' peak, more than
+  the real car does.
 
 ## Controls
 
