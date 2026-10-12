@@ -196,10 +196,14 @@ static var _sprite: GradientTexture2D
 
 func _glare_material() -> Material:
 	if _sprite == null:
+		# (a hot core and a halo falling off softly: a straight ramp out to the edge read as a hard
+		# orange disc round every lamp, a moon behind the trees)
 		var g := Gradient.new()
-		g.set_color(0, Color(1.0, 0.76, 0.46, 0.92))
+		g.set_color(0, Color(1.0, 0.8, 0.52, 1.0))
 		g.set_color(1, Color(1.0, 0.5, 0.15, 0.0))
-		g.add_point(0.19, Color(1.0, 0.62, 0.29, 0.35))
+		g.add_point(0.07, Color(1.0, 0.7, 0.4, 0.62))
+		g.add_point(0.2, Color(1.0, 0.6, 0.28, 0.2))
+		g.add_point(0.42, Color(1.0, 0.55, 0.2, 0.05))
 		_sprite = GradientTexture2D.new()
 		_sprite.gradient = g
 		_sprite.fill = GradientTexture2D.FILL_RADIAL
