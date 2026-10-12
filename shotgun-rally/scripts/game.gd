@@ -738,7 +738,11 @@ func _physics_process(dt: float) -> void:
 
 func _drive_inputs() -> void:
 	if _pit_stop > 0.0:
-		car.inp = {"steer": 0.0, "throttle": 0.0, "brake": 1.0, "handbrake": false}
+		# (held in the box while the crew works: on the handbrake too, which never selects reverse, and out of
+		# reverse if it was in it: the brake held at a standstill would otherwise pick reverse and drive it back)
+		car.inp = {"steer": 0.0, "throttle": 0.0, "brake": 1.0, "handbrake": true}
+		if car.drivetrain and int(car.drivetrain.gear) < 0:
+			car.drivetrain.shift(1)
 		return
 	if use_autopilot and state != "grid" and race_ctl:
 		if _my_driver == null:
@@ -1930,7 +1934,7 @@ var _last_pos := {}                  # every car's position as race control last
 var _near_pos := {}                  # (online, the host) the same with ours and the AI's as they are now (racecraft)
 var _rows_t := 0.0
 var _bw_t := 0.0
-var _pit_done := false
+var _pit_done := true                # (the car starts in its box or on the grid: a stop only counts once it's left the pit lane)
 var _my_service := {}
 var pit_plan = PitPlan.new()         # your pit strategy (the pause menu's PIT rows)
 var _pit_btns: Array = []

@@ -1,7 +1,7 @@
 extends SceneTree
 ## Track Mode: the circuit (CircuitGen: CINDER RIDGE from data/maps/cinder_ridge.json), the session's
 ## timing (TrackSession) and a practice lap in the game (the autopilot out of its pit box).
-## Run: godot --headless --fixed-fps 120 --path . -s tests/track_check.gd [-- --only=circuit|session|game|weather|series]
+## Run: godot --headless --fixed-fps 120 --path . -s tests/track_check.gd [-- --only=circuit|session|game|qualifying|weather|series]
 ##   circuit: closes on itself (position, heading, height), 4.5-6 km, 14-20 corners, no tighter than a
 ##     hairpin, grades and banking a real circuit's, never crosses itself (every bit of track clear of
 ##     every other by more than its run-off); the grid on the pit straight, behind the line, two by two;
@@ -15,6 +15,8 @@ extends SceneTree
 ##     starts in its box in the pit lane, the autopilot drives it out down the lane at the limit, onto
 ##     the track, round a whole timed lap (sectors and lap flashed) and the results show the best lap;
 ##     the race state (RaceSim) warms its tyres from cold and burns its fuel
+##   qualifying: from the box at the start your own throttle drives it out (no pit stop at the start,
+##     never reversed); a pit stop holds the car on the handbrake, never in reverse
 ##   weather: DAY / NIGHT / WET's settings (the light, the hour, the wet track, wets on, the title),
 ##     a slick against a wet tyre on the wet track, the AI's line slower in the wet, the roads' wet
 ##     look; a wet practice in the game: the rain and its hiss up, spray off the car at speed, the
@@ -52,6 +54,8 @@ func _initialize() -> void:
 		_session()
 	if only in ["", "game"]:
 		await _game()
+	if only in ["", "qualifying"]:
+		await _qualifying()
 	if only in ["", "weather"]:
 		await _weather()
 	if only in ["", "series"]:
@@ -378,6 +382,61 @@ func _game() -> void:
 	g._end_run()
 	var lines: Array = g.mode_result.get("lines", [])
 	check(g.state == "finished" and not lines.is_empty() and str(lines[0]).begins_with("BEST LAP"), "game: END RUN shows the results (%s)" % " / ".join(lines))
+	g.queue_free()
+	await process_frame
+
+
+# ── qualifying: out of the box on your own throttle ──────────────────────
+# (the owner, playing: "in qualifying, at the ding it reverses me and I can't go forward". Sitting
+# in your box at the start counted as a pit stop, whose hold pressed the brake, which at a standstill
+# selects reverse and drives it back. A stop only counts once you've left the pit lane, and the hold
+# is on the handbrake.)
+
+func _qualifying() -> void:
+	root.get_node("Net").solo()
+	var Game = load("res://scripts/game.gd")
+	var g = Game.new()
+	root.add_child(g)
+	var o: Dictionary = Modes.track_opts(5, "gt", "qualifying", 3, "cinder_ridge", {"opponents": 0})
+	await g.start(5, 1, o)
+	var st = g.st
+	var p0: Vector3 = g.car.global_position
+	var fwd0: Vector3 = -g.car.global_transform.basis.z
+	g.begin_countdown()
+	var t := 0.0
+	var ran := 0.0
+	var worst_back := 0.0
+	var reversed := false
+	var stopped_for := 0.0
+	while t < 60.0 and ran < 6.0:
+		await physics_frame
+		t += 1.0 / 120.0
+		if g.state != "running":
+			continue
+		Input.action_press("throttle")
+		ran += 1.0 / 120.0
+		worst_back = minf(worst_back, (g.car.global_position - p0).dot(fwd0))
+		reversed = reversed or int(g.car.drivetrain.gear) < 0
+		stopped_for = maxf(stopped_for, g._pit_stop)
+	Input.action_release("throttle")
+	var gone: float = (g.car.global_position - p0).dot(fwd0)
+	check(g.race_ctl != null and g.race_ctl.kind == "qualifying" and stopped_for <= 0.0 and not reversed and worst_back > -0.5 and gone > 10.0,
+		"qualifying: from the box at the start, the throttle drives it out (%.0f m on in 6 s, never back more than %.2f m, no pit stop at the start: %s, reverse: %s)" % [
+		gone, -worst_back, "none" if stopped_for <= 0.0 else "%.1f s" % stopped_for, reversed])
+	# a real stop: stopped, then held while the crew works: on the handbrake, never driven back
+	g.car.set_speed(0.0)
+	for i in 60:
+		await physics_frame
+	g._pit_stop = 3.0
+	var held0: Vector3 = g.car.global_position
+	var moved := 0.0
+	var rev := false
+	for i in 240:
+		await physics_frame
+		moved = maxf(moved, g.car.global_position.distance_to(held0))
+		rev = rev or int(g.car.drivetrain.gear) < 0
+	check(not rev and moved < 0.3 and bool(g.car.inp.handbrake), "qualifying: a pit stop holds the car still on the handbrake, never in reverse (moved %.2f m in 2 s held, reverse: %s)" % [moved, rev])
+	g._pit_stop = 0.0
 	g.queue_free()
 	await process_frame
 
