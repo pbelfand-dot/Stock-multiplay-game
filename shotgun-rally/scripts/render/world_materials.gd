@@ -82,7 +82,7 @@ const SURFACES := {
 	"concrete": {"tex": "concrete", "rough": 1.5, "spec": 0.45, "normal": 0.7, "detail": 0.8, "tri": true, "photo": 0.35},
 	"grass": {"tex": "grass", "rough": 1.25, "spec": 0.3, "normal": 1.0, "detail": 1.0, "photo": 0.2, "vc_sat": 0.85, "vc_gain": 0.88},
 	"dirt": {"tex": "dirt", "rough": 0.9, "spec": 0.4, "normal": 1.0, "detail": 1.0, "photo": 0.5},
-	"gravel": {"tex": "gravel", "rough": 1.05, "spec": 0.4, "normal": 1.2, "detail": 1.0, "photo": 0.45},
+	"gravel": {"tex": "gravel", "rough": 1.05, "spec": 0.4, "normal": 1.2, "detail": 1.0, "photo": 0.45, "vc_gain": 0.82},
 	"rock": {"tex": "rock", "rough": 1.05, "spec": 0.4, "normal": 1.2, "detail": 1.0, "tri": true, "photo": 0.5},
 	"snow": {"tex": "snow", "rough": 0.9, "spec": 0.5, "normal": 0.7, "detail": 0.6, "photo": 0.2},
 	"ice": {"tex": "snow", "rough": 0.12, "spec": 0.7, "normal": 0.25, "detail": 0.25},
@@ -197,9 +197,13 @@ static func water(opts := {}) -> Material:
 	return _liquid("water", opts.get("tint", Color(0.05, 0.085, 0.08)), 0.03, 1.0)
 
 
-## A muddy puddle on the road: brown, still, glossy.
+## A muddy puddle on the road: brown, still, glossy, a rim of wet mud round it and a ragged
+## edge (the mesh's vertex alpha: 1 in the middle, 0 at the rim; StageBuilder._puddles).
 static func puddle(opts := {}) -> Material:
-	return _liquid("puddle", opts.get("tint", Color(0.11, 0.08, 0.05)), 0.06, 0.35)
+	var m := _liquid("puddle", opts.get("tint", Color(0.2, 0.15, 0.1)), 0.06, 0.35)
+	if m is ShaderMaterial:
+		(m as ShaderMaterial).set_shader_parameter("puddle", true)
+	return m
 
 
 ## Painted or galvanised steel (barriers, bridge cables, gantries, lamp posts): the vertex
@@ -1118,7 +1122,15 @@ void fragment() {
 	rough /= wsum;
 	wn = normalize(nsum + n * 0.001);
 	vec3 vlin = vertex_linear(vc);
-	albedo = mix(vlin * clamp(mix(vec3(1.0), ratio, det), 0.0, 3.0), dot(vlin, LUMA) * phsum, photo);
+	// The grass isn't a lawn: big soft patches (~25 m, and ~6 m ones over them) where more of the
+	// photo's own colour shows (moss, dry grass, needles, leaves) and where it's lighter or darker.
+	// Two value noises a pixel, no textures: from MEDIUM up (LOW is flat colours).
+	float gw = step(0.01, w_grass) * w_grass / wsum;
+	float m1 = vnoise(wpos.xz * 0.043 + vec2(31.0, 7.0));
+	float m2 = vnoise(wpos.xz * 0.17 + vec2(3.0, 41.0));
+	float ph = mix(photo, mix(0.1, 0.8, smoothstep(0.25, 0.75, m1 * 0.6 + m2 * 0.4)), gw);
+	vlin *= mix(1.0, mix(0.66, 1.1, smoothstep(0.15, 0.85, m2 * 0.7 + m1 * 0.3)), gw);
+	albedo = mix(vlin * clamp(mix(vec3(1.0), ratio, det), 0.0, 3.0), dot(vlin, LUMA) * phsum, ph);
 #else
   #ifdef UV_MODE
 	sample_uv(UV, wpos, n, a, wn);
@@ -1256,6 +1268,7 @@ uniform vec4 colour : source_color = vec4(0.05, 0.085, 0.08, 1.0);
 uniform float rough = 0.03;
 uniform float ripple = 1.0;
 uniform sampler2D waves : hint_normal, filter_linear_mipmap, repeat_enable;
+uniform bool puddle = false;            // a puddle: the vertex alpha says how far in (1 middle, 0 rim)
 
 varying vec3 wpos;
 
@@ -1269,10 +1282,26 @@ void fragment() {
 	vec3 b = texture(waves, p * 0.27 - vec2(TIME * 0.009, -TIME * 0.011)).xyz * 2.0 - 1.0;
 	vec2 t = (a.xy + b.xy) * 0.25 * ripple;
 	vec3 wn = normalize(vec3(t.x, 1.0, t.y));
+	vec3 alb = colour.rgb;
+	float r = rough;
+	float sp = 0.6;
+	if (puddle) {
+		// a ragged edge (not the mesh's polygon), wet mud round the water, then the water
+		float edge = COLOR.a + (texture(waves, p * 0.2).x - 0.5) * 0.5;
+		if (edge < 0.05) {
+			discard;
+		}
+		float water = smoothstep(0.24, 0.5, edge);
+		vec3 mud = pow(COLOR.rgb, vec3(2.2)) * 0.55;
+		alb = mix(mud, colour.rgb, water);
+		r = mix(0.42, rough, water);
+		sp = mix(0.45, 0.6, water);
+		wn = normalize(mix(vec3(0.0, 1.0, 0.0), wn, water));
+	}
 	NORMAL = normalize((VIEW_MATRIX * vec4(wn, 0.0)).xyz);
-	ALBEDO = colour.rgb;
-	ROUGHNESS = rough;
+	ALBEDO = alb;
+	ROUGHNESS = r;
 	METALLIC = 0.0;
-	SPECULAR = 0.6;
+	SPECULAR = sp;
 }
 """

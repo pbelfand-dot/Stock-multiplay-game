@@ -2251,13 +2251,23 @@ func _puddles() -> void:
 		var c: Vector3 = st.world_at(pd.s, pd.d) + Vector3.UP * 0.075
 		var f: Vector3 = st.forward_at(pd.s)
 		var r: Vector3 = st.right_at(pd.s)
-		var seg := 9
+		var seg := 18
+		var ph := float(absi(hash([int(pd.s * 10.0), "puddle"])) % 1000) * 0.00628   # (each its own shape: lobes, not an ellipse)
 		for k in seg:
 			var a0 := TAU * k / seg
 			var a1 := TAU * (k + 1) / seg
-			var p0: Vector3 = c + f * cos(a0) * pd.r * 1.3 + r * sin(a0) * pd.r * 0.8
-			var p1: Vector3 = c + f * cos(a1) * pd.r * 1.3 + r * sin(a1) * pd.r * 0.8
+			var w0 := 1.0 + 0.16 * sin(a0 * 2.0 + ph) + 0.08 * sin(a0 * 3.0 + ph * 2.3)
+			var w1 := 1.0 + 0.16 * sin(a1 * 2.0 + ph) + 0.08 * sin(a1 * 3.0 + ph * 2.3)
+			var p0: Vector3 = c + (f * cos(a0) * pd.r * 1.3 + r * sin(a0) * pd.r * 0.8) * w0
+			var p1: Vector3 = c + (f * cos(a1) * pd.r * 1.3 + r * sin(a1) * pd.r * 0.8) * w1
 			mb.tri(c, p0, p1, Color(0.3, 0.22, 0.14))
+	# (the middle of each fan opaque water, its rim 0: WorldMaterials.puddle() frays the edge with it)
+	var cols: PackedColorArray = mb.cols
+	for v in cols.size():
+		var col := cols[v]
+		col.a = 1.0 if v % 3 == 0 else 0.0
+		cols[v] = col
+	mb.cols = cols
 	var mi := MeshInstance3D.new()
 	mi.name = "Puddles"
 	mi.mesh = mb.mesh()
