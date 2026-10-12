@@ -31,7 +31,8 @@ extends SceneTree
 ##   * the steering wheel's pieces the model left in the body moved onto it (they turn with it), the
 ##     cabin's pieces left in a moving part moved back into the body;
 ##     LEDs lit in their row's own colour
-##   * the original materials are untouched: an overlay is a duplicate's next pass
+##   * the original materials are untouched: an overlay is a duplicate's next pass (on both
+##     sides for a double-sided material)
 ## Prints one [dash] line per check; exits 1 on any FAIL.
 ## Run: godot --headless --path . -s tests/dash_check.gd
 
@@ -185,9 +186,12 @@ func _spec(id: String, car, cp, dash, spec: Dictionary) -> void:
 			var hit := true
 			for mk in n.marks:
 				hit = hit and absf(DashLive.marks_deg(n.marks, float(mk[0])) - float(mk[1])) < 1e-4
-			var mid: float = DashLive.marks_deg(n.marks, 115.0)
-			fails += _check(hit and mid < -134.0 and mid > -154.0 and float(n.marks[-1][1]) == float(n.a1),
-				"%s: its %s needle on each of its %d marks (115 between 100 and 130: %.1f deg)" % [id, str(n.value), n.marks.size(), mid])
+			# (halfway between two marks: halfway between their angles; the last mark the scale's end)
+			var v1 := (float(n.marks[1][0]) + float(n.marks[2][0])) * 0.5
+			var mid: float = DashLive.marks_deg(n.marks, v1)
+			var want: float = (float(n.marks[1][1]) + float(n.marks[2][1])) * 0.5
+			fails += _check(hit and absf(mid - want) < 1e-3 and float(n.marks[-1][1]) == float(n.a1),
+				"%s: its %s needle on each of its %d marks (%.1f between two of them: %.1f deg)" % [id, str(n.value), n.marks.size(), v1, mid])
 	# the model's own LED blocks (the Bolide's fuel gauge and shift lights): none lit at 0, all at the top, in
 	# order between, the lit part ending in the gap after the last one lit
 	for o in dash.overlays:
@@ -278,6 +282,17 @@ func _spec(id: String, car, cp, dash, spec: Dictionary) -> void:
 			if m and m.next_pass is ShaderMaterial and own_m and (own_m == m or own_m.next_pass == m.next_pass):
 				same = false
 	fails += _check(same, "%s: the model's own materials untouched (the overlays ride on copies)" % id)
+	# an overlay on a double-sided material (the Camaro's dial photographs, modelled facing away) drawn on both sides too
+	var sided := 0
+	var both := true
+	for mi in car.body_model.find_children("*", "MeshInstance3D", true, false):
+		for si in (mi as MeshInstance3D).get_surface_override_material_count():
+			var m: Material = mi.get_surface_override_material(si)
+			if m is BaseMaterial3D and m.next_pass is ShaderMaterial and (m as BaseMaterial3D).cull_mode == BaseMaterial3D.CULL_DISABLED:
+				sided += 1
+				both = both and ((m.next_pass as ShaderMaterial).shader.code.contains("cull_disabled"))
+	if sided > 0:
+		fails += _check(both, "%s: its overlays on %d double-sided surfaces drawn on both sides" % [id, sided])
 	# the bulb check, then the lamps follow what they show
 	dash.fake = {"kmh": 0.0, "rpm01": 0.1, "rpm": 1000.0, "handbrake": false, "fuel": 0.5}
 	_run(dash, 0.2)

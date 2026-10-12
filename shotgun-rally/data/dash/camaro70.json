@@ -1,0 +1,24 @@
+{
+	"_about": "BRAWLER 70 ('70 Camaro): its speedometer and rev counter are photographs of the real dials, each its own material and picture (SpeedMeter: 500 x 458 px, 0 to 150 mph, the numbers not quite evenly spaced: marks, in km/h; RpmMeter: 470 x 475 px, RPM/100 0 to 70, the orange from 5,000), their orange needles photographed at rest: each gets a live needle along its own scale, the photographed needle taken out of a copy of the picture (the face from further round). The dials glow at night. Pixels of each picture; needle angles in degrees, 0 = right, 90 = down.",
+	"displays": [
+		{
+			"mat": "^SpeedMeter$",
+			"tex": [500, 458],
+			"glow": "all",
+			"glow_color": "#ffe2b0",
+			"needles": [
+				{"value": "kmh", "c": [255, 209], "r": 132, "w": 4.2, "a0": 135.9, "a1": 399, "min": 0, "max": 241.4, "painted": 142.3, "shift": 30, "color": "#ff5a24", "tail": 0.0,
+					"marks": [[0, 135.9], [16.1, 150.8], [32.2, 165.7], [48.3, 183.8], [64.4, 202.2], [80.5, 221.7], [96.6, 240.7], [112.7, 260.2], [128.7, 280.3], [144.8, 299.6], [160.9, 318.3], [177.0, 337.9], [193.1, 355.4], [209.2, 371.5], [225.3, 386.0], [241.4, 399.0]]}
+			]
+		},
+		{
+			"mat": "^RpmMeter$",
+			"tex": [470, 475],
+			"glow": "all",
+			"glow_color": "#ffe2b0",
+			"needles": [
+				{"value": "rpm", "c": [234.4, 240.6], "r": 132, "w": 4.6, "a0": 144.4, "a1": 400, "min": 0, "max": 7000, "painted": 143.4, "shift": 30, "color": "#ff5a24", "tail": 0.0}
+			]
+		}
+	]
+}

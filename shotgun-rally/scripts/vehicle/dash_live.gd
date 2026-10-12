@@ -169,7 +169,8 @@ func _overlay_material(base: Material, d: Dictionary) -> ShaderMaterial:
 	elif d.has("tex"):
 		size = Vector2(d.tex[0], d.tex[1]) if d.tex is Array else Vector2(float(d.tex), float(d.tex))
 	var ov := ShaderMaterial.new()
-	ov.shader = _shader(d.get("solid", false))
+	# (drawn on both sides when the model's own material is: faces modelled facing away still show)
+	ov.shader = _shader(d.get("solid", false), base is BaseMaterial3D and (base as BaseMaterial3D).cull_mode == BaseMaterial3D.CULL_DISABLED)
 	ov.render_priority = 1
 	ov.set_shader_parameter("base_tex", tex)
 	ov.set_shader_parameter("has_base", tex != null)
@@ -976,17 +977,20 @@ func _share(n: Dictionary, v = null) -> float:
 
 static var _sh: Shader
 static var _sh_solid: Shader
+static var _sh_both: Shader
 
-## The overlay's shader: drawn over a surface (blended, it writes no depth), or solid
-## (a panel: a mesh of its own, so the interior's see-through parts drawn after it,
-## a screen's glass, can't cover it).
-static func _shader(solid := false) -> Shader:
+## The overlay's shader: drawn over a surface (blended, it writes no depth; on both sides
+## for a double-sided material), or solid (a panel: a mesh of its own, so the interior's
+## see-through parts drawn after it, a screen's glass, can't cover it).
+static func _shader(solid := false, both_sides := false) -> Shader:
 	if _sh == null:
 		_sh = Shader.new()
 		_sh.code = OVERLAY
 		_sh_solid = Shader.new()
 		_sh_solid.code = OVERLAY.replace("blend_mix, unshaded, depth_draw_never,", "unshaded,").replace("ALPHA = outc.a;", "")
-	return _sh_solid if solid else _sh
+		_sh_both = Shader.new()
+		_sh_both.code = OVERLAY.replace("blend_mix, unshaded, depth_draw_never,", "blend_mix, unshaded, depth_draw_never, cull_disabled,")
+	return _sh_solid if solid else (_sh_both if both_sides else _sh)
 
 
 const OVERLAY := """
