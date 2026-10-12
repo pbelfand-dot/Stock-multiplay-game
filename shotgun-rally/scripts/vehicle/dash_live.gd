@@ -8,7 +8,8 @@ extends Node3D
 ##         holding it upside down "flip_v", mirrored "flip_h", both: turned half round, or
 ##         sideways "transpose"; "off_wheel": not on the bits of the steering wheel that share
 ##         the material; "day_art": [dx, dy] where the texture paints the screen again unlit,
-##         drawn by day)
+##         drawn by day; "art_at": [dx, dy] a page the texture holds beside the faces' own spot,
+##         shown instead)
 ##         (dash_page.gd: a digital cluster, the centre screen's map and driving data)
 ##       - needles: a dial painted in the texture gets a moving needle; the painted
 ##         one is covered with the dial face from a little further round

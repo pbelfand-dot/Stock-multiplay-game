@@ -220,6 +220,15 @@ func _spec(id: String, car, cp, dash, spec: Dictionary) -> void:
 			var want0 := Vector2(pg.src.end.x, pg.src.end.y if pg.cfg.get("flip_v", false) else pg.src.position.y)
 			fails += _check(m0.distance_to(want0) < 0.5 and pg.view == pg.src,
 				"%s: its mirrored%s page's corner is the texture's %s" % [id, " (and upside-down)" if pg.cfg.get("flip_v", false) else "", str(want0)])
+		for t in pg.cfg.get("layout", {}).get("text", []).filter(func(t): return str(t.what) == "clock12"):
+			var c12: String = pg._reading("clock12", dash.data, t)
+			var re12 := RegEx.create_from_string("^(1[0-2]|[1-9]):[0-5][0-9] (am|pm)$")
+			fails += _check(re12.search(c12) != null, "%s: its 12-hour clock reads the time (%s)" % [id, c12])
+		if pg.cfg.has("art_at"):                       # (a page the texture holds beside the screen's own spot, the VEE-SR's second screen's)
+			var ar: Rect2 = pg.art_rect()
+			fails += _check(pg.view == ar and pg.art_src() == ar and ar.size == pg.src.size and ar != pg.src
+				and Rect2(Vector2.ZERO, Vector2(pg.base.get_width(), pg.base.get_height())).encloses(ar),
+				"%s: its screen shows the page the texture holds at %s (not the faces' own %s), the layout in its pixels" % [id, str(ar.position), str(pg.src.position)])
 		if pg.cfg.has("day_art"):                      # (a screen the texture paints twice, the 22B's: unlit by day, lit at night)
 			var was: bool = dash.night
 			dash.night = false

@@ -58,7 +58,7 @@ func setup(the_live, the_cfg: Dictionary, tex: Texture2D, region: Rect2) -> void
 	src = region
 	var across := Vector2(region.size.y, region.size.x) if cfg.get("transpose", false) else region.size   # (as it's seen)
 	if _painted():
-		view = Rect2(Vector2.ZERO, across) if cfg.get("transpose", false) else region
+		view = Rect2(Vector2.ZERO, across) if cfg.get("transpose", false) else art_rect()
 	else:
 		var aspect := float(cfg.get("aspect", across.x / maxf(across.y, 1e-4)))
 		var canvas: Array = cfg.get("canvas", [1000.0, 1000.0 / aspect])
@@ -134,13 +134,21 @@ func _art(dst: Rect2) -> void:
 	draw_set_transform_matrix(at)
 
 
+## The part of the texture the screen's picture is: where the screen's faces map it, or ("art_at": [dx, dy]
+## texture pixels over) a page the texture holds beside it that no face shows (the VEE-SR's second screen:
+## its faces show a splash, its race page sits above it). The layout is in that picture's pixels.
+func art_rect() -> Rect2:
+	var at: Array = cfg.get("art_at", [])
+	return src if at.size() < 2 else Rect2(src.position + Vector2(float(at[0]), float(at[1])), src.size)
+
+
 ## The part of the texture the art comes from: by day, where the texture paints the screen a second time
 ## unlit ("day_art": [dx, dy] texture pixels from the lit one), that picture instead.
 func art_src() -> Rect2:
 	var off: Array = cfg.get("day_art", [])
 	if off.size() < 2 or live.data.get("night", false):
-		return src
-	return Rect2(src.position + Vector2(float(off[0]), float(off[1])), src.size)
+		return art_rect()
+	return Rect2(art_rect().position + Vector2(float(off[0]), float(off[1])), src.size)
 
 
 func _cluster() -> void:
@@ -279,8 +287,9 @@ func _tex_uv(p: Vector2) -> Vector2:
 	if cfg.get("transpose", false):
 		t = Vector2(src.position.x + p.y, src.position.y + p.x)
 	elif cfg.get("flip_v", false) or cfg.get("flip_h", false):
-		t = Vector2(src.position.x * 2.0 + src.size.x - p.x if cfg.get("flip_h", false) else p.x,
-			src.position.y * 2.0 + src.size.y - p.y if cfg.get("flip_v", false) else p.y)
+		var ar := art_rect()
+		t = Vector2(ar.position.x * 2.0 + ar.size.x - p.x if cfg.get("flip_h", false) else p.x,
+			ar.position.y * 2.0 + ar.size.y - p.y if cfg.get("flip_v", false) else p.y)
 	return t / Vector2(base.get_width(), base.get_height())
 
 
@@ -321,6 +330,9 @@ func _reading(what: String, d: Dictionary, t := {}) -> String:
 		"clock":
 			var tm := Time.get_time_dict_from_system()
 			return "%d:%02d" % [tm.hour, tm.minute]
+		"clock12":                                  # (the time on a 12-hour clock: 4:52 pm)
+			var t12 := Time.get_time_dict_from_system()
+			return "%d:%02d %s" % [(int(t12.hour) + 11) % 12 + 1, t12.minute, "am" if int(t12.hour) < 12 else "pm"]
 		"time":
 			var tt: float = _value("time", d)
 			return "%d:%04.1f" % [int(tt / 60.0), fmod(tt, 60.0)]
