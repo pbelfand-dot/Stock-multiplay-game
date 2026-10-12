@@ -520,6 +520,7 @@ func apply_setup(s: Dictionary) -> bool:
 		# (a modern road car's automatic / dual-clutch box, the ones with factory traction control, and a race
 		# car's paddle box match the revs on a change: drivetrain.gd; a classic's manual and the rally box don't)
 		drivetrain.rev_match = race != null or (street.size() > 3 and bool(street[3]))
+		drivetrain.part_throttle = race == null and street.size() > 0     # (SIM street: a road car's automatic)
 	_tune(str(s.get("tyre", "gravel")), str(s.get("preset", "gravel")))
 	_street_brakes()
 	_set_aids()
@@ -1043,6 +1044,7 @@ func _brakes(dt: float, pedal: float) -> void:
 		wheels[k].brake_torque = t[k] + (config.handbrake_torque * 0.5 * hb if k >= 2 else 0.0)
 	if drivetrain:
 		drivetrain.handbrake = hb
+		drivetrain.brake = pedal
 
 
 ## The air: drag against the motion (at the centre of mass), downforce at each axle.

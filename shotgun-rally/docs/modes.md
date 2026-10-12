@@ -361,7 +361,9 @@ SIM is Assetto Corsa-like: each car on the road tyres it really has (`TireModel.
   corner (the combined-slip ellipse: under power the tyres keep their grip sideways), counts them
   sliding sideways (power oversteer), and never cuts below the throttle where the engine neither
   drives nor brakes (cutting to nothing was a lift: lift-off oversteer). The automatic and
-  dual-clutch boxes (the cars with factory traction control) match the revs on a change;
+  dual-clutch boxes (the cars with factory traction control) match the revs on a change, and every
+  road car's automatic changes up early on a light throttle, kicks down to the lowest gear it won't
+  rev out of when floored, and doesn't change up off the throttle;
 - **the steering** (with SPEED-SENSITIVE STEERING on, out of the box): the stick asks for that
   share of the car's grip, in proportion (a quarter of the stick a quarter, half half), through
   the turn's geometry and the car's understeer, which it learns as it's driven (every car's is

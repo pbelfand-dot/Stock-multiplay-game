@@ -61,6 +61,21 @@ const SHIFT_SETTLE := 0.6          # s: with rev_match, no downshift this soon a
                                    # time between shifts: a rear-drive car spinning its tyres up into the next gear
                                    # matched the revs to the slowing wheels and dropped straight back, gear hunting)
 var _since_shift := 0.0
+## A road car's automatic (SIM street; the car sets it) changes up as early as the driver's foot
+## lets it: gently on the throttle it's in top by 100 km/h (the M5: eighth, ~2,300 rpm), flat out it
+## holds each gear to upshift_rpm, and floored from a light throttle (a kickdown) it drops straight
+## to the lowest gear it won't rev out of. What it goes by is the driver's demand: the throttle or
+## the brake, whichever's harder, kept for a few seconds after a lift; off the throttle it doesn't
+## change up (a sport box: the keys, all or nothing, change up where they did). Without it (Track
+## Mode's paddle box, the rally box) it changes at upshift_rpm whatever the throttle, so a road car
+## cruised at 5,000 rpm.
+var part_throttle := false
+var brake := 0.0                   # the brake pedal, 0..1 (the car sets it): part of the demand
+const LIGHT_UP := 0.3              # x the limiter: where it changes up on the lightest throttle (a 6,800 rpm engine: ~2,000)
+const LIGHT_DOWN := 0.18           # x the limiter: where it changes down on the lightest (~1,200)
+const DEMAND_KEEP := 3.0           # s: a full demand falls to none this long after the foot comes off
+var _demand := 0.0
+var _kick := false                 # floored from a light demand: a kickdown to the gear with the most power
 
 var _shift_t := 0.0
 var _next_gear := 1
@@ -80,6 +95,8 @@ func reset() -> void:
 	boost = 0.0
 	clutch = 0.0
 	_shift_t = 0.0
+	_demand = 0.0
+	_kick = false
 	handbrake = 0.0
 	rear_coupling = 1.0
 
@@ -190,13 +207,53 @@ func control(dt: float, pedal: float, wheels: Array, launch := -1.0) -> void:
 		clutch = clampf((maxf(made, 0.0) + LAUNCH_GAIN * (r - hold)) / cfg.clutch_torque, 0.0, 1.0)
 	if not cfg.handbrake_disconnects_rear and handbrake > 0.25 and cfg.front_share < 1.0:
 		clutch = 0.0                                 # no rally handbrake clutch: the left foot dips the clutch instead
-	if cfg.auto_shift and not shifting() and gear >= 1:
+	var want := maxf(foot, brake)
+	if foot < 0.9:
+		_kick = false
+	elif _demand < 0.6:
+		_kick = true
+	_demand = want if want >= _demand else move_toward(_demand, want, dt / DEMAND_KEEP)
+	if cfg.auto_shift and not shifting() and gear >= 1 and part_throttle:
+		_auto_road(r, foot)
+	elif cfg.auto_shift and not shifting() and gear >= 1:
 		if r > cfg.upshift_rpm and gear < gears():
 			shift_up()
 		elif gear > 1 and r < cfg.downshift_rpm and (not rev_match or _since_shift > SHIFT_SETTLE):
 			var lower := absf(_driveline * ratio_for(gear - 1)) * EngineModel.TO_RPM
 			if lower < cfg.upshift_rpm - 500.0:
 				shift_down()
+
+
+## The road automatic's change (part_throttle): up and down where the demand says, between the
+## lightest throttle's revs and full throttle's (upshift_rpm, downshift_rpm); off the throttle it
+## doesn't change up (short of the limiter).
+func _auto_road(r: float, foot: float) -> void:
+	var settled := not rev_match or _since_shift > SHIFT_SETTLE
+	if _kick and settled:
+		_kick = false
+		var low := gear                                      # (the lowest gear it won't rev out of at once)
+		while low > 1 and absf(_driveline * ratio_for(low - 1)) * EngineModel.TO_RPM < cfg.upshift_rpm - 500.0:
+			low -= 1
+		if low < gear:
+			shift(low)
+			return
+	var k := clampf((_demand - 0.1) / 0.7, 0.0, 1.0)          # (a tenth of the travel .. 0.8: light .. flat out;
+	k *= k                                                   # half the travel changes up at ~a third of the way)
+	var up := lerpf(eng.limiter_rpm * LIGHT_UP, cfg.upshift_rpm, k)
+	var down := lerpf(eng.limiter_rpm * LIGHT_DOWN, cfg.downshift_rpm, k)
+	if gear < gears() and (r > cfg.upshift_rpm or (foot > 0.05 and r > up and r * ratio_for(gear + 1) / ratio_for(gear) > down + 200.0)):
+		shift_up()                                           # (never into a gear it would change straight back out of)
+	elif gear > 1 and r < down and settled:
+		var to := gear
+		while to > 1:
+			var lower := absf(_driveline * ratio_for(to - 1)) * EngineModel.TO_RPM
+			if lower >= cfg.upshift_rpm - 500.0:
+				break
+			to -= 1
+			if lower >= down:
+				break
+		if to < gear:
+			shift(to)
 
 
 ## One substep (h s): the engine and the four wheels together (see the top).

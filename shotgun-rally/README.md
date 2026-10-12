@@ -554,6 +554,11 @@ spinning before it had turned, an M5 that felt slow, too little grip. Measured f
   (0-100 km/h 3.2 s, 60-100 mph 3.3 s from a cruise; on its real 727 PS now 3.2 and 3.7 s,
   0-200 km/h 10.0 s; BMW: 3.5 and 10.9 s): flat out while steering on keys it lost much of it to
   the ploughing fronts and the aids cutting in (60-100 mph weaving on keys 4.5 s, now 4.1 s).
+- **The automatic** changed up only near the limiter, whatever the throttle, so a road car cruised
+  at 4,000-5,000 rpm. In SIM street a road car's automatic now changes up as early as a light
+  throttle allows: the M5, gently up to 100 km/h, is in eighth at ~2,300 rpm. Floored from there it
+  kicks down to the lowest gear it won't rev out of (eighth to fourth in one change). Off the
+  throttle it doesn't change up, so on keys it changes up where it did.
 
 ## Controls
 

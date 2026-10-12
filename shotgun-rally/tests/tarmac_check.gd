@@ -18,6 +18,10 @@ extends SceneTree
 ##     a 0.3 s tap is a calm move (under 0.3 g), a key held 2 s a hard turn (over 0.75 g) with
 ##     the front tyres short of their peak and the road wheels under 2 deg (they swung to
 ##     7.7 deg and ploughed on, smoking)
+##   * the AUTOMATIC on part throttle (the M5, cut up): gently on the throttle up to a 100 km/h
+##     cruise it's in one of its top two gears under 3,000 rpm (it held each gear to 6,850 rpm
+##     whatever the throttle, cruising at 4,000-5,000), floored from there it kicks down three
+##     gears or more in one change; and on keys a 1.5 s lift after a pull doesn't change up
 ## Run: godot --headless --fixed-fps 120 --path . -s tests/tarmac_check.gd
 ## Prints one [tarmac] line per check; exits 1 on any FAIL.
 
@@ -84,6 +88,8 @@ func _initialize() -> void:
 		cases.append({"k": "lane", "car": "kaiser_5g", "v": 200.0, "dev": dev})
 	for hold in [0.3, 2.0]:
 		cases.append({"k": "key", "car": "kaiser_5g", "v": 200.0, "hold": hold})
+	cases.append({"k": "cruise", "car": "kaiser_5g"})
+	cases.append({"k": "lift", "car": "kaiser_5g"})
 	_next()
 
 
@@ -231,6 +237,34 @@ func _physics_process(dt: float) -> bool:
 			elif t > 1.0 and t < 1.0 + c.hold:
 				inp.steer = 1.0
 			done = t > 4.5
+		"cruise":
+			var dt_ = car.drivetrain
+			if t < 0.5:
+				_roll_start(50.0 / 3.6)
+			elif t < 16.0:
+				inp.throttle = clampf((100.0 / 3.6 - car.speed) * 0.1 + 0.1, 0.0, 0.4)   # (gently up to 100 and holding it)
+				m.gear = dt_.gear
+				m.rpm = dt_.rpm()
+				m.kmh = kmh
+			else:
+				inp.throttle = 1.0                         # (floored)
+				if not m.has("kick") and dt_.gear < int(m.gear) and not dt_.shifting():
+					m.kick = t - 16.0
+					m.kick_gear = dt_.gear
+					m.kick_rpm = dt_.rpm()
+			done = t > 18.0
+		"lift":
+			var dt_ = car.drivetrain
+			if t < 0.5:
+				_roll_start(100.0 / 3.6)
+			elif t < 2.0:
+				inp.throttle = 1.0                         # (a pull on the key ...)
+				m.gear0 = dt_._next_gear if dt_.shifting() else dt_.gear
+			elif t < 3.5:
+				m.gear1 = maxi(int(m.get("gear1", 0)), dt_.gear if not dt_.shifting() else dt_._next_gear)   # (... and off it)
+			else:
+				inp.throttle = 1.0
+			done = t > 4.0
 	car.inp = inp
 	if t > 0.6:
 		for k in 4:
@@ -280,6 +314,14 @@ func _report() -> void:
 				_check(float(m.latg) > 0.75 and float(m.front) < 1.0 and float(m.wheel) < 2.0 and fx.puffs_made == 0,
 					"the M5 at 200 km/h, a key held 2 s: a hard turn (%.2f g) with the front tyres short of their peak (%.0f %%), the road wheels at most %.1f deg, no smoke (%d puffs)" % [
 					float(m.latg), float(m.front) * 100.0, float(m.wheel), fx.puffs_made])
+		"cruise":
+			var n: int = car.drivetrain.gears()
+			_check(int(m.gear) >= n - 1 and float(m.rpm) < 3000.0, "the M5's automatic, gently up to a %.0f km/h cruise: in gear %d of %d at %.0f rpm" % [float(m.kmh), int(m.gear), n, float(m.rpm)])
+			_check(m.has("kick") and float(m.kick) < 0.6 and int(m.gear) - int(m.get("kick_gear", 99)) >= 3,
+				"... floored from there it kicks down from %d to %s in %s (at %s rpm)" % [int(m.gear), str(m.get("kick_gear", "-")), "%.2f s" % float(m.kick) if m.has("kick") else "never",
+				"%.0f" % float(m.kick_rpm) if m.has("kick") else "-"])
+		"lift":
+			_check(int(m.gear1) <= int(m.gear0), "the M5 on keys: a 1.5 s lift after a pull doesn't change up (gear %d on the key, %d off it)" % [int(m.gear0), int(m.gear1)])
 
 
 func _check(ok: bool, msg: String) -> void:
