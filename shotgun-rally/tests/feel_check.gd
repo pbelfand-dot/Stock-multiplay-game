@@ -152,8 +152,7 @@ func _next() -> void:
 		car.queue_free()
 	ci += 1
 	if ci >= cases.size():
-		_summary()
-		quit()
+		_summary()                                      # (every summary ends in _done(): it quits, 1 on any FAIL)
 		return
 	c = cases[ci]
 	t = 0.0
