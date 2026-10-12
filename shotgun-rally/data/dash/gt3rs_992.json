@@ -1,0 +1,38 @@
+{
+	"_about": "ELFER RS (911 GT3 RS, 992): its steering wheel was cut out by material, leaving its chrome buttons and switches in the body: those pieces within its rim and 4.5 cm of its plane are moved onto it (wheel_parts: disc), so they turn with it. The central rev counter's face is blank grey in the model (its scale isn't modelled) but its needle is (a thin part of a material shared with other trim: max_size): it turns with the revs about the dial's hub. The two screens either side are one texture (Image_20, 1024 x 256: its UVs a tile over, uv_wrap; stored upside down, flip_v; painted squashed, the dials ellipses): the left screen's oil temperature gauge (blank) and speedometer (0 to 350, no needle; a car picture and Aerodynamics in its middle, a blank digital speed under it), the right screen's drive-mode dial and the fuel / water-temperature gauge (no needles, km with no number). Made live: the speedometer's needle along its painted scale (sy: the ellipse's height over its width), the speed in its digital slot, the oil temperature, the water temperature and fuel needles, the range. Pixels of the picture as it's seen; hub: m from the steering wheel's centre (x right, y up, z back).",
+	"wheel_parts": [{"mat": "^Wheel_Paint_Red_(12|17|18|29|31|32|33)$", "disc": [0.19, 0.045]}],
+	"needle_meshes": [
+		{"mat": "^Wheel_Paint_Red_56$", "max_size": 0.06, "needles": [
+			{"value": "rpm", "hub": [0.002, 0.031, -0.1975], "min": 0, "max": 9000, "rest": 0, "sweep": 240}
+		]}
+	],
+	"displays": [
+		{
+			"mat": "^Wheel_Paint_Red_27$",
+			"tex": [1024, 256],
+			"uv_wrap": true,
+			"glow": "all",
+			"screens": [
+				{
+					"page": "cluster",
+					"rect": [0, 0, 1024, 256],
+					"flip_v": true,
+					"accent": "#ffd21f",
+					"layout": {
+						"cover": [[325, 192, 359, 201, "#000000"]],
+						"needle": [
+							{"what": "kmh", "c": [341.3, 148.9], "r": 104, "sy": 0.641, "a0": 154.2, "a1": 387.3, "max": 350, "w": 2.6, "color": "#ff3b1f", "tail": 0.0, "hub": 3.0},
+							{"what": "t_water", "c": [902.2, 160.3], "r": 66, "sy": 0.642, "a0": 224.2, "a1": 313.2, "min": 60, "max": 120, "w": 2.2, "color": "#ff3b1f", "tail": 0.0},
+							{"what": "fuel", "c": [902.2, 160.3], "r": 66, "sy": 0.642, "a0": 135.9, "a1": 47.9, "max": 1.0, "w": 2.2, "color": "#ff3b1f", "tail": 0.0, "hub": 3.0}
+						],
+						"text": [
+							{"what": "speed", "at": [342, 196.5], "size": 11, "max_w": 32},
+							{"what": "t_oil", "at": [120, 149], "size": 13, "bold": false, "color": "#eef0f2"},
+							{"what": "range_n", "at": [918.5, 160], "size": 7, "align": "right", "bold": false, "color": "#eef0f2"}
+						]
+					}
+				}
+			]
+		}
+	]
+}

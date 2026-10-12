@@ -12,7 +12,8 @@ extends Node3D
 ##       - warning lamps: a lamp's icon lights up while it's on
 ##       - "leds": the model's own LED blocks (sharing one patch of texture, told apart by
 ##         where they sit: "x" their centres in the model's axes, "y" the row's band) lit,
-##         in their own colour, up to a reading ("max", or "at": each LED's value)
+##         in their own colour (or the row's "color": LEDs painted plain white), up to a
+##         reading ("max", or "at": each LED's value)
 ##   * "panels": a screen modelled with no UVs of its own to show anything on (its
 ##     faces share the interior's material): its faces (those of the material in a
 ##     box, facing the driver) copied into a mesh of their own a hair in front, with
@@ -24,6 +25,10 @@ extends Node3D
 ##     shares a material with everything round it): a quad of its own placed by measure
 ##     ("c": its middle, "w" x "h" m, facing the driver's eye or "normal"; "round": a
 ##     dial's disc) a hair in front of it, showing a page ("dial", "cluster", "nav")
+##   * "wheel_parts": the steering wheel's own pieces the model left in the body (its buttons,
+##     its LEDs, its screens: [{"mat", "box"}], the material's pieces wholly inside the box from
+##     the wheel's centre, or "disc": [r, d], within r of its axis and d of its plane) moved onto
+##     the steering wheel: they turn with it
 ##   * the warning lamps: the handbrake, ABS and traction control working, the shift
 ##     lamp near the limiter, the lights at night, the flash; all of them for a moment
 ##     when the engine starts (the bulb check)
@@ -58,6 +63,7 @@ var fake := {}                      # readings to show instead (pictures, tests)
 var pages: Array = []               # DashPage, one per screen
 var overlays: Array = []            # [{"mat": ShaderMaterial, "needles": [...], "warns": [...]}]
 var needle_parts: Array = []        # [{"pivot": Node3D, "axis": Vector3, "n": spec}]
+var wheel_parts: Array = []         # the steering wheel's pieces moved onto it (MeshInstance3D)
 var needle_mats: Array = []         # the needle parts' material (lit up at night)
 var panels: Array = []              # the panels' meshes
 var boards: Array = []              # the boards' meshes
@@ -87,6 +93,8 @@ func setup(the_car, the_cockpit, the_spec: Dictionary) -> void:
 	spec = the_spec
 	name = "DashLive"
 	_read(0.0)
+	for wp in spec.get("wheel_parts", []):
+		_wheel_parts(wp)
 	for d in spec.get("displays", []):
 		if not _surfaces(str(d.get("mat", "^$")), func(m, si, base): _overlay(m, si, base, d)):
 			missing.append("display " + str(d.get("mat")))
@@ -233,6 +241,11 @@ func _overlay_material(base: Material, d: Dictionary) -> ShaderMaterial:
 	ov.set_shader_parameter("warn_col", _pad(wcol, MAX_RECTS))
 	var leds: Array = d.get("leds", []).slice(0, MAX_LED_ROWS)   # (the model's own LED blocks: lit up to the reading)
 	ov.set_shader_parameter("led_count", leds.size())
+	var lcol: Array = []
+	for row in leds:
+		var lc := Color(str(row.get("color", "#ffffff")))
+		lcol.append(Vector4(lc.r, lc.g, lc.b, 1.0 if row.has("color") else 0.0))
+	ov.set_shader_parameter("led_col", _pad(lcol, MAX_LED_ROWS))
 	overlays.append({"mat": ov, "needles": needles, "warns": warns, "leds": leds, "to_local": Transform3D()})
 	return ov
 
@@ -465,6 +478,97 @@ func _board(b: Dictionary) -> void:
 	mi.material_override = ov
 	car.body_model.add_child(mi)
 	boards.append(mi)
+
+
+## The steering wheel's own pieces left in the body (a model whose wheel was cut out by one
+## material: its buttons, LEDs and screens in others): the material's touching groups wholly
+## inside the box (m from the wheel's centre) moved onto the steering wheel's node, in their
+## own material (an overlay can still ride on it), so they turn with it; the rest of the surface
+## stays where it is.
+func _wheel_parts(wp: Dictionary) -> void:
+	var sw: Node3D = car.cockpit_nodes.get("wheel") if "cockpit_nodes" in car else null
+	if sw == null:
+		missing.append("wheel parts " + str(wp.get("mat")) + ": no steering wheel")
+		return
+	var within := wheel_space(wp)
+	var onto := _rel(sw).affine_inverse()               # (the model's space -> the wheel node's)
+	var before := wheel_parts.size()
+	_surfaces(str(wp.mat), func(m: MeshInstance3D, si: int, base: Material):
+		if m == sw or sw.is_ancestor_of(m) or m.name == "WheelPart":
+			return                                       # (on the wheel already)
+		var arr := m.mesh.surface_get_arrays(si)
+		var xf := _rel(m)
+		var vs: PackedVector3Array = xf * (arr[Mesh.ARRAY_VERTEX] as PackedVector3Array)
+		var ns = arr[Mesh.ARRAY_NORMAL]
+		if ns != null and ns.size() > 0:
+			ns = PackedVector3Array(Array(ns).map(func(x): return (xf.basis * x).normalized()))
+		var ids := _indices(arr)
+		var mine: Array = []
+		var rest: Array = []
+		for g in _groups(vs, ids, range(ids.size() / 3)):
+			var inside := true
+			for t in g:
+				for k in 3:
+					inside = inside and within.call(vs[ids[t * 3 + k]])
+			if inside:
+				mine.append_array(g)
+			else:
+				rest.append_array(g)
+		if mine.is_empty():
+			return
+		var part := _piece(onto * vs, PackedVector3Array(Array(ns).map(func(x): return (onto.basis * x).normalized())) if ns != null and ns.size() > 0 else ns,
+			arr[Mesh.ARRAY_TEX_UV], ids, mine, base, m)
+		part.name = "WheelPart"
+		sw.add_child(part)
+		wheel_parts.append(part)
+		if not rest.is_empty():
+			var still := _piece(vs, ns, arr[Mesh.ARRAY_TEX_UV], ids, rest, base, m)
+			still.name = "WheelRest"
+			car.body_model.add_child(still)
+		m.set_surface_override_material(si, _hidden()))
+	if wheel_parts.size() == before:
+		missing.append("wheel parts " + str(wp.get("mat")))
+
+
+## Whether a point (the model's space) is in a "wheel_parts" entry's space: its "box" (m from the
+## steering wheel's centre) or its "disc" ([r, d]: within r of the wheel's axis, d of its plane).
+func wheel_space(wp: Dictionary) -> Callable:
+	var c := _wheel()
+	if wp.has("disc"):
+		var w: Dictionary = car.cockpit_info().get("wheel", {})
+		var ax := Vector3(w.axis[0], w.axis[1], w.axis[2]).normalized() if w.has("axis") else Vector3.BACK
+		var r := float(wp.disc[0])
+		var dd := float(wp.disc[1])
+		return func(v: Vector3) -> bool:
+			var d := v - c
+			var along := d.dot(ax)
+			return absf(along) <= dd and (d - ax * along).length() <= r
+	var bx: Array = wp.box
+	var box := AABB(c + Vector3(bx[0], bx[2], bx[4]), Vector3(float(bx[1]) - float(bx[0]), float(bx[3]) - float(bx[2]), float(bx[5]) - float(bx[4]))).grow(0.002)
+	return func(v: Vector3) -> bool: return box.has_point(v)
+
+
+## Some of a surface's triangles as a mesh of their own (its points as given), in its own material
+## as a surface override (so a display's overlay can ride on it, as on the model's own).
+func _piece(vs: PackedVector3Array, ns, uvs, ids: PackedInt32Array, tris: Array, mat: Material, host: MeshInstance3D) -> MeshInstance3D:
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	for t in tris:
+		for k in 3:
+			var vi: int = ids[t * 3 + k]
+			if ns != null and ns.size() > vi:
+				st.set_normal(ns[vi])
+			if uvs != null and uvs.size() > vi:
+				st.set_uv(uvs[vi])
+			st.add_vertex(vs[vi])
+	if mat is BaseMaterial3D and (mat as BaseMaterial3D).normal_enabled:
+		st.generate_tangents()
+	var mi := MeshInstance3D.new()
+	mi.mesh = st.commit()
+	mi.mesh.surface_set_material(0, mat)
+	mi.layers = host.layers
+	mi.cast_shadow = host.cast_shadow
+	return mi
 
 
 ## A surface's triangles as indices (three per triangle).
@@ -891,6 +995,7 @@ uniform bool round_mask = false;   // (a round board: only its disc)
 uniform bool wrap_uv = false;      // (UVs a whole tile over: measured in the texture's own 0..1)
 uniform int led_count = 0;
 uniform vec4 led_box[4];           // a row of LEDs' lit part: x from, x to, y low, y high (the mesh's own axes)
+uniform vec4 led_col[4];           // a row's own colour (a: 1), else the LEDs' painted one, lit
 varying vec3 mpos;
 
 void vertex() {
@@ -980,7 +1085,7 @@ void fragment() {
 		vec4 b = led_box[i];
 		if (mpos.x >= min(b.x, b.y) && mpos.x <= max(b.x, b.y) && mpos.y >= b.z && mpos.y <= b.w) {
 			vec3 c = base_at(uv);                  // (lit in its own colour: the dark red or green, bright)
-			outc = vec4(c / max(max(c.r, max(c.g, c.b)), 0.04), 1.0);
+			outc = led_col[i].a > 0.5 ? vec4(led_col[i].rgb * (0.55 + 0.45 * max(c.r, max(c.g, c.b))), 1.0) : vec4(c / max(max(c.r, max(c.g, c.b)), 0.04), 1.0);
 		}
 	}
 	if (outc.a <= 0.002) {

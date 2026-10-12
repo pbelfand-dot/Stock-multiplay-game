@@ -204,10 +204,11 @@ func _arc(a: Dictionary, d: Dictionary) -> void:
 			draw_line(p0.lerp(p1, fh), p0.lerp(p1, f), hi, w, true)
 
 
-## A needle on a painted dial ("c", "r": its hub and length; "a0" / "a1": its angle at 0 and at "max",
+## A needle on a painted dial ("c", "r": its hub and length; "a0" / "a1": its angle at "min" (0) and at "max",
 ## degrees, 0 right, 90 down): the painted needle ("hide": its angle, "hide_w" either side, from
 ## "hide_r0" out) covered with the dial's face copied from "shift" degrees further round, then the
-## live one drawn over it, turning with the reading.
+## live one drawn over it, turning with the reading ("sy": a dial painted as an ellipse, its height over
+## its width: the angles measured as on the round dial, the needle squashed with it).
 func _needle(n: Dictionary, d: Dictionary) -> void:
 	var c := Vector2(n.c[0], n.c[1])
 	var r := float(n.r)
@@ -228,15 +229,17 @@ func _needle(n: Dictionary, d: Dictionary) -> void:
 			uvs.append(_tex_uv(c + (q - c).rotated(sh)))
 		draw_polygon(pts, PackedColorArray([Color.WHITE]), uvs, base)
 	var ang := needle_angle(n, _value(str(n.what), d))
-	var dir := Vector2(cos(ang), sin(ang))
+	var dir := Vector2(cos(ang), sin(ang) * float(n.get("sy", 1.0)))   # ("sy": a dial painted squashed, an ellipse: its height / width)
 	draw_line(c - dir * r * float(n.get("tail", 0.1)), c + dir * r, Color(str(n.get("color", "#ff3b1f"))), float(n.get("w", 3.0)), true)
 	if float(n.get("hub", 0.0)) > 0.0:
 		draw_circle(c, float(n.hub), Color(str(n.get("hub_color", "#101010"))))
 
 
-## Where a painted dial's needle points for a reading (radians, 0 right, down positive).
+## Where a painted dial's needle points for a reading (radians, 0 right, down positive): "a0" at "min"
+## (0 by default), "a1" at "max".
 static func needle_angle(n: Dictionary, v: float) -> float:
-	var u := clampf(absf(v) / maxf(float(n.get("max", 1.0)), 1e-3), 0.0, 1.0)
+	var lo := float(n.get("min", 0.0))
+	var u := clampf((absf(v) - lo) / maxf(float(n.get("max", 1.0)) - lo, 1e-3), 0.0, 1.0)
 	return deg_to_rad(lerpf(float(n.a0), float(n.a1), u))
 
 

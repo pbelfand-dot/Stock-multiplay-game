@@ -27,6 +27,8 @@ extends SceneTree
 ##     steering wheel's surfaces of it left to turn
 ##   * a painted map's window: inside its screen, the road cut at its edges; today's date
 ##   * a screen showing the model's own picture first ("intro"), then its live page
+##   * the steering wheel's pieces the model left in the body moved onto it (they turn with it);
+##     LEDs lit in their row's own colour
 ##   * the original materials are untouched: an overlay is a duplicate's next pass
 ## Prints one [dash] line per check; exits 1 on any FAIL.
 ## Run: godot --headless --path . -s tests/dash_check.gd
@@ -318,6 +320,38 @@ func _spec(id: String, car, cp, dash, spec: Dictionary) -> void:
 		var still: int = car.body_model.find_children("NeedlesStill", "MeshInstance3D", true, false).size()
 		fails += _check(small and wheel_kept and still > 0, "%s: its needles cut from the trim's material, each under %.2f m (%s), the rest kept (%d), the steering wheel's left to turn (%s)" % [
 			id, float(nm.max_size), small, still, wheel_kept])
+	# the steering wheel's own pieces left in the body (the AMG ONE's grips, buttons, LEDs and screens): moved onto the
+	# wheel's node (they turn with it), every corner inside the spec's box, the originals hidden
+	if spec.has("wheel_parts"):
+		var sw: Node3D = car.cockpit_nodes.get("wheel")
+		var on_wheel: bool = sw != null and not dash.wheel_parts.is_empty() and dash.wheel_parts.all(func(p): return p.get_parent() == sw)
+		var boxed := true
+		var spaces: Array = spec.wheel_parts.map(func(wp): return dash.wheel_space(wp))
+		for p in dash.wheel_parts:
+			var vs: PackedVector3Array = (p as MeshInstance3D).mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
+			var xf: Transform3D = sw.transform * (p as MeshInstance3D).transform
+			for v in vs:
+				boxed = boxed and spaces.any(func(f): return f.call(xf * v))
+		var turned := false
+		if on_wheel:
+			var p0: Vector3 = (dash.wheel_parts[0] as Node3D).global_position
+			var a0: Basis = (dash.wheel_parts[0] as Node3D).global_basis
+			sw.basis = Basis(Vector3(0, 0.44, 0.9).normalized(), 0.8)
+			turned = not (dash.wheel_parts[0] as Node3D).global_basis.is_equal_approx(a0) or not (dash.wheel_parts[0] as Node3D).global_position.is_equal_approx(p0)
+			sw.basis = Basis()
+		fails += _check(on_wheel and boxed and turned, "%s: %d pieces of its steering wheel moved onto it from the body (inside the box: %s), turning with it (%s)" % [
+			id, dash.wheel_parts.size(), boxed, turned])
+	# LEDs painted plain white lit in their row's own colour (the AMG ONE's green, red and blue shift lights)
+	for o in dash.overlays:
+		var coloured: Array = o.leds.filter(func(r): return r.has("color"))
+		if coloured.is_empty():
+			continue
+		var cols: Array = o.mat.get_shader_parameter("led_col")
+		var ok := true
+		for i in o.leds.size():
+			var want := Color(str(o.leds[i].get("color", "#ffffff")))
+			ok = ok and (cols[i].w > 0.5) == o.leds[i].has("color") and (not o.leds[i].has("color") or Color(cols[i].x, cols[i].y, cols[i].z).is_equal_approx(want))
+		fails += _check(ok, "%s: %d LED rows lit in their own colours" % [id, coloured.size()])
 	# a painted map's window (the M235i's iDrive): inside its screen; the road cut at the window's edges; today's date
 	for pg in dash.pages:
 		for m in pg.cfg.get("layout", {}).get("map", []):

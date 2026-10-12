@@ -15,7 +15,7 @@ extends SceneTree
 ##     starts in its box in the pit lane, the autopilot drives it out down the lane at the limit, onto
 ##     the track, round a whole timed lap (sectors and lap flashed) and the results show the best lap;
 ##     the race state (RaceSim) warms its tyres from cold and burns its fuel
-##   qualifying: from the box at the start your own throttle drives it out (no pit stop at the start,
+##   qualifying: on as it loads (no countdown); from the box your own throttle drives it out (no pit stop at the start,
 ##     never reversed); a pit stop holds the car on the handbrake, never in reverse
 ##   weather: DAY / NIGHT / WET's settings (the light, the hour, the wet track, wets on, the title),
 ##     a slick against a wet tyre on the wet track, the AI's line slower in the wet, the roads' wet
@@ -402,6 +402,11 @@ func _qualifying() -> void:
 	var st = g.st
 	var p0: Vector3 = g.car.global_position
 	var fwd0: Vector3 = -g.car.global_transform.basis.z
+	# (the owner: qualifying needs no ding-ding countdown: it's on as it loads, out of the box when you like)
+	for i in 30:
+		await physics_frame
+	check(g.state == "running" and float(g._lights.since_go) >= 99.0 and g.race_ctl.kind == "qualifying",
+		"qualifying: on as it loads (%s in 0.25 s), no countdown, no start lights" % g.state)
 	g.begin_countdown()
 	var t := 0.0
 	var ran := 0.0

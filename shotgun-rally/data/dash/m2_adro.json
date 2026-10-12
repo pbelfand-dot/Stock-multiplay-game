@@ -1,0 +1,14 @@
+{
+	"_about": "KAISER 2 CARBON (BMW M2 G87 with a carbon body kit): its cabin is the M2's (data/dash/m2_g87.json), 4 cm higher in this model: the curved display (the cluster on the left, the iDrive screen on the right) is modelled with the interior's material and no UVs of its own, so its faces get a panel, the cluster on its left part, the iDrive pages on its right. Box: metres from the steering wheel's centre (the model's axes: x right, y up, z back).",
+	"panels": [
+		{
+			"mat": "^adro:BMW_M2G87TNR1_2023InteriorA_Material1$",
+			"box": [-0.18, 0.59, -0.02, 0.16, -0.185, -0.07],
+			"screens": [
+				{"page": "cluster", "rect": [0.0, 0.03, 0.44, 0.97], "accent": "#2f7de1", "style": "bmw"},
+				{"page": "nav", "rect": [0.47, 0.0, 1.0, 1.0], "accent": "#2f7de1", "radio": "SHOTGUN FM 98.6"}
+			]
+		}
+	],
+	"ambient": {"color": "#4f8dff", "energy": 0.25}
+}

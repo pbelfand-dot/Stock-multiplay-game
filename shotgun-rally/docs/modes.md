@@ -145,7 +145,8 @@ starts at the pumps of a services forecourt off the highway, where one of our si
 junctions ends up (its exit's and the next entry's ramps, 59 m apart, joined by the
 forecourt; `_find_station` picks the flattest, nearest the start line: just before the
 loop's 0 km, in the city), and you drive out yourself: across the forecourt, up the entry
-ramp and merge into the traffic from its acceleration lane. 68 x 48 m of asphalt (the land
+ramp and merge into the traffic from its acceleration lane. No countdown, no start lights and no
+clock at the top: the run's on as soon as it loads (cut up is scored on points, not time). 68 x 48 m of asphalt (the land
 under it flattened, the towers and trees kept off it), a canopy on six columns over three
 pump islands (two pumps each, lit screens, a red band, lights under it that light the
 forecourt at night), the shop at the back (glass front lit at night, SHOTGUN FUEL over it,
@@ -231,7 +232,9 @@ The layout goes to every machine with the stage (online: the host's).
 MODES > **TRACK**: a class (**GT**, or **FORMULA**: open-wheelers with DRS and a hybrid), a
 session (**PRACTICE**, **QUALIFYING**, **QUICK RACE**, **RACE WEEKEND**) and, for the last three,
 the race's options (laps, the AI field and its skill, the start, qualifying's length, your grid
-place, damage), then START. Qualifying, races, flags, penalties, pit stops and the AI field are
+place, damage), then START. Practice and qualifying are on as they load (no countdown: out of your
+box when you like, as at a real circuit); a race has its own start, the lights or the rolling start.
+Qualifying, races, flags, penalties, pit stops and the AI field are
 in `docs/track_racing.md`; the cars and their race physics in `docs/track_cars.md`. The full plan
 is `docs/GT_F1_TRACK_MODE_CLAUDE_PROMPT.md`.
 

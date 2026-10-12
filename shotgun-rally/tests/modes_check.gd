@@ -876,6 +876,13 @@ func _game(m: String) -> void:
 	o["length"] = 1400.0
 	await g.start(3, 1, o)
 	check(g.built and g.mode == m and (g.traffic != null) == (m == "cutup"), "game: a %s run loads (%s)" % [m, Modes.title(o, g.st).replace("\n", " · ")])
+	if m == "cutup":
+		# (the owner: cut up needs no start: no ENTER, no ding-ding countdown, no clock at the top)
+		for i in 30:
+			await physics_frame
+		var shown: String = g._lights.time_text
+		check(g.state == "running" and shown == "" and float(g._lights.since_go) >= 99.0,
+			"game: cut up starts by itself as it loads (%s in 0.25 s), no countdown, no start lights, no clock at the top ('%s')" % [g.state, shown])
 	g.begin_countdown()
 	g.use_autopilot = true
 	var t := 0.0

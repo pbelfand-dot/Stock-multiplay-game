@@ -1,0 +1,44 @@
+{
+	"_about": "UNO HYBRID (Mercedes-AMG ONE): its steering wheel was cut out of the model by its centre's material only, so the yoke's grips, its buttons, its LED row and its two round screens (the other Fsteer materials) are moved onto it here and turn with it (wheel_parts). Its driver display is painted into its screen texture (Image_46, 1024 px) upside down (flip_v): the rev scale across the top (1 to 12, yellow, blue, then red past 10), the car's tail in the middle with km/h under it (no figure), the gear in a ring on the right (4/9), the battery and fuel bars along the bottom. Made live over the painted one: the rev scale lit only up to the revs (the rest dimmed), the gear in its ring (of 7), the speed over km/h, both bars emptying with the fuel. The centre screen shows its own AMG splash for the first seconds after the engine starts (intro), then the centre screen's pages. The wheel's 12 LEDs light as shift lights: four green, four red, four blue. Display pixels: the picture as it's seen; LED x: the model's axes (m); wheel parts' box: m from the steering wheel's centre (x right, y up, z back).",
+	"wheel_parts": [{"mat": "^Fsteer00[2-9]1Mtl$", "box": [-0.19, 0.19, -0.13, 0.18, -0.07, 0.06]}],
+	"displays": [
+		{
+			"mat": "^Interiore0011Mtl$",
+			"tex": 1024,
+			"glow": "all",
+			"screens": [
+				{
+					"page": "cluster",
+					"rect": [6, 5, 505, 278],
+					"flip_v": true,
+					"accent": "#3fd0ff",
+					"layout": {
+						"cover": [[385, 115, 418, 140, "#02202e"]],
+						"arc": [
+							{"what": "rpm", "invert": true, "max": 12500, "w": 19, "color": "#00070dd8", "hot_from": 1.0,
+								"pts": [[486, 25], [470.8, 25], [412.5, 25], [354.6, 25], [306.7, 25], [268, 25], [235.8, 25], [205.4, 25], [177, 25], [149, 25], [123, 25], [102, 25], [83.75, 25], [40, 25]],
+								"at": [0, 500, 1500, 2500, 3500, 4500, 5500, 6500, 7500, 8500, 9500, 10500, 11500, 12500]},
+							{"what": "fuel", "invert": true, "max": 1.0, "w": 4.5, "color": "#03141ee0", "hot_from": 1.0, "pts": [[106, 216.5], [194, 216.5]]},
+							{"what": "fuel", "invert": true, "max": 1.0, "w": 4.5, "color": "#03141ee0", "hot_from": 1.0, "pts": [[405, 216.5], [319, 216.5]]}
+						],
+						"text": [
+							{"what": "gear_n", "at": [395.5, 128], "size": 23, "color": "#f2e600"},
+							{"what": "unit", "text": "/7", "at": [410, 125], "size": 12, "bold": false, "color": "#e8eef2"},
+							{"what": "speed", "at": [272.6, 185], "size": 22, "max_w": 60}
+						]
+					}
+				},
+				{"page": "nav", "rect": [45, 286, 458, 497], "flip_v": true, "intro": 6.0, "accent": "#00c8ff", "radio": "SHOTGUN FM 98.6"}
+			]
+		},
+		{
+			"mat": "^Fsteer0071Mtl$",
+			"tex": 1024,
+			"leds": [
+				{"what": "rpm01", "y": [0.736, 0.743], "x": [-0.3775, -0.3695, -0.3615, -0.3525], "at": [0.55, 0.62, 0.69, 0.76], "color": "#22ff44"},
+				{"what": "rpm01", "y": [0.736, 0.743], "x": [-0.3445, -0.3365, -0.3275, -0.3195], "at": [0.8, 0.84, 0.87, 0.9], "color": "#ff2414"},
+				{"what": "rpm01", "y": [0.736, 0.743], "x": [-0.3105, -0.3025, -0.2945, -0.2855], "at": [0.93, 0.94, 0.95, 0.96], "color": "#2a6bff"}
+			]
+		}
+	]
+}

@@ -588,12 +588,28 @@ func begin_countdown() -> void:
 			drv.task = "formation" if race_ctl.start_type == "rolling" else "hold"
 		_update_hint()
 		return
+	if _no_count():
+		state = "running"                          # (nothing to start: just drive)
+		stage_time = 0.0
+		_update_hint()
+		return
 	state = "countdown"
 	countdown = COUNTDOWN
 	_last_count = -1
 	car.place(_start_pos, _start_yaw)
 	ai.hush()                                    # the count has to land on the second
 	_update_hint()
+
+
+## Modes with nothing to start (the owner: "not every mode needs a timer"): cut up (free driving
+## through the traffic) and Track Mode's practice and qualifying (out of your box whenever you like,
+## as at a real circuit): no countdown, no start lights; cut up shows no clock either.
+func _no_count() -> bool:
+	if mode == "cutup":
+		return true
+	if mode == "track":
+		return race_ctl == null or str(race_ctl.kind) in ["practice", "qualifying"]
+	return false
 
 
 @rpc("any_peer", "call_local", "reliable")
@@ -652,7 +668,8 @@ func _physics_process(dt: float) -> void:
 		"grid":
 			# (not ENTER while paused: in the pause menu and its settings, ENTER presses the button in focus)
 			if Net.is_server() and crew_ready() and _all_in() and ((Input.is_action_just_pressed("ready") and not paused()) or
-					(Config.flag("autostart") and (not street_online or Net.racers().size() >= int(Config.arg("min_racers", 1))))):
+					(Config.flag("autostart") and (not street_online or Net.racers().size() >= int(Config.arg("min_racers", 1)))) or
+					(_no_count() and not Net.online())):         # (alone in cut up or a practice / qualifying: off you go)
 				if Net.online():
 					if net:
 						_lock_grid()                     # (Track Mode: the grid set, everyone in race control)
@@ -950,8 +967,8 @@ func _process(dt: float) -> void:
 	cockpit.map_board.clock_red = red
 	# on screen: the start lights, then the stage time
 	_lights.state = state
-	_lights.since_go = stage_time if state == "running" else 99.0
-	_lights.time_text = clock if state in ["running", "finished"] else ""
+	_lights.since_go = stage_time if state == "running" and not _no_count() else 99.0   # (no start, no GO lights)
+	_lights.time_text = clock if state in ["running", "finished"] and mode != "cutup" else ""   # (cut up: no clock)
 	var pens: Array = []
 	if jump_start:
 		pens.append("JUMP START")
