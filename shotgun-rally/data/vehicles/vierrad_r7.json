@@ -19,7 +19,7 @@
 		"wheelbase_mm": 2928,
 		"top_speed_kmh": 305,
 		"front_weight": 0.57,
-		"notes": "Audi's RS 7 Sportback (C8): the 4.0 twin-turbo V8 at 600 PS and 800 N m, quattro (40:60), an eight-speed automatic, ~2,065 kg, 0-100 km/h in 3.6 s, up to 305 km/h. Its torque curve, ratios and aero are estimates."
+		"notes": "Audi's RS 7 Sportback (C8): the 4.0 twin-turbo V8 at 600 PS and 800 N m, quattro (40:60), an eight-speed automatic, ~2,065 kg, 0-100 km/h in 3.6 s, up to 305 km/h. Its torque curve and aero are estimates. Its gearbox is the RS 6 Avant's, the same eight-speed and quattro drive (Audi's RS 6 C8 technical data: 4.714 / 3.143 / 2.106 / 1.667 / 1.285 / 1.000 / 0.839 / 0.667 on a 3.204 final drive), with its limiter at 305 km/h (the Dynamic plus package's); before October 2026 a 4.78 final drive ran it into the rev limiter in eighth at 305 km/h."
 	},
 	"garage": {
 		"price": 40000,
@@ -46,8 +46,9 @@
 		"spool": [1800.0, 3200.0],
 		"spool_time": 0.35,
 		"anti_lag": false,
-		"gears": [5.0, 3.2, 2.143, 1.72, 1.313, 1.0, 0.823, 0.64],
-		"final": 4.78,
+		"gears": [4.714, 3.143, 2.106, 1.667, 1.285, 1.0, 0.839, 0.667],
+		"final": 3.204,
+		"vmax": 305.0,
 		"drive": "awd",
 		"front_share": 0.4,
 		"centre": ["lsd", 0.25, 0.2, 30.0],
@@ -73,9 +74,9 @@
 		"url": "",
 		"attribution": ""
 	},
-	"research": ["https://en.wikipedia.org/wiki/Audi_A7#RS7_(C8)"],
+	"research": ["https://en.wikipedia.org/wiki/Audi_A7#RS7_(C8)", "https://uploads.audi-mediacenter.com/system/production/car_motorizations/1184/file_de/6124caef9007249169df603b05d8cb70b2982f3f/TD-Audi-RS6-Avant-TFSI-441kW_240613.pdf"],
 	"limitations": [
 		"From the owner's private download batch: kept out of public credit lists; its provenance isn't cleared for redistribution.",
-		"Fictional name; the model's separate badge parts are dropped (tools/cars/rs7_c8.json drop_mats), any painted into its textures remain. The torque curve, ratios and aero are estimates."
+		"Fictional name; the model's separate badge parts are dropped (tools/cars/rs7_c8.json drop_mats), any painted into its textures remain. The torque curve and aero are estimates."
 	]
 }

@@ -19,7 +19,7 @@
 		"wheelbase_mm": 2865,
 		"top_speed_kmh": 250,
 		"front_weight": 0.53,
-		"notes": "BMW's X3 M40i (G01, the 2021-2024 facelift): the B58 3.0 turbo straight six with a 48 V mild hybrid, 360 PS (265 kW) at 5,200-6,500 rpm and 500 N m at 1,900-5,000 rpm (BMW's technical data: 1,850-5,000 before the facelift; Autotijd for the facelift), xDrive, an eight-speed automatic, ~1,980 kg, 0-100 km/h in 4.9 s (4.8 before the facelift), 250 km/h limited; 382 hp in the US. Its torque curve follows those (from October 2026 to the cars' check it was drawn to the G45 X3 M50's 398 PS, and before that it held 580 N m to 5,500 rpm: 455 PS). Its ratios and aero are estimates. Its gearbox is BMW's for the M40i before the facelift (BMW's media information, 04/2020: 5.250 / 3.360 / 2.172 / 1.720 / 1.316 / 1.000 / 0.822 / 0.640 on a 3.385 final drive; no facelift sheet with the ratios was found), with its 250 km/h limiter; before October 2026 a 5.82 final drive ran it into the rev limiter in eighth at 250 km/h."
+		"notes": "BMW's X3 M40i (G01, the 2021-2024 facelift): the B58 3.0 turbo straight six with a 48 V mild hybrid, 360 PS (265 kW) at 5,200-6,500 rpm and 500 N m at 1,900-5,000 rpm (BMW's technical data: 1,850-5,000 before the facelift; Autotijd for the facelift), xDrive, an eight-speed automatic, ~1,980 kg, 0-100 km/h in 4.9 s (4.8 before the facelift), 250 km/h limited; 382 hp in the US. Its torque curve follows those (from October 2026 to the cars' check it was drawn to the G45 X3 M50's 398 PS, and before that it held 580 N m to 5,500 rpm: 455 PS). Its aero is an estimate. Its gearbox is BMW's for the M40i before the facelift (BMW's media information, 04/2020: 5.250 / 3.360 / 2.172 / 1.720 / 1.316 / 1.000 / 0.822 / 0.640 on a 3.385 final drive; no facelift sheet with the ratios was found), with its 250 km/h limiter; before October 2026 a 5.82 final drive ran it into the rev limiter in eighth at 250 km/h."
 	},
 	"garage": {
 		"price": 30000,
@@ -77,6 +77,6 @@
 	"research": ["https://en.wikipedia.org/wiki/BMW_X3_(G01)", "https://press.bmwgroup.com/global/article/attachment/T0307289EN/449083", "https://autotijd.be/en/specs/bmw/x3/m40i-360-hp-awd-3111"],
 	"limitations": [
 		"From the owner's private download batch: kept out of public credit lists; its provenance isn't cleared for redistribution.",
-		"Fictional name; the model's separate badge parts are dropped (tools/cars/x3_m40i.json drop_mats), any painted into its textures remain. The torque curve, ratios and aero are estimates."
+		"Fictional name; the model's separate badge parts are dropped (tools/cars/x3_m40i.json drop_mats), any painted into its textures remain. The torque curve and aero are estimates."
 	]
 }

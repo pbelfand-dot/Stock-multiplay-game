@@ -588,6 +588,31 @@ spinning before it had turned, an M5 that felt slow, too little grip. Measured f
 - **Six more cars' gearing** put the rev limiter at the top speed in top gear: the X3 M40i, 235 GC,
   M2, Maybach S 680, A 45 S and Urus Performante. They now have their makers' ratios and
   electronic limiters. The Urus has the RS Q8's ratios, which Lamborghini doesn't publish.
+- **The outliers, round two:**
+  - Five more cars' final drives put the rev limiter at the top speed in top gear: the 600LT
+    Spider, Senna, P1, AMG ONE and RS 7. They now have their makers' ratios and electronic
+    limiters (McLaren's owner's handbooks, Mercedes-AMG's technical data, Audi's RS 6 sheet). With
+    its real gearing the 600LT's traction control holds the tyres at their peak slip (~10 %); on
+    the short gearing it cut the throttle at 2-6 % spin.
+  - The 600LT Spider and the P1 ran at McLaren's dry weights (1,297 and 1,395 kg). They now run at
+    their kerb weights (1,404 and 1,490 kg), like the other cars.
+  - Five cars now corner on their measured skid-pad figures: the X7 M50i 0.83 g, the X5 M 0.96 g
+    and the Maybach S 680 0.92 g (Car and Driver), the G 63 0.81 g (Edmunds), and the Hellcat
+    Widebody 0.97 g (Dodge).
+  - The table prefers a magazine's measured figure where one exists. It times 0-60 mph the way Car
+    and Driver and Motor Trend do, from a 1-ft rollout. The 600LT, P1, GT-R, RS 7 and X7 M50i are
+    within 0.2 s or 6 % of the measured figures, and the AMG ONE and G 63 of their makers'. The
+    600LT and GT-R only looked slow against their makers' claims.
+  - Still out:
+    - the Hellcat Widebody, 0.3 s slow: 0-60 mph from a rollout in 3.96 s, against Dodge's 3.6 s and
+      the 3.6-3.7 s Car and Driver and Motor Trend measured on the narrow-body automatic. Its rear
+      tyres give 0.7 g at their peak; those times need ~0.8 g.
+    - the X5 M, the S 680 and the Senna, 0.4-0.6 s quicker than measured. (The Senna is within
+      McLaren's 0-100 km/h, 2.8 s, but three magazines measured 2.8-2.9 s to 60 mph from a rollout.)
+      The quarter mile shows why: most road cars cross the line 3-8 mph faster than the magazines
+      measured (the X5 M at 120 mph against 115, the S 680 at 124 against 120). Only the engine's own
+      friction comes off its crank figures; there are no gearbox, final-drive or four-wheel-drive
+      losses.
 
 ## Controls
 

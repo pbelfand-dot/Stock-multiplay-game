@@ -19,7 +19,7 @@
 		"wheelbase_mm": 2747,
 		"top_speed_kmh": 285,
 		"front_weight": 0.52,
-		"notes": "BMW M's M2 (G87) wearing ADRO's carbon-fibre aero kit: the S58 3.0 twin-turbo straight six at 460 PS and 550 N m, rear-wheel drive, an eight-speed automatic (a six-speed manual offered), ~1,725 kg, 0-100 km/h in 4.1 s. The kit is cosmetic here. Its torque curve, ratios and aero are estimates. Its gearbox is BMW's for the automatic (media information, 10/2022: 5.000 / 3.200 / 2.143 / 1.720 / 1.313 / 1.000 / 0.823 / 0.640 on a 3.154 final drive), with its limiter at 285 km/h (the M Driver's Package's; 250 without); before October 2026 a 5.37 final drive ran it into the rev limiter in eighth at 285 km/h."
+		"notes": "BMW M's M2 (G87) wearing ADRO's carbon-fibre aero kit: the S58 3.0 twin-turbo straight six at 460 PS and 550 N m, rear-wheel drive, an eight-speed automatic (a six-speed manual offered), ~1,725 kg, 0-100 km/h in 4.1 s. The kit is cosmetic here. Its torque curve and aero are estimates. Its gearbox is BMW's for the automatic (media information, 10/2022: 5.000 / 3.200 / 2.143 / 1.720 / 1.313 / 1.000 / 0.823 / 0.640 on a 3.154 final drive), with its limiter at 285 km/h (the M Driver's Package's; 250 without); before October 2026 a 5.37 final drive ran it into the rev limiter in eighth at 285 km/h."
 	},
 	"garage": {
 		"price": 34000,
@@ -74,6 +74,6 @@
 	"research": ["https://en.wikipedia.org/wiki/BMW_M2#G87", "https://press.bmwgroup.com/belux/article/attachment/T0404619FR/568052"],
 	"limitations": [
 		"From the owner's private download batch: kept out of public credit lists; its provenance isn't cleared for redistribution.",
-		"Fictional name, but the model's real badges are still on it (its BadgeB parts weren't dropped). The torque curve, ratios and aero are estimates."
+		"Fictional name, but the model's real badges are still on it (its BadgeB parts weren't dropped). The torque curve and aero are estimates."
 	]
 }

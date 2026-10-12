@@ -19,7 +19,7 @@
 		"wheelbase_mm": 2720,
 		"top_speed_kmh": 352,
 		"front_weight": 0.42,
-		"notes": "The Formula 1 power unit on the road: a 1.6 V6 turbo (574 PS / 422 kW at 9,000 rpm, 11,000 rpm limit) with an MGU-K on the crank, an MGU-H on the turbo and two electric motors on the front axle: 1,063 PS (782 kW) together. 1,695 kg kerb weight, 2,720 mm wheelbase, 0-100 km/h 2.9 s, 352 km/h (auto motor und sport's data). AMG Performance 4MATIC+: the rear by the hybrid V6, the front electric. System torque and the 7-speed's ratios weren't published: the torque comes from the power (a hybrid's curve), the ratios are spread for the top speed. Weight distribution (42 % front), drag and downforce are estimates."
+		"notes": "The Formula 1 power unit on the road: a 1.6 V6 turbo (574 PS / 422 kW at 9,000 rpm, 11,000 rpm limit) with an MGU-K on the crank, an MGU-H on the turbo and two electric motors on the front axle: 1,063 PS (782 kW) together. 1,695 kg kerb weight, 2,720 mm wheelbase, 0-100 km/h 2.9 s, 352 km/h (auto motor und sport's data). AMG Performance 4MATIC+: the rear by the hybrid V6, the front electric. System torque wasn't published: the torque comes from the power (a hybrid's curve). Weight distribution (42 % front), drag and downforce are estimates. Its seven-speed's overall ratios are now Mercedes-AMG's (its technical data: 12.803 / 9.267 / 7.058 / 5.581 / 4.562 / 3.878 / 3.435, reverse 14.599, with the final drive in; here those over a nominal 4.0 final drive), with its 352 km/h limiter; before October 2026 they were spread for the top speed, 5-8 % short."
 	},
 	"garage": {
 		"price": 120000,
@@ -46,8 +46,9 @@
 		"spool": [1500.0, 2600.0],
 		"spool_time": 0.35,
 		"anti_lag": false,
-		"gears": [2.912, 2.348, 1.893, 1.526, 1.231, 0.992, 0.8],
-		"final": 4.63,
+		"gears": [3.201, 2.317, 1.765, 1.395, 1.141, 0.97, 0.859],
+		"final": 4.0,
+		"vmax": 352.0,
 		"drive": "awd",
 		"front_share": 0.35,
 		"centre": ["lsd", 0.25, 0.2, 30.0],
@@ -76,10 +77,11 @@
 	},
 	"research": [
 		"https://www.auto-motor-und-sport.de/fahrbericht/mercedes-amg-one-1-063-ps-treffen-auf-1-695-kg/technische-daten/",
-		"https://autotijd.be/en/specs/mercedes/amg-one/v6-1063-hp-awd-3534"
+		"https://autotijd.be/en/specs/mercedes/amg-one/v6-1063-hp-awd-3534",
+		"https://www.mercedes-amg.com/en/home/vehicles/amg-one/hypercar.html"
 	],
 	"limitations": [
-		"System torque, the gear ratios, weight distribution, drag and downforce are estimates.",
+		"System torque, weight distribution, drag and downforce are estimates.",
 		"Provenance: the model's materials follow a game-mod naming (GTA-style 'Doorrfok', 'Hubrb'); its wheel materials are shared with body parts (converter: wheel_trim)."
 	]
 }

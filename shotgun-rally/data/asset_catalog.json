@@ -35,7 +35,7 @@
    "catalog": "garage: for sale",
    "verified": "tests/car_models_check.gd (builds, sits on its wheels, pulls away); interior_check",
    "status": "In game",
-   "problems": "From the owner's private download batch: kept out of public credit lists; its provenance isn't cleared for redistribution.; Fictional name; the model's separate badge parts are dropped (tools/cars/a45s.json drop_mats), any painted into its textures remain. The torque curve, ratios and aero are estim"
+   "problems": "From the owner's private download batch: kept out of public credit lists; its provenance isn't cleared for redistribution.; Fictional name; the model's separate badge parts are dropped (tools/cars/a45s.json drop_mats), any painted into its textures remain. The torque curve and aero are estimates."
   },
   {
    "name": "AFFALTER CLK DTM (affalter_dtm)",
@@ -89,7 +89,7 @@
    "catalog": "garage: for sale",
    "verified": "tests/car_models_check.gd (builds, sits on its wheels, pulls away); interior_check",
    "status": "In game",
-   "problems": "From the owner's private download batch: kept out of public credit lists; its provenance isn't cleared for redistribution.; Fictional name; the model has no separate badge parts by name, any painted into its textures remain. The torque curve, ratios and aero are estimates."
+   "problems": "From the owner's private download batch: kept out of public credit lists; its provenance isn't cleared for redistribution.; Fictional name; the model has no separate badge parts by name, any painted into its textures remain. The torque curve and aero are estimates."
   },
   {
    "name": "AFFALTER SLR 722 (affalter_slr)",
@@ -521,7 +521,7 @@
    "catalog": "garage: for sale",
    "verified": "tests/car_models_check.gd (builds, sits on its wheels, pulls away); interior_check",
    "status": "In game",
-   "problems": "From the owner's private download batch: kept out of public credit lists; its provenance isn't cleared for redistribution.; Fictional name, but the model's real badges are still on it (its 'Logo' part weren't dropped). The torque curve, ratios and aero are estimates."
+   "problems": "From the owner's private download batch: kept out of public credit lists; its provenance isn't cleared for redistribution.; Fictional name, but the model's real badges are still on it (its 'Logo' part weren't dropped). The torque curve and aero are estimates."
   },
   {
    "name": "KAISER 2 CARBON (kaiser_2c)",
@@ -539,7 +539,7 @@
    "catalog": "garage: for sale",
    "verified": "tests/car_models_check.gd (builds, sits on its wheels, pulls away); interior_check",
    "status": "In game",
-   "problems": "From the owner's private download batch: kept out of public credit lists; its provenance isn't cleared for redistribution.; Fictional name, but the model's real badges are still on it (its BadgeB parts weren't dropped). The torque curve, ratios and aero are estimates."
+   "problems": "From the owner's private download batch: kept out of public credit lists; its provenance isn't cleared for redistribution.; Fictional name, but the model's real badges are still on it (its BadgeB parts weren't dropped). The torque curve and aero are estimates."
   },
   {
    "name": "KAISER 320 (kaiser_3)",
@@ -575,7 +575,7 @@
    "catalog": "garage: for sale",
    "verified": "tests/car_models_check.gd (builds, sits on its wheels, pulls away); interior_check",
    "status": "In game",
-   "problems": "From the owner's private download batch: kept out of public credit lists; its provenance isn't cleared for redistribution.; Fictional name; the model's separate badge parts are dropped (tools/cars/x3_m40i.json drop_mats), any painted into its textures remain. The torque curve, ratios and aero are es"
+   "problems": "From the owner's private download batch: kept out of public credit lists; its provenance isn't cleared for redistribution.; Fictional name; the model's separate badge parts are dropped (tools/cars/x3_m40i.json drop_mats), any painted into its textures remain. The torque curve and aero are estimates."
   },
   {
    "name": "KAISER 4 WB (kaiser_4)",
@@ -629,7 +629,7 @@
    "catalog": "garage: for sale",
    "verified": "tests/car_models_check.gd (builds, sits on its wheels, pulls away); interior_check",
    "status": "In game",
-   "problems": "From the owner's private download batch: kept out of public credit lists; its provenance isn't cleared for redistribution.; Fictional name; the model's separate badge parts are dropped (tools/cars/m5_g90.json drop_mats), any painted into its textures remain. The torque curve, ratios and aero are est"
+   "problems": "From the owner's private download batch: kept out of public credit lists; its provenance isn't cleared for redistribution.; Fictional name; the model's separate badge parts are dropped (tools/cars/m5_g90.json drop_mats), any painted into its textures remain. The torque curve and aero are estimates."
   },
   {
    "name": "KAISER 5 TOURING (kaiser_5t)",
@@ -647,7 +647,7 @@
    "catalog": "garage: for sale",
    "verified": "tests/car_models_check.gd (builds, sits on its wheels, pulls away); interior_check",
    "status": "In game",
-   "problems": "From the owner's private download batch: kept out of public credit lists; its provenance isn't cleared for redistribution.; Fictional name; the model's separate badge parts are dropped (tools/cars/m5_touring.json drop_mats), any painted into its textures remain. The torque curve, ratios and aero are"
+   "problems": "From the owner's private download batch: kept out of public credit lists; its provenance isn't cleared for redistribution.; Fictional name; the model's separate badge parts are dropped (tools/cars/m5_touring.json drop_mats), any painted into its textures remain. The torque curve and aero are estimat"
   },
   {
    "name": "KAISER 5X (kaiser_5x)",
@@ -1169,7 +1169,7 @@
    "catalog": "garage: for sale",
    "verified": "tests/car_models_check.gd (builds, sits on its wheels, pulls away); interior_check",
    "status": "In game",
-   "problems": "System torque, the gear ratios, weight distribution, drag and downforce are estimates.; Provenance: the model's materials follow a game-mod naming (GTA-style 'Doorrfok', 'Hubrb'); its wheel materials are shared with body parts (converter: wheel_trim)."
+   "problems": "System torque, weight distribution, drag and downforce are estimates.; Provenance: the model's materials follow a game-mod naming (GTA-style 'Doorrfok', 'Hubrb'); its wheel materials are shared with body parts (converter: wheel_trim)."
   },
   {
    "name": "VALKO GT4 (valko)",
@@ -1277,7 +1277,7 @@
    "catalog": "garage: for sale",
    "verified": "tests/car_models_check.gd (builds, sits on its wheels, pulls away); interior_check",
    "status": "In game",
-   "problems": "From the owner's private download batch: kept out of public credit lists; its provenance isn't cleared for redistribution.; Fictional name; the model's separate badge parts are dropped (tools/cars/rs7_c8.json drop_mats), any painted into its textures remain. The torque curve, ratios and aero are est"
+   "problems": "From the owner's private download batch: kept out of public credit lists; its provenance isn't cleared for redistribution.; Fictional name; the model's separate badge parts are dropped (tools/cars/rs7_c8.json drop_mats), any painted into its textures remain. The torque curve and aero are estimates."
   },
   {
    "name": "VORTEX EVO (vortex)",
@@ -1349,7 +1349,7 @@
    "catalog": "garage: for sale",
    "verified": "tests/car_models_check.gd (builds, sits on its wheels, pulls away); interior_check",
    "status": "In game",
-   "problems": "From the owner's private download batch: kept out of public credit lists; its provenance isn't cleared for redistribution.; Fictional name; the model's separate badge parts are dropped (tools/cars/mc600lt.json drop_mats), any painted into its textures remain. The torque curve, ratios and aero are es"
+   "problems": "From the owner's private download batch: kept out of public credit lists; its provenance isn't cleared for redistribution.; Fictional name; the model's separate badge parts are dropped (tools/cars/mc600lt.json drop_mats), any painted into its textures remain. The torque curve and aero are estimates."
   },
   {
    "name": "WOKING 800 (woking_800)",
@@ -1367,7 +1367,7 @@
    "catalog": "garage: for sale",
    "verified": "tests/car_models_check.gd (builds, sits on its wheels, pulls away); interior_check",
    "status": "In game",
-   "problems": "From the owner's private download batch: kept out of public credit lists; its provenance isn't cleared for redistribution.; Fictional name, but the model's real badges are still on it (its badge parts (outside, cabin and steering wheel) weren't dropped). The torque curve, ratios and aero are estimat"
+   "problems": "From the owner's private download batch: kept out of public credit lists; its provenance isn't cleared for redistribution.; Fictional name, but the model's real badges are still on it (its badge parts (outside, cabin and steering wheel) weren't dropped). The torque curve and aero are estimates."
   },
   {
    "name": "WOKING 720 GT3 (woking_gt3)",
@@ -1403,7 +1403,7 @@
    "catalog": "garage: for sale",
    "verified": "tests/car_models_check.gd (builds, sits on its wheels, pulls away); interior_check",
    "status": "In game",
-   "problems": "From the owner's private download batch: kept out of public credit lists; its provenance isn't cleared for redistribution.; Fictional name; the model has no separate badge parts by name, any painted into its textures remain. The torque curve, ratios and aero are estimates.; Handled as no-AI (the own"
+   "problems": "From the owner's private download batch: kept out of public credit lists; its provenance isn't cleared for redistribution.; Fictional name; the model has no separate badge parts by name, any painted into its textures remain. The torque curve and aero are estimates.; Handled as no-AI (the owner's ear"
   },
   {
    "name": "bld22_01.glb (1: bld22_01)",

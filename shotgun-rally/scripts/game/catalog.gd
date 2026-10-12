@@ -141,12 +141,14 @@ static func for_stage(setup: Dictionary, st) -> Dictionary:
 ## (TireModel.STREET_KINDS: "street", "cup" for Cup 2 / R-compound road tyres,
 ## "slick" for race cars, whose wings add their downforce on top). Measured
 ## figures where magazines published them (Car and Driver / Motor Trend skid pads:
-## GR Supra 1.07, GT-R 0.99-1.02, Hellcat 0.92-0.94, 911 GT3 RS 1.24); the rest
+## GR Supra 1.07, GT-R 0.99-1.02, Hellcat 0.92-0.94, 911 GT3 RS 1.24, X5 M (F85) 0.96,
+## X7 M50i 0.83, Maybach S 680 0.92; Edmunds: AMG G 63 0.81; Dodge: the Hellcat
+## Widebody 0.97, 0.04 g up on the narrow car's); the rest
 ## estimated from cars of their kind, age and tyres (a 1970s car on its period
 ## tyres ~0.78, the 1980s ~0.82, the 1990s ~0.86-0.92, today's sports cars on
 ## performance tyres ~1.0, economy cars ~0.85-0.88). Not listed: by its role.
 const STREET := {
-	"akatsuki": [1.07, "street"], "raiden": [1.0, "street"], "hellhound": [0.95, "street"], "hellhound_s": [0.93, "street"],
+	"akatsuki": [1.07, "street"], "raiden": [1.0, "street"], "hellhound": [0.97, "street"], "hellhound_s": [0.93, "street"],
 	"brawler": [0.78, "street"], "hako": [0.78, "street"], "hachi": [0.8, "street"], "kitsune": [0.84, "street"],
 	"rotora_fc": [0.84, "street"], "rotora_fd": [0.9, "street"], "nimbus": [0.84, "street"], "sylph": [0.9, "street"],
 	"pleiad": [0.92, "street"], "lancer": [0.96, "street"], "kaiser_5": [0.85, "street"], "kaiser_2": [1.04, "street"],
@@ -162,7 +164,8 @@ const STREET := {
 	# the street batch: today's performance tyres; the track-focused ones on cup tyres
 	"tempesta_ursa": [0.98, "street"], "affalter_slr": [0.98, "street"], "vierrad_r7": [1.0, "street"], "affalter_a45": [1.0, "street"],
 	"kaiser_5t": [1.0, "street"], "kaiser_5g": [1.0, "street"], "kaiser_3x": [0.95, "street"], "kaiser_235": [0.97, "street"],
-	"kaiser_2c": [1.04, "street"], "affalter_s": [0.9, "street"],
+	"kaiser_2c": [1.04, "street"], "affalter_s": [0.92, "street"],
+	"kaiser_5x": [0.96, "street"], "kaiser_7x": [0.83, "street"], "kasten": [0.81, "street"],   # (measured: above)
 	"kaiser_3": [0.92, "street"],                                      # (the base saloon: touring tyres)
 	"woking_600": [1.1, "cup"], "affalter_gtb": [1.15, "cup"], "woking_800": [1.2, "cup"], "woking_one": [1.12, "cup"],
 	# FORMULA APEX: 18 in slicks on an 800 kg car (~1.7 g before the wings: they add 2-3 x the weight at speed)

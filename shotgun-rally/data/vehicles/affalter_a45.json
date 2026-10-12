@@ -19,7 +19,7 @@
 		"wheelbase_mm": 2729,
 		"top_speed_kmh": 270,
 		"front_weight": 0.6,
-		"notes": "Mercedes-AMG's A 45 S 4MATIC+: the M139 2.0 turbo four, the most powerful series four-cylinder at 421 PS and 500 N m, an eight-speed dual clutch, 4MATIC+ with a drift mode, ~1,635 kg, 0-100 km/h in 3.9 s, 270 km/h. Its torque curve, ratios and aero are estimates. Its gearbox's overall ratios are AMG's (the A 45 S press release, 07/2019: 15.94 / 11.18 / 7.34 / 5.15 / 3.74 / 2.93 / 2.29 / 1.81 with the final drive in: the dual clutch's two output shafts have their own finals, so here those over a nominal 4.0 final drive), with its 270 km/h limiter; before October 2026 it had the old seven-speed's ratios on a 5.92 final drive, into the rev limiter in eighth at 270 km/h."
+		"notes": "Mercedes-AMG's A 45 S 4MATIC+: the M139 2.0 turbo four, the most powerful series four-cylinder at 421 PS and 500 N m, an eight-speed dual clutch, 4MATIC+ with a drift mode, ~1,635 kg, 0-100 km/h in 3.9 s, 270 km/h. Its torque curve and aero are estimates. Its gearbox's overall ratios are AMG's (the A 45 S press release, 07/2019: 15.94 / 11.18 / 7.34 / 5.15 / 3.74 / 2.93 / 2.29 / 1.81 with the final drive in: the dual clutch's two output shafts have their own finals, so here those over a nominal 4.0 final drive), with its 270 km/h limiter; before October 2026 it had the old seven-speed's ratios on a 5.92 final drive, into the rev limiter in eighth at 270 km/h."
 	},
 	"garage": {
 		"price": 26000,
@@ -77,6 +77,6 @@
 	"research": ["https://en.wikipedia.org/wiki/Mercedes-Benz_A-Class_(W177)#Mercedes-AMG_A_45", "https://www.automotiveworld.com/news-releases/the-new-mercedes-amg-a-45-4matic-and-cla-45-4matic-the-super-sportscars-in-the-compact-class-2/"],
 	"limitations": [
 		"From the owner's private download batch: kept out of public credit lists; its provenance isn't cleared for redistribution.",
-		"Fictional name; the model's separate badge parts are dropped (tools/cars/a45s.json drop_mats), any painted into its textures remain. The torque curve, ratios and aero are estimates."
+		"Fictional name; the model's separate badge parts are dropped (tools/cars/a45s.json drop_mats), any painted into its textures remain. The torque curve and aero are estimates."
 	]
 }

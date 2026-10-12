@@ -13,13 +13,13 @@
 	},
 	"specs": {
 		"power_hp": 903,
-		"weight_kg": 1395,
+		"weight_kg": 1490,
 		"drivetrain": "RWD",
 		"transmission": "7-speed dual clutch",
 		"wheelbase_mm": 2670,
 		"top_speed_kmh": 350,
 		"front_weight": 0.42,
-		"notes": "McLaren's P1 (2013): a 3.8 twin-turbo V8 with an electric motor, 916 PS and 900 N m combined (727 hp and 720 N m from the V8 alone), a seven-speed dual clutch, ~1,395 kg, 350 km/h limited, a 2,670 mm wheelbase. Its torque curve, ratios and aero are estimates."
+		"notes": "McLaren's P1 (2013): a 3.8 twin-turbo V8 with an electric motor, 916 PS and 900 N m combined (727 hp and 720 N m from the V8 alone), a seven-speed dual clutch, 1,490 kg kerb (McLaren's 1,395 kg is dry; Motor Trend's test car 3,296 lb, 1,495 kg; before October 2026 it ran at the dry figure), 350 km/h limited, a 2,670 mm wheelbase. Its torque curve and aero are estimates. Its seven-speed's ratios are McLaren's (the P1 owner's handbook: 3.981 / 2.613 / 1.905 / 1.479 / 1.161 / 0.906 / 0.686 on a 3.308 final drive), with its 350 km/h limiter; before October 2026 a 4.61 final drive ran it into the rev limiter in seventh at 350 km/h."
 	},
 	"garage": {
 		"price": 175000,
@@ -36,7 +36,7 @@
 	},
 	"physics": {
 		"chassis": "sport",
-		"mass": 1395.0,
+		"mass": 1490.0,
 		"front": 0.42,
 		"torque": 900.0,
 		"curve": [[1000, 0.42], [1400, 0.8], [2000, 1.0], [7200, 1.0], [7900, 0.88], [8500, 0.76]],
@@ -46,8 +46,9 @@
 		"spool": [1800.0, 3200.0],
 		"spool_time": 0.35,
 		"anti_lag": false,
-		"gears": [3.98, 2.61, 1.91, 1.48, 1.16, 0.91, 0.69],
-		"final": 4.61,
+		"gears": [3.981, 2.613, 1.905, 1.479, 1.161, 0.906, 0.686],
+		"final": 3.308,
+		"vmax": 350.0,
 		"drive": "rwd",
 		"rear": ["lsd", 0.35, 0.15, 30.0],
 		"cd": 0.4,
@@ -72,11 +73,13 @@
 	},
 	"research": [
 		"https://en.wikipedia.org/wiki/McLaren_P1",
-		"https://sbraceengineering.co.uk/mclaren-specialists/mclaren-models-by-year/mclaren-p1-specification/"
+		"https://sbraceengineering.co.uk/mclaren-specialists/mclaren-models-by-year/mclaren-p1-specification/",
+		"https://www.manualslib.com/manual/1643049/Mclaren-P1.html?page=224",
+		"https://www.0-60specs.com/mclaren/p1-0-60-times"
 	],
 	"limitations": [
 		"From the owner's private download batch: kept out of public credit lists; its provenance isn't cleared for redistribution.",
-		"Fictional name; the model has no separate badge parts by name, any painted into its textures remain. The torque curve, ratios and aero are estimates.",
+		"Fictional name; the model has no separate badge parts by name, any painted into its textures remain. The torque curve and aero are estimates.",
 		"Handled as no-AI (the owner's earlier rule for a car named P1): converted and checked by scripts only, never looked at; screenshot tools leave it out (--seen_cars_only)."
 	]
 }

@@ -19,7 +19,7 @@
 		"wheelbase_mm": 2670,
 		"top_speed_kmh": 250,
 		"front_weight": 0.6,
-		"notes": "BMW's M235i xDrive Gran Coupe (F44): a 2.0 turbo four at 306 PS (225 kW) at 5,000-6,250 rpm and 450 N m at 1,750-4,500 rpm (ADAC's and Autotijd's data), xDrive, an eight-speed automatic, ~1,570 kg, 0-100 km/h in 4.9 s, 250 km/h limited. Its torque curve follows those (before October 2026 it held 450 N m to 5,500 rpm: 353 PS). Its ratios and aero are estimates. Its gearbox is BMW's (media information, 10/2019: 5.519 / 3.184 / 2.050 / 1.492 / 1.235 / 1.000 / 0.801 / 0.673 on a 3.075 final drive), with its 250 km/h limiter; before October 2026 a 5.17 final drive ran it into the rev limiter in eighth at 250 km/h."
+		"notes": "BMW's M235i xDrive Gran Coupe (F44): a 2.0 turbo four at 306 PS (225 kW) at 5,000-6,250 rpm and 450 N m at 1,750-4,500 rpm (ADAC's and Autotijd's data), xDrive, an eight-speed automatic, ~1,570 kg, 0-100 km/h in 4.9 s, 250 km/h limited. Its torque curve follows those (before October 2026 it held 450 N m to 5,500 rpm: 353 PS). Its aero is an estimate. Its gearbox is BMW's (media information, 10/2019: 5.519 / 3.184 / 2.050 / 1.492 / 1.235 / 1.000 / 0.801 / 0.673 on a 3.075 final drive), with its 250 km/h limiter; before October 2026 a 5.17 final drive ran it into the rev limiter in eighth at 250 km/h."
 	},
 	"garage": {
 		"price": 22000,
@@ -77,6 +77,6 @@
 	"research": ["https://en.wikipedia.org/wiki/BMW_2_Series_Gran_Coup%C3%A9", "https://www.adac.de/rund-ums-fahrzeug/autokatalog/marken-modelle/bmw/2er-reihe-gran-coupe/f44/315767/", "https://autotijd.be/en/specs/bmw/2-reeks-gran-coupe/m235i-xdrive-306-hp-awd-1999", "https://www.press.bmwgroup.com/belux/article/attachment/T0301792FR/440075"],
 	"limitations": [
 		"From the owner's private download batch: kept out of public credit lists; its provenance isn't cleared for redistribution.",
-		"Fictional name, but the model's real badges are still on it (its 'Logo' part weren't dropped). The torque curve, ratios and aero are estimates."
+		"Fictional name, but the model's real badges are still on it (its 'Logo' part weren't dropped). The torque curve and aero are estimates."
 	]
 }

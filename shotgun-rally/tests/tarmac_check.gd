@@ -10,8 +10,13 @@ extends SceneTree
 ##   * 0-100 km/h from a standstill, flat out on keys, against the maker's figure (within 0.2 s or
 ##     6 %) across the range: the M4 Competition and M2 (rear drive), the GT Black Series (a
 ##     supercar), the X3 M40i and the Urus Performante (SUVs), the A 45 S and the RS 6 (four-wheel
-##     drive), the ID.4 and the Honda e (electric). (No front-drive road car is in the game but a
-##     1992 Civic, which its maker never timed.)
+##     drive), the ID.4 and the Honda e (electric), the AMG ONE (a hybrid hypercar), the G 63 (a
+##     2.6 t off-roader). (No front-drive road car is in the game but a 1992 Civic, which its maker
+##     never timed.)
+##   * 0-60 mph against a magazine's measured figure (preferred where one exists), timed as Car and
+##     Driver and Motor Trend time it, from a 1-ft rollout (the clock starts once the car has moved a
+##     foot): the 600LT Spider and the P1 (mid-engined, rear drive), the GT-R, the RS 7, the X7 M50i
+##     (a 2.5 t SUV on touring tyres)
 ##   * a GT3 car's STANDING LAUNCH in Track Mode on keys: parked on the grid's handbrake, then
 ##     the throttle flat with NO steering (a 1.7 deg/s nudge of yaw, as a bump or the camber
 ##     gives): it goes straight, and 0-100 km/h in a GT3's ~3.5 s. And on the throttle at
@@ -89,6 +94,13 @@ func _initialize() -> void:
 		{"k": "pub", "car": "kombi", "z100": 3.6, "src": "Audi"},
 		{"k": "pub", "car": "stromer", "z100": 8.5, "src": "Volkswagen"},
 		{"k": "pub", "car": "mochi", "z100": 8.3, "src": "Honda"},
+		{"k": "pub", "car": "uno", "z100": 2.9, "src": "Mercedes-AMG"},
+		{"k": "pub", "car": "kasten", "z100": 4.5, "src": "Mercedes-AMG"},
+		{"k": "meas", "car": "woking_600", "z60": 2.8, "src": "Car and Driver, the 2019 Spider"},
+		{"k": "meas", "car": "woking_one", "z60": 2.6, "src": "Motor Trend, 2015"},
+		{"k": "meas", "car": "raiden", "z60": 2.9, "src": "Car and Driver, the 2018 Track Edition; Motor Trend, the 2017 Premium"},
+		{"k": "meas", "car": "vierrad_r7", "z60": 3.0, "src": "Car and Driver, 2021"},
+		{"k": "meas", "car": "kaiser_7x", "z60": 4.1, "src": "Car and Driver, the 2020 M50i"},
 		{"k": "roll", "car": "kaiser_5g", "from": 60.0 * MPH, "to": 100.0 * MPH, "n": "60-100 mph", "lo": 3.2, "hi": 4.6},
 		{"k": "roll", "car": "kaiser_5g", "from": 100.0, "to": 200.0, "n": "100-200 km/h", "lo": 6.0, "hi": 8.0},
 	]
@@ -191,13 +203,16 @@ func _physics_process(dt: float) -> bool:
 	var inp := {"steer": 0.0, "throttle": 0.0, "brake": 0.0, "handbrake": false}
 	var done := false
 	match c.k:
-		"standing", "pub":
+		"standing", "pub", "meas":
 			if t >= 1.0:
 				inp.throttle = 1.0
+				m.dist = float(m.get("dist", 0.0)) + hv * dt
+				if float(m.dist) >= 0.3048 and not m.has("foot"):
+					m.foot = t - 1.0                       # (the 1-ft rollout: the magazines' clock starts here)
 				for mk in [[60.0 * MPH, "60mph"], [100.0, "100"], [200.0, "200"]]:
 					if kmh >= mk[0] and not m.has(mk[1]):
 						m[mk[1]] = t - 1.0
-			done = m.has("200") or t > 20.0 or (c.k == "pub" and (m.has("100") or t > 16.0))
+			done = m.has("200") or t > 20.0 or (c.k == "pub" and (m.has("100") or t > 16.0)) or (c.k == "meas" and (m.has("60mph") or t > 16.0))
 		"roll":
 			var v0: float = c.from / 3.6
 			if t < 0.5:
@@ -316,6 +331,10 @@ func _report() -> void:
 			var t100 := float(m.get("100", INF))
 			_check(_near(t100, float(c.z100)), "%s from a standstill: 0-100 km/h %.2f s, its maker's %.1f s (%s; %+.2f s)" % [c.car, t100, float(c.z100), c.src,
 				t100 - float(c.z100)])
+		"meas":
+			var t60 := float(m.get("60mph", INF)) - float(m.get("foot", 0.0))
+			_check(_near(t60, float(c.z60)), "%s: 0-60 mph %.2f s from a 1-ft rollout, measured %.1f s (%s; %+.2f s)" % [c.car, t60, float(c.z60), c.src,
+				t60 - float(c.z60)])
 		"roll":
 			var tr := float(m.get("time", INF))
 			_check(tr > float(c.lo) and tr < float(c.hi), "the M5 G90 rolling %s flat out from a cruise: %.2f s (real: %s)" % [c.n, tr,

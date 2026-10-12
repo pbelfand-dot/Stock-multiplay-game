@@ -82,6 +82,6 @@
 	],
 	"limitations": [
 		"From the owner's private download batch: kept out of public credit lists; its provenance isn't cleared for redistribution.",
-		"Fictional name; the model's separate badge parts are dropped (tools/cars/m5_touring.json drop_mats), any painted into its textures remain. The torque curve, ratios and aero are estimates."
+		"Fictional name; the model's separate badge parts are dropped (tools/cars/m5_touring.json drop_mats), any painted into its textures remain. The torque curve and aero are estimates."
 	]
 }
