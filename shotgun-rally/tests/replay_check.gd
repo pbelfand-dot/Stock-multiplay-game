@@ -15,7 +15,8 @@ extends SceneTree
 ##   * EXIT: the cars back exactly as they were live (transform, velocities, wheel spin, springs,
 ##     the drivetrain), the tree running again, the pause menu or the results back, the run
 ##     carrying on
-##   * CUT UP: a replay with the traffic (posed where it was, put back exactly)
+##   * CUT UP: a replay with the traffic (posed where it was, put back exactly; the cars freed
+##     since they passed played by look-alikes where they were)
 ##   * THE TOUGE, TRACK MODE: a replay opens, plays and closes in each
 ## Run: godot --headless --fixed-fps 120 --path . -s tests/replay_check.gd
 ## Prints [replay] lines; exits 1 on any FAIL.
@@ -386,6 +387,18 @@ func _cutup() -> void:
 		if stuck > 3.0:
 			g.reset_car()
 			stuck = 0.0
+	# three cars freed the way the game frees them (Traffic._put_away without keeping: a rival
+	# when its challenge is over, online mirrors leaving the stretch, the loop's oncoming cars past
+	# the spares kept), then a moment more of the run
+	var freed := 0
+	for c in g.traffic.cars.duplicate():
+		if freed >= 3 or c.has("rival"):
+			continue
+		g.traffic.cars.erase(c)
+		g.traffic._put_away(c.body, "%s/1" % c.model, false)
+		freed += 1
+	for i in 60:
+		await physics_frame
 	var mem: Dictionary = rp.memory_bytes()
 	print("[replay] info cut up memory: %.0f traffic cars a frame on average, %.0f KB a minute for them (%.1f MB for 10 minutes), %.0f KB a minute a car" % [
 		mem.props_avg, mem.props_min / 1024.0, mem.props_min * 10.0 / 1048576.0, mem.per_car_min / 1024.0])
@@ -399,6 +412,9 @@ func _cutup() -> void:
 	rp.playing = false
 	var worst := 0.0
 	var count := 0
+	var gone := 0                         # cars freed since they were recorded
+	var gone_worst := 0.0
+	var gone_missing := 0
 	var t0: float = rp.range_first() / 60.0
 	for pf in truth:
 		if pf % 7 != 0:
@@ -410,7 +426,13 @@ func _cutup() -> void:
 		rp._frame(0.0)
 		for id in truth[pf]:
 			var nd := instance_from_id(id) as Node3D
-			if nd == null:
+			if nd == null:                    # (freed: a look-alike must play it, where it was)
+				var sb: Node3D = rp._standins.get(int(rp._prop_index.get(id, -1)))
+				gone += 1
+				if sb == null or not sb.visible:
+					gone_missing += 1
+				else:
+					gone_worst = maxf(gone_worst, sb.global_position.distance_to(truth[pf][id]))
 				continue
 			var e: float = nd.global_position.distance_to(truth[pf][id])
 			if e > 0.01 and OS.get_cmdline_user_args().has("--debug"):
@@ -418,6 +440,8 @@ func _cutup() -> void:
 			worst = maxf(worst, e)
 			count += 1
 	check(count > 100 and worst < 0.01, "cut up: the traffic played back where it was (%d cars checked, worst %.2f mm)" % [count, worst * 1000.0])
+	check(gone > 0 and gone_missing == 0 and gone_worst < 0.01,
+		"cut up: every car that was there is in it, the ones freed since played by look-alikes where they were (%d checked, %d missing, worst %.2f mm)" % [gone, gone_missing, gone_worst * 1000.0])
 	rp.cam.set_mode("drone")
 	rp.playing = true
 	await _frames(60)

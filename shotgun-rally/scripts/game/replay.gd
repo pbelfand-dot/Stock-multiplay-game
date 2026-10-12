@@ -17,7 +17,9 @@ extends Node
 ## PLAYBACK holds the live game. Alone: the whole scene tree is paused (the physics, the traffic,
 ## the clock, the co-driver mid-sentence); the cars and the moving things are captured first,
 ## posed from the recording (RallyCar.replay_pose: the wheels roll, steer and ride their springs,
-## the brake lights, the engine's sound, the dust), and put back exactly as they were when it
+## the brake lights, the engine's sound, the dust; a traffic car that's been freed since it passed,
+## as the ramps' cars, a rival after its challenge, online mirrors and spares past the limit are,
+## played by a look-alike in its model and paint, so every car that was there is in it), and put back exactly as they were when it
 ## ends (transform, velocities, wheel spin, springs, steering; the drivetrain and tyres are never
 ## touched), so the game carries on where it was: the results, or paused. Online it's local
 ## only: the session can't stop for you, so your car waits on the brake as in the pause menu,
@@ -45,6 +47,7 @@ const PROP_EVERY := 4                # the traffic, the stray car, the ghost: ev
 const KEEP_S := 600.0                # the last 10 minutes are kept
 const STRIDE := 26                   # floats a car sample
 const PROP_STRIDE := 8               # floats a prop: its index, position, rotation (quaternion)
+const STANDIN_MAX := 120             # look-alikes kept for freed traffic cars while it's open (more: the unseen ones go)
 const SPEEDS := [0.25, 0.5, 1.0, 2.0, 4.0]
 const INSTANT_S := 30.0              # the pause menu's replay starts this far before you paused
 const LEAD_IN := 2.0                 # s before GO the results' replay starts
@@ -158,6 +161,7 @@ var prop_frames: Array = []          # a ring of PackedFloat32Array: the props e
 var prop_first := -1                 # (prop frame indices: the global sample / PROP_EVERY)
 var prop_last := -1
 var prop_ids: Array = []             # a prop's index -> its instance id
+var prop_looks: Array = []           # a prop's index -> its look ({model, paint}: a traffic car's), to stand in for it once it's gone
 var _prop_index := {}                # instance id -> its index
 var _rate := RATE                    # samples a second really (the physics ticks over the stride)
 var _stride := 2                     # physics ticks a sample
@@ -172,6 +176,7 @@ var _synced := {}                    # instance id of a traffic body -> its sync
 var _marks := {}                     # (online) skid marks' process modes before it began
 var _fx := []                        # the cars' dust (DriftFx): held while the replay's paused
 var _prop_prev := {}                 # instance id -> where the replay last put it (its wheels roll by it)
+var _standins := {}                  # prop index -> the look-alike playing a traffic car that's been freed since
 var _hud_was := true
 var _mouse_was := Input.MOUSE_MODE_VISIBLE
 var _opened_at := -1                 # the frame it opened (that frame's keys aren't the replay's)
@@ -302,7 +307,7 @@ func _prop_candidates() -> Array:
 	var out: Array = []
 	if game.traffic:
 		for n in game.traffic.get_children():
-			if n is Node3D and n.has_meta("wheels"):
+			if n is Node3D and n.has_meta("wheels") and not n.has_meta("replay_standin"):
 				out.append(n)
 	if game.stray:
 		for n in game.stray.get_children():
@@ -326,6 +331,7 @@ func _sample_props(pf: int) -> void:
 		if not _prop_index.has(id):
 			_prop_index[id] = prop_ids.size()
 			prop_ids.append(id)
+			prop_looks.append({"model": str(n.get_meta("model_id")), "paint": int(n.get_meta("paint", 0))} if n.has_meta("model_id") else {})
 		var xf := n.global_transform
 		var q := xf.basis.get_rotation_quaternion()
 		var o := i * PROP_STRIDE
@@ -525,6 +531,7 @@ func close() -> void:
 			(n as AnimatableBody3D).sync_to_physics = _synced[id]
 		n.reset_physics_interpolation()
 	_synced.clear()
+	_drop_standins()
 	for fx in _fx:
 		if is_instance_valid(fx):
 			fx.set_physics_process(true)
@@ -830,13 +837,17 @@ func _pose_props(dtp: float) -> void:
 	for i in range(0, fb.size(), PROP_STRIDE):
 		in_b[int(fb[i])] = i
 	var shown := {}
+	var stood := {}
 	for i in range(0, fa.size(), PROP_STRIDE):
 		var idx := int(fa[i])
 		var id: int = prop_ids[idx]
-		if not _props.has(id):
-			continue
 		var n := instance_from_id(id) as Node3D
-		if n == null:
+		if n == null:                                # (freed since: the ramps' cars, a rival, online mirrors, spares
+			n = _standin(idx)                        # past the limit; a look-alike plays it, so every car that was there is)
+			if n == null:
+				continue
+			stood[idx] = true
+		elif not _props.has(id):
 			continue
 		var p := Vector3(fa[i + 1], fa[i + 2], fa[i + 3])
 		var q := Quaternion(fa[i + 4], fa[i + 5], fa[i + 6], fa[i + 7]).normalized()
@@ -861,6 +872,38 @@ func _pose_props(dtp: float) -> void:
 			var n2 := instance_from_id(id) as Node3D
 			if n2:
 				n2.visible = false
+	for idx in _standins.keys():
+		if not stood.has(idx):
+			var sb: Node3D = _standins[idx]
+			if _standins.size() > STANDIN_MAX:       # (scrubbing a long run: don't keep a look-alike for every car ever passed)
+				_standins.erase(idx)
+				sb.queue_free()
+			elif is_instance_valid(sb):
+				sb.visible = false
+
+
+## A traffic car that's been freed since it was recorded: a look-alike in its model and paint
+## (Traffic.replay_body), made the first time it's needed, kept while the replay's open.
+func _standin(idx: int) -> Node3D:
+	if _standins.has(idx):
+		return _standins[idx]
+	var look: Dictionary = prop_looks[idx] if idx < prop_looks.size() else {}
+	if look.is_empty() or game.traffic == null or not game.traffic.has_method("replay_body"):
+		return null
+	var b: Node3D = game.traffic.replay_body(str(look.model), int(look.paint))
+	if b == null:
+		return null
+	b.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
+	_standins[idx] = b
+	return b
+
+
+func _drop_standins() -> void:
+	for idx in _standins:
+		var b = _standins[idx]
+		if is_instance_valid(b):
+			(b as Node).queue_free()
+	_standins.clear()
 
 
 # ── the live state, captured and put back ─────────────────────────────────

@@ -101,7 +101,10 @@ turned, its velocity, the steering, the revs and the gear, each spring's squash 
 wheel's spin, the throttle, the brake, the handbrake, the slide and the surface (26 floats).
 Cut up's traffic (every car on both carriageways, the ramps', a rival), the touge's stray car
 and its ghost are recorded 15 times a second (where each is, how it's turned). Between samples
-the playback interpolates.
+the playback interpolates. Each traffic car's model and paint are kept with it: a car freed since
+it passed (the ramps' cars, an AI rival once its challenge is over, online the host's cars as they
+leave your stretch, the rest once 60 spares are kept) is played back by a look-alike, so every car
+that was there is in the replay, as busy as the run was.
 
 **Memory.** Each track is a ring that keeps the last **10 minutes**:
 
@@ -142,7 +145,7 @@ and the host's traffic keeps running round everyone.
   car, the director cutting between two;
 - exit: the car exactly as it was live, the tree running, the pause menu or the results back,
   the run carrying on;
-- cut up: the traffic played back where it was and put back exactly;
+- cut up: the traffic played back where it was and put back exactly, the cars freed since they passed played by look-alikes;
 - the touge and Track Mode: a replay opens, films the car and closes.
 
 `tools/replay_shots.gd` takes pictures of every camera (under xvfb; `--seen_cars_only`).

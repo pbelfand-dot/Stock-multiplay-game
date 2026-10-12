@@ -616,6 +616,7 @@ func _body_for(m: Dictionary, solid := true, paint := -1) -> Node3D:
 	var pi: int = paint if paint >= 0 else _rng.randi() % m.paints.size()
 	_paint(model, m.paints[pi % m.paints.size()])
 	body.set_meta("paint", pi)
+	body.set_meta("model_id", str(m.id))             # (the replay: what it looked like, to stand in for it once it's gone)
 	CarLook.glow_model(model)                        # (its lamps: running lights by day, full at night)
 	CarLamps.road_glow(model)                        # (at night: its headlights' light on the road, the red behind)
 	var wheels: Array = []
@@ -623,6 +624,19 @@ func _body_for(m: Dictionary, solid := true, paint := -1) -> Node3D:
 		wheels.append(n)
 	body.set_meta("wheels", wheels)
 	return body
+
+
+## A look-alike of a traffic car that's gone (freed: the ramps' cars, a rival once its challenge
+## is over, online the host's cars leaving our stretch, the rest once SPARE_MAX are kept): the
+## replay's stand-in for it, its model in its paint, out of the physics. Null if the model isn't
+## in this road's pool.
+func replay_body(model_id: String, paint: int) -> Node3D:
+	for m in _pool:
+		if str(m.id) == model_id:
+			var b := _body_for(m, false, maxi(paint, 0))
+			b.set_meta("replay_standin", true)
+			return b
+	return null
 
 
 ## Start again with the player at s: every car gone, new traffic round s.
