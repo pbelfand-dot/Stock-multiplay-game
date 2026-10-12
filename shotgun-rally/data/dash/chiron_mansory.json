@@ -1,0 +1,35 @@
+{
+	"_about": "CENTURIA 16 (Chiron by a tuner): its speedometer is painted (bug_chiron_17_gaoge_diff, 512 px: 0 to 500 km/h, 0 at the bottom left round the top to the bottom right, 28 degrees each 50 km/h) and its needle is modelled (its own material, gradient_012_diff): it turns about the dial's hub along the scale as the driver sees it (modelled pointing a little below 0; each 50 km/h's turn measured from the driver's eye: marks). The left screen (interior_emissive.001, stored upside down: flip_v) is the rev counter, a dotted arc from 0 at its lower left up to 8 at its upper right, with the power scale inside it: the revs light the dotted arc. The right screen (display_right_diff) is the Chrono page: its lap time drawn after Lap time. Every dial and screen glows at night. Screen pixels: the picture as it's seen; hub: m from the steering wheel's centre (x right, y up, z back); axis: the dial's face.",
+	"needle_meshes": [
+		{"mat": "^gradient_012_diff$", "needles": [
+			{"value": "kmh", "hub": [0.0063, 0.0233, -0.2442], "axis": [0.0, 0.36, 0.93], "min": 0, "max": 500,
+				"marks": [[0, 12.0], [50, 39.4], [100, 64.7], [150, 90.5], [200, 116.1], [250, 141.8], [300, 167.5], [350, 196.0], [400, 224.4], [450, 253.9], [500, 285.2]]}
+		]}
+	],
+	"displays": [
+		{"mat": "^bug_chiron_17_gaoge_diff$", "glow": "all", "glow_color": "#e8f0ff"},
+		{
+			"mat": "^interior_emissive\\.001$",
+			"tex": 512,
+			"glow": "all",
+			"screens": [
+				{"page": "cluster", "rect": [36, 26, 200, 192], "flip_v": true, "accent": "#2f8bff", "layout": {
+					"arc": [{"what": "rpm", "w": 3.0, "color": "#bfe0ff", "hot": "#ff3b1f", "hot_at": 6500,
+						"pts": [[50, 146], [52, 123], [58, 105], [66, 88], [80, 72], [96, 59], [115, 48], [136, 41], [158, 36], [172, 34]],
+						"at": [0, 1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 8600]}]
+				}}
+			]
+		},
+		{
+			"mat": "^display_right_diff$",
+			"tex": 512,
+			"glow": "all",
+			"screens": [
+				{"page": "cluster", "rect": [0, 0, 512, 512], "accent": "#2f8bff", "layout": {
+					"text": [{"what": "time3", "at": [198, 262.5], "size": 21, "align": "left", "max_w": 150, "color": "#e8f6ff"}]
+				}}
+			]
+		}
+	],
+	"ambient": {"color": "#2fd6c8", "energy": 0.22}
+}

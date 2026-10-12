@@ -27,7 +27,8 @@ extends SceneTree
 ##     steering wheel's surfaces of it left to turn
 ##   * a painted map's window: inside its screen, the road cut at its edges; today's date
 ##   * a screen showing the model's own picture first ("intro"), then its live page
-##   * the steering wheel's pieces the model left in the body moved onto it (they turn with it);
+##   * the steering wheel's pieces the model left in the body moved onto it (they turn with it), the
+##     cabin's pieces left in a moving part moved back into the body;
 ##     LEDs lit in their row's own colour
 ##   * the original materials are untouched: an overlay is a duplicate's next pass
 ## Prints one [dash] line per check; exits 1 on any FAIL.
@@ -341,6 +342,16 @@ func _spec(id: String, car, cp, dash, spec: Dictionary) -> void:
 			sw.basis = Basis()
 		fails += _check(on_wheel and boxed and turned, "%s: %d pieces of its steering wheel moved onto it from the body (inside the box: %s), turning with it (%s)" % [
 			id, dash.wheel_parts.size(), boxed, turned])
+	# pieces of the cabin the model left in something that moves (the Zonda's cluster bits in a front brake caliper,
+	# swinging with the steering): moved back into the body, inside the spec's box, out of the moving part
+	if spec.has("body_parts"):
+		var home: bool = not dash.body_parts.is_empty() and dash.body_parts.all(func(p): return p.get_parent() == car.body_model)
+		var inbox := true
+		var spaces: Array = spec.body_parts.map(func(bp): return dash.wheel_space(bp))
+		for p in dash.body_parts:
+			for v in ((p as MeshInstance3D).mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX] as PackedVector3Array):
+				inbox = inbox and spaces.any(func(f): return f.call((p as MeshInstance3D).transform * v))
+		fails += _check(home and inbox, "%s: %d pieces of its cabin moved back into the body from a moving part (inside the box: %s)" % [id, dash.body_parts.size(), inbox])
 	# LEDs painted plain white lit in their row's own colour (the AMG ONE's green, red and blue shift lights)
 	for o in dash.overlays:
 		var coloured: Array = o.leds.filter(func(r): return r.has("color"))
@@ -387,11 +398,12 @@ func _spec(id: String, car, cp, dash, spec: Dictionary) -> void:
 			dash.fake[what] = lerpf(lo, hi, share)
 			_run(dash, DT)
 			var rest_share := (float(n.get("rest", lo)) - lo) / (hi - lo)
-			var want: float = deg_to_rad(float(n.sweep)) * (share - rest_share)
+			var want: float = deg_to_rad(float(n.sweep)) * (share - rest_share) if not n.has("marks") \
+				else deg_to_rad(DashLive.marks_deg(n.marks, lerpf(lo, hi, share)))
 			var got := Quaternion((np.pivot as Node3D).basis.orthonormalized())
 			worst = maxf(worst, got.angle_to(Quaternion(Basis(np.axis, -want))))
 	if not dash.needle_parts.is_empty():
-		fails += _check(worst < 0.01, "%s: the modelled needles turn by their share of the sweep (worst off by %.2f deg)" % [id, rad_to_deg(worst)])
+		fails += _check(worst < 0.01, "%s: the modelled needles turn by their share of the sweep or along their marks (worst off by %.2f deg)" % [id, rad_to_deg(worst)])
 	# the painted needles' angles follow too
 	for o in dash.overlays:
 		if o.needles.is_empty():

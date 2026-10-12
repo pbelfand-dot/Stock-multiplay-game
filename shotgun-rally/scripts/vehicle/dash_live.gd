@@ -20,7 +20,7 @@ extends Node3D
 ##     UVs across it, showing the pages
 ##   * "needle_meshes": needles modelled as parts (merged into the body): each one cut
 ##     out into a part of its own and turned about its dial's hub ("max_size": needles in a
-##     material the trim shares, told apart by their size)
+##     material the trim shares, told apart by their size; "marks": an uneven scale)
 ##   * "boards": a dial or screen that's blank and can't be picked out by its faces (it
 ##     shares a material with everything round it): a quad of its own placed by measure
 ##     ("c": its middle, "w" x "h" m, facing the driver's eye or "normal"; "round": a
@@ -28,7 +28,9 @@ extends Node3D
 ##   * "wheel_parts": the steering wheel's own pieces the model left in the body (its buttons,
 ##     its LEDs, its screens: [{"mat", "box"}], the material's pieces wholly inside the box from
 ##     the wheel's centre, or "disc": [r, d], within r of its axis and d of its plane) moved onto
-##     the steering wheel: they turn with it
+##     the steering wheel: they turn with it; "body_parts": the same for pieces of the cabin
+##     the model left in something that moves (the Zonda's cluster bits in a brake caliper,
+##     swinging with the front wheel): moved back into the body, where they belong
 ##   * the warning lamps: the handbrake, ABS and traction control working, the shift
 ##     lamp near the limiter, the lights at night, the flash; all of them for a moment
 ##     when the engine starts (the bulb check)
@@ -64,6 +66,7 @@ var pages: Array = []               # DashPage, one per screen
 var overlays: Array = []            # [{"mat": ShaderMaterial, "needles": [...], "warns": [...]}]
 var needle_parts: Array = []        # [{"pivot": Node3D, "axis": Vector3, "n": spec}]
 var wheel_parts: Array = []         # the steering wheel's pieces moved onto it (MeshInstance3D)
+var body_parts: Array = []          # the cabin's pieces moved back into the body from something that moves
 var needle_mats: Array = []         # the needle parts' material (lit up at night)
 var panels: Array = []              # the panels' meshes
 var boards: Array = []              # the boards' meshes
@@ -95,6 +98,8 @@ func setup(the_car, the_cockpit, the_spec: Dictionary) -> void:
 	_read(0.0)
 	for wp in spec.get("wheel_parts", []):
 		_wheel_parts(wp)
+	for bp in spec.get("body_parts", []):
+		_wheel_parts(bp, true)
 	for d in spec.get("displays", []):
 		if not _surfaces(str(d.get("mat", "^$")), func(m, si, base): _overlay(m, si, base, d)):
 			missing.append("display " + str(d.get("mat")))
@@ -485,17 +490,17 @@ func _board(b: Dictionary) -> void:
 ## inside the box (m from the wheel's centre) moved onto the steering wheel's node, in their
 ## own material (an overlay can still ride on it), so they turn with it; the rest of the surface
 ## stays where it is.
-func _wheel_parts(wp: Dictionary) -> void:
-	var sw: Node3D = car.cockpit_nodes.get("wheel") if "cockpit_nodes" in car else null
+func _wheel_parts(wp: Dictionary, to_body := false) -> void:
+	var sw: Node3D = car.body_model if to_body else (car.cockpit_nodes.get("wheel") if "cockpit_nodes" in car else null)
 	if sw == null:
 		missing.append("wheel parts " + str(wp.get("mat")) + ": no steering wheel")
 		return
 	var within := wheel_space(wp)
 	var onto := _rel(sw).affine_inverse()               # (the model's space -> the wheel node's)
-	var before := wheel_parts.size()
+	var before := (body_parts if to_body else wheel_parts).size()
 	_surfaces(str(wp.mat), func(m: MeshInstance3D, si: int, base: Material):
-		if m == sw or sw.is_ancestor_of(m) or m.name == "WheelPart":
-			return                                       # (on the wheel already)
+		if m.name in ["WheelPart", "BodyPart"] or (not to_body and (m == sw or sw.is_ancestor_of(m))) or (to_body and m.get_parent() == sw):
+			return                                       # (where it belongs already)
 		var arr := m.mesh.surface_get_arrays(si)
 		var xf := _rel(m)
 		var vs: PackedVector3Array = xf * (arr[Mesh.ARRAY_VERTEX] as PackedVector3Array)
@@ -518,16 +523,17 @@ func _wheel_parts(wp: Dictionary) -> void:
 			return
 		var part := _piece(onto * vs, PackedVector3Array(Array(ns).map(func(x): return (onto.basis * x).normalized())) if ns != null and ns.size() > 0 else ns,
 			arr[Mesh.ARRAY_TEX_UV], ids, mine, base, m)
-		part.name = "WheelPart"
+		part.name = "BodyPart" if to_body else "WheelPart"
 		sw.add_child(part)
-		wheel_parts.append(part)
-		if not rest.is_empty():
-			var still := _piece(vs, ns, arr[Mesh.ARRAY_TEX_UV], ids, rest, base, m)
+		(body_parts if to_body else wheel_parts).append(part)
+		if not rest.is_empty():                          # (the rest stays with what it was part of)
+			var still := _piece(arr[Mesh.ARRAY_VERTEX], arr[Mesh.ARRAY_NORMAL], arr[Mesh.ARRAY_TEX_UV], ids, rest, base, m)
 			still.name = "WheelRest"
-			car.body_model.add_child(still)
+			still.transform = m.transform
+			m.get_parent().add_child(still)
 		m.set_surface_override_material(si, _hidden()))
-	if wheel_parts.size() == before:
-		missing.append("wheel parts " + str(wp.get("mat")))
+	if (body_parts if to_body else wheel_parts).size() == before:
+		missing.append(("body parts " if to_body else "wheel parts ") + str(wp.get("mat")))
 
 
 ## Whether a point (the model's space) is in a "wheel_parts" entry's space: its "box" (m from the
@@ -912,16 +918,22 @@ func _process(dt: float) -> void:
 				boxes.append(led_box(row, o.to_local, float(data.get(str(row.what), 0.0))))
 			ov.set_shader_parameter("led_box", _pad(boxes, MAX_LED_ROWS))
 	for np in needle_parts:
-		var n: Dictionary = np.n
-		# its turn from where it was modelled (pointing at "rest"), clockwise as the driver sees it
-		var turn := deg_to_rad(float(n.sweep)) * (_share(n) - _share(n, float(n.get("rest", n.get("min", 0.0)))))
-		(np.pivot as Node3D).basis = Basis(np.axis, -turn)
+		(np.pivot as Node3D).basis = Basis(np.axis, -needle_turn(np.n))
 	_screen_t += dt
 	if _screen_t >= 1.0 / SCREEN_HZ:
 		_screen_t = 0.0
 		for p in pages:
 			p.queue_redraw()
 			(p.get_parent() as SubViewport).render_target_update_mode = SubViewport.UPDATE_ONCE
+
+
+## A modelled needle's turn from where it was modelled (radians, clockwise as the driver sees it):
+## by its share of "sweep" from "rest", or along "marks" ([[value, deg], ...]: its turn at each
+## value, a scale that isn't even as the driver sees it).
+func needle_turn(n: Dictionary) -> float:
+	if n.has("marks"):
+		return deg_to_rad(marks_deg(n.marks, absf(float(data.get(str(n.get("value", "kmh")), 0.0)))))
+	return deg_to_rad(float(n.sweep)) * (_share(n) - _share(n, float(n.get("rest", n.get("min", 0.0)))))
 
 
 ## How far round its scale a needle is (0..1): its value now, or v.

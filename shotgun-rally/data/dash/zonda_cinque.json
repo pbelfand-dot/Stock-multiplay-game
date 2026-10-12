@@ -1,0 +1,25 @@
+{
+	"_about": "VENTO CINQUE (Zonda Cinque): its cluster's needles are modelled, thin parts of the dial faces' own material (gauge_emissive.001: only parts under 3 cm count, max_size): the rev counter (0 to 8) and the speedometer (30 to 400) side by side, the fuel and water gauges either side; each turns about its hub cap, in the plane of its dial's face (axis). The two big dials' scales aren't even as the driver sees them (each number's dot measured from the driver's eye: marks). A few small pieces of the cluster were modelled in the front brake caliper's material and ended up in the front left caliper (they swung with the steering): moved back into the body (body_parts). The 14 green and 4 red LEDs over the dials light as shift lights; the dials glow at night. Hubs and boxes: m from the steering wheel's centre (x right, y up, z back); LED x: the model's axes.",
+	"body_parts": [{"mat": "^Brake_Plastic\\.001$", "box": [-0.13, 0.08, -0.03, 0.09, -0.19, -0.14]}],
+	"needle_meshes": [
+		{"mat": "^gauge_emissive\\.001$", "max_size": 0.03, "needles": [
+			{"value": "rpm", "hub": [-0.023, 0.036, -0.157], "axis": [0.003, 0.204, 0.979], "min": 0, "max": 8000,
+				"marks": [[0, 4.8], [1000, 21.5], [2000, 38.9], [3000, 55.0], [4000, 69.0], [5000, 83.8], [6000, 99.4], [7000, 116.4], [8000, 133.7]]},
+			{"value": "kmh", "hub": [0.023, 0.038, -0.157], "axis": [-0.012, 0.236, 0.972], "min": 0, "max": 400,
+				"marks": [[0, 0.0], [30, 9.1], [60, 26.0], [90, 44.0], [120, 61.8], [150, 77.1], [180, 92.2], [210, 107.9], [240, 124.8], [270, 140.2], [300, 156.1], [330, 171.5], [360, 188.3], [390, 205.9]]},
+			{"value": "fuel", "hub": [-0.065, 0.0525, -0.162], "axis": [-0.065, 0.264, 0.962], "min": 0, "max": 1, "rest": 0, "sweep": 80},
+			{"value": "t_water", "hub": [0.067, 0.0525, -0.162], "axis": [0.069, 0.269, 0.961], "min": 40, "max": 120, "rest": 40, "sweep": -70}
+		]}
+	],
+	"displays": [
+		{"mat": "^gauge_emissive\\.001$", "glow": "all", "glow_color": "#d8f0dc"},
+		{"mat": "^RPM_LED\\.001$", "leds": [
+			{"what": "rpm01", "y": [0.794, 0.801], "color": "#30ff50",
+				"x": [-0.3605, -0.355, -0.350, -0.3445, -0.3395, -0.334, -0.329, -0.3235, -0.318, -0.312, -0.307, -0.3015, -0.2965, -0.291],
+				"at": [0.5, 0.53, 0.56, 0.59, 0.62, 0.65, 0.68, 0.71, 0.74, 0.77, 0.8, 0.83, 0.86, 0.89]}
+		]},
+		{"mat": "^RPM_LED_RED\\.001$", "leds": [
+			{"what": "rpm01", "y": [0.794, 0.801], "color": "#ff2414", "x": [-0.286, -0.2805, -0.2755, -0.270], "at": [0.91, 0.93, 0.95, 0.97]}
+		]}
+	]
+}
