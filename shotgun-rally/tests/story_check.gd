@@ -4,7 +4,8 @@ extends SceneTree
 ##     run, x1.5 in story mode; never negative
 ##   * every car free (the owner's ask): owned from a new save, driven with 0 CR, nothing to buy;
 ##     upgrades need the money, step up to 3 and change the car's numbers
-##   * the car setup: the paint you chose, its own livery free, the drive split
+##   * the car setup: the paint you chose, its own livery free, the drive split; no number on the doors
+##     unless the garage turns it on (the roundel not drawn, no number texture made)
 ##   * the championship: rally 2 opens when rally 1 is finished; the standings
 ##     put a quick crew first and a slow one last; prizes by position
 ##   * the free cars: the rally car and the STROMER 4 owned from the start (an older save gets them)
@@ -15,6 +16,7 @@ extends SceneTree
 const Profile = preload("res://scripts/game/profile.gd")
 const Catalog = preload("res://scripts/game/catalog.gd")
 const Championship = preload("res://scripts/game/championship.gd")
+const Livery = preload("res://scripts/vehicle/livery.gd")
 
 var fails := 0
 
@@ -56,6 +58,17 @@ func _initialize() -> void:
 	Profile.set_paint("comet", "colours", [Color.BLACK, Color.WHITE, Color.RED, Color.GOLD])
 	var painted := Profile.setup()
 	fails += _check(painted.number == 42 and painted.colours[0] == Color.BLACK, "paint and number stick")
+	# the number on the doors: off unless the garage turns it on
+	var bare := _livery_material(painted)
+	fails += _check(not bool(painted.number_on) and bare[0] == false and not bare[1],
+		"no number on the doors by default (show_number %s, number texture %s)" % [bare[0], bare[1]])
+	Profile.set_paint("comet", "number_on", true)
+	var numbered := Profile.setup()
+	var on := _livery_material(numbered)
+	fails += _check(bool(numbered.number_on) and on[0] == true and on[1], "the garage's NUMBER ON puts it back on the doors")
+	fails += _check(not bool(Catalog.setup("kestrel").number_on) and not bool(Catalog.setup("kaiser_5g").number_on),
+		"every other car clean too")
+	Profile.set_paint("comet", "number_on", false)
 	fails += _check(is_equal_approx(Catalog.setup("martello").drive_front, 0.15), "the Martello sends most of its power to the back")
 	# the championship
 	var rallies := Championship.RALLIES
@@ -93,6 +106,21 @@ func _initialize() -> void:
 	fails += _check("stromer" in Profile.owned.cars and "comet" in Profile.owned.cars, "an older save gets the STROMER 4 too (and keeps what it had)")
 	print("[story] %s" % ("STORY OK" if fails == 0 else "STORY FAIL"))
 	quit(1 if fails > 0 else 0)
+
+
+## [show_number, a number texture made] for a body painted with this setup (a plain box body).
+func _livery_material(setup: Dictionary) -> Array:
+	var body := MeshInstance3D.new()
+	var box := BoxMesh.new()
+	box.material = StandardMaterial3D.new()
+	body.mesh = box
+	var holder := Node.new()
+	Livery.paint(body, [], setup, holder)
+	var m := body.material_override as ShaderMaterial
+	var out := [m.get_shader_parameter("show_number"), holder.get_node_or_null("NumberViewport") != null]
+	holder.free()
+	body.free()
+	return out
 
 
 func _check(ok: bool, msg: String) -> int:

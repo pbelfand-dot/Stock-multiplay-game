@@ -317,14 +317,15 @@ func _setup_for(id: int, mine: bool) -> Dictionary:
 				base["wheel_type"] = wt
 		elif want != str(base.get("car", "")) and want != "":
 			# (another player's: the class's car in their garage car's colours and number)
-			var paint := {"livery": base.get("livery", "plain"), "number": base.get("number", 7)}
+			var paint := {"livery": base.get("livery", "plain"), "number": base.get("number", 7), "number_on": base.get("number_on", false)}
 			if not (base.get("colours", []) as Array).is_empty():
 				paint["colours"] = base.colours
 			base = Catalog.setup(want, paint, {}, {})
 	if mode == "track":
 		# (every car at its homologated spec, as the AI's: the garage's paint and wheels, no upgrades)
 		base = Catalog.setup(str(base.get("car", "")), {"colours": base.get("colours", []), "livery": base.get("livery", "plain"),
-			"wheels": base.get("wheels", "silver"), "wheel_type": base.get("wheel_type", "stock"), "number": base.get("number", 7)}, {},
+			"wheels": base.get("wheels", "silver"), "wheel_type": base.get("wheel_type", "stock"), "number": base.get("number", 7),
+			"number_on": base.get("number_on", false)}, {},
 			{"tyre": base.get("tyre", "auto"), "preset": base.get("preset", "auto")})
 	var s := Catalog.for_stage(base, st)
 	if mode == "track" and mine:

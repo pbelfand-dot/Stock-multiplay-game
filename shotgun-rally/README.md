@@ -131,7 +131,8 @@ the old backdrop: your car flat out on a stage, filmed like rally TV.
     each car's real power, weight and drive layout.
   - Paint any car you own (main, accent and stripe colours, free). Liveries (11, from twin stripes
     to tricolore and goldline) and wheels are bought once and fit any car, the realistic ones too.
-    Pick your race number, buy three steps each of engine, tyre and brake upgrades, and pick gravel
+    Pick your race number (it names you in the timing; NUMBER ON THE DOORS puts it on the car, off by
+    default: every car is clean), buy three steps each of engine, tyre and brake upgrades, and pick gravel
     or tarmac tyres and setup (SETUP; AUTO matches the stage).
 - **Wheels** (`docs/wheels.md`): the garage's WHEELS tab picks a TYPE as well as a colour.
   - Each type is a whole assembly (rim, tyre, brake disc and caliper) fitted to the car's own wheel size at every corner.

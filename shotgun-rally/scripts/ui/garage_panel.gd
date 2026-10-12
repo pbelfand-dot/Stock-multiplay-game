@@ -366,6 +366,8 @@ func _wheel_type(id: String) -> void:
 
 
 func _number(box: VBoxContainer, setup: Dictionary) -> void:
+	var on := bool(setup.get("number_on", false))
+	box.add_child(UI.button("NUMBER ON THE DOORS: %s" % ("ON" if on else "OFF"), _number_on.bind(not on), 24, 380))
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 18)
 	row.add_child(UI.button("−", _bump.bind(-1, setup.number), 30, 70))
@@ -375,7 +377,12 @@ func _number(box: VBoxContainer, setup: Dictionary) -> void:
 	row.add_child(n)
 	row.add_child(UI.button("+", _bump.bind(1, setup.number), 30, 70))
 	box.add_child(row)
-	box.add_child(UI.label("On both front doors, black on a white roundel. 1 to 99.", 17, UI.DIM))
+	box.add_child(UI.label("ON: on both front doors, black on a white roundel. OFF: a clean car (the number still names you in the timing). 1 to 99.", 17, UI.DIM))
+
+
+func _number_on(on: bool) -> void:
+	Profile.set_paint(_car().id, "number_on", on)
+	_rebuild()
 
 
 func _bump(d: int, now: int) -> void:

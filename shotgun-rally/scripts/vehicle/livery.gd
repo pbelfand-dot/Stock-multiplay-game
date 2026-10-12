@@ -6,7 +6,8 @@ extends RefCounted
 ## on the body that point is (model units: x = back, from -0.95 at the nose; y =
 ## up, the window line at ~0.1, the sills at ~-0.22; z = left). Its shading
 ## (panel edges, grime) carries over. The race number sits in a white roundel on
-## both doors. The wheels' silver rims take the wheel colour.
+## both doors, only when the setup asks for it ("number_on": off by default, the
+## garage's NUMBER tab turns it on). The wheels' silver rims take the wheel colour.
 ## The cars with models of their own (paint_model) get the same patterns and
 ## number, mapped from their own size onto those units, in a clear-coated paint.
 
@@ -30,7 +31,7 @@ static func paint(body: MeshInstance3D, wheels: Array, setup: Dictionary, holder
 	for i in 4:
 		m.set_shader_parameter("c%d" % (i + 1), cols[i] if i < cols.size() else Color.WHITE)
 	m.set_shader_parameter("livery", IDS.get(setup.get("livery", "kestrel"), 0))
-	m.set_shader_parameter("number_tex", number_texture(holder, int(setup.get("number", 7))))
+	_number(m, setup, holder)
 	body.material_override = m
 	var wc: Color = setup.get("wheel_colour", Color(0.72, 0.73, 0.75))
 	for w in wheels:
@@ -54,7 +55,7 @@ static func paint_model(body: MeshInstance3D, surface: int, wheels: Array, setup
 	for i in 4:
 		m.set_shader_parameter("c%d" % (i + 1), cols[i] if i < cols.size() else Color.WHITE)
 	m.set_shader_parameter("livery", IDS.get(setup.get("livery", "kestrel"), 0))
-	m.set_shader_parameter("number_tex", number_texture(holder, int(setup.get("number", 7))))
+	_number(m, setup, holder)
 	var lo: Array = info.body_min
 	var hi: Array = info.body_max
 	var sill: float = lo[1] if info.get("sill") == null else float(info.sill)
@@ -80,6 +81,19 @@ static func paint_model(body: MeshInstance3D, surface: int, wheels: Array, setup
 			var sm := mi.mesh.surface_get_material(i)
 			if sm and sm.resource_name.begins_with("rim_"):
 				mi.set_surface_override_material(i, rim)
+
+
+## The roundel only when the setup has its number on (none drawn, no texture made, otherwise).
+static func _number(m: ShaderMaterial, setup: Dictionary, holder: Node) -> void:
+	var on := bool(setup.get("number_on", false))
+	m.set_shader_parameter("show_number", on)
+	if on:
+		m.set_shader_parameter("number_tex", number_texture(holder, int(setup.get("number", 7))))
+	else:
+		var old := holder.get_node_or_null("NumberViewport")
+		if old:
+			holder.remove_child(old)
+			old.queue_free()
 
 
 ## The number, black on a clear background, rendered once into a texture.
@@ -109,6 +123,7 @@ static func number_texture(holder: Node, number: int) -> Texture2D:
 
 
 const _UNIFORMS := """uniform sampler2D number_tex : source_color, filter_linear;
+uniform bool show_number = false;
 uniform vec4 c1 : source_color = vec4(0.78, 0.12, 0.1, 1.0);
 uniform vec4 c2 : source_color = vec4(1.0);
 uniform vec4 c3 : source_color = vec4(0.08, 0.08, 0.09, 1.0);
@@ -219,7 +234,7 @@ void fragment() {
 	float side = smoothstep(0.6, 0.8, abs(mn.z));
 	vec2 q = vec2(mp.x - roundel.x, mp.y - roundel.y);
 	float r = length(q);
-	if (side > 0.0 && r < roundel_r) {
+	if (show_number && side > 0.0 && r < roundel_r) {
 		vec2 uv = vec2((mp.z > 0.0 ? q.x : -q.x) / (2.0 * roundel_r) + 0.5, 0.5 - q.y / (2.0 * roundel_r));
 		vec3 disc = mix(vec3(0.95), vec3(0.04), smoothstep(roundel_r * 0.9, roundel_r * 0.94, r));
 		disc = mix(disc, vec3(0.04), texture(number_tex, uv).a);
@@ -263,7 +278,7 @@ void fragment() {
 	float side = smoothstep(0.6, 0.8, abs(mn.z));
 	vec2 q = vec2(mp.x - roundel.x, (mp.y - roundel.y) / roundel_fix);
 	float r = length(q);
-	if (side > 0.0 && r < roundel_r) {
+	if (show_number && side > 0.0 && r < roundel_r) {
 		vec2 uv = vec2((mp.z > 0.0 ? q.x : -q.x) / (2.0 * roundel_r) + 0.5, 0.5 - q.y / (2.0 * roundel_r));
 		vec3 disc = mix(vec3(0.95), vec3(0.04), smoothstep(roundel_r * 0.9, roundel_r * 0.94, r));
 		disc = mix(disc, vec3(0.04), texture(number_tex, uv).a);
