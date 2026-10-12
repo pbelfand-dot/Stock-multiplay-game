@@ -1,0 +1,8 @@
+{
+	"_about": "WOKING 600 SPIDER (600LT Spider): its driver display and its portrait centre screen are blank in the model (quads of the interior's material, their UVs on dark patches of its colour atlas), so each gets a board laid on it, measured from its faces (rays from the driver's eye; m from the steering wheel's centre, the model's axes: x right, y up, z back): a digital cluster in McLaren orange, the centre screen's pages (its menu as tabs across the top). Ambient lighting: orange, as its trim.",
+	"boards": [
+		{"page": "cluster", "bg": false, "c": [0.0, 0.059, -0.219], "w": 0.294, "h": 0.11, "normal": [-0.003, 0.17, 0.985], "lift": 0.003, "accent": "#ff8000"},
+		{"page": "nav", "c": [0.319, -0.066, -0.122], "w": 0.144, "h": 0.192, "normal": [0.001, 0.54, 0.842], "lift": 0.003, "accent": "#ff8000", "radio": "SHOTGUN FM 98.6"}
+	],
+	"ambient": {"color": "#ff8a2a", "energy": 0.2}
+}

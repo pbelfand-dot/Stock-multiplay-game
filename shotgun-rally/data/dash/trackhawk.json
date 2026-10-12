@@ -1,0 +1,18 @@
+{
+	"_about": "WARHAWK 707 (Grand Cherokee Trackhawk): its cluster's needles were cut out of the model with its steering wheel (they swung round with it as it turned): moved back into the body (body_parts). Its centre screen is the radio page painted into its own texture (jeep2018gps, 221 x 153 px, stored mirrored: flip_h; its UVs a tile over: uv_wrap): kept as painted, its clock made live. The cluster's own picture is mapped too unevenly to draw on. Box: m from the steering wheel's centre (x right, y up, z back); screen pixels: the picture as it's seen.",
+	"body_parts": [{"mat": "^Plastique_(red|noir)$", "box": [-0.13, 0.17, 0.03, 0.15, -0.12, -0.06]}],
+	"displays": [
+		{
+			"mat": "^Interieur_gps$",
+			"tex": [221, 153],
+			"uv_wrap": true,
+			"glow": "all",
+			"screens": [
+				{"page": "cluster", "rect": [0, 0, 221, 153], "flip_h": true, "accent": "#ff9a2a", "layout": {
+					"cover": [[98, 0.5, 123, 10.5, "#1b1a1b"]],
+					"text": [{"what": "clock", "at": [110.5, 5.5], "size": 8.6, "bold": false, "color": "#e6e6e6"}]
+				}}
+			]
+		}
+	]
+}

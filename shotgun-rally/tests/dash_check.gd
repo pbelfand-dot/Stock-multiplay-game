@@ -13,7 +13,8 @@ extends SceneTree
 ##   * the screens: the centre screen's page flips (M / the d-pad right) and back
 ##   * the dome light: every car has one, off, and it switches on and off
 ##   * the boards (measured quads over blank dials and screens): each there, facing the
-##     driver's eye, its page; a dial's needle follows its reading (the speed, the revs)
+##     driver's eye, its page; a dial's needle follows its reading (the speed, the revs); a
+##     board on the steering wheel turns with it
 ##   * the ambient lighting: off by day, every light on at night
 ##   * the readings: the fuel (an electric car: its charge) and the range from it; the pedals;
 ##     a painted gear selector's letter
@@ -21,7 +22,7 @@ extends SceneTree
 ##   * a painted needle taken out of a copy of the texture; a needle along an uneven scale
 ##   * a race display: its pit banner only with the pit limiter on, the lap time, the fuel in
 ##     litres, the temperatures warming up
-##   * a painted cluster laid sideways in its texture is seen the right way round, and a live
+##   * a painted cluster laid sideways (or mirrored) in its texture is seen the right way round, and a live
 ##     needle on a painted dial sweeps from its 0 to its top value
 ##   * modelled needles cut from a material the cabin's trim shares: small parts only, the
 ##     steering wheel's surfaces of it left to turn
@@ -136,6 +137,12 @@ func _spec(id: String, car, cp, dash, spec: Dictionary) -> void:
 			worst_face = minf(worst_face, nrm.dot((eye - mid).normalized()))
 		fails += _check(worst_face > 0.85 or spec.get("boards", []).any(func(x): return x.has("normal")),
 			"%s: its %d boards face the driver (worst %.2f)" % [id, dash.boards.size(), worst_face])
+		# a screen on the steering wheel (the Jesko's): its board turns with the wheel
+		var on_wheel: Array = spec.boards.filter(func(x): return x.get("on_wheel", false))
+		if not on_wheel.is_empty():
+			var sw: Node3D = car.cockpit_nodes.get("wheel")
+			var riding: Array = dash.boards.filter(func(b): return sw != null and b.get_parent() == sw)
+			fails += _check(riding.size() == on_wheel.size(), "%s: %d of its boards on the steering wheel, turning with it" % [id, riding.size()])
 	# a painted cluster's bands: one whose numbers aren't evenly spaced ("at") reaches each of its points
 	# at that point's value (the 320i's: 120 km/h at its hexagon's corner)
 	for pg in dash.pages:
@@ -203,6 +210,12 @@ func _spec(id: String, car, cp, dash, spec: Dictionary) -> void:
 			var c1: Vector2 = pg._tex_uv(pg.view.size) * ts
 			fails += _check(pg.view.size == Vector2(pg.src.size.y, pg.src.size.x) and c0.distance_to(pg.src.position) < 0.5 and c1.distance_to(pg.src.end) < 0.5,
 				"%s: its sideways cluster seen the right way round (%s from the texture's %s)" % [id, str(pg.view.size), str(pg.src.size)])
+		if pg.cfg.get("flip_h", false):                # (a page the texture holds mirrored, the Trackhawk's radio: its left is the texture's right)
+			var tsz := Vector2(pg.base.get_width(), pg.base.get_height())
+			var m0: Vector2 = pg._tex_uv(pg.view.position) * tsz
+			var want0 := Vector2(pg.src.end.x, pg.src.end.y if pg.cfg.get("flip_v", false) else pg.src.position.y)
+			fails += _check(m0.distance_to(want0) < 0.5 and pg.view == pg.src,
+				"%s: its mirrored%s page's corner is the texture's %s" % [id, " (and upside-down)" if pg.cfg.get("flip_v", false) else "", str(want0)])
 		for n in pg.cfg.get("layout", {}).get("needle", []):
 			var at0: float = pg.needle_angle(n, 0.0)
 			var at1: float = pg.needle_angle(n, float(n.max))

@@ -1,0 +1,9 @@
+{
+	"_about": "PUEBLO 392 (Durango SRT 392): an untextured cabin; its cluster is a flat back plate under the glass with a small screen between where its two dials go, and its centre screen is a plain quad in the stack: all blank, so each gets a board laid on it, measured from its faces (rays from the driver's eye through the cluster glass; m from the steering wheel's centre, the model's axes: x right, y up, z back): the speedometer (to 260 km/h) and the rev counter (red from 6,400) as round dials either side, a digital cluster on the small screen, the centre screen's pages, in red.",
+	"boards": [
+		{"page": "dial", "what": "kmh", "max": 260, "step": 20, "c": [-0.08, 0.008, -0.268], "w": 0.094, "round": true, "normal": [0.017, 0.322, 0.947], "lift": 0.004, "accent": "#f2f4f7", "needle": "#ff3a1f"},
+		{"page": "dial", "what": "rpm", "max": 7000, "step": 1, "red": 6400, "c": [0.124, 0.008, -0.272], "w": 0.094, "round": true, "normal": [0.017, 0.322, 0.947], "lift": 0.004, "accent": "#f2f4f7", "needle": "#ff3a1f"},
+		{"page": "cluster", "bg": false, "c": [0.021, 0.007, -0.268], "w": 0.096, "h": 0.078, "normal": [0.018, 0.335, 0.942], "lift": 0.002, "accent": "#e8202a"},
+		{"page": "nav", "c": [0.435, -0.025, -0.156], "w": 0.168, "h": 0.126, "normal": [0.0, 0.359, 0.934], "lift": 0.003, "accent": "#e8202a", "radio": "SHOTGUN FM 98.6"}
+	]
+}

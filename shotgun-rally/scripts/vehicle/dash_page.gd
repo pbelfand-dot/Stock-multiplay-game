@@ -109,17 +109,21 @@ func art_now() -> bool:
 
 
 ## The screen's part of the texture drawn upright (as it's seen) filling `dst` (in the page's own
-## coordinates): sideways ("transpose") or upside down ("flip_v") as the texture holds it.
+## coordinates): sideways ("transpose"), upside down ("flip_v"), mirrored ("flip_h") or turned half round
+## (both) as the texture holds it.
 func _art(dst: Rect2) -> void:
 	var k := size.x / view.size.x
 	var at := Transform2D(0.0, Vector2(k, k), 0.0, -view.position * k)
 	var sx := dst.size.x / (src.size.y if cfg.get("transpose", false) else src.size.x)
 	var sy := dst.size.y / (src.size.x if cfg.get("transpose", false) else src.size.y)
 	var local: Transform2D                          # (the region's own pixels, from its corner, to the page)
+	var fh: bool = cfg.get("flip_h", false)
 	if cfg.get("transpose", false):                 # (laid sideways: its across the texture's down)
 		local = Transform2D(Vector2(0, sy), Vector2(sx, 0), dst.position)
-	elif cfg.get("flip_v", false):                  # (stored upside down: turned the right way up)
-		local = Transform2D(Vector2(sx, 0), Vector2(0, -sy), dst.position + Vector2(0, dst.size.y))
+	elif cfg.get("flip_v", false):                  # (stored upside down, or turned half round with flip_h: the right way up)
+		local = Transform2D(Vector2(-sx if fh else sx, 0), Vector2(0, -sy), dst.position + Vector2(dst.size.x if fh else 0.0, dst.size.y))
+	elif fh:                                        # (stored mirrored)
+		local = Transform2D(Vector2(-sx, 0), Vector2(0, sy), dst.position + Vector2(dst.size.x, 0))
 	else:
 		local = Transform2D(Vector2(sx, 0), Vector2(0, sy), dst.position)
 	draw_set_transform_matrix(at * local)
@@ -249,8 +253,9 @@ func _tex_uv(p: Vector2) -> Vector2:
 	var t := p
 	if cfg.get("transpose", false):
 		t = Vector2(src.position.x + p.y, src.position.y + p.x)
-	elif cfg.get("flip_v", false):
-		t = Vector2(p.x, src.position.y * 2.0 + src.size.y - p.y)
+	elif cfg.get("flip_v", false) or cfg.get("flip_h", false):
+		t = Vector2(src.position.x * 2.0 + src.size.x - p.x if cfg.get("flip_h", false) else p.x,
+			src.position.y * 2.0 + src.size.y - p.y if cfg.get("flip_v", false) else p.y)
 	return t / Vector2(base.get_width(), base.get_height())
 
 
@@ -412,12 +417,12 @@ func _own_cluster() -> void:
 	if live.warning("shift"):
 		_lamp({"what": "shift", "at": [r.position.x + w * 0.5, r.position.y + h * 0.1], "w": w * 0.3, "size": h * 0.1})
 	# the speed in the middle, the gear beside it
-	_say(_reading("speed", d), r.position + Vector2(w * 0.42, h * 0.58), h * 0.34, Color(1, 1, 1))
+	_say(_reading("speed", d), r.position + Vector2(w * 0.42, h * 0.58), h * 0.34, Color(1, 1, 1), "center", true, w * 0.3)   # (a narrow screen's: smaller)
 	_say("km/h", r.position + Vector2(w * 0.42, h * 0.8), h * 0.075, Color(0.7, 0.72, 0.76), "center", false)
-	_say(_gear(d, str(cfg.get("style", "bmw"))), r.position + Vector2(w * 0.66, h * 0.58), h * 0.26, accent.lightened(0.3))
+	_say(_gear(d, str(cfg.get("style", "bmw"))), r.position + Vector2(w * 0.66, h * 0.58), h * 0.26, accent.lightened(0.3), "center", true, w * 0.16)
 	# the clock and the stage time in the corners, the lamps along the bottom
-	_say(_reading("clock", d), r.position + Vector2(w * 0.08, h * 0.9), h * 0.075, Color(0.8, 0.82, 0.85), "left", false)
-	_say(_reading("time", d), r.position + Vector2(w * 0.92, h * 0.9), h * 0.075, Color(0.8, 0.82, 0.85), "right", false)
+	_say(_reading("clock", d), r.position + Vector2(w * 0.08, h * 0.9), h * 0.075, Color(0.8, 0.82, 0.85), "left", false, w * 0.14)
+	_say(_reading("time", d), r.position + Vector2(w * 0.92, h * 0.9), h * 0.075, Color(0.8, 0.82, 0.85), "right", false, w * 0.18)
 	var lamps := [["handbrake", "#ff3b1f"], ["abs", "#ffb000"], ["tc", "#ffb000"]]
 	for i in lamps.size():
 		_lamp({"what": lamps[i][0], "at": [r.position.x + w * (0.42 + (i - 1) * 0.07), r.position.y + h * 0.92], "size": h * 0.08, "color": lamps[i][1]})
@@ -431,7 +436,7 @@ func _tank(d: Dictionary, bar: Rect2, accent: Color, px: float) -> void:
 	draw_rect(bar, Color(1, 1, 1, 0.1))
 	draw_rect(Rect2(bar.position, Vector2(bar.size.x * f, bar.size.y)), Color("#ffb000") if f < 0.15 else accent.lightened(0.2))
 	var ev: bool = d.get("electric", false)
-	_say(("%s  %s" % ["⚡" if ev else "FUEL", _reading("fuel", d)]), bar.position + Vector2(0, -px * 0.9), px, Color(0.82, 0.84, 0.87), "left", false)
+	_say(("%s  %s" % ["⚡" if ev else "FUEL", _reading("fuel", d)]), bar.position + Vector2(0, -px * 0.9), px, Color(0.82, 0.84, 0.87), "left", false, bar.size.x * 1.25)
 	if ev:
 		_say(_reading("range", d), bar.position + Vector2(0, bar.size.y + px * 0.9), px, Color(0.82, 0.84, 0.87), "left", false)
 

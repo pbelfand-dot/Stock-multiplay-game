@@ -1,0 +1,10 @@
+{
+	"_about": "STROMER 4 (ID.4): a low-detail cabin: no displays are modelled (its dash is a plain wall with an instrument hood over the column), so its small driver display and its centre screen are boards laid where the real ones sit, measured from the faces there (rays from the driver's eye; m from the steering wheel's centre, the model's axes: x right, y up, z back): the driver display on the hood's sloping face over the column, the centre screen on the dash wall. Electric: the charge and the range (520 km full), one gear (D).",
+	"electric": true,
+	"range_km": 520,
+	"boards": [
+		{"page": "cluster", "bg": false, "style": "ev", "c": [-0.004, 0.15, -0.042], "w": 0.13, "h": 0.055, "normal": [-0.055, 0.759, 0.649], "lift": 0.003, "accent": "#4fb3ff"},
+		{"page": "nav", "c": [0.36, 0.04, -0.058], "w": 0.24, "h": 0.14, "normal": [0.005, 0.004, 1.0], "lift": 0.004, "accent": "#4fb3ff", "radio": "SHOTGUN FM 98.6"}
+	],
+	"ambient": {"color": "#4fb3ff", "energy": 0.22}
+}

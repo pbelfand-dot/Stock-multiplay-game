@@ -4,7 +4,9 @@ extends Node3D
 ##   * "displays": a material's surfaces keep their material and get an overlay
 ##     pass on top (next_pass: the same faces drawn again, only where it has
 ##     something to show; everywhere else the original shows through, untouched):
-##       - screens: a rectangle of the surface's UVs shows a live page instead
+##       - screens: a rectangle of the surface's UVs shows a live page instead (the texture
+##         holding it upside down "flip_v", mirrored "flip_h", both: turned half round, or
+##         sideways "transpose")
 ##         (dash_page.gd: a digital cluster, the centre screen's map and driving data)
 ##       - needles: a dial painted in the texture gets a moving needle; the painted
 ##         one is covered with the dial face from a little further round
@@ -24,13 +26,15 @@ extends Node3D
 ##   * "boards": a dial or screen that's blank and can't be picked out by its faces (it
 ##     shares a material with everything round it): a quad of its own placed by measure
 ##     ("c": its middle, "w" x "h" m, facing the driver's eye or "normal"; "round": a
-##     dial's disc) a hair in front of it, showing a page ("dial", "cluster", "nav")
+##     dial's disc) a hair in front of it, showing a page ("dial", "cluster", "nav"); "on_wheel":
+##     a screen on the steering wheel, turning with it
 ##   * "wheel_parts": the steering wheel's own pieces the model left in the body (its buttons,
 ##     its LEDs, its screens: [{"mat", "box"}], the material's pieces wholly inside the box from
 ##     the wheel's centre, or "disc": [r, d], within r of its axis and d of its plane) moved onto
 ##     the steering wheel: they turn with it; "body_parts": the same for pieces of the cabin
 ##     the model left in something that moves (the Zonda's cluster bits in a brake caliper,
-##     swinging with the front wheel): moved back into the body, where they belong
+##     swinging with the front wheel; the Trackhawk's needles cut out with its steering wheel):
+##     moved back into the body, where they belong
 ##   * the warning lamps: the handbrake, ABS and traction control working, the shift
 ##     lamp near the limiter, the lights at night, the flash; all of them for a moment
 ##     when the engine starts (the bulb check)
@@ -194,7 +198,9 @@ func _overlay_material(base: Material, d: Dictionary) -> ShaderMaterial:
 		pages.append(page)
 		ov.set_shader_parameter("screen_tex%d" % k, vp.get_texture())
 		rects.append(_uv_rect(r, size))
-		flips.append(2.0 if s.get("transpose", false) else (1.0 if s.get("flip_v", false) else 0.0))
+		# (how the texture holds it: 0 upright, 1 upside down, 2 sideways, 3 mirrored, 4 turned half round)
+		var fh: bool = s.get("flip_h", false)
+		flips.append(2.0 if s.get("transpose", false) else (4.0 if fh and s.get("flip_v", false) else (3.0 if fh else (1.0 if s.get("flip_v", false) else 0.0))))
 		k += 1
 	ov.set_shader_parameter("screen_count", k)
 	ov.set_shader_parameter("screen_rect", _pad(rects, MAX_SCREENS))
@@ -481,7 +487,12 @@ func _board(b: Dictionary) -> void:
 	ov.render_priority = 0
 	ov.set_shader_parameter("round_mask", bool(b.get("round", false)))
 	mi.material_override = ov
-	car.body_model.add_child(mi)
+	var sw: Node3D = car.cockpit_nodes.get("wheel") if b.get("on_wheel", false) and "cockpit_nodes" in car else null
+	if sw:                                               # (a screen on the steering wheel: it turns with it)
+		mi.transform = _rel(sw).affine_inverse()
+		sw.add_child(mi)
+	else:
+		car.body_model.add_child(mi)
 	boards.append(mi)
 
 
@@ -499,8 +510,9 @@ func _wheel_parts(wp: Dictionary, to_body := false) -> void:
 	var onto := _rel(sw).affine_inverse()               # (the model's space -> the wheel node's)
 	var before := (body_parts if to_body else wheel_parts).size()
 	_surfaces(str(wp.mat), func(m: MeshInstance3D, si: int, base: Material):
-		if m.name in ["WheelPart", "BodyPart"] or (not to_body and (m == sw or sw.is_ancestor_of(m))) or (to_body and m.get_parent() == sw):
-			return                                       # (where it belongs already)
+		var moving: bool = car.cockpit_nodes.values().any(func(n): return n == m or (n as Node).is_ancestor_of(m)) if "cockpit_nodes" in car else false
+		if m.name in ["WheelPart", "BodyPart"] or (not to_body and (m == sw or sw.is_ancestor_of(m))) or (to_body and m.get_parent() == sw and not moving):
+			return                                       # (where it belongs already: the body's own, not a moving part's)
 		var arr := m.mesh.surface_get_arrays(si)
 		var xf := _rel(m)
 		var vs: PackedVector3Array = xf * (arr[Mesh.ARRAY_VERTEX] as PackedVector3Array)
@@ -1078,7 +1090,11 @@ void fragment() {
 		vec4 r = screen_rect[i];
 		if (inside(uv, r)) {
 			vec2 q = (uv - r.xy) / (r.zw - r.xy);
-			if (screen_flip[i] > 1.5) {
+			if (screen_flip[i] > 3.5) {
+				q = vec2(1.0) - q;              // (turned half round: upside down and mirrored)
+			} else if (screen_flip[i] > 2.5) {
+				q.x = 1.0 - q.x;                // (mirrored)
+			} else if (screen_flip[i] > 1.5) {
 				q = q.yx;                       // (a screen laid sideways in its texture: its across is the texture's down)
 			} else if (screen_flip[i] > 0.5) {
 				q.y = 1.0 - q.y;
