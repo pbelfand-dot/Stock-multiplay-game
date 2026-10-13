@@ -42,6 +42,7 @@ var shuffle := true
 var repeat := true                   # the playlist starts again at its end (off: it stops)
 var playlist := ""                   # the playlist picked (its key: the folder's name, ALL or MISC)
 var playlists: Array = []            # Library.scan
+var skipped := 0                     # audio files in the folder it can't play (M4A, FLAC ...)
 var order: Array = []                # the playlist's songs (their indices) in the order they play
 var at := -1                         # where in `order`
 var current := {}                    # the song playing or paused ({} none)
@@ -148,6 +149,7 @@ func rescan() -> void:
 		return
 	var tr_before := tracks()
 	playlists = Library.scan(root)
+	skipped = Library.skipped
 	var tr := tracks()
 	if tr.size() != tr_before.size() or order.size() != tr.size():
 		_build_order(_index_of(current))

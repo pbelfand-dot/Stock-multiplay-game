@@ -706,8 +706,9 @@ the downloads are public, so nothing copyrighted goes in them.
 2. **Each folder in it is a playlist.** `house/` and `rap/` are made for you; add your own folders
    too (`drift/`, `chill/` ...). Album folders inside a playlist count. Songs loose in `music/` are
    the **MISC** playlist, and **ALL** plays everything.
-3. Use **MP3, OGG (Vorbis) or WAV** files. The names come from the songs' tags, or else from the
-   file name (`01 - Artist - Title.mp3` shows as *Title* by *Artist*).
+3. Use **MP3, OGG (Vorbis) or WAV** files. M4A / AAC (Apple Music, iTunes) and FLAC won't play:
+   convert them to MP3 first (MUSIC counts any it finds). The names come from the songs' tags, or
+   else from the file name (`01 - Artist - Title.mp3` shows as *Title* by *Artist*).
 4. In MUSIC, pick the playlist. You get PREVIOUS / PLAY / NEXT, SHUFFLE, REPEAT, MUSIC on / off,
    the VOLUME, and a song list to click. REFRESH (or reopening the panel) finds songs you've just
    added. All of it is saved for next time.

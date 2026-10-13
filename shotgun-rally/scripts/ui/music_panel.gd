@@ -29,6 +29,7 @@ var _repeat: Button
 var _on: Button
 var _vol: HSlider
 var _back_btn: Button
+var _skipped: Label                  # "3 files can't be played here (M4A, FLAC ...)"
 
 
 func _ready() -> void:
@@ -51,6 +52,9 @@ func _ready() -> void:
 	_body = VBoxContainer.new()
 	_body.add_theme_constant_override("separation", 6)
 	v.add_child(_body)
+	_skipped = UI.label("", 15, Color(1.0, 0.7, 0.4))
+	_skipped.name = "SkippedNote"
+	v.add_child(_skipped)
 	v.add_child(UI.gap(2))
 	var foot := HBoxContainer.new()
 	foot.add_theme_constant_override("separation", 18)
@@ -265,6 +269,10 @@ func _empty() -> void:
 
 ## What's playing, how far in, the buttons' words: every change, and every frame for the clock.
 func _update_now() -> void:
+	var n: int = music.skipped
+	_skipped.text = ("%d %s here can't be played (M4A, FLAC, OPUS ...): convert %s to MP3 or OGG." % [n,
+		"file" if n == 1 else "files", "it" if n == 1 else "them"]) if n > 0 else ""
+	_skipped.visible = n > 0
 	if _now_title == null or not is_instance_valid(_now_title):
 		return
 	var cur: Dictionary = music.current

@@ -158,6 +158,7 @@ func _make_songs() -> void:
 	for i in 400:
 		junk.store_32(0xDEADBEEF ^ i)
 	junk.close()
+	_bytes(R + "/rap/apple tune.m4a", PackedByteArray([0, 0, 0, 0x20]) + "ftypM4A ".to_ascii_buffer())   # (a kind it can't play)
 	DirAccess.make_dir_recursive_absolute(R + "/empty")
 	var note := FileAccess.open(R + "/notes/readme.txt", FileAccess.WRITE) if DirAccess.make_dir_recursive_absolute(R + "/notes") == OK else null
 	if note:
@@ -271,6 +272,7 @@ func _playlists() -> void:
 		"their songs: HOUSE 3, RAP 2 (its album folder too), MISC 1, ALL every one (8): %s" % [counts])
 	var names: Array = m.playlists.map(func(p): return p.name)
 	check(names == ["ALL", "BROKEN", "HOUSE", "RAP", "MISC"], "their names: %s" % [names])
+	check(m.skipped == 1, "an M4A (which Godot can't play) left out and counted, to say so (%d)" % m.skipped)
 	var rap: Array = []
 	for p in m.playlists:
 		if p.key == "rap":
@@ -514,6 +516,8 @@ func _panel() -> void:
 	var lists: Array = p._playlist_box.get_children()
 	check(lists.size() == m.playlists.size() and p._song_btns.size() == 3, "the MUSIC panel: a button a playlist (%d), HOUSE's songs listed (%d)"
 		% [lists.size(), p._song_btns.size()])
+	var sk: Label = p.find_child("SkippedNote", true, false)
+	check(sk != null and sk.visible and sk.text.begins_with("1 file here can't be played"), "it says a file can't be played (%s)" % (sk.text if sk else "none"))
 	check(p._now_title.text == m.current.title and p._play.text == "PAUSE", "it shows the song playing (%s) and PAUSE" % p._now_title.text)
 	for b in lists:
 		if str(b.get_meta("pick")) == "list:rap":

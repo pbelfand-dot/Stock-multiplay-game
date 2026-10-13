@@ -15,6 +15,7 @@ extends RefCounted
 ## taken off, "Artist - Title" split in two.
 
 const EXTS := ["mp3", "ogg", "wav"]
+const OTHER_AUDIO := ["m4a", "aac", "flac", "opus", "wma", "aif", "aiff", "alac"]   # (Godot can't play them: counted, to say so)
 const ALL := "*"                    # the playlist keys that can't be a folder's name
 const MISC := "."
 const DEPTH := 4                    # folders inside a playlist's folder still looked into
@@ -23,12 +24,14 @@ const MAX_BYTES := 300 * 1024 * 1024   # a file bigger than this isn't loaded (i
 const README := "PUT YOUR SONGS HERE.txt"
 
 static var _cache := {}             # path -> [modified time, {title, artist}]: a rescan only reads new files
+static var skipped := 0             # the last scan's audio files that can't be played (M4A, FLAC ...)
 
 
 ## The playlists in `root` (a user:// folder), ALL first, MISC last:
 ## [{key, name, tracks: [{path, file, title, artist}]}]. Empty folders are left out.
 static func scan(root: String) -> Array:
 	var out: Array = []
+	skipped = 0
 	var d := DirAccess.open(root)
 	if d == null:
 		return out
@@ -60,9 +63,13 @@ static func _songs_in(dir: String, depth: int, deep: bool) -> Array:
 	var files: Array = Array(d.get_files())
 	files.sort_custom(func(a: String, b: String): return a.naturalnocasecmp_to(b) < 0)
 	for f in files:
-		if f.begins_with(".") or not f.get_extension().to_lower() in EXTS:
+		if f.begins_with("."):
 			continue
-		out.append(track(dir.path_join(f)))
+		var ext: String = str(f).get_extension().to_lower()
+		if ext in EXTS:
+			out.append(track(dir.path_join(f)))
+		elif ext in OTHER_AUDIO:
+			skipped += 1
 	if deep and depth < DEPTH:
 		var dirs: Array = Array(d.get_directories())
 		dirs.sort_custom(func(a: String, b: String): return a.naturalnocasecmp_to(b) < 0)
@@ -310,8 +317,9 @@ static func ensure_folder(root: String) -> void:
 	if f:
 		f.store_string("SHOTGUN RALLY plays your own music from this folder.\n\n"
 			+ "Each folder in here is a playlist: put house tracks in house/, rap in rap/, or make your own\n"
-			+ "folders (chill/, drift/ ...). MP3, OGG (Vorbis) and WAV files. Songs left loose in this folder\n"
-			+ "are the MISC playlist; ALL plays everything.\n\n"
+			+ "folders (chill/, drift/ ...). MP3, OGG (Vorbis) and WAV files (M4A, AAC and FLAC won't play:\n"
+			+ "convert them to MP3 first). Songs left loose in this folder are the MISC playlist; ALL plays\n"
+			+ "everything.\n\n"
 			+ "Pick the playlist in the game's MUSIC (the chip top right of the home screen, or the pause menu).\n"
 			+ "Keys: N the next song (SHIFT+N the one before), B music on / off.\n\n"
 			+ "Your songs stay on this computer: nothing is uploaded or sent to the others online.\n")
