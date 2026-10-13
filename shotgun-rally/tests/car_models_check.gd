@@ -173,6 +173,39 @@ func _swap() -> void:
 	car.apply_setup(Catalog.setup("kestrel"))
 	fails += _check(absf(car.mass - 1300.0) < 1.0 and spring < car.config.front_suspension.spring_rate * 0.8,
 		"the MARTELLO 037 weighs a Group B car's 960 kg, its springs softer with it; the KESTREL an R4's 1,300 (%d kg)" % car.mass)
+	# the lamps (scripts/render/car_look.gd): a tail lamp's lens a deep red that hides the white reflector behind
+	# it (a faint red over white read pink), its glow a red AgX keeps red; a headlamp's lens clear glass (no glaze)
+	var CL = load("res://scripts/render/car_look.gd")
+	var tl := StandardMaterial3D.new()
+	tl.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	tl.albedo_color = Color(0.5, 0.0, 0.0, 0.25)
+	var tail: BaseMaterial3D = CL._emissive(tl, "tail")
+	var refl := StandardMaterial3D.new()
+	refl.albedo_color = Color(1, 1, 1)
+	var tail_refl: BaseMaterial3D = CL._emissive(refl, "tail")
+	var hl := StandardMaterial3D.new()
+	hl.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	hl.albedo_color = Color(0.12, 0.12, 0.12, 0.5)
+	var head: BaseMaterial3D = CL._emissive(hl, "head")
+	var plate := StandardMaterial3D.new()                # (a headlamp all one flat colour: a reflector, not a white glaze)
+	plate.albedo_color = Color(0.9, 0.9, 0.9)
+	var head_plate: BaseMaterial3D = CL._emissive(plate, "head")
+	var cover := StandardMaterial3D.new()                # (a lens left opaque in the file, named glass: drawn as glass)
+	cover.resource_name = "Headlight_Glass"
+	cover.albedo_color = Color(0.0, 0.0, 0.0, 0.48)
+	var head_cover: BaseMaterial3D = CL._emissive(cover, "head")
+	var led := StandardMaterial3D.new()                  # (a small one the model made glow: an LED, it glows on)
+	led.albedo_color = Color(0.2, 0.2, 0.2)
+	led.emission_enabled = true
+	var head_led: BaseMaterial3D = CL._emissive(led, "head", 0.02)
+	fails += _check(tail.albedo_color.a >= 0.75 and tail.albedo_color.g < 0.05 and tail.emission.g / maxf(tail.emission.r, 1e-6) < 0.06
+		and tail_refl.albedo_color.g < 0.3 and head.albedo_color.a <= 0.2 and head.emission.r < 0.5 and CL.TAIL_GLOW.y + CL.BRAKE_GLOW <= 5.0
+		and head_plate.metallic >= 0.9 and head_plate.emission.r <= 0.35
+		and head_cover.transparency != BaseMaterial3D.TRANSPARENCY_DISABLED and head_cover.albedo_color.a <= 0.2
+		and head_led.metallic < 0.5 and head_led.emission.r > 0.9,
+		"the lamps: a tail lamp's lens deep red (alpha %.2f), its reflector red (green %.2f), its glow red (g/r %.3f, at most %.1f braking at night); a headlamp's lens clear (alpha %.2f), barely glowing, also one left opaque in the file (alpha %.2f); a flat headlamp a reflector (metallic %.1f, glow %.2f), a small LED still glowing" % [
+			tail.albedo_color.a, tail_refl.albedo_color.g, tail.emission.g / maxf(tail.emission.r, 1e-6), CL.TAIL_GLOW.y + CL.BRAKE_GLOW, head.albedo_color.a,
+			head_cover.albedo_color.a, head_plate.metallic, head_plate.emission.r])
 	print("[models] %s" % ("MODELS OK" if fails == 0 else "MODELS FAIL"))
 	quit(1 if fails > 0 else 0)
 

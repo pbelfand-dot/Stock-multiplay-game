@@ -44,6 +44,19 @@ const OTHER_LAYER := 1 << 14
 
 const TYRE_WORDS := ["tire", "tyre", "rubber", "pneumatic", "tread", "sidewall", "sidetyre"]
 
+const TAIL_RED := Color(1.0, 0.03, 0.012)          # the tail lamps' glow: a deep red that stays red under AgX
+const LENS_ALPHA := 0.9                            # a lamp material more see-through than this is its lens (glass over it)
+const LENS_GLOW := 0.4                             # ... and glows this much of the lamp's own
+const PLATE_GLOW := 0.3                            # a headlamp that's one flat colour (no lens, no picture): a reflector, glowing this much
+const EMITTER_AREA := 0.04                         # ... unless the model made it glow and it's smaller than this (m2): an LED, a running light
+## How bright the lamps glow ([day, night]: emission energy): a headlamp by day its running lights, not
+## a lamp lit full (it read as a glazed white plate); the tail lamps no brighter than stays red, the
+## brakes brighter red on top.
+const HEAD_GLOW := Vector2(0.9, 5.5)
+const TAIL_GLOW := Vector2(0.6, 1.5)
+const BRAKE_GLOW := 3.0
+const BOTH_GLOW := Vector2(0.8, 3.0)
+
 const LAMP_WORDS := ["light", "lamp", "lens", "glow", "beam", "xenon", "drl", "luminus", "emis", "tail",
 	"brakel", "brake l", "brake_l", "lcover", "redglass", "red_glass", "glassred", "glass_red", "red glass", "headl"]
 const NOT_LAMP := ["interior", "int_", "dash", "gauge", "guage", "screen", "lcd", "display", "monitor", "button", "seat",
@@ -131,12 +144,20 @@ func _scan() -> void:
 				var at := xf * _surface_box(m3.mesh, i)
 				if kind in ["head", "tail"]:
 					_lamp_surfs[kind].append([m3.mesh, i, xf])
-				m3.set_surface_override_material(i, _lamp_material(src, kind, at))
+				m3.set_surface_override_material(i, _lamp_material(src, kind, at, _surface_area(m3.mesh, i) if kind == "head" else -1.0))
 				continue
 			if gloss and n.begins_with("glass"):
 				var g := (src as BaseMaterial3D).duplicate() as BaseMaterial3D
 				g.roughness = minf(g.roughness, 0.05)
 				g.metallic_specular = maxf(g.metallic_specular, 0.65)
+				if g.metallic > 0.3 and g.transparency == BaseMaterial3D.TRANSPARENCY_DISABLED and g.albedo_texture == null:
+					var c := g.albedo_color
+					if c.r + c.g + c.b > 1.5 and _surface_area(m3.mesh, i) < 0.6:
+						g.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA     # (a small light one, opaque silver in the file:
+						g.albedo_color = Color(0.92, 0.94, 0.97, 0.16)       # a lamp's clear cover, drawn as glass)
+					else:
+						g.albedo_color = Color(0.03, 0.035, 0.04)   # (an opaque window left a metal mirror: dark tinted glass)
+				g.metallic = 0.0                             # (glass isn't metal: a metallic one was a coloured mirror)
 				m3.set_surface_override_material(i, g)
 			elif gloss and "chrome" in n:
 				var c := (src as BaseMaterial3D).duplicate() as BaseMaterial3D
@@ -195,6 +216,21 @@ func _model_xf(n: Node3D) -> Transform3D:
 
 
 ## A surface's box (the vertices its triangles use: a split surface shares its vertex arrays).
+## A surface's area (m2, the mesh's own units).
+static func _surface_area(mesh: Mesh, i: int) -> float:
+	var arr := mesh.surface_get_arrays(i)
+	var v: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
+	var idx = arr[Mesh.ARRAY_INDEX]
+	var a := 0.0
+	if idx is PackedInt32Array and not (idx as PackedInt32Array).is_empty():
+		for k in range(0, idx.size() - 2, 3):
+			a += (v[idx[k + 1]] - v[idx[k]]).cross(v[idx[k + 2]] - v[idx[k]]).length() * 0.5
+	else:
+		for k in range(0, v.size() - 2, 3):
+			a += (v[k + 1] - v[k]).cross(v[k + 2] - v[k]).length() * 0.5
+	return a
+
+
 static func _surface_box(mesh: Mesh, i: int) -> AABB:
 	var arr := mesh.surface_get_arrays(i)
 	var v: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
@@ -526,14 +562,41 @@ static func _kind_in(box: AABB, at: AABB) -> String:
 	return ""
 
 
-## A lamp's material: a copy of its own, glowing (masked by its texture), white or red.
-static func _emissive(src: BaseMaterial3D, kind: String) -> BaseMaterial3D:
+## A lamp's material: a copy of its own, glowing (masked by its texture), white or red. A see-through
+## lens over the lamp (plain tinted glass: alpha under LENS_ALPHA, no picture of its own) is glass, not a glowing glaze: a headlamp's clear (its
+## reflectors and LEDs show through it, the light theirs), a tail lamp's a deep red (a faint red over a white
+## reflector read pink), both with only a little of the glow. A headlamp that's one flat colour (no lens,
+## no picture) is its reflector: polished metal, a little of the glow (PLATE_GLOW), but a small one the
+## model itself made glow (area, m2: under EMITTER_AREA) is an LED or a running light and glows. A tail lamp's own parts
+## are red where they're lit and where they aren't (TAIL_RED: AgX takes a bright, not quite pure red to pink).
+static func _emissive(src: BaseMaterial3D, kind: String, area := -1.0) -> BaseMaterial3D:
 	var m := src.duplicate() as BaseMaterial3D
 	m.emission_enabled = true
 	var col := Color(1.0, 0.95, 0.86)
+	var glassy := m.transparency != BaseMaterial3D.TRANSPARENCY_DISABLED or _glass_named(String(src.resource_name).to_lower())
+	var lens := glassy and m.albedo_color.a < LENS_ALPHA and m.albedo_texture == null
+	if lens and m.transparency == BaseMaterial3D.TRANSPARENCY_DISABLED:
+		m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA   # (a lens left opaque in the file: drawn as glass)
 	if kind == "tail":
+		col = TAIL_RED
 		var a := m.albedo_color
-		col = Color(1.0, 0.07, 0.03) if not (a.r > 0.4 and a.r > a.g * 2.0) else Color(1.0, a.g / a.r * 0.5, a.b / a.r * 0.5)
+		if lens:                                     # (a deep red lens, as a real one filters the light)
+			m.albedo_color = Color(0.5, 0.012, 0.01, maxf(a.a, 0.78))
+		else:                                        # (a white reflector or LEDs behind: red too)
+			m.albedo_color = Color(a.r, a.g * 0.22, a.b * 0.2, a.a)
+	elif lens and kind == "head":                    # (clear glass: what's behind it shows, lit)
+		m.albedo_color = Color(0.92, 0.94, 0.97, minf(m.albedo_color.a, 0.16))
+		m.roughness = minf(m.roughness, 0.05)
+		m.metallic = 0.0
+		m.metallic_specular = maxf(m.metallic_specular, 0.6)
+	elif kind == "head" and m.albedo_texture == null and m.emission_texture == null \
+			and not (src.emission_enabled and area >= 0.0 and area < EMITTER_AREA):
+		m.albedo_color = Color(0.84, 0.86, 0.88, m.albedo_color.a)   # (one flat colour: a polished reflector, not a white glaze)
+		m.metallic = 1.0
+		m.roughness = minf(m.roughness, 0.12)
+		col = Color(col.r * PLATE_GLOW, col.g * PLATE_GLOW, col.b * PLATE_GLOW)
+	if lens:
+		col = Color(col.r * LENS_GLOW, col.g * LENS_GLOW, col.b * LENS_GLOW)
 	if m.albedo_texture:
 		m.emission_texture = m.albedo_texture
 		m.emission_operator = BaseMaterial3D.EMISSION_OP_MULTIPLY
@@ -541,6 +604,13 @@ static func _emissive(src: BaseMaterial3D, kind: String) -> BaseMaterial3D:
 		m.emission_operator = BaseMaterial3D.EMISSION_OP_ADD
 	m.emission = col
 	return m
+
+
+static func _glass_named(n: String) -> bool:
+	for w in ["glass", "lens", "cover", "clear"]:
+		if w in n:
+			return true
+	return false
 
 
 ## Traffic and other plain car models (not a RallyCar): their lamps glow, running lights by
@@ -568,7 +638,7 @@ static func glow_model(root: Node3D, sides := false) -> void:
 		box = b if box.size == Vector3.ZERO else box.merge(b)
 		meshes.append([m3, xf])
 	var nt := snappedf(WorldMaterials.night_amount, 0.1)
-	var energy := {"head": lerpf(1.8, 7.0, nt), "tail": lerpf(0.8, 3.0, nt), "both": lerpf(1.1, 4.0, nt)}
+	var energy := {"head": lerpf(HEAD_GLOW.x, HEAD_GLOW.y, nt), "tail": lerpf(TAIL_GLOW.x, TAIL_GLOW.y, nt), "both": lerpf(BOTH_GLOW.x, BOTH_GLOW.y, nt)}
 	var boxes := {}
 	var surfs := {"head": [], "tail": []}                # [mesh, surface, xf]: each side's lamp found in them
 	for e in meshes:
@@ -587,7 +657,7 @@ static func glow_model(root: Node3D, sides := false) -> void:
 				var at := (e[1] as Transform3D) * _surface_box(m3.mesh, i)
 				var kind: String = (str(kinds[i]) if str(kinds[i]) != "none" else "") if kinds.has(i) else _kind_in(box, at)
 				if kind != "":
-					var lm := _emissive(src, kind)
+					var lm := _emissive(src, kind, _surface_area(m3.mesh, i) if kind == "head" else -1.0)
 					lm.emission_energy_multiplier = energy[kind]
 					lm.set_meta("at", at)
 					lm.set_meta("kind", kind)
@@ -643,8 +713,8 @@ static func _xf_in(n: Node3D, root: Node3D) -> Transform3D:
 	return xf
 
 
-func _lamp_material(src: BaseMaterial3D, kind: String, at: AABB) -> BaseMaterial3D:
-	var m := _emissive(src, kind)
+func _lamp_material(src: BaseMaterial3D, kind: String, at: AABB, area := -1.0) -> BaseMaterial3D:
+	var m := _emissive(src, kind, area)
 	match kind:
 		"head":
 			_head.append(m)
@@ -730,14 +800,14 @@ func _light_mirror() -> void:
 
 ## The lamps' glow: running lights by day, full at night; the tail lamps brighter as the brake goes on.
 func _glow(brake: float) -> void:
-	var head := lerpf(2.2, 7.0, _nt)
-	var tail := lerpf(0.9, 3.0, _nt) + brake * 7.0
+	var head := lerpf(HEAD_GLOW.x, HEAD_GLOW.y, _nt)
+	var tail := lerpf(TAIL_GLOW.x, TAIL_GLOW.y, _nt) + brake * BRAKE_GLOW
 	for m in _head:
 		m.emission_energy_multiplier = head
 	for m in _tail:
 		m.emission_energy_multiplier = tail
 	for m in _both:
-		m.emission_energy_multiplier = lerpf(1.2, 4.0, _nt)
+		m.emission_energy_multiplier = lerpf(BOTH_GLOW.x, BOTH_GLOW.y, _nt)
 
 
 ## The contact shadow: a quad the car's footprint (a little more), darkening the ground
