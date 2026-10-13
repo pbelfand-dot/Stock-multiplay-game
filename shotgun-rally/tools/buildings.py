@@ -28,7 +28,7 @@ Spec: {"mode": "building", "srcs": [blend files, relative to assets/environment_
 stem or object name: part name}, "out": a folder, "tris", "tex", "tex_big", "ao_samples"}.
 The source files are only read (opened with scripts off: blender -b -Y).
 """
-import bpy, bmesh, json, math, os, re, subprocess, tempfile
+import bpy, bmesh, json, math, os, re, shutil, subprocess, tempfile
 import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -395,6 +395,7 @@ def convert_building(o, name, out_path, target, tex_max, samples, tex_big=0):
         export_apply=True, export_materials="EXPORT", export_image_format="AUTO")
     r = subprocess.run(["python3", "-I", os.path.join(HERE, "glb_webp.py"), out_path], capture_output=True, text=True)
     print((r.stdout + r.stderr).strip())
+    shutil.rmtree(os.path.dirname(tmp), ignore_errors=True)
     d = low.dimensions
     print("building %-10s %7d -> %6d tris, %d px at %.1f px/m (UVs %.0f %% of the image), %d loose parts (%d verts cut), %d glass px (%d glass materials), %.1f x %.1f x %.1f m (source %.1f x %.1f x %.1f) -> %s (%.1f MB)" % (
         name, src_tris, t, px, s, uv_area * 100.0, n_parts, n_gone, n_glass, n_glass_mats, d.x, d.y, d.z, sd.x, sd.y, sd.z, os.path.basename(out_path), os.path.getsize(out_path) / 1e6))
