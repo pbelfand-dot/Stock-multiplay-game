@@ -357,7 +357,8 @@ upgrades) and weight.
 ## The model audit (October 2026)
 
 Every car was checked with `tools/model_audit.py` and pictured with `tools/car_shots.gd`. What was
-wrong and how each was put right (in its `tools/cars/<id>.json`):
+wrong and how each was put right (in its `tools/cars/<id>.json`). A second, fuller pass (the lamps of
+every car, the wheels, z-fighting, the glass, how each car sits), car by car: `docs/CAR_AUDIT.md`.
 
 - **CENTURIA 16 (Chiron):** its left wheels were inside out on one-sided materials, so their
   rims vanished from outside (you saw the hollow back of the wheel and the brake); the old
