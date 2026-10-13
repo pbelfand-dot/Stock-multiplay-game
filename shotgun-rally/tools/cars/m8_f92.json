@@ -10,7 +10,7 @@
  "materials": [["^m8f92_glass$", "glass"], ["^Window$", "glass"], ["^m8f92_Tire1A$", "rubber"]],
  "wheel_faces": 10000, "body_faces": 200000, "tex_max": 1024,
  "cockpit": {"gearbox": "auto", "wheel": {"parts": ["^m8f92_steer(\\.\\d+)?$"]}},
- "glb_patch": {"materials": {"^m8f92$": {"color": [0.04, 0.04, 0.045]},
+ "glb_patch": {"drop_dupes": [{"keep": "^m8f92_Carbon1$", "drop": "^m8f92_(Coloured|SpecularTintA|Alu)$"}, {"keep": "^m8f92_InteriorA$", "drop": "^m8f92_InteriorColor2$"}], "body_to_wheels": {"min": 0.15}, "materials": {"^m8f92$": {"color": [0.04, 0.04, 0.045]},
                                "^m8f92_glass_red$": {"color": [0.55, 0.02, 0.02], "emissive": [0.35, 0.0, 0.0]},
                                "^m8f92_taillight$": {"color": [0.6, 0.03, 0.03], "emissive": [0.5, 0.0, 0.0]},
                                "^m8f92_signal_[LR]$": {"color": [0.9, 0.42, 0.03]}}}}

@@ -1818,6 +1818,6 @@ print("alpha: %d blended materials -> %d opaque, %d cut out, %d left blended (%s
 # the spec's material fixes ("glb_patch": tools/glb_patch.py)
 if spec.get("glb_patch"):
     from glb_patch import apply as glb_patch
-    print("patched materials: %s" % glb_patch(glb, spec["glb_patch"]))
+    print("patched materials: %s" % glb_patch(glb, spec["glb_patch"], parts))
 json.dump(parts, open(os.path.join(out_dir, "parts.json"), "w"), indent=2)
 print("wrote %s (%d KB), body %d triangles" % (glb, os.path.getsize(glb) // 1024, tris(body)))

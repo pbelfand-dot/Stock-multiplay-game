@@ -5,4 +5,5 @@
  "materials": [["^Glass$", "glass"]],
  "finish": [["^(Black |Plastic with scratches|Carbon Fiber|Buttons|Seats|Steering wheel)$", {"metal": 0.0, "rough": 0.65}]],
  "wheel_faces": 8000, "body_faces": 150000, "tex_max": 1024, "tex_format": "webp",
- "cockpit": {"gearbox": "h6", "wheel": {"parts": ["^Cylinder\\.010$"]}, "shifter": {"parts": ["^Gear Lever$"]}}}
+ "cockpit": {"gearbox": "h6", "wheel": {"parts": ["^Cylinder\\.010$"]}, "shifter": {"parts": ["^Gear Lever$"]}},
+ "glb_patch": {"drop_dupes": [{"keep": "^Orange$", "drop": "^Chrome$"}]}}

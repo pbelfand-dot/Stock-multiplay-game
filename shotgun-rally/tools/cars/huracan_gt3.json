@@ -5,4 +5,5 @@
  "decimate_parts": [["^Body-Fasteners", 0.12], ["^Body-Hoodpin", 0.2], ["^Body-CarbonFiber", 0.35], ["^Body-EngineCover", 0.35], ["^Interior-", 0.3]],
  "cockpit": {"gearbox": "seq", "eye": [-0.32, 0.0, 0.91],
   "wheel": {"box": [-0.58, -0.14, 0.38, 0.62, 0.55, 0.98], "axis": [0.0, -0.94, 0.34], "radius": 0.14}},
- "lamps": [{"kind": "head", "mat": "^glass_GLASS$", "box": [-0.86, -0.45, 0.42, 0.64, -2.3, -1.4]}, {"kind": "head", "mat": "^glass_GLASS$", "box": [0.45, 0.86, 0.42, 0.64, -2.3, -1.4]}, {"kind": "tail", "mat": "^glass_GLASS$", "box": [-0.9, -0.38, 0.66, 0.84, 1.6, 2.2]}, {"kind": "tail", "mat": "^glass_GLASS$", "box": [0.38, 0.9, 0.66, 0.84, 1.6, 2.2]}]}
+ "lamps": [{"kind": "head", "mat": "^glass_GLASS$", "box": [-0.86, -0.45, 0.42, 0.64, -2.3, -1.4]}, {"kind": "head", "mat": "^glass_GLASS$", "box": [0.45, 0.86, 0.42, 0.64, -2.3, -1.4]}, {"kind": "tail", "mat": "^glass_GLASS$", "box": [-0.9, -0.38, 0.66, 0.84, 1.6, 2.2]}, {"kind": "tail", "mat": "^glass_GLASS$", "box": [0.38, 0.9, 0.66, 0.84, 1.6, 2.2]}],
+ "glb_patch": {"body_to_wheels": {"min": 0.15}}}

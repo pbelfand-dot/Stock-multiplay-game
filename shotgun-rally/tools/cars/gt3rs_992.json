@@ -5,4 +5,5 @@
  "wheel_faces": 12000, "caliper_faces": 3000, "body_faces": 160000, "body_least": 0.1, "tex_max": 1024, "tex_format": "webp",
  "cockpit": {"gearbox": "auto", "wheel": {"mats": ["^Wheel_Paint_Red_30$"]}},
  "decimate_parts": [["^Object_(706|728|991)$", 0.35]],
- "lamps": [{"kind": "head", "mat": "^Wheel_Paint_Red_5[01]$", "box": [-0.85, 0.85, 0.55, 0.8, -1.95, -1.55]}, {"kind": "tail", "mat": "^Wheel_Paint_Red_(3|59)$", "box": [-0.8, 0.8, 0.68, 0.8, 1.7, 2.25]}]}
+ "lamps": [{"kind": "head", "mat": "^Wheel_Paint_Red_5[01]$", "box": [-0.85, 0.85, 0.55, 0.8, -1.95, -1.55]}, {"kind": "tail", "mat": "^Wheel_Paint_Red_(3|59)$", "box": [-0.8, 0.8, 0.68, 0.8, 1.7, 2.25]}],
+ "glb_patch": {"materials": {"^Wheel_Paint_Red_2$": {"color": [0.92, 0.94, 0.97, 0.12], "alpha": "BLEND", "metal": 0.0, "rough": 0.05}}, "drop_dupes": [{"keep": "^Wheel_Paint_Red_2$", "drop": "^Wheel_Paint_Red$"}, {"keep": "^Wheel_Paint_Red_51$", "drop": "^Wheel_Paint_Red_0$"}]}}

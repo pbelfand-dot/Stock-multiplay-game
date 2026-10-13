@@ -7,4 +7,5 @@
  "decimate_parts": [["^(DualTipMuffler|Radio|Nut\\.|Hex Bolt|Screw/Rivet)", 0.15]],
  "wheel_faces": 12000, "body_faces": 200000, "body_least": 0.15, "tex_max": 1024,
  "cockpit": {"gearbox": "h5", "wheel": {"parts": ["^S13 240SX Stock Steering Wheel$"]}, "shifter": {"parts": ["^S13 240SX Interior\\.003$"]}},
- "lamps": [{"kind": "head", "mat": "^glass_Glass$", "box": [-0.72, -0.28, 0.44, 0.64, -2.3, -1.8]}, {"kind": "head", "mat": "^glass_Glass$", "box": [0.28, 0.72, 0.44, 0.64, -2.3, -1.8]}]}
+ "lamps": [{"kind": "head", "mat": "^glass_Glass$", "box": [-0.72, -0.28, 0.44, 0.64, -2.3, -1.8]}, {"kind": "head", "mat": "^glass_Glass$", "box": [0.28, 0.72, 0.44, 0.64, -2.3, -1.8]}],
+ "glb_patch": {"body_to_wheels": {"min": 0.15}}}

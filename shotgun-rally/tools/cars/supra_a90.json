@@ -5,4 +5,5 @@
  "materials": [["^Window$", "glass"], ["^Monitor$", {"texture": "monitor.png", "rough": 0.3, "emit": [0.05, 0.05, 0.06]}], ["^Screen$", {"texture": "screen.png", "rough": 0.3}]],
  "wheel_faces": 12000, "body_faces": 230000, "tex_max": 1024, "tex_format": "webp",
  "decimate_parts": [["^(Dash|Seat\\.[LR])$", 0.6]],
- "cockpit": {"gearbox": "auto", "wheel": {"parts": ["^Steer$"]}}}
+ "cockpit": {"gearbox": "auto", "wheel": {"parts": ["^Steer$"]}},
+ "glb_patch": {"body_to_wheels": {"min": 0.15}}}

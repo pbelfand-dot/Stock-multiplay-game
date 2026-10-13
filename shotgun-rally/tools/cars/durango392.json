@@ -10,4 +10,5 @@
  "wheel_faces": 9000,
  "body_faces": 170000,
  "tex_max": 1024,
- "cockpit": {"gearbox": "auto", "wheel": {"box": [-0.6, -0.19, 0.28, 0.56, 0.98, 1.37], "axis": [0.0, -0.89, 0.45]}}}
+ "cockpit": {"gearbox": "auto", "wheel": {"box": [-0.6, -0.19, 0.28, 0.56, 0.98, 1.37], "axis": [0.0, -0.89, 0.45]}},
+ "glb_patch": {"drop_dupes": [{"keep": "^headlight_inner$", "drop": "^Brake1Mtl$"}]}}

@@ -3,4 +3,5 @@
  "paint": ["^CarPaint$"], "glass": ["^glass$", "^Window$", "^glass_surr$"],
  "materials": [["^glass$", "glass"], ["^Window$", "glass"], ["^glass_surr$", "glass"]],
  "wheel_faces": 12000, "caliper_faces": 3000, "body_faces": 150000, "body_least": 0.12, "tex_max": 1024, "tex_format": "webp",
- "cockpit": {"gearbox": "auto", "eye": [-0.35, -0.62, 1.08], "wheel": {"mats": ["^Int_", "^INT_Plastic$", "^Stitch"], "box": [-0.6, -0.12, -0.32, -0.06, 0.62, 1.12], "cut": true, "axis": [0.0, -0.92, 0.38], "radius": 0.18}}}
+ "cockpit": {"gearbox": "auto", "eye": [-0.35, -0.62, 1.08], "wheel": {"mats": ["^Int_", "^INT_Plastic$", "^Stitch"], "box": [-0.6, -0.12, -0.32, -0.06, 0.62, 1.12], "cut": true, "axis": [0.0, -0.92, 0.38], "radius": 0.18}},
+ "glb_patch": {"body_to_wheels": {"min": 0.15, "caliper_mats": ["^calipers$"]}}}

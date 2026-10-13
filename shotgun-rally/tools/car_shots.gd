@@ -18,11 +18,13 @@ const VIEWS := [
 ]
 
 ## "--set=wheels": each wheel close up from outside instead (FL, FR, RL, RR)
+## "--steer=deg": the front wheels turned that far (right +): what turns with them and what doesn't
 const WHEEL_VIEWS := [[-1, -1], [1, -1], [-1, 1], [1, 1]]
 
 var out_dir := "user://car_shots"
 var view_set := "car"
 var wait := 3
+var steer_deg := 0.0
 var ids: Array = []
 
 
@@ -36,6 +38,8 @@ func _initialize() -> void:
 			view_set = a.trim_prefix("--set=")
 		elif a.begins_with("--wait="):
 			wait = int(a.trim_prefix("--wait="))
+		elif a.begins_with("--steer="):
+			steer_deg = float(a.trim_prefix("--steer="))
 	if ids.is_empty():
 		for e in VehicleRegistry.all():
 			if str(e.get("model", "")) != "":
@@ -90,9 +94,12 @@ func _car(id: String) -> Node3D:
 		var car = load("res://scripts/vehicle/rally_car.gd").new()
 		car.setup = Catalog.setup(id, {}, {}, {"tyre": "tarmac", "preset": "tarmac"})
 		root.add_child(car)
-		car.set_simulating(false)
+		car.park_still()                              # (its wheels at their standing squash, as the garage shows it)
 		car.set_outside(true)
 		car.place(Vector3.ZERO, 0.0)
+		if steer_deg != 0.0:                          # (held: nothing simulated puts it back)
+			car.steer = deg_to_rad(steer_deg)
+			car._wheel_angles()
 		return car
 	var m := str(e.get("traffic", {}).get("model", e.model))
 	var n: Node3D = (load("res://assets/models/cars/%s/%s.glb" % [m, m]) as PackedScene).instantiate()
@@ -147,7 +154,7 @@ func _run() -> void:
 			var s := shots[k]
 			s.resize(hw, hh, Image.INTERPOLATE_BILINEAR)
 			sheet.blit_rect(s, Rect2i(0, 0, hw, hh), Vector2i((k % 2) * hw, (k / 2) * hh))
-		sheet.save_png(out_dir.path_join(id + ("_wheels" if view_set == "wheels" else "") + ".png"))
+		sheet.save_png(out_dir.path_join(id + ("_wheels" if view_set == "wheels" else "") + ("_steer" if steer_deg != 0.0 else "") + ".png"))
 		print("[shots] %s" % id)
 		car.queue_free()
 		await process_frame

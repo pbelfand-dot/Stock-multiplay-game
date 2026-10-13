@@ -4,7 +4,8 @@ extends SceneTree
 ##   * it builds: its body, four wheels where its physics wheels are, its paint
 ##     (the livery shader on the "paint" surface), its own numbers (weight, engine)
 ##   * standing, it sits on its wheels: all four down, the model's tyres on the
-##     ground (within 3 cm), the body clear of it
+##     ground (within 3 cm), the body clear of it; each wheel turns about its own
+##     middle, nothing else spins with it, both of an axle the same tyre
 ##   * flat out from a standstill: 0-100 km/h in a sane time for that car
 ##     (its registry entry's checks: the real car's, give or take the game's tyres), the right wheels
 ##     driven (rear-drive: the fronts roll free; front-drive: the rears)
@@ -148,6 +149,56 @@ func _standing(id: String) -> void:
 	var body := bm.get_node("Body") as MeshInstance3D
 	aabb = body.global_transform * body.get_aabb()
 	fails += _check(aabb.position.y > 0.0 and aabb.position.y < 0.4, "%s: the body clear of the ground (its lowest point %.2f m up)" % [id, aabb.position.y])
+	# its wheels: each turns about its own middle (the tread's, within 2.5 cm of the steering pivot), only
+	# the wheel spins (nothing spinning with it much wider than its tread: no suspension arms), and the
+	# two of each axle the same tyre (treads within 3 cm)
+	var treads := []
+	var bad := []
+	for k in 4:
+		var tr := _tread(car._model_wheels[k][1])
+		treads.append(tr)
+		if absf(tr.x) > 0.025 or tr.z > maxf(tr.y * 2.4, 0.6):
+			bad.append("%s middle %+.3f, tread %.3f, the spinning part %.3f across" % [["FL", "FR", "RL", "RR"][k], tr.x, tr.y, tr.z])
+	for a in [0, 2]:
+		if absf(treads[a].y - treads[a + 1].y) > 0.03:
+			bad.append("treads %.3f / %.3f" % [treads[a].y, treads[a + 1].y])
+	fails += _check(bad.is_empty(), "%s: its wheels turn about their middles, nothing else spins with them, each axle one tyre%s" % [
+		id, "" if bad.is_empty() else " (" + "; ".join(bad) + ")"])
+
+
+## A wheel's spinning meshes (in its spinner's frame, its axle x): Vector3(the tread's middle across,
+## the tread's width, the whole spinning part's width). The tread: what lies within 7 % of the
+## outermost radius.
+func _tread(spinner: Node3D) -> Vector3:
+	var pts := PackedVector3Array()
+	for mi in spinner.find_children("*", "MeshInstance3D", true, false):
+		var m := mi as MeshInstance3D
+		if m.mesh == null or not m.is_visible_in_tree():
+			continue
+		var xf: Transform3D = spinner.global_transform.affine_inverse() * m.global_transform
+		for s in m.mesh.get_surface_count():
+			var arr := m.mesh.surface_get_arrays(s)
+			var idx: PackedInt32Array = arr[Mesh.ARRAY_INDEX]
+			var v: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
+			if idx.is_empty():
+				pts.append_array(xf * v)
+			else:
+				for i2 in idx:
+					pts.append(xf * v[i2])
+	var R := 0.0
+	var lo := INF
+	var hi := -INF
+	for p in pts:
+		R = maxf(R, Vector2(p.y, p.z).length())
+		lo = minf(lo, p.x)
+		hi = maxf(hi, p.x)
+	var tlo := INF
+	var thi := -INF
+	for p in pts:
+		if Vector2(p.y, p.z).length() > R * 0.93:
+			tlo = minf(tlo, p.x)
+			thi = maxf(thi, p.x)
+	return Vector3((tlo + thi) * 0.5, thi - tlo, hi - lo)
 
 
 func _swap() -> void:

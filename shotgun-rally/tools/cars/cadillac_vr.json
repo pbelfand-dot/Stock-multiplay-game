@@ -4,4 +4,5 @@
  "paint": ["^Body$"], "glass": ["^Glass$", "^windows_ext$"],
  "materials": [["^Glass$", "glass"], ["^windows_ext$", "glass"]],
  "wheel_faces": 12000, "body_faces": 160000, "tex_max": 1024,
- "cockpit": {"gearbox": "auto", "wheel": {"parts": ["^STEER_HR_SUB"]}}}
+ "cockpit": {"gearbox": "auto", "wheel": {"parts": ["^STEER_HR_SUB"]}},
+ "glb_patch": {"body_to_wheels": {"min": 0.15}}}

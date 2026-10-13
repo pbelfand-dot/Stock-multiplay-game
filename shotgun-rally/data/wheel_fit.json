@@ -111,13 +111,13 @@
    },
    "oldsmith_dish": {
     "ok": true,
-    "clear_mm": 0.0,
+    "clear_mm": 1.0,
     "why": ""
    },
    "kaze_wide": {
     "ok": false,
     "clear_mm": 0.2,
-    "why": "the tyre touches the body: 974 points, front left, half lock, half bump"
+    "why": "the tyre touches the body: 529 points, front left, straight, full bump"
    }
   },
   "bolide": {
@@ -491,38 +491,38 @@
   "g63_w463": {
    "strada_5": {
     "ok": true,
-    "clear_mm": 0.2,
+    "clear_mm": 0.0,
     "why": ""
    },
    "torre_10": {
     "ok": true,
-    "clear_mm": 0.2,
+    "clear_mm": 0.0,
     "why": ""
    },
    "kaze_split": {
     "ok": true,
-    "clear_mm": 0.2,
+    "clear_mm": 0.0,
     "why": ""
    },
    "kreuz_lattice": {
     "ok": true,
-    "clear_mm": 0.2,
+    "clear_mm": 0.0,
     "why": ""
    },
    "meridian_city": {
     "ok": true,
-    "clear_mm": 0.2,
+    "clear_mm": 0.0,
     "why": ""
    },
    "oldsmith_dish": {
     "ok": true,
-    "clear_mm": 0.5,
+    "clear_mm": 0.3,
     "why": ""
    },
    "kaze_wide": {
     "ok": false,
     "clear_mm": 1.7,
-    "why": "the tyre touches the body: 25 points, front right, full lock, at ride height"
+    "why": "the tyre touches the body: 24 points, front left, full lock, at ride height"
    }
   },
   "gt2rs_cs": {
@@ -1356,7 +1356,7 @@
    "kaze_wide": {
     "ok": false,
     "clear_mm": 0.0,
-    "why": "the tyre touches the body: 2430 points, front left, full lock, at ride height"
+    "why": "the tyre touches the body: 2425 points, front left, full lock, at ride height"
    }
   },
   "s15": {
@@ -1504,7 +1504,7 @@
    "kaze_wide": {
     "ok": false,
     "clear_mm": 0.2,
-    "why": "the tyre touches the body: 1248 points, front left, straight, full bump"
+    "why": "the tyre touches the body: 1228 points, front left, straight, full bump"
    }
   },
   "trackhawk": {
@@ -2059,7 +2059,7 @@
    "kaze_wide": {
     "ok": false,
     "clear_mm": 0.1,
-    "why": "the tyre touches the body: 1705 points, front left, half lock, half bump"
+    "why": "the tyre touches the body: 306 points, front left, half lock, half bump"
    }
   },
   "slr722": {

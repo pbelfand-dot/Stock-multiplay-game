@@ -1,6 +1,6 @@
 {"id": "clk_dtm", "front": "-Y", "wheelbase": 2.695,
  "wheel_mats": ["^rim\\.", "^tire\\.", "^disc\\."], "caliper_mats": ["^caliper\\."],
  "glass": ["^glass"], "materials": [["^glass", "glass"]],
- "glb_patch": {"materials": {"^body\\.007$": {"no_uv_transform": true, "metal": 0.05, "rough": 0.3}}},
+ "glb_patch": {"body_to_wheels": {"min": 0.15}, "materials": {"^body\\.007$": {"no_uv_transform": true, "metal": 0.05, "rough": 0.3}}},
  "wheel_faces": 8000, "caliper_faces": 2000, "body_faces": 90000, "body_least": 0.3, "tex_max": 1024, "tex_format": "webp",
  "cockpit": {"gearbox": "seq", "eye": [-0.36, -0.42, 1.06], "wheel": {"mats": ["^mottled\\.", "^badge_cp\\.", "^metal\\.003$", "^plastic\\.005$"], "box": [-0.55, -0.17, -0.02, 0.07, 0.66, 0.92], "cut": true}}}

@@ -184,5 +184,5 @@
     -1.6
    ]
   }
- ]
-}
+ ],
+ "glb_patch": {"body_to_wheels": {"min": 0.15}}}
