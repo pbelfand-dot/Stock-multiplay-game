@@ -741,9 +741,15 @@
     73.8,
     115.1
    ],
+   "src_size": [
+    90.25,
+    73.77,
+    115.13
+   ],
    "tris": 59997,
-   "texture_px": 2048,
-   "px_per_m": 7.7,
+   "src_tris": 237426,
+   "texture_px": 4096,
+   "px_per_m": 6.7,
    "tags": [
     "city",
     "tower"
@@ -759,9 +765,15 @@
     42.0,
     32.5
    ],
+   "src_size": [
+    47.44,
+    42.02,
+    32.52
+   ],
    "tris": 46682,
+   "src_tris": 46682,
    "texture_px": 2048,
-   "px_per_m": 17.9,
+   "px_per_m": 9.8,
    "tags": [
     "city",
     "mid"
@@ -777,9 +789,15 @@
     55.1,
     50.8
    ],
+   "src_size": [
+    32.31,
+    55.11,
+    50.82
+   ],
    "tris": 13952,
+   "src_tris": 13952,
    "texture_px": 2048,
-   "px_per_m": 18.4,
+   "px_per_m": 12.3,
    "tags": [
     "city",
     "mid"
@@ -795,9 +813,15 @@
     49.9,
     34.6
    ],
+   "src_size": [
+    58.01,
+    49.88,
+    34.63
+   ],
    "tris": 12691,
+   "src_tris": 12691,
    "texture_px": 2048,
-   "px_per_m": 15.8,
+   "px_per_m": 9.4,
    "tags": [
     "city",
     "mid"
@@ -813,9 +837,15 @@
     49.9,
     32.3
    ],
+   "src_size": [
+    39.66,
+    49.89,
+    32.27
+   ],
    "tris": 27652,
+   "src_tris": 27659,
    "texture_px": 2048,
-   "px_per_m": 19.3,
+   "px_per_m": 11.3,
    "tags": [
     "city",
     "mid"
@@ -831,9 +861,15 @@
     55.3,
     47.6
    ],
+   "src_size": [
+    49.72,
+    55.28,
+    47.6
+   ],
    "tris": 11741,
+   "src_tris": 11741,
    "texture_px": 2048,
-   "px_per_m": 13.9,
+   "px_per_m": 10.4,
    "tags": [
     "city",
     "mid"
@@ -849,9 +885,15 @@
     47.6,
     35.1
    ],
+   "src_size": [
+    56.5,
+    47.56,
+    35.13
+   ],
    "tris": 56838,
-   "texture_px": 2048,
-   "px_per_m": 15.9,
+   "src_tris": 56838,
+   "texture_px": 4096,
+   "px_per_m": 10.2,
    "tags": [
     "city",
     "mid"
@@ -867,9 +909,15 @@
     98.8,
     139.7
    ],
+   "src_size": [
+    104.81,
+    98.79,
+    139.69
+   ],
    "tris": 15426,
-   "texture_px": 2048,
-   "px_per_m": 6.0,
+   "src_tris": 15426,
+   "texture_px": 4096,
+   "px_per_m": 8.5,
    "tags": [
     "city",
     "tower"
@@ -885,9 +933,15 @@
     64.6,
     42.5
    ],
+   "src_size": [
+    43.95,
+    64.61,
+    42.53
+   ],
    "tris": 60000,
+   "src_tris": 82564,
    "texture_px": 2048,
-   "px_per_m": 15.6,
+   "px_per_m": 9.3,
    "tags": [
     "city",
     "tower"
@@ -903,9 +957,15 @@
     56.0,
     36.7
    ],
+   "src_size": [
+    35.52,
+    55.96,
+    36.68
+   ],
    "tris": 15949,
+   "src_tris": 15949,
    "texture_px": 2048,
-   "px_per_m": 18.1,
+   "px_per_m": 11.4,
    "tags": [
     "city",
     "mid"
@@ -921,9 +981,15 @@
     49.0,
     35.6
    ],
+   "src_size": [
+    50.04,
+    49.05,
+    35.61
+   ],
    "tris": 25410,
+   "src_tris": 25410,
    "texture_px": 2048,
-   "px_per_m": 16.6,
+   "px_per_m": 8.3,
    "tags": [
     "city",
     "mid"
@@ -939,9 +1005,15 @@
     39.7,
     33.4
    ],
+   "src_size": [
+    30.87,
+    39.7,
+    33.4
+   ],
    "tris": 8559,
+   "src_tris": 8559,
    "texture_px": 2048,
-   "px_per_m": 21.8,
+   "px_per_m": 13.4,
    "tags": [
     "city",
     "mid"
@@ -957,8 +1029,14 @@
     148.1,
     47.3
    ],
-   "tris": 59982,
-   "texture_px": 2048,
+   "src_size": [
+    47.41,
+    148.14,
+    47.36
+   ],
+   "tris": 59979,
+   "src_tris": 365086,
+   "texture_px": 4096,
    "px_per_m": 10.4,
    "tags": [
     "city",
@@ -975,9 +1053,15 @@
     38.7,
     26.5
    ],
+   "src_size": [
+    48.69,
+    38.67,
+    26.53
+   ],
    "tris": 13931,
+   "src_tris": 13931,
    "texture_px": 2048,
-   "px_per_m": 19.8,
+   "px_per_m": 9.9,
    "tags": [
     "city",
     "mid"
@@ -993,9 +1077,15 @@
     44.6,
     102.2
    ],
+   "src_size": [
+    115.85,
+    44.56,
+    102.2
+   ],
    "tris": 10315,
-   "texture_px": 2048,
-   "px_per_m": 9.3,
+   "src_tris": 10315,
+   "texture_px": 4096,
+   "px_per_m": 7.0,
    "tags": [
     "city",
     "mid"
@@ -1011,9 +1101,15 @@
     54.0,
     37.3
    ],
+   "src_size": [
+    81.89,
+    53.98,
+    37.34
+   ],
    "tris": 29158,
+   "src_tris": 29158,
    "texture_px": 2048,
-   "px_per_m": 12.9,
+   "px_per_m": 8.7,
    "tags": [
     "city",
     "mid"
@@ -1029,9 +1125,15 @@
     88.0,
     64.2
    ],
+   "src_size": [
+    68.44,
+    87.97,
+    64.19
+   ],
    "tris": 28676,
+   "src_tris": 28676,
    "texture_px": 2048,
-   "px_per_m": 10.2,
+   "px_per_m": 7.8,
    "tags": [
     "city",
     "tower"
@@ -1044,17 +1146,23 @@
    "part": "bld22_18",
    "size": [
     150.0,
-    64.5,
+    285.2,
     110.3
    ],
-   "tris": 24268,
-   "texture_px": 2048,
-   "px_per_m": 7.8,
+   "src_size": [
+    150.02,
+    285.16,
+    110.35
+   ],
+   "tris": 59999,
+   "src_tris": 103084,
+   "texture_px": 4096,
+   "px_per_m": 4.9,
    "tags": [
     "city",
     "tower"
    ],
-   "source": "owner's pack: 22 Buildings 2024 (Blender), 24268 triangles in the source"
+   "source": "owner's pack: 22 Buildings 2024 (Blender), 103084 triangles in the source"
   },
   "bld22_19": {
    "kind": "building",
@@ -1065,9 +1173,15 @@
     44.9,
     40.9
    ],
+   "src_size": [
+    54.59,
+    44.89,
+    40.89
+   ],
    "tris": 26592,
+   "src_tris": 26592,
    "texture_px": 2048,
-   "px_per_m": 15.4,
+   "px_per_m": 10.7,
    "tags": [
     "city",
     "mid"
@@ -1083,9 +1197,15 @@
     66.1,
     25.2
    ],
+   "src_size": [
+    38.97,
+    66.12,
+    25.22
+   ],
    "tris": 59999,
+   "src_tris": 87742,
    "texture_px": 2048,
-   "px_per_m": 15.6,
+   "px_per_m": 17.8,
    "tags": [
     "city",
     "tower"
@@ -1101,9 +1221,15 @@
     34.7,
     21.3
    ],
+   "src_size": [
+    39.9,
+    34.74,
+    21.25
+   ],
    "tris": 8676,
+   "src_tris": 8692,
    "texture_px": 2048,
-   "px_per_m": 24.5,
+   "px_per_m": 15.1,
    "tags": [
     "city",
     "mid"
@@ -1117,11 +1243,17 @@
    "size": [
     19.8,
     33.0,
-    21.6
+    20.0
+   ],
+   "src_size": [
+    19.81,
+    32.99,
+    19.99
    ],
    "tris": 3319,
+   "src_tris": 3320,
    "texture_px": 2048,
-   "px_per_m": 30.7,
+   "px_per_m": 21.3,
    "tags": [
     "city",
     "mid"

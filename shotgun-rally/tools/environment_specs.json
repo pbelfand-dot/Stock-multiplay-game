@@ -232,6 +232,7 @@
   "out": "city",
   "tris": 60000,
   "tex": 2048,
+  "tex_big": 4096,
   "ao_samples": 16
  },
  "city31": {
