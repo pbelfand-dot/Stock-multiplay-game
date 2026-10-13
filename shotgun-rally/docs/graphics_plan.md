@@ -150,8 +150,11 @@ on at night (the lamps).
      200 m) instead of real lights (dozens of cars). It starts at the lamps, a lobe out of
      each headlamp, brightest just ahead of the car and gone by 14 m (it was a round pool
      centred 9 m out, nearly dark at the bumper: a ball of light on the road ahead).
-   - **The loop's city**: the towers' facade shader lights ~40 % of the windows at night
-     (warm and cold white); the bridge towers' red beacons; no shadows from the moon.
+   - **The loop's city**: each building lights its own share of windows at night (a few
+     nearly dark), its own mix of warm and cold white, steady; some drawn towers a lit
+     shopfront; the street lamps' heads glow and their pools are drawn on the streets, the
+     billboards and roof signs glow (emission only: no real lights); the bridge towers'
+     red beacons; no shadows from the moon.
    - A dash glow in the cockpit (the game), the stray local car's lamps (CarLamps + glow).
 10. **Speed blur** (`scripts/render/speed_blur.gd`, a compositor pass, Forward+ MEDIUM+):
    the world smears along its motion vectors plus a pull toward where the camera's heading,

@@ -158,7 +158,8 @@ static func bark(src: BaseMaterial3D, tint := Color.WHITE) -> Material:
 
 ## A building's material (tools/buildings.py: one facade image, its alpha the glass): the
 ## facade, the glass a little glossy, and at night (night 0..1: WorldMaterials.night_amount)
-## some of the windows lit, warm or cold-white, per window-sized cell of the wall.
+## some of the windows lit, warm or cold-white, per window-sized cell of its own walls, each
+## building its own share lit and its own mix of warm and cold.
 static var _bld_shader: Shader = null
 
 static func building(src: Material, night := 0.0) -> Material:
@@ -171,16 +172,21 @@ static func building(src: Material, night := 0.0) -> Material:
 		_bld_shader.code = """
 shader_type spatial;
 // A building from the owner's city pack: its facade image (the glass in the alpha); at night
-// some windows lit, per cell of the wall (about a window: 2.6 m across, a 3.2 m storey).
+// some windows lit, per cell of its own walls (about a window: 2.6 m across, a 3.2 m storey, in
+// the building's own space: whole windows, square to its walls). Each building its own share
+// lit (a few nearly dark: offices after hours) and its own mix of warm and cold-white rooms;
+// steady (no flicker).
 uniform sampler2D facade : source_color, filter_linear_mipmap_anisotropic, repeat_disable;
 uniform float night = 0.0;
-varying vec3 wpos;
-varying vec3 wnrm;
-void vertex() {
-	wpos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
-	wnrm = normalize((MODEL_MATRIX * vec4(NORMAL, 0.0)).xyz);
-}
+varying vec3 opos;
+varying vec3 onrm;
+varying float bseed;
 float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+void vertex() {
+	opos = VERTEX;
+	onrm = NORMAL;
+	bseed = hash(floor(MODEL_MATRIX[3].xz * 0.37) * 0.0131);
+}
 void fragment() {
 	vec4 c = texture(facade, UV);
 	float glass = c.a;
@@ -188,13 +194,14 @@ void fragment() {
 	ROUGHNESS = mix(0.86, 0.18, glass);
 	METALLIC = glass * 0.25;
 	SPECULAR = 0.4;
-	// the wall's own coordinates (along it, up it): a cell per window
-	float along = abs(wnrm.x) > abs(wnrm.z) ? wpos.z : wpos.x;
-	vec2 cell = floor(vec2(along / 2.6, wpos.y / 3.2));
-	vec2 seed = cell + floor(MODEL_MATRIX[3].xz * 0.1);
-	float lit = step(0.78 - 0.3 * night, hash(seed));
-	vec3 warm = mix(vec3(1.0, 0.72, 0.42), vec3(0.66, 0.76, 1.0), step(0.74, hash(seed * 1.7)));
-	EMISSION = glass * lit * warm * night * (0.45 + 0.9 * hash(seed * 3.1));
+	float along = abs(onrm.x) > abs(onrm.z) ? opos.z : opos.x;
+	vec2 cell = floor(vec2(along / 2.6, opos.y / 3.2));
+	vec2 seed = cell + bseed * 97.0;
+	float share = bseed < 0.1 ? 0.07 : mix(0.3, 0.65, fract(bseed * 7.31));
+	float lit = step(1.0 - share, hash(seed));
+	float cool = mix(0.1, 0.6, fract(bseed * 3.77));             // (its share of cold-white rooms)
+	vec3 tone = mix(vec3(1.0, 0.72, 0.42), vec3(0.66, 0.76, 1.0), step(1.0 - cool, hash(seed * 1.7)));
+	EMISSION = glass * lit * tone * night * (0.45 + 0.9 * hash(seed * 3.1));
 }
 """
 	var m := ShaderMaterial.new()

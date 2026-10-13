@@ -341,7 +341,8 @@ static func overlap(a: Dictionary, b: Dictionary, gap := 0.0) -> bool:
 ## 0..1: WorldMaterials.night_amount) a share of the windows lit, warm or cold-white. The
 ## roofs and the rooftop plant (above the main roof) plain. Far off, where a floor is a
 ## pixel or two, the grid fades to its average by day (no shimmer); at night each lit window's
-## whole cell glows instead (points of light). Forward+ and Compatibility.
+## whole cell glows instead (points of light). Each building its own share lit (a few nearly
+## dark) and its own mix of warm and cold. Forward+ and Compatibility.
 static func material(night: float) -> ShaderMaterial:
 	if _shader == null:
 		_shader = Shader.new()
@@ -393,9 +394,10 @@ void fragment() {
 	SPECULAR = mix(0.3, 0.5, glass);
 	// at night a share of the windows lit (by building), warm or cold-white; far off, a lit
 	// window's whole cell, dimmer (points of light, not a glowing wall)
-	float share = mix(0.16, 0.42, fract(seed * 5.9)) * night;
+	float share = (seed < 0.12 ? 0.05 : mix(0.16, 0.48, fract(seed * 5.9))) * night;   // (a few nearly dark)
 	float lit = step(1.0 - share, hash(id * 1.31 + seed * 11.0)) * (0.45 + 0.8 * hash(id * 2.7 + seed));
-	vec3 tone = mix(vec3(1.0, 0.72, 0.42), vec3(0.66, 0.76, 1.0), step(0.72, hash(id * 3.1 + seed)));
+	float cool = mix(0.1, 0.6, fract(seed * 3.77));                     // (its own share of cold-white rooms)
+	vec3 tone = mix(vec3(1.0, 0.72, 0.42), vec3(0.66, 0.76, 1.0), step(1.0 - cool, hash(id * 3.1 + seed)));
 	EMISSION = facade * rows * lit * tone * mix(win, 0.5, fade) * night * 1.1;
 }
 """

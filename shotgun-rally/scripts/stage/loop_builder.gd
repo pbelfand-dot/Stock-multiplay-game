@@ -332,7 +332,9 @@ func _fallback(key: String) -> Material:
 
 
 ## The towers' glass and concrete: floors 3.6 m apart, windows 2.4 m, some lit,
-## from where on the building the pixel is (no texture to load).
+## from where on the building the pixel is (no texture to load). At night each tower its own
+## share of windows lit (a few nearly dark), its own mix of warm and cold-white, and some with
+## a lit shopfront along the street.
 func _building_material() -> ShaderMaterial:
 	var sh := Shader.new()
 	sh.code = """
@@ -348,7 +350,7 @@ void vertex() {
 	vec3 p = VERTEX + 0.5;
 	roof = abs(NORMAL.y) > 0.5 ? 1.0 : 0.0;
 	face = abs(NORMAL.x) > 0.5 ? vec2(p.z * sc.z, p.y * sc.y) : vec2(p.x * sc.x, p.y * sc.y);
-	seed = fract(sin(dot(MODEL_MATRIX[3].xz, vec2(12.9898, 78.233))) * 43758.5453);
+	seed = fract(sin(dot(floor(MODEL_MATRIX[3].xz * 0.37) * 0.0131, vec2(12.9898, 78.233))) * 43758.5453);
 }
 float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
 void fragment() {
@@ -362,13 +364,18 @@ void fragment() {
 		float wide = 0.06 + 0.1 * fract(seed * 7.0);
 		float frame = step(wide, f.x) * step(f.x, 1.0 - wide) * step(0.16, f.y) * step(f.y, 0.88);
 		frame *= step(3.0, face.y);                               // (the ground floor: a plinth)
-		float lit = step(0.9 - 0.17 * night, hash(floor(cell) + seed * 31.0));
-		vec3 glass = mix(vec3(0.06, 0.09, 0.12), vec3(0.2, 0.27, 0.33), hash(floor(cell) * 1.7 + seed));
-		ALBEDO = mix(tint, glass, frame);
-		METALLIC = frame * 0.6;
-		ROUGHNESS = mix(0.85, 0.1, frame);
-		vec3 warm = mix(vec3(1.0, 0.7, 0.4), vec3(0.62, 0.74, 1.0), step(0.72, hash(floor(cell) * 3.1 + seed)));   // (some offices cold-white)
-		EMISSION = frame * lit * warm * mix(0.12, 1.0, night) * (0.35 + 0.65 * hash(floor(cell) * 5.3 + seed));
+		float share = seed < 0.15 ? 0.06 : mix(0.18, 0.5, fract(seed * 5.3));   // (its own share lit at night)
+		float lit = step(1.0 - mix(0.1, share, night), hash(floor(cell) + seed * 31.0));
+		vec3 glass = mix(vec3(0.05, 0.06, 0.075), vec3(0.15, 0.17, 0.2), hash(floor(cell) * 1.7 + seed));
+		// (a shopfront along the street on some: wide glass under the first floor, lit at night)
+		float shop = step(0.45, fract(seed * 11.3)) * step(0.5, face.y) * step(face.y, 2.9) * step(0.08, fract(face.x / 6.0));
+		ALBEDO = mix(tint, glass, max(frame, shop));
+		METALLIC = max(frame, shop) * 0.25;                       // (grey glass with the sky in it: it was a mirror, every window bright blue)
+		ROUGHNESS = mix(0.85, 0.22, max(frame, shop));
+		float cool = mix(0.1, 0.65, fract(seed * 2.9));             // (its share of cold-white rooms: offices more)
+		vec3 warm = mix(vec3(1.0, 0.7, 0.4), vec3(0.62, 0.74, 1.0), step(1.0 - cool, hash(floor(cell) * 3.1 + seed)));
+		EMISSION = frame * lit * warm * mix(0.12, 1.0, night) * (0.35 + 0.65 * hash(floor(cell) * 5.3 + seed))
+			+ shop * vec3(1.0, 0.82, 0.6) * night * 1.3;
 	}
 }
 """
