@@ -10,3 +10,5 @@ shotgun-rally/assets/wheel_packages/** -diff
 shotgun-rally/assets/wheel_packages/*.md diff
 shotgun-rally/assets/wheel_packages/*.tsv diff
 shotgun-rally/assets/*.tsv diff
+shotgun-rally/assets/music_packages/** -diff
+shotgun-rally/assets/music_packages/**/*.md diff
