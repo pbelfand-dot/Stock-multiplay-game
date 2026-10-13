@@ -155,8 +155,8 @@ whole cabin a mirror, the BOLT W16's chrome), so a material that covers the cabi
 than roughness 0.4 gets its kind's (leather 0.62, plastic 0.7, suede and fabric 0.9) and no metal;
 glass, screens, chrome and bare metal, paint and lamps stay as they are, lacquer (piano black,
 gloss, carbon) stays glossy but not a mirror. Pieces the import's steering wheel cut took from
-round it (the KAISER 235 GC's slivers of A-pillar trim, the SLR's column cover, the WARHAWK's stalk)
-go back into the body. `tests/interior_check.gd` checks both in every car.
+round it (the KAISER 235 GC's slivers of A-pillar trim; pieces round the SLR's, the WARHAWK's, the
+KAISER 2 CARBON's and the KAISER 4 GT3's wheels) go back into the body. `tests/interior_check.gd` checks both in every car.
 
 A cabin whose screens are part of a texture shared with everything else (most of the rest of the
 own-interior cars) has the dome light, the lamps and the night glow but no live pages yet.
