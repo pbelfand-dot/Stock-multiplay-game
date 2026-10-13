@@ -200,6 +200,8 @@ the old backdrop: your car flat out on a stage, filmed like rally TV.
   the new physics (each its own switch), TYRE GRIP for the rally, and **STREET HANDLING** for the
   touge and cut up: **SIM** (out of the box: each car on the road tyres it really has, its real
   skid-pad grip, no drift helpers, factory ABS: Assetto Corsa-like) or **ARCADE** (as the rally).
+- **MUSIC** (the chip top right, next to your credits; also in the pause menu): your own songs,
+  a playlist per folder ([Your own music](#your-own-music-playlists)).
 
 ## How a stage plays
 
@@ -358,7 +360,7 @@ Each car has an engine type (`EngineSound.ENGINES`):
   blow-off.
 
 The co-driver's machine hears the same. Every effect dips ~10 dB whenever the co-driver talks
-(SETTINGS: EFFECTS and CO-DRIVER VOICE). Where the sounds come from, and a licence note (not cleared
+(SETTINGS: EFFECTS and CO-DRIVER VOICE), and your own music 14 dB. Where the sounds come from, and a licence note (not cleared
 for a public release): [tools/engine_sound/README.md](tools/engine_sound/README.md).
 
 ### The car's physics (v2: in the game)
@@ -665,6 +667,8 @@ spinning before it had turned, an M5 that felt slow, too little grip. Measured f
 | Start / next stage (host) | ENTER | START |
 | Pause | ESC | BACK |
 | **Replay** (on the results; in the pause menu: the last 30 s) | V (or the REPLAY button) | X |
+| **Your music:** the next song (SHIFT+N: the one before) | N | (MUSIC in the pause menu) |
+| **Your music:** on / off | B | (MUSIC in the pause menu) |
 
 ### Replay
 
@@ -686,6 +690,37 @@ back exactly where it was. All of it: [docs/replay.md](docs/replay.md).
 | Free cam: fly · down / up · fast / slow · look | WASD · Q / E · SHIFT / CTRL · hold RIGHT MOUSE | left stick · LB / RB · RT / LT · right stick |
 | Free follow: orbit · zoom · lower / raise | hold RIGHT MOUSE · wheel · Q / E | right stick · LT / RT · LB / RB |
 | Hide the bar · leave | H · ESC or BACKSPACE | L3 · B or BACK |
+
+## Your own music (playlists)
+
+The game plays **your own songs** from a folder on your computer. It ships no music: the repo and
+the downloads are public, so nothing copyrighted goes in them.
+
+1. Open **MUSIC** (the chip top right of the home screen, or the pause menu) and click **OPEN MUSIC
+   FOLDER**. Or go there yourself:
+   - **Mac:** `~/Library/Application Support/Godot/app_userdata/SHOTGUN RALLY/music`
+     (Finder: Go → Go to Folder…, paste it in)
+   - **Windows:** `%APPDATA%\Godot\app_userdata\SHOTGUN RALLY\music` (paste it into File Explorer's
+     address bar)
+   - Linux: `~/.local/share/godot/app_userdata/SHOTGUN RALLY/music`
+2. **Each folder in it is a playlist.** `house/` and `rap/` are made for you; add your own folders
+   too (`drift/`, `chill/` ...). Album folders inside a playlist count. Songs loose in `music/` are
+   the **MISC** playlist, and **ALL** plays everything.
+3. Use **MP3, OGG (Vorbis) or WAV** files. The names come from the songs' tags, or else from the
+   file name (`01 - Artist - Title.mp3` shows as *Title* by *Artist*).
+4. In MUSIC, pick the playlist. You get PREVIOUS / PLAY / NEXT, SHUFFLE, REPEAT, MUSIC on / off,
+   the VOLUME, and a song list to click. REFRESH (or reopening the panel) finds songs you've just
+   added. All of it is saved for next time.
+
+- **Keys:** **N** the next song (**SHIFT+N** the one before), **B** music on / off. They work
+  anywhere, in the menus and on a stage.
+- When a song starts, a small **now playing** card shows bottom right. The cars with a centre screen
+  show your song on their radio strip.
+- **Pace notes stay clear:** the music dips 14 dB while the co-driver calls, and the engine sound
+  is unchanged. The music has its own volume (in MUSIC, or SETTINGS → SOUND → MUSIC).
+- **Online**, each player hears their own music and nothing is sent. Friends who want the same
+  songs copy them into their own music folders.
+- The browser version can't read a folder on your computer, so music is a download feature.
 
 ## Play with friends
 

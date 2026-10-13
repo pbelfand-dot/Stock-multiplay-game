@@ -43,6 +43,7 @@ const EngineSound = preload("res://scripts/vehicle/engine_sound.gd")
 const StartLights = preload("res://scripts/ui/start_lights.gd")
 const UI = preload("res://scripts/ui/ui_kit.gd")
 const SettingsPanel = preload("res://scripts/ui/settings_panel.gd")
+const MusicPanel = preload("res://scripts/ui/music_panel.gd")
 const Catalog = preload("res://scripts/game/catalog.gd")
 const Modes = preload("res://scripts/game/modes.gd")
 const Profile = preload("res://scripts/game/profile.gd")
@@ -124,7 +125,9 @@ var _race_box: VBoxContainer         # a street race's finishers, badges on the 
 var _results_foot: Label             # Main's lines and what ENTER does
 var _pause: PanelContainer
 var _pause_settings: Button          # the pause menu's SETTINGS (the focus comes back to it)
-var _settings: Control               # SETTINGS opened from the pause menu (null: shut)
+var _settings: Control               # SETTINGS (or MUSIC) opened from the pause menu (null: shut)
+var _pause_music: Button             # the pause menu's MUSIC
+var _settings_from: Button           # the pause menu's button that opened it (the focus goes back to it)
 var _t_alive := 0.0
 var _sfx := {}
 var _engine                        # EngineSound
@@ -1483,7 +1486,8 @@ func _build_hud() -> void:
 	title.add_theme_font_size_override("font_size", 36)
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vb.add_child(title)
-	var buttons := [["RESUME", _toggle_pause], ["REPLAY", func(): replay.open("pause")], ["SETTINGS", _open_settings]]
+	var buttons := [["RESUME", _toggle_pause], ["REPLAY", func(): replay.open("pause")], ["SETTINGS", _open_settings],
+		["MUSIC", _open_settings.bind(MusicPanel)]]
 	if looped:
 		buttons.append(["END RUN", _end_run])          # (a loop has no finish: the run ends when you say)
 	if mode == "track":
@@ -1502,6 +1506,8 @@ func _build_hud() -> void:
 		vb.add_child(btn)
 		if b[0] == "SETTINGS":
 			_pause_settings = btn
+		elif b[0] == "MUSIC":
+			_pause_music = btn
 		elif b[0] == "REPLAY":
 			_pause_replay = btn
 		elif str(b[0]).begins_with("PIT "):
@@ -1608,16 +1614,18 @@ func paused() -> bool:
 ## SETTINGS from the pause menu: the main menu's own panel (graphics, sound, the aids ...)
 ## over the stage, still paused. What changes at once from the main menu (the graphics,
 ## the sound, the mouse) changes here at once too. BACK or ESC: back to the pause menu.
-func _open_settings() -> void:
+## MUSIC opens the same way (MusicPanel: your playlists, what's playing).
+func _open_settings(panel = SettingsPanel) -> void:
 	if _settings != null:
 		return
+	_settings_from = _pause_music if panel == MusicPanel else _pause_settings
 	_pause.visible = false
 	_settings = ColorRect.new()                      # a shade over the stage, the panel in the middle
 	_settings.name = "PauseSettings"
 	_settings.color = Color(0, 0, 0, 0.35)
 	_settings.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_hud.add_child(_settings)
-	var p := SettingsPanel.new()
+	var p = panel.new()
 	p.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
 	p.grow_horizontal = Control.GROW_DIRECTION_BOTH
 	p.grow_vertical = Control.GROW_DIRECTION_BOTH
@@ -1631,7 +1639,7 @@ func _close_settings() -> void:
 	_settings.queue_free()
 	_settings = null
 	_pause.visible = true
-	_pause_settings.grab_focus()
+	(_settings_from if _settings_from else _pause_settings).grab_focus()
 
 
 func _update_hint() -> void:
@@ -1670,6 +1678,8 @@ func _update_hint() -> void:
 func _seat_help(pad: bool) -> String:
 	if my_seat == "driver":
 		var alone := " · F wipers" if Net.peer_in("codriver") == 0 else ""
+		if Config.music.song_count() > 0:              # (your own songs in the music folder: their keys)
+			alone += " · N next song · B music"
 		return ("YOU DRIVE: left stick steer · RT gas · LT brake · B handbrake · Y reset · R3 chase cam" + (" · LB flash a rival" if rivals else "") if pad
 			else "YOU DRIVE: WASD / arrows · SPACE handbrake · R reset%s · C chase cam%s" % ["" if mode == "cutup" else " (+5 s)",
 				" · H flash a rival" if rivals else ""] + alone)

@@ -11,6 +11,8 @@ extends Control
 ##              picked on the spot; CUSTOMISE: its paint and parts (GaragePanel)
 ##   ONLINE     your name, host a crew (pick your seat) or join one by IP
 ##   SETTINGS   controls, sound, the co-driver's timing, driving aids (SettingsPanel)
+## Top right, by your credits and name: MUSIC (what's playing): your own songs from the music
+## folder on this computer, a playlist per folder (MusicPanel, MusicPlayer).
 ## ESC (or BACK) goes back to the home buttons. The build and updates are top
 ## right (see Updater).
 
@@ -29,6 +31,7 @@ const CarColumns = preload("res://scripts/game/car_columns.gd")
 const MapsPanel = preload("res://scripts/ui/maps_panel.gd")
 const SettingsPanel = preload("res://scripts/ui/settings_panel.gd")
 const ModesPanel = preload("res://scripts/ui/modes_panel.gd")
+const MusicPanel = preload("res://scripts/ui/music_panel.gd")
 const Profile = preload("res://scripts/game/profile.gd")
 
 var start_panel := ""               # open on this panel ("maps" after a rally)
@@ -44,6 +47,7 @@ var _credits: Label
 var _sub: Label                     # the line under the title (hidden while a panel's open)
 var _logo: TextureRect              # (smaller while a panel's open: room for it)
 var _name_chip: Button
+var _music_chip: Button             # MUSIC  ·  the playlist playing (opens MusicPanel)
 var _status: Label
 var _name: LineEdit
 var _ip: LineEdit
@@ -119,7 +123,7 @@ func _ready() -> void:
 	_status.add_theme_constant_override("outline_size", 5)
 	add_child(_status)
 	var help := UI.label("DRIVER  WASD / arrows · SPACE handbrake · R reset      CO-DRIVER  hold RIGHT MOUSE / Q for the map · F wipers      "
-		+ "PAD  left stick · RT / LT · B handbrake", 15, Color(0.75, 0.77, 0.72))
+		+ "PAD  left stick · RT / LT · B handbrake      MUSIC  N next song · B on / off", 15, Color(0.75, 0.77, 0.72))
 	help.set_anchors_and_offsets_preset(Control.PRESET_CENTER_BOTTOM)
 	help.offset_top = -40
 	help.offset_left = -800
@@ -200,8 +204,12 @@ func _top_right() -> void:
 	_credits = UI.label("", 26, UI.YELLOW, true)
 	chip.add_child(_credits)
 	row.add_child(chip)
+	_music_chip = UI.button("MUSIC", _show.bind("music"), 20)
+	_music_chip.name = "MusicChip"
+	row.add_child(_music_chip)
 	_name_chip = UI.button("", _show.bind("online"), 20)
 	row.add_child(_name_chip)
+	Config.music.changed.connect(refresh)
 	refresh()
 
 
@@ -209,6 +217,13 @@ func _top_right() -> void:
 func refresh() -> void:
 	_credits.text = "%s CR" % _money(Profile.credits)
 	_name_chip.text = "DRIVER  ·  %s" % Config.player_name.to_upper()
+	var m = Config.music
+	if not m.on:
+		_music_chip.text = "MUSIC  ·  OFF"
+	elif m.song_count() == 0:
+		_music_chip.text = "MUSIC  ·  ADD SONGS"
+	else:
+		_music_chip.text = "MUSIC  ·  %s" % str(m.picked().get("name", ""))
 
 
 func _show(which: String) -> void:
@@ -255,6 +270,8 @@ func _show(which: String) -> void:
 			_open = _online_panel()
 		"settings":
 			_open = SettingsPanel.new()
+		"music":
+			_open = MusicPanel.new()
 		"modes":
 			var mp := ModesPanel.new()
 			mp.start.connect(func(m: Dictionary): _pick_car(m, func(): mode.emit(m), "modes"))

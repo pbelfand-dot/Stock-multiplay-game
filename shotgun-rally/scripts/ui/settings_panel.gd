@@ -71,6 +71,7 @@ func _ready() -> void:
 	left.add_child(_slider("CO-DRIVER VOICE", 0.0, 1.0, config.voice_volume, func(x):
 		config.voice_volume = x
 		config.apply_volumes()))
+	left.add_child(_slider("MUSIC  (YOUR OWN SONGS)", 0.0, 1.0, config.music.volume, func(x): config.music.set_volume(x)))
 	left.add_child(UI.gap(6))
 	left.add_child(UI.label("CO-DRIVER", 20, UI.YELLOW, true))
 	left.add_child(_slider("CALLS  LATE  ·  EARLY", -1.0, 1.0, config.call_early, func(x): config.call_early = x))

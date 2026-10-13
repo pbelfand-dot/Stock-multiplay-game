@@ -26,7 +26,7 @@ extends Node
 ##                         --shot_count=N (the start lights at N, 0 = GO) --shot_results [--shot_race] (the results panel)
 ##                         --shot_pause[=settings] (the pause menu; =settings: its SETTINGS open over the stage)
 ##                         --shot_stray=M (a touge's stray car M up the road, coming the other way)]
-##   --menu_shot=out.png [--menu_panel=maps|cars|online|settings|modes --garage_tab=setup --modes_scroll=PX --shot_wait=6]   a picture of the home screen
+##   --menu_shot=out.png [--menu_panel=maps|cars|online|settings|modes|music --garage_tab=setup --modes_scroll=PX --shot_wait=6]   a picture of the home screen
 ##   --showcase=rally|touge|cutup [--autostart --autopilot --stray --shot_s=M]   film a mode for a showcase
 ##                                           video (run with --write-movie out.avi --fixed-fps 30): the
 ##                                           autopilot drives, scripts/game/showcase.gd cuts between cameras

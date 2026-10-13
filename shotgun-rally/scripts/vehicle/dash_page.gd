@@ -658,16 +658,24 @@ func _map(area: Rect2, d: Dictionary, accent: Color, opt := {}) -> void:
 	var txt := ("%.1f km to the finish" % (togo / 1000.0)) if togo >= 0.0 else ("%.1f km driven" % (maxf(car_s - st.START_S, 0.0) / 1000.0))
 	draw_rect(Rect2(area.position, Vector2(area.size.x, area.size.y * 0.16)), Color(0, 0, 0, 0.55))
 	_say(txt, area.position + Vector2(unit * 4.0, area.size.y * 0.08), area.size.y * 0.1, Color(0.95, 0.95, 0.96), "left", false, area.size.x - unit * 8.0)
-	# what's playing: the station, the song, how far into it
+	# what's playing: the station, the song, how far into it (your own music playing: its song)
 	var strip := Rect2(area.position + Vector2(0, area.size.y * 0.84), Vector2(area.size.x, area.size.y * 0.16))
 	draw_rect(strip, Color(0, 0, 0, 0.62))
-	var tt: float = float(d.get("time", 0.0)) + 47.0
-	var songs: Array = cfg.get("songs", ["NIGHT DRIVE", "GRAVEL & GOLD", "SIDEWAYS", "LAST STAGE"])
-	var song: String = str(songs[int(tt / 200.0) % songs.size()])
-	_say("♪  %s  ·  %s" % [song, str(cfg.get("radio", "SHOTGUN FM 98.6"))], strip.position + Vector2(unit * 4.0, strip.size.y * 0.4), strip.size.y * 0.42, Color(0.92, 0.93, 0.95), "left", false, strip.size.x - unit * 8.0)
+	var playing := radio_song(float(d.get("time", 0.0)) + 47.0)
+	_say("♪  %s  ·  %s" % [playing[0], str(cfg.get("radio", "SHOTGUN FM 98.6"))], strip.position + Vector2(unit * 4.0, strip.size.y * 0.4), strip.size.y * 0.42, Color(0.92, 0.93, 0.95), "left", false, strip.size.x - unit * 8.0)
 	var prog := Rect2(strip.position + Vector2(unit * 4.0, strip.size.y * 0.8), Vector2(strip.size.x - unit * 8.0, strip.size.y * 0.07))
 	draw_rect(prog, Color(1, 1, 1, 0.15))
-	draw_rect(Rect2(prog.position, Vector2(prog.size.x * fmod(tt, 200.0) / 200.0, prog.size.y)), accent)
+	draw_rect(Rect2(prog.position, Vector2(prog.size.x * float(playing[1]), prog.size.y)), accent)
+
+
+## The radio's song and how far into it (0..1), `tt` s into the drive: your own music's song while
+## it plays (MusicPlayer), else the station's made-up ones, 200 s each.
+func radio_song(tt: float) -> Array:
+	var music = get_node_or_null("/root/Config/Music")
+	if music and music.now_title() != "":
+		return [music.now_title().to_upper(), music.progress()]
+	var songs: Array = cfg.get("songs", ["NIGHT DRIVE", "GRAVEL & GOLD", "SIDEWAYS", "LAST STAGE"])
+	return [str(songs[int(tt / 200.0) % songs.size()]), fmod(tt, 200.0) / 200.0]
 
 
 ## A polyline cut to a rectangle: the runs of it inside, each end on the edge where it crosses.

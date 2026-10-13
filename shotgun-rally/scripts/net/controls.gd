@@ -24,6 +24,8 @@ extends Node
 ##   pause         esc                    back
 ##   replay        V (the results, the    X
 ##                 pause menu)
+##   music         N the next song (SHIFT+N the one before), B music on / off (MusicPlayer: your
+##                 own songs; MUSIC on the home screen and in the pause menu has the rest)
 ## In a replay (replay.gd; docs/replay.md has the whole list): space / A play, left and right
 ## (d-pad) step 5 s or held rewind and fast-forward, up and down (d-pad) the speed, home / end
 ## (start) the ends, tab / Y the next car, C / X the next camera, P / R3 place a camera, G the
@@ -55,6 +57,9 @@ func _ready() -> void:
 	_action("pit_limiter", [KEY_P], [JOY_BUTTON_DPAD_DOWN], [])
 	_action("drs", [KEY_E], [JOY_BUTTON_RIGHT_SHOULDER], [])          # (Track Mode's Formula cars: open the DRS flap)
 	_action("ers_mode", [KEY_O], [JOY_BUTTON_DPAD_LEFT], [])          # (their hybrid's mode: OFF / BALANCED / OVERTAKE)
+	# your own music (MusicPlayer: anywhere, the menus and the stages; keys only, the pad's buttons are all taken)
+	_action("music_next", [KEY_N], [], [])                            # (SHIFT+N: the song before)
+	_action("music_toggle", [KEY_B], [], [])
 	# the replay (replay.gd): opened from the results or the pause menu, its own keys while it's on
 	_action("replay", [KEY_V], [JOY_BUTTON_X], [])
 	_action("replay_play", [KEY_SPACE], [JOY_BUTTON_A], [])

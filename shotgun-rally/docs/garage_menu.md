@@ -30,7 +30,13 @@ TV) is still there behind `--menu_stage`.
   livery, wheels, upgrades, setup) on that car; ESC goes back to the grid. A mode's START opens the
   grid on its column (its cars only) and START IN THIS ONE starts it.
 - **Moods**: the menus tint the door's LED frame a little: amber for MODES, warm for MAPS,
-  cool for ONLINE.
+  cool for ONLINE, violet for MUSIC.
+- **MUSIC**: a chip top right, between your credits and your name, says what's on (`MUSIC · HOUSE`,
+  `MUSIC · OFF`, or `MUSIC · ADD SONGS` while the music folder's empty) and opens the MUSIC panel
+  (`scripts/ui/music_panel.gd`: the playlists, what's playing, the controls, OPEN MUSIC FOLDER). The
+  songs are the player's own, from `user://music` (one folder per playlist: the README's *Your own
+  music*); `scripts/audio/music_player.gd` plays them, from the menu through every stage, with a
+  "now playing" card bottom right. The pause menu has MUSIC too. Test: `tests/music_check.gd`.
 
 Test: `tests/menu_garage_check.gd` (in `tests/run_all.sh`). Pictures: `--menu_shot=out.png`
 with `--garage_t=SECONDS` (the camera held there) and `--menu_panel=cars`.

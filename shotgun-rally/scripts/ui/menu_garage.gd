@@ -48,7 +48,8 @@ const ORBIT_FOV := 46.0
 const ORBIT_SHIFT := 0.42                # right of the garage panel
 const BLEND := 1.8                       # s to go from one path to the other
 ## the door frame's colour per panel (set_mood)
-const MOODS := {"modes": Color(1.0, 0.56, 0.2), "maps": Color(1.0, 0.8, 0.55), "online": Color(0.55, 0.74, 1.0)}
+const MOODS := {"modes": Color(1.0, 0.56, 0.2), "maps": Color(1.0, 0.8, 0.55), "online": Color(0.55, 0.74, 1.0),
+	"music": Color(0.82, 0.5, 1.0)}
 
 var car
 var cam: Camera3D

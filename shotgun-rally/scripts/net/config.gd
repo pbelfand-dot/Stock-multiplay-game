@@ -4,6 +4,7 @@ extends Node
 ## run: --name=Bob --port=7777 --seed=12.
 
 const PATH := "user://settings.cfg"
+const MusicPlayer = preload("res://scripts/audio/music_player.gd")
 const CHASE_LOW := -0.6        # m: CHASE CAM HEIGHT's range (Settings)
 const CHASE_HIGH := 1.5
 const FOV_LOW := 45.0          # deg: COCKPIT FOV's range (Settings; vertical, as Assetto Corsa's)
@@ -57,6 +58,15 @@ var street_handling := "sim"
 ## theirs. (Modes.mood_for_hour: the nearest light the world has; the graphics work
 ## lights it from the hour itself.)
 var time_of_day := -1.0
+## MUSIC: the player's own songs from their music folder (MusicPlayer, below: `music`). On or off,
+## the playlist picked (its folder's name; "" the first there is), its volume (the "Music" bus),
+## shuffle, repeat.
+var music_on := true
+var music_playlist := ""
+var music_volume := 0.5
+var music_shuffle := true
+var music_repeat := true
+var music                      # MusicPlayer (the node /root/Config/Music)
 var args := {}                 # --key=value / --flag from the command line
 
 
@@ -81,6 +91,11 @@ func _ready() -> void:
 			grip_assist = saved_grip
 		street_handling = "arcade" if str(cf.get_value("aids", "street", street_handling)) == "arcade" else "sim"
 		time_of_day = float(cf.get_value("stage", "time_of_day", time_of_day))
+		music_on = bool(cf.get_value("music", "on", music_on))
+		music_playlist = str(cf.get_value("music", "playlist", music_playlist))
+		music_volume = clampf(float(cf.get_value("music", "volume", music_volume)), 0.0, 1.0)
+		music_shuffle = bool(cf.get_value("music", "shuffle", music_shuffle))
+		music_repeat = bool(cf.get_value("music", "repeat", music_repeat))
 		if int(cf.get_value("aids", "version", 1)) >= AIDS_VERSION:
 			for key in aids:
 				aids[key] = cf.get_value("aids", key, aids[key])
@@ -96,6 +111,10 @@ func _ready() -> void:
 	if args.has("street"):
 		street_handling = "arcade" if args.street == "arcade" else "sim"
 	_buses()
+	music = MusicPlayer.new()                    # (its own "Music" bus; it reads the music_* settings above)
+	music.name = "Music"
+	music.config = self
+	add_child(music)
 
 
 ## Two buses into the master: "SFX" (the car, the gravel, crashes, the countdown)
@@ -143,6 +162,11 @@ func save() -> void:
 	cf.set_value("audio", "voice", voice_volume)
 	cf.set_value("stage", "surface", quick_surface)
 	cf.set_value("stage", "time_of_day", time_of_day)
+	cf.set_value("music", "on", music_on)
+	cf.set_value("music", "playlist", music_playlist)
+	cf.set_value("music", "volume", music_volume)
+	cf.set_value("music", "shuffle", music_shuffle)
+	cf.set_value("music", "repeat", music_repeat)
 	for key in aids:
 		cf.set_value("aids", key, aids[key])
 	cf.set_value("aids", "version", AIDS_VERSION)

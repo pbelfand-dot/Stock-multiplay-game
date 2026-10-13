@@ -13,3 +13,7 @@ __pycache__/
 /assets/environment_runtime/_preview/
 # the wheel converter's scratch (tools/import_wheels.py): never committed
 /assets/wheels_work/
+# songs: the game plays each player's own from user://music (scripts/audio/music_library.gd); the
+# repo is public, so no music is ever committed (a music folder dropped in here by mistake stays out)
+/music/
+/assets/music/

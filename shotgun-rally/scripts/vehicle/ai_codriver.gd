@@ -36,6 +36,7 @@ var _last_s := -INF
 
 
 func _ready() -> void:
+	add_to_group("codriver_voice")                  # (the music dips while busy(): MusicPlayer)
 	_player = AudioStreamPlayer.new()
 	_player.volume_db = 2.0
 	_player.bus = "Voice"

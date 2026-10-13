@@ -98,6 +98,8 @@ echo "== view: the driver's eye at 144 down to 12 fps and through hitches: no sh
 run_g 120 --headless --fixed-fps 120 --path . -s tests/view_check.gd 2>&1 | grep -E "\[view\]" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
 echo "== sound: the engine's four loops blended by the revs, shifts and anti-lag pops, the co-driver over the effects"
 run_g 120 --headless --fixed-fps 120 --path . -s tests/sound_check.gd 2>&1 | grep -E "\[sound\]" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
+echo "== music: your own songs from the music folder (test tones made here, no audio in the repo): playlists from its folders, names and tags, play / next / previous / shuffle / repeat, the crossfade, the co-driver's calls ducking it, the settings kept, an empty folder, the MUSIC panel (home screen, pause menu), N and B"
+run_g 300 --headless --fixed-fps 120 --path . -s tests/music_check.gd -- --profile=$T/music.cfg 2>&1 | grep -E "\[music\] (FAIL|MUSIC)" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
 echo "== modes: a touge (hairpins, the climb, guardrail) and a highway (lanes, barriers); traffic (IDM + MOBIL: no collisions, lanes, speeds); the cut-up score and touge rules; each mode's run in the game"
 run_g 420 --headless --fixed-fps 120 --path . -s tests/modes_check.gd 2>&1 | grep -E "\[modes\]" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
 echo "== the loop's toll plaza (open, mixed, event): the lanes fan out round the islands, a car down every lane touches nothing, the closed lane's gate stops it; traffic out of the closed lane, kept in lane and slowed through"
