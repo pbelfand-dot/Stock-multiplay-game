@@ -156,7 +156,10 @@ than roughness 0.4 gets its kind's (leather 0.62, plastic 0.7, suede and fabric 
 glass, screens, chrome and bare metal, paint and lamps stay as they are, lacquer (piano black,
 gloss, carbon) stays glossy but not a mirror. Pieces the import's steering wheel cut took from
 round it (the KAISER 235 GC's slivers of A-pillar trim; pieces round the SLR's, the WARHAWK's, the
-KAISER 2 CARBON's and the KAISER 4 GT3's wheels) go back into the body. `tests/interior_check.gd` checks both in every car.
+KAISER 2 CARBON's and the KAISER 4 GT3's wheels) go back into the body. From your seat the windows hardly reflect
+(no sun glint, a faint sky): the windscreen's shine, meant for the outside, put a bright band of sky
+by the pillar that slid across it as the car turned, which read as a piece of the windscreen
+moving with the steering (the KAISER 320). `tests/interior_check.gd` checks both in every car.
 
 A cabin whose screens are part of a texture shared with everything else (most of the rest of the
 own-interior cars) has the dome light, the lamps and the night glow but no live pages yet.

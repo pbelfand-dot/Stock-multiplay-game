@@ -810,6 +810,8 @@ func set_outside(on: bool) -> void:
 	body_model.visible = on or inside_too
 	for w in wheels:
 		w.mesh.visible = not (on or inside_too)
+	if not cockpit_info().is_empty():
+		CabinFix.glass_inside(body_model, not on)   # (from your seat the windows hardly reflect)
 
 
 func set_simulating(on: bool) -> void:

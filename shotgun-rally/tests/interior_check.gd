@@ -141,6 +141,11 @@ func _cabin(id: String, car) -> Array:
 		var bm := m as BaseMaterial3D
 		if CabinFix.of_cabin(e) and float(e[0]) >= CABIN_BIG and bm.roughness < CabinFix.ROUGH_FLOOR and not CabinFix.may_shine(bm, e[0]):
 			bad.append("%s: %s shiny (roughness %.2f, metallic %.2f, %.2f m2 of the cabin)" % [id, bm.resource_name, bm.roughness, bm.metallic, e[0]])
+	# from your seat its windows hardly reflect (no sun glint, a faint sky); from outside they shine as before
+	var glass_in := _glass_spec(car, false)
+	var glass_out := _glass_spec(car, true)
+	if glass_out.x > 0.0 and (glass_in.y > CabinFix.GLASS_INSIDE_SPECULAR + 1e-4 or glass_out.y <= CabinFix.GLASS_INSIDE_SPECULAR):
+		bad.append("%s: its windows from the seat reflect %.2f (from outside %.2f)" % [id, glass_in.y, glass_out.y])
 	var sw: Node3D = car.cockpit_nodes.get("wheel")
 	if sw == null:
 		return bad
@@ -176,6 +181,23 @@ func _cabin(id: String, car) -> Array:
 					bad.append("%s: %d faces of %s on the steering wheel %s" % [id, g.size(), mat.resource_name if mat else "-", "reach past it" if far else "sit off it"])
 					break
 	return bad
+
+
+## The car's see-through windows seen from outside or from the seat: Vector2(how many, the most any reflects).
+func _glass_spec(car, outside: bool) -> Vector2:
+	car.set_outside(outside)
+	var n := 0
+	var most := 0.0
+	for mi in car.body_model.find_children("*", "MeshInstance3D", true, false):
+		var m := mi as MeshInstance3D
+		if m.mesh == null:
+			continue
+		for s in m.mesh.get_surface_count():
+			var mat := m.get_active_material(s)
+			if mat is BaseMaterial3D and (mat as BaseMaterial3D).transparency != BaseMaterial3D.TRANSPARENCY_DISABLED and CabinFix.kind(mat) == "glass":
+				n += 1
+				most = maxf(most, (mat as BaseMaterial3D).metallic_specular)
+	return Vector2(n, most)
 
 
 ## Each crew member's boots against the floor (the cockpit's, crew_model.gd floor_prof: under the foot's

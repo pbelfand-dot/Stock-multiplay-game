@@ -15,7 +15,8 @@ extends RefCounted
 ##     middle lies further than WHEEL_ROOM past its rim, or WHEEL_AXIS along its column, or any point of
 ##     which reaches past WHEEL_REACH (the WARHAWK's stalk), goes back into the body (a piece of the wheel
 ##     itself reaching a little further, a paddle, a rim's edge, stays).
-## tests/interior_check.gd checks both in every car.
+##   * glass_inside(): the windows hardly reflect seen from your seat (RallyCar.set_outside).
+## tests/interior_check.gd checks the first two in every car.
 
 const ROUGH_FLOOR := 0.4                  # a cabin surface under this is shiny unless it's glass, chrome or lacquer
 const GLASS_WORDS := ["glass", "window", "windshield", "windscreen", "vitre", "cristal", "crystal", "screen", "display",
@@ -39,7 +40,36 @@ const WHEEL_AXIS := 0.25                  # m along the column either way (the m
 const WHEEL_REACH := 0.16                 # m past the rim no point of anything on the wheel goes
 const WHEEL_REACH_AXIS := 0.33            # ... nor along its column
 
+const GLASS_INSIDE_SPECULAR := 0.1        # the windows' reflection, seen from your seat (CarLook's glass: 0.65)
+
 const DashLive = preload("res://scripts/vehicle/dash_live.gd")
+
+
+## The car's windows as you see them from your seat (RallyCar.set_outside): inside, they hardly
+## reflect (a real windscreen shows you little of the sky; ours, made to shine from outside, put a sun's
+## glint and a bright band of sky on the glass by the pillar that slid across it as the car turned: "a
+## piece of the windscreen moving with the steering", the KAISER 320); outside, they shine again.
+static func glass_inside(model: Node3D, inside: bool) -> void:
+	if not model.has_meta("glass_swaps"):
+		var swaps: Array = []
+		for mi in model.find_children("*", "MeshInstance3D", true, false):
+			var m := mi as MeshInstance3D
+			if m.mesh == null:
+				continue
+			for s in m.mesh.get_surface_count():
+				var mat := m.get_active_material(s)
+				if not (mat is BaseMaterial3D) or (mat as BaseMaterial3D).transparency == BaseMaterial3D.TRANSPARENCY_DISABLED \
+						or kind(mat as BaseMaterial3D) != "glass":
+					continue
+				var dim := (mat as BaseMaterial3D).duplicate() as BaseMaterial3D
+				dim.metallic_specular = minf(dim.metallic_specular, GLASS_INSIDE_SPECULAR)
+				dim.specular_mode = BaseMaterial3D.SPECULAR_DISABLED   # (no sun glint)
+				dim.metallic = 0.0
+				swaps.append([m, s, m.get_surface_override_material(s), dim])
+		model.set_meta("glass_swaps", swaps)
+	for sw in model.get_meta("glass_swaps"):
+		if is_instance_valid(sw[0]):
+			(sw[0] as MeshInstance3D).set_surface_override_material(sw[1], sw[3] if inside else sw[2])
 
 
 ## The cabin's box (model space), from parts.json's cockpit: AABB() when it has none.
