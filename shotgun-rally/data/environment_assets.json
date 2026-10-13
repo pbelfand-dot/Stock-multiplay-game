@@ -630,9 +630,9 @@
    "glb": "res://assets/environment_runtime/props/highway_props.glb",
    "part": "pylon",
    "size": [
-    4.0,
+    0.65,
     11.51,
-    0.65
+    4.0
    ],
    "scale": 1.0,
    "tags": [
@@ -2020,7 +2020,8 @@
    "tags": [
     "track"
    ],
-   "source": "3DAssets.dev Grand Prix circuit / Endurance and GT paddock packs (CC0; AI-generated upstream)"
+   "source": "3DAssets.dev Grand Prix circuit / Endurance and GT paddock packs (CC0; AI-generated upstream)",
+   "no_glow": true
   },
   "pit_jack_front": {
    "kind": "prop",
@@ -2038,7 +2039,8 @@
    "tags": [
     "track"
    ],
-   "source": "3DAssets.dev Grand Prix circuit / Endurance and GT paddock packs (CC0; AI-generated upstream)"
+   "source": "3DAssets.dev Grand Prix circuit / Endurance and GT paddock packs (CC0; AI-generated upstream)",
+   "no_glow": true
   },
   "pit_helmet_rack": {
    "kind": "prop",
@@ -2047,7 +2049,8 @@
    "tags": [
     "track"
    ],
-   "source": "3DAssets.dev Grand Prix circuit / Endurance and GT paddock packs (CC0; AI-generated upstream)"
+   "source": "3DAssets.dev Grand Prix circuit / Endurance and GT paddock packs (CC0; AI-generated upstream)",
+   "no_glow": true
   },
   "marshal_hut": {
    "kind": "prop",

@@ -13,7 +13,8 @@ extends RefCounted
 ##   EnvAssets.building(material, night) -> Material: a building's (its facade, lit windows at night)
 ##   EnvAssets.mesh(id, lod = "", tint = white) -> Mesh: an asset's mesh ("" its only one; a tree's
 ##     "LOD0", "LOD1" or "BB"; a far-tier building's "LOD1"), the materials made right for the game (leaves: cut out, both sides,
-##     the sun through them, times the tint: a season's colour; see foliage()); cached
+##     the sun through them, times the tint: a season's colour; see foliage(); an entry's
+##     "no_glow": its materials' glow off); cached
 ## Meshes come out of the GLBs by part name (a node of each part in the GLB, made by the
 ## converter); each GLB is loaded once.
 
@@ -94,6 +95,15 @@ static func mesh(id: String, lod := "", tint := Color.WHITE) -> Mesh:
 				var tm: BaseMaterial3D = sm.duplicate()
 				tm.albedo_color = tm.albedo_color * tint
 				m.surface_set_material(i, tm)
+	if a.get("no_glow", false):
+		# (a pack's white paint made to glow a little: lit up the paddock's garages at night)
+		m = m.duplicate()
+		for i in m.get_surface_count():
+			var gm := m.surface_get_material(i)
+			if gm is BaseMaterial3D and (gm as BaseMaterial3D).emission_enabled:
+				var nm: BaseMaterial3D = gm.duplicate()
+				nm.emission_enabled = false
+				m.surface_set_material(i, nm)
 	if str(a.get("kind", "")) == "tree":
 		m = src.duplicate()
 		for i in m.get_surface_count():

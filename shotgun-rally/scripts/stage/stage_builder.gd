@@ -620,6 +620,7 @@ func _base() -> void:
 		mx = Vector3(maxf(mx.x, p.x), 0, maxf(mx.z, p.z))
 	if st.mountain:
 		_far_terrain(mn - Vector3(FAR_OUT, 0, FAR_OUT), mx + Vector3(FAR_OUT, 0, FAR_OUT))
+		_ground_done = true
 		return
 	var deepest := 0.0
 	for b in st.bridges:
@@ -640,6 +641,7 @@ func _base() -> void:
 	sb.add_child(cs)
 	add_child(sb)
 	body.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_ground_done = true
 
 
 ## On a mountain stage the mountainside carries on past the ground along the
@@ -1046,7 +1048,16 @@ func _card_trees(cones: MultiMeshInstance3D, list: Array, kind: String, view: fl
 	add_child(mmi)
 
 
+## The ground's height d m out from the road's edge at p. Once the ground is built (_ground,
+## _base: the ribbons along the road and a mountain stage's mountainside) it's the drawn ground
+## under p (_drawn_ground) where there's one: the profile's formula below from one sample of the
+## road stood a tree 0.3-0.6 m over the ribbons on a gentle stage and up to 50 m over a mountain
+## stage's tucked-in mountainside (88 m on a touge's switchbacks), boulders and ferns with them.
 func _ground_height(road_y: float, d: float, p: Vector3) -> float:
+	if _ground_done:
+		var y := _drawn_ground(p)
+		if y != INF:
+			return y
 	if st.mountain:
 		return _mountain_h(road_y, d, p)
 	var h := 0.0
@@ -1062,6 +1073,26 @@ func _ground_height(road_y: float, d: float, p: Vector3) -> float:
 	if d > GROUND_X[-1][0]:
 		h = GROUND_X[-1][1]
 	return road_y + h
+
+
+var _ground_done := false           # (set at the end of _base: the drawn ground is all there)
+var _drawn_tm: TriangleMesh = null
+
+
+## The top of the drawn ground (the ribbons along the road, a mountain stage's mountainside) over
+## (p.x, p.z), or INF where neither is under it (the flat field far below whatever they miss
+## isn't counted).
+func _drawn_ground(p: Vector3) -> float:
+	if _drawn_tm == null:
+		var faces := PackedVector3Array()
+		for nm in ["Ground", "Mountainside"]:
+			var mi = get_node_or_null(nm)
+			if mi is MeshInstance3D:
+				faces.append_array((mi as MeshInstance3D).mesh.get_faces())
+		_drawn_tm = TriangleMesh.new()
+		_drawn_tm.create_from_faces(faces)
+	var hit: Dictionary = _drawn_tm.intersect_ray(Vector3(p.x, 9000.0, p.z), Vector3.DOWN)
+	return float((hit.position as Vector3).y) if not hit.is_empty() else INF
 
 
 ## Distance (flat) from p to the nearest centerline sample, up to ~40 m (INF if none near).

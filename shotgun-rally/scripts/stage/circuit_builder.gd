@@ -920,8 +920,16 @@ func _trackside() -> void:
 		var i := int(st.wrap_s(s) / st.STEP) % st._n
 		if _prop_mesh("marshal_hut") != null:
 			# the library's observation hut, its open side to the track, a flag pole beside it
-			_prop("marshal_hut", Transform3D(bas * Basis(Vector3.UP, PI * 0.5 * side), p))
-			_prop("pit_flag_pole", Transform3D(bas, p + bas.z * 2.0 - bas.x * side * 0.9))
+			# (each on the land under it: the hut on the lowest under its corners, the pole on its own
+			# spot - it stood at the hut's height, up to 2.5 m in the air beside a hut on a slope)
+			var hp := p
+			for c in [Vector3(1.3, 0, 1.3), Vector3(-1.3, 0, 1.3), Vector3(1.3, 0, -1.3), Vector3(-1.3, 0, -1.3)]:
+				var q: Vector3 = p + bas * c
+				hp.y = minf(hp.y, _land_y(q.x, q.z))
+			_prop("marshal_hut", Transform3D(bas * Basis(Vector3.UP, PI * 0.5 * side), hp))
+			var fp: Vector3 = p + bas.z * 2.0 - bas.x * side * 0.9
+			fp.y = _land_y(fp.x, fp.z) - 0.1
+			_prop("pit_flag_pole", Transform3D(bas, fp))
 		else:
 			_buf(i, "board").box(p + Vector3.UP * 1.1, Vector3(1.8, 2.2, 1.8), bas)
 			_buf(i, "marshal").box(p + Vector3.UP * 2.3, Vector3(2.2, 0.2, 2.2), bas)
@@ -1027,6 +1035,7 @@ func _pit_props() -> void:
 		var mmi := MultiMeshInstance3D.new()
 		mmi.name = "Props_%s" % id
 		mmi.multimesh = mm
+		mmi.set_meta("xforms", list.duplicate())                 # (where each stands, for the tests: a headless MultiMesh keeps none)
 		var big: bool = id in ["pit_garage_double", "marshal_hut", "tyre_wall_straight"]
 		# (a MultiMesh's range is to its bounds' middle: the pits' kit is all in one place, but the
 		# marshal posts are round the whole lap: theirs has no range, ~14k triangles for all of them)

@@ -4,11 +4,14 @@ extends SceneTree
 ## Run: godot --headless --fixed-fps 120 --path . -s tests/environment_check.gd [-- --only=assets|biomes|stages]
 ##   * every asset in data/environment_assets.json loads (each tree its three levels: LOD0, LOD1,
 ##     the far card), every biome's species is in the library
+##   * each model as drawn: its entry's size, its one-sided faces wound the way their normals face,
+##     nothing glowing or mirror-smooth, a tree's levels the same height and its far card upright
 ##   * a stage in each kind of land builds with the library's trees (MEDIUM), boulders where the
 ##     biome has them, rock cuts and a power line on a touge, the forest floor's ferns, grass,
 ##     stumps and logs where the biome has undergrowth
 ##   * nothing stands on the road: every tree, boulder, rock face, pole and fern is clear of every part
 ##     of the road (switchbacks too), and a car-sized box down both lanes touches nothing
+##   * everything stands on the ground as drawn: nothing floats over it, no tree, pole or sign sunk
 ##   * the solid things (trunks, big boulders, poles) are the same at LOW and MEDIUM (every
 ##     machine in an online race agrees on them, whatever its graphics)
 ## Prints one [env] line per check; exits 1 on any FAIL.
@@ -40,6 +43,7 @@ func _initialize() -> void:
 	await process_frame
 	if only in ["", "assets"]:
 		_assets()
+		_models()
 	if only in ["", "biomes"]:
 		_biomes()
 	if only in ["", "stages"]:
@@ -77,6 +81,95 @@ func _assets() -> void:
 			bad.append(id)
 	check(others.size() >= 25 and EnvAssets.ids("ground").size() >= 20 and bad.is_empty(), "rocks, rock faces, props and the forest floor (%d ferns, grass, branches, roots, stumps, logs): %d load%s" % [
 		EnvAssets.ids("ground").size(), others.size(), (" (missing: %s)" % ", ".join(bad)) if not bad.is_empty() else ""])
+
+
+## The library's models as the game draws them (tools/world_audit.gd prints the same for every
+## model; the buildings: tests/city_check.gd): each its entry's size (squashed or stretched on
+## import), its one-sided faces wound the way their normals face (else drawn from inside or not
+## at all), no surface glowing or mirror-smooth that shouldn't, a tree's levels the same height
+## (no pop where they swap) and its far card upright and two-faced.
+func _models() -> void:
+	var box := ArrayMesh.new()
+	box.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, BoxMesh.new().get_mesh_arrays())
+	var sgn := 1.0 if _against(box, 1.0) < 0.5 else -1.0
+	var f := FileAccess.open("res://data/environment_assets.json", FileAccess.READ)
+	var all: Dictionary = JSON.parse_string(f.get_as_text()).assets
+	var sized: Array = []
+	var wound: Array = []
+	var shiny: Array = []
+	var pops: Array = []
+	var n := 0
+	for id in all:
+		var e: Dictionary = all[id]
+		var kind := str(e.get("kind", ""))
+		if kind in ["building", "skyline"]:
+			continue
+		var lods: Array = ["LOD0", "LOD1", "BB"] if kind == "tree" else [""]
+		var h := {}
+		for lod in lods:
+			var m: Mesh = EnvAssets.mesh(id, lod)
+			if m == null:
+				continue
+			n += 1
+			var ab := m.get_aabb()
+			h[lod] = ab.size.y
+			var sz = e.get("size", null)
+			if sz is Array:
+				var got := [ab.size.x, ab.size.y, ab.size.z]
+				for k in 3:
+					if absf(float(got[k]) - float(sz[k])) > maxf(float(sz[k]) * 0.03, 0.06):
+						sized.append("%s %.2f x %.2f x %.2f against %s" % [id, ab.size.x, ab.size.y, ab.size.z, str(sz)])
+						break
+			var share := _against(m, sgn)
+			if share > 0.02:
+				wound.append("%s%s %.0f %%" % [id, "/" + lod if lod != "" else "", share * 100.0])
+			for si in m.get_surface_count():
+				var mat := m.surface_get_material(si)
+				if mat is BaseMaterial3D:
+					var bm := mat as BaseMaterial3D
+					if bm.emission_enabled and bm.emission.get_luminance() * bm.emission_energy_multiplier > 0.01:
+						shiny.append("%s glows" % id)
+					if bm.roughness < 0.05 and bm.roughness_texture == null and bm.transparency == BaseMaterial3D.TRANSPARENCY_DISABLED:
+						shiny.append("%s mirror-smooth (%.2f)" % [id, bm.roughness])
+			if lod == "BB" and ab.size.y < maxf(ab.size.x, ab.size.z) * 0.5:
+				pops.append("%s far card lying down" % id)
+		if kind == "tree" and h.has("LOD0"):
+			for lod in ["LOD1", "BB"]:
+				if h.has(lod) and absf(float(h[lod]) / maxf(float(h.LOD0), 0.01) - 1.0) > 0.08:
+					pops.append("%s %s %.1f m against LOD0's %.1f" % [id, lod, float(h[lod]), float(h.LOD0)])
+	check(n > 100 and sized.is_empty(), "the library's models (%d, at each level): each its entry's size%s" % [n, "" if sized.is_empty() else "; OFF " + ", ".join(sized.slice(0, 4))])
+	check(n > 100 and wound.is_empty(), "each one's one-sided faces wound the way their normals face%s" % ("" if wound.is_empty() else "; AGAINST " + ", ".join(wound.slice(0, 6))))
+	check(n > 100 and shiny.is_empty(), "none glows or is mirror-smooth%s" % ("" if shiny.is_empty() else ": " + ", ".join(shiny.slice(0, 6))))
+	check(n > 100 and pops.is_empty(), "each tree's levels the same height (no pop where they swap), its far card upright%s" % ("" if pops.is_empty() else "; " + ", ".join(pops.slice(0, 6))))
+
+
+## The share of a mesh's one-sided area (a material that culls its back faces) wound against its
+## normals (sgn: the sign of (b - a) x (c - a) . n on Godot's front faces).
+func _against(m: Mesh, sgn: float) -> float:
+	var back := 0.0
+	var total := 0.0
+	for si in m.get_surface_count():
+		var mat := m.surface_get_material(si)
+		if mat is BaseMaterial3D and (mat as BaseMaterial3D).cull_mode != BaseMaterial3D.CULL_BACK:
+			continue
+		var arr := m.surface_get_arrays(si)
+		var v: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
+		var nn = arr[Mesh.ARRAY_NORMAL]
+		if nn == null or (nn as PackedVector3Array).size() != v.size():
+			continue
+		var idx = arr[Mesh.ARRAY_INDEX]
+		var count: int = (idx as PackedInt32Array).size() if idx != null else v.size()
+		var k := 0
+		while k + 2 < count:
+			var i0: int = idx[k] if idx != null else k
+			var i1: int = idx[k + 1] if idx != null else k + 1
+			var i2: int = idx[k + 2] if idx != null else k + 2
+			var c := (v[i1] - v[i0]).cross(v[i2] - v[i0])
+			total += c.length()
+			if c.dot(nn[i0] + nn[i1] + nn[i2]) * sgn < 0.0:
+				back += c.length()
+			k += 3
+	return back / maxf(total, 1e-9)
 
 
 func _biomes() -> void:
@@ -190,6 +283,30 @@ func _stages() -> void:
 			b.mesh_tree_count, trees.size(), rocks.size(), cuts.size(), poles.size(), signs.size(), ground.size()])
 		check(on_road.is_empty(), "%s: nothing on the road (%d things checked against every part of it)%s" % [land[0], placed.size(),
 			(": " + "; ".join(on_road.slice(0, 4))) if not on_road.is_empty() else ""])
+		# on the ground as drawn: none floating over it, the trees, poles and signs not sunk in it
+		var faces := PackedVector3Array()
+		for nm in ["Ground", "Mountainside"]:
+			var gmi = b.get_node_or_null(nm)
+			if gmi is MeshInstance3D:
+				faces.append_array((gmi as MeshInstance3D).mesh.get_faces())
+		var land_tm := TriangleMesh.new()
+		land_tm.create_from_faces(faces)
+		var floating: Array = []
+		var sunk: Array = []
+		var worst_up := 0.0
+		for e in placed:
+			var o: Vector3 = (e[1] as Transform3D).origin
+			var hit: Dictionary = land_tm.intersect_ray(o + Vector3.UP * 60.0, Vector3.DOWN)
+			if hit.is_empty():
+				continue
+			var up: float = o.y - (hit.position as Vector3).y
+			worst_up = maxf(worst_up, up)
+			if up > 0.25:
+				floating.append("%s %.2f m up at %.0f, %.0f" % [e[0], up, o.x, o.z])
+			elif (up < -1.0 and (e[0].begins_with("Trees") or e[0].begins_with("Warn"))) or (up < -2.0 and e[0] == "PowerPoles"):   # (a pole on the lowest ground under its foot: into a steep bank)
+				sunk.append("%s %.2f m down at %.0f, %.0f" % [e[0], -up, o.x, o.z])
+		check(floating.is_empty() and sunk.is_empty(), "%s: everything on the ground as drawn (the highest foot %.2f m over it), the trees, poles and signs not sunk%s" % [land[0], worst_up,
+			"" if floating.is_empty() and sunk.is_empty() else ": " + "; ".join((floating + sunk).slice(0, 4))])
 		# a car-sized box down both lanes touches nothing
 		var space: PhysicsDirectSpaceState3D = root.get_world_3d().direct_space_state
 		var q := PhysicsShapeQueryParameters3D.new()
