@@ -74,6 +74,9 @@ extends Resource
 @export_group("Engine and drivetrain")
 @export var engine: Resource                ## EngineConfig (none: no engine, the wheels roll free)
 @export var drivetrain: Resource            ## DrivetrainConfig
+## The share of the crank's torque that reaches the wheels under drive, through the gearbox, final
+## drive and joints (CarSpecs.driveline_efficiency by layout; SIM street only: RallyCar). 1: none lost.
+@export_range(0.5, 1.0, 0.001) var driveline_efficiency := 1.0
 
 @export_group("Collision")
 ## The body box (car space) and the cabin above it: what lands on the ground in a

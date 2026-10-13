@@ -79,6 +79,24 @@ const CHASSIS := {
 }
 
 
+## What of the crank's torque reaches the wheels under drive (the rest heats the oil), by layout:
+## Stadtfeld, "Automotive Drive Concepts" (Gear Technology, Nov/Dec 2020), the products of its
+## component efficiencies without the engine and the tyres: a rear-drive car's gearbox 94.5 %, prop
+## shaft joints 98.8 % and 99 %, rear axle 97.5 %, inner and outer drive-shaft joints 99 % each (88.3 %);
+## four-wheel drive on a longitudinal engine (transfer case, front axle: 85.1 %); front drive on a
+## transverse one (gearbox 94 %, final drive 98 %, joints 99 % and 95 % steering: 86.6 %). An electric
+## car's one reduction gear as an axle's 97.5 % and its two joints (95.6 %). The gearbox's figure is
+## one for every multi-speed box: the figures found don't separate a dual clutch from a locked-up
+## torque converter at full load (Stadtfeld's 94-94.5 %; Geely's own for its wet dual clutch, 94.6 %),
+## and where a converter does differ, pulling away, its slip is the launch clutch's (Drivetrain.control;
+## a converter's lower stall revs made no difference to the launches: tests/tarmac_check.gd).
+const DRIVELINE := {"rwd": 0.883, "awd": 0.851, "fwd": 0.866, "electric": 0.956}
+static func driveline_efficiency(drive: String, gears: int) -> float:
+	if gears <= 1:
+		return DRIVELINE.electric
+	return float(DRIVELINE.get(drive, DRIVELINE.awd))
+
+
 ## A chassis class on a config made from the rally car (in place).
 static func _chassis(c: Resource, kind: String) -> void:
 	var k: Dictionary = CHASSIS.get(kind, {})
@@ -252,6 +270,7 @@ static func config(model: String, mass := 0.0) -> Resource:
 	d.downshift_rpm = float(s.limiter) * 0.45
 	d.launch_rpm = clampf(float(s.limiter) * 0.5, 3000.0, 4500.0)
 	d.clutch_torque = maxf(base.drivetrain.clutch_torque, float(s.torque) * 1.4)
+	c.driveline_efficiency = driveline_efficiency(str(s.drive), s.gears.size())
 	match str(s.drive):
 		"rwd":
 			d.front_share = 0.0

@@ -120,7 +120,7 @@ static func setup(car_id: String, paint := {}, levels := {}, tuning := {}) -> Di
 
 ## A setup for this stage: "auto" tyres / setup become tarmac where the stage is
 ## asphalt most of the way, gravel otherwise. On the road modes with SIM STREET
-## handling on, "street": [g, tyre kind] (street_grip).
+## handling on, "street": street_grip's.
 static func for_stage(setup: Dictionary, st) -> Dictionary:
 	var s := setup.duplicate()
 	var asphalt := 0.0
@@ -147,6 +147,11 @@ static func for_stage(setup: Dictionary, st) -> Dictionary:
 ## estimated from cars of their kind, age and tyres (a 1970s car on its period
 ## tyres ~0.78, the 1980s ~0.82, the 1990s ~0.86-0.92, today's sports cars on
 ## performance tyres ~1.0, economy cars ~0.85-0.88). Not listed: by its role.
+## A third figure where a magazine measured a full stop: its average deceleration (g, from the
+## distance: v^2 / 2 d), the tyres' braking grip (TireModel.street_brake_g); without it the skid
+## pad's x the tyre kind's braking factor. Measured: the M5 G90 157 ft from 70 mph (1.04 g) and 0.98 g
+## round the pad (FastestLaps), the X7 M50i 152 ft from 70 (1.08 g; Car and Driver's 40,000-mile test),
+## the Maybach S 680 165 ft from 70 (0.99 g; Car and Driver), the G 63 115 ft from 60 (1.05 g; Edmunds).
 const STREET := {
 	"akatsuki": [1.07, "street"], "raiden": [1.0, "street"], "hellhound": [0.97, "street"], "hellhound_s": [0.93, "street"],
 	"brawler": [0.78, "street"], "hako": [0.78, "street"], "hachi": [0.8, "street"], "kitsune": [0.84, "street"],
@@ -163,9 +168,9 @@ const STREET := {
 	"affalter_dtm": [1.6, "slick"],
 	# the street batch: today's performance tyres; the track-focused ones on cup tyres
 	"tempesta_ursa": [0.98, "street"], "affalter_slr": [0.98, "street"], "vierrad_r7": [1.0, "street"], "affalter_a45": [1.0, "street"],
-	"kaiser_5t": [1.0, "street"], "kaiser_5g": [1.0, "street"], "kaiser_3x": [0.95, "street"], "kaiser_235": [0.97, "street"],
-	"kaiser_2c": [1.04, "street"], "affalter_s": [0.92, "street"],
-	"kaiser_5x": [0.96, "street"], "kaiser_7x": [0.83, "street"], "kasten": [0.81, "street"],   # (measured: above)
+	"kaiser_5t": [1.0, "street"], "kaiser_5g": [0.98, "street", 1.04], "kaiser_3x": [0.95, "street"], "kaiser_235": [0.97, "street"],
+	"kaiser_2c": [1.04, "street"], "affalter_s": [0.92, "street", 0.99],
+	"kaiser_5x": [0.96, "street"], "kaiser_7x": [0.83, "street", 1.08], "kasten": [0.81, "street", 1.05],   # (measured: above)
 	"kaiser_3": [0.92, "street"],                                      # (the base saloon: touring tyres)
 	"woking_600": [1.1, "cup"], "affalter_gtb": [1.15, "cup"], "woking_800": [1.2, "cup"], "woking_one": [1.12, "cup"],
 	# FORMULA APEX: 18 in slicks on an 800 kg car (~1.7 g before the wings: they add 2-3 x the weight at speed)
@@ -196,15 +201,13 @@ const FACTORY_TC := ["akatsuki", "raiden", "hellhound", "hellhound_s", "kaiser_2
 	"kaiser_3x", "kaiser_235", "kaiser_2c", "affalter_s", "woking_800", "woking_one", "kaiser_3"]
 
 
-## [g, tyre kind, factory ABS, factory TC] for this car in SIM STREET (STREET, else
-## by its role, else a modern road car's 0.95 on road tyres).
+## [g, tyre kind, factory ABS, factory TC, measured stop's g (0: none)] for this car in SIM STREET
+## (STREET, else by its role, else a modern road car's 0.95 on road tyres).
 static func street_grip(id: String) -> Array:
 	var e = VehicleRegistry.entry(id)
 	var role := str(e.get("role", "")) if e != null else ""
-	var out: Array = (STREET[id] if STREET.has(id) else STREET_ROLE.get(role, [0.95, "street"])).duplicate()
-	out.append(not (id in NO_ABS or role == "rally"))
-	out.append(id in FACTORY_TC)
-	return out
+	var g: Array = STREET[id] if STREET.has(id) else STREET_ROLE.get(role, [0.95, "street"])
+	return [g[0], g[1], not (id in NO_ABS or role == "rally"), id in FACTORY_TC, float(g[2]) if g.size() > 2 else 0.0]
 
 
 ## Is SIM STREET handling on for this stage? The road kinds (the loop, a highway,

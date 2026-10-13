@@ -413,11 +413,12 @@ flooring it out of a 60 km/h corner no longer spins the Supra. ARCADE is there f
 rather.
 
 `tests/tarmac_check.gd` measures the owner's three complaints (October 2026): the M5 G90's
-acceleration against the real car's (0-60 mph 3.4 s and 0-100 km/h 3.6 s against BMW's 3.4 and
-3.5, 60-100 mph from a cruise 3.8 s, 100-200 km/h 6.9 s, 0-200 10.3 s against BMW's 10.9); 16
-more road cars from a standstill, each within 0.2 s or 6 % of a magazine's measured 0-60 mph where
-one exists (timed from a 1-ft rollout, as Car and Driver and Motor Trend time it), else of its
-maker's 0-100 km/h; a GT3 car's standing launch in Track Mode on cold slicks with no steering (straight, 0-100 km/h in
+acceleration against the real car's (0-60 mph 3.4 s and 0-100 km/h 3.55 s against BMW's 3.4 and
+3.5, 3.07 s to 60 mph from a 1-ft rollout against Car and Driver's 3.0, 60-100 mph from a cruise
+4.2 s, 100-200 km/h 7.8 s, 0-200 11.2 s against BMW's 10.9); 21 road cars against the magazines'
+measured figures where they exist (0-60 mph from a 1-ft rollout, as Car and Driver and Motor Trend
+time it, within 0.2 s or 6 %, and the quarter mile's trap speed within 3.5 %), else their makers'
+0-100 km/h; four full stops on their measured distances (within 6 %); a GT3 car's standing launch in Track Mode on cold slicks with no steering (straight, 0-100 km/h in
 ~3.2-3.5 s) and keys tapped on the throttle at 80 km/h (no spin: it spun on a 0.2 s tap); a
 lane change at 200 km/h on keys and a stick (no smoke, no marks, ~0.3 g, the front tyres under
 half their peak slip, ESC untouched), a key tapped and held at 200 km/h.

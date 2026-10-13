@@ -146,12 +146,19 @@ static func arcade(cfg: Resource, rear := false) -> Resource:
 ## kind: "street", "cup" (Cup 2 / R-compound road tyres), "slick", "formula" (a single-seater's).
 ## STREET_CAL: tests/sim_check.gd's skid pad on the cars it measures, measured / real, ~1.00 on
 ## average (at 1.08 it was 0.95: every road car ~5 % short of its real grip).
+## BRAKE_CAL: the same for braking: a stop's average deceleration as the magazines measure it (from
+## the distance, the pedal's first touch on: the brakes' rise and the ABS cycling round the peak take
+## their share) to the tyres' grip; tests/tarmac_check.gd's stops, measured / real, ~1.00 on the cars
+## with a measured stop (at STREET_CAL's 1.13 they stopped 4-6 % short: the M5 150 ft from 70 mph
+## against 157).
 ## DRIVE_GRIP: a road tyre's grip under drive, x its braking grip. The braking figures are what a
-## car's ABS gets from its tyres, cycling round their peak (~90 % of it); a driven tyre held at its
-## peak (traction control, a careful foot) uses all of it. At 1.0 every rear-drive car pulled away
-## ~10 % short of its maker's 0-100 km/h (the M4 Competition 4.4 s against BMW's 3.9; tests/tarmac_check.gd).
+## car's ABS gets from its tyres, cycling round their peak; a driven tyre held at its peak (traction
+## control, a careful foot) uses all of it. At 1.0 every rear-drive car pulled away ~10 % short of its
+## maker's 0-100 km/h (the M4 Competition 4.4 s against BMW's 3.9; tests/tarmac_check.gd); 1.155 with
+## BRAKE_CAL's 1.075 is 1.1 with the 1.13 it had before.
 const STREET_CAL := 1.13
-const DRIVE_GRIP := 1.1
+const BRAKE_CAL := 1.075
+const DRIVE_GRIP := 1.155
 const STREET_KINDS := {
 	"street": {"peak_deg": 7.5, "keep": 0.85, "long_peak": 0.12, "keep_long": 0.8, "load": 0.12, "brake": 1.1},
 	"cup": {"peak_deg": 6.0, "keep": 0.82, "long_peak": 0.1, "keep_long": 0.78, "load": 0.15, "brake": 1.05},
@@ -160,13 +167,24 @@ const STREET_KINDS := {
 	# (rated at 4 kN a tyre by its chassis class: its grip per newton falls only slowly as the wings load it)
 	"formula": {"peak_deg": 4.0, "keep": 0.74, "long_peak": 0.08, "keep_long": 0.72, "load": 0.1, "brake": 1.0},
 }
-static func street(cfg: Resource, g: float, kind := "street") -> Resource:
+## The average deceleration (g) of a full stop on this car's road tyres: the one a magazine measured
+## where there's one (Catalog.STREET's third figure, from the distance: v^2 / 2 d), else the skid pad's
+## x the tyre kind's braking factor. A tall, heavy SUV's skid pad is held down by its weight swinging
+## out (the G 63: 0.81 g round Edmunds' pad, 1.05 g stopping from 60 mph in 115 ft), so the skid pad
+## alone left it stopping 11 % long (128 ft).
+static func street_brake_g(g: float, kind: String, measured := 0.0) -> float:
+	if measured > 0.0:
+		return measured
+	return g * float(STREET_KINDS.get(kind, STREET_KINDS.street).brake)
+
+
+static func street(cfg: Resource, g: float, kind := "street", brake_g := 0.0) -> Resource:
 	var asphalt: Resource = load("res://scripts/vehicle/physics/surfaces.gd").named("asphalt")
 	var spec: Dictionary = STREET_KINDS.get(kind, STREET_KINDS.street)
 	var t: Resource = cfg.duplicate()
 	var lat := g * STREET_CAL                                 # the peak friction it needs on asphalt
 	t.sealed_grip = lat / (cfg.lateral_mu * asphalt.grip)
-	t.longitudinal_mu = float(spec.brake) * lat / (asphalt.grip * t.sealed_grip)
+	t.longitudinal_mu = street_brake_g(g, kind, brake_g) * BRAKE_CAL / (asphalt.grip * t.sealed_grip)
 	t.sealed_peak = float(spec.peak_deg) / (cfg.lateral_peak_deg * asphalt.peak_scale)
 	t.lateral_shape = shape_keeping(float(spec.keep) / asphalt.slide_grip)
 	t.longitudinal_shape = shape_keeping(float(spec.keep_long) / asphalt.slide_grip)

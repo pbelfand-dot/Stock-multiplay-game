@@ -521,6 +521,11 @@ func apply_setup(s: Dictionary) -> bool:
 		# car's paddle box match the revs on a change: drivetrain.gd; a classic's manual and the rally box don't)
 		drivetrain.rev_match = race != null or (street.size() > 3 and bool(street[3]))
 		drivetrain.part_throttle = race == null and street.size() > 0     # (SIM street: a road car's automatic)
+		# (SIM street: the real car's engine figures at the crank, through its real driveline; the cars
+		# made from a spec only: CarSpecs.driveline_efficiency)
+		var real_driveline: bool = drivetrain.part_throttle and config.driveline_efficiency < 1.0
+		drivetrain.net_curve = real_driveline
+		drivetrain.efficiency = config.driveline_efficiency if real_driveline else 1.0
 	_tune(str(s.get("tyre", "gravel")), str(s.get("preset", "gravel")))
 	_street_brakes()
 	_set_aids()
@@ -641,8 +646,9 @@ func _tune(tyre: String, kind: String) -> void:
 	config.rear_suspension = sus[1]
 	var TM = RallyWheel.TireModel
 	if not street.is_empty():
-		config.front_tire = TM.street(_base_parts.ft_tarmac, float(street[0]), str(street[1]))
-		config.rear_tire = TM.street(_base_parts.rt_tarmac, float(street[0]), str(street[1]))
+		var stop := float(street[4]) if street.size() > 4 else 0.0
+		config.front_tire = TM.street(_base_parts.ft_tarmac, float(street[0]), str(street[1]), stop)
+		config.rear_tire = TM.street(_base_parts.rt_tarmac, float(street[0]), str(street[1]), stop)
 	else:
 		config.front_tire = TM.grippy(_base_parts.ft_tarmac if tyre == "tarmac" else _base_parts.ft, grip_assist)
 		config.rear_tire = TM.grippy(_base_parts.rt_tarmac if tyre == "tarmac" else _base_parts.rt, grip_assist, true)
@@ -669,8 +675,7 @@ func _street_brakes() -> void:
 		return
 	var TM = RallyWheel.TireModel
 	var kind := str(street[1])
-	var spec: Dictionary = TM.STREET_KINDS.get(kind, TM.STREET_KINDS.street)
-	var a: float = float(street[0]) * float(spec.brake)               # the stop's g
+	var a: float = TM.street_brake_g(float(street[0]), kind, float(street[4]) if street.size() > 4 else 0.0)   # the stop's g
 	var loads: Array = config.static_loads(1.0)
 	var front := float(loads[0]) / (float(loads[0]) + float(loads[1]))
 	var h: float = STREET_COM_H.get(kind, 0.5)

@@ -77,6 +77,15 @@ const DEMAND_KEEP := 3.0           # s: a full demand falls to none this long af
 var _demand := 0.0
 var _kick := false                 # floored from a light demand: a kickdown to the gear with the most power
 
+## SIM street's road cars (the car sets these): the engine's curve is its net output at the crank, as
+## the makers publish it (its own friction made on top at full throttle: before, that came off the
+## published figures, 4-7 % of them), and what of it the driveline passes to the wheels under drive
+## (CarConfig.driveline_efficiency: 85-96 %; the rest heats the gearbox and axles). Engine braking
+## goes back through it as it was. Before, nothing was lost after the crank: most road cars crossed
+## the quarter mile 3-8 mph faster than Car and Driver and Motor Trend measured them.
+var net_curve := false
+var efficiency := 1.0
+
 var _shift_t := 0.0
 var _next_gear := 1
 var _driveline := 0.0              # the gearbox output's speed (rad/s) from the wheels, last control()
@@ -103,6 +112,15 @@ func reset() -> void:
 
 func rpm() -> float:
 	return omega_e * EngineModel.TO_RPM
+
+
+## The torque the engine makes at these revs and throttle before its own friction (net_curve: the
+## published curve is what's left after it).
+func gross_torque(r: float, thr: float) -> float:
+	var t: float = EngineModel.torque(eng, r, thr, boost)
+	if net_curve:
+		t += thr * (eng.friction + eng.friction_per_rpm * maxf(r, 0.0))
+	return t
 
 
 func gears() -> int:
@@ -205,7 +223,7 @@ func control(dt: float, pedal: float, wheels: Array, launch := -1.0) -> void:
 		# revs rise past them, less if they fall. So however heavy the load the
 		# engine pulls at those revs instead of bogging, and when traction control
 		# cuts the throttle the clutch passes on the smaller torque instead of grabbing.
-		var made: float = EngineModel.torque(eng, r, throttle, boost) - EngineModel.friction(eng, r, throttle)
+		var made: float = gross_torque(r, throttle) - EngineModel.friction(eng, r, throttle)
 		clutch = clampf((maxf(made, 0.0) + LAUNCH_GAIN * (r - hold)) / cfg.clutch_torque, 0.0, 1.0)
 	if not cfg.handbrake_disconnects_rear and handbrake > 0.25 and cfg.front_share < 1.0:
 		clutch = 0.0                                 # no rally handbrake clutch: the left foot dips the clutch instead
@@ -263,7 +281,7 @@ func _auto_road(r: float, foot: float) -> void:
 ## and the friction torque holding it (resist_torque).
 func solve(h: float, wheels: Array) -> void:
 	var r := rpm()
-	engine_torque = EngineModel.torque(eng, r, throttle, boost) + extra_torque
+	engine_torque = gross_torque(r, throttle) + extra_torque
 	var n_e: float = eng.inertia * omega_e + h * engine_torque
 	var stop := h * EngineModel.friction(eng, r, throttle)
 	omega_e = 0.0 if absf(n_e) <= stop else (n_e - signf(n_e) * stop) / eng.inertia
@@ -280,19 +298,24 @@ func solve(h: float, wheels: Array) -> void:
 	for it in ITERATIONS:
 		if cap > 0.0 and g != 0.0:
 			var c := omega_e
-			var denom: float = 1.0 / eng.inertia
+			var sw := 0.0
 			for k in 4:
 				c += jc[k] * wheels[k].omega
-				denom += jc[k] * jc[k] / wheels[k].i_eff
-			var acc := clampf(lam_c - c / denom, -cap, cap)
+				sw += jc[k] * jc[k] / wheels[k].i_eff
+			# driving (the impulse -: it slows the engine) the wheels get efficiency x the crank's share
+			var e := efficiency
+			var acc := clampf(lam_c - c / (1.0 / eng.inertia + e * sw), -cap, cap)
+			if acc > 0.0 and e < 1.0:
+				e = 1.0
+				acc = clampf(lam_c - c / (1.0 / eng.inertia + sw), -cap, cap)
 			var d := acc - lam_c
 			lam_c = acc
 			omega_e += d / eng.inertia
 			for k in 4:
-				wheels[k].omega += jc[k] * d / wheels[k].i_eff
+				wheels[k].omega += e * jc[k] * d / wheels[k].i_eff
 		# the torque into the centre diff (N m): + the engine driving (either way), - engine braking.
 		# (The clutch's impulse is - when the engine pushes the wheels on: it slows the engine.)
-		var t_in := -lam_c / h * absf(g)
+		var t_in := -lam_c / h * absf(g) * (efficiency if lam_c < 0.0 else 1.0)
 		if free_rear:                                # the rear axle's clutch, slipping
 			lam_cd = _row([0.5, 0.5, -0.5, -0.5], wheels, lam_cd, rear_coupling * cfg.rear_clutch_torque * h)
 		elif b > 0.0 and b < 1.0:

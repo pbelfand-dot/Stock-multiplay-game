@@ -613,6 +613,36 @@ spinning before it had turned, an M5 that felt slow, too little grip. Measured f
       measured (the X5 M at 120 mph against 115, the S 680 at 124 against 120). Only the engine's own
       friction comes off its crank figures; there are no gearbox, final-drive or four-wheel-drive
       losses.
+- **Round three: the driveline, the magazines' measured times, braking of its own:**
+  - Makers publish an engine's net output at the crank, and some of it is lost before the wheels.
+    The sim took the engine's own friction off the published curve and lost nothing after the crank.
+    In SIM street the published curve is now the engine's output, and the driveline passes on what a
+    real one does: 88.3 % on a rear-drive car, 85.1 % on
+    four-wheel drive, 86.6 % on front drive, 95.6 % on an electric car (Stadtfeld, "Automotive Drive
+    Concepts", Gear Technology, Nov/Dec 2020). The quarter mile's trap speeds now fall within 3.5 % of
+    Car and Driver's and Motor Trend's for 16 cars (the X5 M 116 mph against 115, the S 680 120
+    against 120).
+  - Launches are fitted to the magazines' 0-60 mph, timed from a 1-ft rollout as they time it. A
+    four-wheel-drive car's traction control now lets the spin run to 0.38 of the tyres' peak (0.33
+    before). The M5 does 0-60 mph in 3.07 s from a rollout (Car and Driver: 3.0) and 3.39 s from a
+    standstill (BMW: 3.4).
+  - Where a magazine measured a stop, the tyres brake on that figure instead of the skid pad's:
+    - the M5: 159 ft from 70 mph (157 measured)
+    - the X7 M50i: 154 ft from 70 (152)
+    - the S 680: 164 ft from 70 (165)
+    - the G 63: 120 ft from 60 (115)
+
+    The G 63 and the X7 keep their measured skid pads, 0.80 and 0.83 g in tests/sim_check.gd. The
+    other cars brake on their skid pads' figures as before.
+  - tarmac_check now holds 13 cars to their measured 0-60 mph from a rollout, 16 to their trap
+    speeds, 4 to their measured stops, and 4 to their makers' 0-100 km/h where no magazine measured them.
+  - Still out:
+    - the X5 M, X7 M50i and S 680 pull away 0.3 s quicker than measured. Their traps match, so the
+      difference is all in the first seconds; a torque converter's lower launch revs made no difference.
+    - the Senna is 0.35 s quick. So is the AMG ONE against Mercedes-AMG's 2.9 s, though no magazine
+      has measured it.
+    - the Hellcat Widebody is 0.7 s slow against Dodge's 3.6 s.
+    - the 600LT, P1 and Senna trap 4-5 % fast; their drag figures are estimates.
 
 ## Controls
 

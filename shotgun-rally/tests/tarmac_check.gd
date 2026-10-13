@@ -7,16 +7,17 @@ extends SceneTree
 ##     0-60 mph and 0-100 km/h, 60-100 mph from a 60 mph cruise in the gear the box holds there,
 ##     100-200 km/h, against the real car's figures (BMW: 0-60 mph 3.4 s, 0-100 km/h 3.5 s,
 ##     0-200 km/h 10.9 s; FastestLaps 100-200 km/h 6.4 s; 60-100 mph ~3.7-4.2 s from those)
-##   * 0-100 km/h from a standstill, flat out on keys, against the maker's figure (within 0.2 s or
-##     6 %) across the range: the M4 Competition and M2 (rear drive), the GT Black Series (a
-##     supercar), the X3 M40i and the Urus Performante (SUVs), the A 45 S and the RS 6 (four-wheel
-##     drive), the ID.4 and the Honda e (electric), the AMG ONE (a hybrid hypercar), the G 63 (a
-##     2.6 t off-roader). (No front-drive road car is in the game but a 1992 Civic, which its maker
-##     never timed.)
-##   * 0-60 mph against a magazine's measured figure (preferred where one exists), timed as Car and
-##     Driver and Motor Trend time it, from a 1-ft rollout (the clock starts once the car has moved a
-##     foot): the 600LT Spider and the P1 (mid-engined, rear drive), the GT-R, the RS 7, the X7 M50i
-##     (a 2.5 t SUV on touring tyres)
+##   * road cars flat out from a standstill on keys, against a magazine's measured figures where they
+##     exist (0-60specs.com's records of Car and Driver's and Motor Trend's tests), timed as they time
+##     them: 0-60 mph from a 1-ft rollout (within 0.2 s or 6 %) and the quarter mile's trap speed (within
+##     3.5 %: the two magazines' traps for one car differ by up to 3-4 %): the M5 and M5 Touring, M2,
+##     GT Black Series, X3 M40i, Urus Performante, RS 6, ID.4, GR Supra, M235i Gran Coupe, GT-R and
+##     RS 7; the 600LT Spider and P1 on 0-60 mph alone, the X7 M50i, X5 M, Maybach S 680 and G 63 on the
+##     trap alone. Where no magazine measured the car, its maker's 0-100 km/h (the M4 Competition, the
+##     A 45 S, the Honda e, the G 63). (No front-drive road car is in the game but a 1992 Civic, which its
+##     maker never timed.)
+##   * full stops on their measured distances (within 6 %), the pedal flat from 70 or 60 mph: the M5,
+##     the X7 M50i, the G 63 and the Maybach S 680 (Catalog.STREET's braking figures)
 ##   * a GT3 car's STANDING LAUNCH in Track Mode on keys: parked on the grid's handbrake, then
 ##     the throttle flat with NO steering (a 1.7 deg/s nudge of yaw, as a bump or the camber
 ##     gives): it goes straight, and 0-100 km/h in a GT3's ~3.5 s. And on the throttle at
@@ -35,6 +36,10 @@ extends SceneTree
 ## Prints one [tarmac] line per check; exits 1 on any FAIL.
 
 const MPH := 1.609344
+const FT := 0.3048
+const QUARTER := 402.336            # m
+const TRAP_TOL := 0.035             # (Car and Driver's and Motor Trend's traps for one car differ by up to 3-4 %)
+const STOP_TOL := 0.06
 
 var RallyCar
 var Catalog
@@ -85,22 +90,36 @@ func _initialize() -> void:
 	root.add_child(pad)
 	cases = [
 		{"k": "standing", "car": "kaiser_5g"},
+		# the makers' 0-100 km/h, where no magazine measured the car
 		{"k": "pub", "car": "kaiser_4", "z100": 3.9, "src": "BMW's spec sheet 03/2021"},
-		{"k": "pub", "car": "kaiser_2c", "z100": 4.1, "src": "BMW 10/2022, the automatic"},
-		{"k": "pub", "car": "affalter_gtb", "z100": 3.2, "src": "Mercedes-AMG"},
-		{"k": "pub", "car": "kaiser_3x", "z100": 4.9, "src": "BMW, the facelift"},
-		{"k": "pub", "car": "tempesta_ursa", "z100": 3.3, "src": "Lamborghini"},
 		{"k": "pub", "car": "affalter_a45", "z100": 3.9, "src": "Mercedes-AMG 07/2019"},
-		{"k": "pub", "car": "kombi", "z100": 3.6, "src": "Audi"},
-		{"k": "pub", "car": "stromer", "z100": 8.5, "src": "Volkswagen"},
 		{"k": "pub", "car": "mochi", "z100": 8.3, "src": "Honda"},
-		{"k": "pub", "car": "uno", "z100": 2.9, "src": "Mercedes-AMG"},
 		{"k": "pub", "car": "kasten", "z100": 4.5, "src": "Mercedes-AMG"},
+		# measured (0-60specs.com's records of Car and Driver's and Motor Trend's tests): 0-60 mph from a
+		# 1-ft rollout and the quarter mile's trap speed
+		{"k": "meas", "car": "kaiser_5g", "z60": 3.0, "trap": 130.0, "src": "Car and Driver, 2025"},
+		{"k": "meas", "car": "kaiser_5t", "z60": 3.1, "trap": 129.0, "src": "Car and Driver, the 2025 Touring"},
+		{"k": "meas", "car": "kaiser_2c", "z60": 3.5, "trap": 120.2, "src": "Motor Trend, the 2023 automatic"},
+		{"k": "meas", "car": "affalter_gtb", "z60": 2.9, "trap": 136.1, "src": "Motor Trend, 2021"},
+		{"k": "meas", "car": "kaiser_3x", "z60": 4.4, "trap": 107.0, "src": "Car and Driver, the 2018 M40i: 355 hp, this one's 360 PS"},
+		{"k": "meas", "car": "tempesta_ursa", "z60": 3.0, "trap": 122.0, "src": "Car and Driver, 2023"},
+		{"k": "meas", "car": "kombi", "z60": 3.1, "trap": 120.0, "src": "Car and Driver, 2021"},
+		{"k": "meas", "car": "stromer", "z60": 7.3, "trap": 87.2, "src": "Motor Trend, the 2021 Pro"},
+		{"k": "meas", "car": "akatsuki", "z60": 3.8, "trap": 117.0, "src": "Car and Driver, 2021"},
+		{"k": "meas", "car": "kaiser_235", "z60": 4.2, "trap": 107.0, "src": "Car and Driver, 2020"},
+		{"k": "meas", "car": "raiden", "z60": 2.9, "trap": 126.0, "src": "Car and Driver, the 2018 Track Edition"},
+		{"k": "meas", "car": "vierrad_r7", "z60": 3.0, "trap": 122.0, "src": "Car and Driver, 2021"},
 		{"k": "meas", "car": "woking_600", "z60": 2.8, "src": "Car and Driver, the 2019 Spider"},
 		{"k": "meas", "car": "woking_one", "z60": 2.6, "src": "Motor Trend, 2015"},
-		{"k": "meas", "car": "raiden", "z60": 2.9, "src": "Car and Driver, the 2018 Track Edition; Motor Trend, the 2017 Premium"},
-		{"k": "meas", "car": "vierrad_r7", "z60": 3.0, "src": "Car and Driver, 2021"},
-		{"k": "meas", "car": "kaiser_7x", "z60": 4.1, "src": "Car and Driver, the 2020 M50i"},
+		{"k": "meas", "car": "kaiser_7x", "trap": 110.0, "src": "Car and Driver, the 2020 M50i"},
+		{"k": "meas", "car": "kaiser_5x", "trap": 115.0, "src": "Car and Driver, the 2015 X5 M"},
+		{"k": "meas", "car": "affalter_s", "trap": 120.0, "src": "Car and Driver, 2023"},
+		{"k": "meas", "car": "kasten", "trap": 109.0, "src": "MotorWeek, 2019"},
+		# full stops, measured: from the pedal's first touch to a standstill
+		{"k": "stop", "car": "kaiser_5g", "mph": 70.0, "ft": 157.0, "src": "FastestLaps"},
+		{"k": "stop", "car": "kaiser_7x", "mph": 70.0, "ft": 152.0, "src": "Car and Driver's 40,000-mile test"},
+		{"k": "stop", "car": "kasten", "mph": 60.0, "ft": 115.0, "src": "Edmunds, 2025"},
+		{"k": "stop", "car": "affalter_s", "mph": 70.0, "ft": 165.0, "src": "Car and Driver, 2023"},
 		{"k": "roll", "car": "kaiser_5g", "from": 60.0 * MPH, "to": 100.0 * MPH, "n": "60-100 mph", "lo": 3.2, "hi": 4.6},
 		{"k": "roll", "car": "kaiser_5g", "from": 100.0, "to": 200.0, "n": "100-200 km/h", "lo": 6.0, "hi": 8.0},
 	]
@@ -212,7 +231,22 @@ func _physics_process(dt: float) -> bool:
 				for mk in [[60.0 * MPH, "60mph"], [100.0, "100"], [200.0, "200"]]:
 					if kmh >= mk[0] and not m.has(mk[1]):
 						m[mk[1]] = t - 1.0
-			done = m.has("200") or t > 20.0 or (c.k == "pub" and (m.has("100") or t > 16.0)) or (c.k == "meas" and (m.has("60mph") or t > 16.0))
+				if float(m.dist) >= QUARTER and not m.has("trap"):
+					m.trap = kmh / MPH                     # (the quarter mile's trap speed)
+			if c.k == "meas":
+				done = (m.has("trap") if c.has("trap") else m.has("60mph")) or t > 30.0
+			else:
+				done = m.has("200") or t > 20.0 or (c.k == "pub" and (m.has("100") or t > 16.0))
+		"stop":
+			if t < 0.5:
+				_roll_start(float(c.mph) * MPH / 3.6)
+			else:
+				inp.brake = 1.0                            # (the pedal flat, as the testers stop)
+				if not m.has("x0"):
+					m.x0 = car.global_position
+			done = (t > 0.6 and hv < 0.3) or t > 12.0
+			if done and m.has("x0"):
+				m.ft = car.global_position.distance_to(m.x0) / FT
 		"roll":
 			var v0: float = c.from / 3.6
 			if t < 0.5:
@@ -332,9 +366,18 @@ func _report() -> void:
 			_check(_near(t100, float(c.z100)), "%s from a standstill: 0-100 km/h %.2f s, its maker's %.1f s (%s; %+.2f s)" % [c.car, t100, float(c.z100), c.src,
 				t100 - float(c.z100)])
 		"meas":
-			var t60 := float(m.get("60mph", INF)) - float(m.get("foot", 0.0))
-			_check(_near(t60, float(c.z60)), "%s: 0-60 mph %.2f s from a 1-ft rollout, measured %.1f s (%s; %+.2f s)" % [c.car, t60, float(c.z60), c.src,
-				t60 - float(c.z60)])
+			if c.has("z60"):
+				var t60 := float(m.get("60mph", INF)) - float(m.get("foot", 0.0))
+				_check(_near(t60, float(c.z60)), "%s: 0-60 mph %.2f s from a 1-ft rollout, measured %.1f s (%s; %+.2f s)" % [c.car, t60, float(c.z60), c.src,
+					t60 - float(c.z60)])
+			if c.has("trap"):
+				var v := float(m.get("trap", 0.0))
+				_check(absf(v / float(c.trap) - 1.0) <= TRAP_TOL, "%s: the quarter mile's trap %.1f mph, measured %.1f (%s; %+.1f %%)" % [c.car, v, float(c.trap), c.src,
+					(v / float(c.trap) - 1.0) * 100.0])
+		"stop":
+			var ft := float(m.get("ft", INF))
+			_check(absf(ft / float(c.ft) - 1.0) <= STOP_TOL, "%s: a full stop from %.0f mph in %.0f ft, measured %.0f (%s; %+.1f %%)" % [c.car, float(c.mph), ft, float(c.ft), c.src,
+				(ft / float(c.ft) - 1.0) * 100.0])
 		"roll":
 			var tr := float(m.get("time", INF))
 			_check(tr > float(c.lo) and tr < float(c.hi), "the M5 G90 rolling %s flat out from a cruise: %.2f s (real: %s)" % [c.n, tr,

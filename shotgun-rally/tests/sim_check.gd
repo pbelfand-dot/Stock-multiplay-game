@@ -7,13 +7,15 @@ extends SceneTree
 ##   * braking: 100 to 0 km/h, the pedal flat with ABS (as the tests are run): the
 ##     distance, and the average deceleration in g
 ## Each car against its own figure (Catalog.street_grip: the real skid-pad g, and
-## braking ~1.1x that on road tyres): within 10 % sideways, 12 % braking. And the
+## braking ~1.1x that on road tyres, or its measured stop's): within 10 % sideways, 12 % braking. And the
 ## same car on the rally game's ARCADE grip, for comparison (printed, not judged),
 ## and SIM's aids: no drift assist or countersteer help, high-speed stability as
 ## Settings say (on here); the factory ABS and traction control the real car has.
 ## Run: godot --headless --fixed-fps 120 --path . -s tests/sim_check.gd [-- --car=akatsuki]
 
-const CARS := ["akatsuki", "raiden", "hellhound", "hachi", "lancer", "kaiser_2", "elfer_rs", "kestrel", "elfer_r"]
+## (the G 63 and the X7 M50i: tall, heavy SUVs on their measured skid pads, stopping on their measured
+## stops' figures, Catalog.STREET's third: tests/tarmac_check.gd stops them from 70 / 60 mph)
+const CARS := ["akatsuki", "raiden", "hellhound", "hachi", "lancer", "kaiser_2", "elfer_rs", "kestrel", "elfer_r", "kasten", "kaiser_7x"]
 const PAD_KMH := 76.0
 const RAMP_S := 12.0                # s to wind the steering on to RAMP_TO
 const RAMP_TO := 0.7
@@ -215,8 +217,7 @@ func _report() -> void:
 		var v0 := 100.0 / 3.6
 		r.dist = d
 		r.g = v0 * v0 / (2.0 * d) / 9.81
-		var brake: float = TM.STREET_KINDS[kind].brake
-		r.want = g_want * brake
+		r.want = TM.street_brake_g(g_want, kind, float(Catalog.street_grip(c.car)[4]))
 		r.ok = absf(r.g / r.want - 1.0) <= BRAKE_TOL
 	if c.sim:
 		# (no drift helpers; high-speed stability its own street switch, off out of the box; the

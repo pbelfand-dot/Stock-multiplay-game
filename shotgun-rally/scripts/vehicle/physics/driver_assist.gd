@@ -437,7 +437,7 @@ func throttle(car, dt: float, thr: float) -> float:
 static func _throttle_for(d, need: float) -> float:
 	var e: Resource = d.eng
 	var r: float = maxf(d.rpm(), 0.0)
-	var full: float = EngineModel.torque(e, r, 1.0, d.boost) + maxf(float(d.extra_torque), 0.0)
+	var full: float = d.gross_torque(r, 1.0) + maxf(float(d.extra_torque), 0.0)
 	var f0: float = e.friction + e.friction_per_rpm * r
 	var c: float = e.closed_throttle_per_rpm * r + e.regen_torque * clampf(r / maxf(e.limiter_rpm * 0.05, 1.0), 0.0, 1.0)
 	return clampf((need + f0 + c) / maxf(full + c, 1.0), 0.0, 1.0) if need < INF else 1.0
@@ -471,7 +471,7 @@ func _tc_room(car) -> float:
 		var diff: Resource = d.cfg.front_diff if axle == 0 else d.cfg.rear_diff
 		var open: bool = diff == null or int(diff.kind) == 0
 		var axle_f: float = 2.0 * minf(f[0], f[1]) if open else f[0] + f[1]
-		need = minf(need, axle_f * float(car.wheels[axle * 2].radius) / (g * share))
+		need = minf(need, axle_f * float(car.wheels[axle * 2].radius) / (g * share * d.efficiency))
 	return _throttle_for(d, need)
 
 
