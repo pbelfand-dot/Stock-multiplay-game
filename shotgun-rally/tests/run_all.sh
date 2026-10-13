@@ -119,6 +119,8 @@ echo "== barriers: scraping the loop's guardrail and parapet, a touge's guardrai
 run_g 300 --headless --fixed-fps 120 --path . -s tests/barrier_check.gd 2>&1 | grep -E "\[barrier\]" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
 echo "== the environment library and biomes: every tree's LODs and far card, rocks and props load; each stage in its land; nothing on the road; the solid things the same at LOW and MEDIUM"
 run_g 300 --headless --fixed-fps 120 --path . -s tests/environment_check.gd 2>&1 | grep -E "\[env\]" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
+echo "== cut up's city: each library building its source's shape (its size against the source's measured one, its UVs inside its image, one baked facade); on the loop no building scaled, the streets both sides off the road and the ramps, no building on a street, lamps, trees and parked cars on them (none in a building, the parked cars the shown traffic's only), roof signs and billboards"
+run_g 400 --headless --path . -s tests/city_check.gd 2>&1 | grep -E "\[city\]" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
 echo "== a touge's street lamps and power line, 8 passes up and down: every lamp post and pole footing off the road (any leg of it), each post behind a guardrail on the ground, clear of the trees and props, the arm over the road, the glass along it, the pool on the road under the head, a lamp before every tight bend, solid, the real lights handing over"
 run_g 400 --headless --fixed-fps 120 --path . -s tests/lamps_check.gd 2>&1 | grep -E "\[lamps\] (ok|FAIL|LAMPS)" ; [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
 echo "== a touge: the autopilot drives a pass in the GT-R"

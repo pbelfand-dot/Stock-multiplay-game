@@ -5,16 +5,19 @@ extends RefCounted
 ## the road's middle) out to the city's edge, where the drawn towers stood: the skyline is
 ## real buildings now. Static, one call from LoopBuilder._city:
 ##
-##   CitySkyline.build(builder, towers, tower_cols, real, night) -> int: the buildings placed
+##   CitySkyline.build(builder, towers, tower_cols, real, night, streets) -> int: the buildings placed
 ##     towers, tower_cols: the drawn towers' transforms and colours (the ones beyond the front
 ##       rows are taken out of the lists: these stand in for them)
 ##     real: the front rows ([id, Transform3D, radius]); night: 0 (day) .. 1 (lit windows)
+##     streets: the streets' footprints (CityStreets.plan's "foot": none built on them; the
+##       far tier's own are added to it)
 ##
 ## Each building:
 ##   * stands on the ground as drawn (the land's own triangles under its footprint): where it's
 ##     flat to within 0.8 m, its foot 0.1 m under the lowest of it
 ##   * is in the city (its footprint on the city's grey ground, none in the water), 40 m and
 ##     more from the road (any part of the loop) and its ramps, clear of every other building
+##     and of the streets (STREET m from their pavements)
 ##   * has its long side to the road, like the front rows (a square one any way round)
 ## Each stretch of the city (a district: 1 km of road, both sides) is built from a few of the
 ## designs (2 towers, 3 mid-rises, a low block), mixed: the taller likelier further out and in
@@ -54,7 +57,7 @@ const WALLS := [Color(0.62, 0.6, 0.56), Color(0.68, 0.62, 0.52), Color(0.74, 0.7
 static var _shader: Shader = null
 
 
-static func build(b, towers: Array, tower_cols: Array, real: Array, night: float) -> int:
+static func build(b, towers: Array, tower_cols: Array, real: Array, night: float, streets := {}) -> int:
 	var ids: Array = EnvAssets.ids("skyline") if EnvAssets.available() else []
 	if ids.is_empty() or "--no_skyline" in OS.get_cmdline_user_args():   # (--no_skyline: the city as it was, for a comparison)
 		return 0
@@ -72,7 +75,7 @@ static func build(b, towers: Array, tower_cols: Array, real: Array, night: float
 	var ramps := _ramp_grid(st)
 	# what's already standing: the front rows and the drawn towers nearer than DROP_TOWERS
 	# (those further out go: the far tier stands in for them)
-	var foot := {}                                          # 100 m cells -> [footprints]
+	var foot: Dictionary = streets if not streets.is_empty() else {}   # 100 m cells -> [footprints] (the streets', CityStreets.plan, to start with)
 	for r in real:
 		var sz: Array = EnvAssets.info(str(r[0])).get("size", [30.0, 30.0, 30.0])
 		_add(foot, _rect(r[1], float(sz[0]), float(sz[2])))

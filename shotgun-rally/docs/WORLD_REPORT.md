@@ -51,11 +51,11 @@ every asset are in `ENVIRONMENT_INVENTORY.md`.
 
    Traffic keeps to its lane through it, leaves a closed lane beforehand and never touches an island. The rivals obey it, and the autopilot takes a lane.
 6. **The city's front rows** are the owner's 22 European apartment and office buildings:
-   - each at most 60 k triangles with Godot's LODs below that;
-   - one facade image each, painted from renders of the full building;
-   - their windows lit at night.
+   - each at most 60 k triangles with Godot's LODs below that, its real size and shape (the source's bounds kept and checked);
+   - one facade image each, baked face by face onto a UV map of its own (it was painted from five renders of the full building, which smeared every face the renders saw at a slant and cut one tower down to its podium);
+   - their windows lit at night, each building its own share and mix of warm and cold.
 
-   The drawn towers stay behind them.
+   Streets run between the blocks (lamps, trees, parked cars, billboards, roof signs) and drawn towers fill the gaps.
 7. **Traffic types:** compacts, saloons, crossovers, people movers, SUVs, luxury cars and vans. Each has its own speed, following gap, keep-right habit and eagerness to change lanes.
 
 ## Fixed along the way

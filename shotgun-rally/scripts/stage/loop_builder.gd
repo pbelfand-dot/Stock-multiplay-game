@@ -21,6 +21,8 @@ extends Node3D
 const GeoBuf = preload("res://scripts/stage/geo_buf.gd")
 const LoopGen = preload("res://scripts/stage/loop_gen.gd")
 const EnvAssets = preload("res://scripts/stage/env_assets.gd")
+const CitySkyline = preload("res://scripts/stage/city_skyline.gd")
+const CityStreets = preload("res://scripts/stage/city_streets.gd")
 const WM_PATH := "res://scripts/render/world_materials.gd"
 
 const CH := 100                      # samples a chunk (200 m)
@@ -2279,8 +2281,10 @@ func _station_lamp_heads() -> Array:
 
 ## The city's towers, both sides of the expressway: blocks of offices and flats,
 ## lower near the road, taller back from it and in the middle of town; none on a
-## road (this or another part of the loop, or a ramp) or in the water; each on the lowest
-## ground drawn under it.
+## road (this or another part of the loop, or a ramp), a street or in the water; each on the
+## lowest ground drawn under it. The streets are laid out first (scripts/stage/city_streets.gd:
+## the grid, the billboards), the front rows and the far tier keep off them, the blocks' gaps
+## are filled with drawn buildings, then the streets are drawn with what's on them.
 const CITY_FRONT := 190.0            # m from the road's middle: the library's buildings (EnvAssets "building") this near, the drawn towers beyond
 const CITY_REAL_DRAW := 1800.0       # m: a real building drawn this far (its LODs: Godot's, per building)
 
@@ -2294,6 +2298,7 @@ func _city() -> void:
 	var night: float = _wm.night_amount if _wm else (1.0 if mood == "night" else 0.0)
 	var palette := [Color(0.5, 0.5, 0.48), Color(0.56, 0.53, 0.47), Color(0.44, 0.46, 0.5), Color(0.6, 0.59, 0.56),
 		Color(0.38, 0.4, 0.42), Color(0.53, 0.48, 0.42), Color(0.46, 0.5, 0.53)]
+	var streets: Dictionary = CityStreets.plan(self)
 	for z in st.zones:
 		if z.kind != "city":
 			continue
@@ -2323,19 +2328,37 @@ func _city() -> void:
 						var along: bool = float(sz[0]) >= float(sz[2])          # (its x the longer: along the road)
 						var across: float = float(sz[2]) if along else float(sz[0])
 						var rad: float = Vector2(float(sz[0]), float(sz[2])).length() * 0.5
-						var q := st.world_at(s, off - side * dep * 0.5 + side * (across * 0.5 + 2.0))   # (from the slot's road side out)
-						var gq := st.land_at(q.x, q.z)
+						var bd: float = off - side * dep * 0.5 + side * (across * 0.5 + 2.0)                    # (from the slot's road side out)
 						d += side * (across - dep + 2.0)
-						if gq < 1.5 or _road_dist(q.x, q.z) < 30.0 + rad or rad > 75.0:
+						if rad > 75.0:
 							continue
-						var clash := false
-						for r in real:
-							if (r[1] as Transform3D).origin.distance_to(Vector3(q.x, gq, q.z)) < float(r[2]) + rad - 4.0:
-								clash = true
-								break
-						if clash:
+						var flip := PI if _rng.randf() < 0.5 else 0.0
+						# (where a cross street runs through its plot, slid along the road into the block)
+						var q := Vector3.INF
+						var gq := 0.0
+						var rb := Basis()
+						for shift in [0.0, -12.0, 12.0, -24.0, 24.0, -36.0, 36.0]:
+							var qs: float = s + float(shift)
+							var cq: Vector3 = st.world_at(qs, bd)
+							var cg := st.land_at(cq.x, cq.z)
+							if cg < 1.5 or _road_dist(cq.x, cq.z) < 30.0 + rad:
+								continue
+							var clash := false
+							for r in real:
+								if (r[1] as Transform3D).origin.distance_to(Vector3(cq.x, cg, cq.z)) < float(r[2]) + rad - 4.0:
+									clash = true
+									break
+							if clash:
+								continue
+							var cb := Basis(Vector3.UP, -st.heading_at(qs) + (PI * 0.5 if along else 0.0) + flip)
+							if not CityStreets.clear_of(streets, CitySkyline._rect(Transform3D(cb, cq), float(sz[0]), float(sz[2])), 2.0):
+								continue                             # (on a street)
+							q = cq
+							gq = cg
+							rb = cb
+							break
+						if q == Vector3.INF:
 							continue
-						var rb := Basis(Vector3.UP, -st.heading_at(s) + (PI * 0.5 if along else 0.0) + (PI if _rng.randf() < 0.5 else 0.0))
 						# none on a ramp (they ran through 23 of the 24): one there keeps its plot (the
 						# rest of the town where it was) but isn't built
 						var on_ramp := _ramp_dist(q.x, q.z) < rad + st.RAMP_W + 4.0
@@ -2362,6 +2385,8 @@ func _city() -> void:
 					var key := Vector2i(floori(p.x / 30.0), floori(p.z / 30.0))
 					if occupied.has(key):
 						continue
+					if not CityStreets.clear_of(streets, CitySkyline._rect(Transform3D(Basis(Vector3.UP, -st.heading_at(s)), p), w, dep), 2.0):
+						continue
 					occupied[key] = true
 					# (turned, then scaled in its own axes: scaled after turning, the box was sheared)
 					var bas := Basis(Vector3.UP, -st.heading_at(s)) * Basis.from_scale(Vector3(w, hgt, dep))
@@ -2379,8 +2404,20 @@ func _city() -> void:
 	real = real.filter(func(r): return not r[3])
 	# the far tier: the 31-building pack behind the front rows, out to the city's edge (the drawn
 	# towers out there give way to it): scripts/stage/city_skyline.gd
-	var far: int = preload("res://scripts/stage/city_skyline.gd").build(self, xfs, cols, real, night)
-	building_count = xfs.size() + real.size() + far
+	var far: int = CitySkyline.build(self, xfs, cols, real, night, streets.foot)
+	# the blocks' gaps: drawn buildings (lots along the streets), round what stands
+	var placed: Array = []
+	for r in real:
+		var sz: Array = EnvAssets.info(str(r[0])).get("size", [30.0, 30.0, 30.0])
+		placed.append(CitySkyline._rect(r[1], float(sz[0]), float(sz[2])))
+	for xf in xfs:
+		placed.append(CitySkyline._rect(Transform3D(xf.basis.orthonormalized(), xf.origin), xf.basis.x.length(), xf.basis.z.length()))
+	var sky: Node = get_node_or_null(CitySkyline.NAME)
+	for e in (sky.get_meta("buildings", []) if sky else []):
+		var sz: Array = EnvAssets.info(str(e[0])).get("size", [30.0, 30.0, 30.0])
+		placed.append(CitySkyline._rect(e[1], float(sz[0]), float(sz[2])))
+	var filled: Dictionary = CityStreets.fill(self, streets, placed)
+	building_count = xfs.size() + real.size() + far + filled.xfs.size()
 	real_building_count = real.size()
 	# the library's buildings: each its own node (Godot picks each one's level of detail by its
 	# distance), its facade material (lit windows at night)
@@ -2402,7 +2439,22 @@ func _city() -> void:
 	# in a few big batches (each drawn within a range)
 	var batch := 400
 	for k in range(0, xfs.size(), batch):
-		_multimesh(box, xfs.slice(k, k + batch), "Towers%d" % (k / batch), 4500.0, cols.slice(k, k + batch))
+		_multimesh(box, xfs.slice(k, k + batch), "Towers%d" % (k / batch), 4500.0, cols.slice(k, k + batch)).set_meta("xfs", xfs.slice(k, k + batch))
+	# the fill: a batch a district, the low ones (hidden behind the rest from the road) drawn nearer
+	# (each batch keeps its transforms in its meta "xfs": a MultiMesh's can't be read back headless)
+	var groups := {}
+	for k in filled.xfs.size():
+		var xf: Transform3D = filled.xfs[k]
+		var gk := "%d_%s" % [int(filled.district[k]), "tall" if xf.basis.y.length() >= 30.0 else "low"]
+		if not groups.has(gk):
+			groups[gk] = [[], []]
+		groups[gk][0].append(xf)
+		groups[gk][1].append(filled.cols[k])
+	var view: float = load("res://scripts/render/graphics.gd").view_distance()
+	for gk in groups:
+		_multimesh(box, groups[gk][0], "TowersFill_" + gk, (4500.0 if gk.ends_with("tall") else 1700.0 * view), groups[gk][1]).set_meta("xfs", groups[gk][0])
+	# the streets drawn, with their lamps, trees, parked cars, the signs on the roofs and the billboards
+	CityStreets.dress(self, streets, filled.tops, night)
 
 
 ## A unit box (the towers' shape: MultiMesh scales it), its UVs 0..1 on each face.

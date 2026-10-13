@@ -3,9 +3,11 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://c6uolbi5x0gar"
-path="res://.godot/imported/bld22_19_bld22_19_albedo.webp-4450094ed2717dfbb97cef20df80752c.ctex"
+path.s3tc="res://.godot/imported/bld22_19_bld22_19_albedo.webp-4450094ed2717dfbb97cef20df80752c.s3tc.ctex"
+path.etc2="res://.godot/imported/bld22_19_bld22_19_albedo.webp-4450094ed2717dfbb97cef20df80752c.etc2.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "46a002606b1740f7d1add319b5b94e95"
@@ -14,11 +16,11 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/environment_runtime/city/bld22_19_bld22_19_albedo.webp"
-dest_files=["res://.godot/imported/bld22_19_bld22_19_albedo.webp-4450094ed2717dfbb97cef20df80752c.ctex"]
+dest_files=["res://.godot/imported/bld22_19_bld22_19_albedo.webp-4450094ed2717dfbb97cef20df80752c.s3tc.ctex", "res://.godot/imported/bld22_19_bld22_19_albedo.webp-4450094ed2717dfbb97cef20df80752c.etc2.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
