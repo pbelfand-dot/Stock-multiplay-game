@@ -12,13 +12,19 @@ extends SceneTree
 ##     at the end; shuffle plays every song once a round, never the same one twice running; pause
 ##     and play; a song that won't load is skipped
 ##   * near a song's end the next fades in over it (both heard), the old one's gone after
-##   * the volume is the "Music" bus's; the co-driver's calls dip it (DUCK_DB), it comes back after
+##   * AUTO (the first pick) plays the folder named for the mode (context_for: the menus garage/, a
+##     rally stage rally/, cut up cutup/ ...; any case), a close one when the mode has none (cut up:
+##     street/), else ALL; a new mode crossfades in, the same folder plays on, paused waits for PLAY;
+##     a playlist picked by hand stays put
+##   * the volume is the "Music" bus's; the co-driver's calls dip it (DUCK_DB), it comes back after;
+##     the pause menu dips it (PAUSE_DIP_DB, not under MUSIC itself), it comes back after
 ##   * on / off, the playlist, volume, shuffle and repeat saved in user://settings.cfg, and a fresh
 ##     start reads them back
 ##   * an empty music folder, and a missing one (made, with house/ and rap/ and a note): no songs,
 ##     nothing breaks (play, next, previous, the keys), the panel says where songs go and the path
-##   * the MUSIC panel builds (its playlists and songs, the buttons work); the home screen's MUSIC
-##     chip opens it; the pause menu's MUSIC opens it over the stage, ESC goes back to the pause menu
+##   * the MUSIC panel builds (AUTO and its playlists, its songs, the buttons work); the home screen's
+##     MUSIC chip opens it (the menus: AUTO's garage); the pause menu's MUSIC opens it over the stage
+##     (a rally stage: AUTO's rally), ESC goes back to the pause menu
 ##   * the cars' radio screens show the song playing (the station's own songs while it's off)
 ##   * N and B are in the input map, free of the driving keys, and do next / on-off
 ##   * nothing goes online: the player has no RPCs
@@ -83,7 +89,9 @@ func _initialize() -> void:
 	await _crossfade()
 	await _shuffle()
 	await _broken()
+	await _auto()
 	_duck()
+	_dip()
 	_persist()
 	await _empty()
 	await _panel()
@@ -104,7 +112,7 @@ func _end(keep: Array) -> void:
 		m.repeat = keep[4]
 		m._save()
 		m.rescan()
-	for d in [R, R + "_tags", R + "_empty", R + "_missing"]:
+	for d in [R, R + "_tags", R + "_empty", R + "_missing", R + "_modes"]:
 		_rmdir(d)
 	await _wait(0.2)                                     # (the decks let go before the quit)
 	print("[music] %s" % ("MUSIC OK" if fails == 0 else "MUSIC FAIL (%d)" % fails))
@@ -413,6 +421,66 @@ func _broken() -> void:
 		"a file that won't play is skipped: the next one plays (%s; %s)" % [m.current.get("title", "nothing"), m.last_error])
 
 
+## AUTO: the mode's folder (Rally/ in capitals counts), a close one, else ALL; the mode changing
+## crossfades into its songs; a playlist picked by hand stays put.
+func _auto() -> void:
+	var M := R + "_modes"
+	_rmdir(M)
+	_wav(M + "/Rally/rally one.wav", 262.0)
+	_wav(M + "/Rally/rally two.wav", 294.0)
+	_wav(M + "/street/street one.wav", 330.0)
+	_wav(M + "/house/house one.wav", 349.0)
+	m.root = M
+	m.set_shuffle(false)
+	m.set_repeat(true)
+	m.rescan()
+	m.context = "garage"
+	m.select(MusicPlayer.AUTO)
+	await _until(_settled, 5.0)
+	check(m.selected_key() == MusicPlayer.AUTO and m.picked().key == Library.ALL and str(m.picked().name) == "AUTO  ·  ALL"
+		and config.music_playlist == MusicPlayer.AUTO, "AUTO in the menus, no garage/ folder: ALL plays (%s), AUTO saved" % m.picked().get("name", ""))
+	m.set_context("rally")
+	await _until(func(): return _settled() and str(m.current.get("path", "")).contains("/Rally/"), 5.0)
+	check(m.picked().key == "Rally" and str(m.current.get("path", "")).contains("/Rally/") and m.selected_key() == MusicPlayer.AUTO,
+		"a rally stage: AUTO crossfades into Rally/ (the folder's name in any case) (%s)" % m.current.get("title", "nothing"))
+	m.set_context("cutup")
+	await _until(func(): return _settled() and str(m.current.get("path", "")).contains("/street/"), 5.0)
+	check(m.picked().key == "street" and str(m.current.get("path", "")).contains("/street/"),
+		"cut up with no cutup/ folder: the close one, street/ (%s)" % m.current.get("title", "nothing"))
+	var was: String = m.current.get("path", "")
+	m.set_context("touge")
+	await _wait(0.3)
+	check(m.picked().key == "street" and m.current.get("path", "") == was and m._jobs.is_empty(),
+		"touge after it (no touge/ either: street/ too): the song plays on")
+	m.set_context("formula")
+	await _until(func(): return _settled() and m.picked().key == Library.ALL and m.current.get("path", "") != was, 5.0)
+	check(m.picked().key == Library.ALL, "Formula with no formula/ or gt/ folder: ALL")
+	m.set_context("rally")
+	await _until(func(): return _settled() and str(m.current.get("path", "")).contains("/Rally/"), 5.0)
+	m.pause()
+	m.set_context("street")
+	await _wait(0.3)
+	check(m.current.is_empty() and not m.playing() and m.picked().key == "street", "paused, the mode changing: it stays quiet")
+	m.toggle_pause()
+	await _until(_settled, 5.0)
+	check(str(m.current.get("path", "")).contains("/street/"), "... and PLAY plays the new mode's songs (%s)" % m.current.get("title", "nothing"))
+	m.select("house")
+	await _until(func(): return _settled() and str(m.current.get("path", "")).contains("/house/"), 5.0)
+	m.set_context("rally")
+	await _wait(0.3)
+	check(m.picked().key == "house" and str(m.current.get("path", "")).contains("/house/") and m._jobs.is_empty(),
+		"a playlist picked by hand (HOUSE) stays put whatever's played")
+	var map := [MusicPlayer.context_for("cutup"), MusicPlayer.context_for("touge"), MusicPlayer.context_for("touge", true),
+		MusicPlayer.context_for("track", false, "gt"), MusicPlayer.context_for("track", false, "formula"), MusicPlayer.context_for("")]
+	check(map == ["cutup", "touge", "street", "gt", "formula", "rally"],
+		"the modes' contexts: cut up, touge, an online street race, GT, Formula, a rally stage: %s" % [map])
+	m.set_context("nowhere")
+	check(m.context == "rally", "a context it doesn't know is ignored")
+	m.stop()
+	m.root = R
+	m.rescan()
+
+
 ## The co-driver's calls dip the music (an AICoDriver saying words), it comes back after.
 func _duck() -> void:
 	var ai: Node = load("res://scripts/vehicle/ai_codriver.gd").new()
@@ -440,6 +508,36 @@ func _duck() -> void:
 	var back := AudioServer.get_bus_volume_db(AudioServer.get_bus_index("Music"))
 	check(held < full - 3.0 and absf(back - full) < 0.2, "after the call it comes back up gently (%.1f dB half a second on, %.1f dB later)" % [held, back])
 	ai.queue_free()
+
+
+## The pause menu dips the music (a node in DIP_GROUP whose music_dip() says so), it comes back after.
+class DipSource extends Node:
+	var want := true
+
+	func music_dip() -> bool:
+		return want
+
+
+func _dip() -> void:
+	m.set_volume(0.8)
+	for k in 60:
+		m._process(1.0 / 60.0)
+	var bus := AudioServer.get_bus_index("Music")
+	var full := AudioServer.get_bus_volume_db(bus)
+	var src := DipSource.new()
+	root.add_child(src)
+	src.add_to_group(MusicPlayer.DIP_GROUP)
+	for k in 30:
+		m._process(1.0 / 60.0)
+	var low := AudioServer.get_bus_volume_db(bus)
+	check(absf(low - (full + m.PAUSE_DIP_DB)) < 0.5, "the pause menu dips the music %.0f dB (%.1f -> %.1f dB)" % [m.PAUSE_DIP_DB, full, low])
+	src.want = false
+	for k in 30:
+		m._process(1.0 / 60.0)
+	var back := AudioServer.get_bus_volume_db(bus)
+	check(absf(back - full) < 0.2, "closed, it comes back up (%.1f dB)" % back)
+	src.queue_free()
+	m.set_volume(0.5)
 
 
 ## The settings saved, and read back by a fresh start.
@@ -497,10 +595,11 @@ func _empty() -> void:
 	m.rescan()
 	check(m.playlists.is_empty(), "a missing music folder: no playlists")
 	Library.ensure_folder(m.root)
-	check(DirAccess.dir_exists_absolute(m.root + "/house") and DirAccess.dir_exists_absolute(m.root + "/rap")
-		and FileAccess.file_exists(m.root + "/" + Library.README), "... made when it's needed, with house/, rap/ and a note on what goes where")
+	var subs := ["house", "rap", "garage", "street", "cutup", "touge", "rally", "gt", "formula"]
+	check(subs.all(func(d): return DirAccess.dir_exists_absolute(m.root + "/" + d)) and FileAccess.file_exists(m.root + "/" + Library.README),
+		"... made when it's needed, with house/, rap/, a folder a mode (garage/ ... formula/) and a note on what goes where")
 	m.rescan()
-	check(m.playlists.is_empty(), "... and its empty house/ and rap/ aren't playlists yet")
+	check(m.playlists.is_empty(), "... and its empty folders aren't playlists yet")
 	m.root = R
 	m.rescan()
 
@@ -514,8 +613,10 @@ func _panel() -> void:
 	root.add_child(p)
 	await _frames(3)
 	var lists: Array = p._playlist_box.get_children()
-	check(lists.size() == m.playlists.size() and p._song_btns.size() == 3, "the MUSIC panel: a button a playlist (%d), HOUSE's songs listed (%d)"
+	check(lists.size() == m.playlists.size() + 1 and p._song_btns.size() == 3, "the MUSIC panel: AUTO and a button a playlist (%d), HOUSE's songs listed (%d)"
 		% [lists.size(), p._song_btns.size()])
+	var auto: Button = p.find_child("AutoPlaylist", true, false)
+	check(auto != null and lists[0] == auto and auto.text.begins_with("AUTO"), "AUTO first (%s)" % (auto.text if auto else "none"))
 	var sk: Label = p.find_child("SkippedNote", true, false)
 	check(sk != null and sk.visible and sk.text.begins_with("1 file here can't be played"), "it says a file can't be played (%s)" % (sk.text if sk else "none"))
 	check(p._now_title.text == m.current.title and p._play.text == "PAUSE", "it shows the song playing (%s) and PAUSE" % p._now_title.text)
@@ -554,6 +655,12 @@ func _panel() -> void:
 	p._vol.value = 0.25
 	check(is_equal_approx(m.volume, 0.25) and is_equal_approx(config.music_volume, 0.25), "its VOLUME slider sets the music's volume (saved)")
 	m.set_volume(0.5)
+	p.find_child("AutoPlaylist", true, false).pressed.emit()
+	await _until(func(): return m.selected_key() == MusicPlayer.AUTO and _settled(), 5.0)
+	await _frames(3)
+	var ab: Button = p.find_child("AutoPlaylist", true, false)
+	check(m.selected_key() == MusicPlayer.AUTO and ab != null and ab.text.begins_with("AUTO   ·   "),
+		"clicking AUTO picks it, the button saying what it plays (%s)" % (ab.text if ab else "none"))
 	p.queue_free()
 	await _frames(2)
 
@@ -605,6 +712,7 @@ func _menus() -> void:
 	root.add_child(main)
 	await _until(func(): return main.menu != null and main.menu.backdrop.built, 120.0)
 	var menu = main.menu
+	check(m.context == "garage", "the menus: AUTO's context is the garage (%s)" % m.context)
 	var chip: Button = menu.find_child("MusicChip", true, false) if menu else null
 	check(chip != null and chip.text.begins_with("MUSIC"), "the home screen has a MUSIC chip, top right (%s)" % (chip.text if chip else "none"))
 	if chip:
@@ -626,9 +734,11 @@ func _menus() -> void:
 	if g == null or not g.built:
 		OS.remove_logger(errors)
 		return
+	check(m.context == "rally" and not g.music_dip(), "a rally stage: AUTO's context is rally (%s), the music not dipped" % m.context)
 	errors.take()
 	await _esc()
 	check(g._pause.visible and g._pause_music != null and g._pause_music.is_visible_in_tree(), "ESC on a stage: the pause menu has MUSIC")
+	check(g.is_in_group(MusicPlayer.DIP_GROUP) and g.music_dip(), "the pause menu up: the stage dips the music")
 	g._pause_music.pressed.emit()
 	await _frames(4)
 	var p: Control = null
@@ -637,12 +747,13 @@ func _menus() -> void:
 			if c.get_script() == MusicPanel:
 				p = c
 	check(p != null and not g._pause.visible and g.paused(), "MUSIC opens the panel over the stage, still paused")
+	check(not g.music_dip(), "... not dipped there (you're listening to it)")
 	await _esc()
 	await _frames(3)
 	check(g._settings == null and g._pause.visible and root.gui_get_focus_owner() == g._pause_music,
 		"ESC: back to the pause menu, its MUSIC in focus")
 	await _esc()
-	check(not g._pause.visible and not g.paused(), "ESC again resumes")
+	check(not g._pause.visible and not g.paused() and not g.music_dip(), "ESC again resumes (the music back up)")
 	_no_errors("the pause menu")
 	main.queue_free()
 	await _frames(3)

@@ -1,6 +1,7 @@
 extends PanelContainer
 ## MUSIC: your own songs (MusicPlayer, Config.music), from the music folder on this computer, each
-## folder in it a playlist. Pick the playlist (ALL, HOUSE, RAP ..., MISC), see what's playing and how
+## folder in it a playlist. Pick the playlist (AUTO, ALL, HOUSE, RAP ..., MISC; AUTO follows the mode:
+## a folder named garage, street, cutup, touge, rally, gt or formula), see what's playing and how
 ## far in, PREVIOUS / PLAY-PAUSE / NEXT, shuffle, repeat, music on / off, its volume, a song from
 ## the list, and OPEN MUSIC FOLDER (Finder / Explorer). No songs yet: a line on where they go, and
 ## the folder's path. Opened from the home screen (the MUSIC chip, top right) and the pause menu.
@@ -9,6 +10,7 @@ extends PanelContainer
 signal back
 
 const UI = preload("res://scripts/ui/ui_kit.gd")
+const MusicPlayer = preload("res://scripts/audio/music_player.gd")
 const STYLE := "night"
 
 var music                            # MusicPlayer
@@ -90,7 +92,7 @@ func _on_refresh() -> void:
 ## What the lists show: the playlists, their songs, the pick (rebuilt only when that changes, so
 ## the focus stays put while a song plays on).
 func _key() -> String:
-	var parts: Array = [music.available(), music.picked().get("key", "")]
+	var parts: Array = [music.available(), music.selected_key(), music.picked().get("key", ""), music.context]
 	for p in music.playlists:
 		parts.append("%s:%d" % [p.key, p.tracks.size()])
 	return "|".join(parts)
@@ -141,7 +143,18 @@ func _rebuild() -> void:
 	_playlist_box.add_theme_constant_override("separation", 6)
 	_playlist_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	pscroll.add_child(_playlist_box)
-	var picked: String = music.picked().get("key", "")
+	var picked: String = music.selected_key()
+	var auto: Dictionary = music.picked() if picked == MusicPlayer.AUTO else {}
+	var ab := UI.button("AUTO   ·   " + (str(music.context).to_upper() if auto.is_empty() else str(auto.name).trim_prefix("AUTO  ·  ")),
+		music.select.bind(MusicPlayer.AUTO), 20, 270, STYLE)
+	ab.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	ab.clip_text = true
+	ab.name = "AutoPlaylist"
+	ab.tooltip_text = "Follows the mode: a folder named garage, street, cutup, touge, rally, gt or formula"
+	ab.set_meta("pick", "list:" + MusicPlayer.AUTO)
+	if picked == MusicPlayer.AUTO:
+		UI.mark(ab)
+	_playlist_box.add_child(ab)
 	for p in music.playlists:
 		var b := UI.button("%s   ·   %d" % [p.name, p.tracks.size()], music.select.bind(p.key), 20, 270, STYLE)
 		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
@@ -251,7 +264,8 @@ func _empty() -> void:
 	_body.add_child(UI.gap(6))
 	_body.add_child(UI.label("NO SONGS YET", 30, UI.YELLOW, true))
 	var how := _note("Put your songs in your music folder, one folder per playlist: music/house, music/rap, and so on "
-		+ "(MP3, OGG or WAV; songs loose in music/ are the MISC playlist). Then press REFRESH, or just come back here.", 900, 19)
+		+ "(MP3, OGG or WAV; songs loose in music/ are the MISC playlist). The folders named for a mode (garage, street, "
+		+ "cutup, touge, rally, gt, formula) play there on AUTO. Then press REFRESH, or just come back here.", 900, 19)
 	how.add_theme_color_override("font_color", UI.CREAM)
 	how.name = "EmptyNote"
 	_body.add_child(how)

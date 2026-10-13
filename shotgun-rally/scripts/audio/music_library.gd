@@ -306,12 +306,13 @@ static func load_stream(path: String) -> AudioStream:
 	return s
 
 
-## Make the music folder (and, the first time, house/ and rap/ and a note on what goes where).
+## Make the music folder (and, the first time, house/ and rap/, a folder for each mode's AUTO playlist
+## (garage/ street/ cutup/ touge/ rally/ gt/ formula/) and a note on what goes where).
 static func ensure_folder(root: String) -> void:
 	if DirAccess.dir_exists_absolute(root):
 		return
 	DirAccess.make_dir_recursive_absolute(root)
-	for sub in ["house", "rap"]:
+	for sub in ["house", "rap", "garage", "street", "cutup", "touge", "rally", "gt", "formula"]:
 		DirAccess.make_dir_recursive_absolute(root.path_join(sub))
 	var f := FileAccess.open(root.path_join(README), FileAccess.WRITE)
 	if f:
@@ -320,6 +321,9 @@ static func ensure_folder(root: String) -> void:
 			+ "folders (chill/, drift/ ...). MP3, OGG (Vorbis) and WAV files (M4A, AAC and FLAC won't play:\n"
 			+ "convert them to MP3 first). Songs left loose in this folder are the MISC playlist; ALL plays\n"
 			+ "everything.\n\n"
+			+ "AUTO (the first pick) plays the folder named for what you're playing: garage/ in the menus,\n"
+			+ "street/ (online touge races), cutup/, touge/, rally/, gt/ and formula/ on the road; a mode with\n"
+			+ "no songs of its own plays a close one (street, touge and cut up share; GT and Formula share), else ALL.\n\n"
 			+ "Pick the playlist in the game's MUSIC (the chip top right of the home screen, or the pause menu).\n"
 			+ "Keys: N the next song (SHIFT+N the one before), B music on / off.\n\n"
 			+ "Your songs stay on this computer: nothing is uploaded or sent to the others online.\n")

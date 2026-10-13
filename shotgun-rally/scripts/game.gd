@@ -44,6 +44,7 @@ const StartLights = preload("res://scripts/ui/start_lights.gd")
 const UI = preload("res://scripts/ui/ui_kit.gd")
 const SettingsPanel = preload("res://scripts/ui/settings_panel.gd")
 const MusicPanel = preload("res://scripts/ui/music_panel.gd")
+const MusicPlayer = preload("res://scripts/audio/music_player.gd")
 const Catalog = preload("res://scripts/game/catalog.gd")
 const Modes = preload("res://scripts/game/modes.gd")
 const Profile = preload("res://scripts/game/profile.gd")
@@ -209,6 +210,8 @@ func start(seed_in: int, stage_in: int, o := {}) -> void:
 	if not is_inside_tree():
 		return
 	mode = str(o.get("mode", "")) if Modes.is_mode(o) else ""
+	if Config.music:                                       # (the AUTO playlist: this mode's songs)
+		Config.music.set_context(MusicPlayer.context_for(mode, street_online, str(o.get("class", ""))))
 	# cut up's map is the LAKESHORE LOOP: a loop, no finish (its s keeps growing lap after lap)
 	circuit = str(o.get("gen", {}).get("kind", "")) == "circuit"
 	looped = circuit or str(o.get("gen", {}).get("kind", "")) == "loop"
@@ -1477,6 +1480,7 @@ func _build_hud() -> void:
 	rv.add_child(rb)
 	_results.visible = false
 	_pause = _panel()
+	add_to_group(MusicPlayer.DIP_GROUP)                 # (music_dip: the music dips under the pause menu)
 	var vb := VBoxContainer.new()
 	vb.add_theme_constant_override("separation", 12)
 	_pause.add_child(vb)
@@ -1609,6 +1613,12 @@ func _toggle_pause() -> void:
 ## car held on the brake, the mouse free). (The stage itself goes on: online, the others still drive.)
 func paused() -> bool:
 	return _pause.visible or _settings != null or (replay != null and replay.active)
+
+
+## The music dips under the pause menu and the settings over it (MusicPlayer.DIP_GROUP), not
+## under MUSIC (you're listening to it there).
+func music_dip() -> bool:
+	return _pause.visible or (_settings != null and _settings_from != _pause_music)
 
 
 ## SETTINGS from the pause menu: the main menu's own panel (graphics, sound, the aids ...)

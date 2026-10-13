@@ -210,6 +210,7 @@ func _top_right() -> void:
 	_name_chip = UI.button("", _show.bind("online"), 20)
 	row.add_child(_name_chip)
 	Config.music.changed.connect(refresh)
+	Config.music.set_context("garage")                 # (the AUTO playlist: the garage's songs)
 	refresh()
 
 

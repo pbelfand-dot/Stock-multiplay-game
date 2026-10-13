@@ -712,6 +712,21 @@ the downloads are public, so nothing copyrighted goes in them.
 4. In MUSIC, pick the playlist. You get PREVIOUS / PLAY / NEXT, SHUFFLE, REPEAT, MUSIC on / off,
    the VOLUME, and a song list to click. REFRESH (or reopening the panel) finds songs you've just
    added. All of it is saved for next time.
+5. **AUTO** (the first playlist, picked to start with) plays the folder named for what you're doing:
+
+   | Where | Folder | No songs there? |
+   |---|---|---|
+   | The menus and the garage | `garage/` | ALL |
+   | A rally stage | `rally/` | ALL |
+   | Cut up | `cutup/` | `street/`, else ALL |
+   | Touge | `touge/` | `street/`, then `cutup/`, else ALL |
+   | An online street race (a touge against friends) | `street/` | `touge/`, then `cutup/`, else ALL |
+   | Track Mode, GT | `gt/` | `formula/`, else ALL |
+   | Track Mode, Formula | `formula/` | `gt/`, else ALL |
+
+   The folders are made for you (empty). When the mode changes, its songs crossfade in; if the
+   folder's the same, the song plays on. Pick a playlist by hand (HOUSE, RAP ...) and it stays put
+   everywhere until you pick AUTO again.
 
 - **Keys:** **N** the next song (**SHIFT+N** the one before), **B** music on / off. They work
   anywhere, in the menus and on a stage.
@@ -719,6 +734,9 @@ the downloads are public, so nothing copyrighted goes in them.
   show your song on their radio strip.
 - **Pace notes stay clear:** the music dips 14 dB while the co-driver calls, and the engine sound
   is unchanged. The music has its own volume (in MUSIC, or SETTINGS → SOUND → MUSIC).
+- **Pause:** the music dips 12 dB under the pause menu (and SETTINGS opened from it) and comes back
+  up when you resume. In MUSIC itself it stays full. A song you paused stays paused, even when the
+  mode changes (PLAY starts the new mode's songs).
 - **Online**, each player hears their own music and nothing is sent. Friends who want the same
   songs copy them into their own music folders.
 - The browser version can't read a folder on your computer, so music is a download feature.

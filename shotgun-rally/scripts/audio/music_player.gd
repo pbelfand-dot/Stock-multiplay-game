@@ -5,11 +5,16 @@ extends Node
 ## so it's there from the menu through every stage, and in the tests.
 ##   * the playlists are the folders (ALL, HOUSE, RAP ..., MISC); play / pause, next / previous
 ##     (PREVIOUS a few seconds into a song starts it again), shuffle, repeat the playlist
+##   * AUTO (the first pick): the playlist follows what's being played (`context`, set by the menus
+##     and each stage, context_for): a folder named for it, garage/ street/ cutup/ touge/ rally/ gt/
+##     formula/ (or a close one, CONTEXTS), else ALL; a new mode crossfades into its playlist
 ##   * its own bus, "Music" (into the master), and its own volume; off is off. The playlist, the
 ##     volume, shuffle, repeat and on / off are saved with the settings (Config, user://settings.cfg)
 ##   * a crossfade between songs (FADE; a skip, FADE_SKIP), each song read off the main thread
 ##   * under the co-driver's calls the music dips DUCK_DB (AICoDriver.busy(): the pace notes stay
 ##     clear), the engine and the effects as they were
+##   * under the pause menu it dips PAUSE_DIP_DB (a node in DIP_GROUP whose music_dip() says so: the
+##     stage's pause menu and its settings, not MUSIC, not a replay), back up when play goes on
 ##   * a "now playing" card, bottom right, when a song starts (the menus and the stages alike)
 ##   * keys (Controls): N the next song (SHIFT+N the one before), B music on / off
 ##   * local to each machine: nothing goes over the network (online, everyone hears their own)
@@ -32,6 +37,13 @@ const DUCK_ATTACK := 0.15            # s to dip ...
 const DUCK_HOLD := 0.35              # ... s after the last word (the gap to the next call) ...
 const DUCK_RELEASE := 0.9            # ... and s back up
 const VOICE_GROUP := "codriver_voice"
+const PAUSE_DIP_DB := -12.0          # under the pause menu ...
+const PAUSE_DIP_S := 0.4             # ... dipped / back up over this
+const DIP_GROUP := "music_dip_source"
+const AUTO := "@"                    # the playlist that follows the mode (not a folder's name)
+## AUTO: each context's folders, the first that has songs (else ALL)
+const CONTEXTS := {"garage": ["garage"], "street": ["street", "touge", "cutup"], "cutup": ["cutup", "street"],
+	"touge": ["touge", "street"], "rally": ["rally"], "gt": ["gt", "formula"], "formula": ["formula", "gt"]}
 const TOAST_S := 4.0
 
 var root := ROOT                     # (tests: a folder of their own)
@@ -40,7 +52,10 @@ var on := true                       # music on (Config.music_on)
 var volume := 0.5                    # the Music bus, 0..1 (Config.music_volume)
 var shuffle := true
 var repeat := true                   # the playlist starts again at its end (off: it stops)
-var playlist := ""                   # the playlist picked (its key: the folder's name, ALL or MISC)
+var playlist := AUTO                 # the playlist picked (its key: AUTO, the folder's name, ALL or MISC)
+var context := "garage"              # what's being played, for AUTO (CONTEXTS)
+var dip_db := 0.0                    # the pause menu's dip
+var _auto_key := ""                  # the folder AUTO is playing
 var playlists: Array = []            # Library.scan
 var skipped := 0                     # audio files in the folder it can't play (M4A, FLAC ...)
 var order: Array = []                # the playlist's songs (their indices) in the order they play
@@ -80,6 +95,8 @@ func _ready() -> void:
 		shuffle = bool(config.music_shuffle)
 		repeat = bool(config.music_repeat)
 		playlist = str(config.music_playlist)
+	if playlist == "":
+		playlist = AUTO
 	_make_bus()
 	for k in 2:
 		var p := AudioStreamPlayer.new()
@@ -151,17 +168,82 @@ func rescan() -> void:
 	playlists = Library.scan(root)
 	skipped = Library.skipped
 	var tr := tracks()
-	if tr.size() != tr_before.size() or order.size() != tr.size():
+	if playlist == AUTO and auto_key() != _auto_key:
+		_auto_key = auto_key()
+		_build_order()
+	elif tr.size() != tr_before.size() or order.size() != tr.size():
 		_build_order(_index_of(current))
 	changed.emit()
 
 
 ## The playlist picked, or (its folder gone) ALL / the first there is: {} if there's no music.
+## AUTO: the one for the context, named "AUTO · ..." (its key the folder's).
 func picked() -> Dictionary:
+	var key := auto_key() if playlist == AUTO else playlist
 	for p in playlists:
-		if p.key == playlist:
+		if p.key == key:
+			if playlist == AUTO:
+				var q: Dictionary = p.duplicate()
+				q.name = "AUTO  ·  " + str(p.name)
+				return q
 			return p
 	return playlists[0] if not playlists.is_empty() else {}
+
+
+## The pick as the panel shows it: AUTO, or the playlist's key.
+func selected_key() -> String:
+	return AUTO if playlist == AUTO else str(picked().get("key", ""))
+
+
+## AUTO's playlist: the context's folder (CONTEXTS: its own, else a close one), else ALL, else the
+## only one there is ("" with no music). A folder's name in any case counts (Rally/, RALLY/).
+func auto_key() -> String:
+	var have := {}
+	for p in playlists:
+		have[str(p.key).to_lower()] = p.key
+	for name in CONTEXTS.get(context, []):
+		if have.has(name):
+			return have[name]
+	for p in playlists:
+		if p.key == Library.ALL:
+			return p.key
+	return str(playlists[0].key) if not playlists.is_empty() else ""
+
+
+## What's being played: the menus "garage", a stage its mode's (context_for). AUTO follows it: a new
+## playlist crossfades in (a song plays on if its playlist's the same; paused, it waits for PLAY).
+func set_context(ctx: String) -> void:
+	if not CONTEXTS.has(ctx):
+		return
+	context = ctx
+	if playlist != AUTO:
+		return
+	var k := auto_key()
+	if k == _auto_key:
+		return
+	_auto_key = k
+	_build_order()
+	if paused:
+		stop()                                      # (paused stays quiet: PLAY starts the new one)
+	elif on and not current.is_empty() and not tracks().is_empty():
+		at = -1
+		_step(1, FADE_SKIP)
+	changed.emit()
+
+
+## The context for a stage: its mode ("" a rally stage), an online street session (a touge raced
+## against the others: "street"), a Track Mode class ("formula", else GT).
+static func context_for(mode: String, street_online := false, cls := "") -> String:
+	match mode:
+		"cutup":
+			return "cutup"
+		"touge":
+			return "street" if street_online else "touge"
+		"track":
+			return "formula" if cls == "formula" else "gt"
+		"":
+			return "rally"
+	return "garage"
 
 
 func tracks() -> Array:
@@ -179,9 +261,11 @@ func song_count() -> int:
 ## Play this playlist (its key), from its first song (shuffled: a random one). The one already
 ## playing picked again plays on.
 func select(key: String) -> void:
-	if playing() and key == str(picked().get("key", "")) and key == playlist:
+	if playing() and key == playlist and (key == AUTO or key == str(picked().get("key", ""))):
 		return
 	playlist = key
+	if key == AUTO:
+		_auto_key = auto_key()
 	_save()
 	_build_order()
 	if on and not tracks().is_empty():
@@ -494,7 +578,8 @@ func _process(dt: float) -> void:
 		if p.playing and n > FADE * 3.0 and n - p.get_playback_position() <= FADE:
 			_step(1, FADE)                           # (near the end: the next one fades in over it)
 	duck(_voice_busy(), dt)
-	var db := linear_to_db(maxf(volume, 0.0001)) + duck_db
+	dip_db = move_toward(dip_db, PAUSE_DIP_DB if _dip_wanted() else 0.0, absf(PAUSE_DIP_DB) / PAUSE_DIP_S * dt)
+	var db := linear_to_db(maxf(volume, 0.0001)) + duck_db + dip_db
 	if absf(db - _bus_db) > 0.05:
 		_bus_db = db
 		var i := AudioServer.get_bus_index(BUS)
@@ -508,6 +593,16 @@ func _voice_busy() -> bool:
 		return false
 	for v in get_tree().get_nodes_in_group(VOICE_GROUP):
 		if v.has_method("busy") and v.busy():
+			return true
+	return false
+
+
+## The pause menu's up (a node in DIP_GROUP says so: the stage's music_dip()).
+func _dip_wanted() -> bool:
+	if not is_inside_tree():
+		return false
+	for n in get_tree().get_nodes_in_group(DIP_GROUP):
+		if n.has_method("music_dip") and n.music_dip():
 			return true
 	return false
 

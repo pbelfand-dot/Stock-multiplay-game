@@ -36,7 +36,9 @@ TV) is still there behind `--menu_stage`.
   (`scripts/ui/music_panel.gd`: the playlists, what's playing, the controls, OPEN MUSIC FOLDER). The
   songs are the player's own, from `user://music` (one folder per playlist: the README's *Your own
   music*); `scripts/audio/music_player.gd` plays them, from the menu through every stage, with a
-  "now playing" card bottom right. The pause menu has MUSIC too. Test: `tests/music_check.gd`.
+  "now playing" card bottom right. The pause menu has MUSIC too. The AUTO playlist (the default)
+  follows the mode: the menu sets `Config.music.set_context("garage")`, each stage its mode's
+  (`MusicPlayer.context_for`). Test: `tests/music_check.gd`.
 
 Test: `tests/menu_garage_check.gd` (in `tests/run_all.sh`). Pictures: `--menu_shot=out.png`
 with `--garage_t=SECONDS` (the camera held there) and `--menu_panel=cars`.
