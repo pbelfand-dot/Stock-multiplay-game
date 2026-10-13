@@ -62,6 +62,7 @@ const AssistConfig = preload("res://scripts/vehicle/physics/config/assist_config
 const Surfaces = preload("res://scripts/vehicle/physics/surfaces.gd")
 const Livery = preload("res://scripts/vehicle/livery.gd")
 const CarLook = preload("res://scripts/render/car_look.gd")    # its lamps, glass, chrome, reflections
+const CabinFix = preload("res://scripts/vehicle/cabin_fix.gd")  # its own cabin: matte where it should be, the wheel's strays
 const WheelMesh = preload("res://scripts/vehicle/wheel_mesh.gd")
 const CarSpecs = preload("res://scripts/vehicle/car_specs.gd")
 const WheelPresets = preload("res://scripts/vehicle/wheel_presets.gd")
@@ -371,7 +372,11 @@ func _build_own_model() -> bool:
 			body_model.add_child(n)
 			cockpit_nodes[k[0]] = n
 	src.free()
+	if _model_info.has("cockpit"):                 # (its own cabin: the wheel cut's strays back in the body, the
+		CabinFix.wheel_strays(body_model, cockpit_nodes.get("wheel"), _model_info)   # shiny leather and plastic matte)
 	CarLook.dress(self, body_model, _model_info)
+	if _model_info.has("cockpit"):
+		CabinFix.matte(body_model, _model_info)
 	return true
 
 

@@ -149,6 +149,15 @@ light (L), backlit screens at night and the warning lamps; the luxury cars have 
 | HACHI 86 (Sprinter Trueno) | its digital meter made live: the speed in its window, green on black (the window is a face of its own behind a hole in the meter's face, its picture turned half round), the tach's 70 modelled segments lit in turn with the revs, red near the limiter (`segments`: tiny parts of the cabin's material, lit copies a hair in front), the fuel and the water temperature filling the grey bars either side | |
 | AFFALTER W17 | its steering wheel's screen made live in its own picture's boxes (`uv_wrap`): the gear in the big middle box, the speed, the lap time, the oil and water temperatures, the fuel in litres, the revs and fuel climbing the side bars; the model's steering column, which stood 3 cm out through the middle of the screen, is left out (`drop_parts`) | |
 
+Every own cabin is matte where a real one is (`scripts/vehicle/cabin_fix.gd`, when the model is
+built): the game rips leave cabins at roughness 0, half or fully metallic (the KAISER 235 GC's
+whole cabin a mirror, the BOLT W16's chrome), so a material that covers the cabin and is shinier
+than roughness 0.4 gets its kind's (leather 0.62, plastic 0.7, suede and fabric 0.9) and no metal;
+glass, screens, chrome and bare metal, paint and lamps stay as they are, lacquer (piano black,
+gloss, carbon) stays glossy but not a mirror. Pieces the import's steering wheel cut took from
+round it (the KAISER 235 GC's slivers of A-pillar trim, the SLR's column cover, the WARHAWK's stalk)
+go back into the body. `tests/interior_check.gd` checks both in every car.
+
 A cabin whose screens are part of a texture shared with everything else (most of the rest of the
 own-interior cars) has the dome light, the lamps and the night glow but no live pages yet.
 `tests/dash_check.gd` checks every spec: the boards and panels are found and sized to their

@@ -34,11 +34,18 @@ var st
 var fails := 0
 
 
+const CABIN_BIG := 0.25                  # m2 of the cabin: a large surface (the matte check)
+var CabinFix
+var DashLive
+
+
 func _initialize() -> void:
 	RallyCar = load("res://scripts/vehicle/rally_car.gd")
 	Catalog = load("res://scripts/game/catalog.gd")
 	Cockpit = load("res://scripts/vehicle/cockpit.gd")
 	CarSpecs = load("res://scripts/vehicle/car_specs.gd")
+	CabinFix = load("res://scripts/vehicle/cabin_fix.gd")
+	DashLive = load("res://scripts/vehicle/dash_live.gd")
 	st = load("res://scripts/stage/stage_gen.gd").new()
 	st.generate(4)
 
@@ -79,6 +86,8 @@ func _process(_dt: float) -> bool:
 	var fitted := 0
 	var feet_bad: Array = []
 	var feet := 0
+	var cabin_bad: Array = []
+	var cabins := 0
 	for c in Catalog.CARS:
 		if str(CarSpecs.parts(str(c.get("model", ""))).get("view", "")) == "hood":
 			continue
@@ -90,9 +99,14 @@ func _process(_dt: float) -> bool:
 		var fw: Array = _feet(c.id, made[0], made[1])
 		feet_bad.append_array(fw[0])
 		feet += fw[1]
+		if not made[1].own.is_empty():
+			cabins += 1
+			cabin_bad.append_array(_cabin(c.id, made[0]))
 		made[0].queue_free()
 	fails += _check(why.is_empty(), "driver fit: head, seat, hands, pedals and door anchors sane in %d of %d cars (the bonnet-view ones have no seat)%s" % [
 		fitted - why.size(), fitted, "" if why.is_empty() else " (" + " | ".join(why) + ")"])
+	fails += _check(cabins > 0 and cabin_bad.is_empty(), "its own cabin as a real one looks, in all %d cars that have one: no large surface of it (over %.2f m2) shinier than roughness %.2f unless it's glass, chrome or lacquer (lacquer glossy, not a mirror); nothing on the steering wheel off it (every piece's middle within %.2f m of its rim and %.2f m along its column, no point of it past %.2f m round it, %.2f m along it: not the pillar's trim)%s" % [
+		cabins, CABIN_BIG, CabinFix.ROUGH_FLOOR, CabinFix.WHEEL_ROOM, CabinFix.WHEEL_AXIS, CabinFix.WHEEL_REACH, CabinFix.WHEEL_REACH_AXIS, "" if cabin_bad.is_empty() else " (" + " | ".join(cabin_bad) + ")"])
 	fails += _check(feet > 0 and feet_bad.is_empty(), "the crew's feet on the floor: %d of %d boots, in every car (each boot's lowest point no lower than the floor under its foot, nor the body's underside there; a single-seater's in its tub; no leg swung up to its limit)%s" % [
 		feet - feet_bad.size(), feet, "" if feet_bad.is_empty() else " (" + " | ".join(feet_bad) + ")"])
 	print("[interior] %s" % ("INTERIOR OK" if fails == 0 else "INTERIOR FAIL"))
@@ -114,6 +128,54 @@ func _car(id: String):
 	car.steer = 0.0
 	car.gear = 1
 	return [car, cp]
+
+
+## A car's own cabin (scripts/vehicle/cabin_fix.gd): its large surfaces matte unless glass, chrome or lacquer;
+## every piece of mesh on its steering wheel (the model's, and pieces DashLive put there) within the wheel.
+func _cabin(id: String, car) -> Array:
+	var bad: Array = []
+	var info: Dictionary = car._model_info
+	var mats: Dictionary = CabinFix.cabin_materials(car.body_model, CabinFix.cabin_box(info))
+	for m in mats:
+		var e: Array = mats[m]
+		var bm := m as BaseMaterial3D
+		if CabinFix.of_cabin(e) and float(e[0]) >= CABIN_BIG and bm.roughness < CabinFix.ROUGH_FLOOR and not CabinFix.may_shine(bm, e[0]):
+			bad.append("%s: %s shiny (roughness %.2f, metallic %.2f, %.2f m2 of the cabin)" % [id, bm.resource_name, bm.roughness, bm.metallic, e[0]])
+	var sw: Node3D = car.cockpit_nodes.get("wheel")
+	if sw == null:
+		return bad
+	var meshes: Array = sw.find_children("*", "MeshInstance3D", true, false)
+	if sw is MeshInstance3D:
+		meshes.append(sw)
+	for mi in meshes:
+		var mm := mi as MeshInstance3D
+		if mm.mesh == null:
+			continue
+		var xf: Transform3D = Transform3D(Basis(), sw.position) * CabinFix._rel(mm, sw)   # (model space, the wheel straight)
+		for s in mm.mesh.get_surface_count():
+			var arr := mm.mesh.surface_get_arrays(s)
+			var vs: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
+			var ix = arr[Mesh.ARRAY_INDEX]
+			if ix == null or (ix as PackedInt32Array).is_empty():
+				ix = PackedInt32Array(range(vs.size()))
+			var wv: PackedVector3Array = xf * vs
+			for g in DashLive._groups(wv, ix, range(ix.size() / 3)):
+				var mid := Vector3.ZERO
+				var far := false
+				var n := 0
+				for t in g:
+					if ix[t * 3] == ix[t * 3 + 1] and ix[t * 3] == ix[t * 3 + 2]:
+						continue                     # (a surface kept as a placeholder)
+					for k in 3:
+						var v: Vector3 = wv[ix[t * 3 + k]]
+						mid += v
+						n += 1
+						far = far or not CabinFix.on_wheel_space(v, info, CabinFix.WHEEL_REACH, CabinFix.WHEEL_REACH_AXIS)
+				if n > 0 and (far or not CabinFix.on_wheel_space(mid / n, info)):
+					var mat := mm.get_active_material(s)
+					bad.append("%s: %d faces of %s on the steering wheel %s" % [id, g.size(), mat.resource_name if mat else "-", "reach past it" if far else "sit off it"])
+					break
+	return bad
 
 
 ## Each crew member's boots against the floor (the cockpit's, crew_model.gd floor_prof: under the foot's
