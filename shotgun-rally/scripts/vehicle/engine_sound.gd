@@ -21,6 +21,10 @@ extends Node3D
 ## engine type (Catalog "engine": ENGINES) also sets its tone (an EQ on a bus of
 ## its own). Lives under the car; reads its rpm (0..1 idle..limiter), throttle,
 ## gear and boost (on the co-driver's machine, the stream's).
+## The start-up (start_up()): the door shut (from outside, or from your seat), the starter, and the
+## engine catching with a flare of revs that settles to its idle; until then it's off (level 0:
+## engine_off()). An electric car just wakes, no starter. Throttle or the car moving before it's
+## started starts it at once. Nox Sound Design's recordings (CC0): assets/sfx/vehicle/.
 
 const DIR := "res://assets/sfx/engine/"
 const OVERRUN_RPM := 6350.0
@@ -84,6 +88,14 @@ const TONES := {
 	"v8_road": [1.5, 3.0, 1.0, 0.0, -1.5, -3.0],
 }
 const LIMIT_HZ := 11.0          # the limiter's bounce: cut, fire, cut ...
+const START_SFX := "res://assets/sfx/vehicle/engine_start.ogg"
+const DOOR_SFX := "res://assets/sfx/vehicle/door_shut_%s_%d.ogg"   # (out / in, 1..3)
+const DOOR_GAP := 0.7           # s from the door shutting to the starter
+const CATCH := 0.42             # s into the starter recording the engine fires
+const CATCH_RAMP := 0.3         # s the engine takes to come up once it fires
+const FLARE_RPM := 650.0        # the revs over idle it flares to as it catches ...
+const FLARE_S := 1.2            # ... settling back to idle over this
+const EV_WAKE := 0.5            # s after the door an electric car's motor is live
 
 var car
 var kind := "wrc"               # the engine type (ENGINES)
@@ -116,6 +128,16 @@ var _pop_queue: Array = []      # seconds until each queued pop
 var _phase := 0.0
 var _rng := RandomNumberGenerator.new()
 var _hiss: AudioStreamWAV
+var level := 1.0                # how much of the engine is heard (0: off, not started)
+var starting := false           # the start-up's under way
+var starts := 0                 # (tests) starters / doors played
+var doors := 0
+var _seq := 0.0                 # s into the start-up
+var _seq_door := true
+var _seq_in := false
+var _fired := 0                 # the start-up's steps done (1 the door, 2 the starter, 3 caught)
+var _flare := 0.0               # rpm over idle from the catch, settling
+var _fade_after := -1.0         # (the garage) s until it fades out and goes (-1: never)
 
 
 func _ready() -> void:
@@ -239,7 +261,7 @@ func revs() -> float:
 	var e: Resource = car.config.engine if car.config else null
 	var idle: float = e.idle_rpm if e else 1000.0
 	var top: float = e.limiter_rpm if e else 7600.0
-	return idle + float(car.rpm) * (top - idle)
+	return idle + float(car.rpm) * (top - idle) + _flare
 
 
 ## How much of the sound each loop is at these revs and throttle (0..1 each):
@@ -267,11 +289,13 @@ static func pitch_at(rpm: float, recorded: float) -> float:
 func _process(dt: float) -> void:
 	if car == null:
 		return
-	var rpm := revs()
 	var want: float = float(car.inp.throttle) if car.simulate else float(car.net_throttle)
+	_start_steps(dt, want)
+	var rpm := revs()
 	throttle = move_toward(throttle, want, dt * 8.0)
 	if _motor:
 		_electric(dt, rpm)
+		_hush()
 		return
 	# the limiter: flat out against it the engine cuts and fires, LIMIT_HZ a second,
 	# and its loop comes in over the last 8 % of the revs
@@ -291,6 +315,7 @@ func _process(dt: float) -> void:
 	limiter_share = clampf((rpm - top * 0.92) / (top * 0.08), 0.0, 1.0) * smoothstep(0.3, 0.6, throttle)
 	_limiter.volume_db = (-12.0 + linear_to_db(limiter_share)) if limiter_share > 0.001 else -80.0
 	_drivetrain_sounds(dt, rpm)
+	_hush()
 	_lifts(rpm)
 	# an upshift: on a sequential the cut and the bang as the revs drop (and sometimes a pop)
 	var gr: int = int(car.gear)
@@ -385,11 +410,90 @@ func _lifts(rpm: float) -> void:
 			_pop_queue.append(0.03 + i * _rng.randf_range(0.06, 0.14))
 
 
-func _one_shot(s: AudioStream, db: float, pitch: float) -> void:
+# ── the start-up ──────────────────────────────────────────────────────────
+
+## Off: not a sound from it until start_up() (or the throttle, or the car moving).
+func engine_off() -> void:
+	level = 0.0
+	starting = false
+	_flare = 0.0
+
+
+## The door shut (`door`: from your seat if `inside`), the starter, the engine catching.
+func start_up(door := true, inside := false) -> void:
+	starting = true
+	_seq = 0.0
+	_seq_door = door
+	_seq_in = inside
+	_fired = 0 if door else 1
+	level = 0.0
+
+
+func _electric_car() -> bool:
+	return bool(eng.get("electric", false))
+
+
+## The start-up's steps by its clock; off and asked to go (the throttle, the car rolling): the
+## starter now. The garage's engine fades out after a while (fade_out_after) and goes.
+func _start_steps(dt: float, want: float) -> void:
+	_flare = move_toward(_flare, 0.0, FLARE_RPM / FLARE_S * dt)
+	if _fade_after >= 0.0:
+		_fade_after -= dt
+		if _fade_after < 0.0:
+			_fade_after = -2.0                       # (fading: level down, then gone)
+	if _fade_after <= -2.0 and not starting:
+		level = move_toward(level, 0.0, dt / 1.5)
+		if level <= 0.0:
+			queue_free()
+		return
+	if level <= 0.0 and not starting and (want > 0.05 or car.linear_velocity.length() > 1.5):
+		start_up(false)
+	if not starting:
+		return
+	_seq += dt
+	if _fired == 0:
+		_fired = 1
+		doors += 1
+		var d: AudioStream = load(DOOR_SFX % ["in" if _seq_in else "out", _rng.randi_range(1, 3)])
+		_one_shot(d, -9.0 if _seq_in else -5.0, _rng.randf_range(0.97, 1.03), "SFX")
+	var at := DOOR_GAP if _seq_door else 0.0
+	if _electric_car():
+		if _seq >= at + EV_WAKE:
+			level = move_toward(level, 1.0, dt / 0.6)
+			starting = level < 1.0
+		return
+	if _fired == 1 and _seq >= at:
+		_fired = 2
+		starts += 1
+		_one_shot(load(START_SFX), -4.0, 1.0)
+	if _fired == 2 and _seq >= at + CATCH:
+		_fired = 3
+		_flare = FLARE_RPM
+	if _fired == 3:
+		level = move_toward(level, 1.0, dt / CATCH_RAMP)
+		starting = level < 1.0
+
+
+## The garage: idle `secs`, then fade out over 1.5 s and go.
+func fade_out_after(secs: float) -> void:
+	_fade_after = secs
+
+
+## Under full (not started, catching, fading): every loop down by the level.
+func _hush() -> void:
+	if level >= 1.0:
+		return
+	var d := linear_to_db(maxf(level, 0.0001))
+	for p in _players.values() + [_limiter, _gear_on, _gear_off, _whistle, _motor, _inverter]:
+		if p:
+			p.volume_db = maxf(p.volume_db + d, -80.0)
+
+
+func _one_shot(s: AudioStream, db: float, pitch: float, bus := "") -> void:
 	var p := AudioStreamPlayer3D.new()
 	p.stream = s
 	p.unit_size = 6.0
-	p.bus = tone_bus(eng.tone)
+	p.bus = bus if bus != "" else tone_bus(eng.tone)
 	p.volume_db = db
 	p.pitch_scale = pitch
 	add_child(p)

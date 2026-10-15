@@ -255,6 +255,8 @@ func _select() -> void:
 	Profile.select_car(_car().id)
 	changed.emit()
 	_rebuild()
+	if backdrop and backdrop.has_method("start_engine"):
+		backdrop.start_engine()                      # (the door shuts, its engine starts)
 
 
 # ── tabs ──────────────────────────────────────────────────────────────────

@@ -238,3 +238,5 @@ func _go() -> void:
 	drive.emit(_sel)
 	if mode.is_empty():
 		_pick(_sel)
+		if backdrop and backdrop.has_method("start_engine"):
+			backdrop.start_engine()                  # (the door shuts, its engine starts)

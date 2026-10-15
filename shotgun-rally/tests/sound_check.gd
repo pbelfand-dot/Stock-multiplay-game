@@ -16,6 +16,10 @@ extends SceneTree
 ##     loop comes in; a rally box whines and a road car's barely; a turbo whistles
 ##     with the boost and a supercharger with the revs; a road turbo hisses
 ##     (blow-off) on a lift and an anti-lag car pops while a road four doesn't
+##   * the start-up: off, not a sound; start_up() shuts the door (from outside or from the seat),
+##     then the starter, the engine catching with a flare of revs that settles to idle, all its
+##     loops up by then; the throttle while it's off starts it at once (no door); an electric car
+##     just wakes (no starter); the garage's fades out after its idle and goes
 ##   * the mix: an SFX and a Voice bus, and the SFX dips when the co-driver talks
 ##     (a compressor keyed by Voice); the engine plays into SFX (its tone's bus),
 ##     the co-driver on Voice
@@ -126,6 +130,7 @@ func _physics_process(dt: float) -> bool:
 		var voice_ok: bool = ai._player != null and ai._player.bus == "Voice"
 		fails += _check(on_sfx and voice_ok, "the engine plays into SFX (its tone's bus), the co-driver on Voice")
 		_types()
+		_start_up()
 		print("[sound] %s" % ("SOUND OK" if fails == 0 else "SOUND FAIL"))
 		quit(1 if fails > 0 else 0)
 		return true
@@ -227,6 +232,102 @@ func _types() -> void:
 		and ev_hi.motor_pitch > ev_lo.motor_pitch * 2.0 and ev_hi.motor > -30.0 and ev_coast.motor < ev_hi.motor - 6.0,
 		"an electric car: no engine, no limiter (%.2f), no pops; its motor whines up with its revs (pitch x%.2f to x%.2f, %.0f dB), quieter coasting (%.0f dB)" % [
 		ev_hi.limiter, ev_lo.motor_pitch, ev_hi.motor_pitch, ev_hi.motor, ev_coast.motor])
+
+
+## The start-up on a stand-in car, ticked by hand (1/60 s).
+func _start_up() -> void:
+	var fc := FakeCar.new()
+	fc.config = load("res://scripts/vehicle/car_specs.gd").config("")
+	fc.setup = {"engine": "turbo4"}
+	fc.simulate = true
+	fc.rpm = 0.0
+	root.add_child(fc)
+	var s = EngineSound.new()
+	s.car = fc
+	fc.add_child(s)
+	s.engine_off()
+	for f in 60:
+		s._process(1.0 / 60.0)
+	var loud := -80.0
+	for p in s.get_children():
+		if p is AudioStreamPlayer3D and p.playing and p.stream is AudioStreamWAV:
+			loud = maxf(loud, p.volume_db)
+	fails += _check(loud <= -79.0 and s.starts == 0 and s.doors == 0, "engine off: not a sound from it (%.0f dB at most), no starter" % loud)
+	var idle: float = s.revs()
+	s.start_up(true, false)
+	var door_path := ""
+	var t0 := -1.0
+	var caught := -1.0
+	var full := -1.0
+	var peak := idle
+	var tt := 0.0
+	for f in 240:
+		s._process(1.0 / 60.0)
+		tt += 1.0 / 60.0
+		if door_path == "":
+			for p in s.get_children():
+				if p is AudioStreamPlayer3D and p.stream and p.stream.resource_path.contains("door_shut"):
+					door_path = "%s on %s" % [p.stream.resource_path.get_file(), p.bus]
+		if t0 < 0.0 and s.starts == 1:
+			t0 = tt
+		if caught < 0.0 and s.level > 0.0:
+			caught = tt
+		if full < 0.0 and s.level >= 1.0:
+			full = tt
+		peak = maxf(peak, s.revs())
+	fails += _check(s.doors == 1 and door_path.begins_with("door_shut_out_") and door_path.ends_with("SFX"),
+		"start_up: the door shuts first, from outside, on the effects (%s)" % door_path)
+	fails += _check(absf(t0 - EngineSound.DOOR_GAP) < 0.05 and caught >= EngineSound.DOOR_GAP + EngineSound.CATCH - 0.02,
+		"... the starter %.2f s later, the engine heard only once it fires (%.2f s)" % [t0, caught])
+	fails += _check(full > 0.0 and full < EngineSound.DOOR_GAP + EngineSound.CATCH + EngineSound.CATCH_RAMP + 0.1 and not s.starting,
+		"... full up by %.2f s" % full)
+	fails += _check(peak > idle + EngineSound.FLARE_RPM * 0.8 and absf(s.revs() - idle) < 1.0,
+		"... catching with a flare of revs (%.0f over idle) that settles back to idle (%.0f rpm)" % [peak - idle, s.revs()])
+	var on_loud := -80.0
+	for n in s._players:
+		on_loud = maxf(on_loud, s._players[n].volume_db)
+	fails += _check(on_loud > -30.0, "... and its loops are heard again (%.0f dB)" % on_loud)
+	# from the seat: the door from inside
+	s.start_up(true, true)
+	var inside := ""
+	for f in 4:
+		s._process(1.0 / 60.0)
+		for p in s.get_children():
+			if p is AudioStreamPlayer3D and p.stream and p.stream.resource_path.contains("door_shut_in_"):
+				inside = p.stream.resource_path.get_file()
+	fails += _check(inside != "", "from the seat the door shuts from inside (%s)" % inside)
+	# the throttle while it's off: started at once, no door
+	s.engine_off()
+	var d0: int = s.doors
+	var st0: int = s.starts
+	fc.inp.throttle = 1.0
+	for f in 3:
+		s._process(1.0 / 60.0)
+	fails += _check(s.starts == st0 + 1 and s.doors == d0, "the throttle while it's off: the starter at once, no door")
+	fc.inp.throttle = 0.0
+	# the garage's: fades out after its idle and goes
+	for f in 120:
+		s._process(1.0 / 60.0)
+	s.fade_out_after(0.5)
+	for f in 150:
+		s._process(1.0 / 60.0)
+	fails += _check(s.is_queued_for_deletion(), "the garage's engine: idles, fades out and goes (level %.2f)" % s.level)
+	fc.queue_free()
+	# an electric car: wakes, no starter
+	var ec := FakeCar.new()
+	ec.config = load("res://scripts/vehicle/car_specs.gd").config("")
+	ec.setup = {"engine": "ev"}
+	ec.rpm = 0.0
+	root.add_child(ec)
+	var es = EngineSound.new()
+	es.car = ec
+	ec.add_child(es)
+	es.engine_off()
+	es.start_up(true, false)
+	for f in 150:
+		es._process(1.0 / 60.0)
+	fails += _check(es.doors == 1 and es.starts == 0 and es.level >= 1.0, "an electric car: the door, no starter, awake (level %.2f)" % es.level)
+	ec.queue_free()
 
 
 func _check(ok: bool, msg: String) -> int:

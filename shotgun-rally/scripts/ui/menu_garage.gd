@@ -29,10 +29,12 @@ signal ready_to_show
 
 const GarageRoom = preload("res://scripts/ui/garage_room.gd")
 const RallyCar = preload("res://scripts/vehicle/rally_car.gd")
+const EngineSound = preload("res://scripts/vehicle/engine_sound.gd")
 const Graphics = preload("res://scripts/render/graphics.gd")
 const WorldMaterials = preload("res://scripts/render/world_materials.gd")
 
 const SPOT := GarageRoom.SPOT
+const GARAGE_IDLE := 3.5                 # s the engine idles after DRIVE THIS ONE starts it, then fades
 const YAW := PI                          # the car's nose toward the back wall (driven in), the hero camera
 ## The home loop's key points (the room's coordinates, m), the hero view first; a
 ## centripetal Catmull-Rom spline through them (no overshoot past them)
@@ -130,6 +132,23 @@ func show_car(setup: Dictionary) -> void:
 		return
 	car.apply_setup(setup)
 	_park()
+
+
+## DRIVE THIS ONE: the door shuts and its engine starts (EngineSound.start_up), idles a few seconds
+## and fades out.
+func start_engine() -> void:
+	if car == null:
+		return
+	var old: Node = car.get_node_or_null("GarageEngine")
+	if old:
+		old.free()
+	var e = EngineSound.new()
+	e.name = "GarageEngine"
+	e.car = car
+	car.add_child(e)
+	e.engine_off()
+	e.start_up(true, false)
+	e.fade_out_after(GARAGE_IDLE)
 
 
 ## CARS open: the showroom orbit; closed: back to the home loop. Either starts where the

@@ -67,6 +67,7 @@ signal progress(fraction: float, what: String)
 signal stage_generated
 
 const COUNTDOWN := 5.0
+const ENGINE_START_LATEST := 2.5     # s after the stage is built the engine starts whatever (no loading screen to wait for)
 const CRASH_DV := 4.0                # m/s of speed lost at once: cut up counts it as a crash
 const RESET_PENALTY := 5.0
 const JUMP_START_PENALTY := 10.0
@@ -132,6 +133,9 @@ var _settings_from: Button           # the pause menu's button that opened it (t
 var _t_alive := 0.0
 var _sfx := {}
 var _engine                        # EngineSound
+var _engine_started := false        # the start-up's begun (the door, the starter: start_engine)
+var _engine_asked := false
+var _engine_wait := 0.0
 var _gravel: AudioStreamPlayer3D
 var _squeal: AudioStreamPlayer3D     # the tyres on the asphalt, sliding (off: TYRE_SQUEAL)
 var _squeal_amt := 0.0
@@ -890,6 +894,10 @@ func _input(e: InputEvent) -> void:
 func _process(dt: float) -> void:
 	if not built or replay.active:
 		return                                    # (a replay is on: its own keys, its own camera)
+	if not _engine_started:
+		_engine_wait += dt
+		if (_engine_asked and not (ai and ai.busy())) or _engine_wait > ENGINE_START_LATEST:
+			_start_engine_now()
 	# wipers: the co-driver's job (the driver's when alone)
 	if Input.is_action_just_pressed("wipers") and (my_seat == "codriver" or Net.peer_in("codriver") == 0):
 		if Net.online() and not street_online:
@@ -1009,6 +1017,7 @@ func _audio() -> void:
 	_engine.name = "EngineSound"
 	_engine.car = car
 	car.add_child(_engine)
+	_engine.engine_off()                             # (silent till the stage shows: start_engine)
 	_gravel = AudioStreamPlayer3D.new()
 	_gravel.stream = EngineSound.looped("res://assets/sfx/gravel.wav")
 	_gravel.unit_size = 6.0
@@ -1030,6 +1039,18 @@ func _audio() -> void:
 		p.bus = "SFX"
 		add_child(p)
 		_sfx[n] = p
+
+
+## The stage is on screen (Main, when the loading screen's gone): the door shuts and the engine
+## starts (EngineSound.start_up), once the co-driver's done saying he's ready.
+func start_engine() -> void:
+	_engine_asked = true
+
+
+func _start_engine_now() -> void:
+	_engine_started = true
+	if _engine:
+		_engine.start_up(true, cam != null and cam.view == "seat")
 
 
 func _play(n: String, db := 0.0) -> void:

@@ -354,8 +354,14 @@ func load_stage(s: int, n: int, o: Dictionary) -> void:
 	_loading = false
 	game.finished.connect(_on_stage_finished)
 	_test_setup()
+	var g = game
 	if screen and not Config.flag("shot_loading"):
+		screen.tree_exited.connect(func():                  # (the door and the engine start as the stage shows)
+			if is_instance_valid(g):
+				g.start_engine())
 		screen.finish()
+	elif not screen:
+		game.start_engine()
 
 
 ## What a stage is, for the loading screen: "of gravel", "of mountain pass" ...

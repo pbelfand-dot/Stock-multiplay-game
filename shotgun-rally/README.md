@@ -359,6 +359,12 @@ Each car has an engine type (`EngineSound.ENGINES`):
 - **Both Rotoras** play a Ferrari 458's V8, for the rotary's high-revving scream, with a turbo and a
   blow-off.
 
+**Starting up:** when a stage comes up the door shuts (from inside in the seat view, from outside
+in the chase view) and the engine cranks, catches with a blip of revs and settles to its idle; an
+electric car just wakes up. Touch the throttle first and it starts straight away. Picking DRIVE THIS
+ONE in the garage does the same to the car on the spot, which idles a few seconds and fades.
+Real recordings: Nox Sound Design's *Vehicle Essentials* (CC0, `assets/sfx/vehicle/`).
+
 The co-driver's machine hears the same. Every effect dips ~10 dB whenever the co-driver talks
 (SETTINGS: EFFECTS and CO-DRIVER VOICE), and your own music 14 dB. Where the sounds come from, and a licence note (not cleared
 for a public release): [tools/engine_sound/README.md](tools/engine_sound/README.md).
@@ -858,6 +864,11 @@ real voice.
 - Co-driver voice: Higgsfield Seed Audio 1.0, preset voice "Fraser", made for the Rally Co-Driver
   GPS app ([driver-test-app](https://github.com/pbelfand-dot/driver-test-app)).
 - Sound effects are synthesized (`tools/make_sfx.py`, plus BAGHOLDERS' engine / crash / bell sounds,
-  also synthesized). No samples.
+  also synthesized); the engines are recordings ([tools/engine_sound/README.md](tools/engine_sound/README.md)).
+- The start-up's door and starter: [Nox Sound Design](https://nox-sound-design.itch.io/essentials-series-sfx-nox-sound),
+  *Vehicle Essentials*, CC0 1.0 (`assets/sfx/vehicle/README.md`). The owner's full vehicle-sound library
+  is in `assets/sfx/vehicle_core/` (kept out of the builds): its *Vehicle SFX Free* sounds need the credit
+  "Vehicle SFX Free by heyheythere - https://heyheythere.itch.io/vehicle-sfx-free - CC BY 4.0" if any is
+  ever used in the game (none is yet).
 - Font: [Oswald](https://github.com/googlefonts/OswaldFont), SIL Open Font License (`assets/fonts/OFL-Oswald.txt`).
 - *Left Left Left!* belongs to its creator. We borrow the idea of the game, not their art, name or UI.
